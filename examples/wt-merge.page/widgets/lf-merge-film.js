@@ -21,9 +21,7 @@
 
 import {
   holdFocus,
-  preserveReadingRegions,
   scrollIntoView,
-  shownWindow,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
@@ -312,7 +310,7 @@ customElements.define(
           offset(10),
           shift({
             boundary: this.stage,
-            rootBoundary: this.hasAttribute("data-phone") ? shownWindow() : "document",
+            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
             padding: 10,
             crossAxis: true,
           }),
@@ -407,14 +405,7 @@ customElements.define(
     #paint() {
       const narrow = this.stage.clientWidth < 560;
       const painter = narrow ? this.phonePainter : this.desktopPainter;
-      if (painter !== this.painter)
-        void preserveReadingRegions(this, () => {
-          this.#draw(narrow, painter);
-          this.dispatchEvent(
-            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-          );
-        });
-      else this.#draw(narrow, painter);
+      this.#draw(narrow, painter);
     }
 
     #draw(narrow, painter) {

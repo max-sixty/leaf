@@ -76,7 +76,7 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         }
     with subtests.test("landing room"):
         initial = page.evaluate("""async () => {
-          const {landingInsets} = await window.__lfWidgetApi();
+          const {landingInsets} = await window.__lfCheckApi();
           const before = landingInsets(document.documentElement).top;
           const make = (id, height) => {
             const header = document.createElement('div');
@@ -95,7 +95,7 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
             rendered(page)
             return (
                 page.evaluate("""async () => {
-              const {landingInsets} = await window.__lfWidgetApi();
+              const {landingInsets} = await window.__lfCheckApi();
               return landingInsets(document.documentElement).top;
             }""")
                 - initial

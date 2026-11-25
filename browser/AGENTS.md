@@ -96,16 +96,16 @@ rule draws at once is drawn.
   as a glide does, whose landing then places the destination (`scrolling.js`), or the
   box's content, as a ride does (`box-motion.js`). A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
-  control under the user's hands; for a reader whose focus is scrolled away, the
-  reading line where growth starts between anchoring's box and it; and a place the
-  change hides. A reader who focused nothing is anchoring's to keep. A reading from outside the tab
+  control under the user's hands, and for a reader whose focus is scrolled away, the
+  reading line where growth starts between anchoring's box and it. A place a widget's
+  own change hides, as the dial's fold does, is the widget's to keep. A reader who
+  focused nothing is anchoring's to keep. A reading from outside the tab
   takes it where it is applied and keeps it once the page shows it
   (`state-application.js`), whichever surfaces the reading redraws. A surface that
   changes with no reading behind it takes the same hold around that change, as Page
-  Map does when a widget's own contribution joins it, and the dial around its fold; a
-  gesture's own result is its handler's to place. Owner: `user-place.js`
-  (`holdUserPlace`, `holdPlace`, `holdPlaceOf`), whose header records the costs the
-  user accepted.
+  Map does when a widget's own contribution joins it; a gesture's own result is its
+  handler's to place. Owner: `user-place.js` (`holdUserPlace`, `holdPlaceOf`), whose
+  header records the costs the user accepted.
   Checks:
   `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`,
   `test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still`.
@@ -678,10 +678,9 @@ follow the browser's focus visibility. `geometry.js` decides whether the user ca
 box (`seenRect`), because Leaf's chrome covers the page without clipping it: each
 surface fixed over the page declares the one box it covers (`declareCover`), and a box
 is in front of the user where no scroller clips it and no such box covers it.
-`user-place.js` holds the user's place across one change (`holdPlaceOf`, and `holdPlace`
-around a module's own), because scroll anchoring holds the first box on screen: it
-can't keep still a control below growth on screen, the reading line below growth inside
-that box, or a place the change hides.
+`user-place.js` holds the user's place across one change (`holdPlaceOf`), because
+scroll anchoring holds the first box on screen: it can't keep still a control below
+growth on screen, or the reading line below growth inside that box.
 
 ### One writer for each fact
 
@@ -777,7 +776,6 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                           |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                                  |
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
-| Holding what the reader reads across a module's own change that hides it                              | `user-place.js` `holdPlace`                                                            |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
 | Whether a press is a plain primary-button press with no modifier                                      | `lib/keys.js` `plainPress`                                                             |
 | Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |

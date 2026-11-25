@@ -1569,7 +1569,7 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
         # foot.
         shot.evaluate(
             """async shot => {
-              const band = (await window.__lfWidgetApi()).landingInsets(
+              const band = (await window.__lfCheckApi()).landingInsets(
                 document.scrollingElement).bottom;
               scrollBy({top: shot.getBoundingClientRect().bottom - (innerHeight - band),
                 behavior: 'instant'});

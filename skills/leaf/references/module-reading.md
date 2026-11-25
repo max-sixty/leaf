@@ -15,8 +15,6 @@ supply these boundaries; a closed popover is supported.
 Inline values stay in their sentence, and ordinary HTML source indentation collapses.
 `{drawn: true}` keeps only the words the page draws now, and `until` names an element
 to stop at.
-`phrasing(element)` says whether an element stands within a line of words, as HTML's
-phrasing content and a widget declaring `inline` do, rather than starting a block.
 To name one of the widget's own parts, use `named(element)`, which returns only the words
 the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
 `<pre>` body with the library's
@@ -69,14 +67,6 @@ card's, a board card's or a column's is, which names its element on every widget
 that takes it (the registry's `$attributes`), whether or not the widget draws it.
 The page's name is its own `<title>`, which `document.title` doesn't give while the
 tab's title counts what waits on the user in front of it.
-
-`titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
-or `article` that opens with it, alone or in that `hgroup`, and a heading inside a
-widget titles only itself. A heading after other content, or opening any other
-element, titles only itself. `lf-toc` links each heading to one of them, and a heading's
-link preview counts a thread about any of them.
-
-`anchorLabel(anchor, about)` names a comment's anchor as Threads does.
 
 ### Reading declarations
 
@@ -160,11 +150,8 @@ the block, as `lf-code` draws its notes mark and a draft its editing marks, sets
 block's `lfBar` to the `.lf-mark-bar` it places and shows over the block, and Leaf
 stands Copy last in it. Place the bar in the seat a lone Copy has: inside the block's
 top-right corner, `--lf-block-control-inset` from both of the block's outer edges. A copy that stands among a widget's own controls rather than
-over a block, such as in a popover's header, is `copyControl(className, {label,
-success, error, role})`, a press of `role`, such as `"symbol"` for Copy's symbol; to
-copy through a press of your own built by its role, pass it as `trigger` instead. Set
-its `value` before it copies, and it reports `success` or `error` as a code block's
-does.
+over a block, such as in a popover's header, is the UI library's `wa-copy-button`,
+which the widget builds and gives its `value`.
 
 ### Media URLs
 
@@ -257,9 +244,9 @@ arrives. Each `source.kind` adds its own facts:
 (`module-state.md`, "Declared widget state").
 
 A module that counts items per heading as the reader moves through them, as `lf-toc`
-does, gives each heading the stretch of the page from the element it titles
-(`titledElement`, "Naming") to the next heading's, and counts each item in the stretch
-holding its first word, comparing positions with `compareDocumentPosition`.
+does, gives each heading the stretch of the page from the element it opens, such as
+its `section`, to the next heading's, and counts each item in the stretch holding its
+first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone; a row of the On lists opens by its `id`.

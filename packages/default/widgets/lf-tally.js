@@ -21,10 +21,9 @@ import { render as tallyTemplate } from "./tally-view.js";
  *
  * One retained Lit drawing follows the server's
  * reading in the same nodes. Its room holds the widest words, both sides two digits
- * wide and the agent called "the agent", so the words change without moving the control
- * beside them or what follows. A longer count or agent name widens the room once. */
+ * wide, so the words change without moving the control beside them or what follows. A
+ * longer count widens the room once. */
 import {
-  agentName,
   elementById,
   obligationActions,
   readObligations,
@@ -52,8 +51,7 @@ customElements.define(
       const ready = readObligations().phase === "ready" && Boolean(region);
       const held = ready && region ? readObligations(region).all : [];
       const count = tally(held);
-      // The drawing's two rooms hold the widest words, one calling the agent "the
-      // agent" and one by its name; a longer count widens them once.
+      // The drawing's room holds the widest words; a longer count widens it once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
       const widest = { onUser: digits, onAgent: digits, open: digits, total: digits };
       return tallyTemplate(
@@ -61,9 +59,8 @@ customElements.define(
         {
           ready,
           done: Boolean(held.length && !count.open),
-          generic: tallyWords(widest, "the agent"),
-          named: tallyWords(widest, agentName()),
-          words: ready ? tallyWords(count, agentName()) : "",
+          widest: tallyWords(widest, "the agent"),
+          words: ready ? tallyWords(count, "the agent") : "",
           onUser: count.onUser,
         },
         this.#next,

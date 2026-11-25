@@ -484,6 +484,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const api = await window.__lfWidgetApi();
           const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {
+            clockValue,
             projectionRegionsPresented,
             readApplicationPresentation,
             whenApplicationRegionsPresented,
@@ -507,7 +508,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
                 });
                 return noChange;
               }
-              api.clockValue(() => window.__proofClock);
+              clockValue(() => window.__proofClock);
               window.__proofReads.push(api.readReports({kind: 'widget', id: owner.id}).reports.map(report => report.text));
               return noChange;
             }

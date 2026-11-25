@@ -73,7 +73,7 @@
  * whatever its answer. A lone
  * open mark on that line read as an empty list bullet; Leaf's dot already means an unread
  * reply, and a mark before the name read as a bullet too. While one is open and none waits on
- * the user, the line shows an open mark and whose turn it is: "On Claude" (`agentName`) while
+ * the user, the line shows an open mark and whose turn it is: "On the agent" while
  * one is the agent's, as after the user comments on it, else "Open", as in a resolved thread.
  * Once every one is answered it shows a check, with the answer's own words where the panel
  * holds one obligation. So a queue shows each obligation's state and how far the user has
@@ -88,7 +88,6 @@
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   nameOf,
-  agentName,
   answerWords,
   backgroundFlash,
   comparisonChanges,
@@ -99,7 +98,6 @@ import {
   readObligations,
   focusDestination,
   scrollIntoView,
-  landingInsets,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
@@ -424,7 +422,7 @@ export class TabSet extends LeafElement {
     const { onUser, onAgent, open, total } = tally(items);
     const answered = total > 0 && open === 0;
     const only = total === 1 ? items[0] : null;
-    const turn = onUser ? "To answer" : onAgent ? `On ${agentName()}` : "Open";
+    const turn = onUser ? "To answer" : onAgent ? "On the agent" : "Open";
     const answer = answered
       ? only
         ? answerWords(only)
@@ -687,8 +685,11 @@ export class TabSet extends LeafElement {
     if (!run) return;
     const label = run.querySelector(":scope > .lf-tab-group");
     if (label && getComputedStyle(strip).flexDirection === "row") {
-      const inset = landingInsets(strip);
-      const room = strip.clientWidth - inset.left - inset.right;
+      const inset = getComputedStyle(strip);
+      const room =
+        strip.clientWidth -
+        (Number.parseFloat(inset.scrollPaddingLeft) || 0) -
+        (Number.parseFloat(inset.scrollPaddingRight) || 0);
       const gap = Number.parseFloat(getComputedStyle(run).columnGap) || 0;
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;

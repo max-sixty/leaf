@@ -67,11 +67,9 @@
  * and comment identity before retiring the old surface. Inspection can settle on the
  * still-visible capture during that wait. Filmstrip frames retain the latest
  * same-page saved checkpoint and its exact comment identity. Saved elements has one
- * stable disclosure, a reading region whose subject is the checkpoint whose tree it
- * shows: the runtime keeps the reader's place in each checkpoint's tree, and returns
- * them to it as the tree opens or the checkpoint returns
- * (reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
- * the disclosure and lands on its destination instead.
+ * stable disclosure, a reading region that shows each checkpoint's tree in turn at the
+ * one offset the box keeps. Explicit destination navigation opens the disclosure and
+ * lands on its destination instead.
  */
 import {
   html,
@@ -85,7 +83,6 @@ import {
   repeat,
 } from "/vendor/lit.js";
 import {
-  alreadyShown,
   focusDestination,
   holdFocus,
   move,
@@ -94,7 +91,6 @@ import {
   retainUserIntent,
   scrollIntoView,
   setChildren,
-  showReadingSubject,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -1447,10 +1443,10 @@ export class Trace extends LeafElement {
       if (row) scrollIntoView(row, { block: "nearest", behavior: "smooth" });
       return;
     }
-    // The moment's picture comes to the middle of the window where the user does not
-    // already see it whole, as a pane or the floating panel can keep it from them.
-    if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
-      scrollIntoView(this.#nodes.stage, { block: "center", behavior: "smooth" });
+    // The moment's picture comes in at the nearest edge where the user does not
+    // already see it whole, and nothing moves where they do.
+    if (this.#pictureId)
+      scrollIntoView(this.#nodes.stage, { block: "nearest", behavior: "smooth" });
   }
 
   #stream() {
@@ -2567,9 +2563,6 @@ export class Trace extends LeafElement {
         }))
       : [];
     if (point?.action) this.#metadataPoint = point;
-    const treeScope = treePoint
-      ? this.#phaseId(treePoint.action, treePoint.phase)
-      : null;
     if (image) {
       if (!this.#images.has(image.id)) {
         const figure = el("figure", "lf-trace-image");
@@ -2632,12 +2625,9 @@ export class Trace extends LeafElement {
       keeps(img, "height", String(image.height));
     }
     this.#drawPicture(image);
-    // Saved trees replace each other under their archive phase identity, and the
-    // reader's place in each is kept through empty frames and returns.
-    showReadingSubject(this.#nodes.tree, treeScope, () => {
-      this.#drawing = [point, evidence, rows];
-      render(this.#template(...this.#drawing), this.#view, this.renderOptions);
-    });
+    // Saved trees replace each other in one box, which keeps one scroll offset.
+    this.#drawing = [point, evidence, rows];
+    render(this.#template(...this.#drawing), this.#view, this.renderOptions);
     this.#missingImage.toggleAttribute("hidden", !!this.#pictureId);
     keepsText(
       this.#missingImage,

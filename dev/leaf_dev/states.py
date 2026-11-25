@@ -2703,6 +2703,67 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def agent_at_work(page: Page) -> None:
+    """The agent at work on the user's comment on the plan's result, so the work's bar
+    stands beside that paragraph and the comment's marks stand on its words."""
+    client = PageClient(served_page.get().address)
+    asked = client.post(
+        {
+            "kind": "comment",
+            "attempt": "stills-marks-at-work",
+            "text": "Can this say what the supervisor owns?",
+            "anchor": {
+                "section": "plan-result",
+                "quote": "give a trusted supervisor control of the whole run",
+            },
+        }
+    )
+    as_agent(
+        "task", "start", asked["id"], "--text", "Rewriting the supervisor's paragraph"
+    )
+    wait_until_ready(page, client.state(), through="state")
+    page.locator(".lf-at-work-bar").wait_for()
+
+
+def plan_marks(page: Page) -> None:
+    """Leaf's marks on the page's blocks meeting one another: the agent's bar at work on
+    a paragraph the user aims at with Alt, which holds their comment; the changes since
+    the earlier version barred in the margin; and the keyboard on the changed status
+    line's Change entry, which traces that line. The agent's bars stand in one lane
+    clear of the user's marks (margin-bars.js)."""
+    agent_at_work(page)
+    versions_menu(page)
+    page.keyboard.press("v")
+    page.locator(".lf-change-bar").first.wait_for()
+    page.keyboard.press("Escape")
+    keyboard_modality(page)
+    page.locator('[data-lf-margin-for="plan-status"] .lf-margin-marker').focus()
+    page.locator("#plan-top").evaluate(
+        "top => top.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    box = page.locator("#plan-result").bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + 60, box["y"] + box["height"] - 10)
+    page.keyboard.down("Alt")
+    page.wait_for_function(
+        "() => document.getElementById('plan-result')?.hasAttribute('data-lf-aimed')"
+    )
+
+
+def plan_marks_draft(page: Page) -> None:
+    """The user's draft comment on a passage, washed in their ink, in the paragraph
+    above the one the agent's bar stands at work beside."""
+    agent_at_work(page)
+    box = page.locator("#plan-current").bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + 2, box["y"] + 10)
+    page.mouse.down()
+    page.mouse.move(box["x"] + 200, box["y"] + 10, steps=8)
+    page.mouse.up()
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Say what this rests on")
+
+
 def breakout_captions_scrolled(page: Page) -> None:
     """Keep the captions visible after scrolling both tables to their far ends."""
     page.locator("table").evaluate_all("""tables => tables.forEach(table => {
@@ -4060,6 +4121,8 @@ STATES = (
     State("proxy-gloss", "pr-walkthrough", proxy_gloss),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
+    State("plan-marks", "review-a-plan", plan_marks),
+    State("plan-marks-draft", "review-a-plan", plan_marks_draft),
     State(
         "plan-card-reply-resolved-elsewhere",
         "review-a-plan",

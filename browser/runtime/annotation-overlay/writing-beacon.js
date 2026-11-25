@@ -49,7 +49,7 @@ import { keeps, layoutPx, inlineStyle } from "../lib/keeps.js";
 import { offerActionElement } from "../lib/controls.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { move } from "../dom-move.js";
+import { move } from "../lib/dom-move.js";
 
 /** @typedef {"up" | "down"} Towards */
 

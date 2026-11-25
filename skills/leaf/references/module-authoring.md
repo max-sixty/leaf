@@ -60,8 +60,6 @@ In this file:
 
 - "Startup and presentation": `whenNear` defers heavy work until the reader comes
   near.
-- "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
-  place nodes the module keeps.
 - "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
   styles.
 - "Contained examples and scoped appearance": `mountSample` mounts a contained Leaf
@@ -69,9 +67,7 @@ In this file:
 
 In [module-state.md](module-state.md):
 
-- "State only this tab keeps": `tabStore` keeps a string for this tab, and
-  `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
-  which Leaf remembers, names in the address and returns the user to their place in.
+- "State only this tab keeps": `tabStore` keeps a string for this tab.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
@@ -88,8 +84,7 @@ In [module-reading.md](module-reading.md):
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues` and
   `answerWords`.
-- "Work hierarchies": `readWork`.
-- "Page history and reports": `readHistory` and `readReports`.
+- "Page history and reports": `readHistory`.
 - "Reading version changes": `comparisonChanges`.
 
 In [module-input.md](module-input.md):
@@ -281,7 +276,7 @@ back (`module-input.md`, "Focus and layers").
 Leaf also replaces a widget that declares `lfPatch` when a revision changes what its
 module drew from, which it takes to be the element's own attributes. A module that also
 draws from which children it has, or from their attributes, as a tab strip shows each
-tab's `label`, declares `content: members` or `views`. Leaf then also replaces the
+tab's `label`, declares `content: members`. Leaf then also replaces the
 widget when a direct child is added, removed, reordered or given other attributes.
 Without either declaration the module keeps its first drawing of a child the revision
 changed. Leaf compares only each direct child's tag and attributes, and a revision
@@ -340,14 +335,11 @@ readings.
   `display` there. A shadow template uses native slots for authored children, keeping
   their nodes and browser state in the light DOM. Where the markup can't say how tall
   the drawing will be, the page moves once as it draws.
-- A widget that shows one member at a time declares `views: {members: "selector"}`;
-  the browser matches the selector against each direct authored child, including
-  while HTML is still arriving. A selector that depends on descendants, such as
-  `:has()`, can change membership as they arrive; use the child's own start tag for
-  stable first-paint membership. Open and keep its members as `module-state.md`, "State
-  only this tab keeps", describes. A holder whose members share the surrounding page's
-  flow declares `flow`, as its members do, so a member's wide blocks and sidebar take
-  the page's room.
+- A widget that shows one member at a time says in its stylesheet which member stands
+  before its module runs, such as the first with `:not(:defined)`, and opens its members
+  as `module-state.md`, "State only this tab keeps", describes. A holder whose members
+  share the surrounding page's flow declares `flow`, so a member's wide blocks and
+  sidebar take the page's room.
 
 ## Rendering
 
@@ -367,14 +359,17 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Retained nodes
 
-To place nodes the module keeps, use `setChildren(parent, nodes)`, which makes `nodes`
-the parent's only children, moving what is out of order and removing every other child,
-the whitespace between authored elements included, or `move(parent, node, before)` for
-one node. Where nodes move between parents, place every list at once with
-`setChildLists([[parent, nodes], …])`, outer parents first. For a subtree the renderer
-owns entirely, `setRenderedChildren(parent, nodes)` edits only changed text and keeps a
-text selection the user made in it. A `LeafElement` places retained nodes in its
-`render()`, which then returns `nothing`.
+To place nodes the module keeps, use the library's
+[`dom-children.js`](../../../browser/runtime/lib/dom-children.js). Its `setChildren`
+makes a list of nodes a parent's only children, moving what is out of order and
+removing every other child, the whitespace between authored elements included. Where
+nodes move between parents, `setChildLists` places every list at once, outer parents
+first. For a subtree the renderer owns entirely, `setRenderedChildren` edits only
+changed text and keeps a text selection the user made in it. For one node, use the
+browser's `moveBefore`, or the `move` of the library's
+[`dom-move.js`](../../../browser/runtime/lib/dom-move.js), which also keeps the user's
+focus in WebKit. A `LeafElement` places retained nodes in its `render()`, which then
+returns `nothing`.
 
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page

@@ -346,7 +346,7 @@ A widget's own navigation that waits, such as for a file or renderer to load, mo
 focus or scroll after the wait only where the user has done nothing since the gesture
 that started it. The library's
 [`input-since.js`](../../../browser/runtime/lib/input-since.js) says so:
-`const intended = noInputSince()` in that gesture, and `intended()` after each wait.
+`const intended = noInputSince()` in that gesture, and a call of `intended` after each wait.
 `go` keeps the same rule itself (`module-reading.md`, "Taking the user somewhere").
 
 ### Pointer presses

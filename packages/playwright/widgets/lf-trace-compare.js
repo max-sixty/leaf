@@ -4,17 +4,17 @@
  * reaches recordings whose data arrives later. Source switches share the image
  * inspection view and pause hidden recordings without moving their playheads.
  * Each direct child is one recording view: a trace or any wrapper holding one,
- * including its caption. Membership is known from its start tag, so a partial
- * second wrapper stays hidden while the parser is still receiving its trace.
+ * including its caption. One view shows at a time, the one the address or this tab
+ * names, else the first (lib/one-shown.js).
  * Shared introductory text belongs outside the comparison. The chooser's
  * measured height clears focus and navigation inside those views. */
-import { keepView, openingView, viewMembers } from "/runtime/widget-api.js";
 import { el } from "/runtime/lib/elements.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer } from "/runtime/lib/controls.js";
 import { cancelRender, nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
+import { openingMember, showMember } from "/runtime/lib/one-shown.js";
 import "./lf-trace.js";
 
 /** @typedef {{index: number, view: Element, recording: import("./lf-trace.js").Trace}} TraceMember */
@@ -32,7 +32,10 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       const recordings = [...this.querySelectorAll("lf-trace")];
-      for (const child of viewMembers(this)) {
+      const views = [...this.children].filter(
+        (child) => !child.matches("script, style, template, [data-lf-gen]"),
+      );
+      for (const child of views) {
         const recording = recordings.find(
           (trace) => trace === child || child.contains(trace),
         );
@@ -42,7 +45,7 @@ customElements.define(
           );
         this.#members.push({ index: this.#members.length, view: child, recording });
       }
-      const opening = openingView(this);
+      const opening = openingMember(this, views) ?? views[0];
       this.#selected = this.#members.find((member) => member.view === opening) ?? null;
       const header = el("div", "lf-trace-compare-controls");
       keeps(header, "data-lf-gen", "1");
@@ -110,7 +113,11 @@ customElements.define(
     #draw() {
       // Reveal first, so a synchronous layout read never observes an empty
       // workspace and clamps the document's scroll position to its shorter end.
-      keepView(this, this.#selected?.view ?? null);
+      showMember(
+        this,
+        this.#members.map((member) => member.view),
+        this.#selected?.view ?? null,
+      );
       for (const member of this.#members) {
         const { recording } = member;
         if (member !== this.#selected) recording.pause();

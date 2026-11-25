@@ -15,7 +15,8 @@
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user on it. */
 import { html, render, nothing } from "/vendor/lit.js";
-import { elementById, go, setChildLists, setChildren } from "/runtime/widget-api.js";
+import { elementById, go } from "/runtime/widget-api.js";
+import { setChildLists, setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { el } from "/runtime/lib/elements.js";
 import { nameAction, offerAction } from "/runtime/lib/controls.js";

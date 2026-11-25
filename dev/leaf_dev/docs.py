@@ -191,7 +191,7 @@ KEY_SECTIONS = {
         "How the element's words read to the passage reader, the render check and a "
         "browser that hasn't run its module.",
     ),
-    "views": (
+    "parts": (
         "Paint",
         "How the element's box is laid out at first paint, before any module runs.",
     ),

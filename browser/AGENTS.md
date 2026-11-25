@@ -15,9 +15,9 @@ These rules hold for everything Leaf draws: its runtime, its chrome and its bund
 packages. Each section opens with a goal, which
 `../skills/leaf/references/interface-goals.md` gives other authors too, and the specs
 under it are Leaf's own ways of meeting it; weigh a case no spec covers against its goal
-and `../skills/leaf/SOUL.md`. A spec records the current design, and a change that
-meets the goal more simply replaces the spec and its check (root `AGENTS.md`'s
-opening). A spec names its check and owner where one exists. How
+and `../skills/leaf/SOUL.md`. A spec is guidance toward its goal, weighed
+as root `AGENTS.md`'s opening says: a change that meets the goal more simply rewrites
+the spec and its check. A spec names its check and owner where one exists. How
 the owner meets it, and any exception the user chose for one surface, belong in that owner's header and
 the check's credit, not here. Which specs should also bind other authors is still being
 settled. Leaf targets desktop first, so judge layout at a representative desktop
@@ -91,7 +91,7 @@ rule draws at once is drawn.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
-  and a message's words (`setRenderedChildren` in `dom-children.js`) do. Leaf turns
+  and a message's words (`setRenderedChildren` in `lib/dom-children.js`) do. Leaf turns
   anchoring off in a box the reader reads in only while its own motion moves the box,
   as a glide does, whose landing then places the destination (`scrolling.js`), or the
   box's content, as a ride does (`box-motion.js`). A revision then restores the reader's
@@ -754,7 +754,6 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                                |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                                |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                              |
-| Which member a widget shows of several, its name in the address, and the user's place in each         | `views.js` `keepView`, `entryView`                                                     |
 | Where the user's caret stands, and its element, through open shadow trees                             | `native-selection.js` `userCaret`                                                      |
 | The page place focus or the caret identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                           |
@@ -766,8 +765,8 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | The next element in a walk; Chromium keeps each `children` or `childNodes` list for its node's life   | `firstElementChild` and `nextElementSibling`, or `firstChild` and `nextSibling`        |
 | The nodes a node draws as its children, through the shadow roots the walk names (`rootOf`)            | `lib/shadow-tree.js` `eachRenderedChild`, `eachRenderedElement`                        |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                    |
-| Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                    |
-| Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                        |
+| Move a node, keeping the user's place in it                                                           | `lib/dom-move.js` `move(parent, node, before)` (_lint_)                                |
+| Make a list of nodes, some already placed, a parent's children                                        | `lib/dom-children.js` `setChildren`                                                    |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                                 |
 | Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `keyboard/text-entry.js` `nativeClaimAt`                                               |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                      |
@@ -931,9 +930,8 @@ Use a boolean only when false has one clear meaning; otherwise declare named val
 
 Add a fact only where Leaf's server or `page check` must act on it without running the
 widget's module, and the module can't keep the same rule itself. How an element stands
-before its module draws is its package's stylesheet's to say, and a shift as the module
-first draws costs no fact. A rule about one widget's markup that its module can check as it
-draws stays in the module, which reports a breach with an `error` event, even where
+before its module draws is its package's stylesheet's to say. A rule about one
+widget's markup that its module can check as it draws stays in the module, which reports a breach with an `error` event, even where
 static validation could observe the same breach. The author then hears of the breach
 from `page check --render`, and in a thread message only after the user opens the
 thread. Keep a rule static where a breach would otherwise reach the log or a stored

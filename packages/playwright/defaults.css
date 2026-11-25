@@ -929,12 +929,25 @@ lf-trace-compare lf-trace {
 }
 
 /* The chooser has fixed apparatus geometry; its native slot holds that room
- * while the module loads. View selection remains the shared view owner's job. */
+ * while the module loads, over the first view alone, and the module then opens the view
+ * the address or this tab names. A view not shown (`hidden="until-found"`) keeps its
+ * own box in flow; it takes no room. */
 @scope (html[data-lf-interactive]) {
   lf-trace-compare:not(:defined)::before {
     content: "";
     display: block;
     block-size: calc(var(--lf-chooser) + 2 * var(--lf-trace-chooser-padding) + 1px);
+  }
+  lf-trace-compare:not(:defined)
+    > :not(script, style, template)
+    ~ :not(script, style, template) {
+    display: none;
+  }
+  lf-trace-compare > [hidden="until-found"] {
+    block-size: 0;
+    min-block-size: 0;
+    padding-block: 0;
+    border-block-width: 0;
   }
 }
 

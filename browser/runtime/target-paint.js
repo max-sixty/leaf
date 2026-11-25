@@ -11,7 +11,7 @@
  * annotations mark their boxes through their own optional painter. */
 
 import { nextRender } from "./lib/frame-pass.js";
-import { move } from "./dom-move.js";
+import { move } from "./lib/dom-move.js";
 import { keeps, keepsOnEach } from "./lib/keeps.js";
 import { inkedBox, markedBox, readMarkerSides, shownParts } from "./geometry.js";
 import { renderedUnder } from "./lib/shadow-tree.js";

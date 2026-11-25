@@ -110,7 +110,7 @@ import {
 } from "./frame-visibility.js";
 import { keeps } from "./lib/keeps.js";
 import { inputInFrame } from "./focus.js";
-import { move } from "./dom-move.js";
+import { move } from "./lib/dom-move.js";
 import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { recordInteraction } from "./interaction-log.js";
 import { exceptionRecord } from "./lib/exception.js";

@@ -361,7 +361,7 @@
 }
 
 :where(input:not([data-lf-offer], .lf-chrome *))::placeholder {
-  color: var(--lf-muted);
+  color: var(--lf-quiet);
   opacity: 1;
 }
 }

@@ -157,3 +157,32 @@ def test_every_token_a_reference_names_is_one_leaf_uses():
     }
     unused = sorted(documented(PLUGIN_ROOT) - used)
     assert not unused, f"the references name properties Leaf never uses: {unused}"
+
+
+def test_no_token_is_only_another_name_for_one():
+    """Each token a theme sets stands for something a theme author would set apart
+    from every other token, so a token whose value is another token's, with no scope
+    restating it, is a second name for one setting: every reader could read the token
+    it names. Such names grew one per meaning a mark carries (`--lf-news`,
+    `--lf-thread` and `--lf-work` were each `--lf-accent`), until the theme listed
+    eleven settings that nothing set apart. A token another scope restates, as a
+    surface restates `--lf-ground`, is a setting of its own."""
+    tokens = COMMENT.sub("", (ASSETS / "styles/tokens.css").read_text())
+    aliases = re.findall(
+        r"(?<![\w-])(--lf-[\w-]+)\s*:\s*var\((--lf-[\w-]+)\)\s*;", tokens
+    )
+    assert aliases, "this reading has stopped finding tokens.css's declarations"
+    sheets = [COMMENT.sub("", sheet.read_text()) for sheet in shipped_sheets()]
+    only_names = sorted(
+        f"{name}: var({target})"
+        for name, target in aliases
+        if sum(
+            len(re.findall(rf"(?<![\w-]){re.escape(name)}\s*:", sheet))
+            for sheet in sheets
+        )
+        == 1
+    )
+    assert not only_names, (
+        "these tokens are only another name for the token they read, and no scope "
+        "restates them; read the token they name instead:\n  " + "\n  ".join(only_names)
+    )

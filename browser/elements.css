@@ -94,7 +94,7 @@ lf-new {
   padding: 0 3px;
 }
 /* --lf-ink-2, not --lf-muted: the strike and the tint already say retired, and muted on
- * the danger tint reads under 4.5:1 at body size, the least the contrast sweep holds
+ * the danger tint reads 4.8:1 in light, close to the 4.5:1 the contrast sweep holds
  * every user-facing word to. */
 lf-old {
   background: var(--lf-danger-tint);

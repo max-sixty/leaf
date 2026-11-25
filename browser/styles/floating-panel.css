@@ -11,7 +11,7 @@
    it shares with the other lists. Three inks: the ink, the muted (`--lf-muted`, tokens.css)
    for what qualifies a line, as every list's does, and the
    accent for what is on the user, with the empty field's words a step dimmer
-   (`--lf-muted`, tokens.css), as every empty box's are. The user chose a dim status, so
+   (`--lf-quiet`, tokens.css), as every empty box's are. The user chose a dim status, so
    it stays the dimmest words in the panel. Every row is one line. */
 @scope (.lf-chrome) {
   :is(.lf-floating-panel, .lf-fp-ground) {
@@ -630,7 +630,7 @@
     outline: none;
   }
   /* The empty field's words read dimmer than anything written in it, in every empty
-     box's face (`--lf-muted`, text-field.js): the agent's status, whose turn a thread is,
+     box's face (`--lf-quiet`, text-field.js): the agent's status, whose turn a thread is,
      and, once the caret is in, the field's word. A passing notice is news, so it reads
      a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
@@ -656,7 +656,7 @@
      (panel/floating-panel.js, `panelTemplate`), wear the ink every empty box's words do
      (theme, `--quiet`), where the editor says them. */
   .lf-fp-words {
-    color: var(--lf-muted);
+    color: var(--lf-quiet);
   }
   /* The textarea the user writes in there until the editor stands stands over those
      words (bootstrap.js, `standRow`) and draws its words as the editor does, in the
@@ -683,7 +683,7 @@
      such as a Resolve's Next thread, keeps that face whatever ink the words before it
      wear, in Leaf's italic whatever voice theirs is. */
   .lf-fp-field :is(.lf-compose-placeholder-enters, .lf-compose-press-word) {
-    color: var(--lf-muted);
+    color: var(--lf-quiet);
     font-style: italic;
   }
   .lf-fp-field
@@ -732,8 +732,7 @@
     .lf-floating-panel[data-lf-tone="working"]:not([data-lf-asks])
       .lf-fp-field
       leaf-text[data-lf-says="status"]::part(placeholder) {
-      /* Ink at 62%, about the muted face the placeholder rests in (`--lf-muted`,
-         tokens.css). */
+      /* The quiet face is ink at 62% (`--lf-quiet`, tokens.css). */
       --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
@@ -751,7 +750,7 @@
      the empty field's quiet face whatever ink the status wears: the user's own choices
      ask nothing of them. */
   .lf-fp-field leaf-text[data-lf-says="status"] .lf-fp-standing {
-    color: var(--lf-muted);
+    color: var(--lf-quiet);
   }
   .lf-floating-panel[data-lf-asks] {
     --lf-fp-asks: var(--lf-ink);
@@ -1886,7 +1885,7 @@
     place-items: center;
     width: 16px;
     height: 1lh;
-    color: var(--lf-muted);
+    color: var(--lf-quiet);
   }
   .lf-fp-plan-step:is([data-lf-state="waiting"], [data-lf-state="blocked"])
     > .lf-fp-plan-mark::before {

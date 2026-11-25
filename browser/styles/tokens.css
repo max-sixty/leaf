@@ -150,8 +150,7 @@
   --lf-paper: Canvas;
   --lf-ink: CanvasText;
   /* What qualifies a line, in the page's prose and the interface alike: a caption, a
-     row's end, a status, a group heading, a field's hint, and words that stand in for
-     what isn't there yet, such as an empty box's prompt. On the reading theme's paper
+     row's end, a status, a group heading, a field's hint. On the reading theme's paper
      it holds 4.5:1 against every surface the layer paints, tints and washes included;
      the darkest is a panel row washed by its linked passage's hover (--lf-mark-hover),
      where it reads 4.6:1 in either scheme. */
@@ -167,6 +166,11 @@
         calc(b * min(1.8, 1 + 0.014 / hypot(a, b)))
     )
   );
+  /* A step dimmer than --lf-muted, for words that stand in for what isn't there yet: an
+     empty box's prompt and its keys, and the floating panel's status. Ink at 62% is
+     as dim as WCAG AA's 4.5:1 lets text be on the page's paper in the light scheme,
+     where it reads 4.8:1; 48% reads 3.1:1. */
+  --lf-quiet: color-mix(in srgb, var(--lf-ink) 62%, transparent);
   --lf-rule: light-dark(
     oklab(
       from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 8.6%) l
@@ -191,7 +195,7 @@
   --lf-danger: light-dark(#b4402f, #d98b7a);
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
-     inline code, a tooltip, a checkbox, a mark, a word's highlight) takes --lf-r-s.
+     inline code, a checkbox, a mark, a word's highlight) takes --lf-r-s.
      A control or a box in the page's flow (a button, a field, a margin entry, a menu
      row, a code block, an option list) takes --lf-r. A surface floating over the page
      that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes

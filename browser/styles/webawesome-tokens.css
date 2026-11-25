@@ -61,7 +61,7 @@ wa-input {
   --wa-form-control-background-color: var(--lf-field);
   --wa-form-control-border-color: var(--lf-border);
   --wa-form-control-value-color: var(--lf-ink);
-  --wa-form-control-placeholder-color: var(--lf-muted);
+  --wa-form-control-placeholder-color: var(--lf-quiet);
   /* A line tall (`--lf-line`) whatever its type would make it, restated on each
      control so a place that sets the line sets it here too. */
   --wa-form-control-height: var(--lf-line);

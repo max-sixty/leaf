@@ -1840,13 +1840,13 @@ wa-copy-button.lf-icon-action {
   }
 }
 :is(input, textarea).lf-ui::placeholder {
-  color: var(--lf-muted);
+  color: var(--lf-quiet);
   opacity: 1;
 }
 /* #endregion */
 /* A field inside one of Leaf's boxes prompts as one that wears the class does. */
 .lf-ui :is(input, textarea)::placeholder {
-  color: var(--lf-muted);
+  color: var(--lf-quiet);
   opacity: 1;
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),

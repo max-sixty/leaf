@@ -281,20 +281,21 @@ Leaf derives these from the colours above, the neutrals as steps from `--lf-pape
 toward `--lf-ink`, so they follow a palette that sets those. A page's or package's
 rules read them, and a theme restates one it wants otherwise:
 
-| Token                                                | Draws                                                                                                              |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `--lf-card`                                          | A raised surface: a card, a panel, a control                                                                       |
-| `--lf-field`                                         | A tinted ground: a field, a callout                                                                                |
-| `--lf-chip`                                          | A neutral chip's ground, and inline code's                                                                         |
-| `--lf-rule`                                          | A hairline between rows or parts                                                                                   |
-| `--lf-border`                                        | A control's or a box's edge                                                                                        |
-| `--lf-muted`                                         | Words that qualify a line or stand in for what isn't there yet: a caption, a status, a hint, an empty box's prompt |
-| `--lf-ink-2`                                         | Secondary text, between the ink and `--lf-muted`                                                                   |
-| `--lf-accent-tint`                                   | The ground under an accented press, from `--lf-accent`                                                             |
-| `--lf-link-underline`                                | A link's underline, which stands `--lf-link-underline-offset` below its words                                      |
-| `--lf-offer-hover-shadow`                            | The wash under a press the pointer is over, as an inset `box-shadow`                                               |
-| `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint` | A status's ground, from the paper and that status's colour, which an added and a removed line stand on too         |
-| `--lf-hi-tint`                                       | The ground of a highlighted line                                                                                   |
+| Token                                                | Draws                                                                                                      |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--lf-card`                                          | A raised surface: a card, a panel, a control                                                               |
+| `--lf-field`                                         | A tinted ground: a field, a callout                                                                        |
+| `--lf-chip`                                          | A neutral chip's ground, and inline code's                                                                 |
+| `--lf-rule`                                          | A hairline between rows or parts                                                                           |
+| `--lf-border`                                        | A control's or a box's edge                                                                                |
+| `--lf-muted`                                         | Words that qualify a line: a caption, a status, a hint                                                     |
+| `--lf-quiet`                                         | Words standing in for what isn't there yet: an empty box's hint                                            |
+| `--lf-ink-2`                                         | Secondary text, between the ink and `--lf-muted`                                                           |
+| `--lf-accent-tint`                                   | The ground under an accented press, from `--lf-accent`                                                     |
+| `--lf-link-underline`                                | A link's underline, which stands `--lf-link-underline-offset` below its words                              |
+| `--lf-offer-hover-shadow`                            | The wash under a press the pointer is over, as an inset `box-shadow`                                       |
+| `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint` | A status's ground, from the paper and that status's colour, which an added and a removed line stand on too |
+| `--lf-hi-tint`                                       | The ground of a highlighted line                                                                           |
 
 Leaf's own marks wear these roles rather than tokens of their own, so a theme recolours
 a mark by setting its role. The user's marks wear `--lf-ok`: focus, the location ring,

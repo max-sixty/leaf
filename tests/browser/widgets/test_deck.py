@@ -195,34 +195,16 @@ def test_a_new_tab_opens_on_the_first_card_that_waits(browser, serve):
     open_card(second, "beta-ask")
 
 
-PAIR_DECK_PAGE = leaf_page(
-    "Deck with a card of two questions",
-    '<h1>Before the release</h1><lf-deck id="deck">'
-    '<lf-group id="pair-ask" label="Two calls on the store">'
-    + card("store", "Keep Redis?")
-    + card("cache", "Keep the cache?")
-    + "</lf-group>"
-    + card("notes", "Post the notes?")
-    + "</lf-deck>",
-)
-
-
-def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
-    """A card stays put when the answer that closes it comes from a window other than
-    this one, which is news, even where this window answered the card's other
-    question; Next then moves on."""
-    url = live_url(serve(PAIR_DECK_PAGE))
+def test_an_answer_from_another_window_moves_the_card_on_here_too(browser, serve):
+    """A card answered in another window moves on in this one too, as it would had
+    this window answered it."""
+    url = live_url(serve(DECK_PAGE))
     watching = open_page(browser, url)
-    open_card(watching, "pair-ask")
-    answer(watching, "store-yes")
-    open_card(watching, "pair-ask")
+    open_card(watching, "store-ask")
 
     answering = open_page(browser, url)
-    answer(answering, "cache-no")
-    expect(watching.locator("lf-deck .lf-deck-forward")).to_have_attribute(
-        "aria-label", "Next"
-    )
-    open_card(watching, "pair-ask")
+    answer(answering, "store-no")
+    open_card(watching, "beta-ask")
 
 
 def test_an_answer_read_back_late_moves_the_card_and_not_the_page(browser, serve):

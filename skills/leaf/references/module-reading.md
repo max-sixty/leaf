@@ -256,11 +256,6 @@ arrives. Each `source.kind` adds its own facts:
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
 (`module-state.md`, "Declared widget state").
 
-`sentHere(event)` says whether this page sent an event, as `sentHere(obligation.answer?.event)`
-says whether the answer that closed an obligation came from this page rather than
-another window or the agent. It reads the event's `attempt`, which the page that posts
-an event mints and a reading's reference to it carries.
-
 A module that counts items per heading as the reader moves through them, as `lf-toc`
 does, gives each heading the stretch of the page from the element it titles
 (`titledElement`, "Naming") to the next heading's, and counts each item in the stretch

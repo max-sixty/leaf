@@ -219,15 +219,11 @@ def settles(reaction: dict, turn: str, tokens: dict) -> bool:
 
 
 def event_reference(event: dict | None) -> dict | None:
-    """The admitted gesture that supplied an answer; authored state has none. Its
-    `attempt`, where the browser that sent it minted one, tells that browser the
-    answer was its own."""
+    """The admitted gesture that supplied an answer; authored state has none."""
     if event is None:
         return None
     return {
-        key: event[key]
-        for key in ("id", "kind", "seq", "ts", "author", "attempt")
-        if key in event
+        key: event[key] for key in ("id", "kind", "seq", "ts", "author") if key in event
     }
 
 

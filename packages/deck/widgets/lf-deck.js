@@ -3,18 +3,17 @@
  * question or a decision widget the user answers there with its own controls. A card waits while it
  * holds an obligation open on the user (`readObligations(card)`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
- * card no longer waits, and the answer that closed it was sent from this page
- * (`sentHere`), by whatever route the user took, the card flies right and the next
- * waiting card after it comes up; a draft editor open on the card saves as the press
- * leaves it (`lf-draft`), so moving on hides no unsaved words. The answer is told by
- * where it was sent from, not by where the user is when the reading comes, so a reading
- * that comes late, as a visitor's first answer on a hosted page can, still moves the
- * card on. It moves the page or focus with it only while the answering gesture is still
- * the user's latest (`retainUserIntent`), so a user who has gone on to read elsewhere
- * stays there. A wait that ends anywhere else, as when the user comments on the card
- * and leaves it with the agent, the agent ends the question, or the user answers it in
- * another window, leaves the card where it is with Next, since news never moves what
- * the user is reading. Later sends a card left and
+ * card's questions are answered, the card flies right and the next waiting card after
+ * it comes up; a draft editor open on the card saves as the press leaves it
+ * (`lf-draft`), so moving on hides no unsaved words. Whether a card still waits is the
+ * server's to say, so the deck moves on when that reading arrives, however late, as a
+ * visitor's first answer on a hosted page can be, and wherever the user is by then. It
+ * takes the page or focus with it only while the user's latest gesture toward the card
+ * in this window still stands (`retainUserIntent`), so a user who has gone on to read
+ * elsewhere stays there. An answer given in another window moves the card on here too.
+ * A wait that ends without an answer, as when the user comments on the card and leaves
+ * it with the agent or the agent ends the question, leaves the card where it is with
+ * Next, since news never moves what the user is reading. Later sends a card left and
  * leaves its obligation open, which is Leaf's keep unread: nothing is recorded, the
  * pass ends with the cards kept for later still waiting, and Go through starts again
  * from the first of them. Back returns to the card before, where the widget's own
@@ -75,7 +74,10 @@
  *
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
- * around the questions it is waiting on, chosen by the user. */
+ * around the questions it is waiting on, chosen by the user. Rejected by the user too:
+ * telling an answer sent from this window from one sent from another (`sentHere`), so
+ * that another window's answer left the card in place. It cost a name in the package
+ * interface for a rare path, on which the card that moves is one the user answered. */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   agentName,
@@ -93,7 +95,6 @@ import {
   readQueues,
   retainUserIntent,
   scrollIntoView,
-  sentHere,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -152,10 +153,10 @@ customElements.define(
     // answer on a card Back returned to, answered already, leaves it open.
     #waited = false;
     // The open card's answers as the deck last read them, and the intent of the user's
-    // latest gesture toward the card: a press or key in the deck, or, for one made from
-    // a control standing for the card such as a margin entry, the change of answer it
-    // made, which shows at once, before the server's reading. A reading that comes
-    // after the user moved on moves the card but not the page or focus.
+    // latest gesture toward the card in this window: a press or key in the deck, or,
+    // for one made from a control standing for the card such as a margin entry, the
+    // change of answer it made, which shows at once, while the card still waits. Null
+    // where there was none, as when another window answered.
     #answers = "";
     /** @type {(() => boolean) | null} */
     #moves = null;
@@ -794,29 +795,19 @@ customElements.define(
       const waits = waiting.includes(card);
       const held = readings(card);
       const answers = JSON.stringify(held.map((item) => item.answer?.value ?? null));
-      if (this.#answers && answers !== this.#answers) this.#moves = retainUserIntent();
+      if (waits && this.#answers && answers !== this.#answers)
+        this.#moves = retainUserIntent();
       this.#answers = answers;
-      // The reading that ends the open card's wait sends it on when the answer that
-      // closed it, the latest of its answers, came from this page, and it waited on the
-      // user at a reading since it opened. A comment leaves an obligation open with the
-      // agent, the agent ending one closes it without an answer, and an answer from
-      // another window was sent from there, so none of them moves the card, even where
-      // this page answered an earlier question on it. A card's obligations leave out
-      // withdrawn ones, so every one that isn't open is answered.
-      const { open, total } = tally(held);
-      const closed = total > 0 && open === 0;
-      const closing = held
-        .map((item) => item.answer?.event)
-        .reduce(
-          (latest, event) =>
-            event && (!latest || event.seq > latest.seq) ? event : latest,
-          /** @type {{seq: number, attempt?: string} | null | undefined} */ (null),
-        );
+      // The reading that ends the open card's wait sends it on when an answer ended
+      // each of its obligations and it waited on the user at a reading since it opened.
+      // A comment leaves an obligation open with the agent, and the agent ending one
+      // ends it without an answer, so neither moves the card.
+      const answered = held.every((item) => item.state === "done" && item.answered);
       if (waits) this.#waited = true;
-      else if (this.#waited && closed && sentHere(closing))
+      else if (this.#waited && held.length && answered)
         this.#go(this.#after(card, readings), "right", {
           answered: true,
-          moves: this.#moves ?? retainUserIntent(),
+          moves: this.#moves ?? (() => false),
         });
     }
   },

@@ -756,7 +756,6 @@ export const landInThread = (...args) => app().landInThread(...args);
 /** @type {ReturnType<typeof createApplication>["navigateToDatum"]} */
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
-export const sentHere = commandDispatch.sentHere;
 /** @type {ReturnType<typeof createApplication>["placePageThreads"]} */
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 /** @type {ReturnType<typeof createApplication>["registerThreadPresentation"]} */

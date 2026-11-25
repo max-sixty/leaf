@@ -976,6 +976,7 @@ def card_next_unread(page: Page) -> None:
     """A margin card opened on a reply too long for it to show whole, which stays
     unread, so Next unread stands on its head line."""
     long_reply("7b3e0a41")
+    wait_until_ready(page, PageClient(served_page.get().address).state())
     open_card(page, page.locator(RESYNC_MARKER))
     settle(page)
 

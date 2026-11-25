@@ -928,8 +928,20 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     # Each unread reply says New in its head, which a screen reader reads with it.
     expect(transcript.locator(".lf-msg-new")).to_have_count(2)
     expect(first.locator(".lf-msg-head")).to_contain_text("New")
+    # Its dot hangs in the gutter before the name, centred between the card's edge and
+    # the name, so it touches neither.
+    gaps = """msg => {
+      const dot = msg.querySelector('.lf-msg-new').getBoundingClientRect();
+      const card = msg.closest('.lf-margin-preview-card');
+      const edge = card.getBoundingClientRect().left + card.clientLeft;
+      const name = msg.querySelector('.lf-msg-head > b').getBoundingClientRect();
+      return [dot.left - edge, name.left - dot.right];
+    }"""
+    edge_gap, name_gap = first.evaluate(gaps)
+    assert edge_gap > 0 and abs(edge_gap - name_gap) <= 1, (edge_gap, name_gap)
 
-    # Partway down the long reply, its head has stuck with New in it.
+    # Partway down the long reply, its head has stuck with New in it, the dot where
+    # it stood.
     transcript.hover()
     page.mouse.wheel(0, 240)
     page.wait_for_function(
@@ -938,6 +950,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     tag = first.locator(".lf-msg-new").bounding_box()
     top = transcript.evaluate("list => list.getBoundingClientRect().top")
     assert top - 1 <= tag["y"] <= top + 30, (tag, top)
+    assert first.evaluate(gaps) == [edge_gap, name_gap]
 
     for _ in range(40):
         if transcript.evaluate(

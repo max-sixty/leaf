@@ -846,14 +846,18 @@
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-msg-head-height) + var(--lf-focus-ring-landing));
   }
-  /* An unread reply's dot hangs before the name, in the transcript's gutter, so the
-     name stays over the words and nothing moves when the reply reads. The head clips
-     sideways and sticks, so it reaches into the gutter by the dot and the head's own
-     gap, and holds the dot there, where it sticks with the name. */
+  /* An unread reply's dot hangs before the name, in the gutter between the card's edge
+     and the words, so the name stays over the words and nothing moves when the reply
+     reads. It stands centred across the gutter, the card's padding and the words'
+     inset, so it touches neither the edge nor the name. The head clips sideways and
+     sticks, so it reaches into the gutter by the dot and its gap to the name, and holds
+     the dot there, where it sticks with the name. */
   .lf-margin-thread
     .lf-thread-transcript
     .lf-msg-head:has(> .lf-msg-meta > .lf-msg-new) {
-    --lf-msg-new-room: calc(6px + var(--lf-sp-2));
+    --lf-msg-new-room: calc(
+      (var(--lf-thread-pad) + var(--lf-thread-text-inset) + 6px) / 2
+    );
     margin-inline-start: calc(-1 * var(--lf-msg-new-room));
     padding-inline-start: var(--lf-msg-new-room);
   }

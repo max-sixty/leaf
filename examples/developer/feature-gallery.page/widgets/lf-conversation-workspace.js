@@ -5,12 +5,12 @@ import {
   go,
   nameOf,
   obligations,
-  answerWords,
   queues,
   threads,
   registerThreadPresentation,
   shadowStage,
 } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
 import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -251,7 +251,7 @@ customElements.define(
       // words that answered a question asked in a message.
       const labels = items.all
         .filter((item) => item.source.kind === "widget" && item.answered)
-        .map(answerWords)
+        .map((item) => answerWords(item))
         .filter(Boolean);
       keepsText(
         this.counts,

@@ -1547,72 +1547,6 @@ def test_package_creation_refusal_preserves_the_current_draft(browser, serve, su
     page.unroute("**/api/event")
 
 
-def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, serve):
-    """A keyed row hands the user's draft to its replacement through a native slot."""
-    url = serve(
-        leaf_page(
-            "Keyed slotted editor",
-            '<h1>Keyed slotted editor</h1><lf-keyed-slot-list id="list"></lf-keyed-slot-list>',
-        ),
-        layer_registry={
-            "lf-keyed-slot-list": {
-                "description": "A keyed shadow row with a native slotted editor.",
-                "attributes": {
-                    "properties": {},
-                    "required": ["id"],
-                },
-                "content": "empty",
-                "shadow": True,
-            }
-        },
-        layer_widgets={
-            "lf-keyed-slot-list.js": """
-            import {holdFocus, shadowStage} from '/runtime/widget-api.js';
-            customElements.define('lf-keyed-slot-list', class extends HTMLElement {
-              connectedCallback() {
-                this.scope = document.createElement('section');
-                this.row = document.createElement('div');
-                this.row.dataset.row = 'draft';
-                const slot = document.createElement('slot');
-                slot.name = 'editor';
-                this.row.append(slot);
-                this.scope.append(this.row);
-                this.editor = document.createElement('input');
-                this.editor.slot = 'editor';
-                this.editor.setAttribute('aria-label', 'Draft');
-                shadowStage(this, [this.scope]);
-                this.append(this.editor);
-              }
-              replaceEditor() {
-                const restore = holdFocus(this.scope, {key: 'data-row'});
-                const row = this.row.cloneNode(true);
-                const editor = this.editor.cloneNode(true);
-                row.dataset.revision = '2';
-                editor.placeholder = 'Updated draft';
-                editor.value = this.editor.value;
-                this.row.replaceWith(row);
-                this.editor.replaceWith(editor);
-                this.row = row;
-                this.editor = editor;
-                return restore();
-              }
-            });
-            """
-        },
-    )
-    page = open_page(browser, url)
-    editor = page.get_by_role("textbox", name="Draft", exact=True)
-    editor.fill("half a thought")
-    editor.evaluate("node => node.setSelectionRange(4, 9, 'backward')")
-    assert editor.evaluate("node => node.assignedSlot !== null")
-    assert page.evaluate("document.querySelector('#list').replaceEditor()")
-    expect(editor).to_be_focused()
-    expect(editor).to_have_value("half a thought")
-    assert editor.evaluate(
-        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
-    ) == [4, 9, "backward"]
-
-
 def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions(
     browser, serve
 ):
@@ -1877,7 +1811,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         workspace.locator('.lf-msg[data-lf-event="nested-question"]')
     ).to_be_focused()
     assert page.evaluate(
-        "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
+        "async () => typeof (await window.__lfCheckApi()).holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )
     assert email.evaluate(
         "node => node === nestedOption && node.getRootNode() === document"

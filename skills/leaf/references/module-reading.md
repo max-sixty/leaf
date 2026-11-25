@@ -23,19 +23,10 @@ the author wrote, less a popover's, such as a gloss's explanation. Read a widget
 property instead, which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
-`elementById(address, from)` returns the element an address names, or null. An
-address is an element's id, or a widget's id and a key (`id:key`), which names the part
-the widget has drawn for that key, else the widget. A link's fragment (`#…`) holds
-either form URL-encoded, and `elementById` decodes it; any other address is read as
-written.
-
-Pass the element that holds the address as `from`, as in
-`elementById(this.getAttribute("for"), this)`. An agent's message can repeat ids the
-page holds, so an address written in a message names that message's element first and
-the page's after it. An id neither holds can still name an element Leaf draws, such as
-a widget in a reply a Thread shows. The lookup reaches into widgets' shadow trees,
-which `getElementById` misses, and names nothing inside a member a decision has
-retired (`retired-when`, `package-data.md`).
+Find the element an attribute names by its id with the platform's `getElementById`, on
+the root the widget stands in: `this.getRootNode().getElementById(id)`. That finds the
+first element in the tree with the id, the page's before a reply's where an agent's
+message repeats an id the page holds, and none inside another widget's shadow tree.
 
 Leaf's floating panel, its dialogs and the margin's rows stand inside an element of
 class `lf-chrome`, and so does a widget in a reply the panel shows. The library's
@@ -259,8 +250,9 @@ arrives. Each `source.kind` adds its own facts:
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. No region holds an update.
 
-`answerWords(obligation)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state").
+To show an answer in the words On Me gives it, the library's `answer-words.js` reads
+a reply's words or a widget's `static answerWords` (`module-state.md`, "Declared widget
+state").
 
 A module that counts items per heading as the reader moves through them, as `lf-toc`
 does, gives each heading the stretch of the page from the element it opens, such as

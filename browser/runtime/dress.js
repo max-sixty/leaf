@@ -7,7 +7,12 @@
  * root wears its frame's nearest dressed ancestor's set, so a candidate that restyles
  * a whole page keys on that child's root and never on the page holding the frame. A
  * child takes its dress in its bootstrap, before it paints, reset children included,
- * and a new dress reaches every child already present. */
+ * and a new dress reaches every child already present.
+ *
+ * `wear` stays in the package interface for that second half: only Leaf reaches a
+ * sample's child page, over the sample's private port, and the playground dresses
+ * samples authored inside it that it does not mount, so `mountSample` can't carry the
+ * dress. Without it a playground's settings would no longer reach its live samples. */
 
 /** @type {WeakMap<Element, LeafDress>} */
 const dresses = new WeakMap();

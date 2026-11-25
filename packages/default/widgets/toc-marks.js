@@ -27,7 +27,6 @@
  * question in a different row from the map's.
  *
  * Each item costs a binary search over the rows, comparing positions in the document. */
-import { elementById } from "/runtime/widget-api.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 
 /** @typedef {{threads: number, onMe: number, changes: number}} SectionMarks */
@@ -91,11 +90,11 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
 
   for (const thread of threads) {
     const section = thread.resolved ? null : thread.anchor?.section;
-    const element = section ? elementById(section) : null;
+    const element = section ? document.getElementById(section) : null;
     if (element && under(element, scope)) count(rowFor(element), "threads");
   }
   for (const item of onMe) {
-    const element = elementById(item.source.id);
+    const element = document.getElementById(item.source.id);
     if (element) count(rowFor(element), "onMe");
   }
   for (const change of changes) {

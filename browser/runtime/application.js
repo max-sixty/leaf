@@ -749,7 +749,6 @@ function createApplication(dependencies) {
     queueActions,
     go,
     startFeed: feed.startFeed,
-    wireInput: dependencies.wireInput,
   };
   return mounted;
 }
@@ -791,5 +790,3 @@ export const threadActions = Object.freeze({
       ...args
     ) => app().threadActions.setReaction(...args),
 });
-/** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
-export const wireInput = (...args) => app().wireInput(...args);

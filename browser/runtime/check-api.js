@@ -99,8 +99,10 @@ export {
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
+  focusDestination,
   focused,
   handBack,
+  holdFocus,
   onCurrentLocation,
   releaseFocus,
   ringBox,
@@ -132,7 +134,7 @@ export {
 } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
-export { fitsWhole, alreadyShown } from "./landing-scroll.js";
+export { fitsWhole, alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export {
   browserScrolls,
   holdScroll,

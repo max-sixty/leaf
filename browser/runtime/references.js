@@ -1,5 +1,5 @@
 /* Resolve an id an element gives in that element's authored scope: a registry-declared
-   relation, which typed widget inputs read, and any address a package module looks up
+   relation, which typed widget inputs read, and an address a view names
    (anchor-resolution.js, `elementNamed`). An input's `reference` attribute is declared
    by composition (Python's `registry.contract.complete_declarations`). */
 import { authoredScope, elementById, pageDocument } from "./passages.js";

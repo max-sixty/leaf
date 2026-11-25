@@ -26,6 +26,5 @@ export { shadowStage } from "./shadow-stage.js";
 
 export { threadSurface } from "./thread/surface-handles.js";
 
-export { focusDestination, holdFocus, onUserInput } from "./focus.js";
-export { scrollIntoView } from "./landing-scroll.js";
+export { onUserInput } from "./focus.js";
 export { langForPath } from "./language-paths.js";

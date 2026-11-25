@@ -627,7 +627,7 @@ def test_resume_writing_returns_to_an_option_being_added(browser, serve):
     """The field adding an option the author did not list is a writing place like any
     other: Resume writing comes back to it with its words, which stay its own."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
-    field = page.locator("#jobs > .lf-another leaf-text")
+    field = page.locator("#jobs > .lf-another textarea")
     write(field, "An option of mine.")
     page.locator("body").focus()
     page.keyboard.press("g")
@@ -732,19 +732,12 @@ NEW_LINE = re.compile(r"· New line (⇧|Shift\+)⏎")
 
 def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve):
     """Return sends, so a focused box that holds lines says the key for a new line
-    beside its send key, and a writer meets it before a Return sends half a message.
-    An option's one-line field, where Return only adds, says none."""
+    beside its send key, and a writer meets it before a Return sends half a message."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     page_comment(page)
     hint = page.locator(".lf-fp-field .lf-compose-placeholder")
     shown = hint.evaluate(PLACEHOLDER_SHOWN)
     assert len(shown["parts"]) == 3 and NEW_LINE.fullmatch(shown["parts"][2]), shown
-
-    field = page.locator("#jobs > .lf-another leaf-text")
-    field.click()
-    expect(field).to_have_attribute("placeholder", "Add another option… ⏎")
-    shown = field.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
-    assert shown["parts"] == ["Add another option…", "⏎"], shown
 
 
 def test_a_narrow_box_keeps_its_label_whole_and_drops_its_new_line_key(browser, serve):

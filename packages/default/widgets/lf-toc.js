@@ -56,17 +56,12 @@ import { sectionMarks } from "./toc-marks.js";
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
-import {
-  comparisonChanges,
-  holdFocus,
-  obligations,
-  threads,
-  named,
-} from "/runtime/widget-api.js";
+import { comparisonChanges, obligations, threads, named } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
+import { keepFocus } from "/runtime/lib/focus-on.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
@@ -161,7 +156,7 @@ customElements.define(
     #reconcile() {
       const previous = this.#sections.map(({ destination }) => destination);
       const held = this.#sections.find(({ link }) => link === this.#focused);
-      const restore = held && holdFocus(this.#nav);
+      const restore = held && keepFocus(this.#nav);
       render(this.#drawing.render(), this, { host: this });
       this.#sections = this.#drawing.sections();
       // A new key still represents the user's place when its heading or destination

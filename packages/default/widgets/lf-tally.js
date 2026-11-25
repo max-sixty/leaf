@@ -23,7 +23,7 @@ import { render as tallyTemplate } from "./tally-view.js";
  * reading in the same nodes. Its room holds the widest words, both sides two digits
  * wide, so the words change without moving the control beside them or what follows. A
  * longer count widens the room once. */
-import { elementById, go, obligations } from "/runtime/widget-api.js";
+import { go, obligations } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
@@ -37,7 +37,10 @@ customElements.define(
     };
 
     #region() {
-      return elementById(this.getAttribute("for"), this);
+      const id = this.getAttribute("for");
+      return id
+        ? /** @type {Document | ShadowRoot} */ (this.getRootNode()).getElementById(id)
+        : null;
     }
 
     render() {

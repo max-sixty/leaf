@@ -91,7 +91,7 @@ In [module-reading.md](module-reading.md):
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath`, `dressCode` and `copyControl`.
+- "Code": `langForPath` and `dressCode`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues`,
   `answerWords` and `obligationActions`.
@@ -108,8 +108,8 @@ In [module-input.md](module-input.md):
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box, `draft` keeps its draft, and
-  `leafEditorView` wraps a CodeMirror editor.
+- "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
+  draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
@@ -131,10 +131,6 @@ In [module-annotations.md](module-annotations.md):
 In [module-previews.md](module-previews.md):
 
 - "Previews": `placePreview`.
-
-In [module-controls.md](module-controls.md):
-
-- "Generated controls": `searchField`.
 
 ### Shared web code
 
@@ -405,8 +401,8 @@ text selection the user made in it. A `LeafElement` places retained nodes in its
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
-`placeSelection()` from its `connectedMoveCallback`.
+custom element holding an editor, such as CodeMirror's, writes the editor's selection
+back from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 

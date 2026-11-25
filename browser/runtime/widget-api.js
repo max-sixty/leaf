@@ -88,7 +88,6 @@ export {
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
-export { copyControl } from "./copy-control.js";
 // The members a widget shows one at a time: Leaf remembers the one shown, names it in
 // the address where the widget's views are the page's, and keeps the user's place in
 // each view of the page's flow (views.js).
@@ -96,11 +95,6 @@ export { keepView, openingView, viewMembers } from "./views.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
-
-// The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
-// the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
-// the page has presented.
-export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
 // The returned host owns readiness, the frame's height, Reset and disposal

@@ -150,11 +150,8 @@ the block, as `lf-code` draws its notes mark and a draft its editing marks, sets
 block's `lfBar` to the `.lf-mark-bar` it places and shows over the block, and Leaf
 stands Copy last in it. Place the bar in the seat a lone Copy has: inside the block's
 top-right corner, `--lf-block-control-inset` from both of the block's outer edges. A copy that stands among a widget's own controls rather than
-over a block, such as in a popover's header, is `copyControl(className, {label,
-success, error, role})`, a press of `role`, such as `"symbol"` for Copy's symbol; to
-copy through a press of your own built by its role, pass it as `trigger` instead. Set
-its `value` before it copies, and it reports `success` or `error` as a code block's
-does.
+over a block, such as in a popover's header, is the UI library's `wa-copy-button`,
+which the widget builds and gives its `value`.
 
 ### Media URLs
 

@@ -1047,32 +1047,20 @@ html:not([data-lf-live]) {
  * sheet may read, and a sheet then writes the kept name beside it here. Until the
  * sheets are rewritten, each dropped name takes the value of the name that replaces
  * it, so a page draws as it would after the cut while the old names still resolve.
- * Two kept names move with a merge: the tinted ground and the line each take a step
- * between the two they replace.
+ * One kept name moves with its merge: the line takes a step between the two it
+ * replaces.
  *
  * A dropped name whose replacement changes no pixel has no line here: an alias, such
  * as --lf-thread for --lf-accent, and a short expression over kept names, such as
  * --lf-r-s for half of --lf-r. Six widget rules read a kept font directly, since
  * Leaf's panel and threads keep the faces those rules read before. */
 :root {
-  /* One tinted ground where there were three: a field's (3.1% of the way from the
-     paper to the ink, 5% in the dark scheme), a chip's (5.9%, 10.4%) and inline
-     code's (5.6%, 11.2%). It stands nearer the field's, since it backs whole columns
-     as well as chips. */
-  --lf-field: light-dark(
-    oklab(
-      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 3.8%) l
-        calc(a * min(2.5, 1 + 0.014 / hypot(a, b)))
-        calc(b * min(2.5, 1 + 0.014 / hypot(a, b)))
-    ),
-    oklab(
-      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 6.5%) l
-        calc(a * min(2.08, 1 + 0.014 / hypot(a, b)))
-        calc(b * min(2.08, 1 + 0.014 / hypot(a, b)))
-    )
-  );
-  --lf-chip: var(--lf-field);
-  --lf-code-bg: var(--lf-field);
+  /* Two tinted grounds where there were three: a region's, such as a field, a callout
+     or a board's column, and a mark's, such as a chip, a key or inline code, whose
+     own step (5.6% of the way from the paper to the ink, 11.2% in the dark scheme)
+     joins the chip's (5.9%, 10.4%). The two stay apart because a mark stands on a
+     region: on one shared tint, inline code in a callout loses its ground. */
+  --lf-code-bg: var(--lf-chip);
   /* One line where there were two: a hairline (8.6%, 14.8%) and an edge (16.6%,
      22.8%). It stands nearer the edge's, since a mark filled with it, such as a
      board column's neutral dot, has to show on the tinted ground. */
@@ -1092,10 +1080,12 @@ html:not([data-lf-live]) {
   /* Two inks for words where there were four: the ink and the muted ink. */
   --lf-ink-2: var(--lf-ink);
   --lf-quiet: var(--lf-muted);
-  /* Code stands on the page's own surfaces: a card for its canvas, the tinted ground
-     for its gutter and head, the line for its edges, and the page's two inks. */
+  /* Code stands on the page's own surfaces: a card for its canvas, the paper for its
+     gutter and head, the line for its edges, and the page's two inks. The paper
+     stands as far from the card in either scheme as the gutter stood from the canvas;
+     the tinted ground stands a third of that from the card in the dark scheme. */
   --lf-pre-bg: var(--lf-card);
-  --lf-code-chrome: var(--lf-field);
+  --lf-code-chrome: var(--lf-paper);
   --lf-code-ink: var(--lf-ink);
   --lf-code-muted: var(--lf-muted);
   --lf-code-border: var(--lf-rule);

@@ -73,7 +73,6 @@
  * as a `pending-task` event, which holds the page's presentation until it is in, and a
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
  * author. */
-import { whileConnected, frameFor } from "/runtime/portable-api.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { bodyText } from "/runtime/lib/data-body.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -253,101 +252,86 @@ customElements.define(
         label: (/** @type {string} */ id) =>
           id.startsWith(POINT) ? datumWords(id.slice(POINT.length)) : null,
       };
-      whileConnected(this, (signal) => {
-        // The pointer and a finger read the point nearest them on the drawing, by
-        // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
-        // for each move, each point reached a new aim. A mouse carrying a press is
-        // dragging. A pointer that picks nothing keeps the reading it had, and one
-        // still on the point whose reading the page put away reads nothing.
-        const aim = (/** @type {PointerEvent} */ event) => {
-          const reading = this.#reading;
-          if (event.pointerType === "mouse" && event.buttons) return;
-          if (!reading || !(event.target instanceof Node)) return this.#leave();
-          if (!reading.svg.contains(event.target)) return this.#leave();
-          if (!reading.svg.getScreenCTM()) return;
-          this.#over = true;
-          const point = this.#pointAt(event.clientX, event.clientY);
-          if (!point || point === this.#away) return;
-          this.#away = null;
-          this.#choose(point, "pointer", true);
-        };
-        // A mouse reads where it moves to, so a drawing that arrives under a still one
-        // says nothing; a finger, which lands before it moves, reads where it lands. A
-        // finger's press is a new aim even on the point it held last, heard after the
-        // page has put the last hold's preview away (preview.js listens first).
-        this.addEventListener("pointermove", aim, { signal, passive: true });
-        this.addEventListener(
-          "pointerover",
-          (event) => {
-            if (event.pointerType !== "mouse") aim(event);
-          },
-          { signal, passive: true },
-        );
-        this.addEventListener(
-          "pointerdown",
-          (event) => {
-            if (event.pointerType === "touch") this.#presses += 1;
-          },
-          { signal, passive: true },
-        );
-        this.addEventListener("pointerleave", () => this.#leave(), { signal });
-        // Focus the browser shows lands the reader on a point, the one they are on, the
-        // one the keys left them on, or the first, which the arrows then step from: the
-        // keyboard's from then on. Focus Leaf puts on a point has put them on it already
-        // (`#focusOn`).
-        this.addEventListener(
-          "focus",
-          () => {
-            if (this.#reading && this.matches(":focus-visible"))
-              this.#choose(
-                this.#at ?? this.#place ?? step(this.#reading, null, "first"),
-                "focus",
-              );
-          },
-          { signal },
-        );
-        // Leaving the chart takes the ring off a point the keys hold, which stays the
-        // point they step on from.
-        this.addEventListener(
-          "blur",
-          () => {
-            if (this.#at && this.#by !== "pointer") this.#place = this.#at;
-            this.#choose(this.#over ? this.#at : null, "pointer");
-          },
-          { signal },
-        );
-        // The ring marks the point the page's preview says, so it comes off when the
-        // page puts the preview away, whatever puts it away: the pointer leaving the
-        // window from it, the next touch after a held finger lifts, Escape. A redraw
-        // then has no point to read again, and the next aim reads from where it lands,
-        // the keys stepping on from the point put away while the chart has focus, and a
-        // pointer still over the drawing reading nothing until it reaches another point.
-        // The reading that ended no longer stands, at once. Its ring comes off once the
-        // task that put the preview away is done, and only if no reading stands again by
-        // then, its point is still the reader's and no finger has pressed since: a Tab
-        // that puts a resting pointer's preview away lands focus here in the same task,
-        // whose preview reads the point again, and the keyboard takes it on; the press
-        // that starts a second hold on a point puts the first hold's preview away as the
-        // finger presses that point again. A press is an aim, not a reading: a tap that
-        // ends without a hold leaves the ring to go with the finger (`#leave`).
-        this.addEventListener(
-          "lf-preview-ended",
-          (event) => {
-            const { declared } = /** @type {CustomEvent} */ (event).detail;
-            if (!declared || declared !== this.#declared) return;
-            this.#declared = null;
-            const [read, presses] = [this.#at, this.#presses];
-            nextRender(() => {
-              if (this.#declared || this.#at !== read || this.#presses !== presses)
-                return;
-              if (this.matches(":focus")) this.#place = read;
-              if (this.#over) this.#away = read;
-              this.#choose(null, "pointer");
-              this.#placeAim();
-            });
-          },
-          { signal },
-        );
+      // The pointer and a finger read the point nearest them on the drawing, by
+      // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
+      // for each move, each point reached a new aim. A mouse carrying a press is
+      // dragging. A pointer that picks nothing keeps the reading it had, and one
+      // still on the point whose reading the page put away reads nothing.
+      const aim = (/** @type {PointerEvent} */ event) => {
+        const reading = this.#reading;
+        if (event.pointerType === "mouse" && event.buttons) return;
+        if (!reading || !(event.target instanceof Node)) return this.#leave();
+        if (!reading.svg.contains(event.target)) return this.#leave();
+        if (!reading.svg.getScreenCTM()) return;
+        this.#over = true;
+        const point = this.#pointAt(event.clientX, event.clientY);
+        if (!point || point === this.#away) return;
+        this.#away = null;
+        this.#choose(point, "pointer", true);
+      };
+      // A mouse reads where it moves to, so a drawing that arrives under a still one
+      // says nothing; a finger, which lands before it moves, reads where it lands. A
+      // finger's press is a new aim even on the point it held last, heard after the
+      // page has put the last hold's preview away (preview.js listens first).
+      this.addEventListener("pointermove", aim, { passive: true });
+      this.addEventListener(
+        "pointerover",
+        (event) => {
+          if (event.pointerType !== "mouse") aim(event);
+        },
+        { passive: true },
+      );
+      this.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (event.pointerType === "touch") this.#presses += 1;
+        },
+        { passive: true },
+      );
+      this.addEventListener("pointerleave", () => this.#leave());
+      // Focus the browser shows lands the reader on a point, the one they are on, the
+      // one the keys left them on, or the first, which the arrows then step from: the
+      // keyboard's from then on. Focus Leaf puts on a point has put them on it already
+      // (`#focusOn`).
+      this.addEventListener("focus", () => {
+        if (this.#reading && this.matches(":focus-visible"))
+          this.#choose(
+            this.#at ?? this.#place ?? step(this.#reading, null, "first"),
+            "focus",
+          );
+      });
+      // Leaving the chart takes the ring off a point the keys hold, which stays the
+      // point they step on from.
+      this.addEventListener("blur", () => {
+        if (this.#at && this.#by !== "pointer") this.#place = this.#at;
+        this.#choose(this.#over ? this.#at : null, "pointer");
+      });
+      // The ring marks the point the page's preview says, so it comes off when the
+      // page puts the preview away, whatever puts it away: the pointer leaving the
+      // window from it, the next touch after a held finger lifts, Escape. A redraw
+      // then has no point to read again, and the next aim reads from where it lands,
+      // the keys stepping on from the point put away while the chart has focus, and a
+      // pointer still over the drawing reading nothing until it reaches another point.
+      // The reading that ended no longer stands, at once. Its ring comes off once the
+      // task that put the preview away is done, and only if no reading stands again by
+      // then, its point is still the reader's and no finger has pressed since: a Tab
+      // that puts a resting pointer's preview away lands focus here in the same task,
+      // whose preview reads the point again, and the keyboard takes it on; the press
+      // that starts a second hold on a point puts the first hold's preview away as the
+      // finger presses that point again. A press is an aim, not a reading: a tap that
+      // ends without a hold leaves the ring to go with the finger (`#leave`).
+      this.addEventListener("lf-preview-ended", (event) => {
+        const { declared } = /** @type {CustomEvent} */ (event).detail;
+        if (!declared || declared !== this.#declared) return;
+        this.#declared = null;
+        const [read, presses] = [this.#at, this.#presses];
+        nextRender(() => {
+          if (this.#declared || this.#at !== read || this.#presses !== presses) return;
+          if (this.matches(":focus")) this.#place = read;
+          if (this.#over) this.#away = read;
+          this.#choose(null, "pointer");
+          this.#placeAim();
+        });
       });
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
       // page that box is there already and this settles inside the upgrade, holding the
@@ -404,19 +388,17 @@ customElements.define(
         let room;
         /** @type {() => void} */
         let heard = () => {};
-        const delivered = new Promise(
-          (resolve) => (heard = frameFor(this, () => resolve(undefined))),
-        );
-        stop = whileConnected(this, () => {
-          const watching = sizeObserver((entries) => {
-            const rect = entries.at(-1)?.contentRect;
-            if (!rect?.width) return;
-            room = rect;
-            heard();
-          });
-          watching.observe(this);
-          return () => watching.disconnect();
+        const delivered = new Promise((resolve) => {
+          heard = () => nextRender(() => this.isConnected && resolve(undefined));
         });
+        const watching = sizeObserver((entries) => {
+          const rect = entries.at(-1)?.contentRect;
+          if (!rect?.width) return;
+          room = rect;
+          heard();
+        });
+        watching.observe(this);
+        stop = () => watching.disconnect();
         this.#source = { bundle: await loadPlot(), body, failed };
         await delivered;
         const { width, height } = /** @type {DOMRectReadOnly} */ (room);

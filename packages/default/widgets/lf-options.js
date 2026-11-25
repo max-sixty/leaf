@@ -269,6 +269,11 @@ customElements.define(
       }
     }
 
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#addition.disconnect();
+    }
+
     /** @param {boolean} exhibited */
     #wire(exhibited) {
       // Quoted material is exhibited, not offered: a sample shows what a decision

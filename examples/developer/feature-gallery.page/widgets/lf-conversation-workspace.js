@@ -13,7 +13,6 @@ import {
   setChildren,
   shadowStage,
   threadActions,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -24,21 +23,27 @@ customElements.define(
   class extends LeafElement {
     setup() {
       this.build();
-      whileConnected(this, () => {
-        this.presentation = registerThreadPresentation(this, {
-          render: (collection, parts) => this.present(collection, parts),
-          // A layout that already draws the part asked for keeps it: Shelf draws every
-          // conversation whole, and Feed every message and the selected one's reply box.
-          reveal: (key, { part }) => {
-            this.selected = key;
-            const drawn =
-              this.mode === "Shelf" ||
-              (this.mode === "Feed" && (part === "message" || part === "reply"));
-            if (!drawn) this.mode = "Conversation";
-          },
-        });
-        return () => this.presentation.unregister();
+    }
+    connectedCallback() {
+      super.connectedCallback();
+      this.presentation = registerThreadPresentation(this, {
+        render: (collection, parts) => this.present(collection, parts),
+        // A layout that already draws the part asked for keeps it: Shelf draws every
+        // conversation whole, and Feed every message and the selected one's reply box.
+        reveal: (key, { part }) => {
+          this.selected = key;
+          const drawn =
+            this.mode === "Shelf" ||
+            (this.mode === "Feed" && (part === "message" || part === "reply"));
+          if (!drawn) this.mode = "Conversation";
+        },
       });
+    }
+    // A move keeps the conversations the workspace presents.
+    connectedMoveCallback() {}
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.presentation.unregister();
     }
     render() {
       this.paintObligations();

@@ -295,12 +295,12 @@ events. `begin(pointerdown, path)`, a passive listener, may return
 `end(event, completed)`: release calls it with `completed: true`; cancellation, a
 native context menu, or leaving the document calls it with `false`. The function `end`
 returns runs when that press is over, after any compatibility mouseup and click it
-owes. Register inside `whileConnected`; the returned unsubscribe stops new presses, and
-the connection's abort signal ends work still running when the widget disconnects.
+owes. Register as the widget connects, and call the returned unsubscribe as it leaves,
+which stops new presses.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;
-register it inside `whileConnected` and call that function in the cleanup. The causes
+register it as the widget connects and call that function as it leaves. The causes
 are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
 
 The current location is marked by `data-lf-focus`, and its composed ancestry by
@@ -431,7 +431,7 @@ the draft kept under `ctx`, a string unique on the page such as `option:` and it
 - `watch(callback, {input: box})` calls `callback(text, payload)` when the draft
   changes other than by typing in this box: another tab or device, a send emptying it,
   or a refusal returning the words. Put them in the box with `sync.load(text ?? "")`,
-  and register the watch in `whileConnected`.
+  and register the watch as the widget connects, ending it as the widget leaves.
 - `send(owns, deliver)`, called from `wireInput`'s `send`, calls
   `deliver(attempt, payload)` if the box still shows the stored draft and `owns()` is
   true, and resolves to what `deliver` returns. One `attempt` stands for one version of

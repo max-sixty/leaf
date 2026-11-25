@@ -58,17 +58,15 @@ import { sectionMarks } from "./toc-marks.js";
 import { render } from "/vendor/lit.js";
 import {
   comparisonChanges,
-  frameFor,
   holdFocus,
   landingInsets,
   readObligations,
   readThreads,
   scrollerFor,
-  whileConnected,
   named,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
-import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
@@ -123,6 +121,8 @@ customElements.define(
     #scroller = null;
     /** @type {(() => void) | undefined} */
     #stopWatching;
+    /** @type {AbortController | undefined} */
+    #connection;
     /** @type {{watching: ResizeObserver, renamed: MutationObserver} | null} */
     #observers = null;
     /** @type {boolean | undefined} */
@@ -140,14 +140,20 @@ customElements.define(
       const main = this.#drawing.scope();
       const again = this.#connectedBefore;
       this.#connectedBefore = true;
-      if (again && main === this.#main && scrollerFor(main) === this.#scroller) return;
-      // Moving to another reading region changes the resources, even if the
-      // arrival batch keeps this element connected throughout the move.
-      this.#stopWatching?.();
+      const stays =
+        again && main === this.#main && scrollerFor(main) === this.#scroller;
       this.#main = main;
       if (!main) return;
-      this.#reconcile();
-      this.#stopWatching = whileConnected(this, (signal) => this.#watch(signal));
+      if (!stays) this.#reconcile();
+      this.#connection = new AbortController();
+      this.#stopWatching = this.#watch(this.#connection.signal);
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection?.abort();
+      this.#stopWatching?.();
+      this.#stopWatching = undefined;
     }
 
     // Authored revisions retain this widget when its own markup did not change, and

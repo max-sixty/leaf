@@ -93,7 +93,6 @@ import {
   backgroundFlash,
   comparisonChanges,
   keepView,
-  whileConnected,
   openingView,
   viewMembers,
   readObligations,
@@ -163,6 +162,8 @@ export class TabSet extends LeafElement {
   #root = false;
   /** @type {(MutationObserver) | null} */
   #contextObserver = null;
+  /** @type {ResizeObserver | null} */
+  #stripSize = null;
   #strip = offer("div", "lf-tabstrip");
   #side = false;
   #pageFlow = false;
@@ -334,21 +335,27 @@ export class TabSet extends LeafElement {
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
     // measures final geometry.
     this.#activate(openingView(this) ?? null);
-    whileConnected(this, (signal) => {
-      this.#watchRootContext();
-      this.#syncRootContext();
-      const stripSize = this.#watchStrip();
-      strip.addEventListener("scroll", this.#stopSelectionMotion, { signal });
-      this.#syncListRegion();
-      return () => {
-        this.#revealMotion?.cancel();
-        this.#revealMotion = null;
-        this.#stopSelectionMotion();
-        stripSize.disconnect();
-        this.#contextObserver?.disconnect();
-        this.#contextObserver = null;
-      };
-    });
+    strip.addEventListener("scroll", this.#stopSelectionMotion);
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (!this.#panels.length) return;
+    this.#watchRootContext();
+    this.#syncRootContext();
+    this.#stripSize = this.#watchStrip();
+    this.#syncListRegion();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.#revealMotion?.cancel();
+    this.#revealMotion = null;
+    this.#stopSelectionMotion();
+    this.#stripSize?.disconnect();
+    this.#stripSize = null;
+    this.#contextObserver?.disconnect();
+    this.#contextObserver = null;
   }
 
   // A side list's panels are reading regions whatever their posture, as panes are

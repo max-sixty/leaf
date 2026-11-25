@@ -45,7 +45,6 @@ import {
   threadActions,
   readThreads,
   readHistory,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -53,6 +52,7 @@ import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdow
 import { excerptWords } from "/runtime/lib/words.js";
 
 const NAME = 60;
+const PAPER = matchMedia("print");
 
 // Where something happened, as the chrome names it, else its word.
 /** @param {string | null | undefined} id */
@@ -190,6 +190,7 @@ customElements.define(
       () => this.requestUpdate(),
     );
     #printing = false;
+    #connection = new AbortController();
     /** @type {string | null} */
     #closedReading = null;
     /** @type {string | null} */
@@ -211,16 +212,26 @@ customElements.define(
         this.requestUpdate();
         this.performUpdate();
       });
-      const paper = matchMedia("print");
-      const printing = () => {
-        this.#printing = paper.matches;
-        this.requestUpdate();
-        this.performUpdate();
-      };
-      whileConnected(this, (signal) => {
-        this.#printing = paper.matches;
-        paper.addEventListener("change", printing, { signal });
-      });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      this.#connection = new AbortController();
+      this.#printing = PAPER.matches;
+      PAPER.addEventListener(
+        "change",
+        () => {
+          this.#printing = PAPER.matches;
+          this.requestUpdate();
+          this.performUpdate();
+        },
+        { signal: this.#connection.signal },
+      );
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
     }
 
     render() {

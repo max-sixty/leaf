@@ -1,11 +1,7 @@
 /* The exhibit grid and its contribution controls share one live Lit view. */
 import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
-import {
-  presentContributionEntry,
-  registerContribution,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { presentContributionEntry, registerContribution } from "/runtime/widget-api.js";
 import { once } from "/runtime/lib/once.js";
 
 function wireSample({ sample, key, control, disclosure }) {
@@ -62,15 +58,21 @@ function wireSample({ sample, key, control, disclosure }) {
 customElements.define(
   "lf-margin-entry-gallery",
   class extends HTMLElement {
+    #result;
+    #projection;
+
     connectedCallback() {
-      if (!once(this)) return;
-      const initial = createView(this);
-      render(initial.render(), this);
-      initial.samples.forEach(wireSample);
-      whileConnected(this, () => {
-        const projection = this.#registerProjection(initial.result);
-        return () => projection.unregister();
-      });
+      if (once(this)) {
+        const initial = createView(this);
+        render(initial.render(), this);
+        initial.samples.forEach(wireSample);
+        this.#result = initial.result;
+      }
+      this.#projection = this.#registerProjection(this.#result);
+    }
+
+    disconnectedCallback() {
+      this.#projection?.unregister();
     }
 
     #registerProjection(result) {

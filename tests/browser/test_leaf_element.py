@@ -15,7 +15,7 @@ def test_a_host_updates_and_reconnects_a_portable_element(browser):
 </head><body><div id="host"><host-reading id="reading"></host-reading></div>
 <script type="module">
 try {{
-  const {{ shadowStage, whileConnected, threadSurface }} = await import("/runtime/portable-api.js");
+  const {{ shadowStage, threadSurface }} = await import("/runtime/portable-api.js");
   const {{ LeafElement }} = await import("/runtime/lib/leaf-element.js");
   const {{ html }} = await import("/vendor/lit.js");
   window.reading = document.querySelector("#reading");
@@ -24,11 +24,14 @@ try {{
     static properties = {{ value: {{ attribute: false }} }};
     setup() {{
       this.setups = (this.setups ?? 0) + 1;
-      this.connections = [];
-      whileConnected(this, () => {{
-        this.connections.push("connected");
-        return () => this.connections.push("disconnected");
-      }});
+    }}
+    connectedCallback() {{
+      super.connectedCallback();
+      (this.connections ??= []).push("connected");
+    }}
+    disconnectedCallback() {{
+      super.disconnectedCallback();
+      this.connections.push("disconnected");
     }}
     render() {{ return html`<p>${{this.value}}</p>`; }}
     updated(changed) {{
@@ -59,8 +62,6 @@ try {{
         expect(page.locator("#reading p")).to_have_text("Second reading")
         page.evaluate("""async () => {
           reading.remove();
-          // Let the connection owner observe departure before returning.
-          await Promise.resolve();
           reading.value = 'Away reading';
           await reading.updateComplete;
         }""")

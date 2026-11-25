@@ -26,7 +26,7 @@ import {
  * (`failSoft`). Its step is kept under its id, which no other widget on the page or in
  * a reply shares. */
 import { render } from "/vendor/lit.js";
-import { tabStore, whileConnected } from "/runtime/portable-api.js";
+import { tabStore } from "/runtime/portable-api.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -72,6 +72,10 @@ class Timeline extends HTMLElement {
   }
   /** @type {ReturnType<typeof timelineLayout> | undefined} */
   #layout;
+  // Whether the timeline drew its controls, and what it listens to while it stands in
+  // the page.
+  #built = false;
+  #connection = new AbortController();
   // Labels are laid out against the ruler's width, so they follow it in the same
   // frame: a timeline first shown in a closed tab places them before it paints.
   // The ruler's own size doesn't change with the layout, so this never loops.
@@ -92,12 +96,23 @@ class Timeline extends HTMLElement {
   };
 
   connectedCallback() {
-    if (!once(this)) return;
-    try {
-      this.#setup();
-    } catch (error) {
-      failSoft(this, error);
-    }
+    if (once(this))
+      try {
+        this.#setup();
+      } catch (error) {
+        failSoft(this, error);
+      }
+    if (!this.#built) return;
+    const { signal } = (this.#connection = new AbortController());
+    document.fonts.addEventListener("loadingdone", this.#relayout, { signal });
+    // Chromium lays the page out for paper before it prints but runs no size
+    // observer there; it does report the print media change, at the paper's width.
+    matchMedia("print").addEventListener("change", this.#relayout, { signal });
+    this.#relayout();
+  }
+
+  disconnectedCallback() {
+    this.#connection.abort();
   }
 
   #draw() {
@@ -214,28 +229,20 @@ class Timeline extends HTMLElement {
         if (event) this.#go(event.step, false);
       },
     };
-    whileConnected(this, (signal) => {
-      const pick = (/** @type {Event} */ event) => {
-        if (!(event.target instanceof Element)) return;
-        const target = event.target.closest("[data-lf-step]");
-        if (!target || !this.contains(target)) return;
-        event.preventDefault();
-        this.#go(Number(target.getAttribute("data-lf-step")), false);
-      };
-      // The step list's rows are its buttons, which Enter and Space press as they do a
-      // native button's (`selectableOffered`); a press on a mark is the pointer's
-      // shortcut to the same step.
-      for (const region of [chart, ...drawing.rows])
-        region.addEventListener("click", pick, { signal });
-      document.fonts.addEventListener("loadingdone", this.#relayout, { signal });
-      const sizes = sizeObserver(this.#relayout);
-      sizes.observe(ruler);
-      // Chromium lays the page out for paper before it prints but runs no size
-      // observer there; it does report the print media change, at the paper's width.
-      matchMedia("print").addEventListener("change", this.#relayout, { signal });
-      this.#relayout();
-      return () => sizes.disconnect();
-    });
+    const pick = (/** @type {Event} */ event) => {
+      if (!(event.target instanceof Element)) return;
+      const target = event.target.closest("[data-lf-step]");
+      if (!target || !this.contains(target)) return;
+      event.preventDefault();
+      this.#go(Number(target.getAttribute("data-lf-step")), false);
+    };
+    // The step list's rows are its buttons, which Enter and Space press as they do a
+    // native button's (`selectableOffered`); a press on a mark is the pointer's
+    // shortcut to the same step.
+    for (const region of [chart, ...drawing.rows])
+      region.addEventListener("click", pick);
+    sizeObserver(this.#relayout).observe(ruler);
+    this.#built = true;
   }
 
   /** @param {number} index @param {boolean} keyed */

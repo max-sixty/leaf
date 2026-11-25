@@ -8,12 +8,7 @@
  * second wrapper stays hidden while the parser is still receiving its trace.
  * Shared introductory text belongs outside the comparison. The chooser's
  * measured height clears focus and navigation inside those views. */
-import {
-  keepView,
-  openingView,
-  viewMembers,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { keepView, openingView, viewMembers } from "/runtime/widget-api.js";
 import { el } from "/runtime/lib/elements.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer } from "/runtime/lib/controls.js";
@@ -97,25 +92,18 @@ customElements.define(
       });
       header.append(choices);
       this.prepend(header);
-      whileConnected(this, () => {
-        const paintHeight = (/** @type {number} */ height) =>
-          this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
-        paintHeight(header.getBoundingClientRect().height);
-        let paint = 0;
-        const size = sizeObserver((entries) => {
-          cancelRender(paint);
-          // Clearance resizes the stage; publish outside size delivery.
-          paint = nextRender(() => {
-            for (const entry of entries)
-              for (const box of entry.borderBoxSize) paintHeight(box.blockSize);
-          });
+      const paintHeight = (/** @type {number} */ height) =>
+        this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
+      paintHeight(header.getBoundingClientRect().height);
+      let paint = 0;
+      sizeObserver((entries) => {
+        cancelRender(paint);
+        // Clearance resizes the stage; publish outside size delivery.
+        paint = nextRender(() => {
+          for (const entry of entries)
+            for (const box of entry.borderBoxSize) paintHeight(box.blockSize);
         });
-        size.observe(header, { box: "border-box" });
-        return () => {
-          size.disconnect();
-          cancelRender(paint);
-        };
-      });
+      }).observe(header, { box: "border-box" });
       this.#draw();
     }
 

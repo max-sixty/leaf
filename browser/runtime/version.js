@@ -108,8 +108,8 @@ import {
   observePreparations,
   renderingState,
 } from "./rendering.js";
-import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
-import { frameFor, watchScrollEnds } from "./arrivals.js";
+import { cancelRender, frameFor, nextRender, sizeObserver } from "./lib/frame-pass.js";
+import { watchScrollEnds } from "./arrivals.js";
 import {
   LIVE_ROOT,
   PAGE_ROOT,

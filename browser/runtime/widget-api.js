@@ -92,11 +92,7 @@ export { backgroundFlash, motion } from "./motion.js";
 // `whenNear` for the reader to near a node, then each runs its callback.
 // `afterPresentation`'s callback may return work the widget has already started, which
 // it counts from its call.
-export {
-  afterPresentation,
-  whenNear,
-  whileInterfaceConnected,
-} from "./presentation.js";
+export { afterPresentation, whenNear } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
 // The members a widget shows one at a time: Leaf remembers the one shown, names it in
 // the address where the widget's views are the page's, and keeps the user's place in

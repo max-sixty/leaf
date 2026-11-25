@@ -5,7 +5,6 @@
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   clockValue,
-  whileConnected,
   tabStore,
   HeldReading,
   threadActions,
@@ -102,21 +101,17 @@ class RepoFeed extends LeafElement {
       () => [...this.querySelectorAll(".feed-list")],
       () => this.requestUpdate(),
     );
-    whileConnected(this, (signal) => {
-      this.observer = new IntersectionObserver(
-        (entries) => {
-          if (
-            entries.some((entry) => entry.isIntersecting && entry.target.isConnected) &&
-            this.canAdvance &&
-            !this.readAheadPaused
-          )
-            this.more();
-        },
-        { rootMargin: "350px" },
-      );
-      this.signal = signal;
-      return () => this.observer.disconnect();
-    });
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries.some((entry) => entry.isIntersecting && entry.target.isConnected) &&
+          this.canAdvance &&
+          !this.readAheadPaused
+        )
+          this.more();
+      },
+      { rootMargin: "350px" },
+    );
   }
 
   choose(field, value) {

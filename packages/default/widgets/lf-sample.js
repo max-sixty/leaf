@@ -39,7 +39,6 @@
  * document does not reset its work. */
 import {
   growthIsSeen,
-  whileConnected,
   mountSample,
   focusDestination,
   whenNear,
@@ -124,19 +123,24 @@ export class Sample extends HTMLElement {
   }
 
   connectedCallback() {
-    if (!once(this)) return;
-    if (!this.#build()) return;
-    whileConnected(this, () => {
-      this.#mount();
-      return () => {
-        this.#nearing?.();
-        this.#nearing = null;
-        this.#viewOperation?.abort();
-        const host = this.#host;
-        this.#host = null;
-        host?.destroy().catch((/** @type {unknown} */ error) => this.#failure(error));
-      };
-    });
+    if (once(this)) this.#build();
+    this.#mount();
+  }
+
+  // A move keeps the frame's document, as `moveBefore` does.
+  connectedMoveCallback() {
+    this.#mount();
+  }
+
+  // Removal closes a modal Full view, so the view returns to its embedded posture.
+  disconnectedCallback() {
+    if (this.#pageView?.view.getAttribute("role") === "dialog") this.#embed();
+    this.#nearing?.();
+    this.#nearing = null;
+    this.#viewOperation?.abort();
+    const host = this.#host;
+    this.#host = null;
+    host?.destroy().catch((/** @type {unknown} */ error) => this.#failure(error));
   }
 
   #mount() {
@@ -204,12 +208,6 @@ export class Sample extends HTMLElement {
     // without them while they load. The page reads as arriving until each started
     // child has.
     this.#starting.resolve(this.#track(ready));
-  }
-
-  // Removal closes a modal Full view at once, so the view returns to its embedded
-  // posture in the same task rather than at the arrival batch.
-  disconnectedCallback() {
-    if (this.#pageView?.view.getAttribute("role") === "dialog") this.#embed();
   }
 
   #build() {

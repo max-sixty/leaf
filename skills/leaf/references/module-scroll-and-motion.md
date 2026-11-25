@@ -296,9 +296,9 @@ user who asked for less motion, Leaf turns the transitions off and ends the
 animations at once. `element.animate` has neither guard, so it plays before the page
 is presented and for that user.
 
-A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
-than choosing a number, and a retained frame returning from an editor to its reading
-takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The
+A widget removing an item, or returning a retained frame from an editor to its
+reading, takes the time of its fold from `--lf-motion-fold` rather than choosing a
+number (`package-themes.md`, "Theme tokens"). The
 library's [`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js) reads a
 token's time in milliseconds.
 

@@ -405,11 +405,11 @@ lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"]
   user-select: text;
 }
 .lf-shotcap[data-lf-state="before"] {
-  background: var(--lf-del-tint);
+  background: var(--lf-danger-tint);
   color: var(--lf-danger-ink);
 }
 .lf-shotcap[data-lf-state="after"] {
-  background: var(--lf-add-tint);
+  background: var(--lf-ok-tint);
   color: var(--lf-ok-ink);
 }
 .lf-shotcap[data-lf-shot-hidden] {

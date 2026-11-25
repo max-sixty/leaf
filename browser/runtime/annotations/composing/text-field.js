@@ -101,7 +101,7 @@
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
- * It is drawn in the theme's quiet ink (`--lf-quiet`); a box that wants another face for
+ * It is drawn in the theme's muted ink (`--lf-muted`); a box that wants another face for
  * it styles `::part(placeholder)`, which a slotted child inherits. The words are hidden from
  * assistive technology, which reads them as the content node's `aria-placeholder`.
  * A child in slot `end` is a press of the box's own at the placeholder's far end, such
@@ -265,7 +265,7 @@ sheet.replaceSync(`
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
   .lf-field-placeholder { pointer-events: none; display: flex; align-items: baseline;
-    block-size: 1lh; contain: inline-size; color: var(--lf-quiet); }
+    block-size: 1lh; contain: inline-size; color: var(--lf-muted); }
   .lf-field-placeholder-words { flex: 1 1 auto; min-width: 0; white-space: nowrap;
     overflow-x: clip; text-overflow: ellipsis; }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
@@ -294,7 +294,7 @@ sheet.replaceSync(`
   .lf-md-mark { color: var(--lf-muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--lf-mono); font-size: var(--lf-code-inline-size);
-    background: var(--lf-code-bg); border-radius: var(--lf-code-inline-r);
+    background: var(--lf-chip); border-radius: var(--lf-r-s);
     padding: var(--lf-code-inline-pad); box-decoration-break: slice; }
   .lf-md-heading { font-weight: bold; }
   .lf-md-link { color: var(--lf-accent); text-decoration: underline var(--lf-link-underline);

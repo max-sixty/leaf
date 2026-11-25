@@ -1,4 +1,4 @@
-/* The chip, the compact face a small fact rides in (tokens.css, `--lf-chip-r`), on the
+/* The chip, the compact face a small fact rides in (tokens.css, `--lf-chip-pad`), on the
  * labels this package's widgets draw (`.lf-chip`) and on the `recommended` chip
  * options.css draws. An author's chip is Leaf's tag (`.lf-tag`, idioms.css), which
  * reads the same chip tokens, so the two stand alike wherever both apply. This face
@@ -15,7 +15,7 @@
   box-sizing: border-box;
   max-width: 100%;
   overflow-wrap: break-word;
-  border-radius: var(--lf-chip-r);
+  border-radius: var(--lf-r-s);
   background: var(--lf-chip);
   color: var(--lf-ink-2);
   font-variant-numeric: tabular-nums;
@@ -38,6 +38,6 @@
 /* How many passages a version changed, counted on what holds them (a tab, a settled
  * decision): a chip in the tint the changed words wear. */
 .lf-chip.lf-change-count {
-  background: var(--lf-add-tint);
+  background: var(--lf-ok-tint);
   color: var(--lf-ok-ink);
 }

@@ -84,7 +84,7 @@ const theme = EditorView.theme({
     backgroundColor: "color-mix(in srgb, var(--lf-accent) 6%, transparent)",
   },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--lf-accent)" },
-  ".cm-placeholder": { color: "var(--lf-quiet)" },
+  ".cm-placeholder": { color: "var(--lf-muted)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
     { backgroundColor: "color-mix(in srgb, var(--lf-accent) 24%, transparent)" },
   ".cm-matchingBracket": {

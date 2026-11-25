@@ -751,7 +751,7 @@ summary {
   padding: 8px var(--lf-thread-text-inset);
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   border-radius: var(--lf-r);
-  background: var(--lf-settled-tint);
+  background: var(--lf-chip);
 }
 /* Open, the region takes in the messages the summary folds: the fill stands under
    them, and each stands on the tint as its own ground, so a head stuck at a card's top
@@ -774,12 +774,12 @@ summary {
   );
   inset-inline-end: anchor(var(--lf-fold-head) end);
   border-radius: var(--lf-r);
-  background: var(--lf-settled-tint);
+  background: var(--lf-chip);
   pointer-events: none;
 }
 .lf-thread-transcript > .lf-msg[data-lf-summarized] {
-  --lf-ground: var(--lf-settled-tint);
-  --lf-msg-rest-ground: var(--lf-settled-tint);
+  --lf-ground: var(--lf-chip);
+  --lf-msg-rest-ground: var(--lf-chip);
 }
 /* The press at the summary's head stands in a message time's quiet face, which it
    takes as words among others do (controls.css, the inline face). */

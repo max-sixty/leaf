@@ -50,7 +50,7 @@ wa-input {
      Components own which state uses the pair, through their upstream tokens. */
   --wa-color-brand-fill-loud: var(--lf-accent);
   --wa-color-brand-on-loud: light-dark(var(--lf-card), var(--lf-paper));
-  --wa-color-focus: var(--lf-here);
+  --wa-color-focus: var(--lf-ok);
   /* Upstream's corner scale is Leaf's (tokens.css, `--lf-r`); one home for both. */
   --wa-border-radius-s: var(--lf-r-s);
   --wa-border-radius-m: var(--lf-r);
@@ -61,7 +61,7 @@ wa-input {
   --wa-form-control-background-color: var(--lf-field);
   --wa-form-control-border-color: var(--lf-border);
   --wa-form-control-value-color: var(--lf-ink);
-  --wa-form-control-placeholder-color: var(--lf-quiet);
+  --wa-form-control-placeholder-color: var(--lf-muted);
   /* A line tall (`--lf-line`) whatever its type would make it, restated on each
      control so a place that sets the line sets it here too. */
   --wa-form-control-height: var(--lf-line);

@@ -20,6 +20,7 @@ from .layer import (
     layer_inputs,
     named_package,
     package_files,
+    package_layer_inputs,
     selectable_packages,
 )
 from .locations import (
@@ -126,13 +127,11 @@ def starter_element_declaration(tag: str) -> dict:
     return {
         "description": "A yes-or-no choice the user makes with a press.",
         "attributes": {
-            "properties": {"choice": {"type": "string", "enum": ["yes", "no"]}},
+            "properties": {"choice": {"enum": ["yes", "no"]}},
             "required": ["id"],
         },
         "content": "empty",
-        "verbs": {
-            "choose": {"unit": "widget", "record": {"kind": "value", "attr": "choice"}}
-        },
+        "verbs": {"choose": {"record": {"attr": "choice"}}},
         "example": f'<{tag} id="{tag.removeprefix("lf-")}"></{tag}>',
     }
 
@@ -161,13 +160,8 @@ customElements.define(
     }}
 
     press(value) {{
-      this.dispatchEvent(
-        new CustomEvent("lf-action", {{
-          bubbles: true,
-          composed: true,
-          detail: {{ verb: "choose", detail: {{ value }} }},
-        }}),
-      );
+      const action = {{ verb: "choose", detail: {{ value }} }};
+      this.dispatchEvent(new CustomEvent("lf-action", {{ detail: action }}));
     }}
   }},
 );
@@ -293,15 +287,6 @@ def validate_package_dir(package: Path) -> list:
         )
     refuse_package_overlap(paths, protected)
     return protected
-
-
-def package_layer_inputs(package: Path) -> list[Path]:
-    """The layer a page selecting this package alone composes: the mandatory layer,
-    then this package, once."""
-    inputs = layer_inputs()
-    if not any(paths_same(package, root) for root in inputs):
-        inputs.append(package)
-    return inputs
 
 
 def check_package(
@@ -501,7 +486,7 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
     host's browser, and report one object in `page check`'s shape: `status`, the exit
     status; `findings`, each finding as a record: the findings a refusal carries, such
     as a registry's, any other refusal as one `package` record, or else what its
-    declarations advise (`validation.composition.layer_advice`), the advice
+    declarations advise (`authored_checks.declarations.layer_advice`), the advice
     `unset_properties` gives and the widget quality findings; and `browser`, what the
     browser gate ran in or why none could, null
     where none was asked for or the package check refused."""
@@ -523,7 +508,7 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
             else [Finding("package", values={"text": str(error)})]
         )
         return reported(1, found)
-    from .validation.composition import layer_advice
+    from .authored_checks.declarations import layer_advice
 
     advice = [
         *layer_advice([package], composition.vocabulary.registry),

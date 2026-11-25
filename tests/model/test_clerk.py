@@ -11,7 +11,7 @@ from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import state as state_model
-from leaf import todos as todos_model
+from leaf import tasks as tasks_model
 from leaf.agent_state import cmd_page_state
 from leaf.files import require_revision
 from leaf.interaction_log import read_interactions
@@ -500,8 +500,8 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     them each item the agent has started with its line, which tells the fork what the
     page shows under way."""
     hook(capsys, "UserPromptSubmit")
-    todo = todos_model.cmd_create(claimed, "page", "Revise the plan")
-    todos_model.cmd_start(claimed, todo["id"], "revising the plan")
+    todo = tasks_model.cmd_create(claimed, "page", "Revise the plan")
+    tasks_model.cmd_start(claimed, todo["id"], "revising the plan")
     prompt = asked()["prompt"]
     assert clerk_model.REFERENCE.read_text().strip() in prompt
     # The asks follow the guidance the agent reads, each paragraph sent whole.

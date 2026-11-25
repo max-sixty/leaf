@@ -47,6 +47,7 @@ from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache, partial
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
+from urllib.parse import urlsplit
 
 from pywhatwgurl import URL
 
@@ -58,12 +59,20 @@ from leaf.files import (
     revision_path,
 )
 from leaf.findings import Finding, Rejected, note
+from leaf.page_inputs import page_stamps
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import MODULES
 from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES, MEDIA_DIR, kernel_registry
+from leaf.schema import (
+    CONTENT_TYPES,
+    LAYER_FILE,
+    MEDIA_DIR,
+    PACKAGES_DIR,
+    SERVED_PATH,
+    kernel_registry,
+)
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -74,7 +83,6 @@ from leaf.structure import (
     splice,
 )
 from leaf.styles import dropped_css
-from leaf.validation.markup import unanswered_media
 
 PUBLIC_MODULES = tuple(kernel_registry()["$public-modules"]["paths"])
 # The page's own declarations, which a revision captures beside its modules; the
@@ -609,6 +617,20 @@ def css_syntax_errors(
     ]
 
 
+def unanswered_media(refs, page_dir: Path) -> list[Finding]:
+    """Every `/media/…` reference the page will not answer: one whose name the server
+    never serves (`schema.MEDIA_DIGEST`), whatever the directory holds under it, and
+    one the directory has not got."""
+    errors = []
+    for ref in sorted(refs):
+        path = urlsplit(ref).path
+        if not SERVED_PATH.fullmatch(path):
+            errors.append(Finding("unserved-media", values={"ref": ref}))
+        elif not (page_dir / path.lstrip("/")).is_file():
+            errors.append(Finding("missing-media", values={"ref": ref}))
+    return errors
+
+
 def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]:
     """What a capture would refuse in markup no capture reads, such as a message's,
     which the log carries: what delivery's reader can't read in
@@ -616,8 +638,9 @@ def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]
     that the page won't answer (`unanswered_media`), in an attribute or a
     stylesheet. Its stylesheets are every one delivery rewrites
     (`structure.delivered_sheets`), its samples' included; a sample child's
-    attributes its own reading names (`validation.source.uncaptured_sample_errors`).
-    A page's own markup the capture reads (`_capture_artifact`)."""
+    attributes its own reading names
+    (`authored_checks.source.uncaptured_sample_errors`). A page's own markup the
+    capture reads (`_capture_artifact`)."""
     refused = []
     media = set(document.authoring.media_refs)
     for css, sheet, declarations in delivered_sheets(document):
@@ -725,6 +748,23 @@ def _path_stamp(path: Path) -> tuple:
 
 # The page's trees a capture may read a dependency from (`capture_local_resource`).
 CAPTURED_TREES = ("page", MEDIA_DIR)
+
+
+def version_written(page_dir: Path) -> int:
+    """When a file a version is built from was last written, in nanoseconds since the
+    epoch: the document, the layer it selects with the page's package copies, and the
+    trees a capture reads. A data update, for one, moves the page's source
+    (`page_inputs.source_readings`) but makes no new version. It reads the stamps the
+    page's readings take (`page_inputs.page_stamps`)."""
+    inputs = {"index.html", LAYER_FILE, PACKAGES_DIR, *CAPTURED_TREES}
+    return max(
+        (
+            stamp[1]
+            for name, stamp in page_stamps(page_dir)
+            if isinstance(stamp, tuple) and name.split("/", 1)[0] in inputs
+        ),
+        default=0,
+    )
 
 
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:

@@ -211,7 +211,7 @@ lf-sample:has(> template[data-sample]) {
   --lf-focus-box: .lf-sample-exhibit;
 }
 .lf-sample-exhibit[data-lf-control-focus] {
-  border-left-color: var(--lf-accent);
+  border-left-color: var(--lf-here);
 }
 @media (forced-colors: active) {
   .lf-sample-exhibit[data-lf-control-focus] {

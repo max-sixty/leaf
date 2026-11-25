@@ -61,6 +61,12 @@ export const shadowHost = (root) => (isShadowRoot(root) ? root.host : null);
 // instead.
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
+// The element a node stands in: the node itself where it is an element, else the
+// element holding it, which for a text a shadow root holds straight under it, as an
+// age's words or a widget template's top-level text, is the root's host (`upFrom`).
+// A text's `parentElement` is null there.
+/** @param {Node} node @returns {Element | null} */
+export const holdingElement = (node) => (isElement(node) ? node : upFrom(node));
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
 // out until one is. Null when none is: a detached node, or one outside `root`

@@ -33,7 +33,7 @@ export function TEXT_ENTRY(binding) {
 // the keyboard whole. Focus there claims those characters, alone or shifted, so Leaf's
 // page letters wait until focus leaves, as they do in a select (`takesLetters`, which
 // also covers an editable combobox's text box). Leaf reads a key after the page's
-// elements have heard it (controller.js), so a widget that prevents each letter it
+// elements have heard it (page-keys/controller.js), so a widget that prevents each letter it
 // handles keeps it without a claim. A typeahead widget needs one all the same, since it
 // prevents only a letter some name starts with, as Web Awesome's dropdown does, or none,
 // and Leaf would otherwise offer page letters the widget answers. Leaf's own file tree

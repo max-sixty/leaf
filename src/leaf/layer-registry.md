@@ -140,9 +140,12 @@ Every composition, `page init`'s layer and a page's own declarations over it, wr
 `page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
 declaration says so. Composition also writes into each declaration the defaults it
 leaves out (`registry/contract.complete_declarations`): its `content`, its attribute
-schema, and the `type` and `additionalProperties` of that schema and of each verb's
-`detail` schema. It writes them before validation, so validation and every later
-reader read them whether the declaration or composition wrote them.
+schema, the `type` and `additionalProperties` of that schema and of each verb's
+`detail` schema, each verb's `unit` and its record's `kind`, an obligation's
+`answered`, and each attribute an input binds by, as a string in the attribute
+schema and, for the one its `reference` names, in `refers`. It writes them before
+validation, so validation and every later reader read them whether the declaration or
+composition wrote them.
 
 Composition then stamps the facts the browser reads rather than derives
 (`registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,

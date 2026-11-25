@@ -94,19 +94,3 @@ export const pagePresented = () =>
 // Whether widgets and anchor preparation have finished, independently of state.
 export const pageUpgraded = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
-
-// Whether the decision `element`, which wears the location mark (`obligation`), has a
-// control inside that carries the location itself: the control holding visible focus
-// there says so on itself with `--lf-obligation-ring: none`. A rule saying it on the
-// decision had to ask with `:has()` where focus is (focus.js, `--lf-focus-box`). The
-// location ring (target-paint.js) and a landing that reveals it (landing-scroll.js) read
-// it here.
-/** @param {Element} element */
-export const locationStandsDown = (element) => {
-  if (!element.hasAttribute("data-lf-focus-visible-within")) return false;
-  const control = element.querySelector("[data-lf-focus-visible]");
-  return (
-    control !== null &&
-    getComputedStyle(control).getPropertyValue("--lf-obligation-ring").trim() === "none"
-  );
-};

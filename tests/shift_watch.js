@@ -1653,11 +1653,12 @@
         nativeClosures.delete(node);
         continue;
       }
-      if (
-        closure.settledAt === null &&
-        at >= closure.until &&
-        parseFloat(getComputedStyle(node, "::details-content").blockSize) === 0
-      )
+      if (closure.settledAt !== null || at < closure.until) continue;
+      // The size can read 0 before a discrete `content-visibility` transition ends
+      // and the browser skips the content, which changes the population with no
+      // event to announce it, so the closure lasts until both have settled.
+      const content = getComputedStyle(node, "::details-content");
+      if (parseFloat(content.blockSize) === 0 && content.contentVisibility === "hidden")
         closure.settledAt = at;
     }
     const timed = animations.filter(

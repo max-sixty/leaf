@@ -3,7 +3,7 @@
  * track standing beside the body with room for words, it is an open outline. In a
  * document's sidebar narrowed to the map's spine (layouts.css), it is a reading map:
  * each section's marker stands at the section's place on the document's scale
- * (`--lf-toc-at`, lf-toc.js), and the accent lens on the spine shows the band
+ * (`--lf-toc-at`, lf-toc.js), and the lens on the spine shows the band
  * currently in view. Crowded labels bend that scale just enough to stay distinct, and a
  * route too long for its labels leaves its deepest levels off the map; markers, labels,
  * and lens share the fitted positions. At rest the map shows its spine, markers and
@@ -333,7 +333,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       width: var(--lf-toc-spine-width);
       height: 1px;
       transform-origin: top;
-      background: var(--lf-accent);
+      background: var(--lf-here);
     }
     /* Each marker is a point at its section's place on the map (`--lf-toc-at`,
        lf-toc.js), which draws its ring and, for a changed section, its stretch of the
@@ -381,9 +381,9 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     /* A filled marker is one disc, so its fill runs under its stroke, which would
        otherwise leave a seam between them. */
     lf-toc .lf-toc-marker[data-lf-current]::before {
-      background-color: var(--lf-accent);
+      background-color: var(--lf-here);
       background-clip: border-box;
-      border-color: var(--lf-accent);
+      border-color: var(--lf-here);
     }
     /* The labels stand in one layer over the spine, apart from the markers, so the map
      * reveals them, with the paper behind them, as one fade of one box. The layer covers
@@ -463,7 +463,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     }
     /* The spine is the map's rule, and its markers stand on it, so a section's mark is
        its marker, which shows at rest too: a ring of the mark's colour, where a
-       subsection's point grows to such a ring. Where you are keeps its accent fill,
+       subsection's point grows to such a ring. Where you are keeps its fill in your ink,
        inside the disc for an On Me item. A changed section's stretch of the spine runs
        from its marker to the next one, under the lens, so the lens still shows the part
        in view. Its caps run half its width past each marker, as the outline's run past

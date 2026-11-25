@@ -10,7 +10,7 @@ from browser.controls import (
     RING_NEW_STOP,
     SAMPLE_STARTUP_FAILURE,
 )
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
@@ -79,7 +79,7 @@ from leaf import hosting as hosting_model
 from leaf import presence as presence_model
 from leaf.render_checks import rendered, start_near_work, wait_until_ready
 from leaf.schema import SERVICE_FILE
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -629,8 +629,7 @@ def seen_stop(page, seen=...):
 def _tab_walk(page, stem):
     """Walk the page's whole ordinary Tab order and name every stop that shows nothing
     of where the keyboard is, and every ring a stop leaves cut or covered
-    (`ring_faults`). A ring that stays lit across stops, such as a decision's for the
-    control the user reached inside it, is named once."""
+    (`ring_faults`). A ring that stays lit across stops is named once."""
     page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
     page.evaluate(RELEASE_FOCUS)
     unindicated, faults, faulted = [], [], set()
@@ -1469,6 +1468,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             for _ in range(3):
                 page.keyboard.press("Escape")
             panel_settled(page, open=False)
+            # A scope that held a thread's view chose the panel for threads; the next
+            # opens them beside their passages again.
+            choose_threads_in_panel(page, on=False)
             # A draft editor and captured source are conditional chrome: Tab can stand
             # on them only after their explicit doors have opened. Do that after the
             # scope reset, whose Escape presses would otherwise put the draft away.

@@ -12,6 +12,19 @@ from leaf.data_contracts import (
 )
 from leaf.event_log import logged_ids
 from leaf.findings import Finding, Rejected
+from leaf.markup_checks.instances import (
+    inert_allocation_advice,
+    invoker_errors,
+    markup_findings,
+    question_errors,
+    reference_errors,
+    suggestion_errors,
+)
+from leaf.markup_checks.markup import (
+    authored_allocation_errors,
+    page_boundary_errors,
+    unpointable_blocks,
+)
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import IncompatibleLayer, read_page_registry
@@ -23,6 +36,7 @@ from leaf.revision_artifact import (
     document_drops,
     page_files,
     resource_type,
+    unanswered_media,
 )
 from leaf.sample_content import initial_sample_events
 from leaf.server import other_serving_leaf
@@ -33,21 +47,8 @@ from leaf.thread_context import (
     thread_names,
     thread_structure,
 )
-from leaf.validation.instances import (
-    inert_allocation_advice,
-    invoker_errors,
-    markup_findings,
-    question_errors,
-    reference_errors,
-    suggestion_errors,
-)
-from leaf.validation.markup import (
-    authored_allocation_errors,
-    page_boundary_errors,
-    unanswered_media,
-    unpointable_blocks,
-)
-from leaf.validation.source_history import (
+
+from .source_history import (
     EMPTY_READING,
     NO_PREDECESSOR,
     PredecessorReading,
@@ -104,8 +105,8 @@ def _page_errors(
     thread_ids: set[str],
 ) -> list[Finding]:
     """What a page's document alone is checked for beyond its markup
-    (`instances.markup_findings`): its shell and allocations, and its instances
-    against its event and id namespace."""
+    (`markup_checks.instances.markup_findings`): its shell and allocations, and its
+    instances against its event and id namespace."""
     errors = [*page_boundary_errors(parser), *authored_allocation_errors(parser)]
     if registry is None:
         return errors
@@ -287,11 +288,11 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     """What `page check` and the first reply on a revision
     (`thread._revision_advice`) advise beside what `check_source` found: the
     source's non-blocking drift, what the page's own declarations advise
-    (`composition.declaration_advice`), and a live server running another Leaf
+    (`declarations.declaration_advice`), and a live server running another Leaf
     (`server.other_serving_leaf`). It is read apart from the check, which every
     reply and activation runs, because judging the page's recorded data can take a
     cold process about 200 ms on a large page."""
-    from .composition import declaration_advice
+    from .declarations import declaration_advice
 
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)

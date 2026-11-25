@@ -27,6 +27,7 @@
       "/runtime/lib/pending-task.js",
       "/runtime/lib/queued-work.js",
       "/runtime/lib/rank.js",
+      "/runtime/lib/rest-arming.js",
       "/runtime/lib/role-button-press.js",
       "/runtime/lib/roving.js",
       "/runtime/lib/scroll-range.js",

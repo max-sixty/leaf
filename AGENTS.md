@@ -112,8 +112,9 @@ bytes it moves grows with how long the session has run. The time to load a page,
 to compute or apply a reading of it, grows no faster than n log n in the page's size
 n. The server checks each event against such a reading before admitting it to the
 log, so its work per event may grow with the events the log holds. On the largest
-page `leaf-dev bench` generates, a keystroke and a wheel step each fit in 8 ms of
-main-thread time, and a click shows the server's reading within 100 ms. A step that
+page `leaf-dev bench` generates, a keystroke and a wheel step each fit in 12 ms of
+main-thread time, and a click shows the server's reading within 100 ms. The 12 ms is
+provisional, to be revisited once the architectural changes under way settle. A step that
 walks one of the page's collections once for each member of another grows with the
 square of the page, as finding each obligation's heading by reading every heading
 did. So does a style or layout pass forced once per element, since each pass can
@@ -211,7 +212,7 @@ and the page's packages into the page's layer.
 - `browser/`: the browser runtime, registry and theme, with the type check's
   configuration and declarations under `browser/types/`
   (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
-  for commands, bindings and scopes).
+  for commands, bindings and scopes, and for `key-badges/` and `page-keys/`).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
@@ -483,6 +484,16 @@ package the page selects provides it, whatever the widget is called. A package's
 guidance, in its registry entries and its `instructions/author.md`, is that package's
 advice rather than Leaf's, so it may name any widget.
 
+### Keep the package interface small
+
+A package leans on Leaf only through the package interface: the keys of an element
+declaration, the widget protocol, Leaf's own elements, the functions `widget-api.js`
+exports and the styling names the references declare. Another author's package has
+nothing else, so Leaf's bundled widgets use nothing else, and each name is one more
+thing every author learns and every later change keeps working. A change meets a
+widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
+need of Leaf", says how to choose where it can't.
+
 ### Wait for the event that ends the work
 
 Code waits for the event that ends the work, such as a response, a process's exit, a
@@ -571,6 +582,12 @@ makes Leaf harder to develop than it is worth:
   the file you're reading, so search for them as **What it repeats** says.
 - **A mechanism a dependency or the platform already provides.** Delegate it ("Use
   dependencies").
+- **A name the package interface could lose.** `uv run leaf-dev interface` lists every
+  name with its form and what uses it. Look at a function one bundled widget calls, a
+  key one declaration sets, a styling name one sheet reads, and a name that says what
+  HTML or another name already says. Move the promise into Leaf, or the code into the
+  library or the widget, and remove the name (`packages/AGENTS.md`, "A widget's need of
+  Leaf").
 
 ## Working on the repository
 

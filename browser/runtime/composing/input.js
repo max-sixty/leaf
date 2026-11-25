@@ -106,6 +106,7 @@ import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
 import { PRESS } from "../lib/keys.js";
+import { restArming } from "../lib/rest-arming.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
@@ -142,9 +143,6 @@ import { PRESS } from "../lib/keys.js";
 const INPUT_DRAFT = Symbol("composition draft");
 // What Shift+Return does in a box that holds lines, as its hint and Send's tooltip say it.
 const NEW_LINE = "New line";
-// How long the pointer rests on Send's corner, once words reach it, before Send takes
-// presses there: longer than a press aimed at the words' end takes to land.
-const SEND_DWELL = 150;
 
 /** @typedef {CompositionField} CompositionFieldElement For its tag. */
 class CompositionField extends SignalWatcher(LitElement) {
@@ -587,41 +585,20 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => capitalized(sendWord());
     // Once words reach Send's corner, Send shows there as the pointer comes to it, and
-    // takes presses only once the pointer has rested on it (response.css), so a quick
-    // press at the words' end places the caret. Typing, or a press on the words, puts
-    // Send away until the pointer next moves, so a second press of a double-click
-    // selects rather than sends. Where the pointer is decides, read from the
-    // coordinates of each move and leave alike rather than from which element it
-    // entered or left: a leave can come with the pointer still over Send, as a Firefox
-    // process whose mouse tracking has gone wrong sends one after every move until it
-    // restarts, and a leave taken as the pointer going would put Send away while it
-    // rests there.
-    let dwell = 0;
-    const unpoint = () => {
-      clearTimeout(dwell);
-      dwell = 0;
-      ta.parentElement?.removeAttribute("data-lf-send-pointed");
-      ta.parentElement?.removeAttribute("data-lf-send-armed");
-    };
-    /** @param {PointerEvent & {currentTarget: HTMLElement}} event */
-    const point = (event) => {
-      if (event.pointerType === "touch") return;
-      const box = event.currentTarget;
-      const send = sendBtn?.getBoundingClientRect();
-      const on =
-        send &&
-        event.clientX >= send.left &&
-        event.clientX < send.right &&
-        event.clientY >= send.top &&
-        event.clientY < send.bottom;
-      if (!on) return unpoint();
-      if (box.hasAttribute("data-lf-send-pointed")) return;
-      box.setAttribute("data-lf-send-pointed", "");
-      dwell = setTimeout(() => {
-        dwell = 0;
-        box.setAttribute("data-lf-send-armed", "");
-      }, SEND_DWELL);
-    };
+    // takes presses only once the pointer has rested on it (`restArming`,
+    // response.css), so a quick press at the words' end places the caret. Typing, or a
+    // press on the words, puts Send away until the pointer next comes to it, so a
+    // second press of a double-click selects rather than sends.
+    const sendArming = restArming(() => sendBtn, {
+      point: () => ta.parentElement?.setAttribute("data-lf-send-pointed", ""),
+      arm: () => ta.parentElement?.setAttribute("data-lf-send-armed", ""),
+      unpoint: () => {
+        ta.parentElement?.removeAttribute("data-lf-send-pointed");
+        ta.parentElement?.removeAttribute("data-lf-send-armed");
+      },
+    });
+    const point = sendArming.move;
+    const unpoint = sendArming.reset;
     let sending = false;
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());

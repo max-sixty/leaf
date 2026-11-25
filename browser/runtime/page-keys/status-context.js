@@ -1,7 +1,7 @@
 /* What the page says between notices about where the keyboard has the user: the Go-to
  * filter's word while a `g` sequence holds one, a walk's position ("1 of 3 threads")
  * after a list walk, and what the stance the user is in says, its `says` or else its
- * title ("Draw"; dispatch.js, `innermostStance`).
+ * title ("Draw"; keyboard/dispatch.js, `innermostStance`).
  * The floating panel reads this signal for its empty field, where the Go-to words, or
  * a walk's position for its step's moment, take the status's place, and which takes
  * no words while a stance stands (field-readings.js, `still`); its row names the
@@ -13,8 +13,8 @@
 import { signal } from "/runtime/framework.js";
 import { setNoticeContext } from "../notifications.js";
 import { walkPosition } from "../walk-position.js";
-import { word } from "./bindings.js";
-import { innermostStance } from "./dispatch.js";
+import { word } from "../keyboard/bindings.js";
+import { innermostStance } from "../keyboard/dispatch.js";
 
 /** @typedef {NonNullable<ReturnType<typeof walkPosition>>} Walk
  * @typedef {{goTo: string | null, walk: Walk | null, stance: string | null}} StatusContext
@@ -24,7 +24,7 @@ const EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
 const context = signal(EMPTY);
 export const statusContextReading = () => context.value;
 /** What a stance says of itself: its `says`, or else its title.
- * @param {import("./bindings.js").Scope | null | undefined} scope */
+ * @param {import("../keyboard/bindings.js").Scope | null | undefined} scope */
 export const stanceWords = (scope) =>
   (scope ? word(scope.says ?? scope.title) : null) ?? null;
 

@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { seatHints } from "/runtime/keyboard/hints.js";
+import { seatHints } from "/runtime/key-badges/hints.js";
 
 const viewport = { left: 0, top: 0, right: 1000, bottom: 800 };
 const box = (left, top, width, height) => ({

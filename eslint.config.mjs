@@ -1134,8 +1134,8 @@ const topLevelAwaitRule = {
 // A notice's or an error's words name no key: the step they point to is a press the
 // panel's field offers (field-readings.js, `press`). The rule reads every string a
 // module writes for the form such words took before, a dash or a semicolon and then a
-// shortcut, a character or `g` and one, doing something ("— v shows them", "; g D
-// restores it"), past a count or the article ("— 3 changes", "— a process exited"). It
+// shortcut, a character or `g` and one, doing something ("— v shows them", "; g i
+// resumes it"), past a count or the article ("— 3 changes", "— a process exited"). It
 // catches that form, not every way of spelling a key.
 const SPELLED_KEY = /(?:—|;)\s+(?:g\s+)?[^\s\daAI]\s+[a-z]+s\b/u;
 export const spelledKeysRule = {
@@ -1517,6 +1517,7 @@ export default [
   {
     files: [
       "examples/**/*.js",
+      "docs/**/*.js",
       "evals/**/fixtures/**/*.js",
       "tests/fixtures/**/*.js",
       "tests/*_watch.js",

@@ -12,6 +12,7 @@ import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
 import { arrive, beginArrival, mountHistory } from "./runtime/history.js";
+import { entryView } from "./runtime/views.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -84,7 +85,6 @@ import {
 } from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
-import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import { createThreadAddress } from "./runtime/thread/address.js";
@@ -105,7 +105,7 @@ import { createChangeWalk } from "./runtime/change-walk.js";
 import {
   commandHintLayer,
   createCommandHints,
-} from "./runtime/keyboard/command-hints.js";
+} from "./runtime/key-badges/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { marginBarLayer } from "./runtime/margin-bars.js";
 import { createPageLayout } from "./runtime/page-layout.js";
@@ -121,6 +121,9 @@ import { createVisualMarkPaint } from "./runtime/visual-mark-paint.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
+// Defined before any widget's module loads, so a template that draws an age needs no
+// import.
+import "./runtime/age.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 import { mountPreviews } from "./runtime/preview.js";
@@ -130,20 +133,20 @@ import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
 import {
   createGoToSequence,
   goToHintLayer,
-} from "./runtime/keyboard/go-to-sequence.js";
+} from "./runtime/page-keys/go-to-sequence.js";
 import { coverBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
-import { declareCurrentLocation } from "./runtime/keyboard/page.js";
-import { letHeldKeysGo, mountKeyboard } from "./runtime/keyboard/controller.js";
+import { declareCurrentLocation } from "./runtime/page-keys/page.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/page-keys/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
-import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
+import { paintTouchControls } from "./runtime/page-keys/touch-controls.js";
 import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
 import {
   commandReferenceDialog,
   mountCommandReference,
-} from "./runtime/keyboard/command-reference.js";
-import { paintStatusContext } from "./runtime/keyboard/status-context.js";
+} from "./runtime/page-keys/command-reference.js";
+import { paintStatusContext } from "./runtime/page-keys/status-context.js";
 import {
   paintKeys,
   reflectFirstScopes,
@@ -277,7 +280,6 @@ async function boot() {
     targetPaint: createVisualMarkPaint(),
     pointer: pointerAt,
     currentLocationThreadId,
-    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -451,7 +453,6 @@ async function boot() {
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
     annotationCommands: {
-      currentLocationObligation: () => items.currentLocationIn(),
       designModeActive: designMode.active,
       pointerModeActive: () =>
         designMode.active() || drawing.drawModeActive() || regionCapture.active(),
@@ -685,18 +686,12 @@ async function boot() {
       app.threadDestinations.openThreadDraft(context, intent, route),
     holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
   });
-  const rewriteRestore = createRewriteRestore({
-    revealInThread: (context, intent) =>
-      app.threadDestinations.openThreadDraft(context, intent),
-    holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
-  });
   const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
       writingResume.command,
-      rewriteRestore,
       passageSelection.command,
       navigation.alignTop,
       app.read.firstUnreadCommand,
@@ -840,6 +835,7 @@ async function boot() {
   mountHistory({
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
+    view: entryView,
     thread: {
       claim: (url, record, intent) => threadAddress.claim(url, record, intent),
       open: () => openThreadView(),

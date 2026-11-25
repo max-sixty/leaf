@@ -5,7 +5,7 @@
    box, rides away with what it is about when the page scrolls, and keeps the caret: a
    letter typed there types into the box and brings it back (off-flow.js), where on the
    page a letter is a command. Focus on any other control the user has scrolled away
-   from lets go at the next key (keyboard/controller.js), so a box holding the caret is
+   from lets go at the next key (page-keys/controller.js), so a box holding the caret is
    the one place out of sight that a key acts on. The user asked for a mark there, so
    they see where their keys go before pressing one, and only there: they rejected a
    mark for every thread with news scrolled out of the window, which no key reaches. A

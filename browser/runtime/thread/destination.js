@@ -307,6 +307,18 @@ export function createThreadDestinations({
     // of its views draws it, though the reader declines to show the thread.
     const holder = part === "message" ? authoredHolder(id) : null;
     const drawn = Boolean(selected && holder && renderedUnder(holder, selected.owner));
+    // Whether the thread is on a part its widget hasn't drawn, or has drawn where the
+    // page doesn't show it, as in a file the user closed or a line a diff's search
+    // hides, so travel has the widget show the part (`onPage`, `inPrimary`).
+    const partUndrawn = () => {
+      const anchor = threadNamed(id)?.anchor;
+      const placement = placedAt(id);
+      return Boolean(
+        placement &&
+        (anchor?.datum || anchor?.visual) &&
+        (awaitsDrawing(anchor, placement) || !placeDrawn(id)),
+      );
+    };
     // The registered primary reader, asked to show the thread: `last` says nothing on the
     // page will show it if the reader declines, and `resort` that the page could not,
     // so the thread goes back to the page once it can (`returnToPage`).
@@ -351,6 +363,20 @@ export function createThreadDestinations({
       // The reader shows the thread, so the card standing beside another thread's
       // passage goes, in the same task, and one thread stands open.
       if (result !== false && preview) intent.handoff(preview.close);
+      // A route that travels brings the passage into view after the reader's view
+      // (below); the widget starts drawing its part in the gesture's own task, as on
+      // the page (`onPage`), so a search that hid it gives way to this gesture rather
+      // than to a wait after it. A thread the primary holds as the last resort goes
+      // back to the page once the page draws it (`returnToPage`), so its part is
+      // drawn only after the user lands in the reader's view, which hands that
+      // return the reply they are writing.
+      if (
+        result !== false &&
+        navigationStep &&
+        !lastResort.has(thread.key) &&
+        partUndrawn()
+      )
+        void revealThread(id, intent);
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.
       /** @param {ReturnType<OpenPrimary>} result */
@@ -429,15 +455,7 @@ export function createThreadDestinations({
       // once the widget shows the part, so travel has the widget show it before choosing
       // which of the page's drawings shows the thread (anchor-resolution.js,
       // `awaitsDrawing`).
-      const anchor = threadNamed(id)?.anchor;
-      const placement = placedAt(id);
-      if (
-        navigationStep &&
-        placement &&
-        (anchor?.datum || anchor?.visual) &&
-        (awaitsDrawing(anchor, placement) || !placeDrawn(id)) &&
-        !(await revealThread(id, intent))
-      )
+      if (navigationStep && partUndrawn() && !(await revealThread(id, intent)))
         return null;
       // A route to a message is an arrival at it, so a seat holding it back shows it.
       if (part === "message") showHeld(id);

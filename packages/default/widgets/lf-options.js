@@ -306,10 +306,12 @@ customElements.define(
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `aimedAt` is the whole of that
         // question, and what it cannot answer is which of the controls in here this
-        // module put there: the mark is the pick's own control, and the digit stands in
-        // the column beside it, so a press on either is aimed at this option after all.
+        // module put there: the mark is the pick's own control, so a press on it is
+        // aimed at this option after all. The digit takes no pointer, and the mark
+        // stands under it on a card and reaches over it on a row (options.css), so a
+        // press on the digit lands on the mark.
         const at = aimedAt(e, option);
-        if (at !== option && !at?.matches(".lf-pick, .lf-key-badge")) return;
+        if (at !== option && !at?.matches(".lf-pick")) return;
         if (!this.#available("choose")) return;
         e.preventDefault();
         const was = this.#picked();
@@ -585,9 +587,9 @@ customElements.define(
       // for.
       mark.lfPreview = () => false;
       this.#controls.set(option, mark);
-      // First, so the row form's table puts it in the cell before the words. A card
-      // places its mark out of flow in the header and cannot see this, so one insertion
-      // serves both forms and the theme states each form's placement.
+      // First, before the option's words. Both forms place the mark out of flow, a card
+      // in its header and a row in its leading column, so one insertion serves both and
+      // the theme states each form's placement.
       // The mark stands where the user starts reading the label, not at the line's
       // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);

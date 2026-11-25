@@ -112,8 +112,9 @@ AWAITING_CONDITION = {
 # stands (a non-empty attribute or value record, otherwise an action in force). `when`
 # narrows the verb to instances whose attributes match; `empty` holds when the one
 # container of the verb's position record (`within`) inside the widget that its `when`
-# selects is left with no members by the current positions. One map, so every answer
-# is a reading of state the fold already keeps.
+# selects is left with no members by the current positions; `every` holds when each
+# `member` element the widget holds has an action of the verb in force at its own id.
+# One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -127,6 +128,14 @@ ANSWERED_SCHEMA = {
                 "type": "object",
                 "properties": {"when": AWAITING_CONDITION},
                 "required": ["when"],
+                "additionalProperties": False,
+            },
+            "every": {
+                "type": "object",
+                "properties": {
+                    "member": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
+                },
+                "required": ["member"],
                 "additionalProperties": False,
             },
         },
@@ -178,6 +187,9 @@ _VERB_DETAIL_SCHEMA = {
 # user writes it. The writers differ in what their state may be, not its shape. The
 # served state hands the browser each admitted event's verb in this shape, and the
 # browser build generates its type from this schema (`build/browser/contract-types.mjs`).
+# A declaration may leave out `unit` and a record's `kind`: composition writes each
+# default in (`registry.contract.complete_declarations`), so this schema requires both
+# and every reader finds them.
 VERB_SCHEMA = {
     "type": "object",
     "properties": {
@@ -253,6 +265,9 @@ VERBS_SCHEMA = {
     "additionalProperties": VERB_SCHEMA,
 }
 # A widget's obligation is answered by its own state (`value` and `answered`).
+# Composition writes `answered` wherever a declaration names a `value` and leaves it
+# out (`registry.contract.complete_declarations`), so every reader finds it. This
+# schema doesn't require it, so that an `awaits` naming no `value` is refused for that.
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -262,7 +277,7 @@ AWAITS_SCHEMA = {
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "required": ["value", "answered"],
+    "required": ["value"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -272,6 +287,16 @@ INSTRUCTIONS_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": {"type": "string", "pattern": r"\S"},
 }
+_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
+# The keys of an input (`inputs`) that bind it. Each names the attribute whose value
+# binds the input on an element: `source` names the attribute holding a page source's
+# id, and `reference` the `refers` attribute naming a widget, whose one output of the
+# input's contract the input reads. An input declares at least one of them, and
+# composition writes each attribute it names into the element's attribute schema
+# (`registry.contract.complete_declarations`). The browser's copy is `bindingAttributes`
+# (runtime/registry.js), and the input type the build generates from this schema checks
+# the key names it reads.
+INPUT_BINDINGS = ("source", "reference")
 DATA_INPUTS_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -283,10 +308,7 @@ DATA_INPUTS_SCHEMA = {
                 "type": "string",
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
-            "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            # The `refers` attribute naming a widget, whose one output of this
-            # input's contract the input reads.
-            "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            **dict.fromkeys(INPUT_BINDINGS, _ATTRIBUTE_NAME),
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
@@ -295,12 +317,11 @@ DATA_INPUTS_SCHEMA = {
             "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "required": ["contract"],
-        "anyOf": [{"required": ["source"]}, {"required": ["reference"]}],
+        "anyOf": [{"required": [key]} for key in INPUT_BINDINGS],
         "additionalProperties": False,
     },
 }
 
-_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 _TAGS = {
     "type": "array",
     "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},

@@ -148,11 +148,22 @@ const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // spaces. The shared lossless aligner maps either transformation back to source.
 /** @param {string} source @param {string} raw @param {number} at @param {number} limit @param {boolean} cell */
 function inlineSourcePositions(source, raw, at, limit, cell) {
-  // A verbatim block ends with its words, past the opening markers. A cell shares its line.
-  const start = at + source.slice(at, limit).trimEnd().length - raw.length;
-  if (!cell && start >= at && source.startsWith(raw, start))
-    return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
-  // Even an empty inline token has one boundary (for example, an empty table cell).
+  // A verbatim block ends with its words, past the opening markers. A cell's words are
+  // the first on its row past the cell before it, spelled with a `\` before each `|`:
+  // the table reads `\|` as a pipe in a cell's words, and a bare `|` as one between
+  // cells.
+  const span = source.slice(at, limit);
+  const spelled = cell ? raw.replaceAll("|", "\\|") : raw;
+  const start =
+    at + (cell ? span.indexOf(spelled) : span.trimEnd().length - raw.length);
+  if (start >= at && source.startsWith(spelled, start)) {
+    const positions = [start];
+    let sourceAt = start;
+    for (let i = 0; i < raw.length; i++)
+      positions.push((sourceAt += cell && raw[i] === "|" ? 2 : 1));
+    return positions;
+  }
+  // Even an empty inline token has one boundary.
   const positions = [at];
   let sourceAt = at;
   let inlineAt = 0;
@@ -227,11 +238,16 @@ export function placedMarkdownTokens(source, message = true) {
   let inlineAt = 0;
   /** @type {NativeToken | undefined} */
   let previous;
+  /** @type {[number, number] | null} */
+  let row = null;
   for (const token of tokens) {
     const before = previous;
     previous = token;
-    const from = token.map ? parserItem(starts, token.map[0]) : 0;
-    const to = token.map ? parserItem(starts, token.map[1]) : source.length;
+    if (token.type === "tr_open") row = token.map;
+    // A table cell's words name no lines of their own; they stand on their row's.
+    const map = token.map ?? (isPositionedInline(token) ? row : null);
+    const from = map ? parserItem(starts, map[0]) : 0;
+    const to = map ? parserItem(starts, map[1]) : source.length;
     if (!isPositionedInline(token)) {
       if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
         /** @type {PlacedToken} */
@@ -253,11 +269,12 @@ export function placedMarkdownTokens(source, message = true) {
     let wordsAt = Math.max(from, inlineAt);
     for (const block of found)
       if (
-        isBlockPlacement(block, "blockquote_open") ||
-        isBlockPlacement(block, "list_item_open")
+        map &&
+        (isBlockPlacement(block, "blockquote_open") ||
+          isBlockPlacement(block, "list_item_open"))
       )
         for (const [a, b] of block.markers)
-          if (a >= wordsAt && a < parserItem(starts, token.map[0] + 1) && b > wordsAt)
+          if (a >= wordsAt && a < parserItem(starts, map[0] + 1) && b > wordsAt)
             wordsAt = b;
     const positions = inlineSourcePositions(
       source,
@@ -360,8 +377,13 @@ export function markdownSourceOffset(body, node, offset) {
         characters,
         Infinity,
       )) {
-        if (run.kind === "delete") sourceAt += run.text.length;
-        else {
+        // A caret before an escaped first character stands before its backslash, which
+        // a key there would split from the character.
+        if (run.kind === "delete") {
+          if (aim === tokenAt && placed.spelled?.some(([a]) => a === sourceAt))
+            return sourceAt;
+          sourceAt += run.text.length;
+        } else {
           if (aim <= tokenAt + run.text.length)
             return sourceAt + (run.kind === "same" ? aim - tokenAt : 0);
           tokenAt += run.text.length;
@@ -692,22 +714,25 @@ export function makeMarkdown(module, message, html = false) {
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });
-  // Each block says how many blank lines stand before it in the source, a quote's `>`
-  // aside, so a message can space its blocks as the draft it was typed in showed them
-  // (reading.css, `data-lf-gap`). Three stand for any more.
-  markdown.core.ruler.after("block", "blank_lines", (state) => {
-    const lines = state.src.split("\n");
-    for (const token of state.tokens) {
-      if (!token.map || !(token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
-        continue;
-      let gap = 0;
-      for (let at = token.map[0] - 1; at >= 0 && gap < 3; at--) {
-        if (parserItem(lines, at).replace(/^[\s>]*/, "")) break;
-        gap++;
+  // Each block of a message says how many blank lines stand before it in the source,
+  // a quote's `>` aside, so the message spaces its blocks as the draft it was typed in
+  // showed them (reading.css, `data-lf-gap`). Three stand for any more. A file draws
+  // each run of blank lines as one gap, so its blocks say nothing, and a message's
+  // spacing doesn't reach a file shown inside it, such as a draft's body.
+  if (message)
+    markdown.core.ruler.after("block", "blank_lines", (state) => {
+      const lines = state.src.split("\n");
+      for (const token of state.tokens) {
+        if (!token.map || !(token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
+          continue;
+        let gap = 0;
+        for (let at = token.map[0] - 1; at >= 0 && gap < 3; at--) {
+          if (parserItem(lines, at).replace(/^[\s>]*/, "")) break;
+          gap++;
+        }
+        token.attrSet("data-lf-gap", String(gap));
       }
-      token.attrSet("data-lf-gap", String(gap));
-    }
-  });
+    });
   // Message paragraphs preserve typed spaces. A break has one visible carrier:
   // MarkdownIt's formatting newline after <br> would become a second line there.
   markdown.renderer.rules.softbreak = (_tokens, _at, options) =>

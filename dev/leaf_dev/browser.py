@@ -565,6 +565,25 @@ def panel_view(name: str) -> str:
 PANEL_THREAD = panel_view("thread")
 
 
+def choose_threads_in_panel(page: Page, on: bool = True) -> None:
+    """Have this tab open threads about a passage in the panel, or with `on` false
+    beside their passages, as for a user who chose that on an earlier visit
+    (thread/threads-in-panel.js): the choice stored for the tab and read again, which
+    says nothing in the panel's field, as a reload doesn't. It imports the check API
+    from the page's own entry, so it works on a page the harness doesn't watch, which
+    has no `window.__lfCheckApi` (tests/render_harness.py, the sensors)."""
+    page.evaluate(
+        """async (on) => {
+          const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+          const api = await import(
+            new URL('runtime/check-api.js', new URL(boot, location.href)).href);
+          api.tabStore.set(api.THREADS_IN_PANEL_KEY, on ? "panel" : null);
+          api.restoreThreadsInPanel();
+        }""",
+        on,
+    )
+
+
 def panel_tab(page: Page | FrameLocator, name: str):
     """The On view's tab `name` at the foot of the menu, On and Threads, each one of
     its tabs: `Menu`, `On Me`, `On <agent>`, `Threads` and, while a plan exists,
@@ -702,7 +721,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
-    # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
+    # Completing `g T` again closes the view (page-keys/go-to-sequence.js).
     if within.locator(PANEL).get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own

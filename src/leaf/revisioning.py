@@ -9,7 +9,7 @@ is not a candidate, and `check_source` checks no transition for it (see its gate
 Every read of a live page activates the source first. A state read calls
 `activate_source`, and the news a visible tab asks for calls it only when
 `held_activation` doesn't cover the page as it stands. So `page_memory` keeps the
-last answer, keyed on the two readings `served_state.reading.source_readings`
+last answer, keyed on the two readings `page_inputs.source_readings`
 returns: the source, and the history (the log and the revisions). That is how a
 saved `index.html` reaches an open tab: the next read sees the source change and
 makes the revision. A cached "no
@@ -50,8 +50,15 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import NamedTuple
 
+from leaf.authored_checks.source import SourceCheck, check_source
+from leaf.authored_checks.source_history import (
+    EMPTY_READING,
+    PredecessorReading,
+    revision_reanchors,
+)
 from leaf.event_contracts import append_admitted
 from leaf.files import list_revisions
+from leaf.page_inputs import source_readings
 from leaf.page_memory import memo
 from leaf.page_view import CandidatePageView
 from leaf.revision_artifact import (
@@ -60,14 +67,7 @@ from leaf.revision_artifact import (
     stage_artifact,
     staged_reading,
 )
-from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
-from leaf.validation.source import SourceCheck, check_source
-from leaf.validation.source_history import (
-    EMPTY_READING,
-    PredecessorReading,
-    revision_reanchors,
-)
 
 
 class Activation(NamedTuple):

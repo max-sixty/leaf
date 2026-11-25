@@ -282,8 +282,8 @@ def _init_page(
     return what keeps a re-selected index.html from activating, with what its
     packages advise (`_PagePlan`); a re-selection `still` no longer wants under the
     transaction commits nothing."""
+    from .authored_checks.source import check_source
     from .revisioning import activate_checked_source
-    from .validation.source import check_source
 
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
@@ -324,8 +324,9 @@ class _PagePlan(NamedTuple):
     """An admitted init, decided before anything is written: the record it writes,
     the package directories it copies into the page, by the name of each copy,
     whether either differs from the page's, and what the selected packages advise
-    their authors of their own declarations (`validation.composition.layer_advice`),
-    which `page init` says beside the page."""
+    their authors of their own declarations
+    (`authored_checks.declarations.layer_advice`), which `page init` says beside the
+    page."""
 
     record: dict
     copies: dict[str, Path]
@@ -365,7 +366,7 @@ def _plan_page(
     roots = checked_layer_inputs(inputs)
     _refuse_input_destination_overlap(roots, page_dir.resolve())
     composition = compose_layer(roots)
-    from .validation.composition import layer_advice
+    from .authored_checks.declarations import layer_advice
 
     # Named by the packages the selection names, before any copy into the page.
     advice = tuple(layer_advice(roots, composition.vocabulary.registry))

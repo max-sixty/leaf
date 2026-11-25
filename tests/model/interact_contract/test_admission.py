@@ -36,11 +36,11 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.findings import Finding
+from leaf.markup_checks.instances import widget_errors
 from leaf.projection import page_reading, retirement_outcomes
 from leaf.registry import contract as registry_contract
 from leaf.registry.layer import stamp_composition
 from leaf.registry.validation import validate_registry
-from leaf.validation.instances import widget_errors
 
 # One question quoted back and the same question live. The pair is what makes the
 # exhibit refusal below the exhibit's doing: the two groups are the same markup

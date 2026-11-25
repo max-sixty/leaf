@@ -12,26 +12,27 @@
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
  * which selects the member before its first paint (`views`).
  * The first tab set placed directly in main is the page's navigation over sections of
- * that page, whatever else main holds: its panel id is the URL fragment, and history
- * follows those panel entries. A link inside a panel is still fragment travel
+ * that page, whatever else main holds, and says so on itself (`data-lf-page-views`).
+ * Leaf then names the open panel in the address by its id, adds a history entry for
+ * each switch the user makes, and shows an entry's panel again on Back and Forward
+ * (the runtime's views.js). A link inside a panel is still fragment travel
  * (history.js).
  *
  * The authored `flow="page"` puts the set in the document's flow (`flow`), and
- * the package styles its unframed face. This module reads that attribute for scrolling,
- * separately from primary URL/history ownership above. In document flow
- * ("page"), the strip sticks at the
+ * the package styles its unframed face, separately from the address above. In
+ * document flow ("page"), the strip sticks at the
  * window's top as a sticky header over the document it indexes, and its panels are sections of the
- * page, taking the page's width. Each is then a view with a place of its own: a switch,
- * by press, key, Back, or Forward, is not fragment travel, because a view is not a
+ * page, taking the page's width. Each is then a view with a place of its own, which
+ * Leaf keeps: a switch by press or key is not fragment travel, because a view is not a
  * destination, so the strip stays where it is on screen and the view opens where this
- * user last read it, or at its start when they never read past it. Every other set is a
+ * user last read it, or at its start when they never read past it; Back and Forward
+ * return to where the user was on the entry. Every other set is a
  * box ("box"): framed, its horizontal strip sticky within the set, each panel a bounded
  * box that what it holds measures itself against. A switch leaves the page where it
  * stands until the strip is pinned; then it opens the new panel at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (base.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's history, and Back or Forward restores the
- * entry's viewport after showing its view. Its column sticks in the window beside the
+ * the root set, which keeps the root's address. Its column sticks in the window beside the
  * item the page scrolls, and scrolls on its own past the window's height, so its list
  * is pinned as a box's strip is, and a switch made while it is opens the new item at
  * its start. Where a side list fills a height it is given, as a full-height
@@ -53,8 +54,8 @@
  * row is. Parts placed anywhere else, as when the corpus embeds a page, are no page's
  * navigation, and list their names in a row.
  *
- * Travel into a hidden panel briefly highlights its selected name, without moving
- * focus from the destination or delaying it. Reduced motion keeps the selected state
+ * Travel into a hidden panel, as Back or Forward to one, briefly highlights its
+ * selected name, without moving focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
  * Adjacent pointer choices along a horizontal strip move only the selection underline,
  * in a mark's time (`--lf-motion-mark`). Content and accessible selection change at
@@ -90,21 +91,13 @@ import {
   agentName,
   answerWords,
   backgroundFlash,
-  capturePlace,
   comparisonChanges,
-  claimTraversals,
   keepView,
   whileConnected,
   openingView,
   viewMembers,
-  preserveReadingRegions,
-  pushEntry,
-  replaceEntry,
   readObligations,
-  restorePlace,
-  tabStore,
   focusDestination,
-  elementById,
   scrollIntoView,
   landingInsets,
 } from "/runtime/widget-api.js";
@@ -113,14 +106,9 @@ import { offer, selectableOffered } from "/runtime/lib/controls.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
-import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
-import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
-const PLACE_KEY = "lf-tabs-place:";
-// The document's own scroller, which scrolls a page-flow set's views.
-const pageScroller = /** @type {Element} */ (document.scrollingElement);
 /** @param {Element} owner */
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
@@ -232,7 +220,9 @@ export class TabSet extends LeafElement {
       keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
       // Leaf is about to scroll a comment anchor into view: open up.
-      panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
+      panel.addEventListener("beforematch", () =>
+        this.#activate(panel, { reveal: true }),
+      );
     }
     // Build the strip before opening its panel: activation measures the selected
     // name and the underline in this same task. Later publication uses LeafElement's
@@ -255,7 +245,7 @@ export class TabSet extends LeafElement {
       // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
       // paint for the end of this script, so a microtask queued after the move runs
       // behind it. Left out of sight, the tab would lose focus to the next key
-      // (keyboard/controller.js).
+      // (page-keys/controller.js).
       focusDestination(next, "move");
       next.click();
       queueMicrotask(() => this.#showTab(next, null));
@@ -343,14 +333,10 @@ export class TabSet extends LeafElement {
     // user's last, whose id resolves in later versions because check forbids
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
     // measures final geometry.
-    this.#activate(openingView(this) ?? null, "arrival");
-    if (this.#root) {
-      this.#replaceLocation(this.#active);
-    }
+    this.#activate(openingView(this) ?? null);
     whileConnected(this, (signal) => {
       this.#watchRootContext();
       this.#syncRootContext();
-      this.#listenForHistory(signal);
       const stripSize = this.#watchStrip();
       strip.addEventListener("scroll", this.#stopSelectionMotion, { signal });
       this.#syncListRegion();
@@ -477,7 +463,7 @@ export class TabSet extends LeafElement {
       aria-description=${description || nothing}
       tabindex=${panel === this.#active ? 0 : -1}
       @click=${(/** @type {MouseEvent} */ event) =>
-        this.#activate(panel, "ordinary", event.detail !== 0)}
+        this.#activate(panel, { pointer: event.detail !== 0 })}
       ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
         >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
@@ -510,8 +496,11 @@ export class TabSet extends LeafElement {
     >`;
   }
 
-  /** @param {Element | null} active @param {"ordinary" | "reveal" | "history" | "arrival"} reason @param {boolean} [pointer] */
-  #activate(active, reason, pointer = false) {
+  // Open a panel: the user's own switch, by `pointer` or key, or a `reveal`, which is
+  // travel to something inside the panel, or Back and Forward, each landing the user
+  // itself.
+  /** @param {Element | null} active @param {{reveal?: boolean, pointer?: boolean}} [how] */
+  #activate(active, { reveal = false, pointer = false } = {}) {
     const activeButton = active ? this.#buttons.get(active) : undefined;
     if (!active || !activeButton) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
@@ -530,76 +519,47 @@ export class TabSet extends LeafElement {
     // CSS carries one retained line between the selected marks. Keeping the
     // transition enabled lets a reversed choice continue from its painted place.
     keeps(this.#strip, "data-lf-selection-travel", travels ? "" : null);
-    // A press or a traversal between views switches them; a reveal is travel to
-    // something inside the view, which the traveller lands.
-    const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
+    // A box's own switch made while its strip is pinned opens the panel at its start.
     const pinnedBox =
       previous &&
       !this.#pageFlow &&
-      reason === "ordinary" &&
+      !reveal &&
       this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
-    const change = () => {
-      const from = pageScroller.scrollTop;
-      if (this.#pageFlow && previous) this.#leave(previous);
-      if (this.#root && reason === "ordinary") this.#pushLocation(active);
-      // Whatever opened another view, the entry the user is on names it, so
-      // Back and Forward to that entry return to this view. A fragment already
-      // inside it (a link's target) says so and stays.
-      else if (
-        this.#root &&
-        reason === "reveal" &&
-        this.#panelForLocation([active]) !== active
-      )
-        replaceEntry(this.#locationFor(active));
-      keepView(this, active);
-      for (const panel of this.#panels) {
-        // A tabpanel of prose has no focusable content, so Tab reaches the open
-        // panel itself. hidden="until-found" skips only what a panel holds, not
-        // the panel. A scrolling panel also takes a native browser stop without
-        // tabindex, so explicitly exclude closed panels from the tab order.
-        keeps(panel, "tabindex", panel === active ? 0 : -1);
-      }
-      this.#active = active;
-      // Selection changes in this task. The update asked for then replaces no
-      // node, and has Leaf read the strip's keys again.
-      render(this.render(), this.#strip);
-      this.requestUpdate();
-      const button = activeButton;
-      this.#showTab(button);
-      this.#revealMotion?.cancel();
-      this.#revealMotion = null;
-      // A destination walk can change tabs without touching the strip. Give its
-      // selected name one quiet highlight; focus stays on the destination, and
-      // motion's shared gate answers reduced motion and initial presentation.
-      if (previous && reason === "reveal") {
-        const name = button.querySelector(":scope > .lf-tab-name");
-        if (name) this.#revealMotion = backgroundFlash(name);
-      }
-      if (switched) this.#open(active, from);
-      else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
+    // Leaf shows the panel, names it in the address where the set is the page's
+    // navigation, and keeps the user's place in each view of a page-flow set.
+    keepView(this, active);
+    for (const panel of this.#panels) {
+      // A tabpanel of prose has no focusable content, so Tab reaches the open
+      // panel itself. hidden="until-found" skips only what a panel holds, not
+      // the panel. A scrolling panel also takes a native browser stop without
+      // tabindex, so explicitly exclude closed panels from the tab order.
+      keeps(panel, "tabindex", panel === active ? 0 : -1);
+    }
+    this.#active = active;
+    // Selection changes in this task. The update asked for then replaces no
+    // node, and has Leaf read the strip's keys again.
+    render(this.render(), this.#strip);
+    this.requestUpdate();
+    this.#showTab(activeButton);
+    this.#revealMotion?.cancel();
+    this.#revealMotion = null;
+    // A destination walk can change tabs without touching the strip. Give its
+    // selected name one quiet highlight; focus stays on the destination, and
+    // motion's shared gate answers reduced motion and initial presentation.
+    if (previous && reveal) {
+      const name = activeButton.querySelector(":scope > .lf-tab-name");
+      if (name) this.#revealMotion = backgroundFlash(name);
+    }
+    if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
 
-      for (const panel of previous ? [previous, active] : [active]) {
-        const child = soleSubstantiveElement(panel);
-        if (child)
-          child.dispatchEvent(
-            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-          );
-      }
-      this.dispatchEvent(
-        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-      );
-    };
-    return this.#pageFlow && previous ? preserveReadingRegions(this, change) : change();
-  }
-
-  // The panel holding what the fragment names, which reaches inside a widget's shadow
-  // tree as Leaf's own arrival does, so the traversal and the landing agree on an id
-  // there.
-  /** @param {readonly Element[]} panels @param {string} [hash] */
-  #panelForLocation(panels, hash = location.hash) {
-    if (!this.#root) return null;
-    const target = elementById(hash);
-    return target ? (panels.find((panel) => under(target, panel)) ?? null) : null;
+    for (const panel of previous ? [previous, active] : [active]) {
+      const child = soleSubstantiveElement(panel);
+      if (child)
+        child.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
+    }
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   }
 
   #syncRootContext() {
@@ -616,6 +576,8 @@ export class TabSet extends LeafElement {
       (this.#parts
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
+    // The page's navigation says so, and Leaf names its open panel in the address.
+    keeps(this, "data-lf-page-views", this.#root ? "" : null);
     this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
     // The strip is named as the chrome names the set (`nameOf`): its author's
     // `aria-label`, else the nearest element holding it that has a name, such as its
@@ -771,98 +733,6 @@ export class TabSet extends LeafElement {
   #stopSelectionMotion = () => {
     keeps(this.#strip, "data-lf-selection-travel", null);
   };
-
-  /** @param {AbortSignal} signal */
-  #listenForHistory(signal) {
-    // Back or Forward to an entry in another view switches to it, as a press does.
-    // One within the open view is the browser's to restore (history.js).
-    claimTraversals(
-      (url) => {
-        if (!this.#root) return null;
-        const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
-        return view && view !== this.#active
-          ? async () => {
-              const placesPage = this.#pageFlow;
-              await this.#activate(view, "history");
-              return placesPage;
-            }
-          : null;
-      },
-      { signal },
-    );
-  }
-
-  /** @param {Element} panel */
-  #locationFor(panel) {
-    const url = new URL(location.href);
-    url.hash = panel.id;
-    return url;
-  }
-
-  /** @param {Element | null} panel */
-  #replaceLocation(panel) {
-    if (!panel || location.hash) return;
-    replaceEntry(this.#locationFor(panel));
-  }
-
-  /** @param {Element} panel */
-  #pushLocation(panel) {
-    if (location.hash === `#${panel.id}`) return;
-    pushEntry(this.#locationFor(panel));
-  }
-
-  // A page-flow view starts where its strip sticks, so an offset short of that is the
-  // shared header, not a place in the view. A part starts where it stands, less the
-  // list where that sticks over it as a row.
-  /** @param {Element} panel */
-  #start(panel) {
-    if (this.#parts) {
-      const top = panel.getBoundingClientRect().top + pageScroller.scrollTop;
-      if (!this.#listOver(panel)) return top;
-      return (
-        top - parseFloat(getComputedStyle(this.#strip).top) - this.#strip.offsetHeight
-      );
-    }
-    return (
-      this.getBoundingClientRect().top +
-      pageScroller.scrollTop -
-      parseFloat(getComputedStyle(this.#strip).top)
-    );
-  }
-
-  // A view the user read past its start keeps that place as a landmark in its own
-  // words, so the place survives what moves the pixels while the view is hidden: a
-  // resize, a new revision. It is kept per browser tab like the open tab itself, so a
-  // reload still returns each view to its place. A view left at its start keeps none.
-  /** @param {Element} panel */
-  #leave(panel) {
-    const read = pageScroller.scrollTop > this.#start(panel) + 0.5;
-    tabStore.set(this.#placeKey(panel), read ? JSON.stringify(capturePlace()) : null);
-  }
-
-  // A view reopens at its place. One without keeps the header as the user has it,
-  // clamped to the view's start so a stuck strip stays stuck.
-  /** @param {Element} panel @param {number} from */
-  #open(panel, from) {
-    const start = this.#start(panel);
-    let place = null;
-    try {
-      const stored = tabStore.get(this.#placeKey(panel));
-      if (stored !== null) place = JSON.parse(stored);
-    } catch {
-      // An unreadable place is no place.
-    }
-    // A view that keeps the header where the user has it mostly finds the page there.
-    const top = place ? start : Math.min(from, start);
-    if (scrollMoves(pageScroller, { top }))
-      pageScroller.scrollTo({ top, behavior: "instant" });
-    if (place) restorePlace(place);
-  }
-
-  /** @param {Element} panel */
-  #placeKey(panel) {
-    return `${PLACE_KEY}${this.id}:${panel.id}`;
-  }
 }
 
 customElements.define("lf-tabs", TabSet);

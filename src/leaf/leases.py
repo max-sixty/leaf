@@ -325,7 +325,7 @@ def adapter_is_live(session_id: str) -> bool:
 def take_wait_lease(path: Path, *, supersede: bool = False):
     """Take a lease that holds the page protocol this Leaf speaks, which
     `lease_speaks_here` reads: a watch's wait lease, or a session's forks lane
-    (`forks.take_lane`). `take_lease`, or `supersede_lease` from a live holder where
+    (`take_lane`). `take_lease`, or `supersede_lease` from a live holder where
     `supersede` says to."""
     speaks = str(kernel_protocol()).encode()
     if supersede:
@@ -347,6 +347,22 @@ def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
     initialized, so it carries no input, and admission nudges the session past it
     as though no watch ran (`presence.nudge_unwatched`)."""
     return lease_speaks_here(waiter_lease_path(page_dir, session_id))
+
+
+def lane_path(session_id: str) -> Path:
+    return session_file(session_id, "fork-lane")
+
+
+def take_lane(session_id: str):
+    """Hold the session's forks lane, from any earlier holder, while this follower
+    lists the session's line forks (`hooks.cmd_pages`, `forks`)."""
+    return take_wait_lease(lane_path(session_id), supersede=True)
+
+
+def lane_up(session_id: str) -> bool:
+    """Whether a follower holds the session's forks lane, and so lists a line fork,
+    and the forks beside it, for each round that awaits a line (`forks`)."""
+    return lease_speaks_here(lane_path(session_id))
 
 
 def lease_speaks_here(lease_path: Path | None) -> bool:

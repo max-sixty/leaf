@@ -580,7 +580,7 @@ const glideIn = new Map();
 // for a key such as PageDown and its focus navigation for Tab (`landForKey`), a
 // placement Floating UI solves, as the comment box's beside its target
 // (composing/surface.js), and the Go-to map, which labels only a still scene
-// (keyboard/go-to-sequence.js). Landed first, that work reads the page as the same keys
+// (page-keys/go-to-sequence.js). Landed first, that work reads the page as the same keys
 // typed slowly leave it. What Leaf reads and moves itself asks where the glides land
 // instead, the user's place (scroll-containers.js, `seenAhead`) and its reveals
 // (landing-scroll.js, `readingBandMoves`), because a box the page carries by anchoring,

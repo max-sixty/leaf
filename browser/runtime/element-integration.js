@@ -15,6 +15,11 @@
    - the property each bound input names, and a written data body as its `value`
      (element-data.js, "Bound values").
 
+   On a widget whose tag declares `verbs`, Leaf also listens for the `lf-action` and
+   `lf-undo` the element records with (`hearRecords`, widget-controller.js). So the
+   element Leaf sets `state` on is the one it hears, and the events need no options
+   to reach it.
+
    Recorded properties. An element that knows nothing of Leaf keeps a value in a
    property and says the user changed it with an event, as a form control does with
    `value` and `change`. Where a verb's record names that property, Leaf sets it to
@@ -32,7 +37,10 @@
    its answer from the user's change. Where nothing can be sent, as on a quoted
    widget, a page with no server or a verb the agent writes, Leaf sets the property
    back to the verb's value, and a refusal moves the reading, so the element shows
-   no value the page does not hold.
+   no value the page does not hold. The tag may also declare the property an output,
+   which other elements read (data.js). Leaf tells those readers to read it again
+   (`heldMoved`) as each of its own sets returns, and at each record event dispatched
+   outside a set, after recording what the event reports.
 
    Until that set the element shows the change the user made, because Leaf sets
    nothing on it to stop the change. An element that should take none reads the
@@ -90,6 +98,7 @@ import {
   announceDrawing,
   controllerOf,
   drawingOf,
+  hearRecords,
   holdsOn,
   isDrawing,
   takeDrawing,
@@ -97,6 +106,7 @@ import {
   widgetState,
 } from "./widget-controller.js";
 import { ElementData } from "./element-data.js";
+import { heldMoved } from "./data.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { liveStages, watchArrivals, watchOwner } from "./arrivals.js";
 import { CONNECT, layoutChanged } from "./lib/widget-events.js";
@@ -162,6 +172,7 @@ function host(element) {
   // the return's sets are drawn, and a draw that asks whether that preparation is in
   // (reports.js) finds it.
   const controller = verbs.length ? controllerOf(element) : null;
+  if (controller) hearRecords(element);
   // The verbs whose value the element keeps in a property ("Recorded properties").
   const properties = Object.entries(descriptor?.declaration.verbs ?? {}).flatMap(
     ([verb, { record }]) =>
@@ -281,7 +292,8 @@ function host(element) {
       answered = heard;
     });
   // Whether Leaf is setting a recorded property, when an event the element dispatches
-  // is its answer to that set.
+  // is its answer to that set. The element may dispatch no `change` for the set, so
+  // Leaf tells the property's readers (data.js) as the set returns.
   let setting = false;
   /** @param {string} property @param {string} value */
   const setProperty = (property, value) => {
@@ -291,18 +303,23 @@ function host(element) {
     } finally {
       setting = false;
     }
+    heldMoved(element);
   };
-  // The user's change of a recorded property, recorded as its verb's action.
+  // The user's change of a recorded property, recorded as its verb's action. The
+  // event may come from a control inside the element, where the property's readers
+  // (data.js) don't hear it, so Leaf tells them after recording the change.
   for (const { verb, property, event } of properties)
     element.addEventListener(event, () => {
       if (setting) return;
       const reading = controller?.read() ?? null;
       const value = text(Reflect.get(element, property));
-      if (value === valueOf(reading, verb)) return;
-      const sent =
-        reading?.actions[verb] &&
-        controller?.dispatch({ kind: "action", verb, detail: { value } });
-      if (!sent) setProperty(property, valueOf(reading, verb));
+      if (value !== valueOf(reading, verb)) {
+        const sent =
+          reading?.actions[verb] &&
+          controller?.dispatch({ kind: "action", verb, detail: { value } });
+        if (!sent) setProperty(property, valueOf(reading, verb));
+      }
+      heldMoved(element);
     });
   // What a pass's sets came to, said to whoever hears it: the claim, the page's error
   // report, and the readers of a visual's layout.

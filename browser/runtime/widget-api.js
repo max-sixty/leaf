@@ -15,7 +15,10 @@
    widget keeps importing from here.
 
    Shared web code that reaches none of Leaf's is no part of this surface: it is the
-   library's (lib/; browser/AGENTS.md, "The library of shared web code"). */
+   library's (lib/; browser/AGENTS.md, "The library of shared web code").
+
+   Each export is a name every package author learns, so one joins this file only
+   after the questions in packages/AGENTS.md, "A widget's need of Leaf". */
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 import { growthIsSeen } from "./geometry.js";
@@ -40,6 +43,7 @@ export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
+export { alreadyShown } from "./landing-scroll.js";
 // Holding what the reader reads across one change the browser's scroll anchoring
 // can't keep still, such as one hiding what it anchors.
 export { holdPlace } from "./user-place.js";
@@ -70,16 +74,13 @@ export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
-// The user's place as a landmark, and the history entries a widget adds.
-export { capturePlace, restorePlace } from "./reading-place.js";
-export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export {
   preserveReadingRegions,
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";
 export { named, phrasing, says } from "./passages.js";
-export { ago, agePreview, clockValue } from "./presence.js";
+export { clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
@@ -97,7 +98,10 @@ export {
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
-export { keepView, openingView, viewMembers } from "./storage.js";
+// The members a widget shows one at a time: Leaf remembers the one shown, names it in
+// the address where the widget's views are the page's, and keeps the user's place in
+// each view of the page's flow (views.js).
+export { keepView, openingView, viewMembers } from "./views.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";

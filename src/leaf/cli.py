@@ -1395,7 +1395,11 @@ def _title_option(command):
 @page_argument(renew=True)
 @click.option("--quote", help="passage text from the active revision")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
-@click.option("--part", metavar="ID", help="declared visual part within --section")
+@click.option(
+    "--part",
+    metavar="ID",
+    help="a visual part within --section, such as one `page state` lists in its `parts`",
+)
 @body_options("the comment's text")
 @_title_option
 @click.option(
@@ -1469,7 +1473,11 @@ def thread_create(
 )
 @click.option("--quote", help="new passage text to move this thread onto")
 @click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
-@click.option("--part", metavar="ID", help="new declared visual part within --section")
+@click.option(
+    "--part",
+    metavar="ID",
+    help="a new visual part within --section, such as one `page state` lists in its `parts`",
+)
 @click.option("--detach", is_flag=True, help="remove the thread's page target")
 def thread_reply(
     destination: str,
@@ -1608,7 +1616,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""
-    from leaf.todos import cmd_create
+    from leaf.tasks import cmd_create
 
     return cmd_create(page_dir, subject, title)
 
@@ -1631,7 +1639,7 @@ def task_start(page_dir: Path, item: str, line: str) -> dict:
     your harness reports agents you started working in the background, as Claude Code
     does. Once nothing holds it, the update or to-do reads stalled until you answer it
     or start it again."""
-    from leaf.todos import cmd_start
+    from leaf.tasks import cmd_start
 
     return cmd_start(page_dir, item, line)
 
@@ -1651,7 +1659,7 @@ def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> 
     answer it elsewhere, or you see the step it asked for take effect, or it no longer
     applies, resolve its thread with `leaf thread resolve`.
     """
-    from leaf.todos import cmd_end
+    from leaf.tasks import cmd_end
 
     return cmd_end(page_dir, task_id, outcome, detail)
 
@@ -1680,7 +1688,7 @@ def task_plan(page_dir: Path, text: str | None, body_file) -> dict:
     breakdown changes, naming the steps it already holds by `item`; a `todo` opens a
     new to-do each time. Leaving out an open to-do ends nothing; it stays on your
     list. `[]` clears the plan."""
-    from leaf.plans import cmd_plan
+    from leaf.tasks import cmd_plan
 
     steps = json_body(text, body_file)
     return cmd_plan(page_dir, steps)

@@ -1,7 +1,5 @@
-/* The diagram package's presentation. Everything here was in the default package's
- * theme until the diagram renderer left every page carrying a large bundle most never
- * draw with. The shared declaration-driven allocation stays in core; this package owns
- * the diagram's alignment and scrolling. */
+/* The diagram package's presentation: the diagram's alignment and scrolling. The
+ * shared declaration-driven allocation stays in core. */
 
 /* Inherited palette aliases keep the generated SVG responsive to the live page's
  * scheme without redrawing its nodes or replacing Comment coordinates. */
@@ -49,11 +47,9 @@ lf-diagram.lf-rendered > * {
 /* The layer marks each edge a scrolled box has more beyond (shadow.css, at
  * [data-lf-more-before/after]) by fading the content there toward the page's ground, and
  * a drawing takes that fade with two settings of its own. A fade all the way to the
- * ground reads as the drawing's end: three agent-written plans drawn `flowchart LR`
- * showed two and a half of five steps at 1440px, the third fading out, and every reader
- * took the plan for three steps. Such a chain is now drawn top-down for its box, but a
- * drawing still too wide once laid out, such as a long row of siblings, is cut the same
- * way. What says "cut" is the drawing touching the edge: a
+ * ground reads as the drawing's end, so a reader takes a cut chain of steps for a
+ * shorter one. A drawing too wide once laid out, such as a long row of siblings, is cut
+ * that way. What says "cut" is the drawing touching the edge: a
  * node's fill and rules, or an arrow's line, running into the scrollport's side rather
  * than stopping short of it. So the fade stops at 30% of the drawing, and is 32px wide,
  * a few letters of a label, so the cut node's words stay readable up to where they are

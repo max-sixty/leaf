@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
-from browser.threads import append_agent_reply, choose_threads_in_panel
+from browser.threads import append_agent_reply
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -54,7 +54,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import go_to_threads, settle
+from leaf_dev.browser import choose_threads_in_panel, go_to_threads, settle
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -159,7 +159,10 @@ def thread_page(serve):
     early = append_agent_reply(d, jobs, "The beds first, then. " + WORDS)["id"]
     user(jobs, "And the mounts?")
     linked = append_agent_reply(
-        d, jobs, "See [the mounts](#p-5) before you start. " + WORDS
+        d,
+        jobs,
+        "See [the mounts](#p-5) before you start. They were last checked "
+        '<lf-age datetime="2026-11-20T02:10:00Z">20 Nov</lf-age>. ' + WORDS,
     )["id"]
     user(jobs, "Fine, and after that?")
     user(notes, "That the beds drain slowly.")
@@ -479,6 +482,14 @@ def put_message(page, built):
     Chromium, but Firefox on macOS tabs to no link or button.)"""
     scroll_to(page, message(built, "linked"), 700)
     page.locator(message(built, "linked")).get_by_text("before you start").click()
+    expect(page.locator(thread_of(built, "jobs"))).to_be_focused()
+
+
+def put_message_age(page, built):
+    """Click an age in a message, whose letters a shadow root draws, which stands the
+    user in its thread with the caret in the age."""
+    scroll_to(page, message(built, "linked"), 700)
+    page.locator(f"{message(built, 'linked')} lf-age").click()
     expect(page.locator(thread_of(built, "jobs"))).to_be_focused()
 
 
@@ -1004,6 +1015,19 @@ PLACES = [
         "thread",
         put_message,
         Found('.lf-msg[data-lf-event="$linked"]'),
+        {
+            "thread above": "upper",
+            "thread below": "jobs",
+            "message above": "early",
+            "seat above": "fresh",
+            "page above": None,
+        },
+    ),
+    Place(
+        "message-age",
+        "thread",
+        put_message_age,
+        Found('.lf-msg[data-lf-event="$linked"] lf-age'),
         {
             "thread above": "upper",
             "thread below": "jobs",
@@ -1785,6 +1809,10 @@ def held(still, message):
 ENGINES = {"browser": "chromium", "firefox_browser": "firefox"}
 
 REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
+REVISION_LANDING_AGE = (
+    "the revision's landing moves an age clicked in a message 151px up, as it moves "
+    "the message's words"
+)
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
 DELETIONS = "the diff's Comment moves 100px down as five deletions join above it"
@@ -1804,6 +1832,8 @@ MOVES_ON_MAIN = {
     "diff-reading-deletions-firefox": DIFF_READING,
     "message-revision-above-chromium": REVISION_LANDING,
     "message-revision-above-firefox": REVISION_LANDING,
+    "message-age-revision-above-chromium": REVISION_LANDING_AGE,
+    "message-age-revision-above-firefox": REVISION_LANDING_AGE,
     "reading-page-revision-on-screen-chromium": ON_SCREEN,
     "reading-page-revision-on-screen-firefox": ON_SCREEN,
     "smooth-reply-above-firefox": (

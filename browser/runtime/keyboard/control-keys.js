@@ -27,7 +27,7 @@
    command reference and the page's controls (`commandSteps`).
 
    The reading is made once per task and place (`reachingNow`); the frame's command hints
-   read it afresh, after the painters before them moved what is live (command-hints.js),
+   read it afresh, after the painters before them moved what is live (key-badges/command-hints.js),
    and `paintCoreControls` reflects each control whose keys moved since the last frame.
    A reflection between frames reads the frame's keys, never the dispatcher, which may be
    reading the register as it reflects. The pass runs in the fixed chrome's frame, so

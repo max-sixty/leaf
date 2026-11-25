@@ -62,7 +62,7 @@ from leaf.revision_artifact import RevisionArtifact
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument, element_attrs, script_kind
 
-from .scheme import answer_reports, served
+from .scheme import answer_reports, served, unready_finding
 
 
 def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
@@ -163,12 +163,7 @@ class PageCode:
                 wait_for_probe(page, "sendsAcked")
         finally:
             if unready is not None:
-                self.reports.append(
-                    Finding(
-                        "not-ready",
-                        values={"stage": unready.stage, "error": str(unready)},
-                    )
-                )
+                self.reports.append(unready_finding(unready))
         if not self.reports:
             return []
         return [*self.reports, *self.network_errors]

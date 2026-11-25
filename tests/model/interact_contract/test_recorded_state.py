@@ -18,10 +18,10 @@ from interact_support import (
 
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf.authored_checks.declarations import declaration_advice
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import validation as registry_validation
-from leaf.validation import composition as composition_model
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,
@@ -370,23 +370,32 @@ def test_report_text_is_required_only_when_declared(page_dir):
         event_contracts_model.admitted_event(page, [], {**command, "detail": detail})
 
 
-@pytest.mark.parametrize(
-    ("tag", "verb", "field"),
-    [
-        ("lf-suggestion", "decide", "unit"),
-        ("lf-test-task", "status", "unit"),
-    ],
-)
-def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
-    registry = vocabulary(page_dir)
-    del registry[tag]["verbs"][verb][field]
+def test_a_declaration_leaves_out_what_its_record_and_value_decide(page_dir):
+    """A verb keeps one state for the whole widget unless it names a detail field as
+    its `unit`, and a position record's verb keeps one for each member it moves. A
+    record that names no `kind` is one value in its attribute. An obligation is
+    answered while its `value` verb has a state unless `answered` says when. A
+    declaration that leaves these out composes to the one that writes them, so the
+    fold, admission and each event's stored state definition read the same entry."""
+    written = vocabulary(page_dir)
+    registry = deepcopy(written)
+    del registry["lf-suggestion"]["verbs"]["decide"]["unit"]
+    del registry["lf-suggestion"]["awaits"]["answered"]
+    del registry["lf-test-task"]["verbs"]["status"]["unit"]
+    del registry["lf-test-task"]["verbs"]["status"]["record"]["kind"]
+    del registry["lf-board"]["verbs"]["move"]["unit"]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
-    assert status != 0
-    [refused] = found(findings, "invalid-declaration", f"<{tag}>", keyword="required")
-    assert field in refused.values["reason"]
+    assert status == 0, findings
+    composed = vocabulary(page_dir)
+    for tag in ("lf-suggestion", "lf-test-task", "lf-board"):
+        assert composed[tag] == written[tag], tag
+    assert written["lf-suggestion"]["verbs"]["decide"]["unit"] == "widget"
+    assert written["lf-suggestion"]["awaits"]["answered"] == {"decide": {}}
+    assert written["lf-test-task"]["verbs"]["status"]["record"]["kind"] == "value"
+    assert written["lf-board"]["verbs"]["move"]["unit"] == "unit"
 
 
 @pytest.mark.parametrize(
@@ -623,9 +632,7 @@ def test_a_position_container_the_declarations_never_place_is_advice(
     if change:
         change(registry)
     registry_validation.validate_registry(registry, "test registry")
-    [said] = composition_model.declaration_advice(
-        {tag: registry[tag]}, registry, "test"
-    )
+    [said] = declaration_advice({tag: registry[tag]}, registry, "test")
     verb = next(iter(registry[tag]["verbs"]))
     assert (said.code, said.at, said.severity, said.values) == (
         "position-container",
@@ -777,7 +784,7 @@ def test_nested_member_records_refuse_foreign_selection_and_position():
 
 
 def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
-    from leaf.validation.instances import widget_errors
+    from leaf.markup_checks.instances import widget_errors
 
     page = _independent_member_records()
     registry = page.registry(1)

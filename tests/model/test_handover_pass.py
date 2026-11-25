@@ -1,5 +1,6 @@
 """What the render pass reads and what it tells. A version the agent hands over is read
-once, a failure wakes the agent, and advice goes with what next reaches it."""
+once, a failure wakes the agent, and advice goes with what next reaches it. The parts
+each visual drew reach `page state` while the version read is the one it shows."""
 
 import json
 import os
@@ -12,6 +13,7 @@ from typing import Any
 
 import pytest
 from interact_support import (
+    FLOW_PAGE,
     acknowledged_through,
     append_carried_log_record,
     append_command,
@@ -20,6 +22,7 @@ from interact_support import (
     delivered,
     inlined,
     last_deliverable_seq,
+    state_json,
     working,
 )
 
@@ -29,13 +32,15 @@ from leaf import hooks as hooks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
+from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.files import latest_revision
 from leaf.findings import Finding
 from leaf.render_gate import handover_pass as handover_pass_model
+from leaf.render_reading import read_reading
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
-from leaf.validation.source import check_source
+from leaf.served_state.context import read_page
 
 FAILURE: dict[str, Any] = {
     "code": "past-column",
@@ -45,6 +50,11 @@ FAILURE: dict[str, Any] = {
     "values": {"by": 40},
     "text": "at 360–900px wide, <div id=wide> is set 40px past the column",
 }
+# A diagram whose boxes a thread may name (`parts`), and the parts a reading of it drew.
+PARTS_PAGE = FLOW_PAGE.replace(
+    '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
+)
+DRAWN = {"flow": [{"id": "node:A", "label": "A"}, {"id": "node:B", "label": "B"}]}
 ADVICE: dict[str, Any] = {
     "code": "shrunk-labels",
     "severity": "advice",
@@ -90,9 +100,11 @@ def read_digest(page_dir: Path) -> str:
     return read_artifact(page_dir, revision).digest
 
 
-def browser_read(findings: list[dict]) -> SimpleNamespace:
-    """A browser that finished reading the page and found `findings`, as
-    `command.BrowserCheck` answers."""
+def browser_read(
+    findings: list[dict], parts: dict[str, list[dict]] | None = None
+) -> SimpleNamespace:
+    """A browser that finished reading the page, found `findings` and read the `parts`
+    each visual drew, as `command.BrowserCheck` answers."""
     return SimpleNamespace(
         findings=lambda: [
             SimpleNamespace(
@@ -100,7 +112,13 @@ def browser_read(findings: list[dict]) -> SimpleNamespace:
             )
             for finding in findings
         ],
+        render=SimpleNamespace(parts=parts or {}),
     )
+
+
+def data_version(page_dir: Path) -> str:
+    """The version of the data the page holds now (`data.data_version`)."""
+    return read_page(page_dir, read_events(page_dir)).data["version"]
 
 
 def leave_reading(
@@ -108,16 +126,28 @@ def leave_reading(
 ) -> None:
     """The reading an agent's own `page check --render` leaves."""
     handover_pass_model.remember_reading(
-        page_dir, digest or read_digest(page_dir), browser_read(findings)
+        page_dir,
+        digest or read_digest(page_dir),
+        data_version(page_dir),
+        browser_read(findings),
     )
 
 
-def checking(findings: list[dict], digest: str | None = None):
-    """`check_page` with the browser's part standing in: a reading of `findings` in the
-    live version, or in the version `digest`."""
+def checking(
+    findings: list[dict],
+    digest: str | None = None,
+    parts: dict[str, list[dict]] | None = None,
+):
+    """`check_page` with the browser's part standing in: a reading of `findings`, and of
+    the `parts` each visual drew, in the live version, or in the version `digest`, with
+    the data the page holds."""
     return lambda page_dir, **_options: (
         {},
-        (digest or read_digest(page_dir), browser_read(findings)),
+        (
+            digest or read_digest(page_dir),
+            data_version(page_dir),
+            browser_read(findings, parts),
+        ),
     )
 
 
@@ -293,11 +323,9 @@ def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir, unread):
     nothing of the page, so nothing is told or refused for it, as where no browser
     ran."""
     handover_pass_model.remember_reading(
-        page_dir,
-        "sha256:0",
-        SimpleNamespace(findings=lambda: [unread]),
+        page_dir, "sha256:0", "data", SimpleNamespace(findings=lambda: [unread])
     )
-    assert handover_pass_model.read_reading(page_dir) is None
+    assert read_reading(page_dir) is None
 
 
 @pytest.fixture
@@ -443,7 +471,7 @@ def test_a_save_before_the_check_froze_the_source_is_the_version_told(claimed):
         handover_pass_model.read_and_tell(claimed)
     [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
     assert event["revision"] == latest_revision(claimed)
-    reading = handover_pass_model.read_reading(claimed)
+    reading = read_reading(claimed)
     assert reading is not None and reading["digest"] == read_digest(claimed)
 
 
@@ -464,3 +492,40 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
 
     [event] = told([FAILURE])
     assert event["revision"] == latest_revision(claimed)
+
+
+def flow_element(page_dir: Path) -> dict:
+    """The diagram `flow` as `page state` lists it among the page's elements."""
+    (element,) = (e for e in state_json(page_dir)["elements"] if e["id"] == "flow")
+    return element
+
+
+def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed, monkeypatch):
+    """The reading of a version hands `page state` the parts each visual drew in it,
+    on the visual's element, and a later version shows none of them until it is read
+    in turn: its visuals may draw other parts."""
+    (claimed / "index.html").write_text(PARTS_PAGE)
+    assert activate_source(claimed).error is None
+    monkeypatch.setattr("leaf.validation.command.check_page", checking([], parts=DRAWN))
+    handover_pass_model.read_and_tell(claimed)
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]
+    save(claimed, "a later version")
+    assert "parts" not in flow_element(claimed)
+
+
+def test_a_data_update_lists_no_parts_until_a_check_reads_it(claimed):
+    """A data update makes no new version but can change what a visual draws, so the
+    parts a check drew list only while the page holds the data it read, and the next
+    check lists them again."""
+    (claimed / "index.html").write_text(PARTS_PAGE)
+    declare_data_input(claimed, "builds", {"type": "array"})
+    handover_pass_model.remember_reading(
+        claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
+    )
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]
+    data_model.cmd_data_set(claimed, "builds", ["green"])
+    assert "parts" not in flow_element(claimed)
+    handover_pass_model.remember_reading(
+        claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
+    )
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]

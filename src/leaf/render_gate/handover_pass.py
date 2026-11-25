@@ -73,12 +73,12 @@ from pathlib import Path
 from leaf.event_log import read_events
 from leaf.findings import Finding
 from leaf.harness import detached_environment
+from leaf.page_inputs import source_readings
 from leaf.presence import claimant_reading
-from leaf.revision_artifact import read_artifact
+from leaf.render_reading import read_reading, write_reading
+from leaf.revision_artifact import read_artifact, version_written
 from leaf.revisioning import activate_source
-from leaf.served_state.reading import source_readings, version_written
 from leaf.service import PageTransaction, requires_agent_attention
-from leaf.state import STRING, Record, described, object_schema, page_key, state_home
 
 # Set to `off` by a caller whose pages must hold only what it wrote: the suite.
 VARIABLE = "LEAF_RENDER_PASS"
@@ -95,60 +95,29 @@ DEADLINE_S = 1800
 # Lower than the user's and other sessions' work, without the throttling of a background
 # QoS, which holds headless Chrome to about 10 fps and breaks a timed reading.
 NICENESS = 10
-READING = Record(
-    "render-reading",
-    described(
-        "The latest render check of a page, by `page check --render` or its server "
-        "(`render_gate.handover_pass`), in the state home's "
-        "`render-readings/<page key>.json`. Disposable: without it, a version is read "
-        "again.",
-        object_schema(
-            {
-                "page": described("The page directory.", STRING),
-                "digest": described("The artifact digest of the version read.", STRING),
-                "findings": described(
-                    "What it found (`findings.Finding.json`), every finding of which "
-                    "the agent has heard.",
-                    {"type": "array", "items": {"type": "object"}},
-                ),
-            }
-        ),
-    ),
-    since=43,
-    kept=(),
-    kept_since=43,
-)
 
 
-def _reading_path(page_dir: Path) -> Path:
-    return state_home() / "render-readings" / f"{page_key(page_dir)}.json"
-
-
-def read_reading(page_dir: Path) -> dict | None:
-    return READING.read(_reading_path(page_dir))
-
-
-def remember_reading(page_dir: Path, digest: str, checked) -> None:
-    """Leave what `checked`, a `command.BrowserCheck`, read of the version `digest` as
-    the page's latest reading, where a browser finished it: the agent that ran the check
-    read every finding."""
+def remember_reading(page_dir: Path, digest: str, data: str, checked) -> None:
+    """Leave what `checked`, a `command.BrowserCheck`, read of the version `digest` with
+    the data version `data` as the page's latest reading, where a browser finished it:
+    the agent that ran the check read every finding. It writes inside the page's
+    transaction, so a server's reading that `_tell` is weighing under it can't replace
+    this one unseen."""
     if (found := _finished(checked)) is not None:
-        _write(page_dir, digest, found)
+        with PageTransaction(page_dir):
+            write_reading(page_dir, digest, data, *found)
 
 
-def _finished(checked) -> list[dict] | None:
+def _finished(checked) -> tuple[list[dict], dict[str, list[dict]]] | None:
     """Every finding of a browser that finished reading the page, as
-    `findings.Finding.json` gives it, or None where it didn't."""
+    `findings.Finding.json` gives it, with the parts each visual drew
+    (`RenderReading.parts`, none where failing page code ended the check before the
+    render gate), or None where it didn't."""
     findings = checked.findings()
     if any(f.unread for f in findings):
         return None
-    return [finding.json() for finding in findings]
-
-
-def _write(page_dir: Path, digest: str, findings: list[dict]) -> None:
-    path = _reading_path(page_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    READING.write(path, {"page": str(page_dir), "digest": digest, "findings": findings})
+    parts = checked.render.parts if checked.render is not None else {}
+    return [finding.json() for finding in findings], parts
 
 
 def _place(finding: dict) -> tuple[str, str]:
@@ -198,10 +167,10 @@ def _read_and_tell(page_dir: Path) -> None:
 
     started = time.monotonic()
     _, read = check_page(page_dir, render=True, screens=False)
-    found = _finished(read[1]) if read is not None else None
+    found = _finished(read[2]) if read is not None else None
     told = []
     if read is not None and found is not None:
-        told = _tell(page_dir, read[0], found)
+        told = _tell(page_dir, read[0], read[1], *found)
     append_interactions(
         page_dir,
         [
@@ -209,32 +178,33 @@ def _read_and_tell(page_dir: Path) -> None:
                 "source": "cli",
                 "type": "render_pass",
                 "durationMs": round((time.monotonic() - started) * 1000),
-                "findings": None if found is None else len(found),
+                "findings": None if found is None else len(found[0]),
                 "told": len(told),
             }
         ],
     )
 
 
-def _tell(page_dir: Path, digest: str, found: list[dict]) -> list[dict]:
-    """Tell the agent the findings `found` of the version `digest` that the page's
-    latest reading didn't hold, and leave them as its reading, where that version is
-    still live and no reading of it beside this one told first. The findings told."""
+def _tell(
+    page_dir: Path,
+    digest: str,
+    data: str | None,
+    found: list[dict],
+    parts: dict[str, list[dict]],
+) -> list[dict]:
+    """Tell the agent the findings `found` of the version `digest`, read with the data
+    version `data`, that the page's latest reading didn't hold, and leave them, with
+    the `parts` it read, as its reading, where that version is still live and no
+    reading of it beside this one told first. The findings told."""
     from leaf.event_contracts import append_admitted
     from leaf.presence import nudge_unwatched
 
     with PageTransaction(page_dir) as page:
-        # The live version as of now, a save since the check froze the source
-        # included, as a tab would make it live.
-        live = activate_source(page_dir, transaction=page).revision
+        live = _live(page_dir, page)
         before = read_reading(page_dir)
         # A reading of this version beside this one that told first, under this
         # transaction, has told it.
-        if (
-            live is None
-            or read_artifact(page_dir, live).digest != digest
-            or _has_read(before, digest)
-        ):
+        if live is None or live[1] != digest or _has_read(before, digest):
             return []
         told = untold(before, found)
         if told:
@@ -243,13 +213,13 @@ def _tell(page_dir: Path, digest: str, found: list[dict]) -> list[dict]:
                 {
                     "kind": "render",
                     "author": "page",
-                    "revision": live,
+                    "revision": live[0],
                     "findings": told,
                 },
             )
             if requires_agent_attention(event):
                 nudge_unwatched(page)
-        _write(page_dir, digest, found)
+        write_reading(page_dir, digest, data, found, parts)
     return told
 
 
@@ -271,14 +241,23 @@ def _has_read(reading: dict | None, digest: str) -> bool:
     return reading is not None and reading["digest"] == digest
 
 
+def _live(page_dir: Path, transaction=None) -> tuple[int, str] | None:
+    """The page's live version as of now, with its artifact digest, a save since a
+    check froze the source included, made live as a tab would make it; None where the
+    page has no valid version. `transaction` is the caller's `PageTransaction`, where it
+    holds one."""
+    revision = activate_source(page_dir, transaction=transaction).revision
+    if revision is None:
+        return None
+    return revision, read_artifact(page_dir, revision).digest
+
+
 def _unread(page_dir: Path) -> str | None:
     """The digest of the page's live version, which this makes live where no tab has,
     where no reading has read it."""
-    revision = activate_source(page_dir).revision
-    if revision is None:
+    if (live := _live(page_dir)) is None:
         return None
-    digest = read_artifact(page_dir, revision).digest
-    return None if _has_read(read_reading(page_dir), digest) else digest
+    return None if _has_read(read_reading(page_dir), live[1]) else live[1]
 
 
 class HandoverPass:
@@ -340,4 +319,4 @@ class HandoverPass:
         ).returncode
         if ended == -signal.SIGALRM:
             overran = Finding("reading-overran", values={"seconds": DEADLINE_S})
-            _tell(self.page_dir, digest, [overran.json()])
+            _tell(self.page_dir, digest, None, [overran.json()], {})

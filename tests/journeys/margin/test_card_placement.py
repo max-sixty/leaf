@@ -22,7 +22,7 @@ from render_harness import (
 )
 
 from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -75,6 +75,10 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
         assert control.bounding_box() == pytest.approx(boxes[name], abs=0.5), name
 
     editor = preview.locator("leaf-text")
+    # The step's arrival carries the reply row down over 300ms. A click while the row
+    # travels scrolls the page before it lands, by Playwright's reveal of its target
+    # and no scroll of Leaf's, and the boxes read after it stand off the window.
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)

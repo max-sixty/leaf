@@ -610,10 +610,11 @@ export class ThreadView {
     this.#shown = signal(model);
     this.#commands = commands;
     // A rewrite of one of the user's messages (`message-edit.js`). Opening or closing
-    // it paints at once, so its editor takes or gives back the focus in the same press.
+    // it paints at once, and its editor takes or gives back the focus in the same press,
+    // so the paint hands no one on (`#paint`).
     this.#rewrites = threadRewrites({
       views: () => this.#transcript.views,
-      paint: () => this.repaint(),
+      paint: () => this.repaint({ placing: true }),
       // Its reply box where it stands, in the thread or where its container stands it.
       box: () => this.#reply?.input ?? null,
       home: () => this.node,
@@ -660,9 +661,11 @@ export class ThreadView {
   }
 
   // Local disclosure and draft changes repaint the complete received descriptor,
-  // never feed a held presentation back into the news owner's input.
-  repaint() {
-    if (this.#received) this.#paint(this.#received);
+  // never feed a held presentation back into the news owner's input; `placing` where
+  // the caller puts the user where they go itself.
+  /** @param {{placing?: boolean}} [options] */
+  repaint({ placing = false } = {}) {
+    if (this.#received) this.#paint(this.#received, {}, false, placing);
   }
 
   // The seat owns placement, including while the card's outgoing pixels still fold
@@ -800,7 +803,7 @@ export class ThreadView {
   // The caller knows whether this is a publication or a local repaint. Only a
   // publication allocates passive space; disclosures and editors stay intrinsic.
   /** @param {ThreadViewModel} model */
-  #paint(model, _options = {}, published = false) {
+  #paint(model, _options = {}, published = false, placing = false) {
     const prior = this.#received ? this.#model : null;
     this.#received = model;
     this.#drawnWith = this.#outside(model);
@@ -825,7 +828,7 @@ export class ThreadView {
           ...this.#transcript.leaving(model),
         ])
       : null;
-    const restoreFocus = holdFocus(this.node);
+    const restoreFocus = placing ? null : holdFocus(this.node);
     this.#model = model;
     const change = prior && scroller ? threadChange(prior, model) : null;
     const box = scroller?.(this.#transcript.node) ?? null;

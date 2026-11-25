@@ -12,7 +12,7 @@
      typed, deleted, or pasted into a box it holds;
    - Tab reaching one of its controls, or focus moving from one of its controls to
      another, as sequential navigation reveals the control it reaches. Left unrevealed,
-     the next key would let go of a control the user can't see (keyboard/controller.js)
+     the next key would let go of a control the user can't see (page-keys/controller.js)
      and land them where Tab reaches it again. Focus otherwise arriving from outside is
      a landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
      replaced handing focus to its successor, is no move of the user's. Nor is a press:

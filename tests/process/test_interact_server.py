@@ -85,6 +85,7 @@ from leaf import inference as inference_model
 from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import media as media_model
+from leaf import page_inputs
 from leaf import page_snapshot as page_snapshot_model
 from leaf import passages as passages_model
 from leaf import presence as presence_model
@@ -110,7 +111,6 @@ from leaf.served_state import browser as served_browser
 from leaf.served_state import context as served_context
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
-from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf_dev.example_data import patch_manifest
 from leaf_dev.page_fixtures import example_media
@@ -265,8 +265,8 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
 
 
 def test_interaction_trace_does_not_change_page_readings(page_dir):
-    reading = served_reading.page_reading(page_dir)
-    sources = served_reading.source_readings(page_dir)
+    reading = page_inputs.page_reading(page_dir)
+    sources = page_inputs.source_readings(page_dir)
 
     for sequence in range(1, 3):
         interaction_model.append_interactions(
@@ -275,12 +275,12 @@ def test_interaction_trace_does_not_change_page_readings(page_dir):
                 "tab-1", "/", [browser_observation("click", sequence)]
             ),
         )
-        assert served_reading.page_reading(page_dir) == reading
-        assert served_reading.source_readings(page_dir) == sources
+        assert page_inputs.page_reading(page_dir) == reading
+        assert page_inputs.source_readings(page_dir) == sources
 
     (page_dir / "index.html").write_text(PAGE + "\n<!-- revised -->")
-    assert served_reading.page_reading(page_dir) != reading
-    assert served_reading.source_readings(page_dir)[0] != sources[0]
+    assert page_inputs.page_reading(page_dir) != reading
+    assert page_inputs.source_readings(page_dir)[0] != sources[0]
 
 
 @pytest.mark.parametrize(
@@ -305,11 +305,11 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     """An atomic write stages its bytes beside the target before the rename, and a
     look between the two sees a file the page never has. The page's reading looks
     past it, so the write moves it once, at the rename."""
-    reading = served_reading.page_reading(page_dir)
+    reading = page_inputs.page_reading(page_dir)
 
     (page_dir / ".leaf-01234567.tmp").write_text("{}")
 
-    assert served_reading.page_reading(page_dir) == reading
+    assert page_inputs.page_reading(page_dir) == reading
 
 
 def test_a_served_page_keeps_browser_state_under_its_directory(server, page_dir):
@@ -2830,7 +2830,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     monkeypatch.setattr(presence_model, "live_facts", counted_live_facts)
 
     def reading():
-        files = served_reading.page_reading(page_dir)
+        files = page_inputs.page_reading(page_dir)
         return presence_model.presence_reading(page_dir, files)
 
     first = reading()
@@ -3921,12 +3921,12 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
     value.parent.mkdir(exist_ok=True)
     cleanup_model.write_json(value, {"n": 1})
     written(value)
-    before = served_reading.page_reading(page_dir)
+    before = page_inputs.page_reading(page_dir)
     with value.open("r+") as stream:
         stream.write('{"n": 2}')
     written(value)
     assert json.loads(value.read_text()) == {"n": 2}
-    assert served_reading.page_reading(page_dir) != before
+    assert page_inputs.page_reading(page_dir) != before
 
 
 def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
@@ -3940,7 +3940,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
             log.seek(0, os.SEEK_END)
             log.write(b'{"kind": "comment", "author": "user", "text": "ha')
             log.flush()
-            look = executor.submit(served_reading.page_reading, page_dir)
+            look = executor.submit(page_inputs.page_reading, page_dir)
             # The window is the subject of an absence assertion, not a deadline.
             assert not wait_futures([look], timeout=absence_window).done, (
                 "the look named the log while an append held it"
@@ -3948,7 +3948,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
             log.write(b'lf"}\n')
             log.flush()
         named = look.result(timeout=STATED_TIMEOUT)
-    assert named == served_reading.page_reading(page_dir)
+    assert named == page_inputs.page_reading(page_dir)
     assert event_model.read_events(page_dir)[-1]["text"] == "half"
 
 
@@ -4069,7 +4069,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
-    from leaf.validation.source import check_source
+    from leaf.authored_checks.source import check_source
 
     source = PAGE.replace(
         "</head>", '<script type="module" src="./page/app.js"></script></head>'

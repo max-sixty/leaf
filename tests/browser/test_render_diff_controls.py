@@ -415,7 +415,8 @@ def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
     browser, serve
 ):
     """The filter's quiet press opens every file the filter shows while any is closed,
-    and closes them once all are open. The diff keeps the page's paper and ink between
+    and closes them once all are open, asking Leaf for one pass over the page's threads
+    rather than one for each file. The diff keeps the page's paper and ink between
     its files after the first file brings the renderer's sheets, whose `:host` is one
     file's box where here it is the whole diff."""
     patch = "".join(
@@ -448,10 +449,18 @@ def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
     assert diff.evaluate(paints) == page_paint
 
     expect(press).to_have_accessible_name("Expand all files")
+    diff.evaluate(
+        """node => {
+          node.layouts = 0;
+          node.addEventListener('lf-layout', () => node.layouts++);
+        }"""
+    )
     press.click()
     for index in range(3):
         expect(folds.nth(index)).to_have_attribute("open", "")
     rendered(page)
+    # One press asks for one thread pass, however many files it opens.
+    assert diff.evaluate("node => node.layouts") == 1
     expect(folds.locator("[data-line]")).to_have_count(6)
     expect(press).to_have_accessible_name("Collapse all files")
 

@@ -1,7 +1,7 @@
 /* Reading movement: walks, scrolling, and aligning the current item without travel.
  * Alignment reads the browser's current selection/focus and the owning reading region;
  * it changes only vertical scroll, retaining focus, selection and browser history. */
-import { pageRange } from "./native-selection.js";
+import { userCaret, pageRange } from "./native-selection.js";
 import { cycledRow } from "./keyboard/bindings.js";
 import { pageCommand } from "./keyboard/register.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
@@ -410,7 +410,8 @@ export function createNavigation({ threadDestinations, placedAt, savedAt, showDr
     const selection = pageSelection();
     const start = selection && pageRange(selection).startContainer;
     if (start && inReading(start)) return blockAt(start);
-    const caret = getSelection()?.focusNode;
+    // Else the block the caret stands in, while it is in the reading region.
+    const caret = userCaret()?.element;
     return (inReading(caret) && blockAt(placeOf(caret))) || readingBlock(region);
   };
   // Like page scrolling, alignment stays offered at the edge of its useful range.

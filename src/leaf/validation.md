@@ -5,13 +5,14 @@ directly:
 
 - an event, whether a browser posted it or a command wrote it, at the append door
   ([events.md, "Admission"](events.md#admission));
-- a page's authored source at `check_source` (`validation/source.py`), which `page
-  check`, activation, `page stamp` and `page init` all run ("Static validation");
-- the HTML in an agent's message at `admission.check_markup`, which applies the same
-  structure and vocabulary checks to the markup the message draws
+- a page's authored source at `check_source` (`authored_checks/source.py`), which
+  `page check`, activation, `page stamp` and `page init` all run ("Static
+  validation");
+- the HTML in an agent's message at `authored_checks.admission.check_markup`, which
+  applies the same structure and vocabulary checks to the markup the message draws
   (`passages.message_markup`) and notes its advice beside the command's result;
-- a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
-  `page init`, `page check`, serving and export, but not reading the page
+- a layer at `registry.validation.incoming_registry`, wherever a Leaf composes its
+  files: `page init`, `page check`, serving and export, but not reading the page
   ([layer-registry.md](layer-registry.md));
 - what only a browser can see at `page check --render` ("Browser validation").
 
@@ -20,8 +21,8 @@ directly:
 The static check reads the exact `index.html` with no browser. It is deterministic and
 near-free, which is what makes running it on every save affordable, so keep a new
 check that way and put anything needing a browser in the browser half. The rules live
-in `validation/source.py` and `validation/markup.py`; these are the decisions behind
-them:
+in `authored_checks/source.py` and `markup_checks/markup.py`; these are the decisions
+behind them:
 
 - Page code may be any script, classic or module, inline or a file, with its literal
   local import graph under `/page/`. Delivery defers a classic script and drops
@@ -60,14 +61,14 @@ captured copy. A layer's sheets and modules are validated wherever a Leaf compos
 its files (`layer-registry.md` says where).
 
 An authored `commandfor` is checked as a reference is, and its `command` for one the
-browser delivers (`instances.invoker_errors`), since the browser reports nothing for a
-button that reaches no element.
+browser delivers (`markup_checks.instances.invoker_errors`), since the browser reports
+nothing for a button that reaches no element.
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
 comment the log lost. A live sample template's child is checked as a page against its
 initial history wherever the template is declared, in the page or in a message's
-markup (`validation.source.sample_errors`; `sample_content.py` builds that
+markup (`authored_checks.source.sample_errors`; `sample_content.py` builds that
 history). A `data-sample-threads` thread the parent's log does not hold yet leaves the
 child without it, so a first version may name threads whose seed log is unwritten.
 Corpus generation composes from the shipped log, so there a missing thread is a
@@ -149,8 +150,12 @@ Every check behind `page check` reports a record (`findings.py` owns its fields 
 words), and the browser probes return those records rather than sentences.
 
 A render reading gets screens for its author to read, including when it reports
-findings (`render_gate/screens.py`).
-They are the command's, so the suite takes none.
+findings (`render_gate/screens.py`). A screen is taken of a ready page. A reading that
+stopped early, as at a page that cannot start, or that found the page never got ready,
+gets none, because the page would be no readier for a screen. A page that is not ready
+when the check opens it for a screen, as one whose module fails only on a phone, fails
+the check with a `not-ready` finding, and the check saves no screens. Screens are the
+command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running
 the command (`runtime_selection.py`), so the probes always meet the runtime they were

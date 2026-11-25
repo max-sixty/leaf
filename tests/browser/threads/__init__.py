@@ -36,7 +36,7 @@ from leaf import data as data_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
@@ -63,21 +63,6 @@ def thread_row(page, key):
     if resolved and not row.count():
         show_resolved(page)
     return row
-
-
-def choose_threads_in_panel(page, on=True):
-    """Have this tab open threads about a passage in the panel, or with `on` false
-    beside their passages, as for a user who chose that on an earlier visit
-    (thread/threads-in-panel.js): the choice stored for the tab and read again, which
-    says nothing in the panel's field, as a reload doesn't."""
-    page.evaluate(
-        """async (on) => {
-          const api = await window.__lfCheckApi();
-          api.tabStore.set(api.THREADS_IN_PANEL_KEY, on ? "panel" : null);
-          api.restoreThreadsInPanel();
-        }""",
-        on,
-    )
 
 
 def open_panel_thread(page, thread_id):

@@ -4,17 +4,18 @@
 import { registry } from "./registry.js";
 import { authoredScope, elementById, pageDocument } from "./passages.js";
 
-// The verbs that follow a `refers` attribute (`navigateToDatum`, `data`) are
-// handed it by package code, so an undeclared one is that code's error, thrown at the
-// call rather than read as a reference to nothing.
-/** @param {string} verb @param {Element} owner @param {string} attribute */
-export function requireReference(verb, owner, attribute) {
+// Package code hands `navigateToDatum` the `refers` attribute to follow, so an
+// undeclared one is that code's error, thrown at the call rather than read as a
+// reference to nothing. An input's `reference` attribute is declared by composition
+// (Python's `registry.contract.complete_declarations`), so its reader asks nothing here.
+/** @param {Element} owner @param {string} attribute */
+export function requireReference(owner, attribute) {
   if (
     typeof attribute !== "string" ||
     !Object.hasOwn(registry[owner.localName]?.refers ?? {}, attribute)
   )
     throw new TypeError(
-      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by refers`,
+      `navigateToDatum ${owner.localName} attribute ${String(attribute)} is not declared by refers`,
     );
 }
 

@@ -406,10 +406,9 @@ def merge_base() -> str:
     ).stdout.strip()
 
 
-def copy_working(paths: Iterable[str], dest: Path) -> None:
-    """Copy the files under `paths` into `dest` as the working tree has them: tracked
-    and unignored untracked files, the ones an install copies, with edits included
-    and links kept as links."""
+def working_files(paths: Iterable[str]) -> list[str]:
+    """The files under `paths` as the working tree has them: tracked and unignored
+    untracked files, the ones an install copies, each once and links included."""
     listed = subprocess.run(
         ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
         + ["--exclude-standard", "--", *paths],
@@ -418,11 +417,20 @@ def copy_working(paths: Iterable[str], dest: Path) -> None:
         check=True,
     ).stdout.split("\0")
     # A conflicted file is listed once per stage; a deleted one is still in the index.
-    for name in dict.fromkeys(filter(None, listed)):
-        source, target = ROOT / name, dest / name
-        if source.is_symlink() or source.is_file():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target, follow_symlinks=False)
+    return [
+        name
+        for name in dict.fromkeys(filter(None, listed))
+        if (ROOT / name).is_symlink() or (ROOT / name).is_file()
+    ]
+
+
+def copy_working(paths: Iterable[str], dest: Path) -> None:
+    """Copy the files under `paths` into `dest` as the working tree has them, with
+    edits included and links kept as links (`working_files`)."""
+    for name in working_files(paths):
+        target = dest / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / name, target, follow_symlinks=False)
 
 
 def copy_committed(paths: Iterable[str], dest: Path, ref: str) -> None:

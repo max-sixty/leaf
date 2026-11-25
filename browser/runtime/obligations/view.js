@@ -33,7 +33,7 @@
 import { capitalized } from "../lib/words.js";
 import { landingRoom } from "../landing-scroll.js";
 import { offFlow } from "../off-flow.js";
-import { landingBand, shownBox, shownParts } from "../geometry.js";
+import { landingBand, shownBox } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls, nativePress } from "../keyboard/bindings.js";
 import { elementById } from "../passages.js";
@@ -41,7 +41,6 @@ import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { scrollersOf } from "../scroll-containers.js";
 import { whereGlidesLand } from "../scrolling.js";
-import { keeps } from "../lib/keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
 import { obligationEntry } from "./model.js";
@@ -51,7 +50,6 @@ import {
   commandsWithin,
   contextScopes,
 } from "../keyboard/scopes.js";
-import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
@@ -352,24 +350,12 @@ export function createObligationView({
   // focused control's ring. An On Me row's press lands the focus by script
   // after a click, and the obligation it brought the user to must show where they are.
   //
-  // The obligation wears the mark, and so does every box it shows through (shownParts):
-  // the obligation is what carries the id captureView writes down and the place the
-  // queue walk measures from, while a landing keeps the ring's room at a scroller's edge
-  // round each box it lands on (chrome.css). The ring itself is drawn over the
-  // obligation, round every box it shows through at once (target-paint.js,
-  // `paintLocation`), so a wrapper a page styles boxless in a line wears one ring, as the
-  // thread's mark does (paintAnchors). Drawn as an outline on each part, it read as two
-  // boxes touching rather than as the one obligation the user is in.
+  // The obligation and every box it shows through wear its stamp and its ring
+  // (target-paint.js, `paintLocation`): the obligation is what carries the id
+  // captureView writes down and the place the queue walk measures from, while a landing
+  // keeps the ring's room at a scroller's edge round each box it lands on (chrome.css).
   function markHere() {
-    const record = currentLocationObligation();
-    const here = obligationNode(record);
-    const wearing = new Set(here ? [here, ...shownParts(here)] : []);
-    for (const marked of document.querySelectorAll(
-      `[${PAGE_PAINT_ATTRIBUTE.obligation}]`,
-    ))
-      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
-    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.obligation, "1");
-    paintLocation(here);
+    paintLocation(obligationNode(currentLocationObligation()));
   }
   // Where an arrival lands: on the obligation, which is what the scroll has just brought to
   // the top of the window and what the ring is about to name. Its controls are then the
@@ -658,10 +644,6 @@ export function createObligationView({
     stopContextScopes?.();
     stopContextScopes = null;
     presenter.disconnect();
-    for (const marked of document.querySelectorAll(
-      `[${PAGE_PAINT_ATTRIBUTE.obligation}]`,
-    ))
-      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
     paintLocation(null);
   }
 

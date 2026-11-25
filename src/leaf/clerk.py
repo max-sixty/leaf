@@ -858,10 +858,10 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     thread (`ask_again`), which the message reopens if it was closed; any other opens
     a thread of its own. Where Leaf can't ask the question again, as where its
     thread owes the user a reply, the ask is taken as one naming none."""
+    from .authored_checks.admission import checked_text
     from .findings import Rejected
     from .registry.storage import require_registry
     from .thread import fit_title
-    from .validation.admission import checked_text
 
     registry = require_registry(page_dir)
     for item in asks:

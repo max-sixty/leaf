@@ -62,7 +62,7 @@ identical passages was meant carries `detached: true`, keeping its words without
 claiming a location.
 
 When a revision drops an open thread's passage or visual part, activation records a
-`reanchor` for it (`validation.source_history.revision_reanchors`). An automatic
+`reanchor` for it (`authored_checks.source_history.revision_reanchors`). An automatic
 move never invents a passage: it falls back to the surviving section or detaches. A
 reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as
@@ -391,8 +391,8 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   in full above a summary, so a summary that follows it replaces those summaries
   with one (`thread_context.summary_hint`). A delivery leaves it out for a thread
   whose newest delivered message came to a round that awaited a line
-  (`forks.unlined`) while a follower listed the session's line forks
-  (`forks.lane_up`), since a fork beside that round's line fork summarizes the
+  (`events.unlined`) while a follower listed the session's line forks
+  (`leases.lane_up`), since a fork beside that round's line fork summarizes the
   thread (`summary_fork`). `text` may be empty, and an optional `label` names the
   range.
   `events.active_summaries` says which summaries stand. A summary answers, resolves,

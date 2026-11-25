@@ -14,19 +14,17 @@
     "description": "A ship-or-hold decision on a release, each choice a comment target. Put it in an `lf-group` whose label asks the question.",
     "attributes": {
       "properties": {
-        "verdict": { "type": "string", "enum": ["ship", "hold"] },
-        "source": { "type": "string" }
+        "verdict": { "type": "string", "enum": ["ship", "hold"] }
       },
       "required": ["id"]
     },
     "content": "empty",
     "verbs": {
       "decide": {
-        "unit": "widget",
-        "record": { "kind": "value", "attr": "verdict" }
+        "record": { "attr": "verdict" }
       }
     },
-    "awaits": { "value": "decide", "answered": { "decide": {} } },
+    "awaits": { "value": "decide" },
     "visual": { "prefixes": ["choice:"] },
     "inputs": {
       "notes": {

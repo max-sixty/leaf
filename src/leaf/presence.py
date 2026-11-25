@@ -425,7 +425,7 @@ def presence_fingerprint(present: dict) -> str:
 def presence_reading(page_dir: Path, files: str) -> str:
     """The presence token shared by readers for one bounded freshness interval.
 
-    It keys on `files`, the page's own reading (`served_state.reading`), which
+    It keys on `files`, the page's own reading (`page_inputs.page_reading`), which
     names every page input, and on the claimant's wait lease, the one input of
     presence outside them. A move in either invalidates it immediately; process
     and lock leases are refreshed when the interval expires. The facts are read

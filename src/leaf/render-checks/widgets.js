@@ -10,6 +10,7 @@ import {
   TEXT_BOX,
   userScrollport,
   visualPartProblems,
+  visualParts,
 } from "/runtime/check-api.js";
 import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at as locate } from "./locate.js";
@@ -116,6 +117,21 @@ export const invalidVisualProviders = (declarations) =>
     )
     .filter((instance) => instance.problems.length);
 
+// The parts each visual in the page offers a thread now, by the visual's id, which
+// `leaf page state` shows an agent naming a part (`render_reading.py`). They are the
+// parts the page's picker offers and `thread create --part` takes (`visualParts`), so a
+// visual that admits none lists none. A visual with no id can't be named, so it is
+// left out.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
+export const drawnParts = (declarations) =>
+  Object.fromEntries(
+    Object.entries(declarations)
+      .filter(([, entry]) => entry.visual)
+      .flatMap(([tag]) => [...document.querySelectorAll(`${tag}[id]`)])
+      .filter(inPage)
+      .map((el) => [el.id, visualParts(el).map(({ id, label }) => ({ id, label }))]),
+  );
+
 // Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace, and the static lint holds an authored document to
 // it. Composition closes it with `additionalProperties: false` unless the entry gives
@@ -142,7 +158,7 @@ export function undeclaredAttrs(declarations) {
   // what a control is and how it behaves, and the data-* namespace the runtime and
   // the widgets both paint in. `class` and `style` are the same kind of fact — a
   // look, not a state a version could carry — and `title`, `lang` and `dir`, which
-  // the page may write on any element (`validation/instances.py`), describe one.
+  // the page may write on any element (`markup_checks/instances.py`), describe one.
   // `part` is a look too: the runtime gives a box in a widget's shadow tree a part
   // to anchor or focus it from the document (css-anchors.js, focus.js).
   const painted = /^(?:data-|aria-)/;

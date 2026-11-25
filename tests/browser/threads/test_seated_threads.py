@@ -36,7 +36,6 @@ from browser.threads import (
     THIRTY_LINES,
     append_agent_reply,
     append_user_reply,
-    choose_threads_in_panel,
     clear_of_the_panel,
     long_diff_thread,
     open_panel_thread,
@@ -48,7 +47,7 @@ from browser.threads import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

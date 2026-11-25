@@ -11,7 +11,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, TypedDict
+from typing import TYPE_CHECKING, NoReturn, TypedDict, cast
 
 from .detached import starting_detached
 from .files import read_json
@@ -85,6 +85,9 @@ SERVICE: Record[ServiceRecord] = Record(
         ),
     ),
     since=13,
+    # The address an open tab polls and the lifetime a restart restores, beside the
+    # incarnation serving now, by which another Leaf finds the page served.
+    kept=("host", "bind", "port", "enabled", "lifetime", "runtime", "server_id"),
 )
 ACCESS: Record[AccessRecord] = Record(
     "access",
@@ -94,6 +97,7 @@ ACCESS: Record[AccessRecord] = Record(
         object_schema({"token": STRING}),
     ),
     since=13,
+    kept=("token",),
 )
 # The page receives it whole, so its shape is the served state's `preview`.
 PREVIEW = Record(
@@ -106,13 +110,17 @@ PREVIEW = Record(
         ]["Reading"]["properties"]["preview"],
     ),
     since=13,
+    # The next `leaf-dev preview` writes it again.
+    kept=(),
 )
 
 
 def read_service(page_dir: Path) -> ServiceRecord | None:
-    """The page's desired service (`service.json`), or None where there is none this
-    version can read."""
-    return SERVICE.read(page_dir / SERVICE_FILE)
+    """The page's desired service (`service.json`), whichever Leaf wrote it, or None
+    where there is none. Every shape keeps each key this one requires
+    (`SERVICE.kept`), so a page another Leaf serves, or served last, keeps its
+    address, its lifetime and its running server here."""
+    return cast("ServiceRecord | None", SERVICE.read_any(page_dir / SERVICE_FILE))
 
 
 def write_service(page_dir: Path, service: ServiceRecord) -> None:
@@ -454,13 +462,15 @@ def host_key() -> str:
 
     Minted under a lock, so two first serves racing on a fresh machine agree on
     whichever won. Each keeping its own would have their servers overwrite the one
-    shared cookie in turn, for as long as both ran. A file holding a record this
-    Leaf doesn't read, at another `ACCESS` format, is replaced, which signs out the
-    tabs that held its key."""
+    shared cookie in turn, for as long as both ran. For the same reason a key
+    another Leaf recorded in another shape stands as written, since every shape
+    keeps it (`ACCESS.kept`): replacing it would sign out every tab holding it, and
+    two Leaves of different shapes sharing the state home would replace each
+    other's key at each serve. Only a file holding no key gives way to a new one."""
     path = state_home() / "access.json"
-    if (access := ACCESS.read(path)) is None:
+    if (access := ACCESS.read_any(path)) is None:
         with flocked(path.with_name("access.lock")):
-            if (access := ACCESS.read(path)) is None:
+            if (access := ACCESS.read_any(path)) is None:
                 access = ACCESS.write(path, {"token": secrets.token_urlsafe(16)})
     # Whoever made the file, only the user reads the key.
     hold_mode(path, 0o600)

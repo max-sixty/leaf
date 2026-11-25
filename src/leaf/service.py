@@ -917,6 +917,9 @@ STREAM = Record(
         ),
     ),
     since=16,
+    # What the harness observes as the task runs, which its next observation writes
+    # again.
+    kept=(),
 )
 
 

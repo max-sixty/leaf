@@ -38,10 +38,12 @@
  * The store itself also outlives deploys, so every later release reads the tables and
  * stored values an earlier one wrote. `STORE_FORMAT` names their shape: the tables
  * (`STORE_TABLES`, which a test pins to the format), the encodings stored in their
- * columns, and the session object's own keys (`index.ts`). A change to any of them moves
- * it, which, as a page protocol bump does, starts every visitor on the published page,
- * since the session's key names it (`recordScope`), rather than leaving a later
- * release to misread an earlier one's rows. Nothing migrates a store.
+ * columns, among them a page's drafts store, which a column holds without its `format`
+ * and the test pins by its `since`, and the session object's own keys (`index.ts`). A
+ * change to any of them moves it, which, as a page protocol bump does, starts every
+ * visitor on the published page, since the session's key names it (`recordScope`),
+ * rather than leaving a later release to misread an earlier one's rows. Nothing
+ * migrates a store.
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be

@@ -41,9 +41,20 @@ the host late finds a newer store there and changes nothing. Where the host hold
 another store than the file, as after a save it took whose answer never came back,
 the file takes the host's store and the write runs once more against it (`_change`).
 Every record carries the version of its own write, so a tab ordering a reading
-against a write's answer keeps the later of the two. A page directory replaced, or a leaf.page session started at a new page protocol,
-starts another store with another identity, whose versions say nothing of the one a
-tab heard before.
+against a write's answer keeps the later of the two. A page directory replaced, or a
+leaf.page session started at a new page protocol, starts another store with another
+identity, whose versions say nothing of the one a tab heard before.
+
+So does a store another Leaf wrote in another shape, as after an update that changes
+the store's shape. The new store holds what every shape keeps of each draft
+(`DRAFTS.kept`): its attempt, its words, what its send depends on beside them
+(`payload`), such as a comment's anchor or drawing, and a reply handed back to it
+(`held`). Every shape keeps the payload only as an object, which is safe because a
+payload already outlives the runtime that wrote it: a Leaf update that leaves the
+store's shape alone serves the same store to a newer runtime. The new store starts
+at version 1, since a tab reads no drafts from a store at version 0
+(`browser/runtime/drafts.js`, `hearDrafts`), and a generation the log admitted
+settles in it as in any store.
 """
 
 import secrets
@@ -108,6 +119,7 @@ DRAFTS = Record(
         ),
     ),
     since=51,
+    kept=("drafts/*/attempt", "drafts/*/text", "drafts/*/payload", "drafts/*/held"),
 )
 _WRITE = {
     "type": "object",
@@ -131,15 +143,29 @@ def no_drafts() -> dict:
     return {"store": secrets.token_hex(16), "version": 0, "drafts": {}}
 
 
+def _carried(path: Path) -> dict:
+    """A new store for a page whose file holds no store of this shape, holding the
+    drafts of the one another Leaf wrote there in another shape, if any, as its
+    first write (module header)."""
+    stored = no_drafts()
+    if (kept := DRAFTS.read_any(path)) and kept["drafts"]:
+        stored["version"] = 1
+        stored["drafts"] = {
+            context: {**record, "version": 1}
+            for context, record in kept["drafts"].items()
+        }
+    return stored
+
+
 def _change[T](
     page_dir: Path, change: Callable[[dict], tuple[bool, T]]
 ) -> tuple[dict, T]:
     """Run `change` on the store under its lock, and save the store where `change` says
-    it changed it or the page had none: the store and what `change` returned. A host
-    that keeps the page elsewhere takes the save only over the store the file held, and
-    answers with the store it holds; where that is another, the file takes it and
-    `change` runs once more against it. RuntimeError where the host turns that away
-    too."""
+    it changed it or the page had none of this shape: the store and what `change`
+    returned. A host that keeps the page elsewhere takes the save only over the store
+    the file held, and answers with the store it holds; where that is another, the
+    file takes it and `change` runs once more against it. RuntimeError where the host
+    turns that away too."""
     path = page_dir / DRAFTS_FILE
     provider = commit_provider()
     with flocked(page_dir / DRAFTS_LOCK):
@@ -149,7 +175,7 @@ def _change[T](
                 "store": stored["store"],
                 "version": stored["version"],
             }
-            stored = stored or no_drafts()
+            stored = stored or _carried(path)
             changed, result = change(stored)
             if not changed and replaces is not None:
                 return stored, result
@@ -189,7 +215,8 @@ def _settle_sent(page_dir: Path, stored: dict, *, check: bool = False) -> bool:
 def read_drafts(page_dir: Path) -> dict:
     """The drafts the user is writing, by context, with the store's identity and
     version. A generation sent since the last reading or write is settled first, and
-    a page with no store yet starts one, so every reading names the store it read."""
+    a page with no store of this shape starts one (`_carried`), so every reading
+    names the store it read."""
     stored = DRAFTS.read(page_dir / DRAFTS_FILE)
     if stored is None or _settle_sent(page_dir, stored, check=True):
         stored, _ = _change(

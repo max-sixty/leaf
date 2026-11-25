@@ -14,10 +14,11 @@ The replaceable record (`USER_VIEWS`) is independently locked and pruned on
 writes after one day.
 
 The record also keeps `viewed`, when a report last said a document was visible, in
-POSIX seconds, which outlives the pruning. A visible document reports at least
-every ten seconds (`runtime/user-view.js`), so it is that fresh while a tab shows
-the page; a hidden tab sends no heartbeat, so the stamp records attention rather
-than tab lifetime. The agent reads it in `page state` (`viewed`).
+POSIX seconds, which outlives the pruning and a change to the record's shape
+(`USER_VIEWS.kept`). A visible document reports at least every ten seconds
+(`runtime/user-view.js`), so it is that fresh while a tab shows the page; a hidden
+tab sends no heartbeat, so the stamp records attention rather than tab lifetime. The
+agent reads it in `page state` (`viewed`).
 """
 
 import copy
@@ -173,6 +174,7 @@ USER_VIEWS = Record(
         ),
     ),
     since=47,
+    kept=("viewed",),
 )
 
 
@@ -181,7 +183,7 @@ def _now() -> datetime:
 
 
 def _stored(page_dir: Path) -> dict:
-    return USER_VIEWS.read(page_dir / USER_VIEWS_FILE) or {"sessions": {}}
+    return {"sessions": {}, **(USER_VIEWS.read_any(page_dir / USER_VIEWS_FILE) or {})}
 
 
 def viewed_at(page_dir: Path) -> float | None:

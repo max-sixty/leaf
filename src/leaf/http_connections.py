@@ -3,9 +3,11 @@
 The CLI alone selects an HTTPS origin and one credential header. Widgets name a
 connection and an origin-relative path; they cannot select methods, headers or
 credentials. The trusted bind command reads the credential from its environment
-and stores it privately on the host, so ordinary server restarts retain access.
-A grant authorizes every GET path on its origin: choosing a trustworthy origin and
-credential scope belongs to the grantor, not to page-authored JavaScript.
+and stores it privately on the host, so ordinary server restarts retain access, and
+so does an update that changes the record's shape, since every shape keeps each
+grant whole (`CONNECTIONS.kept`). A grant authorizes every GET path on its origin:
+choosing a trustworthy origin and credential scope belongs to the grantor, not to
+page-authored JavaScript.
 
 Grants live under the state home, keyed by canonical page directory, outside page
 files, revisions, exports and the event log. Copying a page grants nothing. A durable
@@ -60,6 +62,13 @@ CONNECTIONS = Record(
         }
     ),
     since=19,
+    kept=(
+        "connections/*/origin",
+        "connections/*/credential",
+        "connections/*/header",
+        "connections/*/prefix",
+        "connections/*/remaining",
+    ),
 )
 
 
@@ -79,9 +88,12 @@ def _record_path(page_dir: Path) -> Path:
 
 
 def _read(page_dir: Path, path: Path) -> dict:
-    return CONNECTIONS.read(path) or {
+    """The page's grants, whichever Leaf recorded them, so the next write keeps
+    those a Leaf of another shape recorded (module header)."""
+    return {
         "page": str(page_dir.resolve()),
         "connections": {},
+        **(CONNECTIONS.read_any(path) or {}),
     }
 
 

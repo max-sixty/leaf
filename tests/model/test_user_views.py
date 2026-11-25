@@ -167,7 +167,8 @@ def test_viewed_records_the_last_visible_report_and_outlives_pruning(
     tmp_path, monkeypatch
 ):
     """`viewed` moves only with a report that the page was showing, so a tab opened
-    hidden never stamps it, and it survives the day after which its report goes."""
+    hidden never stamps it, and it survives the day after which its report goes, and
+    a change to the record's shape (`USER_VIEWS.kept`)."""
     instant = datetime(2026, 10, 2, tzinfo=UTC)
     monkeypatch.setattr(user_views, "_now", lambda: instant)
     assert user_views.viewed_at(tmp_path) is None
@@ -186,4 +187,12 @@ def test_viewed_records_the_last_visible_report_and_outlives_pruning(
     user_views.observe_user_view(tmp_path, later)
     sessions = user_views.read_user_views(tmp_path, 1)["sessions"]
     assert [view["session"] for view in sessions] == ["b" * 32]
+    assert user_views.viewed_at(tmp_path) == shown
+
+    path = tmp_path / user_views.USER_VIEWS_FILE
+    write_json(path, {**read_json(path), "format": "leaf-user-views/999"})
+    assert user_views.viewed_at(tmp_path) == shown
+    user_views.observe_user_view(
+        tmp_path, {**report(session="c" * 32), "visible": False}
+    )
     assert user_views.viewed_at(tmp_path) == shown

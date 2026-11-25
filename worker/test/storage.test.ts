@@ -6,6 +6,8 @@ import type {
 import { describe, expect, it } from "vitest";
 import { unpackTar } from "modern-tar";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { URL } from "node:url";
 import {
   CHUNK_BYTES,
   PageStore,
@@ -76,20 +78,28 @@ const manifest = {
   ),
 };
 
-// The table shape each store format holds, as a digest of `STORE_TABLES`. A visitor's
-// store outlives deploys, so a change to the tables moves `STORE_FORMAT` and adds its
-// shape here; the earlier formats' entries stay, so none is rewritten in place.
-const FORMATS: Record<number, string> = {
-  1: "5bf1a647f4748ee6",
+// The shape each store format holds: a digest of `STORE_TABLES`, and the `since` of the
+// drafts store a column holds without its `format` (`state.Record`, as the protocol
+// baseline records it). A visitor's store outlives deploys, so a change to either moves
+// `STORE_FORMAT` and adds its shape here; the earlier formats' entries stay, so none is
+// rewritten in place.
+const FORMATS: Record<number, { tables: string; drafts: number }> = {
+  1: { tables: "5bf1a647f4748ee6", drafts: 51 },
 };
+const baseline = JSON.parse(
+  readFileSync(
+    new URL("../../build/browser/protocol-baseline.json", import.meta.url),
+    "utf8",
+  ),
+);
 
 describe("durable website page records", () => {
-  it("moves its store format with the shape of its tables", () => {
-    const shape = createHash("sha256").update(STORE_TABLES).digest("hex").slice(0, 16);
+  it("moves its store format with the shape of its tables and its drafts", () => {
+    const tables = createHash("sha256").update(STORE_TABLES).digest("hex").slice(0, 16);
     expect(
       FORMATS[STORE_FORMAT],
-      "the store's tables changed: move STORE_FORMAT and record this shape for it",
-    ).toBe(shape);
+      "the store's tables or drafts changed shape: move STORE_FORMAT and record this shape for it",
+    ).toEqual({ tables, drafts: baseline.records.drafts.since });
   });
 
   it("keeps revision descriptors below the SQL row limit as history exceeds 2 MB", async () => {

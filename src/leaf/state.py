@@ -477,24 +477,26 @@ class Record(Generic[_RecordValue]):
     which this kind's shape last changed, so a bump for anything else leaves the
     record readable (`layer-registry.md`, "Page protocol", says when `since`
     moves, which the browser build checks against every kind in `RECORDS`). `read`
-    takes only a record at this format. A record at another format or with none
-    reads as absent, as a missing file does, and the next write replaces it.
-    Every write replaces the file whole, so a file that is not JSON no Leaf
-    wrote, and reading it raises, naming the file.
+    takes only a record at this format, and reads one at another format or with
+    none as absent, as a missing file. Every write replaces the file whole, so a
+    file that is not JSON no Leaf wrote, and reading it raises, naming the file.
 
     `kept` names the keys every shape of the kind keeps, with the meaning and schema
     this one gives them, for a Leaf that must read a record another Leaf wrote in
     another shape (`read_any`). Each is a key, or a path through the record whose `*`
-    stands for each item of a list, as `batches/*/page`. The build refuses a shape
-    that drops one or changes its schema (`build/browser/protocol.mjs`), but lets a
-    kept key's `anyOf` gain variants: a new kind of session lifetime is a variant of
+    stands for each item of a list or each value of a map, as `batches/*/page`.
+    Every kind declares them: what the user would lose with the record, such as
+    words they typed or the address their tab polls, and none where losing it costs
+    them nothing, as with a cache the next reading rebuilds. A writer that changes a
+    record, rather than replacing what it holds, starts from `read_any`, so its write
+    carries the kept keys into this shape. The build refuses a shape that drops a
+    kept key or changes its schema (`build/browser/protocol.mjs`), but lets a kept
+    key's `anyOf` gain variants: a new kind of session lifetime is a variant of
     `SESSION`'s `lifetime` and a reading in `service.lifetime_is_live`, and an older
     Leaf reads a value it doesn't know as the session still live
     (`layer-registry.md`, "Page protocol")."""
 
-    def __init__(
-        self, kind: str, schema: dict, *, since: int, kept: tuple[str, ...] = ()
-    ):
+    def __init__(self, kind: str, schema: dict, *, since: int, kept: tuple[str, ...]):
         if kind in RECORDS:
             raise ValueError(f"two records declare the kind {kind}")
         RECORDS[kind] = self
@@ -574,6 +576,14 @@ def _keep(stored: dict, path: list[str], kept: dict, schema: dict) -> bool:
         kept[name] = stored[name]
         return True
     if rest[0] == "*":
+        if isinstance(stored[name], dict):
+            values = kept.setdefault(name, {key: {} for key in stored[name]})
+            return all(
+                _keep(
+                    item, rest[1:], values[key], field.get("additionalProperties", {})
+                )
+                for key, item in stored[name].items()
+            )
         items = kept.setdefault(name, [{} for _ in stored[name]])
         return all(
             _keep(item, rest[1:], into, field.get("items", {}))

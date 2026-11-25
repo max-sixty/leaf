@@ -14,11 +14,11 @@ from leaf import page_memory as page_memory_model
 from leaf.event_log import append_event, start_log
 
 
-def _write(page_dir, expect, attempt, text="Words", **record):
+def _write(page_dir, expect, attempt, text="Words", context="general", **record):
     return drafts_model.write_draft(
         page_dir,
         {
-            "context": "general",
+            "context": context,
             "expect": expect,
             "record": {"attempt": attempt, "text": text, **record},
         },
@@ -68,6 +68,45 @@ def test_a_store_keeps_its_identity_until_its_file_is_replaced(tmp_path):
     replaced = drafts_model.read_drafts(tmp_path)
     assert replaced["store"] != first["store"]
     assert replaced["drafts"] == {}
+
+
+def test_unsent_words_outlive_a_change_to_the_stores_shape(tmp_path):
+    """A store another Leaf wrote in another shape gives way to a new store holding
+    each draft's attempt, words, payload and handed-back reply, which every shape
+    keeps (`DRAFTS.kept`), at a version a tab reads drafts from; a generation the log
+    admitted meanwhile settles there as in any store, and tabs write on over the
+    words they hold."""
+    start_log(tmp_path)
+    _write(tmp_path, [], "a1", "My unsent comment", payload={"revision": 3})
+    _write(tmp_path, [], "a2", "Typed on the phone", "reply:t1", held="Handed back")
+    old = _write(tmp_path, [], "s1", "Sent from the laptop", "reply:t2")
+    path = tmp_path / "drafts.json"
+    path.write_text(
+        json.dumps({**json.loads(path.read_text()), "format": "leaf-drafts/999"})
+    )
+    append_event(tmp_path, {"kind": "comment", "text": "Sent", "attempt": "s1"})
+
+    reading = drafts_model.read_drafts(tmp_path)
+    assert reading["store"] != old["store"]
+    assert reading == {
+        "store": reading["store"],
+        "version": 2,
+        "drafts": {
+            "general": {
+                "attempt": "a1",
+                "text": "My unsent comment",
+                "payload": {"revision": 3},
+                "version": 1,
+            },
+            "reply:t1": {
+                "attempt": "a2",
+                "text": "Typed on the phone",
+                "held": "Handed back",
+                "version": 1,
+            },
+        },
+    }
+    assert _write(tmp_path, ["a1"], "a3", "My unsent comment, edited")["written"]
 
 
 def test_admitting_a_send_settles_the_generation_it_carries(server, page_dir):  # noqa: F811

@@ -1,5 +1,6 @@
 """External data replacement and shared validation caching keep complete readings."""
 
+import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -68,6 +69,19 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_value(
 
     registry["$data"]["contracts"]["count"]["schema"] = {"type": "integer"}
     assert data_model.read_data(tmp_path, registry) == rebound
+
+
+def test_a_publication_outlives_a_change_to_its_files_shape(tmp_path):
+    """Every shape of a source's file keeps the four fields of its publication
+    (`PUBLICATION.kept`), so a page's data reads the same after an update that
+    changes the file's shape, until the next `leaf data set` writes it in this one."""
+    source = data_model.source_file(tmp_path, "numbers")
+    source.parent.mkdir()
+    publish(source, "integer", "1", 1)
+    before = data_model.read_data(tmp_path, REGISTRY)
+    stored = json.loads(source.read_text())
+    source.write_text(json.dumps({**stored, "format": "leaf-data-source/999"}))
+    assert data_model.read_data(tmp_path, REGISTRY) == before
 
 
 def test_a_source_read_keeps_one_complete_publication(tmp_path, monkeypatch):

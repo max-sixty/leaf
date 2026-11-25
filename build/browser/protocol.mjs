@@ -8,10 +8,11 @@
  * declares `skippable`, since a Leaf that skips it still reads the rest of the log
  * rightly. A `state.Record` changes its schema, apart from its annotations, only by
  * setting its `since` to the current protocol, and never drops a key it keeps
- * (`state.Record.kept`), loosens one from required, or changes its schema, since
- * every Leaf reads a record's kept keys whichever Leaf wrote it. A kept key's
- * `anyOf` may gain variants, which an older Leaf reads as it reads any value it
- * doesn't know (`layer-registry.md`, "Page protocol").
+ * (`state.Record.kept`), loosens one from required, or changes its schema or
+ * whether a `*` on its path walks a list or a map, since every Leaf reads a record's
+ * kept keys whichever Leaf wrote it. A kept key's `anyOf` may gain variants, which
+ * an older Leaf reads as it reads any value it doesn't know (`layer-registry.md`,
+ * "Page protocol"). Every record declares its kept keys, even as an empty list.
  *
  * Equality, rather than a field-by-field comparison of what each side accepts, costs
  * a bump or a `since` move for an added optional field; Leaf spends no code on
@@ -60,20 +61,28 @@ function widens(was, now) {
   );
 }
 
-// The schema at `path` (`a/*/b`, `*` for each item of a list) in a record's schema, and
-// whether each key on the way is required; none where the path leaves the schema.
+// The schema at `path` (`a/*/b`, `*` for each item of a list or value of a map) in a
+// record's schema, whether each key on the way is required, and what each `*` walks;
+// none where the path leaves the schema, or ends at a `*`, since `a/*` would keep what
+// `a` keeps.
 function kept(schema, path) {
   let node = schema;
   const required = [];
-  for (const step of path.split("/")) {
-    if (step === "*") node = node?.items;
-    else {
+  const walks = [];
+  const steps = path.split("/");
+  if (steps.at(-1) === "*") return undefined;
+  for (const step of steps) {
+    if (step === "*") {
+      const walk = node?.type === "array" ? "items" : "additionalProperties";
+      walks.push(walk);
+      node = node?.[walk];
+    } else {
       required.push(Boolean(node?.required?.includes(step)));
       node = node?.properties?.[step];
     }
     if (node === undefined) return undefined;
   }
-  return { schema: node, required };
+  return { schema: node, required, walks };
 }
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
@@ -106,10 +115,16 @@ export function protocolBreaks(baseline, current) {
     if (!isDeepStrictEqual(baseline.events.ownership, current.events.ownership))
       refused.push("$events.ownership: changed");
   }
-  for (const [kind, { since, schema, kept: keeps = [] }] of Object.entries(
+  for (const [kind, { since, schema, kept: keeps }] of Object.entries(
     current.records,
   )) {
     const before = baseline.records[kind];
+    if (!Array.isArray(keeps)) {
+      refused.push(
+        `record ${kind}: declares no kept keys: name those whose loss across a shape change would cost the user, or none`,
+      );
+      continue;
+    }
     for (const path of keeps)
       if (!kept(schema, path))
         refused.push(`record ${kind}: kept ${path} is not in its schema`);
@@ -117,7 +132,10 @@ export function protocolBreaks(baseline, current) {
       const [was, now] = [kept(before.schema, path), kept(schema, path)];
       if (!keeps.includes(path) || !now)
         refused.push(`record ${kind}: ${path} is kept, so every shape keeps it`);
-      else if (!widens(was.schema, now.schema))
+      else if (
+        !widens(was.schema, now.schema) ||
+        !isDeepStrictEqual(was.walks, now.walks)
+      )
         refused.push(`record ${kind}: kept ${path} changed its schema`);
       else if (was.required.some((required, step) => required && !now.required[step]))
         refused.push(`record ${kind}: kept ${path} is no longer required`);

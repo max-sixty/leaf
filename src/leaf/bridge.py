@@ -105,6 +105,9 @@ ADDRESS = Record(
         ),
     ),
     since=13,
+    # A new shape is a change to this file, whose bridge keeps its records under a
+    # key of its own (`KEY`), so no Leaf meets a record of another shape.
+    kept=(),
 )
 REGISTRATION = Record(
     "bridge-session",
@@ -115,6 +118,8 @@ REGISTRATION = Record(
         object_schema({"id": described("The harness's session id.", STRING)}),
     ),
     since=13,
+    # As `ADDRESS`.
+    kept=(),
 )
 
 # Every copy that ships this file shares its bridge (module header). A copy that

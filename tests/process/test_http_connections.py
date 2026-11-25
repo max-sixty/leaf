@@ -11,7 +11,7 @@ from click.testing import CliRunner
 from interact_support import TOKEN, fetch, publish, running_http_server
 
 from leaf.cli import cli
-from leaf.http_connections import ConnectionError, bind, unbind
+from leaf.http_connections import CONNECTIONS, ConnectionError, bind, unbind
 from leaf.http_connections import fetch as connection_fetch
 from leaf.state import state_home
 
@@ -110,6 +110,25 @@ def test_cli_grant_authenticates_reads_and_stays_outside_page(
     assert len(requests) == 2
     unbind(page_dir, "source")
     assert read("/items")[0] == 403
+
+
+def test_every_grant_outlives_a_change_to_the_records_shape(page_dir, upstream):
+    """Every shape of the grants record keeps each grant whole (`CONNECTIONS.kept`),
+    so the next grant, which rewrites the record in this Leaf's shape, keeps those a
+    Leaf of another shape recorded, and they still authenticate and count reads."""
+    origin, requests = upstream
+    bind(page_dir, "first", origin, credential_env="CONNECTION_TEST_TOKEN")
+    [record] = (state_home() / "http-connections").glob("*.json")
+    stored = json.loads(record.read_text())
+    record.write_text(json.dumps({**stored, "format": "leaf-http-connections/999"}))
+
+    bind(page_dir, "second", origin, credential_env="CONNECTION_TEST_TOKEN")
+    assert connection_fetch(page_dir, "first", {"path": "/items"})["status"] == 200
+    assert requests[0][1]["Authorization"] == "Bearer host-secret"
+    grants = CONNECTIONS.read(record)
+    assert grants is not None
+    assert sorted(grants["connections"]) == ["first", "second"]
+    assert grants["connections"]["first"]["remaining"] == 199
 
 
 def test_connections_refuse_ungranted_requests_and_unsafe_paths(

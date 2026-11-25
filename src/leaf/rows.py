@@ -80,6 +80,9 @@ ROW = Record(
         ),
     ),
     since=54,
+    # Disposable: without it, other pages leave this one out of their list until its
+    # server publishes again (`server_rows`).
+    kept=(),
 )
 
 

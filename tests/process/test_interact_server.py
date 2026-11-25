@@ -2863,7 +2863,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert activity["detail_source"] is not None
     expected = rows_model.compact_activity(activity)
     reads = []
-    read = server_model.SERVICE.read
+    read = server_model.SERVICE.read_any
 
     def small_read(path):
         reads.append(path)
@@ -2872,7 +2872,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     def no_fold(*_args, **_kwargs):
         pytest.fail("a neighbor scan folded another page")
 
-    monkeypatch.setattr(server_model.SERVICE, "read", small_read)
+    monkeypatch.setattr(server_model.SERVICE, "read_any", small_read)
     monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
     monkeypatch.setattr(service_model, "read_stream", no_fold)
     monkeypatch.setattr(artifact_model, "read_revision", no_fold)
@@ -4543,7 +4543,10 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
 ):
     """`start_server` restarts a dead server through the detached service. The
     user's browser has been polling one URL since it died, so a fresh address or
-    key there would leave the page it reopens talking to nothing."""
+    key there would leave the page it reopens talking to nothing. So would an
+    update that changes either record's shape, so every shape keeps them
+    (`SERVICE.kept`, `ACCESS.kept`), and a key another Leaf wrote stands as it wrote
+    it, or two Leaves sharing the state home would replace each other's."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
     recorded = server_model.page_access(page_dir)
     minted = server_model.host_key()
@@ -4551,13 +4554,19 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
         **recorded,
         "port": 41234,
         "enabled": False,
-        "lifetime": "session",
+        "lifetime": "persistent",
     }
     write_record(page_dir / "service.json", service)
+    key = cleanup_model.state_home() / "access.json"
+    for record in (page_dir / "service.json", key):
+        stored = json.loads(record.read_text())
+        stored["format"] = stored["format"].rpartition("/")[0] + "/999"
+        record.write_text(json.dumps(stored))
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
     assert server_model.page_access(page_dir).items() >= service.items()
     assert server_model.host_key() == minted
+    assert json.loads(key.read_text())["format"] == "leaf-access/999"
 
 
 def test_the_state_home_and_its_key_stay_owner_only():
@@ -4579,9 +4588,9 @@ def test_the_state_home_and_its_key_stay_owner_only():
     assert stat.S_IMODE(key.stat().st_mode) == 0o600
 
 
-def test_a_key_this_leaf_cannot_read_is_replaced_once():
-    """A key file at another `ACCESS` format, such as one an earlier Leaf wrote,
-    gives way to a fresh key, which every later serve then reuses."""
+def test_a_key_file_holding_no_key_record_is_replaced_once():
+    """A key file that holds no `ACCESS` record, as one without its `format`, gives
+    way to a fresh key, which every later serve then reuses."""
     key = cleanup_model.state_home() / "access.json"
     key.write_text(json.dumps({"token": "unformatted"}))
     minted = server_model.host_key()

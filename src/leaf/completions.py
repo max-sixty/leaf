@@ -81,6 +81,9 @@ COMPLETION = Record(
         ),
     ),
     since=43,
+    # A request of another shape goes unanswered and fails at its deadline, as one the
+    # session never answers does.
+    kept=(),
 )
 
 

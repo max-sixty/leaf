@@ -571,6 +571,9 @@ POINTED = Record(
         ),
     ),
     since=44,
+    # An entry lasts one turn. Where a shape change loses one mid-turn, a later tool
+    # boundary of that turn points at the same input once more.
+    kept=(),
 )
 
 

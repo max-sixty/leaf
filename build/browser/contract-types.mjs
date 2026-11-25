@@ -217,8 +217,7 @@ from leaf.registry.schema import leaf_resources
 from leaf.schema import DECLARATION_SCHEMA
 from leaf_dev import declared_records
 records = {
-    kind: {"since": record.since, "schema": record.schema}
-    | ({"kept": list(record.kept)} if record.kept else {})
+    kind: {"since": record.since, "schema": record.schema, "kept": list(record.kept)}
     for kind, record in declared_records().items()
 }
 print(json.dumps({"references": leaf_resources(), "records": records, "widget": DECLARATION_SCHEMA}))
@@ -245,12 +244,14 @@ export async function protocolSchemas(root) {
     served: await read("src/leaf/served_state/state.schema.json"),
     verb: references["leaf:verb"],
     widget,
-    // The composer's draft (`$events.draft`) beside the `state.Record`s.
+    // The composer's draft (`$events.draft`) beside the `state.Record`s. The composer
+    // reads a draft only at its own format, so it keeps no key across shapes.
     records: {
       ...records,
       draft: {
         since: $events.draft.since,
         schema: written($events.draft.schema, references),
+        kept: [],
       },
     },
   };

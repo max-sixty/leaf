@@ -1021,6 +1021,25 @@ def test_a_finding_needs_no_edit():
     assert clerk_model.read_answer(json.dumps(answer)) == answer
 
 
+def test_queued_lines_outlive_a_change_to_the_queues_shape():
+    """Every shape of the queue keeps each line and whether it wakes the session
+    (`QUEUED.kept`), so the lines a Leaf of another shape queued reach the agent
+    beside the one the next Leaf's first hook adds."""
+    clerk_model.queue("s1", ["Leaf asked the user"])
+    clerk_model.queue("s1", ["A finding"], wake=True)
+    path = state_model.session_file("s1", clerk_model.QUEUED.kind)
+    path.write_text(
+        json.dumps({**json.loads(path.read_text()), "format": "leaf-clerk/999"})
+    )
+    clerk_model.queue("s1", ["Read the skill again"])
+    assert clerk_model.queued("s1") == [
+        "Leaf asked the user",
+        "A finding",
+        "Read the skill again",
+    ]
+    assert clerk_model.waking("s1") == ["A finding"]
+
+
 def test_a_long_title_is_cut_at_a_word_to_fit_a_thread(claimed, capsys):
     """A model can't count characters, so a title past a thread's limit is cut rather
     than refusing the answer and the asks it found."""

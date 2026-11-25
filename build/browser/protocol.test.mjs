@@ -34,6 +34,7 @@ const baseline = {
         properties: { page: { type: "string" }, pid: { type: "integer" } },
         required: ["page"],
       },
+      kept: [],
     },
   },
 };
@@ -137,7 +138,7 @@ test("a record keeps each kept key through every shape", () => {
       moved((claim) => {
         delete claim.schema.properties.page;
         claim.schema.required = [];
-        delete claim.kept;
+        claim.kept = [];
       }),
       kept,
     ),
@@ -198,6 +199,72 @@ test("a kept key's anyOf may gain variants, but keeps each", () => {
     ),
     refused("record claim: kept lifetime changed its schema"),
   );
+});
+
+test("a kept path's * walks each item of a list or each value of a map, and keeps which", () => {
+  const entry = () => ({
+    type: "object",
+    properties: { page: { type: "string" }, note: { type: "string" } },
+    required: ["page"],
+  });
+  const walked = structuredClone(baseline);
+  Object.assign(walked.records.claim, {
+    schema: {
+      type: "object",
+      properties: {
+        batches: { type: "array", items: entry() },
+        drafts: { type: "object", additionalProperties: entry() },
+      },
+    },
+    kept: ["batches/*/page", "drafts/*/page"],
+  });
+  const moved = (edit) => (s) => {
+    s.records.claim.since = 4;
+    edit(s.records.claim.schema.properties);
+  };
+  assert.deepEqual(
+    changed(
+      moved((fields) => delete fields.drafts.additionalProperties.properties.note),
+      walked,
+    ),
+    none,
+  );
+  assert.deepEqual(
+    changed(
+      moved(
+        (fields) =>
+          (fields.drafts.additionalProperties.properties.page.type = "integer"),
+      ),
+      walked,
+    ),
+    refused("record claim: kept drafts/*/page changed its schema"),
+  );
+  assert.deepEqual(
+    changed(
+      moved(
+        (fields) =>
+          (fields.batches = { type: "object", additionalProperties: entry() }),
+      ),
+      walked,
+    ),
+    refused("record claim: kept batches/*/page changed its schema"),
+  );
+  // A path names a key: `batches/*` would keep what `batches` keeps.
+  assert.deepEqual(
+    changed((s) => s.records.claim.kept.push("batches/*"), walked),
+    refused("record claim: kept batches/* is not in its schema"),
+  );
+});
+
+test("a new record kind declares the keys it keeps, if only none", () => {
+  const added = (kept) => (s) => (s.records.other = { since: 4, schema: {}, kept });
+  assert.deepEqual(
+    changed(added(undefined)),
+    refused(
+      "record other: declares no kept keys: name those whose loss across a shape change would cost the user, or none",
+    ),
+  );
+  assert.deepEqual(changed(added([])), none);
 });
 
 test("an annotation changes nothing, at any depth", () => {

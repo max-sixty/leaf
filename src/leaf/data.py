@@ -2,7 +2,9 @@
 
 `data/<source>.json` (`PUBLICATION`) holds a source's one publication: the
 `contract` it was set under, its opaque `run` receipt, `updated` instant, and
-complete `value`. The page holds a source exactly while that file exists.
+complete `value`, which every shape of the file keeps (`PUBLICATION.kept`), since
+only the next `leaf data set` would write them again. The page holds a source
+exactly while that file exists.
 `leaf data set` validates the value against the contract the source is bound to at
 the write (`data_contracts.working_data_bindings`) and writes the four together
 through `write_data`, which a sample's copy of its parent's data also uses;
@@ -69,6 +71,7 @@ PUBLICATION = Record(
         ),
     ),
     since=16,
+    kept=("contract", "run", "updated", "value"),
 )
 
 
@@ -153,7 +156,7 @@ def _publication(page_dir: Path, source: str) -> tuple[dict, str] | None:
     kept = held.get(source)
     if kept is not None and kept[0] == stamp:
         return kept[1]
-    publication = PUBLICATION.read(path)
+    publication = PUBLICATION.read_any(path)
     reading = (
         None
         if publication is None

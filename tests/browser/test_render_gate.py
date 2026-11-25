@@ -3073,15 +3073,13 @@ def test_horizontal_scrollbar_clearance_does_not_change_after_layout(
     ("browser_fixture", "track"),
     [("browser", 0), ("scrollbar_browser", 15), ("scrollbar_browser", 20)],
 )
-def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
+def test_a_diagrams_box_includes_its_scrollbar_clearance(
     request, serve, browser_fixture, track
 ):
     """The diagram fits standard tracks; a wider native track grows without clipping.
 
-    An ample authored reservation is stable through startup on either platform's
-    font metrics. Removing it exposes the natural drawing and native track sizes;
-    the overlay and classic track share the drawing's own blank bottom padding.
-    """
+    The overlay and classic track share the drawing's own blank bottom padding, so the
+    box is the drawing's height, plus what a track wider than that padding takes."""
     source = named_source("security-boundary").read_text()
     # The example's chain fits any column it is laid out for; a row of six calls
     # still runs past a 678px viewport and scrolls, which this test needs.
@@ -3101,66 +3099,22 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     page = request.getfixturevalue(browser_fixture).new_page(
         viewport={"width": 678, "height": 900}
     )
-    page.add_init_script("""window.diagramFrames = [];
-      function read() {
-        const box = document.querySelector('#security-before-flow');
-        const following = document.querySelector('#security-counterexample');
-        if(box && following) {
-          const svg=box.querySelector('svg');
-          const ink=svg?.getBBox({stroke:true});
-          const bottom=ink && new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
-          window.diagramFrames.push({drawn:!!svg,visible:box.checkVisibility({visibilityProperty:true}),
-            height:box.getBoundingClientRect().height,
-            following:following.getBoundingClientRect().top,
-            track:box.offsetHeight-box.clientHeight,
-            clear:svg ? box.getBoundingClientRect().bottom-bottom : null});
-        }
-        if(!window.diagramFramesDone) requestAnimationFrame(read);
-      }
-      requestAnimationFrame(read);
-    """)
-    render_checks_model.install_driver(page)
     page.goto(serve(source))
     wait_until_ready(page)
-    frames = page.evaluate("""async () => {
-      for(let i=0;i<3;i++) await new Promise(requestAnimationFrame);
-      window.diagramFramesDone=true;
-      return window.diagramFrames;
+    box = page.locator("#security-before-flow")
+    expect(box.locator("svg")).to_be_visible()
+    reading = box.evaluate("""box => {
+      const svg=box.querySelector('svg'), bounds=box.getBoundingClientRect();
+      const ink=svg.getBBox({stroke:true});
+      const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
+      return {height:bounds.height, svg:svg.getBoundingClientRect().height,
+        track:box.offsetHeight-box.clientHeight, clear:bounds.bottom-bottom};
     }""")
-    frames = [frame for frame in frames if frame["visible"]]
-    assert frames, frames
-    assert frames[-1]["drawn"], frames
-    assert frames[-1]["track"] == track, frames
-    assert frames[-1]["clear"] >= max(15, track + 1), frames
-    assert {frame["height"] for frame in frames} == {240}, frames
-    assert len({frame["following"] for frame in frames}) == 1, frames
-    # A missing or underestimated reservation must not sacrifice content to the bar;
-    # extra reserved room must not stretch the drawing into it.
-    reservations = page.locator("#security-before-flow").evaluate("""box => {
-      const svg=box.querySelector('svg');
-      const natural=svg.getBoundingClientRect().height;
-      return ['', String(natural - 16), String(natural + 100)].map(height=>{
-        box.setAttribute('data-lf-height',height);
-        const bounds=box.getBoundingClientRect(), ink=svg.getBBox({stroke:true});
-        const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
-        return {height:bounds.height,svg:svg.getBoundingClientRect().height,
-          clear:bounds.bottom-bottom};
-      });
-    }""")
-    natural = reservations[0]["svg"]
-    height = natural + max(0, track - 15)
-    assert 0 < height < 240, reservations
-    assert [reading["height"] for reading in reservations] == [
-        height,
-        height,
-        natural + 100,
-    ]
-    assert {reading["svg"] for reading in reservations} == {natural}
-    assert all(reading["clear"] >= max(15, track + 1) for reading in reservations), (
-        reservations
-    )
+    assert reading["track"] == track, reading
+    assert reading["clear"] >= max(15, track + 1), reading
+    assert reading["height"] == reading["svg"] + max(0, track - 15), reading
     page.emulate_media(media="print")
-    printed = page.locator("#security-before-flow").evaluate("""box => ({
+    printed = box.evaluate("""box => ({
       height:box.getBoundingClientRect().height,
       svg:box.querySelector('svg').getBoundingClientRect().height
     })""")

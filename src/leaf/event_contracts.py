@@ -739,7 +739,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
     holds (`plans.plan_error`)."""
     if event["kind"] != "plan":
         return None
-    return plan_error(event, readings.log.todos, readings.work.all_obligations["all"])
+    return plan_error(event, readings.log.todos, readings.work.plan_ids)
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:

@@ -432,6 +432,27 @@ def test_a_goal_counts_only_the_steps_that_ended_done(task_log):
     assert (goal["outcome"], goal["done"], goal["total"]) == ("failed", 1, 1)
 
 
+def test_a_plan_step_may_name_an_update_the_agent_owes(page_dir):
+    """An update the user handed over is an obligation on the agent's list, so a step
+    naming its id is admitted and reads where that update stands."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Quieter."},
+    )
+    owed = f"update:{comment['id']}"
+    written(
+        CliRunner().invoke(
+            cli_model.cli,
+            ["task", "plan", str(page_dir)],
+            input=json.dumps([{"depth": 0, "item": owed}]),
+        )
+    )
+    [step] = state_json(page_dir)["plan"]["steps"]
+    assert step["item"] == {"kind": "obligation", "id": owed}
+    assert (step["next_actor"], step["state"]) == ("agent", "waiting")
+
+
 def test_a_plan_step_reads_its_todo_stopped_once_the_turn_that_started_it_ends(
     claimed,
 ):

@@ -91,12 +91,13 @@ def _depths(steps: list[dict]) -> list[int]:
     return read
 
 
-def plan_error(event: dict, todos: list[dict], items: list[dict]) -> Finding | None:
+def plan_error(event: dict, todos: list[dict], known: set[str]) -> Finding | None:
     """Why the append door refuses a `plan` event, or None. `todos` are every to-do
-    on the page and `items` every obligation, open or not."""
+    on the page and `known` the ids of every obligation a step may name, open or not
+    (`WorkReading.plan_ids`)."""
     if event["kind"] != "plan":
         return None
-    known = {todo["id"] for todo in todos} | {item["id"] for item in items}
+    known = known | {todo["id"] for todo in todos}
     steps = event["steps"]
     depths = _depths(steps)
     for at, step in enumerate(steps):

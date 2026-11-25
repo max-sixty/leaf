@@ -1056,7 +1056,7 @@ cases:
         transform: context.metadata.texts?.['evidence'] ?? ''
   # A quick edit handed over without `page check --render`, then what the page's
   # server tells the agent once the version has stood. The `render` move waits for
-  # that (`render_gate.handover_pass`); a base arm without it runs the check itself
+  # that (`handover_pass`); a base arm without it runs the check itself
   # and posts what plain check doesn't report as the page's error. A page the
   # author already checked delivers nothing. Measures whether agents act on render
   # findings that arrive after handover, under each arm's handling clause.
@@ -1126,7 +1126,7 @@ cases:
 
           findings_answered (the final canonical page, state and native trace): If the driver records show render findings were delivered, as a `render` event or as a page error carrying `page check --render` findings, naming fraud-scorer's card label running past the column, the agent changed the page so the label no longer runs out and saved that change to the live page, without asking the user to do it. If no such findings were delivered, this outcome holds.
         transform: context.metadata.texts?.['evidence'] ?? ''
-  # Advice alone wakes nobody (`render_gate.handover_pass`), so it reaches the agent
+  # Advice alone wakes nobody (`handover_pass`), so it reaches the agent
   # with the user's next message. A base arm with no render pass hears it as the page's
   # error beside the same message.
   render-advice-with-comment:

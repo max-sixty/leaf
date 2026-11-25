@@ -3,13 +3,18 @@
  * question or a decision widget the user answers there with its own controls. A card waits while it
  * holds an obligation open on the user (`readObligations(card)`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
- * card no longer waits, after the user answered it on the card or on a control standing
- * for it, such as a suggestion's margin entry, the card flies right and the next waiting
- * card after it comes up; a draft editor open on the card saves as the press leaves it
- * (`lf-draft`), so moving on hides no unsaved words. A wait that ends anywhere else, as
- * when the user comments on the card and leaves it with the agent, the agent ends the
- * question, or the user answers it in another window, leaves the card where it is with
- * Next, since news never moves what the user is reading. Later sends a card left and
+ * card no longer waits, and the answer that closed it was sent from this page
+ * (`sentHere`), by whatever route the user took, the card flies right and the next
+ * waiting card after it comes up; a draft editor open on the card saves as the press
+ * leaves it (`lf-draft`), so moving on hides no unsaved words. The answer is told by
+ * where it was sent from, not by where the user is when the reading comes, so a reading
+ * that comes late, as a visitor's first answer on a hosted page can, still moves the
+ * card on. It moves the page or focus with it only while the answering gesture is still
+ * the user's latest (`retainUserIntent`), so a user who has gone on to read elsewhere
+ * stays there. A wait that ends anywhere else, as when the user comments on the card
+ * and leaves it with the agent, the agent ends the question, or the user answers it in
+ * another window, leaves the card where it is with Next, since news never moves what
+ * the user is reading. Later sends a card left and
  * leaves its obligation open, which is Leaf's keep unread: nothing is recorded, the
  * pass ends with the cards kept for later still waiting, and Go through starts again
  * from the first of them. Back returns to the card before, where the widget's own
@@ -44,12 +49,22 @@
  * their titles as a draft's actions are. Each is a command row whose control it is, so the arrow
  * keys toward and away from the text's start are Back and forward wherever the user is
  * in the deck, and Leaf shows Back unavailable on the first card while focus stays on it.
+ * Neither wears a key chip: its symbol already points the way its arrow key does, a
+ * chip beside it read as a second pair of arrows, and its preview names the key.
  * The bar stands above the card, so cards of different
  * heights never move a control under the pointer; for the same reason a card that comes
  * up after an answer takes no press until it has settled. Cards move as a stack: the
- * open one flies off the side it was sent, the one behind rises into place, Back brings
- * a card in over the open one from the left, and the deck's height follows, so the page
- * below slides (`#go`). A card a press brings up that would end under the panel then
+ * open one flies off the side it was sent, the one behind rises into place, and Back
+ * brings a card in over the open one from the left (`#go`). The deck stands as tall as
+ * the tallest it has stood this pass, and the open card fills it, so the page below
+ * slides down and is never pulled up (`#hold`); the end frame keeps its own height
+ * inside it, since a frame round empty room reads as a place to drop something. A deck whose height
+ * followed each card pulled the page down with it at the page's end, where the browser
+ * has no scroll left to give back, so the bar moved under the pointer and each card `m`
+ * reached landed at its own height; a deck that kept its height while the card in it
+ * shrank left an empty band under the card, which read as a missing part. A
+ * change of the deck's width lets the height go until the next change of card, since
+ * the cards reflow. A card a press brings up that would end under the panel then
  * scrolls up until its options clear it, the bar still above it, since a deck below the
  * page's opening brought a tall card back with its options out of reach. A touch drag
  * across the card sends it either way, flying on from
@@ -69,20 +84,24 @@ import {
   keepView,
   motion,
   obligationActions,
+  onUserInput,
   placeOf,
   openingView,
   viewMembers,
   nameOf,
   readObligations,
   readQueues,
+  retainUserIntent,
   scrollIntoView,
+  sentHere,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
-import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
@@ -94,6 +113,8 @@ const LEAVE_MS = 200;
 const ARRIVE_MS = 260;
 const FADE_MS = 140;
 const SETTLE_MS = 250;
+// The inputs that aim a gesture at the deck, as against a wheel that reads past it.
+const GESTURES = new Set(["pointerdown", "keydown"]);
 const LEAVE = "cubic-bezier(0.3, 0, 0.8, 0.15)";
 const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
@@ -127,14 +148,20 @@ customElements.define(
     // The open card, or null once the pass is over.
     /** @type {HTMLElement | null} */
     #open = null;
-    // Whether the open card waited on the user at the last reading, so the reading
-    // that ends its wait is the one that can send it on.
-    /** @type {boolean | null} */
-    #waited = null;
-    // The card the user last pressed in, which an answer by pointer leaves focus
-    // outside of where the platform doesn't focus the control pressed.
-    /** @type {HTMLElement | null} */
-    #pressed = null;
+    // Whether the open card has waited on the user at a reading since it opened, so an
+    // answer on a card Back returned to, answered already, leaves it open.
+    #waited = false;
+    // The open card's answers as the deck last read them, and the intent of the user's
+    // latest gesture toward the card: a press or key in the deck, or, for one made from
+    // a control standing for the card such as a margin entry, the change of answer it
+    // made, which shows at once, before the server's reading. A reading that comes
+    // after the user moved on moves the card but not the page or focus.
+    #answers = "";
+    /** @type {(() => boolean) | null} */
+    #moves = null;
+    // The height the deck holds as its least (`#hold`), and the width it was taken at.
+    #floor = 0;
+    #width = 0;
     // Ends the motion in flight at once, landing every element where it belongs.
     /** @type {((upcoming?: HTMLElement | null) => void) | null} */
     #landing = null;
@@ -173,7 +200,6 @@ customElements.define(
             keys: [back],
             title: "Back",
             control: this.#back,
-            bindingBadge: null,
             touch: false,
             when: () => this.#index() > 0,
             run: () => this.#stepBack(),
@@ -183,7 +209,6 @@ customElements.define(
             keys: [ahead],
             title: () => this.#forwardWord(),
             control: this.#forward,
-            bindingBadge: null,
             touch: false,
             run: () => this.#forwardPress(this.#readings()),
           },
@@ -206,6 +231,23 @@ customElements.define(
       if (this.matches("[data-lf-exhibit] *")) return;
       whileConnected(this, (signal) => {
         const options = { signal };
+        // A press or key in the deck is the user's latest gesture toward it, read from
+        // the document's one reading of the user's inputs, which binds no key.
+        const forget = onUserInput((event) => {
+          if (GESTURES.has(event.type) && event.composedPath().includes(this))
+            this.#moves = retainUserIntent();
+        });
+        signal.addEventListener("abort", forget);
+        // The cards reflow at a new width, so the height held at the old one goes
+        // until the next change of card takes one again.
+        const widths = sizeObserver(([entry]) => {
+          const width = entry?.borderBoxSize[0]?.inlineSize ?? 0;
+          if (width === this.#width) return;
+          this.#width = width;
+          if (this.style.minBlockSize) this.style.removeProperty("min-block-size");
+        });
+        widths.observe(this);
+        signal.addEventListener("abort", () => widths.disconnect());
         this.addEventListener("pointerdown", (event) => this.#press(event), options);
         this.addEventListener("pointermove", (event) => this.#follow(event), options);
         this.addEventListener("pointerup", (event) => this.#release(event), options);
@@ -229,6 +271,7 @@ customElements.define(
       // leaves that motion to finish.
       if (card === this.#open) return;
       this.#landing?.();
+      const before = parseFloat(getComputedStyle(this).height);
       keepView(this, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
@@ -237,22 +280,40 @@ customElements.define(
       this.#open = card;
       this.requestUpdate();
       this.#defaulted = false;
-      this.#waited = null;
-      this.#pressed = null;
+      this.#waited = false;
+      this.#answers = "";
+      this.#moves = null;
+      this.#hold(before);
       this.dispatchEvent(
         new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
+    }
+
+    // Hold the deck at the taller of its height `before` a change of card and its
+    // height after it, the least it stands at from then on, and return that height.
+    // The height before counts a card that grew while it was open.
+    /** @param {number} before */
+    #hold(before) {
+      const height = Math.max(before, parseFloat(getComputedStyle(this).height));
+      if (height !== this.#floor || !this.style.minBlockSize)
+        this.style.minBlockSize = layoutPx(height);
+      this.#floor = height;
+      return height;
     }
 
     // Move from the open card to `next`, or to the end of the pass when it is null.
     // Toward the left (Later) or right (Next, or an answer) the open card flies off that
     // side, from where a drag left it, and `next` rises from the edge of the stack
     // beneath, where it stood as the card behind. Back brings `next` in over the open
-    // card from the left, the side Later sent it to. The deck's height follows the
-    // change, so the page below slides rather than jumps. A card in flight keeps its box
+    // card from the left, the side Later sent it to. The deck's height glides to the
+    // card's (`#hold`), so the page below slides rather than jumps. A card in flight keeps its box
     // over the deck while the new one takes the flow.
-    /** @param {HTMLElement | null} next @param {string} side @param {{from?: string, answered?: boolean}} [options] */
-    #go(next = null, side, { from = "none", answered = false } = {}) {
+    /** @param {HTMLElement | null} next @param {string} side @param {{from?: string, answered?: boolean, moves?: () => boolean}} [options] */
+    #go(
+      next = null,
+      side,
+      { from = "none", answered = false, moves = retainUserIntent() } = {},
+    ) {
       this.#landing?.(next);
       const card = this.#open;
       if (next === card) return this.#show(next);
@@ -349,18 +410,21 @@ customElements.define(
       // measures the height it grows to.
       if (!next) this.#drawEnd(this.#readings());
       this.#defaulted = false;
-      this.#waited = null;
-      this.#pressed = null;
-      if (running.length) {
-        const after = parseFloat(getComputedStyle(this).height);
-        if (Math.abs(after - before) > 1) {
-          const resize = motion(
-            this,
-            [{ height: `${before}px`, easing: ARRIVE }, { height: `${after}px` }],
-            ARRIVE_MS,
-          );
-          if (resize) running.push(resize);
-        }
+      this.#waited = false;
+      this.#answers = "";
+      this.#moves = null;
+      // The deck glides to the height it now holds, its floor gliding with it.
+      const after = this.#hold(before);
+      if (running.length && after - before > 1) {
+        const resize = motion(
+          this,
+          [
+            { height: `${before}px`, minBlockSize: `${before}px`, easing: ARRIVE },
+            { height: `${after}px`, minBlockSize: `${after}px` },
+          ],
+          ARRIVE_MS,
+        );
+        if (resize) running.push(resize);
       }
       // The card that went is put away as its own motion ends, before the motion's last
       // frame lets go of it: the card it flew from, or the one Back covered.
@@ -395,10 +459,11 @@ customElements.define(
       // enough. A nearest landing counts what the panel covers as unseen
       // (`alreadyShown`), so a card ending under it comes up to its foot where it fits
       // and to its top where it doesn't, its `scroll-margin-block` keeping the bar and
-      // edges in view.
+      // edges in view. Neither moves the page once the gesture is no longer the user's
+      // latest (`moves`).
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
-        if (above || !next || this.#open !== next) return;
+        if (above || !next || this.#open !== next || !moves()) return;
         scrollIntoView(next, { block: "nearest", behavior: "smooth" });
       };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
@@ -424,8 +489,9 @@ customElements.define(
       this.dispatchEvent(
         new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
-      carry(next, answered ? SETTLE_MS : 0);
-      if (above) scrollIntoView(this, { block: "start", behavior: "smooth" });
+      carry(next, answered ? SETTLE_MS : 0, moves);
+      if (above && moves())
+        scrollIntoView(this, { block: "start", behavior: "smooth" });
     }
 
     // The next waiting card after `card`, or the next card where there is no reading or
@@ -459,7 +525,9 @@ customElements.define(
     // what waits there, so its own keys answer it, or at the step back in once the pass
     // is over; one who pressed lets go of what is hidden, and Tab goes on from where it
     // was. After an answer the arrival waits until the card has settled, so a key
-    // pressed twice answers one card. Read before `leaving` goes.
+    // pressed twice answers one card, and is made only while the gesture that moved
+    // the deck is still the user's latest (`moves`), read as it lands. Read before
+    // `leaving` goes.
     /** @param {HTMLElement[]} leaving */
     #carry(leaving) {
       const here = focusedElement();
@@ -469,8 +537,9 @@ customElements.define(
           (here !== null && here !== document.body && under(here, each)) ||
           Boolean(place && under(place, each)),
       );
-      const keyed = inside && here !== null && here.matches(":focus-visible");
-      return (/** @type {HTMLElement | null} */ next, wait = 0) => {
+      const focusVisible = inside && here !== null && here.matches(":focus-visible");
+      return (/** @type {HTMLElement | null} */ next, wait = 0, moves = () => true) => {
+        const keyed = focusVisible && moves();
         // A caret or selection left in the hidden card would start the next walk there.
         const selection = getSelection();
         if (
@@ -488,7 +557,7 @@ customElements.define(
         if (!wait) return this.#arrive(next);
         setTimeout(() => {
           const at = document.activeElement;
-          if (at === null || at === document.body) this.#arrive(next);
+          if ((at === null || at === document.body) && moves()) this.#arrive(next);
         }, wait);
       };
     }
@@ -537,7 +606,6 @@ customElements.define(
     #press(event) {
       const card = this.#open;
       if (!(event.target instanceof Element) || !card?.contains(event.target)) return;
-      this.#pressed = card;
       if (event.pointerType !== "touch") return;
       if (
         event.target.closest(
@@ -724,26 +792,32 @@ customElements.define(
           return void this.#show(waiting[0]);
       }
       const waits = waiting.includes(card);
-      // The reading that ends the open card's wait sends it on when the user answered
-      // it from the card: every obligation it holds is closed, at least one by an
-      // answer, and the user is in this window and on the card, on a control standing
-      // for it such as a suggestion's margin entry (`placeOf`), or pressed in it and is
-      // on nothing else. A comment leaves an obligation open with the agent, the agent
-      // ending one closes it without an answer, and an answer from another window
-      // arrives here while this one lacks focus, so none of them moves the card.
-      // A card's obligations leave out withdrawn ones, so every one that isn't open is
-      // answered.
-      const { open, total } = tally(readings(card));
+      const held = readings(card);
+      const answers = JSON.stringify(held.map((item) => item.answer?.value ?? null));
+      if (this.#answers && answers !== this.#answers) this.#moves = retainUserIntent();
+      this.#answers = answers;
+      // The reading that ends the open card's wait sends it on when the answer that
+      // closed it, the latest of its answers, came from this page, and it waited on the
+      // user at a reading since it opened. A comment leaves an obligation open with the
+      // agent, the agent ending one closes it without an answer, and an answer from
+      // another window was sent from there, so none of them moves the card, even where
+      // this page answered an earlier question on it. A card's obligations leave out
+      // withdrawn ones, so every one that isn't open is answered.
+      const { open, total } = tally(held);
       const closed = total > 0 && open === 0;
-      const here = focusedElement();
-      const place = here && placeOf(here);
-      const onCard =
-        document.hasFocus() &&
-        (Boolean(place && under(place, card)) ||
-          (this.#pressed === card && (here === null || here === document.body)));
-      if (this.#waited && !waits && closed && onCard) {
-        this.#go(this.#after(card, readings), "right", { answered: true });
-      } else this.#waited = waits;
+      const closing = held
+        .map((item) => item.answer?.event)
+        .reduce(
+          (latest, event) =>
+            event && (!latest || event.seq > latest.seq) ? event : latest,
+          /** @type {{seq: number, attempt?: string} | null | undefined} */ (null),
+        );
+      if (waits) this.#waited = true;
+      else if (this.#waited && closed && sentHere(closing))
+        this.#go(this.#after(card, readings), "right", {
+          answered: true,
+          moves: this.#moves ?? retainUserIntent(),
+        });
     }
   },
 );

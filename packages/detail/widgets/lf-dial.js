@@ -109,7 +109,6 @@
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
   nameOf,
-  focusDestination,
   motion,
   onPress,
   tabStore,
@@ -123,6 +122,7 @@ import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { plainPress } from "/runtime/lib/keys.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
@@ -940,7 +940,7 @@ customElements.define(
       if (before) {
         // The press's own control is gone, so the reader lands on what it showed.
         const [first] = run.blocks;
-        if (first) focusDestination(first, "return");
+        if (first) focusOn(first);
         this.#move(before, scope);
       }
     }

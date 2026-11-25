@@ -188,14 +188,10 @@ it. Leaf writes the key into it while the key works, and the widget gives it the
 
 ### Walks
 
-A list of focusable rows gets its arrow keys from `rowWalk({id, noun, plural, rows})`,
-whose two returned rows go into the list's scope: ArrowUp and ArrowDown step, Home and
-End reach the ends, and a step shows its position in Leaf's panel, such as `Entry 3 of
-7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
-runs after a move, and `scroll: false` keeps the page still. `position: () => null`
-shows no position, for a list whose rows name their places to a screen reader
-themselves, as a menu's do, and `steps` names the four steps in place of
-`["previous", "next", "first", "last"]`.
+A list of focusable rows gets its arrow keys from the library's
+[`row-walk.js`](../../../browser/runtime/lib/row-walk.js): `rowWalk({id, noun, plural,
+rows})` returns two command rows for the list's scope, in which ArrowUp and ArrowDown
+step, Home and End reach the ends, and each step says its place with `lf-walk`, below.
 
 A row whose press carries the user along a list of its own declares `lands(from)`
 ("Command rows") rather than moving focus in its `run`.
@@ -240,34 +236,23 @@ with nothing more to declare.
 
 ## Focus and layers
 
-Move focus with `focusDestination(element, cause)`. The cause tells Leaf why focus
-moved:
+Move focus with the browser's own `element.focus()`. Leaf reads why focus moved
+for itself: a press, a Tab and a closing layer's hand-back are told apart, and any
+other move reads as the user going there. Pass `{preventScroll: true}` where the
+widget reveals the element itself, or keeps the page still. An element that isn't a
+control takes focus only with a `tabindex`; the library's
+[`focus-on.js`](../../../browser/runtime/lib/focus-on.js) `focusOn(element)` lends it
+`tabindex="-1"` for as long as it holds focus.
 
-- `"move"`: a route taking the user somewhere, such as to the next row, whose landing
-  previews nothing (`module-previews.md`);
-- `"return"`: putting them back, as a widget's Escape does, or a redraw handing them to
-  the control that replaced theirs;
-- `"step"`: the widget's own Tab loop, whose landing previews as Tab's does;
-- `"press"`: landing on a control to press it for them.
-
-A return marked as a move looks like the user arriving, and can release held news or
-open options they never went to. An element that isn't a control gets a Tab stop while
-it has focus. `{caret: [start, end, direction]}` places a text field's caret. Moving
-focus never scrolls; reveal the destination with `scrollIntoView`
-(`module-scroll-and-motion.md`, "Scrolling to a destination").
-
-Before hiding or replacing nodes the user may be in, as a redraw that rebuilds or
-deletes a row does, call `const restore = holdFocus(scope)`, and call
-`restore?.(...standIns)` after; `holdFocus` returns `null` when the user is outside
-`scope`. Moving nodes needs no hold (`module-authoring.md`, "Retained nodes"). Unless
-the user has gone elsewhere since, `restore` puts them back on the same node, or else on
-the first stand-in that can take focus. For a keyed list, `holdFocus(list, { key })`
-names the attribute holding each item's key. `restore` then tries the same item, then
-the nearest item that survived, and lands on the control there like the one the user
-was on, such as its Remove. It tries the stand-ins last, so a Remove that empties the
-list can hand the user to the list's Add button. A command row whose `run` redraws the
-user's own place holds focus this way, and leaves `lands` to a press that takes the
-user somewhere else.
+A widget's own redraw is the widget's to keep the user through. Before hiding or
+replacing nodes the user may be in, read where they are, and put them back after: on
+the same node where it still stands, else on the control that replaced theirs, else on
+a neighbour or the widget itself. `keepFocus(scope)` in `focus-on.js` does this,
+returning `null` when the user is outside `scope`, and a step that takes stand-ins:
+`const restore = keepFocus(list)` before the render, and `restore?.(nextRow, addItem)`
+after. Moving nodes needs no hold (`module-authoring.md`, "Retained nodes"). A command
+row whose `run` redraws the user's own place holds focus this way, and leaves `lands`
+to a press that takes the user somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
@@ -295,10 +280,12 @@ returns runs when that press is over, after any compatibility mouseup and click 
 owes. Register as the widget connects, and call the returned unsubscribe as it leaves,
 which stops new presses.
 
-`onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
-changes, including inside a declared shadow root, and returns its unsubscribe function;
-register it as the widget connects and call that function as it leaves. The causes
-are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
+Hear where focus goes in the widget's own tree with the browser's `focusin` and
+`focusout`, on the widget or its shadow root, and `focus` on the widget itself for an
+arrival on the widget's own box, such as a go-to landing on it
+(`event.composedPath()[0] === this`). A move between two nodes of one shadow tree
+reaches no listener outside that tree, so listen on the shadow root for those.
+`:focus-visible` says whether the keyboard brought the user.
 
 The current location is marked by `data-lf-focus`, and its composed ancestry by
 `data-lf-focus-within`. Draw focus rings from `data-lf-focus-visible` and
@@ -327,16 +314,16 @@ popover (`popover="auto"`) opened while no other was showing, returns the user t
 they stood as it opened, but only while focus is inside it, and a pointer press in
 Safari or Firefox on macOS leaves the button it pressed unfocused. So a widget that
 closes its own layer from a choice in it, or closes any other popover, puts the user
-back on its opener with `focusDestination(opener, "return")`. A manual popover's Escape
-is an ordinary command row.
+back on its opener with `opener.focus()`. A manual popover's Escape is an ordinary
+command row.
 
 A control that opens a popover, such as a menu of choices, names it with
 `popovertarget`, or passes itself as the popover's source, `showPopover({source})`.
 Leaf puts the user on a `popovertarget` control as the popover opens, so closing it
 returns them there. Every such control declares `aria-expanded="false"`, and Leaf keeps
 it current as the popover opens and closes, however it opened. To land the user on a
-control inside the popover, call `focusDestination(control, "move")` from the
-popover's `toggle` event when its `newState` is `"open"`. The `lf-popover` class gives an open
+control inside the popover, call `control.focus()` from the popover's `toggle`
+event when its `newState` is `"open"`. The `lf-popover` class gives an open
 popover Leaf's raised surface and names it as the ground its controls paint; its own
 rule sets only its place, size and padding.
 
@@ -346,8 +333,9 @@ A widget's own navigation that waits, such as for a file or renderer to load, mo
 focus or scroll after the wait only where the user has done nothing since the gesture
 that started it. The library's
 [`input-since.js`](../../../browser/runtime/lib/input-since.js) says so:
-`const intended = noInputSince()` in that gesture, and a call of `intended` after each wait.
-`go` keeps the same rule itself (`module-reading.md`, "Taking the user somewhere").
+`const intended = noInputSince()` in that gesture returns the check to ask after each
+wait. `go` keeps the same rule itself (`module-reading.md`, "Taking the user
+somewhere").
 
 ### Pointer presses
 

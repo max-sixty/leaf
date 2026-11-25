@@ -31,10 +31,9 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-// Hearing each move of the user's current location with its cause
-// (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
-// a press that lands away from a surface (`onPressAway`).
-export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
+// Following the primary pointer's press (`onPress`), and hearing a press that lands
+// away from a surface (`onPressAway`).
+export { onPress, onPressAway } from "./focus.js";
 // The page's obligations, or those a region of it holds by the rule every count and walk
 // of them reads, with whether the region's markup asks the user something.
 export { readObligations } from "./obligations/place.js";
@@ -48,7 +47,6 @@ export {
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { wireInput } from "./application.js";
-export { rowWalk } from "./walk-position.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";

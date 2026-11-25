@@ -60,7 +60,7 @@ import { ShotView } from "./shot-view.js";
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
 import { render } from "/vendor/lit.js";
-import { focusDestination, scopedMediaUrl } from "/runtime/widget-api.js";
+import { scopedMediaUrl } from "/runtime/widget-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
@@ -72,6 +72,7 @@ import { keeps } from "/runtime/lib/keeps.js";
 import { plainPress } from "/runtime/lib/keys.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
@@ -181,12 +182,12 @@ export class Shot extends HTMLElement {
       this.#drawing.actual = scale === "actual";
       this.#fit();
       drawing.options.hidePopover();
-      focusDestination(drawing.scaleTrigger, "move");
+      drawing.scaleTrigger.focus({ preventScroll: true });
     };
     drawing.optionsToggled = (event) => {
       if (event.newState !== "open") return;
       const selected = drawing.options.querySelector('button[aria-pressed="true"]');
-      if (selected) focusDestination(selected, "move");
+      if (selected instanceof HTMLElement) selected.focus({ preventScroll: true });
     };
     drawing.toggleOutlines = () => {
       this.#drawing.outlines = !this.#drawing.outlines;
@@ -401,7 +402,7 @@ export class Shot extends HTMLElement {
         dragged = false;
         const handle = handleOf(event);
         if (handle instanceof HTMLElement || handle instanceof SVGElement)
-          focusDestination(handle, "press");
+          focusOn(handle);
       });
       comparison.addEventListener("click", (event) => {
         // A modified click keeps its usual meaning.

@@ -85,8 +85,6 @@ import {
   backgroundFlash,
   comparisonChanges,
   readObligations,
-  focusDestination,
-  scrollIntoView,
 } from "/runtime/widget-api.js";
 import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -130,6 +128,37 @@ const face = (panel) => {
   }
   return shown;
 };
+
+// Bring `node` into `box`'s scrollport at its nearest edge, clear of the box's
+// `scroll-padding` and the node's `scroll-margin`, moving no other box. A node larger
+// than the scrollport lands at its start.
+/** @param {Element} box @param {Element} node */
+function revealWithin(box, node) {
+  /** @param {string} value */
+  const px = (value) => Number.parseFloat(value) || 0;
+  const pad = getComputedStyle(box);
+  const margin = getComputedStyle(node);
+  const frame = box.getBoundingClientRect();
+  const at = node.getBoundingClientRect();
+  const left = frame.left + box.clientLeft;
+  const top = frame.top + box.clientTop;
+  /** @param {number} from @param {number} to @param {number} low @param {number} high */
+  const by = (from, to, low, high) =>
+    from < low ? from - low : to > high ? Math.min(from - low, to - high) : 0;
+  const x = by(
+    at.left - px(margin.scrollMarginLeft),
+    at.right + px(margin.scrollMarginRight),
+    left + px(pad.scrollPaddingLeft),
+    left + box.clientWidth - px(pad.scrollPaddingRight),
+  );
+  const y = by(
+    at.top - px(margin.scrollMarginTop),
+    at.bottom + px(margin.scrollMarginBottom),
+    top + px(pad.scrollPaddingTop),
+    top + box.clientHeight - px(pad.scrollPaddingBottom),
+  );
+  if (x || y) box.scrollBy({ left: x, top: y, behavior: "instant" });
+}
 
 export class TabSet extends LeafElement {
   static lfPatch = "members";
@@ -234,12 +263,9 @@ export class TabSet extends LeafElement {
       if (!next) return;
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
-      // the window after the switch (`#showTab`), once the focus paint marks its ring,
-      // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
-      // paint for the end of this script, so a microtask queued after the move runs
-      // behind it. Left out of sight, the tab would lose focus to the next key
-      // (page-keys/controller.js).
-      focusDestination(next, "move");
+      // the window after the switch (`#showTab`). Left out of sight, the tab would lose
+      // focus to the next key (page-keys/controller.js).
+      next.focus({ preventScroll: true });
       next.click();
       queueMicrotask(() => this.#showTab(next, null));
       const all = tabs();
@@ -549,7 +575,7 @@ export class TabSet extends LeafElement {
     // A box comes in with its strip; a set in the page's flow, whose strip is the
     // page's header, lands its panel under it.
     if (pinned)
-      scrollIntoView(this.#pageFlow ? active : this, {
+      (this.#pageFlow ? active : this).scrollIntoView({
         block: "start",
         behavior: "instant",
       });
@@ -666,19 +692,15 @@ export class TabSet extends LeafElement {
   // does wherever it is a column (the package theme), and the tab comes into it the
   // same way, down the column. Until the column sticks it stands where the page put
   // it, and can reach past the window's foot, so the walk, which puts focus on the
-  // tab, shows it in the window too (`within` null). A stuck strip's tab already
-  // shows there.
-  // Where the strip has room for it, the tab comes in with its run's label, so the
-  // name of the group the user opened stays beside it. Down a column that room is
-  // the landing's own (`including`) and the run from heading to tab lands together.
-  // Along a row the label sticks at the row's start as the run scrolls under it (the
-  // package theme), so a range over the two measures where the label stands rather
-  // than the run's length; the row's room is asked whether the label and the tab
-  // can share it side by side, and the tab lands clear of the label's room through
-  // the theme's `scroll-margin`, which this measures for it (`--lf-tab-group-size`):
-  // the run's first tab brings the label in with it, standing in its own place, and
-  // a later tab comes in beside the stuck label. Where they cannot share the row,
-  // the tab lands whole and the label gives way (`data-lf-group-apart`).
+  // tab, shows it in the window too (`within` null), with the browser's own reveal.
+  // A stuck strip's tab already shows there.
+  // Along a row the run's label sticks at the row's start as the run scrolls under it
+  // (the package theme); the row's room is asked whether the label and the tab can
+  // share it side by side, and the tab lands clear of the label's room through the
+  // theme's `scroll-margin`, which this measures for it (`--lf-tab-group-size`): the
+  // run's first tab brings the label in with it, standing in its own place, and a
+  // later tab comes in beside the stuck label. Where they cannot share the row, the
+  // tab lands whole and the label gives way (`data-lf-group-apart`).
   /** @param {HTMLElement | undefined} btn @param {Element | null} [within] */
   #showTab(btn, within = this.#strip) {
     const strip = this.#strip;
@@ -697,15 +719,9 @@ export class TabSet extends LeafElement {
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
       run.style.setProperty("--lf-tab-group-size", layoutPx(size));
-      scrollIntoView(btn, { block: "nearest", within });
-      return;
     }
-    const range = label && document.createRange();
-    if (range && label) {
-      range.setStartBefore(label);
-      range.setEndAfter(btn);
-    }
-    scrollIntoView(btn, { including: range, block: "nearest", within });
+    if (within) revealWithin(within, btn);
+    else btn.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   // The open tab stays in the row as the strip's width changes, and not only when a

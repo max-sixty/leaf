@@ -1961,7 +1961,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a fixed box"):
         assert (
             page.evaluate("""async () => {
-              const {scrollIntoView} = await window.__lfWidgetApi();
+              const {scrollIntoView} = await window.__lfCheckApi();
               scrollTo({top: 100, behavior: 'instant'});
               const fixed = document.querySelector('#fixed');
               scrollIntoView(fixed, {block: 'nearest', behavior: 'instant'});
@@ -1973,7 +1973,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a fixed box a transformed box holds"):
         reading = page.evaluate("""async () => {
           const {landingBand, seenRect} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           scrollTo({top: 0, behavior: 'instant'});
           const carried = document.querySelector('#carried');
           const before = carried.getBoundingClientRect().top;
@@ -1990,7 +1990,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="what the window shows"):
         reading = page.evaluate("""async () => {
           const {alreadyShown, fitsWhole, landingBand, shownWindow} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const partly = (node) => {
             const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
             scrollBy({top, behavior: 'instant'});
@@ -2010,7 +2010,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a box whole in a pane below the window"):
         reading = page.evaluate("""async () => {
           const {alreadyShown, landingBand} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const pane = document.querySelector('#pane');
           const box = document.querySelector('#whole');
           scrollBy({top: pane.getBoundingClientRect().top - (innerHeight - 200),
@@ -2028,7 +2028,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a box longer than its pane"):
         reading = page.evaluate("""async () => {
           const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const pane = document.querySelector('#short-pane');
           const box = document.querySelector('#long');
           const band = landingBand(document.scrollingElement).top;
@@ -2113,7 +2113,7 @@ def test_end_landing_reveals_a_tall_items_closing_edge_through_outer_scrollers(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {scrollIntoView} = await window.__lfWidgetApi();
+      const {scrollIntoView} = await window.__lfCheckApi();
       const {landingBand} = await window.__lfCheckApi();
       const target = document.querySelector('#tall-ending');
       const inner = document.querySelector('#inner-reading');
@@ -2184,7 +2184,7 @@ def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_rea
     assert all(left > 0 for left, _ in before["offsets"])
     page.evaluate(
         """async (block) => {
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const target = document.querySelector('#quarter-target');
           scrollIntoView(target, {block, behavior: 'instant'});
         }""",

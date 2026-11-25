@@ -19,11 +19,11 @@
 // A `--seek` command, such as a step button's `commandfor` press, holds the result of
 // the step its button's value names.
 
-import { holdFocus, scrollIntoView } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { keepFocus } from "/runtime/lib/focus-on.js";
 import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
@@ -224,7 +224,7 @@ customElements.define(
     #reveal() {
       if (!this.hasAttribute("data-phone")) return;
       if (this.settings.open) this.settings.open = false;
-      scrollIntoView(this, { block: "start", behavior: "smooth" });
+      this.scrollIntoView({ block: "start", behavior: "smooth" });
     }
 
     // The last moment before the first step: every commit, ref and worktree drawn.
@@ -349,7 +349,7 @@ customElements.define(
       this.#pause();
       if (this.hasAttribute("data-phone")) {
         this.settings.open = false;
-        scrollIntoView(this.playBtn.parentElement, {
+        this.playBtn.parentElement.scrollIntoView({
           block: "nearest",
           behavior: "instant",
         });
@@ -417,7 +417,7 @@ customElements.define(
       const active = document.activeElement;
       const line = active?.closest("[data-line]")?.dataset.line;
       const disclosure = active?.closest("details");
-      const restoreFocus = changing ? holdFocus(this) : null;
+      const restoreFocus = changing ? keepFocus(this) : null;
       if (this.hasAttribute("data-phone") !== narrow)
         this.settings.toggleAttribute(
           "open",
@@ -459,8 +459,10 @@ customElements.define(
           this.playBtn,
         )
       ) {
-        const destination = document.activeElement;
-        scrollIntoView(destination, { block: "nearest", behavior: "instant" });
+        document.activeElement?.scrollIntoView({
+          block: "nearest",
+          behavior: "instant",
+        });
       }
     }
   },

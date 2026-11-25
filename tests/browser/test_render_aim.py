@@ -2757,8 +2757,8 @@ CONTROL_PRESSES = {
 # Each control a shape's selector names: the target a press on it reads, and that same
 # control's entry in the inventory the picker offers, before and after its capture.
 READ_CONTROL_SHAPES = """async (shapes) => {
-  const {aimTargets, aimTargetAt, captured, resolveAnchor} = await window.__lfCheckApi();
-  const {anchorLabel} = await window.__lfWidgetApi();
+  const {aimTargets, aimTargetAt, anchorLabel, captured, resolveAnchor} =
+    await window.__lfCheckApi();
   const inventory = aimTargets({design: true});
   const identity = (target) => target.controlElement ?? target.element;
   // A control with no target reads as null, for its own case to report.

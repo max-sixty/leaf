@@ -1,23 +1,12 @@
 @layer lf-base {
   @scope (lf-margin-entry-gallery) {
-    /* The gallery lays the runtime's own margin entry anatomy out for comparison. The page
-     * owns only the sample labels and grid; margin-projection.js and chrome.css remain the
-     * sole owners of each margin entry's face, icon, tone, rank, and workflow paint. */
+    /* The exhibit's words; Leaf draws its contributed entry at the margin. */
     :scope:is(lf-margin-entry-gallery) {
       display: block;
       margin-block: var(--lf-sp-4);
-      /* The sample rows stack from the room the gallery has. A gallery in a narrow
-       * column has less than the page shell does. */
+      /* The exhibit stacks from the room it has. A gallery in a narrow column has less
+       * than the page shell does. */
       container: lf-margin-entry-gallery / inline-size;
-    }
-
-    .margin-entry-gallery-group {
-      display: grid;
-      grid-template-columns: minmax(7.5rem, 0.7fr) minmax(0, 3fr);
-      gap: var(--lf-sp-3);
-      align-items: start;
-      padding-block: var(--lf-sp-3);
-      border-block-start: 1px solid var(--lf-rule);
     }
 
     .margin-entry-gallery-heading {
@@ -30,52 +19,6 @@
       margin-block-start: var(--lf-sp-1);
       color: var(--lf-muted);
       font: 450 var(--lf-t-6)/1.35 var(--lf-sans);
-    }
-
-    .margin-entry-gallery-items {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr));
-      gap: var(--lf-sp-3) var(--lf-sp-2);
-      min-width: 0;
-    }
-
-    .margin-entry-gallery-item {
-      display: grid;
-      grid-template-columns: max-content minmax(0, 1fr);
-      gap: var(--lf-sp-2);
-      align-items: center;
-      min-width: 0;
-    }
-
-    .margin-entry-gallery-copy {
-      min-width: 0;
-      font-family: var(--lf-sans);
-    }
-
-    .margin-entry-gallery-name,
-    .margin-entry-gallery-detail {
-      display: block;
-      overflow-wrap: anywhere;
-    }
-
-    .margin-entry-gallery-name {
-      color: var(--lf-ink);
-      font-size: var(--lf-t-5);
-      font-weight: 650;
-      line-height: 1.25;
-    }
-
-    .margin-entry-gallery-detail {
-      margin-block-start: 2px;
-      color: var(--lf-muted);
-      font-size: var(--lf-t-6);
-      line-height: 1.3;
-    }
-
-    .margin-entry-gallery-disclosure {
-      grid-column: 2;
-      color: var(--lf-muted);
-      font: 450 var(--lf-t-6)/1.3 var(--lf-sans);
     }
 
     .margin-entry-gallery-projection {
@@ -106,10 +49,6 @@
     }
 
     @container lf-margin-entry-gallery (width <= 36rem) {
-      .margin-entry-gallery-group {
-        grid-template-columns: 1fr;
-      }
-
       .margin-entry-gallery-projection {
         grid-template-columns: 1fr;
       }

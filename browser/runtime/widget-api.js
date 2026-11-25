@@ -34,8 +34,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 export { nameOf } from "./names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
-// The name Threads, the margin, and reactions give a comment's anchor.
-export { anchorLabel } from "./thread/messages.js";
 export { navigateToDatum } from "./application.js";
 // Hearing each move of the user's current location with its cause
 // (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
@@ -60,12 +58,10 @@ export { readThreads } from "./thread/state.js";
 export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { rowWalk } from "./walk-position.js";
-export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
 export { named, says } from "./passages.js";
-export { clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
@@ -82,7 +78,6 @@ export {
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
-export { copyControl } from "./copy-control.js";
 // The members a widget shows one at a time: Leaf remembers the one shown, names it in
 // the address where the widget's views are the page's, and keeps the user's place in
 // each view of the page's flow (views.js).
@@ -90,11 +85,6 @@ export { keepView, openingView, viewMembers } from "./views.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
-
-// The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
-// the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
-// the page has presented.
-export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
 // The returned host owns readiness, the frame's height, Reset and disposal
@@ -122,5 +112,3 @@ export async function mountSample(frame, options) {
 export { wear } from "./dress.js";
 export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
-// What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
-export { agentName } from "./semantic-state.js";

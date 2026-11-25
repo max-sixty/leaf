@@ -8,8 +8,9 @@
    - A comment's anchor is not a kind `nameOf` takes. Its words are its place and the
      words it quotes, read in its thread's `about`, so a caller passes a second argument
      only an anchor reads and must know it holds an anchor to pass it. Folding it in
-     would put that rule under this name behind an option; `anchorLabel` stays its
-     own function.
+     would put that rule under this name behind an option. Threads and the margin name
+     an anchor with `anchorLabel` (thread/messages.js); a package names a comment by
+     the words it quotes, else by its element's name here.
    - An element with no name gets "", not the word for its kind. Callers fall back
      differently (the kind word, "the" and the word, the page's title, nothing), and
      each fallback is words the user reads, so a fallback here would change them. */

@@ -440,7 +440,3 @@ the draft kept under `ctx`, a string unique on the page such as `option:` and it
   already says.
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
-
-For a CodeMirror editor, construct the class `leafEditorView(codemirror)` returns in
-place of `EditorView`, so focus and reveals go through Leaf. Pass the module your widget
-imports (`import * as codemirror from "/vendor/codemirror.esm.js"`).

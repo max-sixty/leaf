@@ -1,63 +1,8 @@
-/* The exhibit grid and its contribution controls share one live Lit view. */
+/* The exhibit and its contributed margin entry share one live Lit view. */
 import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
-import {
-  presentContributionEntry,
-  registerContribution,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { registerContribution, whileConnected } from "/runtime/widget-api.js";
 import { once } from "/runtime/lib/once.js";
-
-function wireSample({ sample, key, control, disclosure }) {
-  const behavior = sample.behavior ?? "action";
-  let expanded = Boolean(sample.expanded);
-  const paint = () => {
-    presentContributionEntry(
-      control,
-      {
-        key,
-        label: sample.name,
-        ...(sample.icon ? { icon: sample.icon } : { glyph: sample.glyph }),
-        context: sample.context,
-        behavior,
-        tone: sample.tone ?? "neutral",
-        rank: sample.rank ?? "primary",
-        state: sample.state ?? "idle",
-        count: sample.count ?? 1,
-        disabled: !sample.interactive,
-        relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
-      },
-      {
-        selected: sample.selected ?? false,
-        unread: sample.unread ?? false,
-        receipt: sample.workflowState
-          ? {
-              id: key,
-              subject: { kind: "widget", id: key },
-              // Where the server says the update stands (activity.py): a turn took it
-              // in, or the agent is at work on it.
-              state: sample.workflowState,
-              reason: null,
-              seen: true,
-              detail: "",
-            }
-          : null,
-        awaitsUser: sample.awaitsUser ?? false,
-      },
-    );
-    // The words beside each fixed sample say what its preview would, over the next
-    // cell, so only the live discovery samples keep the preview the factory gives them.
-    if (!sample.showLabel) control.lfPreview = () => false;
-  };
-  paint();
-  if (disclosure) {
-    control.addEventListener("click", () => {
-      expanded = !expanded;
-      disclosure.hidden = !expanded;
-      paint();
-    });
-  }
-}
 
 customElements.define(
   "lf-margin-entry-gallery",
@@ -66,7 +11,6 @@ customElements.define(
       if (!once(this)) return;
       const initial = createView(this);
       render(initial.render(), this);
-      initial.samples.forEach(wireSample);
       whileConnected(this, () => {
         const projection = this.#registerProjection(initial.result);
         return () => projection.unregister();

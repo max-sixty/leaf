@@ -285,12 +285,13 @@ lf-text-document[preview]
   background: var(--lf-pre-bg);
 }
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
-   (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does. */
+   (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does, and breaks
+   words as the page does: only code breaks anywhere. Breaking every word anywhere let a
+   table squeeze a column of short names, splitting "symbol" across two lines. */
 lf-text-document div.lf-text-document-preview {
   --lf-reading-face: 1;
   --lf-block-frame: 1;
   padding: var(--lf-sp-4);
-  overflow-wrap: anywhere;
 }
 lf-text-document iframe.lf-text-document-preview {
   display: block;
@@ -333,5 +334,48 @@ lf-text-document iframe.lf-text-document-preview {
   }
   lf-text-document iframe.lf-text-document-preview {
     block-size: 100%;
+  }
+}
+/* As a pane's body, the document wears the pane's frame rather than a second one inside
+   it, with no inset or margin of its own, as a file editor there does. */
+[data-lf-reading-role="pane"] > lf-text-document {
+  margin: 0;
+  padding: 0;
+  --lf-pane-top: 0px;
+  & > .lf-text-document-view {
+    border: 0;
+    border-radius: 0;
+  }
+}
+/* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+   workspace pane's body is, the document fills it: the tab shown takes what the
+   caption and strip leave, in place of the bound, and scrolls inside it. Each box
+   passes the height on to the next, since the property doesn't inherit. */
+@media screen {
+  @container style(--lf-full-height: 1) {
+    lf-text-document[data-lf-bound],
+    lf-text-document > .lf-text-document-view,
+    lf-text-document[preview] > .lf-text-document-view > lf-tabs {
+      --lf-full-height: inherit;
+      display: flex;
+      flex-direction: column;
+      block-size: 100%;
+      min-block-size: 0;
+      margin-block: 0;
+    }
+    lf-text-document > .lf-text-document-view > :is(lf-tabs, .lf-text-document-listing),
+    lf-text-document[preview]
+      > .lf-text-document-view
+      > lf-tabs
+      > lf-tab:not([hidden]) {
+      flex: 1 1 0;
+      min-block-size: 0;
+    }
+    lf-text-document[preview] > .lf-text-document-view > lf-tabs > lf-tab:not([hidden]),
+    lf-text-document:not([preview])[data-lf-bound] pre,
+    lf-text-document iframe.lf-text-document-preview {
+      block-size: 100%;
+      max-block-size: none;
+    }
   }
 }

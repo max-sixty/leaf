@@ -452,7 +452,12 @@ export function createEditor(
     /** @type {string | null | undefined} */
     shownLanguage = null,
     conflict = original,
-    replacing = false;
+    replacing = false,
+    // Where `goToLine` put the caret, which a reveal keeps in the middle of the view
+    // until the caret moves. CodeMirror scrolls once a frame, to the last request, and
+    // a link's landing asks to reveal the caret just after the line is placed: at the
+    // nearest edge, that request left the line at the editor's foot.
+    centred = -1;
   const readonlyExtension = () => [
     EditorState.readOnly.of(readonly),
     EditorView.editable.of(!readonly),
@@ -522,6 +527,8 @@ export function createEditor(
           ]),
         ),
         EditorView.updateListener.of((update) => {
+          if (update.selectionSet && update.state.selection.main.head !== centred)
+            centred = -1;
           if (update.docChanged && !replacing) onChange?.(update.state.doc.toString());
         }),
       ],
@@ -575,12 +582,14 @@ export function createEditor(
     else retained = retained.update(spec).state;
   };
   showLanguage(langForPath(filename));
-  const revealCaret = () =>
+  const revealCaret = () => {
+    const head = reading().selection.main.head;
     dispatch({
-      effects: EditorView.scrollIntoView(reading().selection.main.head, {
-        y: "nearest",
+      effects: EditorView.scrollIntoView(head, {
+        y: head === centred ? "center" : "nearest",
       }),
     });
+  };
   const resize =
     original === null
       ? sizeObserver(() => {
@@ -674,6 +683,7 @@ export function createEditor(
     resume(kept, text, name) {
       const next = kept?.state ?? state(text);
       scroll = kept?.scroll ?? { top: 0, left: 0 };
+      centred = -1;
       // The state shown takes this file's language with its other settings, in the one
       // update, since it may hold another file's or none yet.
       const settings = next.update({
@@ -695,6 +705,7 @@ export function createEditor(
     goToLine(number) {
       const doc = reading().doc;
       const { from } = doc.line(Math.min(Math.max(1, number), doc.lines));
+      centred = from;
       dispatch({
         selection: { anchor: from },
         effects: EditorView.scrollIntoView(from, { y: "center" }),

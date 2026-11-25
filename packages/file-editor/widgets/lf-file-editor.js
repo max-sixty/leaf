@@ -18,7 +18,9 @@
  *
  * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
- * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
+ * navigator beside it lists them, and the open file's text, as last read or saved, as
+ * its `text` output, so a reading bound to it, such as a Markdown preview, shows each
+ * save (`holdText`). A reveal of a binding (`navigateToDatum`, a link to
  * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
  * the files, not a change to them, so it enters no log; a reload opens the one its
  * address names, else the first. Each file keeps its own text, selection, history and
@@ -412,10 +414,24 @@ customElements.define(
           : null;
         this.dispatchEvent(new Event("change"));
       };
+      // The `text` output: the open file's text as last read or saved, or `null` until
+      // it is read. It changes with each save rather than each key, since a reading
+      // bound to it redraws from the whole text, and a keystroke's work would otherwise
+      // grow with the file.
+      /** @type {string | null} */
+      let heldText = null;
+      const holdText = () => {
+        const value = file.base?.text ?? null;
+        if (value === heldText) return;
+        heldText = value;
+        this.text = value;
+        this.dispatchEvent(new Event("change"));
+      };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
       this.#drawn = () => {
         const of = file;
+        holdText();
         const name = label(of);
         editor.setLabel(name);
         editor.readOnly = readOnly(of);

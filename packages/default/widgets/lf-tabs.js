@@ -95,6 +95,8 @@ import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { openingMember, showMember } from "/runtime/lib/one-shown.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
+import { landAtTop } from "/runtime/lib/scroller.js";
 
 /** @param {Element} owner */
 const substantiveChildren = (owner) =>
@@ -157,7 +159,8 @@ function revealWithin(box, node) {
     top + px(pad.scrollPaddingTop),
     top + box.clientHeight - px(pad.scrollPaddingBottom),
   );
-  if (x || y) box.scrollBy({ left: x, top: y, behavior: "instant" });
+  const to = { left: box.scrollLeft + x, top: box.scrollTop + y };
+  if (scrollMoves(box, to)) box.scrollTo({ ...to, behavior: "instant" });
 }
 
 export class TabSet extends LeafElement {
@@ -574,11 +577,7 @@ export class TabSet extends LeafElement {
     }
     // A box comes in with its strip; a set in the page's flow, whose strip is the
     // page's header, lands its panel under it.
-    if (pinned)
-      (this.#pageFlow ? active : this).scrollIntoView({
-        block: "start",
-        behavior: "instant",
-      });
+    if (pinned) landAtTop(this.#pageFlow ? active : this);
 
     for (const panel of previous ? [previous, active] : [active]) {
       const child = soleSubstantiveElement(panel);

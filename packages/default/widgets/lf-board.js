@@ -79,11 +79,7 @@
  * of its items. */
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
-import {
-  elementById,
-  motion,
-  layerFact,
-} from "/runtime/widget-api.js";
+import { elementById, motion, layerFact } from "/runtime/widget-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -91,6 +87,7 @@ import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { byRank, rankAt } from "/runtime/lib/rank.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
+import { glide } from "/runtime/lib/motion-timing.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -795,7 +792,7 @@ customElements.define(
       move(col, card, rest[index] ?? null);
       if (grip) {
         grip.focus({ preventScroll: true });
-        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        card.scrollIntoView({ behavior: glide(), block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;

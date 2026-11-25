@@ -3230,7 +3230,7 @@ def tab_onto(target):
     nothing where the user already sees the target."""
     target.focus()
     target.evaluate(
-        "async node => (await window.__lfWidgetApi())"
+        "async node => (await window.__lfCheckApi())"
         ".scrollIntoView(node, {block: 'nearest', behavior: 'instant'})"
     )
     target.page.keyboard.press("Shift+Tab")

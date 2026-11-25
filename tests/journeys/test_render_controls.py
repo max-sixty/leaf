@@ -2152,7 +2152,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     # The child's panel stands at the foot of its frame, which the host brings clear of
     # its own panel's row at the window's foot, as a landing of Leaf's does.
     second.evaluate(
-        "async sample => (await window.__lfWidgetApi())"
+        "async sample => (await window.__lfCheckApi())"
         ".scrollIntoView(sample, {block: 'end', behavior: 'instant'})"
     )
     write(page_comment(other), "Keep the other sample's draft.")

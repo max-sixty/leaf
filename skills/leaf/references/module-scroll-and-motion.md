@@ -108,11 +108,16 @@ To take the user somewhere, call the browser's own
 band at the root's top as its `scroll-padding-top`, so a landing clears Leaf's head
 and the headers stuck over the page; the floating panel's row at the window's foot is
 no part of that band, and a landing at the foot can stop under it. A `nearest`
-landing moves nothing where the target is already shown. To bring an item into its own
-strip or list and leave the page where it is, scroll that box alone with `scrollTo` or
-`scrollBy`, below, measured from the item's box and the strip's `scroll-padding`. Use a
-landing only for a deliberate move; focusing a visible control or redrawing keeps the
-scroll.
+landing moves nothing where the target is already shown. For a landing at the top that
+moves nothing sideways, as a step through a wide listing wants, the library's
+[`scroller.js`](../../../browser/runtime/lib/scroller.js) `landAtTop(element,
+behavior)` scrolls only the box that scrolls the element. Pass `behavior: glide()`
+([`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js)) for a smooth
+move, which lands at once for a user who asked for less motion. To bring an item into
+its own strip or list and leave the page where it is, scroll that box alone with
+`scrollTo` or `scrollBy`, below, measured from the item's box and the strip's
+`scroll-padding`. Use a landing only for a deliberate move; focusing a visible control
+or redrawing keeps the scroll.
 
 A widget that keeps something in view as another widget moves, as `lf-code` keeps the
 line a film runs, sets the scroll of the box that scrolls it (`scrollTo`, below)

@@ -31,11 +31,7 @@
  * Author notes use the same source coordinate resolver as cross-widget navigation;
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
-import {
-  langForPath,
-  threadSurface,
-  shadowStage,
-} from "/runtime/portable-api.js";
+import { langForPath, threadSurface, shadowStage } from "/runtime/portable-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -49,6 +45,8 @@ import { describeFailure } from "/runtime/lib/exception.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
 import { noInputSince } from "/runtime/lib/input-since.js";
 import { focusOn, keepFocus } from "/runtime/lib/focus-on.js";
+import { landAtTop } from "/runtime/lib/scroller.js";
+import { glide } from "/runtime/lib/motion-timing.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -2069,10 +2067,12 @@ customElements.define(
     // order a user tabs through.
     //
     // The landing moves only vertically, including through the shadow host, so neither
-    // the file nor a region around it loses its sideways place.
+    // the file nor a region around it loses its sideways place: the box that scrolls the
+    // row brings it to that box's band (its `scroll-padding`), clear of the row's
+    // `scroll-margin`, gliding, or at once for a user who asked for less motion.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      box.scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
+      landAtTop(box, glide());
       focusOn(node);
     }
 

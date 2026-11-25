@@ -729,7 +729,7 @@ def test_a_revision_s_reload_during_a_navigation_carries_its_mark(browser, serve
     with page.expect_request(lambda request: request.is_navigation_request()) as reload:
         page.evaluate(
             """async () => {
-              const {reloadAt} = await import('/runtime/history.js');
+              const {reloadAt} = await import('/runtime/records/history.js');
               navigation.addEventListener('navigate', (event) => {
                 if (event.navigationType === 'push')
                   event.intercept({handler: () => new Promise(() => {})});

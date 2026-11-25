@@ -338,7 +338,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
             )
     rendered(page)
     # The user scrolls back to the first message, which ends the send's hold on the
-    # transcript's end (thread/reply-landing.js, `keepThreadLanding`).
+    # transcript's end (records/thread/reply-landing.js, `keepThreadLanding`).
     transcript = preview.locator(".lf-thread-transcript")
     transcript.hover()
     page.mouse.wheel(0, -2000)
@@ -424,7 +424,7 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             # Something can cover either edge of the message. The scrollport can clip
             # its top, and for the 300 ms that the send's box tween carries the reply
             # box down from where it stood, the reply box covers its foot
-            # (runtime/box-motion.js). So sample the ground at the middle of the
+            # (runtime/dom/box-motion.js). So sample the ground at the middle of the
             # sticky header's row and of the words' row, at an x clear of the words
             # and the controls: a card beside its passage rises as one piece on a
             # send, which leaves the pointer on the new message's Copy, lit in its

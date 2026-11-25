@@ -206,7 +206,7 @@ def test_back_returns_to_the_card_a_later_open_in_panel_left(
 ):
     """Back to an entry whose thread the user read in its card opens the card again,
     though a later Open in panel chose the panel for threads from then on: the entry's
-    record names the view they stood in, which the choice doesn't (thread/address.js),
+    record names the view they stood in, which the choice doesn't (records/thread/address.js),
     as Back after Show on page returns to the panel's view. Where no card can stand by
     then, as on a window too narrow for the rail, the thread opens in the panel, as Leaf
     places it there whatever was chosen."""

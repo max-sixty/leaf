@@ -347,7 +347,7 @@ def _message_stages(
     logged = sorted(frag.ids & logged_ids(events))
     yield [Finding("ids-taken-by-events", values={"ids": logged})] if logged else []
     # A reference reads the message's own document and then the page
-    # (`runtime/references.js`), so an id in another message would resolve to nothing.
+    # (`runtime/readings/references.js`), so an id in another message would resolve to nothing.
     ids = page.ids | frag.ids
     yield reference_errors(
         frag.lf_elements,

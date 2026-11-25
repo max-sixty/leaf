@@ -907,11 +907,11 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     expect(page.locator("#lf-preview")).to_be_visible()
     expect(page.locator("#lf-preview .lf-preview-word")).to_have_text("Send")
     # The key that sends, and where Return sends, the one that makes a new line, each
-    # as the register spells it on this platform (keyboard/bindings.js, `spell`), which
+    # as the register spells it on this platform (dom/keyboard/bindings.js, `spell`), which
     # writes Shift as ⇧ on a Mac and as Shift+ elsewhere.
     send, line = page.evaluate(
         """async () => {
-          const {spell} = await import('/runtime/keyboard/bindings.js');
+          const {spell} = await import('/runtime/dom/keyboard/bindings.js');
           return [spell('Enter'), spell('Shift+Enter')];
         }"""
     )
@@ -2236,7 +2236,7 @@ def agent_said(page_dir, root, text, **fields):
 
 def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serve):
     """A thread's view draws its messages as the thread's card on the page does
-    (thread/transcript.js): steps the answer ended stay hidden, and the step on the
+    (records/thread/transcript.js): steps the answer ended stay hidden, and the step on the
     user's follow-up stands as one dim working message at the transcript's foot rather
     than as a reply. What anyone wrote, messages and the working line alike, reads in
     Leaf's sans rather than the page's serif."""
@@ -2324,7 +2324,7 @@ def test_a_thread_s_view_opens_on_its_first_unread_reply(browser, serve):
     press = page.locator(".lf-fp-head .lf-next-unread")
     expect(press).to_have_text("Next unread")
 
-    # Read tracking needs a reply's whole extent shown (thread/read.js), so the wheel
+    # Read tracking needs a reply's whole extent shown (records/thread/read.js), so the wheel
     # steps by less than the view's height and each step draws before the next.
     scroller = view.element_handle()
     view.hover()
@@ -2654,7 +2654,7 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     stop at the page's foot while Threads is still opening over it puts the view away,
     as it does once the view stands open, and the stop ends in sight."""
     # The Tab leaves a stop the view never covers, above where it comes to rest: a key
-    # pressed on a stop the user can't see lets go of it first (page-keys/controller.js).
+    # pressed on a stop the user can't see lets go of it first (panel/page-keys/controller.js).
     foot = (
         '<p><button id="before">Before the foot</button></p>'
         '<div style="height:450px"></div>'

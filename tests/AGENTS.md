@@ -329,7 +329,7 @@ allowance list.
 
 - `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
   moves nothing. Fix a DOM writer with `runtime/lib/keeps.js`. The runtime's scroll writes
-  go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
+  go through `setScroll` (`runtime/dom/arrivals.js`), which never writes one that moves
   nothing, and a stop goes through `stopWhereItStands`. A package's `scrollTo` that may
   name the position its box holds asks `scrollMoves` first
   (`runtime/lib/scroll-range.js`). A write

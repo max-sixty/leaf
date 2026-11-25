@@ -132,7 +132,7 @@ const bindTo = (filter, target) => ({
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
-  // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
+  // Leaf captures without `reconcile` (`runtime/annotations/composing/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
   //
@@ -409,7 +409,7 @@ const bundles = {
       // in one. A fixed box whose containing block is an ancestor, as a transform or
       // paint containment makes one, has that ancestor for its `offsetParent` and
       // moves with that ancestor's scrollers, so the walk passes it. Walking on from
-      // the chrome, which stands after `body` (runtime/chrome.js), the walk would reach
+      // the chrome, which stands after `body` (runtime/base/chrome.js), the walk would reach
       // the root, whose own box moves up as the page scrolls: a press whose pointer
       // drifted a pixel would read the pointer as far below that box and scroll the
       // page to its end. Ending the walk at the root would give these editors the
@@ -520,7 +520,7 @@ const bundles = {
   }),
 
   // Temml typesets the LaTeX in a page's `<code class="language-math">` as MathML the
-  // browser draws itself (`runtime/formulas.js`). Its sheet travels in the module as
+  // browser draws itself (`runtime/readings/formulas.js`). Its sheet travels in the module as
   // text, as PhotoSwipe's does, so only a page that shows a formula loads it, and the
   // font that sheet names for primes and script capitals travels inside the sheet, so
   // an export needs no file beside the module.

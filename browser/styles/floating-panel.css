@@ -1,4 +1,4 @@
-/* The floating panel (runtime/floating-panel.js): Leaf's chrome, one box over the foot
+/* The floating panel (runtime/panel/floating-panel.js): Leaf's chrome, one box over the foot
    of the page, which keeps no room for it (base.css).
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
@@ -89,7 +89,7 @@
     --lf-motion-leaf-pose: 400ms;
   }
 
-  /* The surface (runtime/box-motion.js, chrome.css): a layer over the whole window,
+  /* The surface (runtime/dom/box-motion.js, chrome.css): a layer over the whole window,
      under the box, in the panel's own ring and ground. */
   .lf-fp-ground {
     position: fixed;
@@ -645,8 +645,8 @@
 
      Every reading keeps its words, the words selected on the page included, and ends
      in the press the moment offers, else in Comment, or an open thread's Reply, and
-     its key while c enters the field (composing/surface.js, `commentHint`;
-     composing/input.js, `enters`), so the row says that c goes here and, by losing
+     its key while c enters the field (annotations/composing/surface.js, `commentHint`;
+     annotations/composing/input.js, `enters`), so the row says that c goes here and, by losing
      them, that it goes elsewhere. The user chose the word, so every key in a box
      stands with its word, over the key alone, which a reader took for the shortcut of
      the mark beside it. Reply is dim, as every comment box's word is: the user chose
@@ -679,7 +679,7 @@
     field-sizing: content;
   }
   /* The word naming what entering the field does, after the agent's or Leaf's words
-     (composing/input.js, `enters`), or the press the field's end offers in its place,
+     (annotations/composing/input.js, `enters`), or the press the field's end offers in its place,
      such as a Resolve's Next thread, keeps that face whatever ink the words before it
      wear, in Leaf's italic whatever voice theirs is. */
   .lf-fp-field :is(.lf-compose-placeholder-enters, .lf-compose-press-word) {
@@ -698,10 +698,10 @@
     .lf-compose-placeholder-line {
     display: none;
   }
-  /* An offer's key shows only while c goes to it (composing/surface.js,
+  /* An offer's key shows only while c goes to it (annotations/composing/surface.js,
      `commentDestination`), so where keys are shown its room stands without it and the
      words never move as it comes and goes, standing out of the baseline it has no text
-     for; a coarse pointer is shown no keys (keyboard/bindings.js, `advertisesKeys`). */
+     for; a coarse pointer is shown no keys (dom/keyboard/bindings.js, `advertisesKeys`). */
   @media not (pointer: coarse) {
     .lf-fp-field leaf-text[data-lf-offers] .lf-compose-placeholder > kbd:empty {
       display: inline-flex;
@@ -803,7 +803,7 @@
   }
   /* The field keeps the corner's room exactly while a press shows there, which the
      composer decides: Dictate while the user writes in the empty field, Send while it
-     holds words (composing/input.js, `cornerAtRest`). The empty field's end press,
+     holds words (annotations/composing/input.js, `cornerAtRest`). The empty field's end press,
      such as Reply or Next On Me and its key, stands only while neither shows, so it
      stands as far from the leaf in a thread as on the page. */
   .lf-fp-field
@@ -1807,7 +1807,7 @@
     font: var(--lf-font-small);
     margin-right: 4px;
   }
-  /* The thread, drawn as a card's (thread/thread-card.js), stands on the view's
+  /* The thread, drawn as a card's (records/thread/thread-card.js), stands on the view's
      padding, as the quote's rule does, and its to-dos and transcript inset their words
      onto the thread's edge. The transcript runs to the view's padding at its end, as a
      card's runs to the card's, so each message's head, and its controls, its last
@@ -1996,7 +1996,7 @@
   }
 
   /* The folded leaf's passing notices, since there is no field to show them; its status
-     is its preview (runtime/preview.js). */
+     is its preview (runtime/annotations/preview.js). */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }

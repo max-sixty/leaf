@@ -211,7 +211,7 @@ def _validate_data_contract(contract: str, declaration: dict, path) -> None:
 def validate_work_roles(registry: dict, declarations: dict, path) -> None:
     """Hold each `$work.widgets` entry, whose shape `check_layer_facts` holds, to
     the declaration of the tag it maps, refusing with the first problem in each.
-    `runtime/work.js` reads the entries as given, so an attribute the tag lacks, or a
+    `runtime/host/work.js` reads the entries as given, so an attribute the tag lacks, or a
     value its state can't take, would leave a goal never done or a worker without its
     goal, with nothing saying why. A role's state is the one widget value record on
     its attribute, which work.js also reads as the role's report verb, and a worker's

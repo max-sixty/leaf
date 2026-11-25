@@ -1,7 +1,7 @@
 /* Composed ancestry, read from the tree the browser builds and nothing else. Focus and
    shadow rendering share this walk, including slots and roots from another window, and
    with it the one reading of whether a node is an open native layer or stands in one:
-   the runtime's keyboard/layer-stack.js keeps the order layers opened in, and imports
+   the runtime's dom/keyboard/layer-stack.js keeps the order layers opened in, and imports
    focus and inertness, which ask this too. It also holds the one reading of whether a
    node stands in content the browser skips (`skipper`), which Leaf's suite bundles into
    an init script and so takes from a module that imports nothing. Whether a node stands

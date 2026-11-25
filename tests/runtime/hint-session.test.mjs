@@ -12,13 +12,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createHintSession, codedHints } from "/runtime/key-badges/hints.js";
-import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
-import { commandScope, keys } from "/runtime/keyboard/scopes.js";
-import { liveEl } from "/runtime/notifications.js";
-import { mountRepaint } from "/runtime/repaint.js";
+import { createHintSession, codedHints } from "/runtime/readings/key-badges/hints.js";
+import { setQuickShortcuts } from "/runtime/dom/keyboard/bindings.js";
+import { commandScope, keys } from "/runtime/dom/keyboard/scopes.js";
+import { liveEl } from "/runtime/transport/notifications.js";
+import { mountRepaint } from "/runtime/dom/repaint.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
-import { html } from "/runtime/framework.js";
+import { html } from "/runtime/records/framework.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
 const KEYS = ["a", "s", "d"];

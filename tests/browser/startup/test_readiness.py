@@ -1016,7 +1016,7 @@ def test_startup_recovery_s_reload_keeps_words_typed_before_leaf_started(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", lose)
+    page.route("**/runtime/base/rendering.js", lose)
     page.route("**/registry.json", probe)
     with page.expect_navigation(wait_until="commit"):
         page.goto(url, wait_until="commit")
@@ -1025,7 +1025,7 @@ def test_startup_recovery_s_reload_keeps_words_typed_before_leaf_started(
     with page.expect_navigation(wait_until="commit"):
         held.pop().continue_()
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
     assert len(failed) == 1, failed
@@ -1149,7 +1149,7 @@ def test_a_key_typed_while_a_page_handed_only_values_starts_ends_its_arrival(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", lose)
+    page.route("**/runtime/base/rendering.js", lose)
     page.route("**/registry.json", probe)
     page.route("**/api/state*", state)
     page.goto(f"{url}&thread=one", wait_until="commit")
@@ -1165,7 +1165,7 @@ def test_a_key_typed_while_a_page_handed_only_values_starts_ends_its_arrival(
     for route in states:
         route.continue_()
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
     assert len(failed) == 1, failed
@@ -1293,7 +1293,7 @@ def test_startup_recovery_s_reload_carries_on_the_values_a_reload_brought(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", lose)
+    page.route("**/runtime/base/rendering.js", lose)
     page.route("**/api/**", answer)
     page.route("**/registry.json", answer)
     with page.expect_navigation(wait_until="commit"):
@@ -1306,7 +1306,7 @@ def test_startup_recovery_s_reload_carries_on_the_values_a_reload_brought(
     with page.expect_navigation(wait_until="commit"):
         held.pop().continue_()
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
@@ -1821,7 +1821,9 @@ def test_words_typed_through_a_reload_for_a_field_of_the_page_stay_in_it(
             route.continue_()
 
     page.on("request", navigated)
-    needed = "**/runtime/rendering.js" if ending == "cannot-start" else "**/leaf.js"
+    needed = (
+        "**/runtime/base/rendering.js" if ending == "cannot-start" else "**/leaf.js"
+    )
     page.route(needed, hold)
     answer_as_another_runtime(page)
     with page.expect_navigation(wait_until="commit"):
@@ -2112,7 +2114,7 @@ def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", hold)
+    page.route("**/runtime/base/rendering.js", hold)
     answer_as_another_runtime(page)
     with page.expect_navigation(wait_until="commit"):
         append_carried_log_record(
@@ -2126,7 +2128,7 @@ def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
     with page.expect_navigation(wait_until="commit"):
         held.pop().abort("internetdisconnected")
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
@@ -2487,7 +2489,7 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
     writing in. Those the new document hears before it has handed the box back wait for
     it and go there, a capital's Shift and a Space included, and the keys after go on
     into it, rather than running the page's single-key commands, one of which resolves
-    the thread (keyboard/bindings.js, `placeHandedBack`; bootstrap.js, `typingBack`).
+    the thread (dom/keyboard/bindings.js, `placeHandedBack`; bootstrap.js, `typingBack`).
     The new document's first state answer is held while the keys are typed, so they
     reach it before the hand-back however fast the machine is."""
     url = serve(
@@ -2576,7 +2578,7 @@ def test_a_key_typed_through_the_reload_acts_where_the_user_is_put_back(
     """A key the user presses on as the tab reloads acts in the thread view the reload
     puts them back in, as the entry's record has it (history.js): `r` resolves the
     thread they were on in the panel, not another, though the new document hears it
-    before it has opened the view (keyboard/bindings.js, `placeHandedBack`), and the
+    before it has opened the view (dom/keyboard/bindings.js, `placeHandedBack`), and the
     panel goes on to the next thread, as a resolve there does."""
     url = serve(
         leaf_page(

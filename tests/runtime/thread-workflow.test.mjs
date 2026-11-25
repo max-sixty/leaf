@@ -7,14 +7,17 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowWord,
-} from "../../browser/runtime/thread/workflow.js";
+} from "../../browser/runtime/records/thread/workflow.js";
 import {
   deleted,
   foldThreads,
   readThreadRecords,
-} from "../../browser/runtime/thread/model.js";
-import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
-import { threadReading } from "../../browser/runtime/thread/thread-card.js";
+} from "../../browser/runtime/records/thread/model.js";
+import {
+  isTurnEvent,
+  turnMessage,
+} from "../../browser/runtime/records/pending/model.js";
+import { threadReading } from "../../browser/runtime/records/thread/thread-card.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log

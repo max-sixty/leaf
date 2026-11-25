@@ -882,7 +882,7 @@ diff --git a/README.md b/README.md
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     panel_settled(page, open=False)
     # Show on page chose cards for threads, so it lands on the thread there, where the
-    # panel's field shows that choice's notice (thread/focus.js, `openingPart`).
+    # panel's field shows that choice's notice (records/thread/focus.js, `openingPart`).
     expect(inline.locator(".lf-page-thread")).to_be_focused()
 
     selected = added.evaluate(

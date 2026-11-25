@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { authoredTitle, paintTabTitle } = await import("/runtime/tab-title.js");
+const { authoredTitle, paintTabTitle } = await import("/runtime/base/tab-title.js");
 const settled = () => new Promise((resolve) => setTimeout(resolve));
 
 test("the count leads the title while above zero and follows it to zero", async () => {

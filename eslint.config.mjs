@@ -3,7 +3,7 @@ import globals from "globals";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import kernel from "./browser/runtime/kernel-registry.json" with { type: "json" };
-import { PAGE_PAINT_ATTRIBUTE } from "./browser/runtime/page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./browser/runtime/base/page-paint.js";
 
 const publicRuntimePaths = kernel["$public-modules"].paths.filter((path) =>
   path.startsWith("/runtime/"),
@@ -15,21 +15,21 @@ const publicRuntimeModules = publicRuntimePaths
 // The runtime's primitives, by path under `runtime/`: modules that may use the browser
 // but import no owner, which the rule naming them below holds.
 const runtimePrimitives = [
-  "anchor-coordinate.js",
-  "chrome.js",
-  "dom-children.js",
-  "dom-move.js",
-  "focus.js",
-  "control-selectors.js",
-  "inputs.js",
-  "document-inputs.js",
-  "pointer.js",
-  "rendering.js",
-  "frame-visibility.js",
-  "repaint.js",
-  "root-state.js",
-  "thread/identity.js",
-  "ui-marks.js",
+  "base/anchor-coordinate.js",
+  "base/chrome.js",
+  "dom/dom-children.js",
+  "dom/dom-move.js",
+  "dom/focus.js",
+  "dom/control-selectors.js",
+  "base/inputs.js",
+  "base/document-inputs.js",
+  "base/pointer.js",
+  "base/rendering.js",
+  "base/frame-visibility.js",
+  "dom/repaint.js",
+  "state/root-state.js",
+  "records/thread/identity.js",
+  "base/ui-marks.js",
 ];
 
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an
@@ -172,13 +172,13 @@ const HISTORY_PROPERTIES = ["pushState", "replaceState"].map((property) => ({
   object: "history",
   property,
   message:
-    "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
+    "Add and rename history entries through runtime/records/history.js (pushEntry, replaceEntry), which owns traversal among them.",
 }));
 const ID_PROPERTIES = [
   {
     property: "randomUUID",
     message:
-      "Mint ids with runtime/ids.js: crypto.randomUUID is absent outside a secure context, such as a page `leaf --host` serves over plain HTTP.",
+      "Mint ids with runtime/base/ids.js: crypto.randomUUID is absent outside a secure context, such as a page `leaf --host` serves over plain HTTP.",
   },
 ];
 
@@ -346,11 +346,12 @@ export const semanticStoreOwnershipRule = {
     // A module behind the facade is reached only through it, so the facade's
     // exports are every framework capability a runtime module can name. The facade
     // and the modules behind it reach one another directly.
-    const inFramework = file === "framework.js" || file.startsWith("framework/");
+    const inFramework =
+      file === "records/framework.js" || file.startsWith("records/framework/");
     const browserFrameworkSource = (source) => {
       if (typeof source?.value !== "string") return false;
       if (
-        /(?:^|\/)runtime\/framework\/|^\.{1,2}\/(?:.*\/)?framework\//u.test(
+        /(?:^|\/)runtime\/records\/framework\/|^\.{1,2}\/(?:.*\/)?framework\//u.test(
           source.value,
         )
       ) {
@@ -358,11 +359,13 @@ export const semanticStoreOwnershipRule = {
           context.report({
             node: source,
             message:
-              "Import browser framework capabilities from its facade, runtime/framework.js.",
+              "Import browser framework capabilities from its facade, runtime/records/framework.js.",
           });
         return false;
       }
-      return /(?:^\/runtime\/|^\.{1,2}\/(?:.*\/)?)framework\.js$/u.test(source.value);
+      return /(?:^\/runtime\/records\/|^\.{1,2}\/(?:.*\/)?)framework\.js$/u.test(
+        source.value,
+      );
     };
     const report = (node) =>
       context.report({
@@ -383,7 +386,7 @@ export const semanticStoreOwnershipRule = {
           }
           if (
             specifier.imported?.name === "createSemanticApplication" &&
-            file !== "semantic-state.js"
+            file !== "state/semantic-state.js"
           )
             report(specifier);
         }
@@ -428,7 +431,7 @@ export const semanticStoreOwnershipRule = {
 // with the reason in the config that grants it.
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const CURRENT_LOCATION_MESSAGE =
-  "Read the user’s current location from onCurrentLocation (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
+  "Read the user’s current location from onCurrentLocation (runtime/dom/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
 const currentLocationListenersRule = {
   meta: {
     type: "problem",
@@ -498,7 +501,7 @@ const currentLocationListenersRule = {
 // the files that may still call `focus()`: the owner, and an element whose own `focus()`
 // hands on to the editor inside it.
 const PLACEMENT_MESSAGE =
-  "Put the user on an element with focusDestination(node, cause) (runtime/focus.js): a plain focus() publishes as the user's own move, so a return reads as one.";
+  "Put the user on an element with focusDestination(node, cause) (runtime/dom/focus.js): a plain focus() publishes as the user's own move, so a return reads as one.";
 const placementsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -547,7 +550,7 @@ const placementsRule = {
             context.report({
               node,
               message:
-                "Reveal with scrollIntoView(node, options) from runtime/landing-scroll.js: native reveal can scroll the containing page.",
+                "Reveal with scrollIntoView(node, options) from runtime/readings/landing-scroll.js: native reveal can scroll the containing page.",
             });
         }
         if (callee.type === "Identifier" && callee.name === "focusDestination") {
@@ -585,7 +588,7 @@ const placementsRule = {
 };
 
 // The runtime opens and closes its native layers through `showNativeLayer` and
-// `closeNativeLayer` (keyboard/layer-stack.js), which inside a live sample keep the
+// `closeNativeLayer` (dom/keyboard/layer-stack.js), which inside a live sample keep the
 // browser's focusing steps from taking focus from the page around it or scrolling that
 // page. The option names the owner.
 const nativeLayersRule = {
@@ -622,7 +625,7 @@ const nativeLayersRule = {
 // other at exactly those edges. A frame's `contentDocument.activeElement` is the frame
 // page's own question. The option names the files that may still read it.
 const CURRENT_LOCATION_READ_MESSAGE =
-  "Read the user’s current location with focused() (runtime/focus.js), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
+  "Read the user’s current location with focused() (runtime/dom/focus.js), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
 export const currentLocationReadsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -660,7 +663,7 @@ export const currentLocationReadsRule = {
           context.report({
             node,
             message:
-              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js): contains() stops at a shadow root.",
+              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/dom/focus.js): contains() stops at a shadow root.",
           });
       },
     };
@@ -668,7 +671,7 @@ export const currentLocationReadsRule = {
 };
 
 // Whether a node is an open native layer, or stands in one, is asked of lib/shadow-tree.js
-// (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
+// (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of dom/keyboard/layer-stack.js
 // (`nativeLayers`). A selector naming the open state answers it again, and the copies
 // drift: a `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog
 // that is always open, as a layer. A reader that also wants a nonmodal dialog asks the
@@ -723,7 +726,7 @@ export const openLayersRule = {
 // written into `scrollTop` or `scrollLeft` is how a reveal is hand-rolled, with its own
 // reading of the band and the edge, so the rule refuses every assignment to either; a
 // script that sets an offset outright says so with `scrollTo`, which the runtime hears
-// as a script's write whoever makes it (runtime/arrivals.js, `heardWrite`). The option
+// as a script's write whoever makes it (runtime/dom/arrivals.js, `heardWrite`). The option
 // names the files that may still assign one.
 //
 // Such a call says how it moves the box. With no `behavior`, the box's own
@@ -752,7 +755,7 @@ export const scrollWritesRule = {
           context.report({
             node: left,
             message:
-              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or set an offset outright, a package with scrollTo({top, left, behavior}) and the runtime with setScroll (runtime/arrivals.js), scrollToEnd or moveScrollerBy (runtime/scrolling.js), rather than assigning a scroll offset.",
+              "Reveal with scrollIntoView(node, {block, within}) from runtime/readings/landing-scroll.js, or set an offset outright, a package with scrollTo({top, left, behavior}) and the runtime with setScroll (runtime/dom/arrivals.js), scrollToEnd or moveScrollerBy (runtime/dom/scrolling.js), rather than assigning a scroll offset.",
           });
       },
       CallExpression(node) {
@@ -785,7 +788,7 @@ export const scrollWritesRule = {
   },
 };
 
-// The runtime hears a scroll's end through `watchScrollEnds` (runtime/arrivals.js),
+// The runtime hears a scroll's end through `watchScrollEnds` (runtime/dom/arrivals.js),
 // which ends each box's scroll once however many frames a script writes it in; a
 // listener of its own hears every frame of a glide as a scroll that ended. The option
 // names the runtime files that may listen.
@@ -814,7 +817,7 @@ const scrollEndsRule = {
           context.report({
             node,
             message:
-              "Hear a scroll's end with watchScrollEnds (runtime/arrivals.js), which ends a glide once rather than on each of its frames.",
+              "Hear a scroll's end with watchScrollEnds (runtime/dom/arrivals.js), which ends a glide once rather than on each of its frames.",
           });
       },
     };
@@ -822,7 +825,7 @@ const scrollEndsRule = {
 };
 
 // A node that already stands somewhere moves through `move(parent, node, before)`
-// (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
+// (runtime/dom/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
 // and native state in it; a plain insertion takes the node out first, which blurs it.
 // Which nodes stand somewhere is not visible in source, so the rule refuses what it can
 // read. `insertBefore` and `moveBefore` are the mover's own calls, refused unless the
@@ -832,7 +835,7 @@ const scrollEndsRule = {
 // a sibling, or whether something contains it): a node that may stand elsewhere already.
 // The option names the files that may still call the platform's movers.
 const MOVE_MESSAGE =
-  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/dom-move.js, dom-children.js; widget-api.js in a package): a plain insertion blurs it and drops its caret.";
+  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/dom/dom-move.js, dom-children.js; widget-api.js in a package): a plain insertion blurs it and drops its caret.";
 const MADE = new Set([
   "createElement",
   "createElementNS",
@@ -953,9 +956,9 @@ export const movesRule = {
 // sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
 // return of itself. The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding (runtime/dom/focus.js): a return beside it reaches readers as a second move.";
 const CLOSE_PLACES_MESSAGE =
-  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/dom/focus.js).";
 const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
 // Whether `node` hides something by the platform's own means: a dialog's or popover's
 // close, `hidden = true`, or a style that takes the box out of view. A function it
@@ -1147,7 +1150,7 @@ export const spelledKeysRule = {
         context.report({
           node,
           message:
-            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (keyboard/control-keys.js), which a package's `lf-announce` reaches by giving its rows (`{words, rows}`), rather than spelling it in the words: both name a key only while it would work.",
+            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (dom/keyboard/control-keys.js), which a package's `lf-announce` reaches by giving its rows (`{words, rows}`), rather than spelling it in the words: both name a key only while it would work.",
         });
     };
     return {
@@ -1178,7 +1181,8 @@ const architecturePlugin = {
         // The bootstrap and the prepaint run before the module graph and write only
         // what the first paint needs, before any authored revision has replaced the
         // root's attributes. root-state.js is the sole mutation boundary after that.
-        if (["bootstrap.js", "prepaint.js", "root-state.js"].includes(file)) return {};
+        if (["bootstrap.js", "prepaint.js", "state/root-state.js"].includes(file))
+          return {};
         const source = context.sourceCode ?? context.getSourceCode();
         const pagePaintAttributes = pagePaintAttributeValues;
         const propertyName = (node) =>
@@ -1730,13 +1734,13 @@ export default [
   {
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through the library's pass
-    // (runtime/lib/frame-pass.js), which the reading hears (runtime/rendering.js). The
+    // (runtime/lib/frame-pass.js), which the reading hears (runtime/base/rendering.js). The
     // packages' block below names the calls a package makes itself.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     // Prepaint runs before the module graph, so it cannot call the scheduler.
     ignores: [
       "browser/runtime/lib/frame-pass.js",
-      "browser/runtime/rendering.js",
+      "browser/runtime/base/rendering.js",
       "browser/runtime/prepaint.js",
     ],
     rules: {
@@ -1754,44 +1758,44 @@ export default [
         "error",
         {
           // The owner of every focus event.
-          "browser/runtime/focus.js": ["focus", "focusin", "focusout"],
+          "browser/runtime/dom/focus.js": ["focus", "focusin", "focusout"],
           // Records the raw events of a session for the interaction log, the one
           // exception that is not one element's or one subtree's own question: it is a
           // recorder of events, and does not read the current location from them.
-          "browser/runtime/interaction-log.js": ["focusin", "focusout"],
+          "browser/runtime/transport/interaction-log.js": ["focusin", "focusout"],
           // A reply row's own entry begins its composition. The box's host is in the
           // row's tree, so entering its shadow tree reaches the row, and a move inside
           // it is no new entry.
-          "browser/runtime/thread/replies.js": ["focusin"],
+          "browser/runtime/records/thread/replies.js": ["focusin"],
           // A widget's own subtree, whose controls stand in its tree: whether focus is
           // within the gloss, and the contents link the user last stood on.
           "packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
           "packages/default/widgets/lf-toc.js": ["focusin"],
           // The text field's empty line hands focus that lands on it to the editor it
           // builds, in its own shadow tree.
-          "browser/runtime/composing/text-field.js": ["focusin"],
+          "browser/runtime/annotations/composing/text-field.js": ["focusin"],
         },
       ],
       "architecture/placements": [
         "error",
         [
           // The one placement, and the one handing on an arrival in progress.
-          "browser/runtime/focus.js",
+          "browser/runtime/dom/focus.js",
           // The text field's own `focus()`, which the placement calls, hands on to the
           // editor its shadow tree holds.
-          "browser/runtime/composing/text-field.js",
+          "browser/runtime/annotations/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
-          "browser/runtime/editor-view.js",
+          "browser/runtime/annotations/editor-view.js",
           // A held release stands in for the browser's own press, so it focuses the
           // target as that press does, ringless; focus.js reads it as the press's.
-          "browser/runtime/preview.js",
+          "browser/runtime/annotations/preview.js",
         ],
       ],
       "architecture/native-layers": [
         "error",
         [
           // The owner.
-          "browser/runtime/keyboard/layer-stack.js",
+          "browser/runtime/dom/keyboard/layer-stack.js",
         ],
       ],
       "architecture/open-layers": [
@@ -1805,7 +1809,7 @@ export default [
         "error",
         [
           // The one owner of a scroll's end.
-          "browser/runtime/arrivals.js",
+          "browser/runtime/dom/arrivals.js",
         ],
       ],
       "architecture/scroll-writes": [
@@ -1813,32 +1817,32 @@ export default [
         [
           // A carried node's offsets, kept in a record under their own names until
           // its replacement takes them.
-          "browser/runtime/carry.js",
+          "browser/runtime/records/carry.js",
         ],
       ],
       "architecture/layer-returns": [
         "error",
         [
           // The owner of the hand-back and the let-go.
-          "browser/runtime/focus.js",
+          "browser/runtime/dom/focus.js",
         ],
       ],
       "architecture/current-location-reads": [
         "error",
         [
           // The one reading of the user’s current location.
-          "browser/runtime/focus.js",
+          "browser/runtime/dom/focus.js",
           // The editor asks whether its own content holds focus inside the closed
           // root it renders in, which focus.js, reading through open roots, cannot see.
-          "browser/runtime/editor-view.js",
-          "browser/runtime/composing/text-field.js",
+          "browser/runtime/annotations/editor-view.js",
+          "browser/runtime/annotations/composing/text-field.js",
         ],
       ],
       "architecture/moves": [
         "error",
         [
           // The one mover.
-          "browser/runtime/dom-move.js",
+          "browser/runtime/dom/dom-move.js",
           // Its parser-time hook inserts the first drawing before modules run.
           "browser/runtime/prepaint.js",
         ],
@@ -1863,7 +1867,7 @@ export default [
   {
     // This is the boundary that loads authored/package modules, whose paths are
     // data rather than runtime dependencies. Literal imports still enter the graph.
-    files: ["browser/runtime/widget-loader.js"],
+    files: ["browser/runtime/records/widget-loader.js"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -1885,20 +1889,6 @@ export default [
     // library (lib/), which its own block below keeps clear of every owner.
     files: runtimePrimitives.map((name) => `browser/runtime/${name}`),
     rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: `^(?!/vendor/|\\.\\.?/lib/[^/\\\\%]+$|\\.\\.?/(?:${runtimePrimitives
-                .map((name) => name.replaceAll(".", "\\."))
-                .join("|")})$)`,
-              message:
-                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle, a library module (lib/) or another primitive may be imported.",
-            },
-          ],
-        },
-      ],
       "no-restricted-syntax": [
         "error",
         {
@@ -1909,12 +1899,41 @@ export default [
       ],
     },
   },
+  // The same boundary for each primitive, which names the others by its own path to them.
+  ...runtimePrimitives.map((name) => {
+    const relative = (to) => {
+      const specifier = path.posix.relative(path.posix.dirname(name), to);
+      return (specifier.startsWith(".") ? specifier : `./${specifier}`).replaceAll(
+        ".",
+        "\\.",
+      );
+    };
+    return {
+      files: [`browser/runtime/${name}`],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              {
+                regex: `^(?!/vendor/|${relative("lib")}/[^/\\\\%]+$|(?:${runtimePrimitives
+                  .map(relative)
+                  .join("|")})$)`,
+                message:
+                  "Runtime primitives must remain independent of other owners; only a /vendor/ bundle, a library module (lib/) or another primitive may be imported.",
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }),
   {
     // The library of shared web code holds none of the page's state and reaches none
     // of Leaf's (browser/AGENTS.md, "The library of shared web code"), so a module of
     // it names only a /vendor/ bundle and the modules beside it, whether it imports
     // statically or lazily. That keeps out the runtime, and with it the framework's
-    // facade (/runtime/framework.js) and the kernel registry, neither of which is in
+    // facade (/runtime/records/framework.js) and the kernel registry, neither of which is in
     // the graph the import graph's check reads. So each module loads in a document
     // Leaf did not compose. A module holds one concern, so none gathers the others'
     // exports.
@@ -1945,12 +1964,12 @@ export default [
     // Of the library, a fold reaches only the rank keys (lib/rank.js), which take
     // values too.
     files: [
-      "browser/runtime/projection/model.js",
-      "browser/runtime/projection/state.js",
-      "browser/runtime/pending/model.js",
-      "browser/runtime/pending/state.js",
-      "browser/runtime/thread/model.js",
-      "browser/runtime/thread/state.js",
+      "browser/runtime/records/projection/model.js",
+      "browser/runtime/records/projection/state.js",
+      "browser/runtime/records/pending/model.js",
+      "browser/runtime/records/pending/state.js",
+      "browser/runtime/records/thread/model.js",
+      "browser/runtime/records/thread/state.js",
     ],
     rules: {
       "no-restricted-imports": [
@@ -1959,7 +1978,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|kept|kernel-facts|semantic-state|lib/rank)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./\\.\\./(?:base/anchor-coordinate|state/kept|state/kernel-facts|state/semantic-state|lib/rank)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],
@@ -2003,11 +2022,11 @@ export default [
     },
   },
   {
-    // runtime/history.js owns this document's session history: a Back to an entry the
+    // runtime/records/history.js owns this document's session history: a Back to an entry the
     // page added returns to the place it was left at only because that owner takes the
     // traversal. The prepaint bootstrap runs before any module, and only cleans marks
     // off the address the document arrived at.
-    files: ["browser/runtime/history.js", "browser/runtime/bootstrap.js"],
+    files: ["browser/runtime/records/history.js", "browser/runtime/bootstrap.js"],
     rules: {
       "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
     },
@@ -2023,7 +2042,7 @@ export default [
     // opens and closes its popover or dialog with the browser's own methods, whose focus
     // return Leaf reads as a return, so the native-layers and layer-returns rules are
     // off here too. A package sets a box's scroll offset with the browser's own
-    // `scrollTo`, which the runtime hears as it is made (runtime/arrivals.js), under the
+    // `scrollTo`, which the runtime hears as it is made (runtime/dom/arrivals.js), under the
     // scroll-writes rule the layer keeps. Each other rule repeats what it keeps of the
     // layer's, since a file takes a rule's options from the last block matching it.
     files: ["packages/*/**/*.js"],

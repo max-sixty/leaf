@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAnnotationInventory } from "/runtime/annotation-inventory.js";
-import { contributionEntry } from "/runtime/contribution-controls.js";
-import { registerContribution } from "/runtime/contributions.js";
-import { resolvedElement, resolvedPassage } from "/runtime/resolved-target.js";
-import { resolveAnchor } from "/runtime/anchor-resolution.js";
-import { clearDraft, commentContext, saveDraft } from "/runtime/drafts.js";
-import { registry } from "/runtime/registry.js";
-import { applicationState } from "/runtime/semantic-state.js";
+import { createAnnotationInventory } from "/runtime/features/annotation-inventory.js";
+import { contributionEntry } from "/runtime/features/contribution-controls.js";
+import { registerContribution } from "/runtime/features/contributions.js";
+import { resolvedElement, resolvedPassage } from "/runtime/readings/resolved-target.js";
+import { resolveAnchor } from "/runtime/readings/anchor-resolution.js";
+import { clearDraft, commentContext, saveDraft } from "/runtime/records/drafts.js";
+import { registry } from "/runtime/state/registry.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
 import { servedState, servedThread } from "../served.mjs";
 
 const obligation = (id) => ({

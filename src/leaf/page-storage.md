@@ -59,7 +59,7 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 - `observations.jsonl` — a private, best-effort diagnostic trace: browser observations,
   server requests and thread-title requests, each `leaf` command's duration, and
   developer run context. It never enters page state or acknowledgement and is never
-  served. `interaction_log.py` owns admission and reading, `browser/runtime/interaction-log.js`
+  served. `interaction_log.py` owns admission and reading, `browser/runtime/transport/interaction-log.js`
   what a tab sends and sheds, `interaction-batch.schema.json` a browser batch, and
   `leaf-dev logs response-times` the timing query over it.
 

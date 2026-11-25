@@ -9,7 +9,7 @@ import {
   clockValue,
   saidAt,
   tickClock,
-} from "../../browser/runtime/presence.js";
+} from "../../browser/runtime/state/presence.js";
 import { noChange } from "/vendor/lit.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 

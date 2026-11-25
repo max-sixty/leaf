@@ -192,7 +192,7 @@ export function coveredWords({
 
 // Two boxes share more than the two pixels a line's leading or a rounding can account
 // for, across and down (`coveredWords`'s header).
-/** @param {import("/runtime/rect.js").Box} a @param {import("/runtime/rect.js").Box} b */
+/** @param {import("/runtime/dom/rect.js").Box} a @param {import("/runtime/dom/rect.js").Box} b */
 const overlaps = (a, b) =>
   Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 &&
   Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;

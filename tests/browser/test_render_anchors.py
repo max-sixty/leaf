@@ -5622,9 +5622,9 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
         """async () => {
           const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
           const load = (path) => import(new URL(path, new URL(boot, location.href)).href);
-          const {saveDraft} = await load('runtime/drafts.js');
-          const {DRAFT_FORMAT} = await load('runtime/kernel-facts.js');
-          const {anchorKey} = await load('runtime/anchor-coordinate.js');
+          const {saveDraft} = await load('runtime/records/drafts.js');
+          const {DRAFT_FORMAT} = await load('runtime/state/kernel-facts.js');
+          const {anchorKey} = await load('runtime/base/anchor-coordinate.js');
           const anchor = {section: 'both', quote: 'match starts here and ends inside'};
           saveDraft('composer:' + anchorKey(anchor), 'My draft words', {
             format: DRAFT_FORMAT, anchor, revision: 1, suggest: false, about: null,

@@ -4,7 +4,7 @@
   color: var(--lf-muted);
   font: var(--lf-font-status);
 }
-/* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
+/* A seat's resolved threads stand under one disclosure (records/thread/inline.js), whose
    threads are page threads like any other. Its summary is one line at the aim floor,
    so a notice of what its threads hold back says so without growing it. */
 .lf-resolved-threads {
@@ -114,7 +114,7 @@
   ) {
   background: color-mix(in srgb, var(--lf-settled) 20%, var(--lf-card));
 }
-/* A reaction says its word through its preview (runtime/preview.js), which a finger
+/* A reaction says its word through its preview (runtime/annotations/preview.js), which a finger
    reads by holding the choice, so the press owns the gesture: it neither scrolls nor
    opens the platform's long-press menu. A reaction offered in the margin is a margin
    entry, which, like every entry, lets a finger that starts on it scroll the page. */
@@ -487,7 +487,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 /* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
    head. It stands with the time rather than among the head's annotations, so where a
    sticky head carries a long reply it stays in view until the reply has shown whole
-   (thread/read.js); a margin card, whose gutter has room, hangs it before the name
+   (records/thread/read.js); a margin card, whose gutter has room, hangs it before the name
    (annotation-chrome.css). The user chose New in the head over a rail down the reply's
    edge, which broke where the words fade under a sticky head, a divider above the
    first unread reply, and a tinted ground; and the dot over a filled New pill, a face
@@ -1409,7 +1409,7 @@ wa-copy-button.lf-icon-action {
 .lf-margin-entry-glyph {
   line-height: 1;
 }
-/* An entry's label is its preview (runtime/preview.js, declared by
+/* An entry's label is its preview (runtime/annotations/preview.js, declared by
    contribution-controls.js), standing over the page beside the entry. In the margin's
    projection its glyph and badges share its one grid cell, the badges' row standing
    along its top edge by alignment as its insets stand it elsewhere, so no face is a
@@ -1613,7 +1613,7 @@ wa-copy-button.lf-icon-action {
 .lf-response-face[aria-pressed]:where(:not([aria-pressed="true"])) {
   background: var(--lf-card);
 }
-/* The comment box's face while the box rests (`data-lf-rest`; composing/surface.js,
+/* The comment box's face while the box rests (`data-lf-rest`; annotations/composing/surface.js,
    `restFab`) wears the corner of the card the box becomes, as the open box's field
    does (annotation-chrome.css). */
 [data-lf-rest] > .lf-response-face {

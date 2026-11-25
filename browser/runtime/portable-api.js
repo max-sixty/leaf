@@ -20,19 +20,19 @@
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
    tests/smoke/test_plain_page.py holds the portable widgets to that. A portable widget
    also imports the library's modules (lib/), each of which loads in any document. */
-export { whileConnected, frameFor } from "./arrivals.js";
-export { tabStore } from "./tab-store.js";
+export { whileConnected, frameFor } from "./dom/arrivals.js";
+export { tabStore } from "./state/tab-store.js";
 
-export { shadowStage } from "./shadow-stage.js";
+export { shadowStage } from "./dom/shadow-stage.js";
 
-export { threadSurface } from "./thread/surface-handles.js";
+export { threadSurface } from "./records/thread/surface-handles.js";
 
-export { searchField } from "./control-labels.js";
+export { searchField } from "./dom/control-labels.js";
 
-export { focusDestination, holdFocus, onUserInput } from "./focus.js";
-export { retainUserIntent } from "./user-intent.js";
-export { scrollIntoView } from "./landing-scroll.js";
-export { scrollersOf } from "./scroll-containers.js";
-export { move } from "./dom-move.js";
-export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { langForPath } from "./language-paths.js";
+export { focusDestination, holdFocus, onUserInput } from "./dom/focus.js";
+export { retainUserIntent } from "./dom/user-intent.js";
+export { scrollIntoView } from "./readings/landing-scroll.js";
+export { scrollersOf } from "./readings/scroll-containers.js";
+export { move } from "./dom/dom-move.js";
+export { setChildLists, setChildren, setRenderedChildren } from "./dom/dom-children.js";
+export { langForPath } from "./base/language-paths.js";

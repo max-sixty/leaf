@@ -173,7 +173,7 @@ export function undeclaredAttrs(declarations) {
 
 // The two sides of the settlement contract, compared on the rendered page. The mark —
 // data-lf-state on a holder — is the layer's paint of a logged decision
-// (`projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
+// (`records/projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
 // retires slots by the application's reading of the same decision, never by the mark.
 // What can still go wrong is a family's, and both failures render perfectly: a module
 // that writes the mark where the log decided nothing styles words as settled that the

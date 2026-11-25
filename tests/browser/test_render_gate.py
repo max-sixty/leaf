@@ -1865,7 +1865,7 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # Each surface a page-level key opens, by the keys that open it from the page, and the
 # control that shows the page has one to open: a page with no thread has no card, and a
 # page with no other page live has no All pages. Escape unwinds any of them to the
-# page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
+# page (dom/keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
 # joins by its keys.
 #
 
@@ -1885,7 +1885,7 @@ def other_pages(page):
 
 
 # Where the focus stands in a thread, by the runtime's own selectors
-# (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
+# (records/thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
 # or null outside every thread or where the user sees none of the focused node. Seeing
 # it takes both what the browser draws, which `checkVisibility` reads through every
 # ancestor's display, visibility and opacity, and where it is drawn, which `seenRect`

@@ -36,7 +36,7 @@
       transition: none;
     }
     /* Leaf's own interface states some rules unlayered, above every layer
-       (runtime/stylesheets.js), so it takes the guard at importance. */
+       (runtime/base/stylesheets.js), so it takes the guard at importance. */
     :where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *),
     :where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *)::before,
     :where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *)::after {

@@ -33,7 +33,7 @@ if (process.argv[1] === self && process.argv[2] === "--draw") {
   // The document the tests' world registers on the global object.
   const { document, NodeFilter } = globalThis;
   const { createFloatingPanel } = await import(
-    new URL("../browser/runtime/floating-panel.js", import.meta.url).href
+    new URL("../browser/runtime/panel/floating-panel.js", import.meta.url).href
   );
   const unused = () => {
     throw new Error("The panel's first drawing reads none of its owners");

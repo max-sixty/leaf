@@ -475,7 +475,7 @@ def panel_errors(page: Page) -> None:
     page.evaluate("""async () => {
         const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
         const {raiseError, passErrors} = await import(
-            new URL('runtime/errors.js', new URL(boot, location.href)));
+            new URL('runtime/transport/errors.js', new URL(boot, location.href)));
         passErrors([raiseError('That writing place is unavailable').id]);
     }""")
     expect(page.locator(".lf-fp-error-dot[data-lf-shown]")).to_be_attached()
@@ -777,7 +777,7 @@ STOP_PASSAGE = "The trusted supervisor owns shutdown."
 def thread_preview(page: Page) -> None:
     """The open thread's passage mark under a resting pointer, which previews who wrote
     its last message and when, that message's opening line and where the thread stands
-    (thread/messages.js, `threadPreview`)."""
+    (records/thread/messages.js, `threadPreview`)."""
     line = word_lines(page, STOP_PASSAGE)[0]
     page.mouse.move(line["left"] - 20, line["top"] - 20)
     page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
@@ -2193,7 +2193,7 @@ def error_about(page: Page, box: str) -> None:
     page.locator(f"{box} leaf-text").evaluate("""async (subject) => {
         const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
         const {raiseError} = await import(
-            new URL('runtime/errors.js', new URL(boot, location.href)));
+            new URL('runtime/transport/errors.js', new URL(boot, location.href)));
         raiseError('That writing place is unavailable', {subject});
     }""")
     expect(page.locator(f"{box} .lf-compose-error")).to_be_visible()
@@ -2628,7 +2628,7 @@ def diff_line_comment(page: Page) -> None:
     under the card."""
     diff_line_threads(page)
     # Clear of the panel at the window's foot, which would keep the box from a seat
-    # under it (composing/surface.js, `seatFab`).
+    # under it (annotations/composing/surface.js, `seatFab`).
     page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it").evaluate(
         "thread => scrollBy(0, thread.getBoundingClientRect().top - 120)"
     )

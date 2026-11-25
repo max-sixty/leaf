@@ -294,7 +294,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 # input's contract the input reads. An input declares at least one of them, and
 # composition writes each attribute it names into the element's attribute schema
 # (`registry.contract.complete_declarations`). The browser's copy is `bindingAttributes`
-# (runtime/registry.js), and the input type the build generates from this schema checks
+# (runtime/state/registry.js), and the input type the build generates from this schema checks
 # the key names it reads.
 INPUT_BINDINGS = ("source", "reference")
 DATA_INPUTS_SCHEMA = {
@@ -586,7 +586,7 @@ LAYER_FACTS = {
         "required": ["tokens"],
     },
 }
-# The work roles, which Leaf owns and `runtime/work.js` reads: what each role's
+# The work roles, which Leaf owns and `runtime/host/work.js` reads: what each role's
 # `$work.widgets` entry holds beside `role`, then which of those it must hold. A goal
 # or worker names its recorded state attribute and the values of it that mean done or
 # stopped, running or retired, and may name the attribute saying when it stopped or

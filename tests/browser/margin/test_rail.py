@@ -456,7 +456,7 @@ def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine)
     )
     gap = '<div style="height: 6000px"></div>'
     # The page's last stop stands fixed in the window, so it is in view at every scroll
-    # and Tab moves on from it rather than from what the reader sees (keyboard/AGENTS.md,
+    # and Tab moves on from it rather than from what the reader sees (dom/keyboard/AGENTS.md,
     # "Scope resolution").
     body = (
         f'<h1>Rail way in</h1>{near}{gap}<p id="far">The far finding.</p>{gap}'

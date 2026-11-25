@@ -452,7 +452,7 @@ body {
     overflow-y: auto;
   }
   /* A block sample stands in its containing page, and its frame takes the body's
-   * height (runtime/sample.js). So the body keeps to its content rather than filling the
+   * height (runtime/host/sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The frame is the sample's window, and it holds the sample's
@@ -525,7 +525,7 @@ body {
   }
 }
 /* The room a text field keeps at the end of its lines for the action standing in its
-   trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
+   trailing corner (annotations/composing/text-field.js). Typed, so a reading resolves to a length. */
 @property --lf-field-end-room {
   syntax: "<length>";
   inherits: true;
@@ -537,7 +537,7 @@ body {
   initial-value: 0px;
 }
 /* A floating box's translation and clips paint together rather than advancing
-   independently on the compositor (runtime/box-motion.js). */
+   independently on the compositor (runtime/dom/box-motion.js). */
 @property --lf-box-carry {
   syntax: "<length>+ | none";
   inherits: false;
@@ -551,7 +551,7 @@ body {
 /* How far across and down from their places a text field draws its words, how much
    of its box it cuts them to from each side, and how much farther the words after a
    change are drawn, while an owner's tween carries them with the field's edges
-   (composing/text-field.js, runtime/box-motion.js). At rest all are `none`, which leaves
+   (annotations/composing/text-field.js, runtime/dom/box-motion.js). At rest all are `none`, which leaves
    the words untransformed and uncut. */
 @property --lf-field-carry {
   syntax: "<length>+ | none";

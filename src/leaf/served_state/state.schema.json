@@ -485,7 +485,7 @@
       "additionalProperties": false
     },
     "WorkKind": {
-      "description": "The step a harness observed the agent taking (`activity.WORK_KINDS`, read from here): working, thinking, using a tool, waiting on the user in its own window for an approval, an answer or a dialog it does not name (the `awaiting_` kinds), or replying. The browser words each one (`runtime/activity-words.js`).",
+      "description": "The step a harness observed the agent taking (`activity.WORK_KINDS`, read from here): working, thinking, using a tool, waiting on the user in its own window for an approval, an answer or a dialog it does not name (the `awaiting_` kinds), or replying. The browser words each one (`runtime/state/activity-words.js`).",
       "enum": [
         "working",
         "thinking",
@@ -1592,7 +1592,7 @@
                 "properties": {
                   "thread": { "type": "string" },
                   "message": {
-                    "description": "The message as its thread held it at the latest of the version's revisions it waited at (`event_facts.EventFacts.message_at`), which the browser reads as a thread reads a message (`thread/messages.js`, `messageWords`): its words then, `edited` by the rewrite then standing.",
+                    "description": "The message as its thread held it at the latest of the version's revisions it waited at (`event_facts.EventFacts.message_at`), which the browser reads as a thread reads a message (`records/thread/messages.js`, `messageWords`): its words then, `edited` by the rewrite then standing.",
                     "anyOf": [
                       { "$ref": "leaf:message/comment" },
                       { "$ref": "leaf:message/reply" }

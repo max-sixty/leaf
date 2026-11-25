@@ -8,7 +8,7 @@ import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { registry } from "/runtime/registry.js";
+import { registry } from "/runtime/state/registry.js";
 import {
   documentOutline,
   elementReading,
@@ -23,8 +23,8 @@ import {
   says,
   segmentsIn,
   trackQuotes,
-} from "/runtime/passages.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+} from "/runtime/readings/passages.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
 
 let generation = 0;
 // A vocabulary no reading has been read against, which forgets every kept piece.

@@ -149,7 +149,7 @@ export const ACTIONS = {
   "next-on-me": { name: "Next On Me", icon: "inbox" },
   "next-thread": { name: "Next thread", icon: "next" },
   // A thread's way between Leaf's two places for it, its card beside the passage and the
-  // floating panel (thread/threads-in-panel.js).
+  // floating panel (records/thread/threads-in-panel.js).
   "open-in-panel": { name: "Open in panel", icon: "expand" },
   "open-latest": { name: "Open latest", icon: "next" },
   "resume-writing": { name: "Resume writing", icon: "edit" },

@@ -15,12 +15,15 @@ import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createAnchorPlacement } from "/runtime/anchor-placement.js";
-import { kept } from "/runtime/kept.js";
-import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js";
-import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
-import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { createAnchorPlacement } from "/runtime/annotations/anchor-placement.js";
+import { kept } from "/runtime/state/kept.js";
+import {
+  resolveAnchor,
+  setAnchoringReady,
+} from "/runtime/readings/anchor-resolution.js";
+import { neighbourhood, pageText, spanIn } from "/runtime/readings/passages.js";
+import { registry } from "/runtime/state/registry.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
 
 import { random } from "./seeded.mjs";
 

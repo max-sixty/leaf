@@ -1530,7 +1530,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     # runtime's own disclosure route, so the surface a sample needs is
                     # derived from where it sits rather than from a page's tab order.
                     # `reveal` takes the intent its caller's gesture retained, and
-                    # has no default (runtime/user-intent.js). This arrangement is
+                    # has no default (runtime/dom/user-intent.js). This arrangement is
                     # not a user's delayed work that a later input may supersede —
                     # it is the test saying what the page must show next — so the
                     # intent it hands over is the one that always holds.

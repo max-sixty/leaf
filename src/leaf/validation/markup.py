@@ -53,7 +53,7 @@ COLOURED_LANGUAGES: dict[str, str] = next(
 )
 # The language a formula's LaTeX is written in, as GitHub's and remark-math's Markdown
 # name it: the browser typesets a `<code>` naming it rather than colouring it
-# (runtime/formulas.js), and leaves a widget naming it uncoloured.
+# (runtime/readings/formulas.js), and leaves a widget naming it uncoloured.
 FORMULA_LANGUAGE = "math"
 
 

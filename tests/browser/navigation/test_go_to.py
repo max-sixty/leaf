@@ -199,7 +199,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     """Every opaque route's chip fits at viewport edges, including one cut by the
     window's top. A link showing one pixel at the foot, where the panel's band leaves
     its chip no seat beside it, has its chip withheld rather than stood above the
-    panel, and its code still takes it (key-badges/hints.js, `seatHints`)."""
+    panel, and its code still takes it (readings/key-badges/hints.js, `seatHints`)."""
     page = open_page(
         browser,
         serve(
@@ -902,7 +902,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, serve):
     """A revision moves the page under an armed Go-to map with no scroll. Each chip rides
     its target, and every letter the user has read and the target the walk stands on
-    stay, so the letter they just read takes what they read it on (key-badges/hints.js)."""
+    stay, so the letter they just read takes what they read it on (readings/key-badges/hints.js)."""
     links = "".join(
         f'<p><a id="l{n}" href="#top">Destination {n}</a></p>' for n in range(1, 6)
     )

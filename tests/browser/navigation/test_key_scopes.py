@@ -1699,7 +1699,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
 def test_a_walk_with_nothing_to_step_through_says_so(browser, serve):
     """Each page walk's letter is live on every page: on a page with no open thread,
     nothing on the user, no comparison and no search, a press says so in the panel
-    rather than doing nothing (keyboard/AGENTS.md, "Page grammar"), and Shift's
+    rather than doing nothing (dom/keyboard/AGENTS.md, "Page grammar"), and Shift's
     reverse says the same."""
     page = open_page(
         browser, serve(leaf_page("Quiet", "<h1>Quiet</h1><p>Nothing to answer.</p>"))

@@ -364,7 +364,7 @@ export class Trace extends LeafElement {
   #scope = null;
   /** @type {string | null} */
   #selected = null;
-  /** @type {import("../../../browser/runtime/visual-parts.js").VisualPart[]} */
+  /** @type {import("../../../browser/runtime/state/visual-parts.js").VisualPart[]} */
   #inventory = [];
   /** @type {Map<string, TraceTarget>} */
   #targets = new Map();

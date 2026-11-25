@@ -60,7 +60,7 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
 // Each reading shows the same document whatever text its source holds, so its key is
-// also its identity (projection/data.js). A comment on a passage then follows the
+// also its identity (records/projection/data.js). A comment on a passage then follows the
 // passage's words across replacements, and stays marked while they still stand.
 /** @param {HTMLElement} node @param {string} key */
 const mark = (node, key) => {

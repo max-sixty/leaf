@@ -571,7 +571,7 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     browser, serve
 ):
     """A choosing lf-options that stands at its own source, as each does in a named
-    group holding two questions (`obligations/place.js`), gives its location ring up to
+    group holding two questions (`records/obligations/place.js`), gives its location ring up to
     the row as a group's question does. If the choice kept its ring, a Tab in would
     draw the choice's ring on its frame and the row's just inside it, two accent lines
     for one fact."""

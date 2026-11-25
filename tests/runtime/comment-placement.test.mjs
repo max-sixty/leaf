@@ -11,8 +11,8 @@ import {
   commentPlacement,
   commentReference,
   commentSide,
-} from "/runtime/annotation-overlay/comment-placement.js";
-import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
+} from "/runtime/annotations/annotation-overlay/comment-placement.js";
+import { floatingPlacement } from "/runtime/annotations/annotation-overlay/floating.js";
 
 // The card's widths, as tokens.css declares them, which the placement reads off the
 // root.

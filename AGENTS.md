@@ -211,8 +211,8 @@ and the page's packages into the page's layer.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
 - `browser/`: the browser runtime, registry and theme, with the type check's
   configuration and declarations under `browser/types/`
-  (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
-  for commands, bindings and scopes, and for `key-badges/` and `page-keys/`).
+  (`browser/AGENTS.md`; `browser/runtime/dom/keyboard/AGENTS.md`
+  for commands, bindings and scopes, and for `readings/key-badges/` and `panel/page-keys/`).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
@@ -376,7 +376,7 @@ which actions were withdrawn, the state of each thread and of each obligation on
 user's On Me list, and the updates the user has sent the agent. It serves the
 result, the server's reading of the page, to the browser.
 
-In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
+In the browser, only `applicationState` (`runtime/state/semantic-state.js`) combines the
 authored initial values, the server's latest reading and the tab's unresolved
 gestures into current state. It publishes each state as one immutable value, which
 holds no renderer nodes, promises or DOM attributes. Components read that value
@@ -610,7 +610,7 @@ over or reviews it does both (`/developing-leaf`, "Review a UI change"), with a
 Before finishing a feature:
 
 - Every result a user can reach with a pointer must also be reachable by keyboard
-  and by touch (`browser/runtime/keyboard/AGENTS.md`, "Touch routes"), without a
+  and by touch (`browser/runtime/dom/keyboard/AGENTS.md`, "Touch routes"), without a
   page-level binding for each result. The routes are owed to each result, not to
   each pointer gesture: a gesture needs another route only where, without it, a user
   could no longer see, reach or decide something. Dragging a thread card aside needs

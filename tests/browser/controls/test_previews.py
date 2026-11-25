@@ -1,6 +1,6 @@
 """Pointing reads; pressing acts: what a control, a mark or a value says before a press
 acts on it, to a resting pointer, to the keyboard and to a held finger
-(runtime/preview.js). The margin entry's preview, its label, is held in
+(runtime/annotations/preview.js). The margin entry's preview, its label, is held in
 `browser/margin/test_entries.py`."""
 
 import hashlib
@@ -373,7 +373,7 @@ def test_a_back_gesture_after_a_preview_put_away_closes_the_popover_under_it(
     """A Tab into an open popover shows its control's preview, and Escape puts it away.
     A back gesture then takes the next step, closing the popover, as a second Escape
     would: the page holds no close watcher of its own once no step of Leaf's stands
-    (keyboard/close-requests.js). Chromium alone, as the other back gestures are."""
+    (dom/keyboard/close-requests.js). Chromium alone, as the other back gestures are."""
     page = open_page(
         browser,
         serve(
@@ -684,7 +684,7 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
     rests on and keeps it as it moves onto it, as it would an element's (WCAG 1.4.13),
     the keyboard on the entry reads it at once, which a screen reader hears as
     the entry's description, less the thread's word its name already says, and a press
-    on the words still opens the card (thread/messages.js, `threadPreview`)."""
+    on the words still opens the card (records/thread/messages.js, `threadPreview`)."""
     page = open_page(
         clocked(request.getfixturevalue(engine)), _thread_on_a_passage(serve)
     )
@@ -1368,7 +1368,7 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
     card = page.locator(".lf-margin-preview")
     expect(card.locator(".lf-msg-body")).to_contain_text("Original paragraph.")
     part = """async (words) => {
-      const {partOver} = await import('/runtime/thread/placement.js');
+      const {partOver} = await import('/runtime/records/thread/placement.js');
       const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
         .find((p) => p.textContent.includes(words));
       const over = partOver(said);
@@ -1395,7 +1395,7 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
     # A place in the message's text is named as the message reads: by its heading.
     named = page.evaluate(
         """async () => {
-          const {placePreview} = await import('/runtime/place-preview.js');
+          const {placePreview} = await import('/runtime/annotations/place-preview.js');
           const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
             .find((p) => p.textContent.includes('Changed paragraph.'));
           return placePreview(said)?.name ?? null;
@@ -2373,7 +2373,7 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     expect(tip).to_be_hidden()
     page.evaluate(
         """async () => {
-          const {focusDestination} = await import('/runtime/focus.js');
+          const {focusDestination} = await import('/runtime/dom/focus.js');
           document.getElementById('before').focus();
           queueMicrotask(() =>
             focusDestination(document.getElementById('chart'), 'step'));

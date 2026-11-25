@@ -7,10 +7,13 @@ import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveAnchor, unclaimedVisualGesture } from "/runtime/anchor-resolution.js";
-import { kept } from "/runtime/kept.js";
-import { registry } from "/runtime/registry.js";
-import { presentDocument } from "/runtime/semantic-state.js";
+import {
+  resolveAnchor,
+  unclaimedVisualGesture,
+} from "/runtime/readings/anchor-resolution.js";
+import { kept } from "/runtime/state/kept.js";
+import { registry } from "/runtime/state/registry.js";
+import { presentDocument } from "/runtime/state/semantic-state.js";
 
 test("a kept datum's place follows its source's revision once the document is presented", async () => {
   Object.assign(registry, { $layer: { generation: "kept-unheard-datum" } });

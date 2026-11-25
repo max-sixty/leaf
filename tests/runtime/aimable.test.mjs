@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { adoptRegistry } from "/runtime/registry.js";
-import { aimableAt } from "/runtime/widget-elements.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { aimableAt } from "/runtime/dom/widget-elements.js";
 
 const entries = (path) =>
   JSON.parse(readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"));

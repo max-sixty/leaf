@@ -9,7 +9,7 @@
    (`LAYOUT`), which the readers that measure what a widget holds hear. And the keys an
    element binds are data on it, `lfCommands`, which the widget says it set or changed
    with `lf-commands` (`COMMANDS`): Leaf reads them then and binds them
-   (keyboard/scopes.js), and a plain page, reading nothing, binds no key and advertises
+   (dom/keyboard/scopes.js), and a plain page, reading nothing, binds no key and advertises
    none. Words for a listener are `lf-announce` on the window, which a
    Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
    Where a step of a walk of the widget's own landed is `lf-walk` (`WALK`), which a Leaf
@@ -81,7 +81,7 @@ export const PREVIEW_ENDED = "lf-preview-ended";
 // since nothing hears one from an element out of it. `detail.within` true says the
 // element drew, so the keys declared on it and on anything under it may read differently
 // from the nodes it drew, where the plain form speaks for the element's own rows alone.
-// Leaf reads the element the event began at (keyboard/scopes.js).
+// Leaf reads the element the event began at (dom/keyboard/scopes.js).
 export const COMMANDS = "lf-commands";
 // Words a listener should hear now, such as where a step put the reader: a widget
 // dispatches an `lf-announce` CustomEvent on the window carrying them as its `detail`.

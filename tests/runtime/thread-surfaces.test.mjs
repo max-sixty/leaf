@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { effect } from "/runtime/framework.js";
-import { adoptRegistry } from "/runtime/registry.js";
+import { effect } from "/runtime/records/framework.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   claimed,
   placePageThreads,
   renderSurfaces,
   watchThreadSurfaces,
-} from "/runtime/thread/surfaces.js";
-import { readThreadRecords } from "/runtime/thread/model.js";
-import { threadSurface } from "/runtime/thread/surface-handles.js";
+} from "/runtime/records/thread/surfaces.js";
+import { readThreadRecords } from "/runtime/records/thread/model.js";
+import { threadSurface } from "/runtime/records/thread/surface-handles.js";
 import { servedThread } from "../served.mjs";
 
 // Every card draws its reply box; this stands in for the box's input wiring, which
@@ -211,7 +211,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     );
     await seating.completion;
     assert.deepEqual(readings, [false], "preparation claims nothing");
-    // The thread pass commits inside its own paint (thread/presentation.js), so a
+    // The thread pass commits inside its own paint (records/thread/presentation.js), so a
     // commit that followed what it moves would have the pass claim a second one.
     let passes = 0;
     effect(() => {

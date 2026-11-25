@@ -40,8 +40,8 @@ const {
   pressRecords,
   takesLetters,
   typesText,
-} = await import("/runtime/focus.js");
-const { retainUserIntent } = await import("/runtime/user-intent.js");
+} = await import("/runtime/dom/focus.js");
+const { retainUserIntent } = await import("/runtime/dom/user-intent.js");
 
 const heard = [];
 onCurrentLocation((node, cause) => heard.push([node, cause]));
@@ -278,7 +278,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
     };
     page.eval(
       readFileSync(
-        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
+        new URL("../../browser/runtime/base/document-inputs.js", import.meta.url),
         "utf8",
       ),
     );
@@ -317,7 +317,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
     // must retain both the clock and its subscriptions, without counting twice.
     page.eval(
       readFileSync(
-        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
+        new URL("../../browser/runtime/base/document-inputs.js", import.meta.url),
         "utf8",
       ),
     );

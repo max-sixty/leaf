@@ -76,7 +76,7 @@ class UpdateBoundary extends LitElement {
   }
 }
 
-/** @typedef {ReturnType<typeof import("../widget-controller.js").widgetState>} WidgetState */
+/** @typedef {ReturnType<typeof import("../host/widget-controller.js").widgetState>} WidgetState */
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** Whether the element draws into an open shadow root of its own. */

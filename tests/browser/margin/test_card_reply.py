@@ -138,7 +138,7 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card.locator("leaf-text")).to_be_focused()
-    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # The click puts the caret in the reply (records/thread/focus.js, `openingPart`); Escape
     # stands the user on the thread.
     page.keyboard.press("Escape")
     expect(card.locator(".lf-page-thread")).to_be_focused()
@@ -556,7 +556,7 @@ def test_news_under_a_card_s_words_waits_once_the_user_begins_in_its_reply_box(
     """Under its words a card keeps its top, so news at its end moves the reply box
     down. The empty box a click's opening leaves the caret in, and the thread a send
     leaves the user on, let the answer the user waits for show until they begin a reply
-    in the box (thread-preview.js, `endNewsMoves`; thread/replies.js): by typing, even
+    in the box (thread-preview.js, `endNewsMoves`; records/thread/replies.js): by typing, even
     words they erase, or by coming back to it."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     resized(page, 1000, 600)
@@ -1719,7 +1719,7 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
     marker.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview.locator("leaf-text")).to_be_focused()
-    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # The click puts the caret in the reply (records/thread/focus.js, `openingPart`); Escape
     # stands the user on the thread.
     page.keyboard.press("Escape")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
@@ -2614,7 +2614,7 @@ def test_next_unread_beside_previous_and_next_leaves_a_head_its_words(
     """Beside Previous and Next, Next unread stands on its symbol, its words its name, so
     the first head keeps its author and time, which its words cut to "Me ju". The time,
     written on another day, keeps that day whole and gives up its time of day whole,
-    where a cut read "18 Sep, …" (`saidTime`, thread/messages.js). Under a finger, where each
+    where a cut read "18 Sep, …" (`saidTime`, records/thread/messages.js). Under a finger, where each
     press is a finger wide, a card draws none there (annotation-chrome.css)."""
     second = {**LONG_THREAD_ROOT, "text": "A second question.", "id": "e" * 32}
     url = serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, LONG_THREAD[1], second])

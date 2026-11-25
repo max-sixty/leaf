@@ -10,8 +10,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { keepInBand, scrollIntoView } from "/runtime/landing-scroll.js";
-import { glideTo, scrollGoal, stopGlide } from "/runtime/scrolling.js";
+import { keepInBand, scrollIntoView } from "/runtime/readings/landing-scroll.js";
+import { glideTo, scrollGoal, stopGlide } from "/runtime/dom/scrolling.js";
 
 // A scroller 300px wide and 400px tall, with no border or scrollbar, over content
 // 1000px wide and 5000px tall, holding one box at `contentTop` and `contentLeft`, 100px

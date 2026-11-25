@@ -163,8 +163,8 @@ def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, scroll-space and
     skipped-content readings."""
     source = (
-        'import { clippingAxes } from "./browser/runtime/rect.js";\n'
-        'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
+        'import { clippingAxes } from "./browser/runtime/dom/rect.js";\n'
+        'import { elementAxes, scrollAxes } from "./browser/runtime/dom/element-axes.js";\n'
         'import { renderedParent, skipped } from "./browser/runtime/lib/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
@@ -182,7 +182,7 @@ def shift_watch_source():
             (
                 'import { readFileSync } from "node:fs";'
                 'import { buildSync } from "esbuild";'
-                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/dom/control-selectors.js";'
                 "const vocabulary = `const interactive=${JSON.stringify(WORKS)},"
                 "pressControls=${JSON.stringify(PRESSES)},caretKeys=${JSON.stringify(CARET_KEYS)};\n`;"
                 'const result = buildSync({stdin: {contents: vocabulary + readFileSync(0, "utf8"),'
@@ -767,7 +767,7 @@ def post_event(page, url, **kwargs):
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
-    The runtime keeps the ledger (runtime/traffic.js) and paints it on the root
+    The runtime keeps the ledger (runtime/transport/traffic.js) and paints it on the root
     element as `data-lf-traffic`; this reads it. `sends` counts attempts, so a retry is a
     second send. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
@@ -1271,7 +1271,7 @@ def undo(page):
 
 # Each command the dispatcher would run from the current location, by its id, with the
 # keys that reach it there; a command no key reaches (one only a control presses) lists
-# none. The dispatcher's own reading (keyboard/dispatch.js, `availableCommandRoutes`),
+# none. The dispatcher's own reading (dom/keyboard/dispatch.js, `availableCommandRoutes`),
 # which the leaf's menu greys its rows by too. Evaluating it also leaves the reading on
 # the page as `window.__lfAvailableCommands`, synchronous, for `wait_for_function`, which
 # takes an async predicate's promise as a truthy answer and returns at once.
@@ -1340,7 +1340,7 @@ def fetch_whole_state(route, **fetch):
 
 
 # A tab a test holds stale is stale only while nothing reaches it: a state read brings
-# it the log, and a drafts read the server's drafts (runtime/drafts.js, `hearDrafts`),
+# it the log, and a drafts read the server's drafts (runtime/records/drafts.js, `hearDrafts`),
 # so a stale view the assertions take their time reaching is a race a loaded runner
 # loses. Refusing both reads states it — but
 # only from before the page exists. `page.route` reaches no request already in the
@@ -1416,7 +1416,7 @@ def displayed(page):
 
 def stored_drafts(page) -> dict:
     """The drafts the page's server holds, by context, once this tab has sent it every
-    word it holds (`draftsWaiting`, runtime/drafts.js): what another tab, another
+    word it holds (`draftsWaiting`, runtime/records/drafts.js): what another tab, another
     device or a reload finds, whatever this tab shows. Asked through the context's
     request API, as `told` asks, so page routes and the traffic watcher don't see it."""
     waiting = page.evaluate_handle(
@@ -1786,8 +1786,8 @@ def watch_sources(shifts: bool) -> str:
           };
           window.__lfWidgetApi = () => entry('runtime/widget-api.js');
           window.__lfCheckApi = () => entry('runtime/check-api.js');
-          window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
-          window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfOverlayApi = () => entry('runtime/annotations/annotation-overlay/check-api.js');
+          window.__lfClientApi = () => entry('runtime/transport/layer-client.js');
           window.__lfLibImport = name => entry(`runtime/lib/${name}`);
           window.__lfVendorImport = name => entry(`vendor/${name}`);
         })();""",
@@ -2078,7 +2078,7 @@ def panel_field(page):
 
 def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
-    (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
+    (annotations/composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
     Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
     Me (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the key that
     makes it the `kbd` after it."""
@@ -2234,7 +2234,7 @@ def show_done(page):
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
-# (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
+# (records/thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
 # thread; null until the saved inventory has arrived. It leaves the reading as
 # `window.__lfOpenThreads` for a wait to poll.
 OPEN_THREAD_COUNT = """async () => {
@@ -2876,7 +2876,7 @@ def clocked(browser):
 
 
 def dwelt(page, *timers):
-    """Wait until the preview timers `timers` (`PREVIEW_TIMERS` in runtime/preview.js:
+    """Wait until the preview timers `timers` (`PREVIEW_TIMERS` in runtime/annotations/preview.js:
     `DWELL` by default, `WARM`, `HOLD`) have run one after another and what they
     decided has drawn, whatever the machine's speed: the repaints that set them, then
     the page's clock run forward by their sum as the page's runtime states them, then
@@ -3211,7 +3211,7 @@ def fills_the_window(page, block, fills):
 LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
 
 
-# The one preview standing over the page (runtime/preview.js).
+# The one preview standing over the page (runtime/annotations/preview.js).
 PREVIEW = "#lf-preview"
 
 
@@ -3223,7 +3223,7 @@ def tab_onto(target):
 
     Shift+Tab steps off the target only where the user can see it: a key pressed while
     focus stands where the user can't see it lets go of that focus first
-    (page-keys/controller.js). A script's focus doesn't scroll a target the window
+    (panel/page-keys/controller.js). A script's focus doesn't scroll a target the window
     already holds, which may stand under the floating panel's row at the window's foot,
     so the helper then brings the target clear of the panel with Leaf's own landing
     (landing-scroll.js, `scrollIntoView`), as a Tab's arrival does. That landing moves
@@ -3241,7 +3241,7 @@ def tab_onto(target):
 def put_preview_away(page):
     """Press Escape as its first step, which puts away the preview standing over the
     page and does nothing else, so the next Escape takes the step it stood in front of
-    (preview.js; keyboard/AGENTS.md, "Escape"). Fails unless one stood and it went."""
+    (preview.js; dom/keyboard/AGENTS.md, "Escape"). Fails unless one stood and it went."""
     preview = page.locator(PREVIEW)
     expect(preview).to_be_visible()
     page.keyboard.press("Escape")
@@ -3249,7 +3249,7 @@ def put_preview_away(page):
 
 
 def expect_preview_words(target, words):
-    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/preview.js)
+    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/annotations/preview.js)
     says `words` as its name or a line of its detail, the whole line for a string or a
     match for a pattern: the words a pointer, the keyboard or a finger read there, read
     without showing them."""
@@ -3266,7 +3266,7 @@ def expect_preview_words(target, words):
 
 
 def preview_parts(target, route="pointer"):
-    """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
+    """What `target`'s preview shows a pointer resting on it (runtime/annotations/preview.js), or
     with `route="focus"` the keyboard stepping onto it: its name, then each line of
     detail, as the face draws them, key chips left out: of a list, the items it
     shows and the words for the rest. The pointer leaves it again after and waits

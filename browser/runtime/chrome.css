@@ -7,7 +7,7 @@
 /* `.lf-chrome` scopes runtime surfaces: the floating panel, composer, floating comment
    control, live region, help, inspection paint, legend and Go-to hints. Its permanent
    home stands after the document and takes no room there; a modal opened from an
-   authored popover carries this scope with it (keyboard/layer-stack.js).
+   authored popover carries this scope with it (dom/keyboard/layer-stack.js).
    The page keeps no room for the chrome, which stands over it. The page and panel
    scroll separately.
 
@@ -142,7 +142,7 @@ html[data-lf-draw-mode] {
 }
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
-  /* The tween a floating box's change of layout travels on (runtime/box-motion.js),
+  /* The tween a floating box's change of layout travels on (runtime/dom/box-motion.js),
      every box's alike, which its motion reads off the box: the Codex panel's one
      strong ease-out, at a length the user singled out as the panel's best motion for a
      box growing as the words do (15 October). */
@@ -150,7 +150,7 @@ html[data-lf-draw-mode] {
     --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
     --lf-motion-box-resize: 300ms;
   }
-  /* A floating box's surface (runtime/box-motion.js): a layer behind the box, cut to
+  /* A floating box's surface (runtime/dom/box-motion.js): a layer behind the box, cut to
      its outline grown by its shadow's reach, holding a ring and a fill inside it cut to
      the outline, and while the box moves a ring a part of it wears. Each box's own rule
      places the layer and colours the ring and fill. */
@@ -1198,12 +1198,12 @@ html[data-lf-draw-mode] {
       border-color: Highlight !important;
     }
   }
-  /* A preview (runtime/preview.js): what pointing at a mark, control or value reads,
+  /* A preview (runtime/annotations/preview.js): what pointing at a mark, control or value reads,
      standing beside it over the page, in one face whatever it previews: the tooltip's
      ground and ink (`--lf-tip-*`, tokens.css), its name on the first line at the face's
      weight with the key chips that press it, then each line of detail in the same type,
      a step dimmer. Its rules are the chrome's, so they go wherever it stands, a modal
-     dialog in a shadow tree included (keyboard/layer-stack.js, `carryChromeStyles`).
+     dialog in a shadow tree included (dom/keyboard/layer-stack.js, `carryChromeStyles`).
 
      The owner decides where it stands and how tall, from the box the browser will
      draw, and the browser draws exactly that, with no fallback of its own: below its
@@ -1317,7 +1317,7 @@ html[data-lf-draw-mode] {
     color: color-mix(in srgb, var(--lf-tip-ink) 76%, transparent);
   }
   /* A thread's line in the user's turn takes the turn's colour ("Visual treatment
-     carries meaning"; thread/messages.js, `threadPreview`), in its tooltip face. */
+     carries meaning"; records/thread/messages.js, `threadPreview`), in its tooltip face. */
   .lf-preview-detail [data-lf-turn="user"] {
     color: var(--lf-tip-turn-ink);
   }

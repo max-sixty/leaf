@@ -46,7 +46,7 @@
    * of its own, or the child of a part of such a `main`, a member of the child that holds
    * the page's parts (`data-lf-views="parts"`), as each part holds its own. The box's
    * parent is the shell the Layout places it in: `body`, `main` or the part. The box says so
-   * (`--lf-layout-box`), and the runtime finds the shown one by that (runtime/passages.js,
+   * (`--lf-layout-box`), and the runtime finds the shown one by that (runtime/readings/passages.js,
    * `layoutBox`) rather than by reading a Layout class. It is the style container a
    * margin content asks for the Layout's readings (`lf-content-frame`, base.css), and a
    * shell other than `body` is the size its `cqi` measure. Its padding draws nothing, so

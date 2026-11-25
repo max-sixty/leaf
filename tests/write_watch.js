@@ -518,7 +518,7 @@
   // `heardWrite`), the test's own included, and the runtime's own through their door
   // past it (`unheardWrite`). Neither frame made the write, so neither is one of the
   // page's.
-  const HEARING = /\b(?:un)?heardWrite\b.*\bruntime\/arrivals\.js:/;
+  const HEARING = /\b(?:un)?heardWrite\b.*\bruntime\/dom\/arrivals\.js:/;
   const pageFrames = () =>
     new Error().stack
       .split("\n")
@@ -539,7 +539,7 @@
   // drives, which this watch can't see (arrivals.js, `stopWhereItStands`).
   const EXPECTED_SCROLLS = [
     (by) => by[0].includes("vendor/codemirror."),
-    (by) => /^stopWhereItStands\b.*\bruntime\/arrivals\.js:/.test(by[0]),
+    (by) => /^stopWhereItStands\b.*\bruntime\/dom\/arrivals\.js:/.test(by[0]),
   ];
   // Run one scroll write to `box`, `options` saying how it moves.
   const scrollWrite = (box, how, options, write) => {

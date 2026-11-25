@@ -32,7 +32,7 @@
     return entry;
   })();
   const root = document.documentElement;
-  // runtime/ids.js's randomId, which this classic script cannot import: a sample
+  // runtime/base/ids.js's randomId, which this classic script cannot import: a sample
   // child served by `leaf --host` over plain HTTP has no crypto.randomUUID, nor does a
   // site build served that way.
   const randomId = () =>
@@ -58,15 +58,15 @@
       root.lfSample = window.lfSampleBridge;
       root.lfSample.install();
     } else {
-      /** @type {{port: MessagePort, settings: import("./sample-protocol.js").SampleSettings} | null} */
+      /** @type {{port: MessagePort, settings: import("./base/sample-protocol.js").SampleSettings} | null} */
       let connection = null;
       /** @type {PromiseWithResolvers<void>} */
       const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
-      /** @type {import("./sample-protocol.js").ChildMessage[]} */
+      /** @type {import("./base/sample-protocol.js").ChildMessage[]} */
       const queued = [];
-      /** @type {Set<(message: import("./sample-protocol.js").ParentMessage) => void>} */
+      /** @type {Set<(message: import("./base/sample-protocol.js").ParentMessage) => void>} */
       const listeners = new Set();
-      /** @param {import("./sample-protocol.js").ChildMessage} value */
+      /** @param {import("./base/sample-protocol.js").ChildMessage} value */
       const send = (value) =>
         connection ? connection.port.postMessage(value) : queued.push(value);
       /** @type {LeafSampleBridge} */
@@ -107,7 +107,7 @@
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
       const nonce = randomId();
-      /** @param {MessageEvent<import("./sample-protocol.js").SampleOffer | undefined>} event */
+      /** @param {MessageEvent<import("./base/sample-protocol.js").SampleOffer | undefined>} event */
       const connect = (event) => {
         const port = event.ports[0];
         if (
@@ -123,7 +123,7 @@
         // The bootstrap element owns diagnostic readings before the entry starts.
         script.lfDocumentPort = port;
         port.onmessage =
-          /** @param {MessageEvent<import("./sample-protocol.js").ParentMessage>} event */ ({
+          /** @param {MessageEvent<import("./base/sample-protocol.js").ParentMessage>} event */ ({
             data,
           }) => {
             if (data.type === "dress") dress(data.detail);
@@ -719,7 +719,7 @@
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through
-    // its own handler (runtime/page-keys/controller.js).
+    // its own handler (runtime/panel/page-keys/controller.js).
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
     if (held.length) beat = setTimeout(show, 150);

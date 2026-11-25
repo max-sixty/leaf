@@ -56,7 +56,7 @@ rule draws at once is drawn.
   arrives or a widget finishes loading, a box may grow or shrink into free room, but
   reading content and controls stay put. The exception is a thread card narrower than
   the measure, which the user chose to let widen once, from its start, when a long message
-  arrives, carrying its controls (`data-lf-widens`; `annotation-overlay/thread-preview.js`).
+  arrives, carrying its controls (`data-lf-widens`; `annotations/annotation-overlay/thread-preview.js`).
   No hard-to-undo action arrives under a pointer
   that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or
   siblings, and typing may grow a field but never moves it. Check: `tests/shift_watch.js`,
@@ -66,7 +66,7 @@ rule draws at once is drawn.
   and beside its subject its foot while the user writes words in its reply box; the
   floating panel, standing on the window's foot, holds a list's foot, and a thread's
   height while a press on its head line acts. Each box's header says how (`floating-panel.js`,
-  **Opened**; `annotation-overlay/thread-preview.js`).
+  **Opened**; `annotations/annotation-overlay/thread-preview.js`).
 - **News moves what the reader reads only in the thread they are in.** News from the
   server grows above the screen, where scroll anchoring absorbs it, or below it. In the
   thread the user is in, what it adds draws at once, as in a chat: the page scrolls
@@ -82,9 +82,9 @@ rule draws at once is drawn.
   controls, such as Resolve or a message's pencil, from under a pointer resting on one;
   the words the user is writing and their Send stay (the user's choice). What news moves
   there travels to its new place rather than jumping, as the user chose: a view that
-  scrolls glides to its end (`thread/thread-card.js`) and one that grows carries its
+  scrolls glides to its end (`records/thread/thread-card.js`) and one that grows carries its
   parts (`box-motion.js`).
-  Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
+  Check: `test_news_just_after_a_press_moves_nothing`. Owners: `records/thread/held-news.js`,
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
@@ -112,7 +112,7 @@ rule draws at once is drawn.
   make room for them. The rail sits right of `main` when the window is wide enough and
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The
   rail and the margin"). Native block flow and wrapping rows place the page's own
-  sidebars and notes from the first paint, and `runtime/content-layout.js` reads their
+  sidebars and notes from the first paint, and `runtime/readings/content-layout.js` reads their
   CSS geometry for annotations and never reallocates document space. The floating
   panel stands over the page too, with no room kept for it: the page lays out in the
   whole window, and the user folds the panel to its leaf where it covers what they
@@ -120,13 +120,13 @@ rule draws at once is drawn.
   (`floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
   (`geometry.js`, `declareCover`). Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
-  `annotation-overlay/margin-placement.js`.
+  `annotations/annotation-overlay/margin-placement.js`.
 - **A box floating over the page grows inside the window**, toward the edge that has
   room, and sending and later growth never scroll the page to make room. Owners:
-  `annotation-overlay/comment-placement.js` for attachment and bounds, and
-  `annotation-overlay/thread-preview.js` for the edge a card holds. A freshly opened card
+  `annotations/annotation-overlay/comment-placement.js` for attachment and bounds, and
+  `annotations/annotation-overlay/thread-preview.js` for the edge a card holds. A freshly opened card
   may scroll to open clear of its target, and otherwise only a field in flow scrolls to
-  keep its controls in view (`thread/reply-landing.js`).
+  keep its controls in view (`records/thread/reply-landing.js`).
 - **Readable content comes before activation.** Authored HTML paints while browser
   modules load. Each widget owns one Lit view across its lifetime; native slots retain
   authored children and CSS owns their initial layout. Each control waits only for the
@@ -180,7 +180,7 @@ attention and work").
   (`off-flow.js`), and Resume writing (`g i`) shows the same editor. A re-render that
   replaces the box's node hands its words and caret to the replacement. Checks:
   `tests/words_watch.js` and `typed_box_findings` in the render gate tests. Owner:
-  `annotation-overlay/composing/floating-response.js`.
+  `annotations/annotation-overlay/composing/floating-response.js`.
 - **Editing something keeps it where it stood and as it read**, so the user finds what
   they meant to change where they saw it, and sees what saving will show. Opening a
   message, a draft or any value for editing draws it in its display's place and face:
@@ -192,8 +192,8 @@ attention and work").
   rest, rather than the content moving on opening, as a scroller holding messages keeps
   the thread's text inset beside them. Checks:
   `test_a_rewrite_keeps_the_message_as_it_stood` and `test_a_draft_edits_where_it_reads`.
-  Owners: `thread/message-edit.js`, `.lf-msg-editor` in `styles/components/response.css`,
-  and `composing/text-field.js`.
+  Owners: `records/thread/message-edit.js`, `.lf-msg-editor` in `styles/components/response.css`,
+  and `annotations/composing/text-field.js`.
 
 ### A gesture shows its result at once
 
@@ -314,9 +314,9 @@ concrete and playable").
 - **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-previews.md`), a control's
   word and keys come from its name and the register, a link an author wrote into the
-  page shows the place it names (`runtime/place-preview.js`), and a range's owner says
+  page shows the place it names (`runtime/annotations/place-preview.js`), and a range's owner says
   where the pointer or a holding finger rests on it, as a thread's passage marks do
-  (`anchor-paint.js`). `runtime/preview.js` shows one at a time on every route, puts it
+  (`anchor-paint.js`). `runtime/annotations/preview.js` shows one at a time on every route, puts it
   away on leave, blur or a press, and gives a screen reader the words it shows on focus
   as the focused element's description.
   While one stands it is Escape's first step, which does nothing else, so a preview
@@ -367,7 +367,7 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
 
 - **Nothing the user must read, press or decide waits on a clock.** Motion the user waits
   on stays under 300ms. A delay may hide a flicker but never adds a minimum spinner time
-  or a staged reveal. `runtime/motion.js` owns the shared motion gate, easing and
+  or a staged reveal. `runtime/dom/motion.js` owns the shared motion gate, easing and
   reduced-motion check, and `--lf-motion-*` properties set durations and curves: the
   theme's for the document, and a runtime surface's own sheet for that surface, as
   `floating-panel.css` does for the panel. A script reads one with
@@ -377,10 +377,10 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
   agent work in progress. It stops when the work ends and is static under reduced
   motion.
 - **The panel's leaf has a personality, and the user is still evolving it.** Leaf's
-  mark answers moments with a brief gesture (`runtime/floating-panel.js`, `MOTIONS`),
+  mark answers moments with a brief gesture (`runtime/panel/floating-panel.js`, `MOTIONS`),
   such as a nod at the user's own key or a twirl as On Me empties, and droops while the
   agent is away. A change that adds a moment the user notices, such as a new kind of news,
-  asks whether the leaf should answer it (`runtime/notifications.js`, `gesture`). Each
+  asks whether the leaf should answer it (`runtime/transport/notifications.js`, `gesture`). Each
   gesture so far moves the whole mark; giving the mark parts that move on their own,
   such as a blade that flexes on its stem, would give it more dexterity, and `MOTIONS`
   says what that takes.
@@ -394,7 +394,7 @@ attention and work").
 - **A necessary scroller works like part of the document.** It passes scrolling on to
   the document at its edges, except at a bounded task or a modal. Wheel and touch keep
   moving through content; pan and zoom need a deliberate control. It has a keyboard
-  route, visible bounds and visible focus, which `reachScrollers` in `runtime/reach.js`
+  route, visible bounds and visible focus, which `reachScrollers` in `runtime/dom/reach.js`
   supplies by giving every scrollable box a tab stop and painting the edge its content
   continues past. An object taken out of flow for inspection restores the selection and
   the document position on return. Checks: the reach tests and the axe sweep;
@@ -425,11 +425,11 @@ widget and interaction loaders compute theirs.
 
 Each module owns one concern and states it in its header, so read the headers to find
 an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
-question", below, indexes the owners a caller asks, and `keyboard/AGENTS.md` covers the
-keyboard's, in `keyboard/`, `key-badges/` and `page-keys/`.
+question", below, indexes the owners a caller asks, and `dom/keyboard/AGENTS.md` covers the
+keyboard's, in `dom/keyboard/`, `readings/key-badges/` and `panel/page-keys/`.
 
 `runtime/lib/frame-pass.js` runs every rendering callback in one pass per frame, the
-runtime's and each package's alike, and `runtime/rendering.js` counts that work in the
+runtime's and each package's alike, and `runtime/base/rendering.js` counts that work in the
 settled reading. Schedule through the pass's `nextRender`, `nextFrame`, `cancelRender`
 and `sizeObserver`; lint refuses the browser's own, except `requestAnimationFrame` in a
 package, which is for motion that may run until the user stops it, such as playback,
@@ -447,7 +447,7 @@ the page's targets goes through `paintSet` in `target-paint-geometry.js`. What a
 changes that CSS can't follow is read again when the scroll ends (`watchScrollEnds` in
 `arrivals.js`), unless the reader would see it wrong until then. Such a reading is
 taken at each scroll and writes only where its answer changes, as the solve of a
-floating box an edge holds in does (`annotation-overlay/floating.js`), and the paint
+floating box an edge holds in does (`annotations/annotation-overlay/floating.js`), and the paint
 that follows whether focus is in sight (`user-place.js`, through `geometry.js`
 `whenChanges`).
 
@@ -695,16 +695,16 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | version shown                                                                                                  | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                                                                                                                                                                                                            |
 | accepted history                                                                                               | the server's event log and its `/api/state` answer, which the publisher adopts whole; an answer to a request naming the reading the tab holds may carry only the changes since, which the reader applies to that reading first (`completeState` in `layer-client.js`); each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                     | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                                                                                                                                                                                                     |
-| threads, workflow, attention, obligations, to-dos, activity, unread                                            | the server's state, which the browser selects without folding again (obligations: `obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                                                                                                                                       |
+| threads, workflow, attention, obligations, to-dos, activity, unread                                            | the server's state, which the browser selects without folding again (obligations: `records/obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                                                                                                                               |
 | what waits on the user and on the agent                                                                        | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                                                                                                                                                                                                  |
 | the machine's other live pages                                                                                 | the server's `/api/pages` answer, read again only when a news look names another pages reading than the one last asked for (`live-leaves.js`, `hearPages`); it keeps no consistency with the page's own reading, and nothing this page reads waits for it                                                                                                                           |
 | the user's unsent drafts                                                                                       | the page server's drafts (`src/leaf/drafts.py`), read again when a news look names another drafts store or version than the tab holds (`drafts.js`, `hearDrafts`); the tab's own copy holds only words the server hasn't taken yet                                                                                                                                                  |
 | what the DOM shows                                                                                             | the presentation coordinator's renderer tickets and preparation regions                                                                                                                                                                                                                                                                                                             |
-| when a document-wide renderer paints                                                                           | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                                                                                                                                                                                                                                                     |
+| when a document-wide renderer paints                                                                           | the DOM dependencies `PRESENTATION_DOM` in `runtime/state/semantic-state.js` declares                                                                                                                                                                                                                                                                                               |
 | where each thread's passage is                                                                                 | `anchor-placement.js`, resolving its anchor in this version                                                                                                                                                                                                                                                                                                                         |
 | the line inside a target that a comment sits by                                                                | `pointed-place.js` (`placePoints`); presentation only                                                                                                                                                                                                                                                                                                                               |
-| the side and line a comment box and its thread card sit by                                                     | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                                                                                                                                                                                                                                           |
-| whether a margin row sits in the rail or as a pin, and where                                                   | `annotation-overlay/margin-layout.js`                                                                                                                                                                                                                                                                                                                                               |
+| the side and line a comment box and its thread card sit by                                                     | `annotations/annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                                                                                                                                                                                                                               |
+| whether a margin row sits in the rail or as a pin, and where                                                   | `annotations/annotation-overlay/margin-layout.js`                                                                                                                                                                                                                                                                                                                                   |
 | what a scroller shows, what a surface covers, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareCover`, `shownWindow`, `seenRect`, `growthIsSeen`)                                                                                                                                                                                                                                                                                            |
 
 Add no second cache, pending map, replay list or DOM attribute as another source for
@@ -748,7 +748,7 @@ block names what a package answers with the browser's own call instead.
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                         |
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                                |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                                |
-| Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                              |
+| Which thread view an entry of session history shows, the `?thread=` its URL names                     | `records/thread/address.js` `createThreadAddress`                                      |
 | Which member a widget shows of several, its name in the address, and the user's place in each         | `views.js` `keepView`, `entryView`                                                     |
 | Where the user's caret stands, and its element, through open shadow trees                             | `native-selection.js` `userCaret`                                                      |
 | The page place focus or the caret identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
@@ -764,10 +764,10 @@ block names what a package answers with the browser's own call instead.
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                    |
 | Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                        |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                                 |
-| Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `keyboard/text-entry.js` `nativeClaimAt`                                               |
+| Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `dom/keyboard/text-entry.js` `nativeClaimAt`                                           |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                      |
-| The keys that would make a command's press now, as a chip shows them                                  | `keyboard/control-keys.js` `commandKeysNow`                                            |
-| A hint map's walk and choose rows                                                                     | `key-badges/hints.js` `createHintSession`                                              |
+| The keys that would make a command's press now, as a chip shows them                                  | `dom/keyboard/control-keys.js` `commandKeysNow`                                        |
+| A hint map's walk and choose rows                                                                     | `readings/key-badges/hints.js` `createHintSession`                                     |
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                           |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                                  |
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
@@ -813,15 +813,15 @@ block names what a package answers with the browser's own call instead.
 | Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                                |
 | Set a box's offset outright; a package calls the browser's `scrollTo`, heard there, with a `behavior` | `arrivals.js` `setScroll` (_lint_)                                                     |
 | Keep a reader who stands at a box's end there as it changes, and say whether they stand there         | `scrolling.js` `followEnd`                                                             |
-| Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)               |
-| Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                             |
+| Open or close a native modal or popover                                                               | `dom/keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
+| Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `dom/keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `lib/shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
 | Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `lib/shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | The closed box that hides a node until the user opens it: a closed disclosure or a tab not chosen     | `lib/shadow-tree.js` `closedOver`                                                      |
-| Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                          |
+| Which native layers are open, in opening order, and whether a modal admits a node                     | `dom/keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names; a package's address too      | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`, `elementNamed`             |
 | The element an id names, read from the element that gives it: its message first, then the page        | `references.js` `authoredElement`                                                      |
-| The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `thread/messages.js` `addressableAt`                                                   |
+| The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `records/thread/messages.js` `addressableAt`                                           |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                                   |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                    |
@@ -838,29 +838,29 @@ block names what a package answers with the browser's own call instead.
 | The order a position container lists its units in, and the rank that puts a unit at an index          | `lib/rank.js` `byRank`, `rankAt`, `authoredRank`                                       |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                            |
 | What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                             |
-| A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                        |
-| A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                                 |
+| A workflow's word, and its progress face on a control; an open to-do's word                           | `records/thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                |
+| A thread's word, which Threads states as its status                                                   | `records/thread/workflow.js` `threadAttention`                                         |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                        |
 | What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                              |
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                       |
-| What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                                   |
+| What a thread says when pointed at, on its passage mark and its margin entry                          | `records/thread/messages.js` `threadPreview`                                           |
 | The clock time behind an age, and what an age previews                                                | `presence.js` `clockTime`, `agePreview`                                                |
 | An age kept current in a page, a message or a widget's template: the `lf-age` element                 | `age.js`                                                                               |
 | When a message was said: how long ago within the hour, then its time and day                          | `presence.js` `saidAt`                                                                 |
 | A time of day as the reader's platform writes it                                                      | `presence.js` `timeOfDay`                                                              |
-| The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |
-| The keys the command hints label a control with from where the user is                                | `key-badges/command-hints.js` `drawnKeys`                                              |
+| The keys that press a control from where the user is                                                  | `dom/keyboard/control-keys.js` `controlKeys`                                           |
+| The keys the command hints label a control with from where the user is                                | `readings/key-badges/command-hints.js` `drawnKeys`                                     |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                                  |
-| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName`                                                      |
-| The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                       |
-| The open conversations about an element or the part a heading heads, and whose turn                   | `thread/placement.js` `conversationsAbout`                                             |
-| The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                            |
-| Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                        |
-| Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                                   |
+| A thread's name, on every surface that names it                                                       | `records/thread/messages.js` `threadName`                                              |
+| The thread a name names: its key, its id, a message's, or this tab's attempt                          | `records/thread/state.js` `threadNamed`, `threadIdNamed`                               |
+| The open conversations about an element or the part a heading heads, and whose turn                   | `records/thread/placement.js` `conversationsAbout`                                     |
+| The thread id a drawn thread carries, and the page threads drawn with an id                           | `records/thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                    |
+| Where opening a thread puts the user: its reply, or the thread                                        | `records/thread/focus.js` `openingPart`                                                |
+| Whether the user is writing a reply                                                                   | `records/thread/replies.js` `replyIsEditing`                                           |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                            |
 | Which message drafts hold words or a drawing, for every view of drafts                                | `drafts.js` `draftsReading`                                                            |
-| Which obligations a region of the page holds                                                          | `obligations/place.js` `readObligations`                                               |
-| What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                       |
+| Which obligations a region of the page holds                                                          | `records/obligations/place.js` `readObligations`                                       |
+| What names the part of the page or a message a node stands in, and where a heading's part ends        | `records/thread/placement.js` `partOver`, `headingAfter`                               |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                                 |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                              |
 | A reading derived from the page, placement or the application state, kept until what it read moves    | `kept.js` `kept`, `keptEach`; a fact outside signals has a `version`                   |
@@ -874,7 +874,7 @@ text, has one home. Either one runtime owns it and sends it to the other as data
 the server sends its state in `/api/state`, whose type the build generates from
 `served_state/state.schema.json`, or the kernel registry
 (`runtime/kernel-registry.json`) declares it and both read the serving Leaf's copy:
-the browser imports it as a JSON module through `runtime/kernel-facts.js`, so no build
+the browser imports it as a JSON module through `runtime/state/kernel-facts.js`, so no build
 stands between an edit and either reader. Only a fact the registry can't settle alone
 is generated, as `build/vendor.mjs` writes `runtime/lib/syntax-languages.js` from
 `$languages` and the grammars it bundles. Where runtime code must spell a value, a

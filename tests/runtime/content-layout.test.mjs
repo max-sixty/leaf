@@ -18,7 +18,7 @@ test("import and a closed readDocumentHeaders schedule start no document layout 
     return frame(...args);
   };
   try {
-    const owner = await import("/runtime/content-layout.js");
+    const owner = await import("/runtime/readings/content-layout.js");
     const before = frames;
     owner.scheduleDocumentLayout();
     assert.equal(frames, before);
@@ -36,7 +36,7 @@ test("import and a closed readDocumentHeaders schedule start no document layout 
 });
 
 test("an opened readDocumentHeaders completes unchanged readings with no main", async () => {
-  const owner = await import("/runtime/content-layout.js");
+  const owner = await import("/runtime/readings/content-layout.js");
   assert.equal(document.querySelector("main"), null);
   const completed = [];
   owner.openDocumentLayout({ onRead: (changed) => completed.push(changed) });

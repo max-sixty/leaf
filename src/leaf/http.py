@@ -160,7 +160,7 @@ def scope_page_urls(value, page_root: str):
     A response carries version addresses in their canonical, root-relative form;
     beneath a prefix they answer at the page root, as the live page's media does. A
     message's media is the browser's to address as it renders the message
-    (`scopedMediaUrl` in page-markdown.js and thread/messages.js), since only its
+    (`scopedMediaUrl` in page-markdown.js and records/thread/messages.js), since only its
     rendering tells a reference from words that spell one.
     """
     if not page_root:
@@ -1103,7 +1103,7 @@ class PageEndpoint:
         # alone, Threads listed a draft typed on another page a month before.
         scope = f"{page_key(self.page_dir)[:16]}{self.page_root}/"
         # The drafts the user is writing arrive with the document, so a box opens on
-        # its words before any look (`runtime/drafts.js`). A release's document may be
+        # its words before any look (`runtime/records/drafts.js`). A release's document may be
         # the edge's, which its visitors share, so there they arrive with the first look.
         drafts = runtime_element(
             "script",

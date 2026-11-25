@@ -527,7 +527,7 @@ def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
     page = open_page(browser, url)
     view = open_panel_thread(page, thread)
     part = """async () => {
-      const {partOver} = await import('/runtime/thread/placement.js');
+      const {partOver} = await import('/runtime/records/thread/placement.js');
       const words = [...document.querySelectorAll('.lf-msg-body p')]
         .find((p) => p.textContent.includes('Words after the heading'));
       return partOver(words)?.textContent.trim() ?? null;

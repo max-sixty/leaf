@@ -2,14 +2,19 @@
    newest: after a newer gesture, once that one is taken back. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as editing from "/runtime/thread/message-edit.js";
-import { createCompositionInputs } from "/runtime/composing/input.js";
-import { clearDraft, loadDraft, rewriteContext, saveDraft } from "/runtime/drafts.js";
-import { applicationState } from "/runtime/semantic-state.js";
-import { noticeReading } from "/runtime/notifications.js";
-import { createUndo } from "/runtime/undo.js";
+import * as editing from "/runtime/records/thread/message-edit.js";
+import { createCompositionInputs } from "/runtime/annotations/composing/input.js";
+import {
+  clearDraft,
+  loadDraft,
+  rewriteContext,
+  saveDraft,
+} from "/runtime/records/drafts.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
+import { noticeReading } from "/runtime/transport/notifications.js";
+import { createUndo } from "/runtime/annotations/undo.js";
 import { servedState } from "../served.mjs";
-import "/runtime/thread/landing.js";
+import "/runtime/records/thread/landing.js";
 
 applicationState.setPhase("ready");
 const { wireInput } = createCompositionInputs({

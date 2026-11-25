@@ -7,9 +7,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-import { findQuote, pageText, spanIn, textNodesUnder } from "/runtime/passages.js";
-import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import {
+  findQuote,
+  pageText,
+  spanIn,
+  textNodesUnder,
+} from "/runtime/readings/passages.js";
+import { registry } from "/runtime/state/registry.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
 
 const { cases } = JSON.parse(
   readFileSync(new URL("../quote_cases.json", import.meta.url), "utf8"),

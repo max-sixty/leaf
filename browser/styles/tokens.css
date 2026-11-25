@@ -22,7 +22,7 @@
    the press: a board's own FLIP is 150ms over a card's width, and this is a taller
    distance travelled by the whole column below it. A decided suggestion's retired
    slot, a resolved inline thread and a message leaving a thread fold over it, and a
-   picture's zoom (runtime/media.js) takes the same time. */
+   picture's zoom (runtime/records/media.js) takes the same time. */
 @property --lf-motion-fold {
   syntax: "<time>";
   inherits: true;
@@ -47,7 +47,7 @@
   initial-value: 160ms;
 }
 /* The finite window in which a mark of the agent's work arrives, which independently
-   rendered carriers join part-way through (runtime/contribution-controls.js). */
+   rendered carriers join part-way through (runtime/features/contribution-controls.js). */
 @property --lf-motion-agent-arrival {
   syntax: "<time>";
   inherits: true;
@@ -437,7 +437,7 @@
   --lf-drawing-small-size: 10px;
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
-     in the same faces (runtime/composing/text-field.js), inside a shadow root those
+     in the same faces (runtime/annotations/composing/text-field.js), inside a shadow root those
      rules cannot reach, so each construct reads in the draft the way it will in the
      sent message. */
   --lf-code-inline-size: 82%;

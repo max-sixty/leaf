@@ -98,10 +98,12 @@ type HeldWords = readonly (string | { readonly key: string })[];
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
 interface LeafSampleBridge {
   ready: Promise<void>;
-  readonly settings: import("../runtime/sample-protocol.js").SampleSettings;
-  send(value: import("../runtime/sample-protocol.js").ChildMessage): void;
+  readonly settings: import("../runtime/base/sample-protocol.js").SampleSettings;
+  send(value: import("../runtime/base/sample-protocol.js").ChildMessage): void;
   receive(
-    callback: (data: import("../runtime/sample-protocol.js").ParentMessage) => void,
+    callback: (
+      data: import("../runtime/base/sample-protocol.js").ParentMessage,
+    ) => void,
   ): void;
   present(): void;
   /** Set once the bootstrap has built what a connected sample wears. */
@@ -183,12 +185,12 @@ interface Element {
   lfElementsFor?(key: string): Iterable<Element> | null;
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
-   * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
+   * the element says they changed (`lf-commands`; dom/keyboard/scopes.js): a scope's
    * title, rows and options. */
   lfCommands?:
-    | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
+    | (import("../runtime/dom/keyboard/scopes.js").ScopeOptions & {
         title: string | null;
-        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
+        rows: readonly import("../runtime/dom/keyboard/bindings.js").Command[];
       })
     | null
     | undefined;
@@ -199,27 +201,27 @@ interface Element {
   lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
-  lfPreview?: import("../runtime/preview.js").Read;
+  lfPreview?: import("../runtime/annotations/preview.js").Read;
   /** A visual's parts where its `data-lf-part` marks don't say them, read as each
    * reading of the visual asks (`visual-parts.js`). */
-  lfParts?: import("../runtime/visual-parts.js").Parts | undefined;
+  lfParts?: import("../runtime/state/visual-parts.js").Parts | undefined;
 }
 
 interface HTMLScriptElement {
   /** A sample child's private port, owned by the bootstrap element until the entry starts. */
   lfDocumentPort?: MessagePort;
   // The entry's scene readings, for render checks (`leaf.js`, `validationEntry`).
-  lfReadiness?: typeof import("../runtime/presentation.js").pageReadiness;
-  lfArrivalsOutstanding?: typeof import("../runtime/presentation.js").arrivalsOutstanding;
-  lfRenderingState?: typeof import("../runtime/rendering.js").renderingState;
+  lfReadiness?: typeof import("../runtime/readings/presentation.js").pageReadiness;
+  lfArrivalsOutstanding?: typeof import("../runtime/readings/presentation.js").arrivalsOutstanding;
+  lfRenderingState?: typeof import("../runtime/base/rendering.js").renderingState;
   lfObserveQueuedWork?: typeof import("../runtime/lib/queued-work.js").observeQueuedWork;
-  lfObserveWidgetPreparations?: typeof import("../runtime/rendering.js").observePreparations;
-  lfNativeLayers?: typeof import("../runtime/keyboard/layer-stack.js").nativeLayers;
-  lfFloatingSelections?: typeof import("../runtime/annotation-overlay/floating.js").floatingSelections;
+  lfObserveWidgetPreparations?: typeof import("../runtime/base/rendering.js").observePreparations;
+  lfNativeLayers?: typeof import("../runtime/dom/keyboard/layer-stack.js").nativeLayers;
+  lfFloatingSelections?: typeof import("../runtime/annotations/annotation-overlay/floating.js").floatingSelections;
 }
 
 interface Window {
-  lfMove?: typeof import("../runtime/dom-move.js").move;
+  lfMove?: typeof import("../runtime/dom/dom-move.js").move;
 
   /** The sample bridge, kept across a sample child's document swaps. */
   lfSampleBridge?: LeafSampleBridge;
@@ -227,10 +229,10 @@ interface Window {
 
 /** The runtime's own elements, by tag, as each module defines it. */
 interface HTMLElementTagNameMap {
-  "leaf-floating-panel": import("../runtime/floating-panel.js").FloatingPanelElement;
-  "leaf-composition-field": import("../runtime/composing/input.js").CompositionFieldElement;
-  "leaf-text": import("../runtime/composing/text-field.js").LeafTextElement;
-  "leaf-margin-cluster": import("../runtime/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;
+  "leaf-floating-panel": import("../runtime/panel/floating-panel.js").FloatingPanelElement;
+  "leaf-composition-field": import("../runtime/annotations/composing/input.js").CompositionFieldElement;
+  "leaf-text": import("../runtime/annotations/composing/text-field.js").LeafTextElement;
+  "leaf-margin-cluster": import("../runtime/annotations/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;
 }
 
 // The events Leaf dispatches with a detail, by where they are heard.
@@ -246,16 +248,18 @@ interface WindowEventMap {
    * (`lib/widget-events.js`, `ANNOUNCE`): the words, or the words and the command rows
    * whose keys Leaf names after them (`notifications.js`). */
   "lf-announce": CustomEvent<
-    | import("../runtime/voice.js").Words
+    | import("../runtime/base/voice.js").Words
     | {
         words: string;
-        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
+        rows: readonly import("../runtime/dom/keyboard/bindings.js").Command[];
       }
   >;
   /** Where a step of a widget's own walk landed, which Leaf's panel says, or null
    * where the user has left that stop (`lib/widget-events.js`, `WALK`;
    * `walk-position.js`). */
-  "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace | null>;
+  "lf-walk": CustomEvent<
+    import("../runtime/records/walk-position.js").SaidPlace | null
+  >;
   /** A widget's words for something the user did that has not taken, which Leaf keeps
    * in its Errors list (`errors.js`). */
   "lf-error": CustomEvent<string>;
@@ -267,7 +271,7 @@ interface WindowEventMap {
 }
 
 interface DocumentEventMap {
-  /** A command ran, with the words it was invoked under (`keyboard/dispatch.js`). */
+  /** A command ran, with the words it was invoked under (`dom/keyboard/dispatch.js`). */
   "lf-command-invoked": CustomEvent<{
     id: string;
     binding: unknown;
@@ -310,7 +314,7 @@ interface DocumentEventMap {
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<
-      import("../runtime/sample-protocol.js").ChildStatus,
+      import("../runtime/base/sample-protocol.js").ChildStatus,
       { type: "step" }
     >["detail"]
   >;
@@ -339,15 +343,15 @@ interface ElementEventMap {
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
-// and close watchers"), which `keyboard/close-requests.js` holds; only what it uses.
+// and close watchers"), which `dom/keyboard/close-requests.js` holds; only what it uses.
 interface CloseWatcher extends EventTarget {
   destroy(): void;
 }
 declare var CloseWatcher: { prototype: CloseWatcher; new (): CloseWatcher };
 
 interface Window {
-  SpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
-  webkitSpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
+  SpeechRecognition?: new () => import("../runtime/annotations/composing/dictation.js").Recognition;
+  webkitSpeechRecognition?: new () => import("../runtime/annotations/composing/dictation.js").Recognition;
 }
 
 interface CustomElementConstructor {
@@ -416,7 +420,7 @@ interface DocumentEventMap {
 }
 
 interface DocumentEventMap {
-  "lf-drafts": CustomEvent<import("../runtime/drafts.js").DraftNews>;
+  "lf-drafts": CustomEvent<import("../runtime/records/drafts.js").DraftNews>;
 }
 
 // Cloning an SVG node preserves its native element namespace, not custom state.
@@ -427,11 +431,13 @@ interface SVGElement {
 interface Element {
   /** A package's declared thread surface, read after its upgrade. */
   threadOutlets?(
-    ...args: Parameters<import("../runtime/thread/surfaces.js").ThreadOutletSelector>
-  ): ReturnType<import("../runtime/thread/surfaces.js").ThreadOutletSelector>;
+    ...args: Parameters<
+      import("../runtime/records/thread/surfaces.js").ThreadOutletSelector
+    >
+  ): ReturnType<import("../runtime/records/thread/surfaces.js").ThreadOutletSelector>;
   /** On an outlet a widget returns for itself: the words of the second send the comment
    * box offers there, whose comment holds the widget while its thread is open
-   * (`composing/surface.js`). */
+   * (`annotations/composing/surface.js`). */
   lfHold?: string;
 }
 
@@ -452,10 +458,10 @@ interface Navigation {
 // Overlay controls retain the immutable reading they currently present.
 interface Element {
   lfEntry?:
-    | import("../runtime/annotation-overlay/margin-cluster-view.js").MarginEntry
+    | import("../runtime/annotations/annotation-overlay/margin-cluster-view.js").MarginEntry
     | undefined;
   lfFirstSpilledOption?:
-    | import("../runtime/annotation-overlay/margin-cluster-view.js").Item
+    | import("../runtime/annotations/annotation-overlay/margin-cluster-view.js").Item
     | undefined;
 }
 
@@ -466,7 +472,7 @@ interface DocumentEventMap {
 }
 
 interface WindowEventMap {
-  /** An element's `lfCommands`, or what its rows read, changed (`keyboard/scopes.js`);
+  /** An element's `lfCommands`, or what its rows read, changed (`dom/keyboard/scopes.js`);
    * `within` says every scope at or under it reads again. */
   "lf-commands": CustomEvent<{ within?: boolean } | null>;
 }
@@ -489,6 +495,6 @@ interface DocumentOrShadowRoot {
 
 interface Element {
   lfTarget?: Element | null | undefined;
-  lfChoice?: import("../runtime/margin-model.js").ReadingChoice | undefined;
+  lfChoice?: import("../runtime/features/margin-model.js").ReadingChoice | undefined;
   lfTakeFocus?: boolean;
 }

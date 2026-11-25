@@ -374,7 +374,7 @@
               who +
               ` (ring ${at(ring)} vs band ${at(band)})`;
       };
-      // `clipped` in runtime/geometry.js is this walk, and this is its shape: from the box itself
+      // `clipped` in runtime/dom/geometry.js is this walk, and this is its shape: from the box itself
       // rather than its parent, skipping the box's own band because an element is not clipped
       // by its own overflow, and stopping at the first fixed box. Its comment records what
       // starting at the parent costs — "the question of every ancestor of a fixed box and

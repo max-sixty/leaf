@@ -190,7 +190,7 @@ while it computes a hue of `none`.
 
 A margin pin's seat is read against the room around its target, with a sticky box
 counted at its own place, where it stands before sticking (`stuckShift` in
-`browser/runtime/geometry.js`). Only a view timeline reads that place without
+`browser/runtime/dom/geometry.js`). Only a view timeline reads that place without
 writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
 `ViewTimeline` on 2026-11-05. Release Firefox 159.0 on macOS builds a `ViewTimeline` the
 same day but throws NotSupportedError on reading its `startOffset` or `endOffset`, which
@@ -223,7 +223,7 @@ So each highlight rule names the elements holding the words it paints: a
 suggestion's rules name its slot and every element in it (`browser/base.css`), a text
 document's name its rows (`packages/default/styles/text-document.css`), and the comment
 marks name each element the runtime marks as holding marked words
-(`browser/runtime/anchor-paint.js`, `holdWords`). Slotted words
+(`browser/runtime/annotations/anchor-paint.js`, `holdWords`). Slotted words
 are styled from their light parent: on 2026-11-14 a rule naming the host painted
 slotted words in all three Playwright engines, one naming the slot painted them only
 in Chromium, and one naming an element between the slot and the shadow root painted
@@ -348,7 +348,7 @@ Firefox 159.0 (build 1572) kept one set. Writes through the new set still reach 
 element (deleting the state stopped the match), so only reads go wrong: a write that
 skips a state `has` reports absent never deletes it, and in a floating panel's field
 `:state(more-above)` stayed on a one-line draft. Holding the set itself keeps it
-whole, so the text field holds it (`composing/text-field.js`, `#states`) and every
+whole, so the text field holds it (`annotations/composing/text-field.js`, `#states`) and every
 read and write goes through that. An element that only adds and deletes needs no such
 hold.
 
@@ -373,7 +373,7 @@ rule setting it on a range of monospace text, read by eye or from a screenshot.
 
 ### Intrinsic block retirement motion
 
-`browser/runtime/motion.js` (`foldBlock`) animates block retirement, a decided
+`browser/runtime/dom/motion.js` (`foldBlock`) animates block retirement, a decided
 block suggestion and a resolved inline thread, with `calc-size()`. Where
 intrinsic-size interpolation is missing it folds from the block's measured pixel
 height, and where `display` can't be animated it keeps an already-retired slot
@@ -420,7 +420,7 @@ changing this enhancement.
 
 ### Browser dictation in comment boxes
 
-`browser/runtime/composing/dictation.js` offers dictation when
+`browser/runtime/annotations/composing/dictation.js` offers dictation when
 `SpeechRecognition` or `webkitSpeechRecognition` exists. Browsers without it
 keep typing and Send. Interface availability does not establish microphone
 permission or access to the recognition service.
@@ -433,7 +433,7 @@ Recheck with real speech in the affected browser.
 ### Find-in-page scrolling to folded content
 
 Widgets fold content with `hidden="until-found"`, which Leaf's own travel reveals
-too (`runtime/widget-elements.js`, `reveal`). WebKit's reported gap is that finding a match reveals folded content without
+too (`runtime/dom/widget-elements.js`, `reveal`). WebKit's reported gap is that finding a match reveals folded content without
 scrolling to the match. [WebKit 304174](https://webkit.org/b/304174) remained
 open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before
@@ -456,7 +456,7 @@ root, or with its parent replaced, so something in Leaf's DOM is needed to show 
 not yet isolated.
 
 The rule reads a mark the drawing writes as it gains or loses the widget instead
-(`data-lf-holds`, `MessageView.present` in `browser/runtime/thread/messages.js`),
+(`data-lf-holds`, `MessageView.present` in `browser/runtime/records/thread/messages.js`),
 which Firefox restyles. To recheck, key the rule in `browser/styles/floating-panel.css`
 on `[data-lf-awaits]` again and delete the `data-lf-holds` write: the Firefox arm of
 `test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_closes`
@@ -522,8 +522,8 @@ attribute no rule reads.
 
 An opaque sample's sandbox isolates DOM and storage, but authored JavaScript's
 native focus and reveal calls can still move focus or scroll its containing
-page. Leaf contains its own placements through `browser/runtime/focus.js`,
-`keyboard/layer-stack.js`, `landing-scroll.js` and `editor-view.js`; this is a
+page. Leaf contains its own placements through `browser/runtime/dom/focus.js`,
+`dom/keyboard/layer-stack.js`, `landing-scroll.js` and `editor-view.js`; this is a
 cooperative runtime contract, not a security boundary for authored scripts.
 Chrome 155 and Chromium 153.0.8010.12 allowed autonomous child focus transfers
 on 2026-10-09. On 2026-10-10, typing into an already focused offscreen native
@@ -533,7 +533,7 @@ child message handler; separately type into an offscreen focused child editor.
 
 ### Percentage scroll margins in Chromium
 
-What Leaf calls near the window (`browser/runtime/geometry.js`, `nearObserver`), which
+What Leaf calls near the window (`browser/runtime/dom/geometry.js`, `nearObserver`), which
 decides where anchored controls stand in layout and when a live sample's page starts
 (`whenNear`), is an IntersectionObserver with `rootMargin: "100%"` and a
 `scrollMargin` in pixels. A percentage there misreads in Chromium: on 2026-11-11, on a
@@ -554,7 +554,7 @@ Playwright WebKit 26.6 revealed an editor's selection written inside its
 `focus` event, before the platform finished its focus steps, although the focus
 call prevented scrolling, and the reveal crossed a sample's frame: on
 2026-10-25 the containing page scrolled 1,386px to a sample's editor. Chromium
-153 kept the page still. `LeafEditorView` in `browser/runtime/editor-view.js`
+153 kept the page still. `LeafEditorView` in `browser/runtime/annotations/editor-view.js`
 writes the caret after native focus returns when its own `focus()` moved focus,
 and inside the focus event only for arrivals that bypass it, such as Tab;
 whether WebKit reveals those across a frame is unverified. Recheck
@@ -581,7 +581,7 @@ on one of its words, reading `getSelection().toString()`.
 
 ### Sample document admission and native navigation
 
-`browser/runtime/sample.js` admits the initial document with a credentialless
+`browser/runtime/host/sample.js` admits the initial document with a credentialless
 HEAD and the server's `Leaf-Document` header. The parent cannot inspect the
 opaque child's destination to prove it receives that same response or distinguish
 a failed reload from departure to a non-Leaf document. The native destination remains visible;
@@ -610,11 +610,11 @@ Firefox renders such a frame anyway: on 2026-11-22, in Playwright's Firefox 159.
 opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chromium
 159.0.8154.6 ran none. Leaf counts what a sample's page does after loading only while
 its frame shows, except that a block's page counts until it arrives or a deadline
-passes, since its arrival sets the frame's height (`browser/runtime/sample.js`), and
+passes, since its arrival sets the frame's height (`browser/runtime/host/sample.js`), and
 `page check --render` scrolls each frame still waiting into view
 (`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
 holds the page's presentation, or the jump that showed it, only while they still see
-its frame (`browser/runtime/sample.js`). Recheck with
+its frame (`browser/runtime/host/sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
@@ -726,7 +726,7 @@ column's properties non-inheriting and passing them down with `inherit`.
 
 ### State-preserving content reordering
 
-`browser/runtime/dom-move.js` uses `moveBefore` for retained nodes within one
+`browser/runtime/dom/dom-move.js` uses `moveBefore` for retained nodes within one
 composed root. In engines without it, ordinary insertion restores focus and
 caret but still blurs the descendant and reloads an iframe. Playwright WebKit
 26.6 lacked the API on 2026-10-10, and WebKit 27.2 (build 2388) still lacked it on
@@ -745,7 +745,7 @@ Recheck with a focused input moved into a hidden parent and back out.
 
 Chromium 158.0.8127.18 kept `:hover` on a node moved while the pointer was over
 it, and on the ancestors it left, on 2026-11-14. The comment box moves this way
-between a widget's outlet and its home (`composing/surface.js`, `seatFab` and
+between a widget's outlet and its home (`annotations/composing/surface.js`, `seatFab` and
 `restoreFab`), so once the user has pointed at the box in an outlet and put it
 away, those nodes match `:hover` until the pointer crosses them again. The
 effect seen so far is in tooling: `leaf-dev probe` and `stills` wait for the
@@ -766,14 +766,14 @@ with a shadow root unloaded every iframe in that shadow tree, leaving it
 connected with a null `contentWindow`, even when the host had no children to
 remove; `textContent = ""` did the same when it had some. Removing each child
 with `remove()` kept the frames, as Chromium 153.0.8010.12 and Firefox 155.0
-did for all three. `shadowStage` (`browser/runtime/shadow-stage.js`) removes a host's
+did for all three. `shadowStage` (`browser/runtime/dom/shadow-stage.js`) removes a host's
 light children child by child, the one place a widget clears its host, since a thread
 outlet in a stage can hold a frame. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
 in `tests/browser/widgets/test_diffs.py`.
 
 ### Area capture rendering
 
-`browser/runtime/composing/page-image.js` reconstructs the DOM with SnapDOM.
+`browser/runtime/annotations/composing/page-image.js` reconstructs the DOM with SnapDOM.
 Accepted differences include text wrapping, native form controls and a live
 sample editor's missing placeholder text. Other cross-origin frames keep
 placeholders. SnapDOM's reported missing images produce an attachment notice,
@@ -788,7 +788,7 @@ installed engine. The anchored capture and live-sample journeys in
 
 ### Naming a shadow-tree box from the document
 
-`browser/runtime/css-anchors.js` names boxes through document `::part()` rules.
+`browser/runtime/dom/css-anchors.js` names boxes through document `::part()` rules.
 Boxes deeper than the first shadow tree anchor through their host: Playwright
 Firefox 155 failed to anchor through re-exported `exportparts` on 2026-10-14.
 WebKit 26.6 failed to resolve a typed `attr()` anchor name inside `::part()`, so
@@ -805,7 +805,7 @@ types, so nothing marks the card the thread keys act on. Playwright Chromium
 included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
 (`visibleFocus`) follows the browser's answer, and the open card is the only thread
 keys reach; a key pressed after scrolling it away lets go of it
-(`page-keys/controller.js`).
+(`panel/page-keys/controller.js`).
 Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
@@ -814,7 +814,7 @@ card's `.lf-page-thread` matches `:focus-visible`.
 
 Safari has no caret browsing, so a keyboard user there can't put the caret on words
 that take no focus. `K` (`preview.js`, `here`) can't read at a caret there, and the
-keyboard can't select words to comment on (`browser.caret` in `page-keys/page.js`).
+keyboard can't select words to comment on (`browser.caret` in `panel/page-keys/page.js`).
 Safari's Tab, as Playwright WebKit runs it, stops only at text fields and elements with
 their own `tabindex`, so Leaf's own keys move a keyboard user there: walks, Go-to and
 arrows in the panel's lists. A pointer and a finger's hold read every preview.
@@ -847,7 +847,7 @@ in a paragraph's text, press F7 and then ArrowRight, and read whether
 ### A control's own arrows after focus leaves it in Chromium and WebKit
 
 A key pressed at a control the user has scrolled away from lets go of it first
-(`page-keys/controller.js`), and Chromium and WebKit still apply a radio's, slider's
+(`panel/page-keys/controller.js`), and Chromium and WebKit still apply a radio's, slider's
 or select's own arrows at the control the key was aimed at: a radio's ArrowDown
 checked the next radio and scrolled the page back to it, a slider's ArrowRight
 stepped its value, and a closed select's ArrowDown kept focus and scrolled the page
@@ -880,7 +880,7 @@ its `anchor()` fallback, so a key chip, aim, mark or margin row there stood at
 -9999px, off the window. Playwright Chromium 158.0.8127.18 (build 1254) did so
 on 2026-11-12; Firefox 159.0 (build 1572) and WebKit 27.2 (build 2388) placed
 the box on the element, and all three placed it on the drawing's `<svg>`.
-`anchorElement` in `browser/runtime/css-anchors.js` anchors such an element
+`anchorElement` in `browser/runtime/dom/css-anchors.js` anchors such an element
 through the drawing in every engine, as it does the drawing's own shapes, with
 the box's insets measured from the drawing. A scroller inside the drawing's HTML
 doesn't move the drawing, so a mark or composer against a target in it stays
@@ -902,11 +902,11 @@ bounding box. Firefox Nightly 160 reads it too, behind
 enabled in Nightly; bug 2059841 tracks enabling it in release, with no
 milestone, blocked on bugs 2055371, 2057633 and 2060883.
 
-`anchorBox` in `browser/runtime/css-anchors.js` measures that laid-out box from
+`anchorBox` in `browser/runtime/dom/css-anchors.js` measures that laid-out box from
 offsets wherever `anchorDropsTransforms()` finds the engine drops transforms, so
 pins, rows, key chips, the design label, floating cards and previews stand on a
 widened table (translated) and on a reveal.js slide (translated and scaled), and the
-block controls (`readInsets` in `browser/runtime/block-controls.js`) add the
+block controls (`readInsets` in `browser/runtime/records/block-controls.js`) add the
 size difference to their far edges. An engine that keeps transforms, the
 Nightly pref included, fails that check, and none of this runs. Offsets are
 whole pixels, so a mark can stand up to a pixel off. The walk runs when a box is
@@ -985,7 +985,7 @@ means the gap has closed.
 
 ### Native reveal bounded to its scroller
 
-`scrollIntoView(node, {within})` in `browser/runtime/landing-scroll.js` reveals
+`scrollIntoView(node, {within})` in `browser/runtime/readings/landing-scroll.js` reveals
 an item without moving the containing page. On 2026-10-14, Playwright Firefox
 155's native `scrollIntoView({container: "nearest"})` also moved an outer
 scroller when a horizontal strip's edge extended just beyond its band.
@@ -1056,7 +1056,7 @@ callback means the gap has closed.
 
 Playwright Chromium 153.0.8010.12 rejected `overflow-clip-margin: calc(2px + 5px)`
 on 2026-10-26, leaving the computed margin `0px`, while Playwright Firefox accepted
-it. A text field's clip margin (`composing/text-field.js`, `.lf-field`) therefore
+it. A text field's clip margin (`annotations/composing/text-field.js`, `.lf-field`) therefore
 reads one custom property, `var(--lf-field-reach, 2px)`, rather than adding a
 motion's reach to the caret's 2px. Recheck by setting the calc value on an element
 and reading `getComputedStyle(element).overflowClipMargin`; once it reads `7px`, the
@@ -1268,7 +1268,7 @@ reveal the fragment's `hidden="until-found"` target as they apply the traversal,
 firing `beforematch`, and WebKit scrolls to it; Chromium 156 does none of this. On
 2026-11-02, Back to a code block in a tab the user had closed since, with a
 disclosure opened above it, landed it 471 px down in Firefox, at the offset the entry
-was left at, where Chromium landed it at 59. So `browser/runtime/history.js` places
+was left at, where Chromium landed it at 59. So `browser/runtime/records/history.js` places
 the page before the browser applies the traversal, reading what is hidden before the
 browser reveals it. In the rendering update after the traversal's `popstate`
 (`traversalApplied`), it scrolls the first block on screen back to where its
@@ -1289,7 +1289,7 @@ the installed test engine, and 2026-11-22 in stock Firefox 160 through Marionett
 disposition: no longer reproduces. On 2026-11-22 a probe of the same steps in build
 1572 (`leaf-dev probe --browser firefox`, a followed fragment link, Back, Forward)
 named Forward's destination, `key` set and `index` 1, and returned the record history
-wrote to it, and `browser/runtime/history.js` now reads an entry's record from
+wrote to it, and `browser/runtime/records/history.js` now reads an entry's record from
 `destination.getState()` rather than by key.
 `tests/browser/navigation/test_threads.py::test_back_and_forward_show_the_thread_each_entry_names`
 asserts focus after Forward in Chromium and Firefox. To recheck, follow a fragment
@@ -1317,7 +1317,7 @@ Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. O
 2026-11-05 it answered correctly at a range's edges and inside a shadow tree passed in
 `shadowRoots`, which it needs in every engine. Two things keep a thread's passage
 marks from using it to say which mark the pointer is on
-(`browser/runtime/anchor-paint.js`, `markHit`):
+(`browser/runtime/annotations/anchor-paint.js`, `markHit`):
 
 - Its cost grows with the ranges the page's highlights hold, every one of them read
   on each call. At the last of a paragraph's marks, one call took 20 µs at 32 and
@@ -1377,7 +1377,7 @@ on a Leaf page the hint one does:
 </script>
 ```
 
-The preview (`browser/runtime/preview.js`, `open`) is one popover a warm switch hides
+The preview (`browser/runtime/annotations/preview.js`, `open`) is one popover a warm switch hides
 and shows again by its next target in one task, so two targets with the same words in
 turn would stand the second preview by the first. Where a new source comes with the
 words the last one had, it moves the preview to the other side of a sibling, its
@@ -1408,7 +1408,7 @@ link previews (line 1849), sends a click when the touch ends, however long it wa
 2496–2502). Safari uses context menus, so its click after a long hold is UIKit's tap
 recognizer's to give, which WebKit sets no duration on.
 
-So a held finger reads a preview (`browser/runtime/preview.js`, the hold) at
+So a held finger reads a preview (`browser/runtime/annotations/preview.js`, the hold) at
 `contextmenu` where the engine sends it, and after 500 ms, UIKit's default for a long
 press, where `GestureEvent` says the engine is WebKit, which exposes it in desktop
 Safari too, where only a touch starts a hold and no touch comes; the touch's end is
@@ -1446,7 +1446,7 @@ is true, spell `anchor-visible` in each declaration and drop the property.
 ### A stroked line's box in Chromium
 
 Leaf stands the ⌥ aim on a drawing's part only where the part's box has area
-(`placement` in `browser/runtime/target-paint-geometry.js`, from `shownBox`).
+(`placement` in `browser/runtime/readings/target-paint-geometry.js`, from `shownBox`).
 Chromium measures an SVG shape's box by its geometry alone, without its stroke, so a
 part drawn as one straight stroked line, such as a bar matplotlib draws with
 `ax.plot(…, lw=6)`, is 0px tall: on 2026-11-17, HeadlessChrome 158.0.8127.18
@@ -1466,7 +1466,7 @@ or not, with `true` or `plaintext-only`. On 2026-11-18, Playwright Firefox 159.0
 (Playwright 1.65.0) kept "abcd" after two Backspaces in such a host, and "ab" in the
 same host inside `body`; HeadlessChrome 158.0.8127.18 gave "ab" in both, and a
 `textarea` after `body` gave "ab" in both engines. A text field's box before
-CodeMirror loads (`composing/text-field.js`, `#rest`) and the served row's field
+CodeMirror loads (`annotations/composing/text-field.js`, `#rest`) and the served row's field
 (`bootstrap.js`, `standRow`) are textareas for this, which edit the same way in
 every engine. CodeMirror deletes from the keyboard by its own commands, but
 `document.execCommand("delete")` on a selection in a loaded panel editor still

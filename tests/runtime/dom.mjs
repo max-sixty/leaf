@@ -156,10 +156,10 @@ const UNTRANSFORMED = { rotate: "none", scale: "none", transform: "none", zoom: 
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
-await import("../../browser/runtime/document-inputs.js");
+await import("../../browser/runtime/base/document-inputs.js");
 await import("../../browser/runtime/prepaint.js");
 // And the runtime sheets every delivery carries (`delivery_sheets` in
-// revision_delivery.py), which `runtime/stylesheets.js` constructs as it evaluates.
+// revision_delivery.py), which `runtime/base/stylesheets.js` constructs as it evaluates.
 // Nothing here is laid out, so their rules are empty.
 const sheets = document.createElement("script");
 sheets.type = "application/json";

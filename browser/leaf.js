@@ -1,22 +1,30 @@
 /* Leaf runtime boot and application composition root. */
-import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
-import "/runtime/framework.js";
+import { registerSampleCommand, onSampleNotice } from "./runtime/host/sample-child.js";
+import "/runtime/records/framework.js";
 import "./runtime/stage-integration.js";
-import { hostDeclaredElements } from "./runtime/element-integration.js";
-import "./runtime/interaction-log.js";
+import { hostDeclaredElements } from "./runtime/host/element-integration.js";
+import "./runtime/transport/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "/vendor/webawesome-chrome.js";
-import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
-import { initializeServedDocument } from "./runtime/document-identity.js";
-import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
-import { landingPlace } from "./runtime/reading-place.js";
-import { arrive, beginArrival, mountHistory } from "./runtime/history.js";
-import { entryView } from "./runtime/views.js";
-import { holdArrivingBounds } from "./runtime/bounds.js";
-import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
-import { prepareDocument, upgradeWidgets } from "./runtime/widget-loader.js";
+import {
+  offlineInteractive,
+  runtime,
+  annotationMode,
+} from "./runtime/state/context.js";
+import { initializeServedDocument } from "./runtime/state/document-identity.js";
+import { chromeRoot, chromeForeground } from "./runtime/base/chrome.js";
+import { landingPlace } from "./runtime/readings/reading-place.js";
+import { arrive, beginArrival, mountHistory } from "./runtime/records/history.js";
+import { entryView } from "./runtime/records/views.js";
+import { holdArrivingBounds } from "./runtime/readings/bounds.js";
+import {
+  chromeSheet,
+  marksSheet,
+  annotationSheets,
+} from "./runtime/base/stylesheets.js";
+import { reportPageError, uploadMedia } from "./runtime/transport/layer-client.js";
+import { prepareDocument, upgradeWidgets } from "./runtime/records/widget-loader.js";
 import {
   markPagePresented,
   markPageUpgraded,
@@ -27,19 +35,19 @@ import {
   afterPresentation,
   deferredArrival,
   PRESENTATION,
-} from "./runtime/presentation.js";
-import { pagePresented } from "./runtime/page-paint.js";
-import { renderingState, observePreparations } from "./runtime/rendering.js";
+} from "./runtime/readings/presentation.js";
+import { pagePresented } from "./runtime/base/page-paint.js";
+import { renderingState, observePreparations } from "./runtime/base/rendering.js";
 import { nextFrame } from "./runtime/lib/frame-pass.js";
 import { observeQueuedWork } from "./runtime/lib/queued-work.js";
-import { mountApplication } from "./runtime/application.js";
-import { beginRead } from "./runtime/state-feed.js";
+import { mountApplication } from "./runtime/host/application.js";
+import { beginRead } from "./runtime/host/state-feed.js";
 import {
   applicationState,
   whenApplicationPresented,
-} from "./runtime/semantic-state.js";
-import { createEngagement } from "./runtime/composing/engagement.js";
-import { createCompositionInputs } from "./runtime/composing/input.js";
+} from "./runtime/state/semantic-state.js";
+import { createEngagement } from "./runtime/annotations/composing/engagement.js";
+import { createCompositionInputs } from "./runtime/annotations/composing/input.js";
 import {
   composerOpen,
   composerQuote,
@@ -47,34 +55,34 @@ import {
   pendingAbout,
   pendingAnchor,
   pendingDrawing,
-} from "./runtime/composing/selection.js";
-import { createResponseSurface } from "./runtime/composing/surface.js";
-import { createPassageSelection } from "./runtime/composing/capture.js";
-import { createDrawingController } from "./runtime/composing/drawing.js";
-import { createRegionCapture } from "./runtime/composing/region-capture.js";
-import { createDrawingInk } from "./runtime/composing/drawing-ink.js";
-import { createAim } from "./runtime/composing/aim.js";
+} from "./runtime/annotations/composing/selection.js";
+import { createResponseSurface } from "./runtime/annotations/composing/surface.js";
+import { createPassageSelection } from "./runtime/annotations/composing/capture.js";
+import { createDrawingController } from "./runtime/annotations/composing/drawing.js";
+import { createRegionCapture } from "./runtime/annotations/composing/region-capture.js";
+import { createDrawingInk } from "./runtime/annotations/composing/drawing-ink.js";
+import { createAim } from "./runtime/annotations/composing/aim.js";
 import {
   createTargetPicker,
   targetPickerHintLayer,
-} from "./runtime/composing/target-picker.js";
-import { createCurrentTarget } from "./runtime/composing/current-target.js";
+} from "./runtime/annotations/composing/target-picker.js";
+import { createCurrentTarget } from "./runtime/annotations/composing/current-target.js";
 import {
   createReactionController,
   reactionTokens,
   sendReaction,
-} from "./runtime/reactions.js";
-import { createAnchorPlacement } from "./runtime/anchor-placement.js";
-import { createAnchorControls } from "./runtime/anchor-controls.js";
-import { createAnchorTravel } from "./runtime/anchor-travel.js";
+} from "./runtime/annotations/reactions.js";
+import { createAnchorPlacement } from "./runtime/annotations/anchor-placement.js";
+import { createAnchorControls } from "./runtime/annotations/anchor-controls.js";
+import { createAnchorTravel } from "./runtime/features/anchor-travel.js";
 import {
   aimTargetAt,
   aimTargets,
   resolveAnchor,
   setAnchoringReady,
-} from "./runtime/anchor-resolution.js";
-import { refuseBareText } from "./runtime/passages.js";
-import { createPageGeometry } from "./runtime/page-geometry.js";
+} from "./runtime/readings/anchor-resolution.js";
+import { refuseBareText } from "./runtime/readings/passages.js";
+import { createPageGeometry } from "./runtime/panel/page-geometry.js";
 import {
   aimLayer,
   clearAim,
@@ -82,12 +90,12 @@ import {
   labelAim,
   paintAim,
   shifted,
-} from "./runtime/target-paint.js";
-import { pointerAt } from "./runtime/pointer.js";
-import { createWritingResume } from "./runtime/drafts.js";
-import { allThreads } from "./runtime/thread/state.js";
-import { anchorLabel } from "./runtime/thread/messages.js";
-import { createThreadAddress } from "./runtime/thread/address.js";
+} from "./runtime/readings/target-paint.js";
+import { pointerAt } from "./runtime/base/pointer.js";
+import { createWritingResume } from "./runtime/records/drafts.js";
+import { allThreads } from "./runtime/records/thread/state.js";
+import { anchorLabel } from "./runtime/records/thread/messages.js";
+import { createThreadAddress } from "./runtime/records/thread/address.js";
 import {
   declareThreadKeys,
   landIn,
@@ -95,77 +103,84 @@ import {
   landSent,
   scrollThreadIntoView,
   currentLocationThread,
-} from "./runtime/thread/landing.js";
-import { createFloatingPanel } from "./runtime/floating-panel.js";
-import { currentLocationThreadId } from "./runtime/thread/focus.js";
-import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createObligationView } from "./runtime/obligations/view.js";
-import { createQueueWalk } from "./runtime/queue-walk.js";
-import { createChangeWalk } from "./runtime/change-walk.js";
+} from "./runtime/records/thread/landing.js";
+import { createFloatingPanel } from "./runtime/panel/floating-panel.js";
+import { currentLocationThreadId } from "./runtime/records/thread/focus.js";
+import { createPageMapDialog } from "./runtime/panel/page-map-dialog.js";
+import { createObligationView } from "./runtime/records/obligations/view.js";
+import { createQueueWalk } from "./runtime/panel/queue-walk.js";
+import { createChangeWalk } from "./runtime/panel/change-walk.js";
 import {
   commandHintLayer,
   createCommandHints,
-} from "./runtime/key-badges/command-hints.js";
-import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
-import { marginBarLayer } from "./runtime/margin-bars.js";
-import { createPageLayout } from "./runtime/page-layout.js";
-import { restoreUserView } from "./runtime/restore-state.js";
+} from "./runtime/readings/key-badges/command-hints.js";
+import {
+  createDesignMode,
+  inspectEl,
+  legendRoot,
+} from "./runtime/annotations/design.js";
+import { marginBarLayer } from "./runtime/features/margin-bars.js";
+import { createPageLayout } from "./runtime/panel/page-layout.js";
+import { restoreUserView } from "./runtime/state/restore-state.js";
 import {
   annotationsHidden,
   ANNOTATIONS_TOGGLE,
   restoreAnnotations,
-} from "./runtime/annotation-layer.js";
-import { restoreThreadsInPanel } from "./runtime/thread/threads-in-panel.js";
-import { createAnchorPaint } from "./runtime/anchor-paint.js";
-import { createVisualMarkPaint } from "./runtime/visual-mark-paint.js";
-import { createVersionController, takeInitialDocument } from "./runtime/version.js";
-import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
-import "./runtime/page-about.js";
+} from "./runtime/annotations/annotation-layer.js";
+import { restoreThreadsInPanel } from "./runtime/records/thread/threads-in-panel.js";
+import { createAnchorPaint } from "./runtime/annotations/anchor-paint.js";
+import { createVisualMarkPaint } from "./runtime/annotations/visual-mark-paint.js";
+import {
+  createVersionController,
+  takeInitialDocument,
+} from "./runtime/features/version.js";
+import { loadIcon, mountPageStatus } from "./runtime/panel/page-status.js";
+import "./runtime/panel/page-about.js";
 // Defined before any widget's module loads, so a template that draws an age needs no
 // import.
 import "./runtime/age.js";
 
-import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
-import { mountPreviews } from "./runtime/preview.js";
+import { nativeLayers } from "./runtime/dom/keyboard/layer-stack.js";
+import { mountPreviews } from "./runtime/annotations/preview.js";
 
-import { leavesOffered } from "./runtime/live-leaves.js";
-import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
+import { leavesOffered } from "./runtime/host/live-leaves.js";
+import { acceptData, notifyDataSubscribers } from "./runtime/host/data.js";
 import {
   createGoToSequence,
   goToHintLayer,
-} from "./runtime/page-keys/go-to-sequence.js";
-import { coverBoxes } from "./runtime/geometry.js";
+} from "./runtime/panel/page-keys/go-to-sequence.js";
+import { coverBoxes } from "./runtime/dom/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
-import { declareCurrentLocation } from "./runtime/page-keys/page.js";
-import { letHeldKeysGo, mountKeyboard } from "./runtime/page-keys/controller.js";
-import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
-import { paintTouchControls } from "./runtime/page-keys/touch-controls.js";
-import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
+import { declareCurrentLocation } from "./runtime/panel/page-keys/page.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/panel/page-keys/controller.js";
+import { paintCoreControls } from "./runtime/dom/keyboard/control-keys.js";
+import { paintTouchControls } from "./runtime/panel/page-keys/touch-controls.js";
+import { paintCloseRequests } from "./runtime/dom/keyboard/close-requests.js";
 import {
   commandReferenceDialog,
   mountCommandReference,
-} from "./runtime/page-keys/command-reference.js";
-import { paintStatusContext } from "./runtime/page-keys/status-context.js";
+} from "./runtime/panel/page-keys/command-reference.js";
+import { paintStatusContext } from "./runtime/panel/page-keys/status-context.js";
 import {
   paintKeys,
   reflectFirstScopes,
   reflectKeys,
-} from "./runtime/keyboard/scopes.js";
-import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { openDocumentLayout } from "./runtime/content-layout.js";
-import { createNavigation, placeThreadEdge } from "./runtime/navigation.js";
+} from "./runtime/dom/keyboard/scopes.js";
+import { mountRepaint, repaint, repaintPage } from "./runtime/dom/repaint.js";
+import { openDocumentLayout } from "./runtime/readings/content-layout.js";
+import { createNavigation, placeThreadEdge } from "./runtime/panel/navigation.js";
 import {
   declareReading,
   focusDestination,
   releaseFocus,
   focused,
-} from "./runtime/focus.js";
-import { announce, liveEl, notice } from "./runtime/notifications.js";
-import { mediaViewer } from "./runtime/media.js";
-import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
-import { installMoveSelection } from "./runtime/dom-move.js";
-import { holdSelection } from "./runtime/native-selection.js";
+} from "./runtime/dom/focus.js";
+import { announce, liveEl, notice } from "./runtime/transport/notifications.js";
+import { mediaViewer } from "./runtime/records/media.js";
+import { retainUserIntent, restrictUserIntent } from "./runtime/dom/user-intent.js";
+import { installMoveSelection } from "./runtime/dom/dom-move.js";
+import { holdSelection } from "./runtime/dom/native-selection.js";
 
 // Leaf's selection writer keeps a page selection across `setChildLists`'s moves
 // (dom-move.js), installed before the boot draws anything. It stands here rather than
@@ -216,7 +231,7 @@ async function boot() {
   // module graph through the ordinary document replacement and draft carry owners.
   const overlaySelected = annotationMode === "overlay";
   const annotationRenderer = overlaySelected
-    ? await import("./runtime/annotation-overlay/index.js")
+    ? await import("./runtime/annotations/annotation-overlay/index.js")
     : null;
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
@@ -869,9 +884,9 @@ async function boot() {
     ? version.installArrival(restoration)
     : { landArrival: async () => {}, savedView: null, restored: false };
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
-  // The entry's `?thread=` (thread/address.js).
+  // The entry's `?thread=` (records/thread/address.js).
   // The thread view standing open: the panel's, else a margin card's.
-  /** @returns {import("./runtime/thread/address.js").OpenThread | null} */
+  /** @returns {import("./runtime/records/thread/address.js").OpenThread | null} */
   function openThreadView() {
     const panel = floatingPanel?.shownThread() ?? null;
     if (panel) return { id: panel, reader: "primary" };
@@ -914,7 +929,7 @@ async function boot() {
     if (!offlineInteractive)
       nextFrame(() =>
         setTimeout(() => {
-          void import("./runtime/user-view.js")
+          void import("./runtime/panel/user-view.js")
             .then(({ observeUserView }) => observeUserView())
             .catch(() => {});
         }, 0),

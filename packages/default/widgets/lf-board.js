@@ -514,7 +514,7 @@ customElements.define(
       // Grabbed, the card is moving, so the grip says nothing over it until it drops.
       grip.lfPreview = () =>
         !held() && { keys: grab.keys.map((binding) => [binding]), detail: [drag] };
-      /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
+      /** @type {import("/runtime/dom/keyboard/bindings.js").Command[]} */
       const rows = [
         grab,
         {
@@ -629,7 +629,7 @@ customElements.define(
       card.append(group);
     }
 
-    /** @param {BoardCard} card @param {HTMLElement} grip @param {readonly import("/runtime/keyboard/bindings.js").Command[]} rows */
+    /** @param {BoardCard} card @param {HTMLElement} grip @param {readonly import("/runtime/dom/keyboard/bindings.js").Command[]} rows */
     #grab(card, grip, rows) {
       if (!this.#movable(card)) return;
       const from = card.parentElement;

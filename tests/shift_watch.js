@@ -2577,7 +2577,7 @@
     });
   }
   // A command that takes the user somewhere declares it on its register row
-  // (`travels`, keyboard/bindings.js), which the dispatcher announces as it runs it.
+  // (`travels`, dom/keyboard/bindings.js), which the dispatcher announces as it runs it.
   listen(document, "lf-command-invoked", ({ detail }) => {
     if (detail?.travels && open) open.aim = null;
   });
@@ -2692,7 +2692,7 @@
   // Widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
   // page before it is presented runs until the second frame after the runtime stamps
-  // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the
+  // `data-lf-presented` on a page that has one (runtime/readings/presentation.js). Fixing the
   // defect deletes this.
   let presented = null;
   new MutationObserver(() => {
@@ -4853,7 +4853,7 @@
       // over the frame's own viewport while it waits, since the root's box can scroll
       // out of that viewport, as a live page's does. Its first entry reports the
       // present state. The runtime instead asks the page holding the frame
-      // (runtime/frame-visibility.js), which no page's own styles can mislead; the
+      // (runtime/base/frame-visibility.js), which no page's own styles can mislead; the
       // watch runs in every frame, Leaf's or not, before that runtime, and has no
       // holder to ask. A page whose styles transform `html` carries this box off
       // screen with its root, so the watch judges it as hidden.

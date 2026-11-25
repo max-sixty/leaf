@@ -180,7 +180,7 @@ def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
     expect(closed).to_be_visible()
     page.keyboard.press("s")
     expect(hints).not_to_have_count(0)
-    # A target's hint stands by its upper-left corner (key-badges/hints.js, `seatHints`).
+    # A target's hint stands by its upper-left corner (readings/key-badges/hints.js, `seatHints`).
     assert page.evaluate(
         """() => {
           const words = document.getElementById('closed-words').getBoundingClientRect();
@@ -501,7 +501,7 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     expect(page.locator(".lf-live")).to_contain_text("figure: Visual 0")
 
     # A typed letter hides the chips it rules out and moves none
-    # (key-badges/hints.js), so the narrowed map is the chips still shown.
+    # (readings/key-badges/hints.js), so the narrowed map is the chips still shown.
     shown = page.locator(".lf-target-picker-hint:visible")
     held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     last = codes[-1]
@@ -661,7 +661,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     expect(hints).to_have_count(32)
 
     # A typed letter hides the chips it rules out and moves none
-    # (key-badges/hints.js), so the narrowed map is the chips still shown.
+    # (readings/key-badges/hints.js), so the narrowed map is the chips still shown.
     shown = page.locator(".lf-target-picker-hint:visible")
     held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     tail = next(code for code in held if len(code) > 1)

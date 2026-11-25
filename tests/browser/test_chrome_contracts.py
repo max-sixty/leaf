@@ -214,7 +214,7 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     browser, serve
 ):
     """The root drops its scroll padding while the user writes in a box standing in a
-    plane (annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
+    plane (annotations/annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
     writes so that entering and leaving the box restyle only the chrome; its comment
     says what a plain zero cost. Counted in the browser's own restyled elements,
     against a restyle of the whole page."""
@@ -632,7 +632,7 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     band the root's scroll padding keeps the page's own content clear of. Chromium and
     WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
     that padding, so the padding goes while the user writes in such a box
-    (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
+    (annotations/annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
     leaves the words beneath the box where they stood. The page widens its landing
     room, which deepens that band, so the box's field stands inside it whatever room
     the box keeps under its field."""
@@ -1185,7 +1185,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         names.append("annotation-chrome")
     for name in names:
         directory = (
-            "runtime/annotation-overlay"
+            "runtime/annotations/annotation-overlay"
             if name.startswith("annotation-")
             else "runtime"
         )

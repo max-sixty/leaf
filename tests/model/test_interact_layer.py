@@ -1810,7 +1810,8 @@ def test_layout_style_and_widgets_never_read_each_other():
             and not (
                 home == layouts
                 and source
-                == schema_model.ASSETS / "runtime/annotation-overlay/margin-layout.js"
+                == schema_model.ASSETS
+                / "runtime/annotations/annotation-overlay/margin-layout.js"
             )
         ]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
@@ -2864,7 +2865,7 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
 
 def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names."""
-    page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
+    page_paint = schema_model.ASSETS / "runtime" / "base" / "page-paint.js"
     read = json.loads(js_facts("literals", [page_paint]))
     assets = schema_model.ASSETS
     sheet = (assets / "base.css").read_text() + (
@@ -3321,7 +3322,7 @@ def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
         ("defaults.css", ".note { broken; }\n", "defaults.css syntax error"),
         (
             "widgets/helper.js",
-            'export { x } from "/runtime/semantic-state.js";\n',
+            'export { x } from "/runtime/state/semantic-state.js";\n',
             "imports private kernel module",
         ),
         (
@@ -5315,7 +5316,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
     a button takes a button's Enter and Space as their default action
     (role-button-press.js), on any page; the register names that press as native
-    activation (keyboard/text-entry.js), as it does a <button>'s, so no surface promises
+    activation (dom/keyboard/text-entry.js), as it does a <button>'s, so no surface promises
     a key it misses. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the

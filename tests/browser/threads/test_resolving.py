@@ -500,7 +500,7 @@ def seat_surface(browser, serve, gesture):
 def reader_surface(browser, serve, gesture):
     """A package's primary reader, which draws the thread as a seat does. Its workspace
     holds other open threads, so a Resolve there offers the next one, not its Undo, in
-    the notice (thread/folding.js, `nextStep`)."""
+    the notice (records/thread/folding.js, `nextStep`)."""
     url = package_workspace(serve, before_reader=FILLER)
     if gesture == "reopen":
         append_carried_log_record(

@@ -8,9 +8,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { createReactionController } = await import("/runtime/reactions.js");
-const { focusDestination, focused } = await import("/runtime/focus.js");
-const { applicationState } = await import("/runtime/semantic-state.js");
+const { createReactionController } = await import("/runtime/annotations/reactions.js");
+const { focusDestination, focused } = await import("/runtime/dom/focus.js");
+const { applicationState } = await import("/runtime/state/semantic-state.js");
 
 test("closing the choices hands the user to a trigger the close itself shows", () => {
   applicationState.setPhase("ready");

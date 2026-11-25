@@ -20,7 +20,7 @@ answering a document's later imports with the bytes its first ones came from.
 `identity` is a digest of every runtime input, so a restart of the same build keeps
 it and any runtime change moves it. A served document and every answer name it, so a
 tab from before a restart under another runtime refuses the answer and reloads rather
-than reading a newer server's state with older code (`runtime/layer-client.js`).
+than reading a newer server's state with older code (`runtime/transport/layer-client.js`).
 
 An execution's identity (`executing`) covers every byte a page server answers under
 the address it gives the execution's resources (`http.assets_path`): the runtime, the

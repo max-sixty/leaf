@@ -1231,7 +1231,7 @@ def _stale_keys(page):
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
-    # `paintKeys` reads every element's keys again (keyboard/scopes.js). Saying an
+    # `paintKeys` reads every element's keys again (dom/keyboard/scopes.js). Saying an
     # element's commands changed reads only that element's, and `body` declares none.
     page.evaluate("async () => (await window.__lfCheckApi()).paintKeys()")
     rendered(page)
@@ -1245,7 +1245,7 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
     rows, and a reflection is a tracked effect: it reads again when a signal it read
     moves. So a module's own state that a row's `when` reads must be a signal
-    (`keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
+    (`dom/keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
     reader announces keys that no longer apply, until something else repaints them.
 
     The sweep presses or fills a random visible control, in an order seeded by the

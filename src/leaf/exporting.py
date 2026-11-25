@@ -49,7 +49,7 @@ the reported output byte count includes the base64 expansion.
 Data is embedded beside media, not in the reading the composed document carries:
 the sources' values are one gzipped JSON object, embedded as one file, so they cost
 startup one object URL. The runtime decodes them when it reads the page's
-state, as a served page's first state answer brings them (`runtime/context.js`). A
+state, as a served page's first state answer brings them (`runtime/state/context.js`). A
 value inside the composed document would cross the package's JSON, the HTML parser
 and the reading's JSON before any widget read it, escaped again at each JSON layer.
 """
@@ -114,7 +114,7 @@ def _data_url(resource: Resource) -> str:
 
 def _data_body(values: dict) -> bytes:
     """The one embedded file holding every source's value (the module header), which
-    the runtime reads (`offlineState` in `runtime/context.js`): a JSON object keyed by
+    the runtime reads (`offlineState` in `runtime/state/context.js`): a JSON object keyed by
     source, gzipped. Nothing compresses a file opened from disk or sent as an
     attachment, and gzip puts prose and code in the file at about 40% of their size,
     base64 included, where uncompressed base64 takes 133%. Level 6 packs within 1% of
@@ -270,7 +270,7 @@ def _module_urls(
 
     The computed imports an exported page makes are widget modules, asked for only
     where the widget's tag stands in markup about to be upgraded (`importWidgets` in
-    `runtime/widget-loader.js`). Offline that markup is the captured page, since the
+    `runtime/records/widget-loader.js`). Offline that markup is the captured page, since the
     embedded reading never activates another revision and holds no message. Every
     other import is literal, so the runtime entry, the page's own modules, and the
     modules of the widgets its markup names close the graph: a page that draws no diff
@@ -468,7 +468,7 @@ def export_document(
         }
     )
     readable = ReadableAssets(inliner.resource)
-    bootstrap = artifact.resources["/runtime/offline-delivery.js"].data.decode()
+    bootstrap = artifact.resources["/runtime/base/offline-delivery.js"].data.decode()
     fallback = compose_document(
         artifact.html.decode("utf-8"),
         revision,

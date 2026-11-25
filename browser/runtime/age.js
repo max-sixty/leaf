@@ -49,8 +49,8 @@
      an inline block takes no underline or strike from a link or an `<s>` round it,
      parts from an opening bracket before it, lets a comma after it start the next
      line, and is undone by a page that restyles the element. */
-import { effect, signal } from "/runtime/framework.js";
-import { agePreview, ago } from "./presence.js";
+import { effect, signal } from "/runtime/records/framework.js";
+import { agePreview, ago } from "./state/presence.js";
 
 const unbroken = new CSSStyleSheet();
 unbroken.replaceSync(":host { white-space: nowrap; }");

@@ -664,7 +664,7 @@ async function passiveEvent(
   return parsed.success ? parsed.data : null;
 }
 
-// The runtime sends no read until its session is active (`thread/read.js`), so this
+// The runtime sends no read until its session is active (`records/thread/read.js`), so this
 // answers one that arrives anyway, as from a tab whose runtime predates that rule. It
 // is refused as final, which the runtime takes as "don't send it again this visit", and
 // under a 200, since a browser logs a failed fetch as a console error.

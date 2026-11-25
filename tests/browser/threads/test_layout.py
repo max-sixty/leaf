@@ -926,7 +926,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     its unclassed twin.
 
     The chrome sheet reaches the page only through the classes its owner declares
-    shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
+    shared (`chromeSharedClasses`, runtime/base/stylesheets.js): a rule written outside the
     block that names any other class is a private rule leaking out, not a widening. The
     guard against page rules (styles/chrome-guard.css) stands outside the block and names
     only `lf-chrome`, the chrome's own root, which no authored element may wear since

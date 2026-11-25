@@ -1,6 +1,6 @@
 """A framed Leaf document reads as visible while its frame shows on screen
-(runtime/frame-visibility.js), whatever its own styles do, and places focus only once
-the user enters it (runtime/focus.js, `canPlaceFocus`)."""
+(runtime/base/frame-visibility.js), whatever its own styles do, and places focus only once
+the user enters it (runtime/dom/focus.js, `canPlaceFocus`)."""
 
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page

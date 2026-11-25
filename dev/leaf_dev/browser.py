@@ -327,7 +327,7 @@ def screenshot(page) -> bytes:
       (build 2370) fades it in and out, and its Firefox (build 1555) draws none.
       Both declarations are inherited, so they reach the caret inside Leaf's text
       field, whose closed shadow root takes the caret's colour from its host
-      (`runtime/composing/text-field.js`).
+      (`runtime/annotations/composing/text-field.js`).
     - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
       box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
       passes over it and leaves, as a reader sees it while scrolling; Playwright's
@@ -387,7 +387,7 @@ def settle(page: Page) -> None:
     Readiness is read once the page has heard what could start more work: the input
     before this, and then the motion `pageSettled` waits out. A scroll that brings a
     live sample near starts it in the next rendering update, as the sample's observer
-    reports, so each read waits for that update first (runtime/rendering.js)."""
+    reports, so each read waits for that update first (runtime/base/rendering.js)."""
     one_frame(page)
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
@@ -532,7 +532,7 @@ def scroll_settled(page, scroller=None, axis="y"):
 # (`.lf-fp-exit.lf-fp-close`) ends a list's tabs or another view's head line instead.
 LEAF = ".lf-fp-leaf"
 
-# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the
+# The floating panel (runtime/panel/floating-panel.js) is Leaf's one chrome: a row of the
 # field and the leaf, with a view opened above it, the leaf's menu among them. Its state
 # stands on its host as attributes: `data-lf-open` names the open view (menu, versions,
 # group, errors, threads, thread, queue, leaves) and `data-lf-rest="mark"` the panel
@@ -541,7 +541,7 @@ PANEL = ".lf-floating-panel"
 
 # The words in the panel's one seat for what passes, such as a notice or a walk's
 # position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
-# open view, else an error standing over the field's words (composing/input.js), else
+# open view, else an error standing over the field's words (annotations/composing/input.js), else
 # the empty field's placeholder.
 PANEL_SAYS = """() => {
   const peek = document.querySelector('.lf-fp-peek');
@@ -702,7 +702,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
-    # Completing `g T` again closes the view (page-keys/go-to-sequence.js).
+    # Completing `g T` again closes the view (panel/page-keys/go-to-sequence.js).
     if within.locator(PANEL).get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own

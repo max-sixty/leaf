@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "A batch of browser interaction observations as both doors admit it: the local server's `/api/interaction` (`interaction_log.admit_batch`) and leaf.page's Worker, whose zod schema (`interactionBatch` in `worker/src/interactions.ts`) `worker/test/interactions.test.ts` holds to this one. A batch that fails is refused whole. An entry's other fields stay open: the local server keeps them as the browser sent them (`runtime/interaction-log.js`), and the Worker keeps only the structural fields its projection declares.",
+  "description": "A batch of browser interaction observations as both doors admit it: the local server's `/api/interaction` (`interaction_log.admit_batch`) and leaf.page's Worker, whose zod schema (`interactionBatch` in `worker/src/interactions.ts`) `worker/test/interactions.test.ts` holds to this one. A batch that fails is refused whole. An entry's other fields stay open: the local server keeps them as the browser sent them (`runtime/transport/interaction-log.js`), and the Worker keeps only the structural fields its projection declares.",
   "type": "object",
   "properties": {
     "session": {
-      "description": "The tab's diagnostic session, the runtime's one random identifier (`runtime/ids.js`).",
+      "description": "The tab's diagnostic session, the runtime's one random identifier (`runtime/base/ids.js`).",
       "type": "string",
       "pattern": "^[0-9a-f]{32}$"
     },

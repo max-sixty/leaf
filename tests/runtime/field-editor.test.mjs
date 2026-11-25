@@ -12,7 +12,7 @@ import {
   placedMarkdownTokens,
   renderMarkdown,
 } from "/runtime/lib/markdown.js";
-import { loadFieldEditor } from "/runtime/composing/field-editor.js";
+import { loadFieldEditor } from "/runtime/annotations/composing/field-editor.js";
 import { keymap } from "/vendor/codemirror.esm.js";
 
 import { random } from "./seeded.mjs";

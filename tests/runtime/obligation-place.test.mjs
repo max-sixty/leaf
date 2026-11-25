@@ -5,10 +5,10 @@ import {
   obligationPlace,
   readObligations,
   subjectPlace,
-} from "/runtime/obligations/place.js";
-import { obligationAt, obligationHolding } from "/runtime/current-target.js";
-import { pageReadingVersion } from "/runtime/passages.js";
-import { applicationState } from "/runtime/semantic-state.js";
+} from "/runtime/records/obligations/place.js";
+import { obligationAt, obligationHolding } from "/runtime/records/current-target.js";
+import { pageReadingVersion } from "/runtime/readings/passages.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
 import { servedState } from "../served.mjs";
 
 test("shared context keeps placement and containment specific to each obligation", () => {

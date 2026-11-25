@@ -14,7 +14,7 @@ import {
   leafRow,
   pageStatus,
   statusModel,
-} from "/runtime/activity-words.js";
+} from "/runtime/state/activity-words.js";
 import { servedActivity, servedReading } from "../served.mjs";
 
 // The fields of each reading the status tells apart (`activity.py`): the agent at

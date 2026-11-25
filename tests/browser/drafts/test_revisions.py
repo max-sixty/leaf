@@ -195,7 +195,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     write(reply, "A thought I changed my mind about.")
     write(reply, "")
     # A thread's reply draft is keyed by the name the log's answer does not change —
-    # the attempt the user's own comment opened it with (thread/model.js).
+    # the attempt the user's own comment opened it with (records/thread/model.js).
     assert stored_draft_text(page, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
@@ -487,7 +487,7 @@ def test_executable_revision_whose_reply_another_tab_cleared_returns_to_the_entr
     written = stored_draft(page, reply)
     assert written and written["text"] == "Words another tab clears."
     # The reload's document waits until the words are cleared, so it is served the
-    # drafts as they stand then (runtime/drafts.js, `lf-drafts`).
+    # drafts as they stand then (runtime/records/drafts.js, `lf-drafts`).
     held = []
 
     def hold_reload(route):

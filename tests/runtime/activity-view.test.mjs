@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
-import { tabStore } from "/runtime/tab-store.js";
+import { tabStore } from "/runtime/state/tab-store.js";
 import {
   ACTIVITY_VIEW,
   createActivity,

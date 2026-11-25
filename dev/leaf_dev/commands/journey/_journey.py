@@ -148,7 +148,7 @@ from leaf_dev.website import (
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
 # How long the page gets to draw a reply the container has admitted; the runtime's own
-# quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
+# quiet-stream bound (`SILENCE_MS` in `runtime/host/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
 # How long a reply first shown by its notice gets for its own message to come into
 # view, which in an open thread is the next frame or two.

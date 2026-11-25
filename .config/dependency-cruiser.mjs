@@ -12,17 +12,17 @@
 // owner from reaching it. Site-absolute `/vendor/` and `/checks/` specifiers, which the
 // browser resolves and Node does not, are excluded by name; every other unresolvable
 // specifier is a missing module and an error. So is the framework's facade by its
-// served path, `/runtime/framework.js`: like Lit beneath it, the framework is a
+// served path, `/runtime/records/framework.js`: like Lit beneath it, the framework is a
 // dependency every owner may hold, not one of the owners whose routes these rules
-// read. Its own modules, under `framework/`, are checked as any owner is. JSON, such as
-// the kernel registry `kernel-facts.js` imports, is excluded too: data holds no route
+// read. Its own modules, under `records/framework/`, are checked as any owner is. JSON, such as
+// the kernel registry `state/kernel-facts.js` imports, is excluded too: data holds no route
 // between owners.
 
 import fs from "node:fs";
 
 const assets = "browser/";
 const runtime = `${assets}runtime/`;
-const overlay = `${runtime}annotation-overlay/`;
+const overlay = `${runtime}annotations/annotation-overlay/`;
 const owners = `^${runtime}`;
 
 const escaped = (name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -37,79 +37,83 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // (`eslint.config.mjs`), so a root may reach one without naming it here.
 const library = `^${runtime}lib/`;
 const exactClosures = {
-  "ui-marks.js": [],
-  "control-selectors.js": ["inputs.js", "document-inputs.js"],
-  "contribution-model.js": [],
-  "margin-model.js": ["contribution-model.js", "thread/workflow.js", "voice.js"],
-  "margin-map-model.js": [
-    "margin-model.js",
-    "contribution-model.js",
-    "thread/workflow.js",
-    "voice.js",
+  "base/ui-marks.js": [],
+  "dom/control-selectors.js": ["base/inputs.js", "base/document-inputs.js"],
+  "base/contribution-model.js": [],
+  "features/margin-model.js": [
+    "base/contribution-model.js",
+    "records/thread/workflow.js",
+    "base/voice.js",
   ],
-  "projection/model.js": ["kernel-facts.js", "kept.js"],
-  "projection/state.js": ["semantic-state.js", "version-signal.js"],
-  "thread/model.js": [
-    "anchor-coordinate.js",
-    "kept.js",
-    "thread/identity.js",
-    "thread/workflow.js",
-    "voice.js",
+  "features/margin-map-model.js": [
+    "features/margin-model.js",
+    "base/contribution-model.js",
+    "records/thread/workflow.js",
+    "base/voice.js",
   ],
-  "thread/state.js": [
-    "semantic-state.js",
-    "version-signal.js",
-    "thread/model.js",
-    "anchor-coordinate.js",
-    "kept.js",
-    "thread/identity.js",
-    "thread/workflow.js",
-    "voice.js",
+  "records/projection/model.js": ["state/kernel-facts.js", "state/kept.js"],
+  "records/projection/state.js": ["state/semantic-state.js", "state/version-signal.js"],
+  "records/thread/model.js": [
+    "base/anchor-coordinate.js",
+    "state/kept.js",
+    "records/thread/identity.js",
+    "records/thread/workflow.js",
+    "base/voice.js",
   ],
-  "thread/workflow.js": ["voice.js"],
-  "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
-  "pending/state.js": ["semantic-state.js", "version-signal.js"],
-  "keyboard/dispatch.js": [
-    "context.js",
-    "semantic-state.js",
-    "version-signal.js",
-    "focus.js",
-    "dom-move.js",
-    "control-selectors.js",
-    "inputs.js",
-    "document-inputs.js",
-    "ui-marks.js",
-    "language-paths.js",
-    "scroll-containers.js",
-    "keyboard/bindings.js",
-    "keyboard/layer-stack.js",
-    "keyboard/register.js",
-    "keyboard/scopes.js",
-    "keyboard/text-entry.js",
-    "pointer.js",
-    "user-intent.js",
-    "registry.js",
-    "registry-contract.js",
-    "kernel-facts.js",
-    "rendering.js",
-    "frame-visibility.js",
-    "repaint.js",
-    "shadow.js",
-    "arrivals.js",
-    "page-paint.js",
-    "kept.js",
+  "records/thread/state.js": [
+    "state/semantic-state.js",
+    "state/version-signal.js",
+    "records/thread/model.js",
+    "base/anchor-coordinate.js",
+    "state/kept.js",
+    "records/thread/identity.js",
+    "records/thread/workflow.js",
+    "base/voice.js",
+  ],
+  "records/thread/workflow.js": ["base/voice.js"],
+  "records/pending/model.js": ["records/thread/identity.js", "state/kernel-facts.js"],
+  "records/pending/state.js": ["state/semantic-state.js", "state/version-signal.js"],
+  "dom/keyboard/dispatch.js": [
+    "state/context.js",
+    "state/semantic-state.js",
+    "state/version-signal.js",
+    "dom/focus.js",
+    "dom/dom-move.js",
+    "dom/control-selectors.js",
+    "base/inputs.js",
+    "base/document-inputs.js",
+    "base/ui-marks.js",
+    "base/language-paths.js",
+    "readings/scroll-containers.js",
+    "dom/keyboard/bindings.js",
+    "dom/keyboard/layer-stack.js",
+    "dom/keyboard/register.js",
+    "dom/keyboard/scopes.js",
+    "dom/keyboard/text-entry.js",
+    "base/pointer.js",
+    "dom/user-intent.js",
+    "state/registry.js",
+    "state/registry-contract.js",
+    "state/kernel-facts.js",
+    "base/rendering.js",
+    "base/frame-visibility.js",
+    "dom/repaint.js",
+    "dom/shadow.js",
+    "dom/arrivals.js",
+    "base/page-paint.js",
+    "state/kept.js",
   ],
 };
 
 const applicationOwners = [
-  "application.js",
-  "delivery.js",
-  "page-keys/go-to-sequence.js",
-  "page-keys/controller.js",
-  "pending/state.js",
-  "undo.js",
-  "state-application.js",
-  "state-feed.js",
+  "host/application.js",
+  "host/delivery.js",
+  "panel/page-keys/go-to-sequence.js",
+  "panel/page-keys/controller.js",
+  "records/pending/state.js",
+  "annotations/undo.js",
+  "host/state-application.js",
+  "host/state-feed.js",
 ];
 
 // The renderers. Each receives the semantic commands it uses; one that reaches an
@@ -118,31 +122,31 @@ const applicationOwners = [
 // them and must stay above them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "thread/folding.js",
-    "thread/inline.js",
-    "thread/landing.js",
-    "thread/messages.js",
-    "thread/placement.js",
-    "thread/presentation.js",
-    "thread/reaction-strips.js",
-    "thread/replies.js",
-    "thread/surfaces.js",
-    "thread/thread-card.js",
-    "projection/data.js",
-    "projection/presentation.js",
+    "records/thread/folding.js",
+    "records/thread/inline.js",
+    "records/thread/landing.js",
+    "records/thread/messages.js",
+    "records/thread/placement.js",
+    "records/thread/presentation.js",
+    "records/thread/reaction-strips.js",
+    "records/thread/replies.js",
+    "records/thread/surfaces.js",
+    "records/thread/thread-card.js",
+    "records/projection/data.js",
+    "records/projection/presentation.js",
   ].map((root) => [root, applicationOwners]),
   ...[
-    "addressable-names.js",
-    "anchor-resolution.js",
-    "anchor-controls.js",
-    "anchor-paint.js",
-    "anchor-travel.js",
-    "page-layout.js",
-    "annotation-overlay/composing/drawing-paint.js",
-    "annotation-overlay/margin-layout.js",
-    "page-geometry.js",
-    "target-paint.js",
-  ].map((root) => [root, [...applicationOwners, "thread/presentation.js"]]),
+    "readings/addressable-names.js",
+    "readings/anchor-resolution.js",
+    "annotations/anchor-controls.js",
+    "annotations/anchor-paint.js",
+    "features/anchor-travel.js",
+    "panel/page-layout.js",
+    "annotations/annotation-overlay/composing/drawing-paint.js",
+    "annotations/annotation-overlay/margin-layout.js",
+    "panel/page-geometry.js",
+    "readings/target-paint.js",
+  ].map((root) => [root, [...applicationOwners, "records/thread/presentation.js"]]),
 ]);
 
 // A rule naming a module that no longer exists matches nothing and passes, so the
@@ -167,18 +171,18 @@ export default {
       severity: "error",
       from: {
         path: owners,
-        pathNot: isOneOf(["widget-api.js", "widget-controller.js"]),
+        pathNot: isOneOf(["widget-api.js", "host/widget-controller.js"]),
       },
-      to: { path: isModule("application.js") },
+      to: { path: isModule("host/application.js") },
     },
     {
       name: "page-keyboard-from-boot-only",
       comment:
-        "page-keys/page.js declares the page's own keys as it evaluates and exports " +
+        "panel/page-keys/page.js declares the page's own keys as it evaluates and exports " +
         "nothing; only leaf.js imports it, for that effect.",
       severity: "error",
-      from: { path: owners, pathNot: isModule("page-keys/page.js") },
-      to: { path: isModule("page-keys/page.js") },
+      from: { path: owners, pathNot: isModule("panel/page-keys/page.js") },
+      to: { path: isModule("panel/page-keys/page.js") },
     },
     {
       name: "core-independent-of-overlay",
@@ -219,7 +223,7 @@ export default {
         `^${assets}(?!runtime/)`,
         "^/vendor/",
         "^/checks/",
-        "^/runtime/framework\\.js$",
+        "^/runtime/records/framework\\.js$",
         "\\.json$",
       ],
     },

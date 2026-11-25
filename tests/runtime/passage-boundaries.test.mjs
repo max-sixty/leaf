@@ -15,14 +15,14 @@ import "/runtime/stage-integration.js";
    and the last cases hold it to where a climb would have answered: at a shadow root, at
    a slot, and on the way back from a position in the reading to its node. */
 
-import { programmaticSelection, selectEnds } from "/runtime/native-selection.js";
+import { programmaticSelection, selectEnds } from "/runtime/dom/native-selection.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import v8 from "node:v8";
 import vm from "node:vm";
 
-import { registry } from "/runtime/registry.js";
-import { kept } from "/runtime/kept.js";
+import { registry } from "/runtime/state/registry.js";
+import { kept } from "/runtime/state/kept.js";
 import {
   blockAt,
   contextAround,
@@ -45,11 +45,11 @@ import {
   says,
   segmentsIn,
   trackQuotes,
-} from "/runtime/passages.js";
-import { declaredRoot } from "/runtime/shadow.js";
+} from "/runtime/readings/passages.js";
+import { declaredRoot } from "/runtime/dom/shadow.js";
 import { closestAcross, upFrom } from "/runtime/lib/shadow-tree.js";
-import { inChrome } from "/runtime/ui-marks.js";
-import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
+import { inChrome } from "/runtime/base/ui-marks.js";
+import { adoptShadowStage, shadowStage } from "/runtime/dom/shadow-stage.js";
 
 // The elements the page reading treats as blocks, each once, in reading order.
 const blocksRead = () => [

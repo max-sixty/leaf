@@ -1,5 +1,5 @@
 """How Leaf writes a JSON value into text a model reads: a fenced `json` block,
-indented one space.
+indented one space, or a word of a sentence (`json_value`).
 
 Every value Leaf puts in a model's context as data, such as a delivery a hook hands a
 turn, the thread a fork reads or the schema a model is told to answer in, goes through
@@ -23,12 +23,11 @@ start the text with a stray blank line, and the prompt that holds a block would
 get a blank line its own text doesn't show.
 
 A value inside a sentence, such as a tool call's argument a fork's prompt names or a
-value a finding quotes, stays inline as a word of that sentence (`json.dumps`,
-`registry.schema.json_value`). A tool result that holds the value alone, such as
-Codex's `leaf_delivery` tool output, has no instructions around it to set it apart
-from. What a program reads stays as that program takes it: a command's output
-(`leaf delivery read`, `--json`), which scripts and `jq` read, and records and wire
-messages.
+value a finding quotes, stays inline as a word of that sentence (`json_value`). A
+tool result that holds the value alone, such as Codex's `leaf_delivery` tool output,
+has no instructions around it to set it apart from. What a program reads stays as
+that program takes it: a command's output (`leaf delivery read`, `--json`), which
+scripts and `jq` read, and records and wire messages.
 
 `read_json_block` reads a block back, for code that reads the text Leaf wrote, such as
 `hook_transport.inline_delivery`.
@@ -39,6 +38,11 @@ from typing import Any
 
 _OPENING = "```json\n"
 _CLOSING = "\n```"
+
+
+def json_value(value: object) -> str:
+    """`value` inline, as a word of the sentence that quotes it."""
+    return json.dumps(value, ensure_ascii=False)
 
 
 def json_block(value: object) -> str:

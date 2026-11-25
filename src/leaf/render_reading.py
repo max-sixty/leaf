@@ -8,11 +8,14 @@ The list holds only while the page shows the version and holds the data the read
 read. A data update changes no version but can change what a visual draws, as clearing
 a trace's recording removes its rows, so after one `page state` lists no parts until a
 check reads the page again. A check of an older version that finishes after a newer
-one's replaces its reading, and the page then lists no parts either. Neither lists a
-part the page no longer draws, and the agent's next `page check --render` restores the
-list (`threads.md`), so a reading is written without a guard against a later save: the
-page's file stamps, the only cheap sign of one, also move when the user pastes an image
-into a comment they haven't sent.
+one's replaces its reading, and the page then lists no parts either. The agent's next
+`page check --render` restores the list (`threads.md`), so a reading is written without
+a guard against a later save: the page's file stamps, the only cheap sign of one, also
+move when the user pastes an image into a comment they haven't sent. A Leaf update that
+changes a widget's part ids while the version stands leaves the old ids listed until
+that check, since keying the list by the execution identity too
+(`runtime_selection.execution_identity`) would compose the page's layer for every
+`page state`; `thread create` refuses an id whose prefix the widget no longer declares.
 
 The list is for finding a part, and decides nothing: a visual lists the parts it draws
 now, so a part it finds only when asked for it, or draws only while a view of it is

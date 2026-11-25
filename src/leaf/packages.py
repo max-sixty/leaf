@@ -20,6 +20,7 @@ from .layer import (
     layer_inputs,
     named_package,
     package_files,
+    package_layer_inputs,
     selectable_packages,
 )
 from .locations import (
@@ -286,15 +287,6 @@ def validate_package_dir(package: Path) -> list:
         )
     refuse_package_overlap(paths, protected)
     return protected
-
-
-def package_layer_inputs(package: Path) -> list[Path]:
-    """The layer a page selecting this package alone composes: the mandatory layer,
-    then this package, once."""
-    inputs = layer_inputs()
-    if not any(paths_same(package, root) for root in inputs):
-        inputs.append(package)
-    return inputs
 
 
 def check_package(

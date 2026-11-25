@@ -150,7 +150,7 @@ export const bindingAttributes = ({ source, reference }) =>
 
 // How a tag is decided, or null where no verb decides it: `verb`, the verb (`verbs`)
 // whose detail `outcome` is the decision, and `retires`, each outcome's member
-// tags that leave the page under it (`retired-when`). Composition stamps it into
+// tags that leave the page under it (`decides`). Composition stamps it into
 // the vocabulary as `$decisions` (Python's `registry.contract.stamp_decisions`), so
 // nothing here re-derives it.
 /** @param {string} tag @returns {Decision | null} */

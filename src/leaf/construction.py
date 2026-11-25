@@ -22,7 +22,13 @@ from .projection import (
     markup_value,
     record_members,
 )
-from .registry.contract import recorded, state_specs, upgraded
+from .registry.contract import (
+    recorded,
+    retired_under,
+    retirement_slots,
+    state_specs,
+    upgraded,
+)
 from .structure import SourceDocument
 
 
@@ -254,6 +260,8 @@ def constructed_content(
             for i in reversed(slots[len(nodes) :]):
                 content.pop(i)
 
+    slots = retirement_slots(registry)
+
     def visible(items, parent=None):
         result = []
         for node in items:
@@ -262,12 +270,10 @@ def constructed_content(
                 continue
             if node["attrs"].get("id") in retired:
                 continue
-            entry = registry.get(node["tag"], {})
             if (
                 parent is not None
-                and entry.get("retired-when")
-                and parent["tag"] in entry.get("owners", [])
-                and outcomes.get(parent["attrs"].get("id")) == entry["retired-when"]
+                and (outcome := retired_under(slots, parent["tag"], node["tag"]))
+                and outcomes.get(parent["attrs"].get("id")) == outcome
             ):
                 continue
             node["content"] = visible(node["content"], node)

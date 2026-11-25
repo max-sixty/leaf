@@ -7,7 +7,8 @@
    their places to a screen reader themselves, as a menu's do, passes `place: false`.
    `rows()` returns the list at each press; `landed(row)` runs after a step that moved
    the user to another row; `steps` names the four steps in place of previous, next,
-   first and last. */
+   first and last. Leaf's own lists, Page Map's entries, the floating panel's rows and
+   the margin's markers, walk with it too. */
 import { WALK } from "./widget-events.js";
 
 /** @type {readonly [string, string, string, string]} */
@@ -53,7 +54,9 @@ export function rowWalk({
     const was = focusedElement();
     const row = pick(list, was);
     if (!row) return;
-    row.focus({ preventScroll: true });
+    // A keyboard route shows its ring even where the user last pressed with a pointer,
+    // which Firefox would otherwise carry into the move.
+    row.focus({ preventScroll: true, focusVisible: true });
     if (scroll) row.scrollIntoView({ block: "nearest", inline: "nearest" });
     if (place)
       row.dispatchEvent(

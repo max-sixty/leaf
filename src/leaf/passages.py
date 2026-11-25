@@ -9,7 +9,12 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
-from .registry.contract import body_is_data, upgraded
+from .registry.contract import (
+    body_is_data,
+    retired_under,
+    retirement_slots,
+    upgraded,
+)
 from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
 
@@ -33,8 +38,8 @@ if TYPE_CHECKING:
 #               descendants keep their own declarations; without this key the whole
 #               upgraded element is opaque, as a diagram's notation is once its module
 #               has drawn a picture.
-#   `retired-when`  the outcome under which this element leaves the page: a
-#               decided suggestion's losing slot. The browser builds its anchor pass's
+#   `decides`   on its owner's deciding verb, the outcome under which this
+#               element leaves the page: a decided suggestion's losing slot. The browser builds its anchor pass's
 #               skip list from this key too (`quotable` in passages.js), so a reading
 #               given the log's outcomes drops here exactly what drops there — and a
 #               widget whose decision leaves nothing showing goes with its slots
@@ -310,7 +315,7 @@ class _PassageParser:
     first, so a match can name the section it fell in and be re-read within it.
 
     `decided` is the outcome each suggestion stands under (`retirement_outcomes`). A
-    decision retires a slot — the registry's `retired-when` names which outcome —
+    decision retires a slot — its owner's deciding verb names which outcome —
     and the browser's anchor pass reads the same key (`quotable` in passages.js), so
     this reading drops it the same way. A decision that leaves its widget with nothing —
     a deletion accepted, an insertion refused — empties the wrapper too (`gone`),
@@ -332,6 +337,7 @@ class _PassageParser:
         source: tuple[str, str | None] = ("page", None),
     ):
         self.registry = registry or {}
+        self.slots = retirement_slots(self.registry)
         self.decided = decided or {}
         self.rewrites = rewrites or {}
         self.additions = additions or {}
@@ -512,7 +518,7 @@ class _PassageParser:
         retired_by = (parent["retired_by"] if parent else None) or (
             parent["id"]
             if parent
-            and (retiring := entry.get("retired-when"))
+            and (retiring := retired_under(self.slots, parent["tag"], tag))
             and self.decided.get(parent["id"]) == retiring
             else None
         )

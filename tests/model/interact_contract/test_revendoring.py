@@ -352,7 +352,7 @@ def test_revendoring_can_change_thread_widget_vocabulary(
     registry = vocabulary(page_dir)
     options = registry["lf-options"]
     options["verbs"]["decide"] = {
-        "decides": True,
+        "decides": {"keep": ["lf-option"]},
         "detail": {
             "properties": {"outcome": {"enum": ["keep"]}},
             "required": ["outcome"],
@@ -360,7 +360,6 @@ def test_revendoring_can_change_thread_widget_vocabulary(
         "unit": "widget",
     }
     option = registry["lf-option"]
-    option["retired-when"] = "keep"
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(

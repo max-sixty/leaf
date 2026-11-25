@@ -365,7 +365,7 @@ def test_annotations_read_the_native_prose_track_with_authored_geometry(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {proseRect}=await import('/runtime/content-layout.js');
+      const {proseRect}=await import('/runtime/readings/content-layout.js');
       const prose=document.querySelector('#prose').getBoundingClientRect();
       return {computed:proseRect(),actual:{left:prose.left,right:prose.right}};
     }""")

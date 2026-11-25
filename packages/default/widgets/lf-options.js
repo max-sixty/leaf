@@ -163,7 +163,7 @@ function choiceIds(value) {
   return ids;
 }
 
-/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state */
 function additions(state) {
   const added = state?.add;
   if (!added) return [];
@@ -176,7 +176,7 @@ function additions(state) {
   });
 }
 
-/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state */
 function isAnswered(state) {
   const answer = state?.answer;
   return answer && "action" in answer ? Boolean(answer.action) : false;
@@ -443,7 +443,7 @@ customElements.define(
     // numbered commands; the obligation view forwards those same declarations.
     #keys() {
       const marks = this.#marks();
-      /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
+      /** @type {import("/runtime/dom/keyboard/bindings.js").Command[]} */
       const answerRows = [];
       for (const { option, mark } of marks) {
         // The widget declares the number and its local face; the shared keyboard
@@ -587,9 +587,9 @@ customElements.define(
       // for.
       mark.lfPreview = () => false;
       this.#controls.set(option, mark);
-      // First, so the row form's table puts it in the cell before the words. A card
-      // places its mark out of flow in the header and cannot see this, so one insertion
-      // serves both forms and the theme states each form's placement.
+      // First, before the option's words. Both forms place the mark out of flow, a card
+      // in its header and a row in its leading column, so one insertion serves both and
+      // the theme states each form's placement.
       // The mark stands where the user starts reading the label, not at the line's
       // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);

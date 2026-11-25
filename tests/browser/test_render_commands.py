@@ -155,22 +155,44 @@ customElements.define('lf-unlinked', class extends HTMLElement {
   connectedCallback() { this.textContent = notExported; }
 });
 """
+# The same module, imported only once a reader outside the page first asks how ready
+# it is (`lfReadiness`, which the render gate's wait for the widget layer reads), so
+# the page declares it cannot start after the gate has seen the runtime start.
+LATE_MODULE = """
+const entry = document.querySelector('script[data-lf-entry]');
+const readiness = entry.lfReadiness;
+await new Promise((resolve) => {
+  entry.lfReadiness = (...asked) => (resolve(), readiness(...asked));
+});
+entry.lfReadiness = readiness;
+await import('./lf-unlinked-import.js');
+"""
 
 
+@pytest.mark.parametrize("declared", ["at-import", "once-read"])
 def test_a_render_check_names_the_import_a_package_module_fails_to_link(
-    browser, serve, monkeypatch
+    browser, serve, monkeypatch, declared
 ):
     """A package widget's module that imports a name the imported module doesn't
     export fails to link, so the page says it cannot start. `page check --render`
     reports the render gate's finding, which quotes the browser's message naming the
     module and the name. It takes no screens: the page never got ready, and a second
     page would only wait for it to. The page has no code of its own, so the render
-    gate is the only gate that reads it."""
+    gate is the only gate that reads it. The finding is the same whichever of the
+    gate's waits reads the page's declaration, since either may."""
+    widgets = (
+        {"lf-unlinked.js": UNLINKED_MODULE}
+        if declared == "at-import"
+        else {
+            "lf-unlinked.js": LATE_MODULE,
+            "lf-unlinked-import.js": UNLINKED_MODULE,
+        }
+    )
     serve(
         leaf_page("Unlinked", '<lf-unlinked id="unlinked"></lf-unlinked>'),
         packages=(),
         layer_registry={"lf-unlinked": UNLINKED},
-        layer_widgets={"lf-unlinked.js": UNLINKED_MODULE},
+        layer_widgets=widgets,
     )
     opened = []
     # Screens open a context of their own, which this browser doesn't lend.

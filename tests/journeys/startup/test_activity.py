@@ -11,7 +11,7 @@ from browser.startup.test_activity import (
     thread_row_says,
     workflow_of,
 )
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
@@ -38,6 +38,7 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf_dev.browser import choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

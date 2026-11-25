@@ -166,7 +166,7 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
 
-    # The generation is what a tab speaks to the server (`runtime/layer-client.js`),
+    # The generation is what a tab speaks to the server (`runtime/transport/layer-client.js`),
     # so a new selection's gives the document a new executable. The re-selection
     # activates the source itself.
     extra = page_dir.parent / "extra"

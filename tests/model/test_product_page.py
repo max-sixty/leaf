@@ -13,6 +13,7 @@ from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.authored_checks.declarations import declaration_advice
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
 from leaf.registry.layer import stamp_composition
@@ -21,7 +22,6 @@ from leaf.registry.storage import load_registry
 from leaf.schema import DEFAULT_PACKAGE
 from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
-from leaf.validation import composition as validation_model
 from leaf_dev import declared_records, docs
 from leaf_dev.docs import EXAMPLES, product_sources
 from leaf_dev.example_data import named_source, published_sources
@@ -134,9 +134,7 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     stamp_composition(
         registry_validation.validate_registry(registry, "package tutorial")
     )
-    assert (
-        validation_model.declaration_advice(entry, registry, "package tutorial") == []
-    )
+    assert declaration_advice(entry, registry, "package tutorial") == []
 
 
 # The event log is How it works' "Event log" tab.

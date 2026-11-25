@@ -22,7 +22,7 @@
    the press: a board's own FLIP is 150ms over a card's width, and this is a taller
    distance travelled by the whole column below it. A decided suggestion's retired
    slot, a resolved inline thread and a message leaving a thread fold over it, and a
-   picture's zoom (runtime/media.js) takes the same time. */
+   picture's zoom (runtime/records/media.js) takes the same time. */
 @property --lf-motion-fold {
   syntax: "<time>";
   inherits: true;
@@ -47,7 +47,7 @@
   initial-value: 160ms;
 }
 /* The finite window in which a mark of the agent's work arrives, which independently
-   rendered carriers join part-way through (runtime/contribution-controls.js). */
+   rendered carriers join part-way through (runtime/features/contribution-controls.js). */
 @property --lf-motion-agent-arrival {
   syntax: "<time>";
   inherits: true;
@@ -61,7 +61,7 @@
   initial-value: 8px;
 }
 /* Registered as a length so it computes to one, which the reach of a mark over a list
-   marker reads back (geometry.js, `markerReach`). */
+   marker reads back (dom/geometry.js, `markerReach`). */
 @property --lf-list-inset {
   syntax: "<length>";
   inherits: true;
@@ -122,7 +122,7 @@
      through the top layer: a modal dialog, a popover, or fullscreen. Letting page
      z-indexes compete with the ladder was rejected: whether a page's header or overlay
      covered the floating panel, a highlight or a pin depended on numbers neither side
-     chose against the other. `stackLevel` (geometry.js) reads a chrome box above every
+     chose against the other. `stackLevel` (dom/geometry.js) reads a chrome box above every
      page box for the same reason. */
   --lf-z-page-paint: 8890; /* paint on a page element */
   --lf-z-margin-raised: 8895; /* the margin item under pointer or focus, or at the user's location */
@@ -189,11 +189,11 @@
     )
   );
   /* The accent marks where the machinery points — a link, the active milestone,
-     a focus ring — and so has to stay hue-distinct from the
+     the agent at work — and so has to stay hue-distinct from the
      three semantic colors it appears beside. That rules out the warm end: a clay
-     accent sits a few degrees from --lf-warn, and an accent ring beside a warning dot
-     would be a distinction the user has to measure. Ink blue keeps the link and
-     focus conventions and reads as ink on ivory rather than as UI. */
+     accent sits a few degrees from --lf-warn, and an accent mark beside a warning dot
+     would be a distinction the user has to measure. Ink blue keeps the link
+     convention and reads as ink on ivory rather than as UI. */
   --lf-accent: light-dark(#2f5480, #8fb0d8);
   --lf-ok: light-dark(#3f7d4e, #7fb98c);
   --lf-warn: light-dark(#b4741a, #d8a95c);
@@ -303,7 +303,7 @@
      It is authored rather than measured, so the page's geometry is settled before
      anything lands in the margin and never moves because of what does. It seats the
      resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
-     margin-model.js): two entries and the cluster's gap (`--lf-margin-gap`), hung
+     features/margin-model.js): two entries and the cluster's gap (`--lf-margin-gap`), hung
      `--lf-rail-hang` from the prose, including its gutter, with the focus ring's
      room at the outer edge. A
      finger's larger entries spend the room the hang would, so it shrinks with them. A
@@ -351,7 +351,7 @@
   --lf-col-pad: 24px;
   /* The window width that holds the column with a rail on either side, the width at
      which a column page's rail stands; narrower, a thread opens in the floating panel
-     rather than a margin card (content-layout.js, `windowHoldsRail`). */
+     rather than a margin card (readings/content-layout.js, `windowHoldsRail`). */
   --lf-rail-room: calc(var(--lf-col) + 2 * var(--lf-rail));
   /* The room a page Layout leaves above its first block and below its last, the latter
      past the window's safe area at its foot, where a phone draws its home indicator. A
@@ -437,7 +437,7 @@
   --lf-drawing-small-size: 10px;
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
-     in the same faces (runtime/composing/text-field.js), inside a shadow root those
+     in the same faces (runtime/annotations/composing/text-field.js), inside a shadow root those
      rules cannot reach, so each construct reads in the draft the way it will in the
      sent message. */
   --lf-code-inline-size: 82%;
@@ -605,20 +605,21 @@
   --lf-mark-hover: light-dark(#dfd1edb3, #6152a079);
   --lf-mark-strong: light-dark(#dfd1ed, #6152a099);
   --lf-mark-ink: light-dark(#4a3b7d, #9d8fd6);
-  /* The words a passage highlight covers (marks.css): a comment's in
-     --lf-mark-ink, and a draft's in the accent, each lifted in dark toward the light ink
-     the dark paper's prose wears. */
+  /* The words a passage highlight covers (marks.css): a comment's in --lf-mark-ink, and
+     a draft's in the user's ink (--lf-here), deepened in light so its words keep their
+     contrast on its green wash; each lifted in dark toward the light ink the dark
+     paper's prose wears. */
   --lf-mark-ink-text: light-dark(
     var(--lf-mark-ink),
     color-mix(in srgb, var(--lf-mark-ink) 50%, white)
   );
   --lf-mark-pending-text: light-dark(
-    var(--lf-accent),
-    color-mix(in srgb, var(--lf-accent) 60%, var(--lf-ink))
+    color-mix(in srgb, var(--lf-here) 70%, var(--lf-ink)),
+    color-mix(in srgb, var(--lf-here) 60%, var(--lf-ink))
   );
-  /* The draft's wash, relative to the accent so one definition serves both schemes; the
-     passage highlight (marks.css) reads it. */
-  --lf-mark-pending: color-mix(in srgb, var(--lf-accent) 20%, transparent);
+  /* The draft's wash, in the user's ink as a draft on a box is, relative to it so one
+     definition serves both schemes; the passage highlight (marks.css) reads it. */
+  --lf-mark-pending: color-mix(in srgb, var(--lf-here) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */
@@ -635,7 +636,7 @@
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
      - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
-       (target-paint.js, `paintLocation`), and the decision's focus ring too. It stands
+       (readings/target-paint.js, `paintLocation`), and the decision's focus ring too. It stands
        down while visible focus is inside the decision, whose own ring says where the
        user is.
      - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,
@@ -683,8 +684,8 @@
      the gap to it, and --lf-focus-ring-inset negates it, so there is still one place
      the band's thickness is decided. */
   --lf-focus-ring-w: 2px;
-  --lf-focus-ring: var(--lf-focus-ring-w) solid var(--lf-accent);
-  /* A forced palette replaces the accent with its own ink for every outline, so the
+  --lf-focus-ring: var(--lf-focus-ring-w) solid var(--lf-here);
+  /* A forced palette replaces the ring's colour with its own ink for every outline, so the
      ring would read as one more edge. Naming the platform's Highlight here gives every
      rule that draws with the token the system's focus colour, inside the chrome and
      out. A forced palette drops box
@@ -721,7 +722,7 @@
      A rule draws the ring with this token or --lf-focus-ring and gives it no name of its
      own: the suite asks the browser which rule drew a ring it sees, and the token is
      what tells that rule from a contour painted in the same ink. */
-  --lf-focus-shadow: 0 0 0 var(--lf-focus-ring-w) var(--lf-accent);
+  --lf-focus-shadow: 0 0 0 var(--lf-focus-ring-w) var(--lf-here);
   --lf-target-trace-ink: color-mix(in srgb, var(--lf-ink-2) 42%, var(--lf-paper));
   /* A drawing's part wears a comment's mark in this quieter ink and width, and an
      action's target wears its brackets at 1px in this ink (surfaces.css). */
@@ -774,6 +775,8 @@
      the contents, the panel and a widget's settled state read the meaning rather than
      a hue. A theme restates a meaning here. The words and ground a meaning needs beside
      its mark (`-ink`, `-wash`, `-tint`) stand with it.
+     - --lf-here: where the user is, such as focus, the location ring, the aim and the
+       contents' current section.
      - --lf-turn: the user's move, such as a thread in their turn, what is On me, and the
        agent waiting for them.
      - --lf-thread: a conversation, on a thread's marker.
@@ -790,19 +793,22 @@
        its stretch of the contents.
      - --lf-settled: what the user chose or finished, such as a chosen option, a pressed
        answer and a done step.
-     Where the user is (focus, the location ring, the contents' current section) wears
-     the accent, and trouble --lf-warn and --lf-danger.
+     Trouble wears --lf-warn and --lf-danger.
 
-     Colour carries one distinction on a mark: whether it asks something of the user.
-     Green asks; blue shows where the user is and what is going on; ink records what
-     changed or is settled. What changed takes the muted ink, so a long changed stretch
-     of the contents stays quieter than the marks that ask. A mark is too small to carry
-     more. Held to the chart palette's floors (--lf-series-1, below) scaled to a mark's
-     size by Stone, Szafir and Setlur's model (CIC 2014), every reader tells apart at
-     most four colours at a 7px dot, and those four are a neon magenta, a near-black
-     navy, a bright green and a brick red. So a mark's other meanings are carried by its
-     shape, place and motion, and changed and settled marks don't wear the turn's
-     green. */
+     Colour carries one distinction on a mark: whose it is. Green is the user's, where
+     they are and what waits on them; blue is the agent's and what is going on; ink
+     records what changed or is settled. So where the user stands beside where the agent
+     works, the two read as two parties, as a collaborator's cursor does beside one's
+     own. The user chose this over green for what asks alone, which put the user's
+     place and the agent's in one blue. What changed takes the muted ink, so a long
+     changed stretch of the contents stays quieter than the user's marks. A mark is too
+     small to carry more. Held to the chart palette's floors (--lf-series-1, below)
+     scaled to a mark's size by Stone, Szafir and Setlur's model (CIC 2014), every reader
+     tells apart at most four colours at a 7px dot, and those four are a neon magenta, a
+     near-black navy, a bright green and a brick red. So a mark's other meanings are
+     carried by its shape, place and motion, and changed and settled marks don't wear
+     the user's green. */
+  --lf-here: var(--lf-turn);
   --lf-turn: var(--lf-ok);
   --lf-turn-ink: var(--lf-ok-ink);
   --lf-turn-wash: var(--lf-ok-wash);

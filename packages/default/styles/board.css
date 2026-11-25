@@ -232,7 +232,7 @@ lf-card {
    block after the card's first child clears the grip: it starts under the grip's box
    and takes the card's width. An inline child ignores `clear`. The word a screen reader
    hears for a card's provenance, such as "my change" once the user moves it, stands
-   before the card's first child (declared-words.js, `quietWord`) and out of flow, so
+   before the card's first child (records/declared-words.js, `quietWord`) and out of flow, so
    the child after it is still the card's first. */
 @media screen {
   html[data-lf-interactive] lf-board:not(:where([data-lf-exhibit]) *) {

@@ -114,7 +114,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     rendered(page)
     # The view grows to hold the answer, the message keeping its place within it. The
     # growth carries the message up from where it stood on screen to that place
-    # (box-motion.js), so the place is read where the panel's motion ends.
+    # (dom/box-motion.js), so the place is read where the panel's motion ends.
     panel_settled(page, view="thread")
     after = message.evaluate(MESSAGE_PLACE)
     # One comparison of the whole reading, so a failure shows whether the view

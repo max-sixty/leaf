@@ -353,7 +353,7 @@ def test_a_code_block_wraps_its_lines_whatever_holds_it(browser, serve, subtests
 
 
 def test_a_wrapped_row_hangs_from_its_line_s_indent_behind_a_mark(browser, serve):
-    """Each line of a code block stands in a box of its own (code-lines.js), so the
+    """Each line of a code block stands in a box of its own (readings/code-lines.js), so the
     rows a long line wraps onto start two columns past that line's own indent, and the
     first of those columns holds a mark on each of them, which a line that fits never
     shows (reading.css, `pre`). The boxes change no text: the block reads, selects and

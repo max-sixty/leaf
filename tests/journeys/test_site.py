@@ -29,7 +29,6 @@ import pytest
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
-from browser.threads import choose_threads_in_panel
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server, wait_for
 from PIL import Image
@@ -77,7 +76,12 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
-from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
+from leaf_dev.browser import (
+    PANEL_THREAD,
+    choose_threads_in_panel,
+    panel_tab,
+    show_resolved,
+)
 from leaf_dev.commands.site import _build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
@@ -110,7 +114,7 @@ def open_count(page):
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
 # One runtime draws one chrome root; the boxes it nests, such as the preview's stage
-# (preview.js), wear the class too, so the sheet dresses them wherever they stand.
+# (annotations/preview.js), wear the class too, so the sheet dresses them wherever they stand.
 CHROME_ROOT = ".lf-chrome:not(.lf-chrome .lf-chrome)"
 
 

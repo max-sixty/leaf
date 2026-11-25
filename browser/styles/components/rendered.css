@@ -95,7 +95,7 @@ leaf-text.lf-fab-input,
   margin: 6px 0;
 }
 /* A message keeps its source's spaces and line breaks, wrapped as its draft's editor
-   wraps them (composing/text-field.js), a space at a line's end hanging past it. */
+   wraps them (annotations/composing/text-field.js), a space at a line's end hanging past it. */
 .lf-msg-text > p {
   font: inherit;
   white-space: pre-wrap;
@@ -127,7 +127,7 @@ leaf-text.lf-fab-input,
 /* A rule takes a line, its stroke through the middle, and a code block a code line
    above and below its code, so each stands where its draft drew its source: the
    rule's on its line, a fence's on the line above or below the code
-   (composing/text-field.js). The draft's caret then reveals that source in room it
+   (annotations/composing/text-field.js). The draft's caret then reveals that source in room it
    already had, moving nothing. The room kept below for a scrollbar (above) is part of
    the line below the code. The reading face draws page prose the same way, for a draft
    edited in place. Rejected: a 1px rule and 8px of block padding, which the draft could

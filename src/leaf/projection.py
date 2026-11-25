@@ -544,7 +544,7 @@ def container_owner(
     element at or above it that records positions, which is the container itself
     where a widget orders its own members. Each unit the container holds has the
     same owner (`recorded_owner`), and the browser reads containers by the same rule
-    (`projection/authored.js`, `initialState`)."""
+    (`records/projection/authored.js`, `initialState`)."""
     node = byid.get(container)
     if node is not None and any(
         spec["record"]["kind"] == "position"
@@ -680,7 +680,7 @@ def folded_positions(
 
     Authored units rank by authored index; each move in force this markup has not
     absorbed (`StateProjection.absorbed`) puts its unit in its container at the rank
-    it names, and a container lists its units by rank, ties by id. `projection/model.js`'s
+    it names, and a container lists its units by rank, ties by id. `records/projection/model.js`'s
     `foldWidgetStates` is the browser's reading of the same rule."""
     order = orders.of(owner, record)
     ranks = {

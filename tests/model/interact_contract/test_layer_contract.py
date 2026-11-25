@@ -46,7 +46,6 @@ from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
-from leaf.validation import composition as validation_composition
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -224,7 +223,7 @@ _WORKER = {
 def test_composition_holds_each_work_role_to_its_tags_declaration(
     page_dir, tag, entry, code, at, values
 ):
-    """`runtime/work.js` reads `$work.widgets` as given, so composition refuses an
+    """`runtime/host/work.js` reads `$work.widgets` as given, so composition refuses an
     entry it would misread, naming the tag and the key: one its role doesn't take or
     needs, a tag the layer doesn't declare, an attribute the tag lacks, an assignment
     that isn't a reference, a state no single widget value verb records, and a value
@@ -254,7 +253,7 @@ def test_a_work_role_s_state_verb_may_name_the_property_that_holds_it(page_dir):
 
 def test_the_command_hub_example_maps_its_tags_onto_work_roles():
     """The worked example of `$work.widgets` composes over the shipped layer."""
-    registry = validation_composition.incoming_registry(
+    registry = registry_validation.incoming_registry(
         [*SHIPPED_PACKAGES, ROOT / "examples" / "command-hub.page"]
     )
     assert registry["$work"]["widgets"]["lf-atlas-worker"]["role"] == "worker"

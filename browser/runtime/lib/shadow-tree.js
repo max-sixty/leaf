@@ -1,11 +1,11 @@
 /* Composed ancestry, read from the tree the browser builds and nothing else. Focus and
    shadow rendering share this walk, including slots and roots from another window, and
    with it the one reading of whether a node is an open native layer or stands in one:
-   the runtime's keyboard/layer-stack.js keeps the order layers opened in, and imports
+   the runtime's dom/keyboard/layer-stack.js keeps the order layers opened in, and imports
    focus and inertness, which ask this too. It also holds the one reading of whether a
    node stands in content the browser skips (`skipper`), which Leaf's suite bundles into
    an init script and so takes from a module that imports nothing. Whether a node stands
-   in Leaf's own chrome is the runtime's question (ui-marks.js). */
+   in Leaf's own chrome is the runtime's question (base/ui-marks.js). */
 // The host of `root` when it is a shadow root, else null: the one test of whether a climb
 // crosses to a host. It asks the root's kind, since other roots answer `host` too — a
 // document names its `<form name="host">` there, and a detached subtree's root is an
@@ -61,6 +61,12 @@ export const shadowHost = (root) => (isShadowRoot(root) ? root.host : null);
 // instead.
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
+// The element a node stands in: the node itself where it is an element, else the
+// element holding it, which for a text a shadow root holds straight under it, as an
+// age's words or a widget template's top-level text, is the root's host (`upFrom`).
+// A text's `parentElement` is null there.
+/** @param {Node} node @returns {Element | null} */
+export const holdingElement = (node) => (isElement(node) ? node : upFrom(node));
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
 // out until one is. Null when none is: a detached node, or one outside `root`
@@ -101,7 +107,7 @@ export const renderedParent = (node) =>
 // is; anywhere else a slot is an ordinary element. A host draws the shadow root `rootOf`
 // names in place of its children, and a light child only through a slot there: its open
 // root by default, and its children where it names none, so a walk names the tree it
-// reads: the page reading enters only declared roots (passages.js, `readingChildren`),
+// reads: the page reading enters only declared roots (readings/passages.js, `readingChildren`),
 // the keyboard's walk a closed stage too, and a walk of one tree none. Each steps from
 // sibling to sibling, as a walk does (browser/AGENTS.md, "One answer for each
 // question"), since Chromium keeps a node's `children` or `childNodes` list for the
@@ -363,7 +369,7 @@ export const skipped = (element) => Boolean(skipper(element));
 // The closed box that hides `node` until the user opens it: a closed `<details>` holding
 // it outside its summary, or a box `hidden="until-found"` (an unchosen tab's panel, a
 // file a diff filters out), `node` itself or one round it. These are the boxes the
-// browser's find opens, and Leaf's travel too (widget-elements.js, `reveal`), so they
+// browser's find opens, and Leaf's travel too (dom/widget-elements.js, `reveal`), so they
 // are read from the markup, whatever a stylesheet draws in their place: a package may
 // keep a hidden panel's layout and only make it invisible. Where closed boxes nest, it
 // is the outermost, the one the page shows. An off-screen `content-visibility: auto`

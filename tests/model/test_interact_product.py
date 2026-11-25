@@ -50,17 +50,18 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import todos as todos_model
-from leaf.findings import Finding, Rejected
-from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
-from leaf.structure import SourceDocument
-from leaf.thread_context import logged_fragment, thread_digest
-from leaf.validation import composition as validation_model
-from leaf.validation.admission import (
+from leaf.authored_checks.admission import (
     check_markup,
     revision_publication,
 )
-from leaf.validation.instances import question_errors, reference_errors
+from leaf.authored_checks.declarations import declaration_advice
+from leaf.findings import Finding, Rejected
+from leaf.markup_checks.instances import question_errors, reference_errors
+from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
+from leaf.registry.validation import incoming_registry
+from leaf.structure import SourceDocument
+from leaf.thread_context import logged_fragment, thread_digest
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -391,10 +392,7 @@ def test_registry_examples_validate(page_dir):
     assert any(
         tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
-    assert (
-        validation_model.declaration_advice(registry, registry, "vendored registry")
-        == []
-    )
+    assert declaration_advice(registry, registry, "vendored registry") == []
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
@@ -407,7 +405,7 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     )
 
     assert (
-        validation_model.declaration_advice(
+        declaration_advice(
             {"lf-diff": {}, "lf-code": {}}, registry, "independent examples"
         )
         == []
@@ -443,7 +441,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     seen — a gap that reads as coverage, since the widget's own tests are green.
     examples/AGENTS.md carries the rest, including the shapes this floor doesn't
     reach."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = set().union(
         *(
@@ -513,7 +511,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     titled = [
         tag
         for tag, entry in registry.items()
@@ -526,7 +524,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
     """`class` and `style`, the page's styling hooks, and the attributes that describe
     any element and record nothing, stand on a widget as on any element; Leaf's own
     `data-lf-` namespace and `hidden` still meet its schema."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
 
     def refused(attributes):
         # What the widget's attribute schema says; `data-lf-` names are the runtime's

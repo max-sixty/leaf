@@ -21,7 +21,7 @@ from functools import cache, cached_property, lru_cache
 from pathlib import Path
 
 from .files import file_stamp
-from .locations import first_overlap, located
+from .locations import first_overlap, located, paths_same
 from .machine import package_store
 from .page_memory import Stamped, memo, once
 from .refusals import Refused
@@ -119,6 +119,15 @@ def layer_inputs(
     """The kernel, bundled default, and explicitly selected packages, in order, a
     path selection resolving against `base` or else the working directory."""
     return [ASSETS, DEFAULT_PACKAGE, *resolve_packages(selected, base or Path.cwd())]
+
+
+def package_layer_inputs(package: Path) -> list[Path]:
+    """The layer a page selecting this package alone composes: the mandatory layer,
+    then this package, once."""
+    inputs = layer_inputs()
+    if not any(paths_same(package, root) for root in inputs):
+        inputs.append(package)
+    return inputs
 
 
 def checked_inputs(inputs: list[Path]) -> list[Path]:
@@ -231,15 +240,16 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # the page's own controls, the marks and focus band Leaf draws on any element, and each
 # package's theme.css) stand below the page's `base`. Leaf's rules for its own elements
 # stand above it: the kernel's faces for Leaf's controls and surfaces, every widget
-# package's defaults, and each widget module's adopted sheet (runtime/base-layer.js)
-# share `lf-base`, so specificity, then order, rank their rules. The kernel's Layouts
-# sit above it. Package overrides sit above those defaults and the Layouts
-# (`lf-overrides`), so a package styles every page the way the page's own sheet styles
-# one. Semantic state follows: retirement must outrank a package's default box and a
-# Layout's arrangement. Inline widget motion outranks them too. Chrome and apparatus
-# marks stay unlayered to beat page and widget alike; runtime/stylesheets.js owns their
-# precedence and defaults. The chrome's form-control clearing (`lf-reset`,
-# runtime/chrome.css) stays below everything that chooses a face.
+# package's defaults, and each widget module's adopted sheet
+# (runtime/base/base-layer.js) share `lf-base`, so specificity, then order, rank their
+# rules. The kernel's Layouts sit above it. Package overrides sit above those defaults
+# and the Layouts (`lf-overrides`), so a package styles every page the way the page's
+# own sheet styles one. Semantic state follows: retirement must outrank a package's
+# default box and a Layout's arrangement. Inline widget motion outranks them too.
+# Chrome and apparatus marks stay unlayered to beat page and widget alike;
+# runtime/base/stylesheets.js owns their precedence and defaults. The chrome's
+# form-control clearing (`lf-reset`, runtime/chrome.css) stays below everything that
+# chooses a face.
 #
 # Two names a page may give its layers rank among Leaf's tiers. A reset zeroes margins,
 # borders and control faces on every element, so `reset` stands under every tier and
@@ -583,7 +593,7 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
     styles/page-control-face.css, shadow.css) nested under `:where(<the layer's tags>)`,
     then the sheets of each package that ships
     widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
-    module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
+    module's adopted rules take off Leaf too (runtime/base/base-layer.js). The nesting keeps
     the shared sheet's page-wide faces (a native control's font, and the faces a Leaf
     page's own controls take under its theme) to the widgets' insides, so
     the host's own markup keeps its look; it adds no
@@ -1002,12 +1012,12 @@ def _composition(
     then the vocabulary `vocabulary_of` composes, whose stamping reads the registry
     as valid, its modules checked for private kernel imports, and its sheets and
     browser files read."""
+    from .registry.validation import incoming_registry
     from .revision_artifact import (
         PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,
     )
-    from .validation.composition import incoming_registry
 
     incoming_registry(roots)
     vocabulary = vocabulary_of()

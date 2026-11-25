@@ -745,7 +745,7 @@ _TEXT = {
     "no-runtime": _fails(
         _SERVES,
         lambda at, v: (
-            "the runtime never injected its chrome — "
+            "the runtime never started — "
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),
@@ -2247,7 +2247,7 @@ _TEXT = {
             " markup now places its unit; move it again instead"
         ),
     ),
-    # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
+    # A to-do, a start and an ending (`todos.todo_error`, `work.widget_seat_error`).
     "not-a-widget": _refuses(
         _NAMES, lambda at, v: f"{v['widget']!r} is not a widget on this page"
     ),
@@ -2401,9 +2401,9 @@ _TEXT = {
     "watch-taken-over": lambda at, v: (
         "a watch between turns took over this session's pages"
     ),
-    # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
+    # The thread and task commands' refusals (`thread`, `tasks.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as
-    # (`validation.admission.logged_id`), and `answer` the command that answers an
+    # (`authored_checks.admission.logged_id`), and `answer` the command that answers an
     # owed update (`activity.answer_command`).
     "unknown-comment": _refuses(
         _NAMES,

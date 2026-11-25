@@ -26,6 +26,15 @@ function refreshTarget(link, widget, write, names) {
   if (href) write(link, "tabindex", null);
 }
 
+// What a row's target previews: when its row happened, as the age at the row's end
+// previews it to a pointer, since the keyboard reaches the target and not the age.
+/** @this {Element} @param {"pointer" | "focus" | "hold"} route */
+function rowTime(route) {
+  const age = this.closest(".lf-activity-line")?.querySelector("lf-age");
+  const said = age?.lfPreview?.(route);
+  return said && said.name ? { detail: [said.name] } : null;
+}
+
 /** @param {HTMLElement} host */
 export function createActivity(host) {
   const storageKey = ACTIVITY_VIEW + host.id;
@@ -62,6 +71,7 @@ export function createActivity(host) {
         type="button"
         data-lf-echo
         data-lf-carry=${`row-${row.id}`}
+        .lfPreview=${rowTime}
         @click=${openThread ? () => openThread(thread) : null}
       >
         ${row.label}
@@ -72,6 +82,7 @@ export function createActivity(host) {
     return html`<a
       class="lf-activity-target"
       data-lf-carry=${`row-${row.id}`}
+      .lfPreview=${rowTime}
       ${ref(
         (node) =>
           node && refreshTarget(node, widget, keeps, capabilities.names ?? elementById),

@@ -468,7 +468,7 @@ def test_widening_from_a_thread_in_the_panel_lands_in_its_card(browser, serve):
     resized(page, 390, 760)
     margins_laid_out(page)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
-    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # The click puts the caret in the reply (records/thread/focus.js, `openingPart`); Escape
     # stands the user on the thread.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_be_focused()

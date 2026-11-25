@@ -214,7 +214,7 @@ lf-tabs[data-lf-views] > lf-tab {
      * which push the open panel down. A scrollbar would add to its height, so it draws
      * none, and a press at either edge scrolls the names that run past it (lf-tabs.js),
      * shown while the layer reads more that way (`data-lf-more-before`,
-     * `data-lf-more-after`, reach.js). A side list's column runs down instead, and
+     * `data-lf-more-after`, dom/reach.js). A side list's column runs down instead, and
      * scrolls down past the window's height (below). The press's own face fades the
      * names under it into the strip's background, so the layer's edge fade is off. A
      * finger or a trackpad scrolls the strip itself, and an opened tab brings itself
@@ -321,7 +321,7 @@ lf-tabs[data-lf-views] > lf-tab {
      * ground that spans the set's height (below). A walk down a long queue then leaves
      * the item where the user is reading it, and the focused tab stays on screen while
      * they read. A column that scrolled with the page moved the item at each step and
-     * left the tab off screen, so the next arrow let go of it (keyboard/controller.js). */
+     * left the tab off screen, so the next arrow let go of it (panel/page-keys/controller.js). */
     lf-tabs[list="side"],
     lf-parts {
       --lf-tab-context-h: 0px;
@@ -580,7 +580,7 @@ lf-tabs[data-lf-views] > lf-tab {
       /* The label sticks at the row's start while its run scrolls under it, and the run's
        * end pushes it out as the next run's label comes in, so the open item's group
        * stays named however far along a long run the user is. It stands clear of the
-       * start press while that shows (`data-lf-more-before`, reach.js), which is the
+       * start press while that shows (`data-lf-more-before`, dom/reach.js), which is the
        * only time a label can be stuck, and covers the whole height of the names that
        * slide under it, its word still centred on theirs, so a tab landing in the row
        * keeps the label's room before it: the module measures the label for this

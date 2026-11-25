@@ -33,7 +33,6 @@ from browser.threads import (
     CHANGE_PAGE,
     REPLY_CHANGE,
     append_agent_reply,
-    choose_threads_in_panel,
     open_panel_thread,
     seed_reply,
     thread_row,
@@ -43,7 +42,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -104,7 +103,7 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
 
 def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     """A press in a commented section opens its thread, but one on a field or button
-    inside it keeps its own meaning (composing/surface.js), so the hand stands over the
+    inside it keeps its own meaning (annotations/composing/surface.js), so the hand stands over the
     section's words and the field keeps its own cursor."""
     source = leaf_page(
         "Commented form",
@@ -171,7 +170,7 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
 def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
     """A press means one thing. A press on an option card picks it and one on a gloss
     pins its card, so neither opens the thread on the question they stand in, whose
-    reply box would take the user's focus (composing/surface.js, the page's click). A
+    reply box would take the user's focus (annotations/composing/surface.js, the page's click). A
     gloss in a label leaves the press to the label, which ticks its box. A press on the
     question's own words still opens that thread."""
     source = leaf_page(
@@ -361,7 +360,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     words no item holds, a draft's item at rest, and a mark in the chrome, which neither
     press takes. Where the aim's press takes an item, its hand covers any cursor the page
     gives the item. Each place's cursor is read where the pointer is, since each hand is
-    painted on the element under it (anchor-paint.js, page-geometry.js); a mark of the
+    painted on the element under it (annotations/anchor-paint.js, panel/page-geometry.js); a mark of the
     arm on `body` made Firefox visit every element of the page as ⌥ went down or up."""
     url = serve(
         ARMED_PAGE,
@@ -428,7 +427,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
         found[name].append(seen(point))
     # The mode's own key leaves it. Escape would first put away a preview the readings
     # left standing, as a slow machine's rest on the link does
-    # (browser/runtime/keyboard/AGENTS.md, "Escape").
+    # (browser/runtime/dom/keyboard/AGENTS.md, "Escape").
     page.keyboard.press("l")
     expect_design_mode(page, on=False)
     assert {name: tuple(each) for name, each in found.items()} == ARMED_CURSORS

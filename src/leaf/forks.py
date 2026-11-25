@@ -47,7 +47,7 @@ answers, and that line then goes in nowhere.
 A thread awaits a line while it stands open and the user's turns waiting in it, its
 messages and rewrites the agent still owes an answer (`events.unanswered_turns`), have
 nothing of the agent's after the oldest of them, neither a message nor a rewrite of one
-(`unlined`): a round the user started that no line or answer has reached. A turn that joins such a round before its line goes
+(`events.unlined`): a round the user started that no line or answer has reached. A turn that joins such a round before its line goes
 in, such as a quick correction or "and also" right after the first message or the
 user's rewrite of it, gets a line fork of its own about all of them. A turn that joins
 a round the agent has spoken in, by its line or otherwise, gets none, since the agent's
@@ -82,7 +82,7 @@ does as well on the eval's cases.
 
 The session's pages follower (`hooks.cmd_pages`) lists a report for each round that
 awaited a line as its newest turn arrived (`look`, `listed`) while it holds the
-session's lane, a lease each new follower takes from the last (`take_lane`), so one
+session's lane, a lease each new follower takes from the last (`leases.take_lane`), so one
 follower lists for a session at a time. It lists only rounds whose newest turn came after it first read the page, and
 the module runs each listed id once (`carrier.py`), so each round, named by its newest
 turn, gets at most one line fork, even where a module reload starts a follower again.
@@ -128,10 +128,10 @@ import json
 from pathlib import Path
 
 from . import summary_fork
+from .events import unlined
 from .json_block import json_block
-from .leases import lease_speaks_here, take_wait_lease
 from .service import PageTransaction
-from .state import page_key, session_file
+from .state import page_key
 
 # The words that open the line fork's question, which the transcript carries.
 LINE_OPENING = "<leaf-line-fork>"
@@ -151,58 +151,6 @@ ANSWER = {
 # What Leaf does with the answer of each fork it makes beside a line fork, by the
 # duty its basis names (`ask`'s `beside`).
 BESIDE = {"summary": summary_fork.take_answer}
-
-
-def lane_path(session_id: str) -> Path:
-    return session_file(session_id, "fork-lane")
-
-
-def take_lane(session_id: str):
-    """Hold the session's lane, from any earlier holder, while this follower lists
-    the session's line forks (`hooks.cmd_pages`)."""
-    return take_wait_lease(lane_path(session_id), supersede=True)
-
-
-def lane_up(session_id: str) -> bool:
-    """Whether a follower holds the session's lane, and so lists a line fork, and the
-    forks beside it, for each round that awaits a line."""
-    return lease_speaks_here(lane_path(session_id))
-
-
-def unlined(thread: dict, through: int | None = None) -> list[dict]:
-    """The user's turns waiting in `thread` (`events.unanswered_turns`), oldest
-    first, while the thread stands open and the agent has said nothing in it since
-    the oldest of them, by a message or a rewrite of one: a round that awaits a line
-    (the module header); else none.
-
-    `through` reads the round as it stood at that seq, as the follower reads it as
-    its newest turn arrived (`look`) and a delivery as the message it carries did
-    (`thread_context.batch_threads`). That reading counts the agent's messages
-    alone: the fold keeps only a message's latest rewrite, so counting rewrites
-    would let a later one change what an earlier moment read, and the follower and
-    a delivery must read each round the same way for good. A rewrite counts where
-    it matters, in the reading that decides whether the line goes in."""
-    from .events import spoken_turns, unanswered_turns
-
-    if thread["resolved"]:
-        return []
-    waiting = [
-        turn
-        for turn in unanswered_turns(thread)
-        if through is None or turn["seq"] <= through
-    ]
-    if not waiting or any(
-        waiting[0]["seq"] < said and (through is None or said <= through)
-        for message in spoken_turns(thread)
-        if message["author"] == "agent"
-        for said in (
-            (message["seq"], message.get("edited", {}).get("seq", 0))
-            if through is None
-            else (message["seq"],)
-        )
-    ):
-        return []
-    return waiting
 
 
 def _threads(page: PageTransaction) -> dict[str, dict]:

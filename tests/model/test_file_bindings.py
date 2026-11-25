@@ -30,7 +30,7 @@ from leaf.file_bindings import (
     save_file,
 )
 from leaf.locations import PATH_LOCKS, path_lock_key
-from leaf.served_state.reading import page_reading
+from leaf.page_inputs import page_reading
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):

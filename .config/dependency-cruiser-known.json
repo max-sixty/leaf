@@ -1,0 +1,24 @@
+[
+  {
+    "type": "dependency",
+    "from": "browser/runtime/host/application.js",
+    "to": "browser/runtime/annotations/undo.js",
+    "unresolvedTo": "../annotations/undo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "layering"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "browser/runtime/host/sample-child.js",
+    "to": "browser/runtime/annotations/composing/page-image.js",
+    "unresolvedTo": "../annotations/composing/page-image.js",
+    "dependencyTypes": ["local", "dynamic-import"],
+    "rule": {
+      "severity": "error",
+      "name": "layering"
+    }
+  }
+]

@@ -4,9 +4,9 @@
    lists it starts from are the ones `page state` prints. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSemanticApplication } from "../../browser/runtime/framework/application.js";
-import { itemEnding, itemOutcome } from "../../browser/runtime/queues.js";
-import { todoWord } from "../../browser/runtime/thread/workflow.js";
+import { createSemanticApplication } from "../../browser/runtime/records/framework/application.js";
+import { itemEnding, itemOutcome } from "../../browser/runtime/state/queues.js";
+import { todoWord } from "../../browser/runtime/records/thread/workflow.js";
 import { servedReading } from "../served.mjs";
 
 const adopted = (name) => {

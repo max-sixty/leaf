@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   sameStateDefinition,
   stampedState,
-} from "../../browser/runtime/registry-contract.js";
+} from "../../browser/runtime/state/registry-contract.js";
 import { servedStateDefinitions } from "../served.mjs";
 
 for (const entry of servedStateDefinitions())

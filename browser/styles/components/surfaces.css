@@ -1,5 +1,5 @@
 /* The rules that dress both sides of a shadow boundary. A widget declaring `shadow`
- * renders into a tree no document selector reaches (runtime/shadow-stage.js), and the
+ * renders into a tree no document selector reaches (runtime/dom/shadow-stage.js), and the
  * controls, threads and composer a widget seats there are the layer's own. So what they
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of Leaf's faces (parts.css),
@@ -126,7 +126,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 /* A lent command hint never participates in flow, whether empty, filled or restored.
    Its widget positions the external seat beside the control it labels. It takes no
    pointer, as a corner chip takes none (chrome.css, `.lf-chip-seat`;
-   keyboard/command-hints.js says what that gives a press). */
+   readings/key-badges/command-hints.js says what that gives a press). */
 .lf-binding-seat {
   position: absolute;
   pointer-events: none;
@@ -136,7 +136,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   --lf-external-icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22none%22 stroke=%22black%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5%22/%3E%3C/svg%3E");
 }
 /* The mark after a link that leaves the page, on the page and in a field
-   (composing/field-editor.js, `ExternalMark`). It is the padding of an empty inline box
+   (annotations/composing/field-editor.js, `ExternalMark`). It is the padding of an empty inline box
    at the link's end. Line breaks fall between characters, and an empty inline box
    adds none, so the mark stays on the line of the link's last character; an
    inline-block would allow a break on each side of it (CSS Text 3, "Line Breaking
@@ -230,8 +230,8 @@ a[data-lf-external]::after,
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
      positioned contents would paint over its outline. It wears no outline of its own
      while focused, the browser's ring included, which `:focus-visible` gives it before
-     the focus paint marks it (focus.js), when a moving card reads its rings
-     (box-motion.js).
+     the focus paint marks it (dom/focus.js), when a moving card reads its rings
+     (dom/box-motion.js).
    Either is a positioned box, so its ::after covers it. That ::after is at no weight
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
@@ -428,7 +428,7 @@ summary {
   overflow-wrap: anywhere;
 }
 /* A whole thread a widget seats in its own flow (`data-lf-thread-surface`,
-   thread/surfaces.js) stands as a card in the margin card's face
+   records/thread/surfaces.js) stands as a card in the margin card's face
    (annotation-chrome.css, `.lf-margin-preview-card`): its frame, corners and inset,
    and the margin card's reply field and words (response.css), so a thread looks the
    same under a diff's line as beside a paragraph. As the margin card takes the box its
@@ -441,7 +441,7 @@ summary {
    ring overlay (`.lf-ring-overlay`, above), whose ring comes after every row in tree
    order and so paints over the positioned ones without a z-index that would also lift
    it over the page. The frame is a shadow inside the edge rather than a border, since
-   a resolved card gives its room back by folding (thread/inline.js), and a border
+   a resolved card gives its room back by folding (records/thread/inline.js), and a border
    keeps its last pixel until the fold ends. A seat's cards stand a gap apart; between
    live neighbors may stand the inert pixels of one folding away. The comment box the
    seat opens under them stands that gap below them too, where the card it becomes
@@ -662,7 +662,7 @@ summary {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* A message's time, its day and then its clock (`saidTime`, thread/messages.js),
+  /* A message's time, its day and then its clock (`saidTime`, records/thread/messages.js),
      gives up its clock whole before its day: the clock wraps onto a second line, which
      the time's one line clips, so a head beside a card's controls says "15 Aug" where
      a cut said "15 Aug, …". */
@@ -683,7 +683,7 @@ summary {
   margin-inline-end: auto;
 }
 /* A primary reader's first message part holds its thread's news notice at the head's
-   end, before the message's own controls (controls.css; thread/primary-reader.js). It
+   end, before the message's own controls (controls.css; records/thread/primary-reader.js). It
    stays positioned, at no offset, so its reach (`::after`) covers the notice rather
    than the whole message. */
 .lf-msg-head > .lf-primary-news {
@@ -725,7 +725,7 @@ summary {
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
-   closed (thread/transcript.js). One disclosure at its head controls the entire
+   closed (records/thread/transcript.js). One disclosure at its head controls the entire
    range. Open, the covered messages follow it at their own inner gap. Each item of a
    transcript keeps its gap above it alone, since nothing collapses a gap below one
    into the next: a card's transcript is a grid, and a closed fold's hidden messages
@@ -817,7 +817,7 @@ summary {
   padding: 4px 0;
 }
 /* A step's face, the working message among them: the step, where it was said
-   (thread/transcript.js). It takes a message's head and body faces, but its
+   (records/thread/transcript.js). It takes a message's head and body faces, but its
    words stay dim, and while the work runs a sheen passes over them, as over a title
    being generated, so a step reads as work under way rather than as a reply. Its words
    wrap as a message's do, so the whole step shows however narrow the surface. Its
@@ -838,7 +838,7 @@ summary {
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
-/* A thread's name while its title is on its way (thread/messages.js, `threadHeading`):
+/* A thread's name while its title is on its way (records/thread/messages.js, `threadHeading`):
    the working message's face, its sheen included, at the words' own weight rather
    than a title's, so it reads as a step under way rather than as the thread's name. */
 .lf-thread-name-pending {
@@ -1041,7 +1041,7 @@ summary {
   white-space: nowrap;
   text-align: start;
 }
-/* What a seat holds while it would move the page under the reader (thread/held-news.js).
+/* What a seat holds while it would move the page under the reader (records/thread/held-news.js).
    The row it appears in already stands at the height of the control beside it, the
    head controls row's Resolve or Reopen. Centred rather than on the row's baseline,
    it asks for none of the depth below the words. A seat that draws no thread shows it
@@ -1083,7 +1083,7 @@ button.lf-thread-news {
   color: var(--lf-warn-ink);
 }
 /* What an answer leaves standing reads beside its time like a receipt. A to-do's word
-   is a press in the head's ink instead (thread/messages.js, `#leavesWord`). The press
+   is a press in the head's ink instead (records/thread/messages.js, `#leavesWord`). The press
    clips its words rather than hiding their overflow, since a box that hides it
    scrolls, and focus scrolled its words up out of the head's line. */
 .lf-msg-head span.lf-msg-leaves {
@@ -1099,9 +1099,9 @@ button.lf-thread-news {
    where every surface reads it. Only the quoted words stand behind the rule, which
    with the quiet ink says they are quoted, so they take no marks. Leaf's words about
    them form a label over the rule in the status face: first a status word in Leaf's
-   italic (voice.js) where the page no longer reads as the quote does, such as a
+   italic (base/voice.js) where the page no longer reads as the quote does, such as a
    passage a revision took out of the latest version, which a finger reads as a pointer
-   does (`quoteReading`), then where they stand (`anchorPlace`, thread/messages.js),
+   does (`quoteReading`), then where they stand (`anchorPlace`, records/thread/messages.js),
    which a margin card's bracket already shows. A thread on a place with no quoted
    words draws the label alone.
    The words stand over the thread's messages in three lines. Where three lines cut

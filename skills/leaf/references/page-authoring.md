@@ -218,7 +218,7 @@ controls in it keep the browser's look, as on a page that selects no theme
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page. Three colours carry a
 palette: `--lf-paper` for the ground, `--lf-ink` for text and `--lf-accent` for
-links and focus. Leaf steps the neutral colours of every surface from the first two,
+links. Leaf steps the neutral colours of every surface from the first two,
 and the page's own rules read them too: `--lf-card`, `--lf-field`, `--lf-muted`,
 `--lf-rule` and `--lf-border`. The faces are `--lf-serif` for prose, `--lf-sans` for
 labels and controls and `--lf-mono` for code, and `--lf-r` sets every corner

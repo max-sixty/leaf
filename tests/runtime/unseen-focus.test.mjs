@@ -1,10 +1,10 @@
 /* A key pressed at a control the user has scrolled out of sight lets go of it first and
-   acts from the page; typing and Escape keep the control (keyboard/controller.js). */
+   acts from the page; typing and Escape keep the control (panel/page-keys/controller.js). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mountKeyboard } from "../../browser/runtime/keyboard/controller.js";
-import { keys } from "../../browser/runtime/keyboard/scopes.js";
-import { focused } from "../../browser/runtime/focus.js";
+import { mountKeyboard } from "../../browser/runtime/panel/page-keys/controller.js";
+import { keys } from "../../browser/runtime/dom/keyboard/scopes.js";
+import { focused } from "../../browser/runtime/dom/focus.js";
 
 mountKeyboard({
   goToSequenceActive: () => false,

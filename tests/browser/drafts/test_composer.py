@@ -82,7 +82,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
         expect(send).to_have_attribute("aria-disabled", "false")
         if box != "composer":
             # The panel's field shows Send only once its words hold more than space
-            # (floating-panel.js, `typing`), so its keys send the space.
+            # (panel/floating-panel.js, `typing`), so its keys send the space.
             with sending(page, f"the {box} message"):
                 field.press("ControlOrMeta+Enter")
         else:
@@ -817,7 +817,8 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
     assert reading()[0]["heading"]
 
     # Continuing a list already shows its bullet. Typing the first letter must not
-    # be what changes the marker, and moving into its source must still expose it.
+    # be what changes the marker, and moving into its source must still expose it,
+    # so a marker typed over it changes the item's.
     write(field, "- First")
     field.press("Shift+Enter")
     expect(field).to_have_js_property("value", "- First\n- ")
@@ -826,8 +827,7 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
     assert all(line["listed"] and not line["shownMarkers"] for line in lines), lines
     field.press("ArrowLeft")
     assert reading()[-1]["shownMarkers"] == ["- "]
-    field.press("Backspace")
-    expect(field).to_have_js_property("value", "- First\n ")
+    field.press("Shift+ArrowLeft")
     page.keyboard.type("*")
     expect(field).to_have_js_property("value", "- First\n* ")
     assert reading()[-1]["shownMarkers"] == ["* "]

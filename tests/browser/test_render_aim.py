@@ -162,7 +162,7 @@ def open_compact_comment(page, text=None):
     return field
 
 
-# The top of the window the page shows (geometry.js, `shownWindow`): what a float the
+# The top of the window the page shows (dom/geometry.js, `shownWindow`): what a float the
 # page places stands below.
 SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
 
@@ -714,7 +714,7 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
 
 # Where the side comment's outline is drawn, its top and its foot, and its first line
 # of words and its Send's foot: its surface draws the outline, a pixel outside the cut
-# of its fill (box-motion.js).
+# of its fill (dom/box-motion.js).
 SIDE_COMMENT_DRAWN = r"""() => {
   const ground = document.querySelector('.lf-fab-ground');
   const at = ground.getBoundingClientRect();
@@ -744,7 +744,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     """A line the comment box gains at the window's foot shifts it up in the frame the
     key lands, its words and Send with its edges, as a textarea's would; a line
     removed carries the words back down with the top edge over the floating boxes'
-    tween while Send rides the foot (box-motion.js, "Whose change it is"). A new line
+    tween while Send rides the foot (dom/box-motion.js, "Whose change it is"). A new line
     that travelled too would hide the word being typed until the edge reached it."""
     page = open_page(
         browser,
@@ -846,7 +846,7 @@ def test_a_ring_the_comment_box_comes_to_wear_mid_tween_waits_for_its_end(
     (annotation-chrome.css), which exists only while the focus paint marks the box. Focus
     coming back to the box while a line it gave up still travels makes that ::after
     anew, and its ring waits for the tween's end as one the box wore from its start
-    does (box-motion.js): drawn at once, it would stand at the box's rest size over an
+    does (dom/box-motion.js): drawn at once, it would stand at the box's rest size over an
     outline still travelling."""
     page = open_page(browser, serve(LONG_PAGE))
     page.emulate_media(reduced_motion="no-preference")
@@ -883,7 +883,7 @@ def test_a_key_that_changes_the_comment_box_draws_it_at_once(browser, serve, cha
     """A comment box widens with its first line's words and grows downward as it takes
     more lines, and the key that widens it or takes it a new line stands it at its new
     size in the frame the key lands, as a textarea sized to its words does
-    (box-motion.js, "Whose change it is"). A tween each key started would trail the
+    (dom/box-motion.js, "Whose change it is"). A tween each key started would trail the
     caret, and the field's cut would hide what was just typed until the tween caught up.
     A line taken at the window's foot is
     `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
@@ -2440,7 +2440,7 @@ def test_a_design_part_is_a_repeat_only_among_its_own_owner_s_parts(browser, ser
     """A part's name is its owner's own: a control inside an item the owner holds is
     that item's part, so a twin there leaves the owner's control unrepeated, and its
     name says no more than a lone control's would. Naming a part reads only what its
-    owner holds as its own (anchor-resolution.js, `namedParts`): a side tab list's tabs
+    owner holds as its own (readings/anchor-resolution.js, `namedParts`): a side tab list's tabs
     stand beside every document its panels hold, which the press and the picker's
     announcement each read in full (#4781)."""
     page = open_page(
@@ -2822,7 +2822,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     browser, serve, subtests
 ):
     """What varies by shape is which target Design mode reads. One reader decides it
-    (anchor-resolution.js, `designTargetAt`), and the press and the picker both go through
+    (readings/anchor-resolution.js, `designTargetAt`), and the press and the picker both go through
     it (`claimPress`, `chooseTarget`), so this reads each shape on one page, walks the
     picker's map to hear each announced as captured, and presses each shape with a default
     or a handler of its own, by each pointer route, up to the comment opening on it.
@@ -3242,7 +3242,7 @@ def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
     """A legend box takes the corners of what it names, read once the element shows.
     Chromium answers a style read inside a closed tab by styling everything the tab
     holds, so on a page of text documents in closed tabs entering Design mode could
-    take seconds (design.js, `paintLegend`). The box of what the tab holds
+    take seconds (annotations/design.js, `paintLegend`). The box of what the tab holds
     takes its corners once the tab opens."""
     page = open_page(
         browser,
@@ -3285,7 +3285,7 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
     beside it, and a control's own words after its name, said once. A picture says none
     of its own words, since its name describes it: over a text document Design mode
     aims at its view, a picture of the whole document, whose name would otherwise read
-    all of it twice at each move of the pointer (anchor-resolution.js,
+    all of it twice at each move of the pointer (readings/anchor-resolution.js,
     `controlContext`)."""
     filler = " ".join(f"word{n}" for n in range(400))
     lines = "".join(f"line {n} of the document\n" for n in range(3000))
@@ -3420,7 +3420,7 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
             )
         ),
     )
-    accent = token_colour(page, "--lf-accent")
+    ring_ink = token_colour(page, "--lf-here")
     fill = "(text) => getComputedStyle(text).fill"
     outline = "(part) => [getComputedStyle(part).outlineStyle, getComputedStyle(part).outlineColor]"
     drawer = page.locator("#fig-drawer rect")
@@ -3428,13 +3428,13 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-drawer")
-    assert_drawn_in(page.locator("#fig-drawer"), accent, 2)
+    assert_drawn_in(page.locator("#fig-drawer"), ring_ink, 2)
     assert page.locator("#fig-drawer text").evaluate(fill) == "rgb(51, 51, 51)"
     page.keyboard.up("Alt")
     page.locator("#fig-key text").hover()
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-key")
-    assert page.locator("#fig-key").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-key").evaluate(outline) == ["solid", ring_ink]
     assert page.locator("#fig-key text").evaluate(fill) == "rgb(51, 51, 51)"
     page.keyboard.up("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_count(0)
@@ -3442,7 +3442,7 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
     page.locator("#fig-dot use").hover()
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-dot")
-    assert page.locator("#fig-dot").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-dot").evaluate(outline) == ["solid", ring_ink]
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
@@ -3481,13 +3481,13 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
-    accent = token_colour(page, "--lf-accent")
-    assert_drawn_in(page.locator("#outer-surface"), accent, 2)
+    ring_ink = token_colour(page, "--lf-here")
+    assert_drawn_in(page.locator("#outer-surface"), ring_ink, 2)
     assert (
         page.locator("#outer-decoration").evaluate(
             "line => getComputedStyle(line).stroke"
         )
-        != accent
+        != ring_ink
     )
     page.keyboard.up("Alt")
 
@@ -3495,7 +3495,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The inner part, with no surface of its own, draws it along all it holds.
     expect(page.locator("[data-lf-aimed]")).to_have_id("inner")
-    assert_drawn_in(page.locator("#inner"), accent, 2)
+    assert_drawn_in(page.locator("#inner"), ring_ink, 2)
     page.keyboard.up("Alt")
 
 
@@ -3726,7 +3726,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     page.keyboard.down("Alt")
     aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
-    assert_drawn_in(aimed, token_colour(page, "--lf-accent"), 2)
+    assert_drawn_in(aimed, token_colour(page, "--lf-here"), 2)
     assert (
         rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
         == "none"
@@ -3954,7 +3954,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
         assert pending["ring"] == aimed["ring"], (aimed, pending)
 
 
-# A box drawing the target painter's focus state as its ring (visual-mark-paint.js).
+# A box drawing the target painter's focus state as its ring (annotations/visual-mark-paint.js).
 FOCUS_MARK = '[data-lf-mark~="focus"]'
 
 
@@ -4476,7 +4476,7 @@ def _design_mode(page):
 
 
 # A long page whose paragraphs stand under a header stuck at the window's head, which cuts
-# paint over them in the window's plane (geometry.js, `headerInset`).
+# paint over them in the window's plane (dom/geometry.js, `headerInset`).
 HEADED_PAGE = LONG_PAGE.replace(
     "<p id='p0'>",
     "<section style='--lf-top: calc(var(--lf-safe-top) + 40px)'>"
@@ -4555,7 +4555,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
 ):
     """Paint over what the page shows, a mode's names, chips and marks, stands where
     what it names is carried, anchored to it in the frames that cut it
-    (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
+    (readings/target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
     it with the scroll and writes none of it on the scroll's frames. What the scroll
     changes, the map's members and a chip the window's head holds in, is read once it
     settles, and a legend's tags step inside their boxes as they cross a cut. A design
@@ -4627,7 +4627,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
 
 def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, serve):
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
-    (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
+    (readings/key-badges/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
     chrome at the foot shared its column, such a chip would stand still mid-page
     through a scroll and jump once it settled."""
@@ -4749,7 +4749,7 @@ OFF_FLOW_PAGE = leaf_page(
 
 def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, serve):
     """A paragraph's tag scrolls past the tag a sticky bar keeps still, and the two
-    step apart as they meet, with no legend pass between (design.js, `placeTags`):
+    step apart as they meet, with no legend pass between (annotations/design.js, `placeTags`):
     a scroll that left every tag on the same side of its box doesn't keep the steps it
     found, though the tags it had stepped apart now stand elsewhere."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
@@ -4782,7 +4782,7 @@ def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, s
 def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     """Each legend box is anchored to its own element, so it stays on a sticky bar the
     page scrolls under and on an element a transform moves, with no pass to place it
-    again (design.js, `paintLegend`); a fixed bar and a popover's content, which no
+    again (annotations/design.js, `paintLegend`); a fixed bar and a popover's content, which no
     frame cuts, stand beside it."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
     resized(page, 1280, 720)
@@ -5574,13 +5574,13 @@ def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
         after = beside(target)
         page.keyboard.up("Alt")
         # The marker is the text's near-black before the aim. The band is the
-        # accent's blue the aim adds, so the coloured edges of text that a
-        # subpixel-smoothed font draws, blue before as after, aren't band.
+        # user's green the aim adds (`--lf-here`), so the coloured edges of text that a
+        # subpixel-smoothed font draws, green before as after, aren't band.
         marker = [x for x, r, g, b in before if max(r, g, b) < 110]
         band = [
             x
-            for (x, r, _, b), (_, r0, _, b0) in zip(after, before, strict=True)
-            if b - r > 40 and b0 - r0 <= 40
+            for (x, r, g, _), (_, r0, g0, _) in zip(after, before, strict=True)
+            if g - r > 40 and g0 - r0 <= 40
         ]
         assert band and marker, f"#{target}: no band or no marker beside the item"
         assert max(band) < min(marker), (

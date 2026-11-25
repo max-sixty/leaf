@@ -29,6 +29,7 @@ from render_harness import (
     navigate,
     open_page,
     round_trip,
+    said,
     sending,
     tab_onto,
     told,
@@ -240,6 +241,38 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
     }"""
     drop = {"verb": "pick", "detail": {"candidate": "ada", "picked": False}}
     assert not page.evaluate(gone, drop)
+
+
+def test_an_event_that_reaches_nobody_is_its_elements_failure(browser, serve):
+    """Leaf hears a hold at the document, so an `lf-hold` that does not bubble begins
+    no hold and tells nobody. Leaf reports it as the failure of the element that
+    dispatched it, and says nothing of one dispatched to bubble and be composed. In a
+    shadow stage it reports one that bubbles and is not composed, which never leaves
+    the stage."""
+    url = live_url(serve(leaf_page("Release 4.2", QUESTION), packages=(VERDICT,)))
+    page = open_page(browser, url)
+    hold = """async ([options, staged]) => {
+      let origin = document.getElementById("verdict");
+      if (staged) {
+        const {shadowStage} = await window.__lfWidgetApi();
+        origin = document.createElement("lf-part");
+        shadowStage(document.getElementById("verdict"), [origin]);
+      }
+      const event = Object.assign(new Event("lf-hold", options), {
+        complete: Promise.resolve(),
+      });
+      origin.dispatchEvent(event);
+    }"""
+
+    page.evaluate(hold, [{"bubbles": True, "composed": True}, False])
+    page.evaluate(hold, [{}, False])
+    [reported] = consume_browser_errors(page, '<lf-verdict id="verdict"> failed: ')
+    assert "`lf-hold` did not reach Leaf" in said(reported)
+
+    page.evaluate(hold, [{"bubbles": True, "composed": True}, True])
+    page.evaluate(hold, [{"bubbles": True}, True])
+    [reported] = consume_browser_errors(page, "<lf-part> failed: ")
+    assert "`lf-hold` did not reach Leaf" in said(reported)
 
 
 def test_a_record_that_bubbles_belongs_to_the_nearest_widget(browser, serve):

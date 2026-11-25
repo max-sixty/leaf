@@ -56,7 +56,8 @@ Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or
 widget the newest revision declares (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `served_state.work` serves
-each standing as `activity` reads it.
+each standing as `activity` reads it. The `leaf task` commands that write them are
+`tasks`'.
 
 A plan (`plans`) arranges to-dos and obligations into an outline without owning them, so no
 rule here reads it.
@@ -67,10 +68,9 @@ change a lot. Change them freely; nothing outside this repository depends on the
 
 from dataclasses import dataclass
 from functools import cached_property
-from pathlib import Path
 
 from .events import note_settlements, taken_back, unshown
-from .findings import Finding, Rejected
+from .findings import Finding
 from .standing import ended, is_open, on
 from .thread_context import thread_ids, thread_names
 
@@ -291,124 +291,3 @@ def todo_error(
     if not is_open(todo):
         return Finding("ended-todo", values={**named, "state": todo["outcome"]})
     return None
-
-
-def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
-    """Create a to-do titled `title` on what `subject` names: a page widget, thread,
-    any other element of the page by its id, or `page` for the page as a whole; the
-    record. A thread attachment supplies discussion context without making a reply
-    complete the task. A long title is fitted (`thread.agent_title`)."""
-    from .event_contracts import append_admitted
-    from .leases import contract_writer
-    from .revisioning import activate_source
-    from .service import PageTransaction
-    from .thread import agent_title
-    from .work import page_element, page_subject
-
-    @contract_writer
-    def write(page_dir: Path) -> dict:
-        with PageTransaction(page_dir) as page:
-            activate_source(page_dir, transaction=page)
-            named = (
-                {"kind": "page"}
-                if subject == PAGE_SUBJECT
-                else page_subject(page_dir, page.events, subject)
-                or page_element(page_dir, subject)
-            )
-            if named is None:
-                raise Rejected(
-                    [
-                        Finding(
-                            "unknown-subject",
-                            values={"subject": subject, "page": PAGE_SUBJECT},
-                        )
-                    ]
-                )
-            record, _ = append_admitted(
-                page,
-                {
-                    "kind": "todo",
-                    "author": "agent",
-                    "subject": named,
-                    "title": agent_title(title),
-                },
-            )
-            return record
-
-    return write(page_dir)
-
-
-def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
-    """Append the start taking `item` in hand with `text` as its line, written as
-    `identity`, within `page`, an open `service.PageTransaction`; the record.
-
-    The start names the turn the command acts in when the posting session holds the
-    page (`state.acting_turn`): the claimant's. That is what lets the turn end over the
-    update it started, and what ends the start's hold once that turn has ended and no
-    background work of the session carries it on (`activity.start_holds`). Another
-    session's start names none. A Claude Code subagent runs as its
-    parent's session, so a worker's start is the main thread's.
-    `leaf task start` writes this explicit event. Addressed ephemeral replies
-    carry their start on the message itself (`thread.post_reply`), and every
-    start consumer reads either form through `start_reading`. A start on a page
-    declared `idle` reopens it (`activity.declaration`)."""
-    from .event_contracts import append_admitted
-    from .state import acting_turn
-
-    turn = acting_turn(page.claim, identity.get("session"))
-    record, _ = append_admitted(
-        page,
-        {
-            "kind": "start",
-            "author": "agent",
-            **identity,
-            "item": item,
-            "text": text,
-            **({"turn": turn} if turn else {}),
-        },
-    )
-    return record
-
-
-def cmd_start(page_dir: Path, item: str, text: str) -> dict:
-    """Take `item`, an update's event id or an open to-do's id, in hand with `text` as
-    its line (`take_in_hand`); the record."""
-    from .harness import message_identity
-    from .leases import contract_writer
-    from .revisioning import activate_source
-    from .service import PageTransaction
-
-    @contract_writer
-    def write(page_dir: Path) -> dict:
-        with PageTransaction(page_dir) as page:
-            activate_source(page_dir, transaction=page)
-            return take_in_hand(page, item, text, message_identity())
-
-    return write(page_dir)
-
-
-def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:
-    """End `todo` with `outcome`, `detail` saying where the result is or why there
-    is none; the record."""
-    from .event_contracts import append_admitted
-    from .leases import contract_writer
-    from .revisioning import activate_source
-    from .service import PageTransaction
-
-    @contract_writer
-    def write(page_dir: Path) -> dict:
-        with PageTransaction(page_dir) as page:
-            activate_source(page_dir, transaction=page)
-            record, _ = append_admitted(
-                page,
-                {
-                    "kind": "todo_end",
-                    "author": "agent",
-                    "todo": todo,
-                    "outcome": outcome,
-                    **({"detail": detail} if detail is not None else {}),
-                },
-            )
-            return record
-
-    return write(page_dir)

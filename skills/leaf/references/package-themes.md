@@ -216,10 +216,10 @@ cards their own ground and corners. Each part resolves the chrome's fonts again
 (`--lf-font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--lf-sans` or `--lf-t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
 root's reading on a part: the neutrals stepped from the root's paper and ink, the
-focus ring and link underline, which follow the root's `--lf-accent`, and the raise
-shadows, which follow its `--lf-shade`. Set the ones the part should change beside
-the token they follow, such as `--lf-card` beside `--lf-paper`, and
-`--lf-focus-ring` and `--lf-focus-shadow` beside `--lf-accent`. Leaf draws each
+link underline, which follows the root's `--lf-accent`, the focus ring, which follows
+its `--lf-here`, and the raise shadows, which follow its `--lf-shade`. Set the ones the
+part should change beside the token they follow, such as `--lf-card` beside
+`--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow` beside `--lf-here`. Leaf draws each
 surface's ground, ring, corners and shadow from these tokens, and places and sizes the
 surface itself, so restyle those through tokens rather than `background`, `border`, a
 position or a transform. The panel's ground is a second box carrying the `panel`
@@ -271,7 +271,7 @@ contrast choice, they are independent tokens:
 
 | Role             | Tokens                                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The page         | `--lf-paper`, its ground; `--lf-ink`, its text; `--lf-accent`, for links, focus and the chosen item. With no theme the first two are the browser's canvas and text                                                                                                                                                                                                                                    |
+| The page         | `--lf-paper`, its ground; `--lf-ink`, its text; `--lf-accent`, for links and the chosen item. With no theme the first two are the browser's canvas and text                                                                                                                                                                                                                                           |
 | Status           | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; `--lf-ok-ink`, `--lf-warn-ink`, `--lf-danger-ink` for text                                                                                                                                                                                                                                                                                         |
 | Counts           | `--lf-badge-fill` with `--lf-badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--lf-border` and status inks                                                                                                                                                                                                                                                         |
 | Code             | `--lf-code-bg` for inline code; `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border` for a block; `--lf-code-scheme`, `dark` or `light`, draws every code block in that scheme whatever the page's, each token in it taking that scheme's `light-dark()` branch; setting the code tokens alone leaves the status inks and highlights inside in the page's scheme |
@@ -297,6 +297,7 @@ rules read them, and a theme restates one it wants otherwise:
 | `--lf-offer-hover-shadow`                               | The wash under a press the pointer is over, as an inset `box-shadow`                   |
 | `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint`    | A status's ground, from the paper and that status's colour                             |
 | `--lf-add-tint`, `--lf-del-tint`, `--lf-hi-tint`        | The ground of an added, a removed and a highlighted line                               |
+| `--lf-here`                                             | Leaf's mark for where the user is: focus, the location ring, the aim                   |
 | `--lf-turn`, `--lf-turn-ink`, `--lf-turn-wash`          | Leaf's mark for the user's move: their turn in a thread, what is On me                 |
 | `--lf-thread`                                           | Leaf's mark for a thread                                                               |
 | `--lf-work`                                             | Leaf's mark for the agent at work: the leaf, the bar beside a block, a plan's progress |
@@ -326,5 +327,5 @@ browser set to dark. A theme may set `light-dark()` values so the browser's sche
 preference selects the palette. Subtree overrides follow normal CSS inheritance: when
 changing a token locally, redeclare any value stepped from it that is needed there,
 such as `--lf-card` after `--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow`
-after `--lf-accent`. Keep the inherited `--lf-ground` surface contract described above
+after `--lf-here`. Keep the inherited `--lf-ground` surface contract described above
 so opaque nested controls match their containing surface.

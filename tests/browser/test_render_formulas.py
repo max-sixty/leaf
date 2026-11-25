@@ -19,7 +19,7 @@ FORMULAS = leaf_page(
     f'<p id="series">The series runs <code class="language-math">{LONG}</code>.</p>',
 )
 
-# What the page's comment capture reads of the selection (native-selection.js,
+# What the page's comment capture reads of the selection (dom/native-selection.js,
 # `pageRange`): the anchor it would quote, or null where the selection is a caret.
 SELECTED = """async () => {
   const { anchorForRange, pageRange } = await window.__lfCheckApi();

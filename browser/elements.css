@@ -271,7 +271,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * nothing and the row takes what the header and footer leave, while a body that doesn't
  * holds the row at its full height. Whether a body scrolls is the stylesheet's: the
  * workspace Layout scrolls pane bodies where it fills the window (layouts.css), and
- * `reading-regions.js` reads which box scrolls from the result.
+ * `readings/reading-regions.js` reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
  * controls beside its preview, marks them with the same role and takes these same
@@ -287,7 +287,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * header's font) is a default inside :where(), so a package that draws its generated
  * pane another way does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
- * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
+ * Tab to (dom/reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
  * its right and bottom sides to the scrollport's edge and ran over the header's rule.
  * The pane is the body's ring frame instead (surfaces.css, `.lf-ring-frame`), drawing

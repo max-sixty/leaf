@@ -1,5 +1,6 @@
-"""Complete registry validation orchestration, and the checks of a vocabulary's
-layer facts and the declarations beside its elements."""
+"""Complete registry validation orchestration, including the merged, validated and
+stamped registry of a layer's packages (`incoming_registry`), and the checks of a
+vocabulary's layer facts and the declarations beside its elements."""
 
 import hashlib
 import json
@@ -27,6 +28,7 @@ from .contract import (
     state_specs,
 )
 from .kernel import answer_kinds
+from .layer import merged_registry, stamp_composition
 from .schema import (
     check_schema,
     json_validator,
@@ -61,6 +63,13 @@ def validate_registry(registry: dict, source) -> dict:
     while len(_VALIDATED) > _VALIDATED_LIMIT:
         _VALIDATED.pop(next(iter(_VALIDATED)), None)
     return registry
+
+
+def incoming_registry(packages: list) -> dict:
+    """The merged registry (`registry.layer.merged_registry`) `page init` will vendor,
+    validated and stamped."""
+    merged, source = merged_registry(packages)
+    return stamp_composition(validate_registry(merged, source))
 
 
 def _validate(registry: dict, path) -> None:
@@ -211,10 +220,10 @@ def _validate_data_contract(contract: str, declaration: dict, path) -> None:
 def validate_work_roles(registry: dict, declarations: dict, path) -> None:
     """Hold each `$work.widgets` entry, whose shape `check_layer_facts` holds, to
     the declaration of the tag it maps, refusing with the first problem in each.
-    `runtime/work.js` reads the entries as given, so an attribute the tag lacks, or a
+    `runtime/host/work.js` reads the entries as given, so an attribute the tag lacks, or a
     value its state can't take, would leave a goal never done or a worker without its
     goal, with nothing saying why. A role's state is the one widget value record on
-    its attribute, which work.js also reads as the role's report verb, and a worker's
+    its attribute, which host/work.js also reads as the role's report verb, and a worker's
     `on` names its goal by id."""
     roles = registry.get("$work", {}).get("widgets", {})
     if unknown := sorted(roles.keys() - declarations.keys()):

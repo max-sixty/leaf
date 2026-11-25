@@ -12,7 +12,7 @@ from browser.test_chrome_contracts import (
     open_threads_list,
     type_drafts,
 )
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -29,6 +29,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.browser import choose_threads_in_panel
 
 
 # Each scheme and each pointer once: the faces compared are the same scheme's, and a

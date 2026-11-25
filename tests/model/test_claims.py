@@ -165,7 +165,7 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     # Diagnostic joins survive replacement/ending of the live claim and lifecycle.
     from leaf.event_log import read_events
     from leaf.interaction_log import read_interactions
-    from leaf.todos import take_in_hand
+    from leaf.tasks import take_in_hand
 
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "input", "author": "user", "text": "why?"}

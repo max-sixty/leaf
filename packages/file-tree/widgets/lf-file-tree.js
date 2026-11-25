@@ -24,7 +24,6 @@ import {
   go,
   onCurrentLocation,
   scrollIntoView,
-  shadowStage,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer } from "/runtime/lib/controls.js";
@@ -74,6 +73,9 @@ class FileTreeWidget extends LeafElement {
   /** @type {Promise<void> | undefined} */
   #applied;
   #emptyRoot = offer("p", "lf-file-tree-empty");
+  // The open root the tree renders in, attached before the first `lf-connect`, so Leaf
+  // dresses it then: the theme's style node first, and the shared sheets.
+  #root = this.attachShadow({ mode: "open" });
   /** @type {ReturnType<FileTreeWidget["createTree"]> | undefined} */
   #apply;
   get #applyFiles() {
@@ -113,8 +115,9 @@ class FileTreeWidget extends LeafElement {
 
   createTree() {
     const empty = this.#emptyRoot;
-    const root = shadowStage(this, [empty]);
+    const root = this.#root;
     const theme = root.firstChild;
+    root.append(empty);
     const label = this.getAttribute("aria-label") || "Files";
     keeps(this, "aria-label", label);
 
@@ -149,15 +152,16 @@ class FileTreeWidget extends LeafElement {
     };
     const mount = () => {
       if (!tree || mounted || !files.length) return;
+      // Upstream replaces the root's adopted sheets with its own and appends its
+      // nodes after the theme and the empty line, so the sheets Leaf shared go back
+      // after its own, and the empty line goes last.
+      const shared = root.adoptedStyleSheets;
       tree.render({ fileTreeContainer: this });
-      // Upstream has adopted its sheet and appended its nodes. Restaging shares
-      // that sheet with Leaf's and retains those exact nodes and the theme.
-      const nodes = [...root.childNodes].filter(
-        (node) => node !== theme && node !== empty,
-      );
-      for (const node of nodes)
-        if (node instanceof HTMLElement) node.classList.add("lf-ui");
-      shadowStage(this, [...nodes, empty]);
+      root.adoptedStyleSheets = [...new Set([...root.adoptedStyleSheets, ...shared])];
+      for (const node of root.children)
+        if (node instanceof HTMLElement && node !== theme && node !== empty)
+          node.classList.add("lf-ui");
+      root.append(empty);
       keeps(root.querySelector('[role="tree"]'), "aria-label", label);
       const search = root.querySelector("input");
       keeps(search, "aria-label", `Search ${label}`);
@@ -331,7 +335,8 @@ class FileTreeWidget extends LeafElement {
         stopModel = null;
         tree.unmount();
         mounted = false;
-        shadowStage(this, [empty]);
+        for (const node of [...root.childNodes])
+          if (node !== theme && node !== empty) node.remove();
       } else mount();
       paintEmpty();
     };

@@ -9,7 +9,6 @@ import {
   readQueues,
   readThreads,
   registerThreadPresentation,
-  shadowStage,
   threadActions,
 } from "/runtime/widget-api.js";
 import { setChildren } from "/runtime/lib/dom-children.js";
@@ -20,6 +19,7 @@ import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-conversation-workspace",
   class extends LeafElement {
+    root = this.attachShadow({ mode: "open" });
     setup() {
       this.build();
     }
@@ -156,7 +156,7 @@ customElements.define(
         void this.presentation.update();
       });
       this.layout.append(toolbar, body, compose);
-      shadowStage(this, [style, this.layout]);
+      this.root.append(style, this.layout);
     }
     outlet(identity) {
       if (!this.outlets.has(identity)) this.outlets.set(identity, offer("div"));

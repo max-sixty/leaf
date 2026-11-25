@@ -114,14 +114,18 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     decide["detail"]["required"].append("decision")
     registry_path.write_text(json.dumps(declarations))
-    stage = "shadowStage(this, [...this.children]);" if shadow else ""
+    stage = (
+        'this.attachShadow({ mode: "open" }).append(...this.children); '
+        'this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));'
+        if shadow
+        else ""
+    )
     if shadow:
         (tmp_path / ".leaf" / "widget-shadow.css").write_text(
             "lf-current, lf-proposed { display: block; }"
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { shadowStage } from "/runtime/widget-api.js";
-import { LeafElement } from "/runtime/lib/leaf-element.js";
+        """import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-trial", class extends LeafElement {
   setup() { STAGE }

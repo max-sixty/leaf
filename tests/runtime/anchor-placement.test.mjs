@@ -20,7 +20,7 @@ import { kept } from "/runtime/kept.js";
 import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js";
 import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 import { random } from "./seeded.mjs";
 

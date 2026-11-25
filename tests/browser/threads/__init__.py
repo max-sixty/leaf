@@ -266,13 +266,13 @@ def _shadow_tree_widget(tag):
         "example": f'<{tag} id="example"></{tag}>',
     }
     module = f"""
-import {{shadowStage}} from '/runtime/widget-api.js';
 customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (this.shadowRoot) return;
     const word = document.createElement('span');
     word.textContent = '{tag}';
-    shadowStage(this, [word]);
+    this.attachShadow({{mode: 'open'}}).append(word);
+    this.dispatchEvent(new Event('lf-connect', {{bubbles: true, composed: true}}));
   }}
 }});
 """
@@ -655,7 +655,6 @@ def capture_page(browser, serve, *, touch=False):
     """A scrolled passage with real SVG paint inside a declared shadow widget."""
     declaration, _ = _shadow_tree_widget("lf-capture-art")
     module = """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-capture-art', class extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -667,7 +666,8 @@ customElements.define('lf-capture-art', class extends HTMLElement {
     rect.setAttribute('height', '100');
     rect.setAttribute('fill', 'rgb(30,80,240)');
     svg.append(rect);
-    shadowStage(this, [svg]);
+    this.attachShadow({mode: 'open'}).append(svg);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """

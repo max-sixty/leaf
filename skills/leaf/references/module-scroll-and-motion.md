@@ -70,8 +70,8 @@ of a widget its own name, and require an `id` in the declaration of a widget tha
 one. Where two boxes take one name under one such element, both are regions, but a
 revision that replaces the two returns the user to their place in one of them alone.
 A box in a thread message is a region whose place Leaf keeps only while the box stands.
-Leaf finds the marks in the page, in a stage `shadowStage` builds and in the open
-shadow root of an element that has said `lf-connect` (`module-plain-elements.md`).
+Leaf finds the marks in the page and in the open shadow root of an element that has
+said `lf-connect` (`module-plain-elements.md`).
 
 Give the marked box a scrolling overflow (`auto` or `scroll`) only on an axis where its
 content can outgrow it. A scrolling body bounds what stands in it, such as the card of

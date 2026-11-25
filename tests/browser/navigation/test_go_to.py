@@ -79,7 +79,6 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
     )
     held = page.evaluate(
         """async () => {
-          const { shadowStage } = await window.__lfWidgetApi();
           const { scrollerFor } = await window.__lfCheckApi();
           const host = document.createElement('div');
           const link = Object.assign(document.createElement('a'), {
@@ -90,8 +89,9 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
           for (let n = 0; n < 40; n++)
             log.append(Object.assign(document.createElement('p'),
               {textContent: `Line ${n}`}));
-          shadowStage(host, [link, log]);
+          host.attachShadow({mode: 'open'}).append(link, log);
           document.querySelector('main').append(host);
+          host.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
           await new Promise(requestAnimationFrame);
           await new Promise(requestAnimationFrame);
           return {

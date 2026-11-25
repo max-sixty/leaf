@@ -254,9 +254,10 @@ def test_an_event_that_reaches_nobody_is_its_elements_failure(browser, serve):
     hold = """async ([options, staged]) => {
       let origin = document.getElementById("verdict");
       if (staged) {
-        const {shadowStage} = await window.__lfWidgetApi();
         origin = document.createElement("lf-part");
-        shadowStage(document.getElementById("verdict"), [origin]);
+        const verdict = document.getElementById("verdict");
+        (verdict.shadowRoot ?? verdict.attachShadow({mode: "open"})).replaceChildren(origin);
+        verdict.dispatchEvent(new Event("lf-connect", {bubbles: true, composed: true}));
       }
       const event = Object.assign(new Event("lf-hold", options), {
         complete: Promise.resolve(),

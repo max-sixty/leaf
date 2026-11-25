@@ -3507,7 +3507,6 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             layer_registry={"lf-own-controls": declaration},
             layer_widgets={
                 "lf-own-controls.js": """
-import {shadowStage} from '/runtime/widget-api.js';
 import {once} from '/runtime/lib/once.js';
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`@layer lf-base {
@@ -3519,13 +3518,14 @@ customElements.define('lf-own-controls', class extends HTMLElement {
     if (!once(this)) return;
     const root = this.attachShadow({mode: 'open'});
     root.adoptedStyleSheets = [sheet];
-    shadowStage(this, ['bare', 'own', 'library'].map((name) => {
+    root.append(...['bare', 'own', 'library'].map((name) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = name;
       button.textContent = name;
       return button;
     }));
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """

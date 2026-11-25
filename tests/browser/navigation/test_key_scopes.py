@@ -1091,7 +1091,6 @@ def test_shared_image_viewer_survives_its_source_popover_removal(browser, serve)
     page.route("**/vendor/photoswipe.esm.js", lambda route: held.append(route))
     page.evaluate(
         """async (image) => {
-          const {shadowStage} = await window.__lfWidgetApi();
           const host = document.createElement('section');
           host.id = 'image-options-owner';
           const opener = document.createElement('button');
@@ -1109,7 +1108,8 @@ def test_shared_image_viewer_survives_its_source_popover_removal(browser, serve)
           popover.append(original);
           opener.popoverTargetElement = popover;
           document.querySelector('main').append(host, another);
-          shadowStage(host, [opener, popover]);
+          host.attachShadow({mode: 'open'}).append(opener, popover);
+          host.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
         }""",
         SHOT_SRC["before"],
     )
@@ -1146,7 +1146,6 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { shadowStage } = await window.__lfWidgetApi();
           const { showNativeLayer } = await window.__lfCheckApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
@@ -1168,10 +1167,11 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           inspect.onclick = () => showNativeLayer(shared, {source: inspect});
           popover.append(inspect);
           trigger.popoverTargetElement = popover;
-          shadowStage(shadowHost, [trigger, popover]);
+          shadowHost.attachShadow({mode: 'open'}).append(trigger, popover);
           dialog.append(shadowHost);
           host.append(dialog);
           document.querySelector('main').append(host);
+          shadowHost.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
           host.lfCommands = { title: 'Around a native layer', rows: [
             {id: 'test.outer-escape', keys: ['Escape'], title: 'Work the outer widget',
              line: 'work outer', run: () => { host.dataset.fired = 'Escape'; }},

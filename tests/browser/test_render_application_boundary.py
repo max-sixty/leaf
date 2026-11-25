@@ -848,10 +848,13 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             },
         }
         modules["widgets/lf-controller-stage.js"] = """\
-import { shadowStage } from '/runtime/widget-api.js';
 import { once } from '/runtime/lib/once.js';
 customElements.define('lf-controller-stage', class extends HTMLElement {
-  connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
+  connectedCallback() {
+    if (!once(this)) return;
+    this.attachShadow({mode: 'open'}).append(...this.children);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
+  }
 });
 """
     source = LIVE_V1.replace(
@@ -1567,7 +1570,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
         },
         layer_widgets={
             "lf-keyed-slot-list.js": """
-            import {holdFocus, shadowStage} from '/runtime/widget-api.js';
+            import {holdFocus} from '/runtime/widget-api.js';
             customElements.define('lf-keyed-slot-list', class extends HTMLElement {
               connectedCallback() {
                 this.scope = document.createElement('section');
@@ -1580,7 +1583,8 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 this.editor = document.createElement('input');
                 this.editor.slot = 'editor';
                 this.editor.setAttribute('aria-label', 'Draft');
-                shadowStage(this, [this.scope]);
+                this.attachShadow({mode: 'open'}).append(this.scope);
+                this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
                 this.append(this.editor);
               }
               replaceEditor() {
@@ -1803,7 +1807,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         nested.inert = true;
         const nestedStyle = document.createElement('style');
         nestedStyle.textContent = '.reader { height:100%; min-height:0; overflow:auto; }';
-        shadowStage(nested, [nestedStyle, this.reader]);
+        nested.attachShadow({mode: 'open'}).append(nestedStyle, this.reader);
         body.append(index, nested);""",
     )
     url = serve(
@@ -1814,7 +1818,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         layer_registry=registry,
         layer_widgets={
             "lf-conversation-workspace.js": module,
-            "lf-nested-reader.js": "customElements.define('lf-nested-reader', class extends HTMLElement {});",
+            "lf-nested-reader.js": "customElements.define('lf-nested-reader', class extends HTMLElement { connectedCallback() { this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true})); } });",
         },
     )
     append_carried_log_record(

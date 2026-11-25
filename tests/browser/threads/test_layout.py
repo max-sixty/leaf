@@ -793,7 +793,6 @@ def test_a_package_restyles_an_idiom_whatever_its_rule_weighs(
     (look / "widgets").mkdir(parents=True)
     (look / "registry.json").write_text(json.dumps({"lf-idiom-tree": declaration}))
     (look / "widgets" / "lf-idiom-tree.js").write_text("""
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-idiom-tree', class extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -802,7 +801,8 @@ customElements.define('lf-idiom-tree', class extends HTMLElement {
     facts.append(document.createElement('dt'), document.createElement('dd'));
     facts.firstChild.textContent = 'Owner';
     facts.lastChild.textContent = 'Imani';
-    shadowStage(this, [facts]);
+    this.attachShadow({mode: 'open'}).append(facts);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """)

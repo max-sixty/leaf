@@ -222,8 +222,9 @@ without `list` it says every step. The place goes sooner if focus leaves the sto
 the stop or something inside it has held focus. It also goes if the element it was said
 on leaves the page, as when a redraw replaces it, so a widget whose stops are not
 elements of their own dispatches on the part of its drawing that holds the stop. Leaf
-hears an element leave the page or a shadow stage it builds (`shadowStage`), not a
-shadow root the widget attaches itself, where the place stays its few seconds. A widget
+hears an element leave the page or the open root of an element that said
+`lf-connect`, not a shadow root a page script attaches itself, where the place stays
+its few seconds. A widget
 whose stops take no focus, as a chart's points take none, tells Leaf when its user
 leaves a stop without stepping, as when the chart's pointer takes its reader to another
 point. It dispatches `lf-walk` with no `detail` on the element the place was said on,

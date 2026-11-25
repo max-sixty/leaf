@@ -204,10 +204,12 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       if (event.composedPath()[0] !== this && this.hasUpdated) this.requestUpdate();
     });
     placesFailure(this, (box) => {
-      const root = this.renderRoot ?? this;
-      // A widget showing a shadow stage over its host shows the box as that stage,
-      // which its next stage replaces, as any shadow widget does.
-      if (root === this && this.shadowRoot) return false;
+      // A host showing a shadow root shows only what the root holds, so the box
+      // stands there.
+      const root =
+        (this.renderRoot ?? this) === this
+          ? (this.shadowRoot ?? this)
+          : this.renderRoot;
       // The same failure again leaves the box that already says it.
       if (this.#box?.parentNode === root && this.#box.textContent === box.textContent)
         return true;

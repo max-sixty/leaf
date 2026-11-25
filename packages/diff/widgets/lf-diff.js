@@ -36,14 +36,13 @@ import {
   holdFocus,
   langForPath,
   threadSurface,
-  shadowStage,
   scrollIntoView,
 } from "/runtime/portable-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
-import { failSoft } from "/runtime/lib/failure.js";
+import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
@@ -967,9 +966,22 @@ function fileError(view, error, surface) {
 customElements.define(
   "lf-diff",
   class extends LeafElement {
-    // shadowStage owns the imperative diff; Lit owns no nodes in that stage.
+    // The diff draws in its open root, attached before the first `lf-connect` so Leaf
+    // dresses it then, and Lit owns no nodes there. The root holds Leaf's theme and
+    // one node of the widget's own, whose children are the stage: the files and the
+    // notes no file placed, or a failure, which lasts until the next stage.
     createRenderRoot() {
       return this;
+    }
+    #root = this.attachShadow({ mode: "open" });
+    #stage = Object.assign(document.createElement("div"), {
+      style: "display: contents",
+    });
+    /** @param {Node[]} nodes */
+    #stageNodes(nodes) {
+      if (this.#stage.parentNode !== this.#root) this.#root.append(this.#stage);
+      setChildren(this.#stage, nodes);
+      for (const child of [...this.childNodes]) child.remove();
     }
 
     // The source the last render read, a bound value or an inline patch, and the one
@@ -1028,6 +1040,10 @@ customElements.define(
     }
 
     setup() {
+      placesFailure(this, (box) => {
+        this.#stageNodes([box]);
+        return true;
+      });
       this.singleFile = this.getAttribute("view") === "file";
       this.lfCommands = {
         title: "In a diff review",
@@ -1206,7 +1222,7 @@ customElements.define(
           this.diffTools = null;
           this.filesBody = null;
           this.placeNotes();
-          shadowStage(this, [this.unplacedNotes]);
+          this.#stageNodes([this.unplacedNotes]);
           this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
           return;
@@ -1348,10 +1364,9 @@ customElements.define(
         this.classList.toggle("lf-rendered", false);
         // The failure box quotes a patch text; a manifest has none to quote. It takes
         // the place of every outlet, which core's composer leaves first. It stands as
-        // the shadow stage, as files do, so it lasts until the next `show` stages
-        // another rendering; an update that leaves the source unchanged keeps it.
+        // the stage, as files do, so it lasts until the next `show` stages another
+        // rendering; an update that leaves the source unchanged keeps it.
         threadSurface(this).release(this);
-        shadowStage(this, []);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         this.markFiles(source);
       }
@@ -1406,7 +1421,7 @@ customElements.define(
     stageFiles() {
       if (!this.filesBody) return;
       this.placeNotes();
-      shadowStage(this, [this.filesBody, this.unplacedNotes]);
+      this.#stageNodes([this.filesBody, this.unplacedNotes]);
     }
 
     // Authored nodes survive source replacement and lazy loading. A closed file

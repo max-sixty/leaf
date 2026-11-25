@@ -49,7 +49,8 @@ import {
 import { declaredRoot } from "/runtime/shadow.js";
 import { closestAcross, upFrom } from "/runtime/lib/shadow-tree.js";
 import { inChrome } from "/runtime/ui-marks.js";
-import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
+import { adoptShadowStage } from "/runtime/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 // The elements the page reading treats as blocks, each once, in reading order.
 const blocksRead = () => [

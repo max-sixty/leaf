@@ -351,6 +351,7 @@ import {
   clippedRect,
   drawsText,
   lined,
+  placeHolder,
   seenRect,
   shownBox,
   shownParts,
@@ -1106,9 +1107,7 @@ function readFrom(from, route, read) {
     const outward = from.isConnected ? readOutward(from, route) : null;
     return outward && { ...outward, holder: outward.target };
   }
-  const holder = isElement(from.startContainer)
-    ? from.startContainer
-    : from.startContainer.parentElement;
+  const holder = placeHolder(from);
   let declared = null;
   try {
     declared = holder?.isConnected && read ? read(route) : null;
@@ -2116,15 +2115,16 @@ function changed(node, aim) {
 }
 
 // Where `K` reads: the element the caret stands in (`userCaret`), where that lies inside
-// what focus is on and the user sees it, else what focus is on; the body with no caret
-// in it is nowhere. A caret scrolled out of sight is nowhere too, as a key lets go of
-// focus scrolled out of sight (keyboard/controller.js). What is seen is the caret's
-// element, not its letter: a letter in an age's drawn words stands in a shadow root,
-// where `seenRect` finds no element holding it.
+// what focus is on and the user sees the caret's letter, else what focus is on; the
+// body with no caret in it is nowhere. A caret scrolled out of sight is nowhere too, as
+// a key lets go of focus scrolled out of sight (keyboard/controller.js), though the
+// element it stands in, as a long paragraph, still shows.
 function here() {
   const on = focused() ?? document.body;
-  const caret = userCaret()?.element;
-  if (caret && renderedUnder(caret, on) && seenRect(caret, new Map())) return caret;
+  const caret = userCaret();
+  const at = caret?.element;
+  if (at && renderedUnder(at, on) && seenRect(caret?.letter ?? at, new Map()))
+    return at;
   return on === document.body ? null : on;
 }
 // Whether a keyboard reading is of what focus is on: its target is the focused element

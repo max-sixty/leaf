@@ -1032,6 +1032,15 @@ def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
     assert tip["y"] + tip["height"] >= box["y"] - 24, (tip, box)
     page.keyboard.press("ArrowRight")
     expect(preview).to_be_hidden()
+    # A caret before the character that leads the age's words, which draws nothing,
+    # stands before the age's first figure, which the user sees.
+    age.evaluate("(age) => getSelection().collapse(age.shadowRoot.firstChild, 0)")
+    page.keyboard.press("Shift+K")
+    # A preview put away keeps its words, so only its showing says it was read again.
+    expect(preview).to_be_visible()
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
     # A selection drawn from inside the age to the link's words reads the end it moves,
     # though Chromium reports its anchor in the link's words too.
     age.evaluate(
@@ -1065,6 +1074,7 @@ def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
     expect(preview).to_be_hidden()
     link.locator("em").evaluate("(em) => getSelection().collapse(em.firstChild, 2)")
     page.keyboard.press("Shift+K")
+    expect(preview).to_be_visible()
     expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
     assert "lf-preview" in link.evaluate(DESCRIBED)
     page.keyboard.press("ArrowRight")

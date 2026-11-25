@@ -419,9 +419,10 @@ document loads, `runtime/portable-api.js`.
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
-`../.config/dependency-cruiser.mjs` enforces these boundaries and knip
-(`../.config/knip.js`) rejects import cycles, so imports use literal paths; only the
-widget and interaction loaders compute theirs.
+`../.config/dependency-cruiser.mjs` enforces these boundaries and holds the runtime's
+children to one import order, each importing only those after it, and knip
+(`../.config/knip.js`) rejects import cycles. Both read the import graph, so imports
+use literal paths; only the widget and interaction loaders compute theirs.
 
 Each module owns one concern and states it in its header, so read the headers to find
 an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each

@@ -4,9 +4,12 @@ any shape of it stands, and the agent learns what an update left in a page
 (`layer-registry.md`, "Page protocol")."""
 
 import json
+import os
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
+from interact_support import record_claim
 from model_folds import leaf_page
 
 from leaf import service as service_model
@@ -52,11 +55,11 @@ def test_grants_another_shape_recorded_grant_nothing_and_go_with_a_withdrawal(
     assert not other.exists()
 
 
-def test_page_check_names_what_another_version_left_in_the_page(page_dir):
-    """`page check` names each record of another shape the page directory holds, so
-    the agent can remove them once no Leaf of that version runs, and where one holds
-    the user's unsent drafts, says to point the user at it rather than read it. It
-    names none of this Leaf's own."""
+def test_page_check_names_the_drafts_another_version_kept(page_dir):
+    """`page check` names a drafts store of another shape in the page directory, the
+    user's unsent words, and says to point the user at it rather than read it. Its
+    other records of other shapes are disposable, and this Leaf's own drafts are no
+    leftover, so neither is named."""
     (page_dir / "index.html").write_text(leaf_page("Notes", "<p>Ship Tuesday.</p>"))
     activate_source(page_dir)
 
@@ -66,17 +69,16 @@ def test_page_check_names_what_another_version_left_in_the_page(page_dir):
         return [
             finding["text"]
             for finding in json.loads(checked.output)["findings"]
-            if finding["code"] == "other-version-records"
+            if finding["code"] == "other-version-drafts"
         ]
 
+    DRAFTS.write(page_dir / DRAFTS_FILE, {"store": "s", "version": 0, "drafts": {}})
+    another_shapes(BINDINGS, page_dir / FILE_BINDINGS_FILE, {"bindings": {}})
     assert advised() == []
-    grants = another_shapes(BINDINGS, page_dir / FILE_BINDINGS_FILE, {"bindings": {}})
-    [noted] = advised()
-    assert str(grants) in noted and "drafts" not in noted
 
     drafts = another_shapes(DRAFTS, page_dir / DRAFTS_FILE, {"store": "s"})
     [noted] = advised()
-    assert str(drafts) in noted and "tell the user where it is" in noted
+    assert str(drafts) in noted and "tell the user where they are" in noted
 
 
 @pytest.mark.parametrize("left", ["lifecycle", "claim"])
@@ -103,3 +105,31 @@ def test_a_page_a_session_holds_at_another_shape_stays_held(claimed, monkeypatch
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
     with pytest.raises(Refused, match="leaf server start"):
         vendoring_model.cmd_init(claimed, ())
+
+
+def test_taking_over_a_page_held_at_another_shape_leaves_one_owner(
+    page_dir, monkeypatch
+):
+    """A claim of another shape holds the page even where this shape's claim names
+    a session that ended, so no session-less reader takes its input. A takeover
+    ends the claim it replaces at every shape, so the page is left with one owner
+    rather than two that both receive its input."""
+    record_claim(page_dir, id="ended")
+    state_model.end_session("ended")
+    payload = service_model.claim_path(page_dir)
+    another_shapes(state_model.CLAIM, payload, {"page": str(page_dir)})
+    claim = service_model.page_claim(page_dir)
+
+    assert service_model.held_elsewhere(page_dir, None)
+    assert not service_model.may_receive(page_dir, claim, None)
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "taker")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    hooks_run_this_tree("taker")
+    assert service_model.claim_page(page_dir)
+
+    assert state_model.CLAIM.others(payload) == []
+    taken = service_model.page_claim(page_dir)
+    assert taken is not None and taken["id"] == "taker"
+    assert service_model.claim_is_active(taken)
+    assert service_model.held_elsewhere(page_dir, None) == "session taker"

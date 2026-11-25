@@ -82,6 +82,7 @@ from .state import (
     flocked,
     object_schema,
     open_session_turn,
+    record_since,
     retire_if_gone,
     session_lock_path,
     session_record,
@@ -848,10 +849,10 @@ def read_delivery(delivery_id: str) -> dict:
         raise Refused(str(error)) from error
     payload = stored_delivery(delivery_id)
     if payload is None and (others := DELIVERY.others(path)):
-        since = others[0].stem.rpartition("@")[2]
         raise Refused(
             f"delivery {delivery_id!r} was written by another Leaf version as "
-            f"leaf-{DELIVERY.kind}/{since}, which this Leaf doesn't read. The "
+            f"leaf-{DELIVERY.kind}/{record_since(others[0].name)}, which this Leaf "
+            "doesn't read. The "
             "updates it carried that still owe an answer come again in the page's "
             "next delivery: read and acknowledge that one instead."
         )
@@ -1353,7 +1354,11 @@ def receive_batch(
         else nullcontext()
     ):
         if not may_receive(page.page_dir, page.claim, session_id):
-            raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+            raise ReceiptRefused(
+                f"delivery no longer owns its page: {page.page_dir}; another "
+                "session or Leaf version holds it, and `leaf server start "
+                f"{page.page_dir}` takes it over"
+            )
         if refusal := write_refusal(page.page_dir):
             raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}

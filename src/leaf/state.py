@@ -496,10 +496,14 @@ class Record(Generic[_RecordValue]):
     says, as a lifetime of a kind this Leaf doesn't know does
     (`service.session_lives`): this Leaf refuses to act against it and names the
     repair. So the acts that end one end it at every shape: a session's end, a
-    stop and a withdrawal. A session that dies without ending stays holding its
-    pages for every Leaf of another shape until a session takes them. Of the rest,
-    what other shapes leave in a page directory is the agent's to remove, which
-    `page check` names (`validation.command.other_version_records`). The layer
+    stop, a withdrawal and a takeover of the page. A session that ended or died
+    under a Leaf of another shape leaves that shape's lifecycle standing, so its
+    pages stay held for this Leaf until an agent's session takes each over with
+    `leaf server start`, as after a `SESSION` shape change, which comes with a
+    protocol bump; every refusal of a held page names that takeover. Of the rest,
+    a drafts store of another shape holds the user's unsent words, which `page check`
+    names for the agent to point the user at
+    (`validation.command.other_version_drafts`). The layer
     record keeps one file (`layer-registry.md`, "Page protocol"). Every write
     replaces the file whole, so a file that is not JSON no Leaf wrote, and reading
     it raises, naming the file."""
@@ -570,8 +574,7 @@ class Record(Generic[_RecordValue]):
         return [
             other
             for other in sorted(path.parent.glob(f"{path.stem}@*{path.suffix}"))
-            if (shaped := SHAPED.fullmatch(other.name))
-            and shaped["since"] != str(self.since)
+            if record_since(other.name) not in (None, self.since)
         ]
 
 
@@ -587,6 +590,13 @@ def record_name(name: str) -> str:
     record of any shape counts as its kind does."""
     shaped = SHAPED.fullmatch(name)
     return name if shaped is None else shaped["stem"] + shaped["suffix"]
+
+
+def record_since(name: str) -> int | None:
+    """The `since` of the shape whose file is named `name` (`Record.file`), or None
+    where it names no record's file."""
+    shaped = SHAPED.fullmatch(name)
+    return None if shaped is None else int(shaped["since"])
 
 
 def stored_record(path: Path) -> dict | None:

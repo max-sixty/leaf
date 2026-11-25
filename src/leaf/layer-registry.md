@@ -117,11 +117,14 @@ wrote it finds it as it left it, however the two run beside each other. A record
 arbitrates between the Leaves on the machine, a page's claim with its session's
 lifecycle, a page's service, a grant or the Codex adapter's, holds while a file of any
 shape of it stands, whatever that file says: a Leaf refuses to act against it and
-names the repair, and the acts that end one, a session's end, a stop or a withdrawal,
-end it at every shape (`state.Record`). A session that dies without ending stays
-holding its pages for every Leaf of another shape until a session takes them. Records
-of other shapes in a page directory stay until the agent removes them, which `page
-check` names. The layer record keeps one file, since its `format` is the page's
+names the repair, and the acts that end one, a session's end, a stop, a withdrawal or
+a takeover of the page, end it at every shape (`state.Record`). A session that ended
+or died under a Leaf of another shape leaves that shape's lifecycle standing, so after
+a `SESSION` shape change, which comes with a protocol bump, its pages stay held for
+the newer Leaf until an agent's session takes each over with `leaf server start`,
+which every refusal of a held page names. `page check` names a drafts store of
+another shape, the user's unsent words, for the agent to point the user at; the
+other records of other shapes are disposable. The layer record keeps one file, since its `format` is the page's
 protocol (`registry.storage.write_layer`): its `since` is always the current protocol,
 so a layer record at another format is another Leaf's page, read as above, and the
 build lets its shape change only with a bump.

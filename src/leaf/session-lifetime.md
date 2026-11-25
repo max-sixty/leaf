@@ -315,13 +315,16 @@ and reads a page as held while a claim of another shape stands, or a lifecycle o
 another shape for a claim's session whose generation this Leaf's record doesn't name
 (`service.held_at_another_shape`). So across an update that changes either record's
 shape, the session's pages stay held: no terminal re-initializes them, no `leaf wait`
-takes their input, and another session takes them only by claiming them. One that
-changes the lifecycle's shape meets the session as a resumed one: its
-first prompt under the new Leaf starts a generation and serves its pages again
-(`reconnect`). One that changes the claim's shape leaves the new Leaf no claim of the
-session's to read, so nothing follows its pages to the new copy and their input waits
-until the session takes each again with `leaf server start`, which the refusals of
-its other commands on the page name.
+takes their input, and another session takes them only by claiming them, which ends
+the claim at every shape (`service.publish_claim`). One that changes the lifecycle's
+shape meets the session as a resumed one: its first prompt under the new Leaf starts
+a generation and serves its pages again (`reconnect`). One that changes the claim's
+shape leaves the new Leaf no claim of the session's to read, so nothing follows its
+pages to the new copy and their input waits until the session takes each again with
+`leaf server start`, which the refusals of its other commands on the page name. A
+session that ended under the older Leaf leaves that Leaf's lifecycle standing, so its
+pages stay held for the newer one until an agent's session takes each over the same
+way.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):

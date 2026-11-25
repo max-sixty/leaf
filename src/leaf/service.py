@@ -100,7 +100,9 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     admits the prepared new locator. Failed preparation leaves ownership intact.
     Resident writers retain the same flat payload path, so their atomic updates
     cannot destroy discovery. The claims lock keeps a retirement from removing
-    what this publishes (`state.retire_claim`).
+    what this publishes (`state.retire_claim`). A claim of another shape goes with
+    the claim this replaces, since it would otherwise hold the page beside it
+    (`held_at_another_shape`).
     """
     path = claim_path(page_dir)
     name = CLAIM.file(path).name
@@ -116,6 +118,8 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
         finally:
             staged.unlink(missing_ok=True)
         CLAIM.write(path, claim)
+        for other in CLAIM.others(path):
+            other.unlink(missing_ok=True)
         if previous is not None and previous["id"] != claim["id"]:
             drop_locator(previous["id"], name)
 
@@ -231,20 +235,19 @@ def may_receive(page_dir: Path, claim: dict | None, session_id: str | None) -> b
 
 def held_at_another_shape(page_dir: Path, claim: dict | None) -> str | None:
     """Who holds `page_dir` by a record a Leaf of another shape wrote, which this
-    Leaf reads as holding the page without reading it (`state.Record`): a claim of
-    another shape where this Leaf's holds none, or, for `claim`, a lifecycle of
-    another shape of its session where this Leaf's doesn't name its generation and
-    hasn't seen it end. None where neither stands."""
-    if claim is None:
-        if others := CLAIM.others(claim_path(page_dir)):
-            return f"a session of another Leaf version, by the claim {others[0]}"
-        return None
-    record = session_record(claim["id"])
-    if (
-        record is None
-        or (record["generation"] != claim["generation"] and record["ended"] is None)
-    ) and SESSION.others(session_file(claim["id"], SESSION_SUFFIX)):
-        return f"session {claim['id']}, whose lifecycle another Leaf version keeps"
+    Leaf reads as holding the page without reading it (`state.Record`), where this
+    Leaf's claim isn't active: for `claim`, this Leaf's, a lifecycle of another shape
+    of its session where this Leaf's doesn't name its generation and hasn't seen it
+    end, and otherwise a claim of another shape. None where neither stands."""
+    if claim is not None:
+        record = session_record(claim["id"])
+        if (
+            record is None
+            or (record["generation"] != claim["generation"] and record["ended"] is None)
+        ) and SESSION.others(session_file(claim["id"], SESSION_SUFFIX)):
+            return f"session {claim['id']}, whose lifecycle another Leaf version keeps"
+    if others := CLAIM.others(claim_path(page_dir)):
+        return f"a session of another Leaf version, by the claim {others[0]}"
     return None
 
 
@@ -268,11 +271,10 @@ def held_elsewhere(page_dir: Path, harness: Harness | None) -> str | None:
     harness it names, or a record of another shape that holds the page
     (`held_at_another_shape`)."""
     claim = CLAIM.read(claim_path(page_dir))
-    if claim is not None and claimant_matches(claim, harness):
-        return None
+    own = claim is not None and claimant_matches(claim, harness)
     if claim is not None and claim_is_active(claim):
-        return f"session {claim['id']}"
-    return held_at_another_shape(page_dir, claim)
+        return None if own else f"session {claim['id']}"
+    return held_at_another_shape(page_dir, None if own else claim)
 
 
 def refuse_held(page_dir: Path, harness: Harness | None) -> None:

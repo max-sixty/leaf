@@ -10,8 +10,8 @@ was not ready for them. `browser` is null where no gate needed one. The agent's 
 check leaves its reading (`render_reading`) for `page state` and for the page's server
 (`handover_pass`), which runs the same check without its screens
 (`check_page`) and keeps its own reading. Beside the source's own findings it names
-the records a Leaf of another version left in the page directory
-(`other_version_records`).
+the drafts a Leaf of another version left in the page directory
+(`other_version_drafts`).
 """
 
 from pathlib import Path
@@ -35,47 +35,19 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
     return report
 
 
-def other_version_records(page_dir: Path) -> list[Finding]:
-    """A note naming each record of the page directory that a Leaf of another shape
-    of it wrote, which this Leaf reads none of (`state.Record.others`), for the agent
-    to remove once no Leaf of that version serves the page. The page directory's
-    records are listed here, so one that joins them joins this list too, or its
-    other shapes go unnamed."""
-    from leaf.data import PUBLICATION
+def other_version_drafts(page_dir: Path) -> list[Finding]:
+    """A note naming each drafts store a Leaf of another shape of it kept in the page
+    directory, which this Leaf reads none of (`state.Record.others`): the user's
+    unsent words, which only the user can say are no longer wanted. The page's other
+    records of other shapes are disposable, so `page check` names none of them."""
     from leaf.drafts import DRAFTS
-    from leaf.file_bindings import BINDINGS
-    from leaf.schema import (
-        DATA_DIR,
-        DRAFTS_FILE,
-        FILE_BINDINGS_FILE,
-        PREVIEW_FILE,
-        SERVICE_FILE,
-        STREAM_FILE,
-        USER_VIEWS_FILE,
-    )
-    from leaf.server import SERVICE
-    from leaf.service import PREVIEW, STREAM
-    from leaf.user_views import USER_VIEWS
+    from leaf.schema import DRAFTS_FILE
 
-    records = [
-        {"file": str(path), "kind": record.kind}
-        for record, name in (
-            (DRAFTS, DRAFTS_FILE),
-            (BINDINGS, FILE_BINDINGS_FILE),
-            (PUBLICATION, f"{DATA_DIR}/*.json"),
-            (USER_VIEWS, USER_VIEWS_FILE),
-            (STREAM, STREAM_FILE),
-            (SERVICE, SERVICE_FILE),
-            (PREVIEW, PREVIEW_FILE),
-        )
-        for path in record.others(page_dir / name)
-    ]
-    if not records:
-        return []
     return [
         Finding(
-            "other-version-records", values={"page": str(page_dir), "records": records}
+            "other-version-drafts", values={"page": str(page_dir), "file": str(file)}
         )
+        for file in DRAFTS.others(page_dir / DRAFTS_FILE)
     ]
 
 
@@ -109,7 +81,7 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
             *result.errors,
             *moved_threads(page_dir, events, active - 1, result),
             *source_advice(page_dir, result),
-            *other_version_records(page_dir),
+            *other_version_drafts(page_dir),
         ]
         if result.errors:
             return reported(1, found), None

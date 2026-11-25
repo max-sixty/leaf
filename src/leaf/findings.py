@@ -2363,18 +2363,12 @@ _TEXT = {
         f" restart it with `leaf server stop {v['page']}` then"
         f" `leaf server start {v['page']}`"
     ),
-    # `page check`'s advice on a page holding records a Leaf of another version
-    # wrote, which this one never reads (`validation.command.other_version_records`).
-    "other-version-records": lambda at, v: (
-        f"{v['page']} keeps records another Leaf version wrote, which this one"
-        f" doesn't read: {', '.join(record['file'] for record in v['records'])}."
-        " Remove them once no Leaf of that version serves the page"
-        + (
-            "; the drafts record holds the user's unsent words, so tell the user"
-            " where it is rather than reading it, and remove it when they say"
-            if any(record["kind"] == "drafts" for record in v["records"])
-            else ""
-        )
+    # `page check`'s advice on a page holding drafts a Leaf of another version kept,
+    # which this one never reads (`validation.command.other_version_drafts`).
+    "other-version-drafts": lambda at, v: (
+        f"{v['page']} keeps unsent drafts another Leaf version wrote, in {v['file']},"
+        " which this Leaf doesn't read: tell the user where they are rather than"
+        " reading them, and remove the file when they say"
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (

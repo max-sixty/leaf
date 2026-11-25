@@ -17,7 +17,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import solid_png
-from render_cases_navigation import _publish
+from render_cases_navigation import CHIPS, _publish
 from render_harness import (
     EXAMPLES,
     RELEASE_FOCUS,
@@ -893,8 +893,9 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     a message's age to a resting pointer, and the message a walk landed the keyboard
     on to `K`, in its head where its age stands, or would where the message above has
     the same one, which a screen reader hears as the message's description; the
-    message's words say no time to a pointer. The panel's ages are times too. No title
-    stands beside any of them."""
+    message's words say no time to a pointer. The panel's ages are times too, and a
+    resolved thread's row says when it was resolved to the keyboard. No title stands
+    beside any of them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     listed = append_carried_log_record(
@@ -976,10 +977,14 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     page.mouse.move(0, 0)
     expect(preview).to_be_hidden()
 
-    resolved = thread_row(page, settled).locator("time")
+    row = thread_row(page, settled)
+    resolved = row.locator("time")
     expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
     expect(resolved).not_to_have_attribute("title", re.compile(".*"))
     assert " ".join(preview_text(resolved).split()) == "Sat, Aug 15, 2026, 6:30 PM PT"
+    # The row, which the keyboard reaches and the age in it doesn't, says it too.
+    said = preview_parts(row, route="focus")[-1]
+    assert " ".join(said.split()) == "Resolved Sat, Aug 15, 2026, 6:30 PM PT"
 
 
 AGE_IN_PROSE = leaf_page(
@@ -995,6 +1000,58 @@ CARET_IN = """(age) => {
   const [range] = getSelection().getComposedRanges({ shadowRoots: [age.shadowRoot] });
   return range.startContainer.getRootNode() === age.shadowRoot;
 }"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_age_reads_its_time_to_the_keyboard_with_no_caret(engine, request, serve):
+    """Without a caret, as in Safari, an age an author wrote in the page takes a Go-to
+    hint, which lands on it and shows its clock time at once. An activity row's age
+    takes none: the row's target previews when the row happened, as the age does to a
+    pointer, so a list of rows adds no hints."""
+    url = serve(
+        leaf_page(
+            "Ages",
+            '<p id="ran">The import last ran <lf-age datetime="2026-11-20T02:10:00Z">'
+            "20 Nov, 02:10 UTC</lf-age>.</p>"
+            '<section id="recent"><h2>Recent</h2>'
+            '<lf-activity id="feed"></lf-activity></section>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "ts": "2026-11-21T17:05:00Z",
+            "text": "What failed last week?",
+            "anchor": {"section": "ran"},
+        },
+    )
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
+    )
+    page = open_page(browser, url, context=context)
+    preview = page.locator(PREVIEW)
+    page.locator("#feed .lf-activity-news").click()
+    target = page.locator("#feed .lf-activity-target").first
+    expect(target).to_be_visible()
+    page.mouse.move(2, 2)
+    page.locator("body").focus()
+
+    page.keyboard.press("g")
+    ages = page.locator(f'{CHIPS}[data-lf-go-to-kind="Time"]')
+    expect(ages).to_have_count(1)
+    page.keyboard.type(ages.get_attribute("data-lf-hint-code"))
+    expect(page.locator("#ran lf-age")).to_be_focused()
+    expect(preview).to_be_visible()
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    page.keyboard.press("Escape")
+
+    assert preview_parts(target, route="focus")[-1] == "Sat, Nov 21, 2026, 9:05 AM PT"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

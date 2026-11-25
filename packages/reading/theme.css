@@ -4,9 +4,9 @@
  * idioms an author writes, such as a tag or a callout, are Leaf's own and draw on every
  * page (browser/styles/components/idioms.css). A theme builds on this one where the
  * page lists it after this package, and stands alone where the page lists it without
- * (src/leaf/vendoring.py). As the package's `defaults.css`,
- * its rules stand in `lf-base` beside widgets' defaults and below Layouts, so a Layout
- * and the page's sheet outrank them as they outrank Leaf's. It sets
+ * (src/leaf/vendoring.py). As the package's `theme.css`, its rules stand in `lf-theme`,
+ * below Layouts, Leaf's faces for what it draws and every cascade layer the page names,
+ * so a page's framework and its own sheet outrank them. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
  * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
  * disclosures, definitions, rules and pictures, browser/styles/components/reading.css)

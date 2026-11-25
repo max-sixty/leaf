@@ -120,6 +120,21 @@ const pointWords = (point) => {
 
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
+/** Plot's default rules, one sheet for each text it writes, which every chart shares.
+ * @type {Map<string, CSSStyleSheet>} */
+const plotSheets = new Map();
+/** @param {Node} root @param {string} text */
+const adoptPlotStyle = (root, text) => {
+  if (!(root instanceof Document || root instanceof ShadowRoot)) return;
+  let sheet = plotSheets.get(text);
+  if (!sheet) {
+    sheet = new CSSStyleSheet();
+    sheet.replaceSync(`@layer lf-base {\n${text}\n}`);
+    plotSheets.set(text, sheet);
+  }
+  if (!root.adoptedStyleSheets.includes(sheet))
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+};
 
 /* The body as a function of Plot and the width, which returns the chart's options. The
  * newline before the closing parenthesis ends a trailing line comment. */
@@ -830,9 +845,14 @@ customElements.define(
       drawing.setAttribute("role", "img");
       // Dependency defaults join the same tier as widget defaults. Leaf's chart
       // face and paper remain stylesheet-owned; authored Plot style options keep
-      // their inline priority, including legend styles.
-      for (const style of built.querySelectorAll("style"))
-        style.textContent = `@layer lf-base {\n${style.textContent}\n}`;
+      // their inline priority, including legend styles. The tree the chart stands in
+      // adopts them rather than holding Plot's <style>: a sheet the document holds that
+      // names `lf-base` would rank that tier where the sheet stands, below a cascade
+      // layer a later page sheet names (layer.py, `PART_LAYERS`).
+      for (const style of built.querySelectorAll("style")) {
+        adoptPlotStyle(this.getRootNode(), style.textContent ?? "");
+        style.remove();
+      }
       // Plot writes a mark's `title` channel as each shape's <title>, the platform's
       // tooltip, which would stand beside the preview that says it.
       for (const title of drawing.querySelectorAll("title")) title.remove();

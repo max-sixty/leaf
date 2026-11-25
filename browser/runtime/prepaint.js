@@ -589,10 +589,14 @@
   };
 
   // The layer's constructed stylesheets (stylesheets.js), from the text every delivery
-  // carries in its head (`delivery_sheets` in revision_delivery.py), with no request
-  // and no await. Whoever asks first builds them, once the head holds that text: a
-  // served page's bootstrap as `body` arrives, which adopts the chrome's so the panel's
-  // row it stands there paints styled (bootstrap.js), else the runtime as it loads.
+  // carries in its head ahead of this script (`delivery_sheets` in revision_delivery.py),
+  // with no request and no await. They are built here, and Leaf's faces for what it
+  // draws (`parts`) adopted at once: an adopted sheet follows every sheet the document
+  // holds, so the cascade layers it names first rank above every layer the page's
+  // sheets name, whenever a page script adds one, and the body's first paint wears
+  // them (layer.py, `PART_LAYERS`). A served page's bootstrap adopts the chrome's as
+  // `body` arrives, so the panel's row it stands there paints styled (bootstrap.js),
+  // else the runtime as it loads.
   /** @type {ReturnType<Window["lfSheets"]> | null} */
   let sheets = null;
   window.lfSheets = () => {
@@ -601,7 +605,7 @@
       'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
     );
     if (!delivery) throw new Error("The document has no runtime stylesheets");
-    /** @type {{chrome: string, marks: string, annotations?: string}} */
+    /** @type {{parts: string, chrome: string, marks: string, annotations?: string}} */
     const text = JSON.parse(delivery.textContent);
     /** @param {string} rules */
     const constructed = (rules) => {
@@ -610,12 +614,14 @@
       return sheet;
     };
     sheets = {
+      parts: constructed(text.parts),
       chrome: constructed(text.chrome),
       marks: constructed(text.marks),
       annotations: text.annotations ? [constructed(text.annotations)] : [],
     };
     return sheets;
   };
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, window.lfSheets().parts];
 
   // The floating panel (floating-panel.js) is the page's chrome. The reader's one
   // preference is the size the panel was left at (`row`, the comment field and its

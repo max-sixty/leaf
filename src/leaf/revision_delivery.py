@@ -42,7 +42,7 @@ from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .layer import DOCUMENT_LAYER_ORDER
+from .layer import PARTS_LAYER_ORDER
 from .passages import markdown_markup
 from .registry.contract import (
     authored_inert,
@@ -609,12 +609,15 @@ def delivery_sheets(
 ) -> str:
     """Carry the selected layer's adopted sheets, with their own text and addressed URLs.
 
-    `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
-    every document running the layer carries their text without a request or await.
-    Shared chrome and marks are always present; the physical annotation chrome is
-    absent in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
-    `layer.chrome_restyle`). The browser constructs only the sheets this carrier
-    actually holds.
+    `runtime/prepaint.js` constructs these synchronously, so every document running the
+    layer carries their text without a request or await. Leaf's faces for what it draws
+    (`/parts.css`, `layer.PART_LAYERS`) are adopted by the prepaint before the body
+    arrives, so they rank above every cascade layer the page's sheets name and stand
+    from the first paint; in overlay mode they open with the annotations' page-side
+    placement, at the head of `lf-base`. Shared chrome and marks are always present; the
+    physical annotation chrome is absent in page mode. The chrome ends with the
+    packages' restyling of it (`/chrome.css`, `layer.chrome_restyle`). The browser
+    constructs only the sheets this carrier actually holds.
 
     The runtime's own chrome rules carry what they name inline, as data URLs: the
     layer's mark, which the panel's leaf masks with, a package's replacement included.
@@ -632,11 +635,20 @@ def delivery_sheets(
         resource = resources[unquote(path)]
         return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
 
+    overlay = annotation_mode(document) == "overlay"
     sheets: dict = {
+        "parts": (
+            f"{PARTS_LAYER_ORDER}@layer lf-base {{\n"
+            + text("/runtime/annotation-overlay/annotation-theme.css")
+            + "\n}\n"
+            if overlay
+            else ""
+        )
+        + text("/parts.css"),
         "chrome": text("/runtime/chrome.css", inline) + text("/chrome.css"),
         "marks": text("/runtime/marks.css"),
     }
-    if annotation_mode(document) == "overlay":
+    if overlay:
         sheets["annotations"] = text(
             "/runtime/annotation-overlay/annotation-chrome.css"
         )
@@ -718,14 +730,15 @@ def compose_document(
     it names (`mark_declared`), re-addressed (`rebase_document`), and then receives
     delivery's head
     right after the head's start tag, ahead of any authored executable content: the
-    prelude, the import map, the canonical address, the prepaint, the runtime script,
-    the theme, the adopted sheets, the host's metadata, and the runtime entry, each
+    prelude, the import map, the canonical address, the adopted sheets, the prepaint,
+    the runtime script, the theme, the host's metadata, and the runtime entry, each
     where the host has one. A document with a runtime, served or exported, carries the
     prepaint (`runtime/prepaint.js`), which says before the first paint what the
-    runtime will draw and whether it could not start. It reads the canonical address,
-    so that comes first; it names a startup fault before the host's runtime script
-    hears of it, so it comes before that. These scripts stand before the theme,
-    since a script after a stylesheet still loading waits for it.
+    runtime will draw and whether it could not start, and adopts Leaf's faces for what
+    it draws from the sheets' text, so that text comes before it. It reads the
+    canonical address, so that comes first too; it names a startup fault before the
+    host's runtime script hears of it, so it comes before that. These scripts stand
+    before the theme, since a script after a stylesheet still loading waits for it.
     The root carries the host's attributes and the
     page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
     import map precedes every script, since a browser reads no map once a module has
@@ -741,39 +754,26 @@ def compose_document(
     document = SourceDocument(source)
     if "head" not in document.authoring.wrapper_tags:
         raise ValueError("document has no explicit <head>")
-    theme_css = (
-        delivery.inline_stylesheet("/theme.css") if delivery.inline_stylesheet else None
-    )
-    theme = (
-        runtime_element("style", {}, theme_css)
-        if theme_css is not None
-        else runtime_element(
-            "link",
-            {
-                "rel": "stylesheet",
-                "href": delivery.address("/theme.css"),
-                "crossorigin": "anonymous",
-            },
-        )
-    )
-    # Physical page-side placement keeps the theme's lf-base contract, below package
-    # and authored overrides. An adopted sheet would rank after those same defaults.
-    if delivery.runtime is not None and annotation_mode(document) == "overlay":
-        annotation_theme = rebase_css(
-            resources["/runtime/annotation-overlay/annotation-theme.css"].data.decode(
-                "utf-8"
-            ),
-            "/runtime/annotation-overlay/annotation-theme.css",
-            delivery.address,
-        )
-        theme = (
-            runtime_element(
-                "style",
-                {"data-lf-annotation-theme": True},
-                f"{DOCUMENT_LAYER_ORDER}@layer lf-base {{\n{annotation_theme}\n}}",
+    def sheet(path):
+        css = delivery.inline_stylesheet(path) if delivery.inline_stylesheet else None
+        return (
+            runtime_element("style", {}, css)
+            if css is not None
+            else runtime_element(
+                "link",
+                {
+                    "rel": "stylesheet",
+                    "href": delivery.address(path),
+                    "crossorigin": "anonymous",
+                },
             )
-            + theme
         )
+
+    # A document that runs no layer adopts no sheet, so it reads Leaf's faces for what
+    # it draws from a sheet after the theme's, where they rank below the page's layers.
+    theme = sheet("/theme.css") + (
+        sheet("/parts.css") if delivery.runtime is None else ""
+    )
     head = (
         delivery_prelude(document, revision, version, executable)
         + (
@@ -789,6 +789,11 @@ def compose_document(
             else ""
         )
         + (
+            delivery_sheets(resources, delivery.address, document)
+            if delivery.runtime is not None
+            else ""
+        )
+        + (
             runtime_element(
                 "script",
                 {},
@@ -801,11 +806,6 @@ def compose_document(
         )
         + (delivery.runtime or "")
         + theme
-        + (
-            delivery_sheets(resources, delivery.address, document)
-            if delivery.runtime is not None
-            else ""
-        )
         + delivery.head
         + (
             runtime_element("script", {"type": "module", "src": entry})

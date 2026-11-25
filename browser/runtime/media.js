@@ -112,12 +112,13 @@ function imageTools() {
   if (!loading) {
     loading = import("/vendor/photoswipe.esm.js").then(
       ({ default: PhotoSwipe, styles }) => {
-        const style = document.createElement("style");
         // Layered, as a dependency's defaults are, so the chrome's guard rolls back to
-        // them rather than past them (styles/chrome-guard.css).
-        style.textContent = inBaseLayer(styles);
-        // The authored head is replaced on revision; the viewer owns these styles.
-        mediaViewer.append(style);
+        // them rather than past them (styles/chrome-guard.css). Adopted, so they outlive
+        // a revision's replaced head, and since a sheet the document holds that names
+        // `lf-base` would rank that tier where the sheet stands (layer.py, `PART_LAYERS`).
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(inBaseLayer(styles));
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
         return PhotoSwipe;
       },
     );

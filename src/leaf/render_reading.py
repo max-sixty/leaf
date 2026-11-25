@@ -1,5 +1,5 @@
 """The page's render reading: what the latest render check, by `page check --render` or
-the page's server (`render_gate.handover_pass`, which decides when one is kept), read
+the page's server (`handover_pass`, which decides when one is kept), read
 of one version with the page's data as it then stood. `leaf page state` lists the parts
 it read (`drawn_parts`), so an agent naming a part takes its id from what the page drew
 rather than working it out from a widget's prose.

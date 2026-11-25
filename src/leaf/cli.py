@@ -561,10 +561,11 @@ def check(page_dir: Path, render: bool) -> Reported:
 @page.command("_read", hidden=True)
 @page_argument(renew=False)
 def _read(page_dir: Path) -> None:
-    """Private child process of a page's server (`render_gate.handover_pass`)."""
-    from leaf.render_gate.handover_pass import cmd_read
+    """Private child process of a page's server (`handover_pass`)."""
+    from leaf.handover_pass import cmd_read
+    from leaf.validation.command import check_page
 
-    cmd_read(page_dir)
+    cmd_read(page_dir, check_page)
 
 
 @page.command(

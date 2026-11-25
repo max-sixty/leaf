@@ -666,9 +666,9 @@ def cmd_serve(
     A revival takes no acquisition.
     """
     from .delivery import retire_gone_deliveries
+    from .handover_pass import HandoverPass
     from .http import page_endpoint
     from .layer import payload_provenance
-    from .render_gate.handover_pass import HandoverPass
     from .server_rows import RowPublisher
 
     lease = None

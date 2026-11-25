@@ -64,14 +64,14 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
 // Each reading shows the same document whatever text its source holds, so its key is
-// also its identity (records/projection/data.js), with the file's name where the value
-// gives one, since one document can show several files in turn, as an editor's open
-// file. A comment on a passage then follows the passage's words across replacements,
-// stays marked while they still stand, and stays with the file it was made on.
-/** @param {HTMLElement} node @param {string} key @param {string | null} name */
-const mark = (node, key, name) => {
+// also its identity (records/projection/data.js), with the file's where the value names
+// one, since one document can show several files in turn, as an editor's open file. A
+// comment on a passage then follows the passage's words across replacements, stays
+// marked while they still stand, and stays with the file it was made on.
+/** @param {HTMLElement} node @param {string} key @param {string | null} file */
+const mark = (node, key, file) => {
   keeps(node, "data-lf-datum", key);
-  keeps(node, "data-lf-identity", name ? `${key}:${name}` : key);
+  keeps(node, "data-lf-identity", file ? `${key}:${file}` : key);
 };
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
@@ -1018,6 +1018,8 @@ class TextDocument extends LeafElement {
     this.rendering = rendering;
     const source = typeof value === "string" ? value : (value?.text ?? "");
     const name = typeof value === "string" ? null : (value?.name ?? null);
+    // The file's identity: its stable key where the value gives one, else its name.
+    const file = typeof value === "string" ? null : (value?.key ?? name);
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
@@ -1059,6 +1061,9 @@ class TextDocument extends LeafElement {
         this.getAttribute("source") ??
         this.getAttribute("for");
       keepsText(view.caption, value == null ? `${label} · no data` : label);
+      // An HTML preview's frame is named by the same label, the file's name included.
+      if (view.preview instanceof HTMLIFrameElement)
+        keeps(view.preview, "title", `${label} preview`);
       const previous = this.lines;
       this.lines = next;
       if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);
@@ -1149,9 +1154,9 @@ class TextDocument extends LeafElement {
       // turn that announces them (`drawn`), so on a Leaf page comments on them anchor to
       // the document's data.
       if (view.preview) {
-        mark(this.sourceView.pre, "source", name);
-        mark(view.preview, "preview", name);
-      } else mark(view.figure, "document", name);
+        mark(this.sourceView.pre, "source", file);
+        mark(view.preview, "preview", file);
+      } else mark(view.figure, "document", file);
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
@@ -1197,10 +1202,8 @@ class TextDocument extends LeafElement {
         ? document.createElement("iframe")
         : document.createElement("div");
     drawn.className = "lf-text-document-preview";
-    if (drawn instanceof HTMLIFrameElement) {
-      drawn.title = `${this.getAttribute("label") ?? this.getAttribute("source") ?? this.getAttribute("for")} preview`;
+    if (drawn instanceof HTMLIFrameElement)
       drawn.setAttribute("sandbox", "allow-scripts");
-    }
     rendered.append(drawn);
     literal.append(listing);
     if (this.matches(WRITTEN)) {

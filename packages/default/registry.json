@@ -47,10 +47,11 @@
         }
       },
       "text-document": {
-        "description": "UTF-8 text from a file or a selected line range: the text, or the text with the file's name where one document shows several files in turn, such as the one an editor has open.",
+        "description": "UTF-8 text from a file or a selected line range: the text, or the text with the file's `name` where one document shows several files in turn, such as the one an editor has open, and a `key` that names the file however its name changes.",
         "schema": {
           "type": ["string", "object"],
           "properties": {
+            "key": { "type": "string", "minLength": 1 },
             "name": { "type": "string", "minLength": 1 },
             "text": { "type": "string" }
           },

@@ -112,7 +112,7 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     preview = page.locator("#preview .lf-text-document-preview")
     expect(preview.get_by_role("heading", name="Notes")).to_be_visible()
 
-    expect(preview).to_have_attribute("data-lf-identity", "preview:README.md")
+    expect(preview).to_have_attribute("data-lf-identity", "preview:notes")
     centred = """() => {
       const root = document.querySelector('lf-file-editor').shadowRoot;
       const line = root.querySelector('.cm-activeLine').getBoundingClientRect();

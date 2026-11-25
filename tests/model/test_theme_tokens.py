@@ -163,10 +163,9 @@ def test_no_token_is_only_another_name_for_one():
     """Each token a theme sets stands for something a theme author would set apart
     from every other token, so a token whose value is another token's, with no scope
     restating it, is a second name for one setting: every reader could read the token
-    it names. Such names grew one per meaning a mark carries (`--lf-news`,
-    `--lf-thread` and `--lf-work` were each `--lf-accent`), until the theme listed
-    eleven settings that nothing set apart. A token another scope restates, as a
-    surface restates `--lf-ground`, is a setting of its own."""
+    it names, as a mark of the agent's reads `--lf-accent` rather than a token of its
+    own. A token another scope restates, as a surface restates `--lf-ground`, is a
+    setting of its own."""
     tokens = COMMENT.sub("", (ASSETS / "styles/tokens.css").read_text())
     aliases = re.findall(
         r"(?<![\w-])(--lf-[\w-]+)\s*:\s*var\((--lf-[\w-]+)\)\s*;", tokens

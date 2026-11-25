@@ -4069,7 +4069,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
-    from leaf.validation.source import check_source
+    from leaf.authored_checks.source import check_source
 
     source = PAGE.replace(
         "</head>", '<script type="module" src="./page/app.js"></script></head>'

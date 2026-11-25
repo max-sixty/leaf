@@ -23,6 +23,7 @@ a log this Leaf may misread.
 
 from pathlib import Path
 
+from .authored_checks.admission import logged_id
 from .construction import constructed_content
 from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
@@ -44,7 +45,8 @@ from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.contract import state_specs
 from .registry.storage import layer_metadata
-from .revision_artifact import active_enclosing
+from .render_reading import drawn_parts
+from .revision_artifact import active_enclosing, read_artifact
 from .revisioning import activate_source
 from .schema import DATA_DIR
 from .served_state.context import read_page
@@ -52,7 +54,6 @@ from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .user_views import read_user_views, viewed_at
-from .validation.admission import logged_id
 from .work import page_subject
 
 # How many of a thread's messages one `page state PAGE MESSAGE` prints by default.
@@ -223,7 +224,11 @@ def _orders(
 
 
 def _element(
-    record: dict, thread: str | None, order: dict | None, identity=None
+    record: dict,
+    thread: str | None,
+    order: dict | None,
+    identity=None,
+    parts: list[dict] | None = None,
 ) -> dict:
     element = {
         "tag": record["tag"],
@@ -233,6 +238,8 @@ def _element(
     }
     if order is not None:
         element["order"] = order
+    if parts is not None:
+        element["parts"] = parts
     return element
 
 
@@ -242,13 +249,22 @@ def _apply_document_state(
     stored_data: dict,
     registry: dict,
     facts: EventFacts,
+    drawn: dict[str, list[dict]],
 ) -> None:
+    """The version's elements, each visual among them with the `parts` it drew where
+    the page's render reading read this version with the data the page holds now
+    (`render_reading.drawn_parts`), and the state in force on them."""
     parser = document.document
     projection = document.projection
     state["title"] = parser.authoring.title.strip()
     orders = AuthoredOrders(parser.by_id, registry)
     state["elements"] = [
-        _element(record, None, _orders(record, orders, projection, registry))
+        _element(
+            record,
+            None,
+            _orders(record, orders, projection, registry),
+            parts=drawn.get(record["attrs"].get("id", "")),
+        )
         for record in parser.lf_elements
     ]
     in_force = projection.actions.items()
@@ -372,17 +388,20 @@ def page_state(
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
     the same reading; doing it in-head over `leaf page events` is how a decision
-    in force gets missed. So this holds the active revision's elements, the projection of
-    the user's current state and the reports in force on the agent channel,
-    authored measurements whose live source has run again
+    in force gets missed. So this holds the active revision's elements, each visual
+    with the parts it drew where the page's render reading read that revision with
+    the page's current data (`render_reading.drawn_parts`), the projection of the
+    user's current state and the reports in force on the agent channel, authored
+    measurements whose live
+    source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, the obligations, the agent's
     to-dos among them, the two lists, On Me and On <agent>, that they and the workflows
     add up to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
-    selection from the reading /api/state serves (`read_served_page`), computed on
-    demand from the log, revision, registry, and source store — no derived reading is
-    stored, and none is folded a second time here, so there is no second copy of the
+    selection from the reading /api/state serves (`read_served_page`), with the parts,
+    computed on demand from the log, revision, registry, source store and render
+    reading — no derived reading is stored, and none is folded a second time here, so there is no second copy of the
     truth to reconcile.
 
     Every markup-derived reading is of the latest valid revision, because that
@@ -461,7 +480,16 @@ def page_state(
         view = browser["views"][str(active["revision"])]
         facts = EventFacts(page_dir, events, registry, browser["thread_memberships"])
         _apply_document_state(
-            state, reading.documents[active["revision"]], stored_data, registry, facts
+            state,
+            reading.documents[active["revision"]],
+            stored_data,
+            registry,
+            facts,
+            drawn_parts(
+                page_dir,
+                read_artifact(page_dir, active["revision"]).digest,
+                stored_data["version"],
+            ),
         )
         state["reports"] = view["reports"]
         _apply_thread_state(state, reading.thread, registry, facts)

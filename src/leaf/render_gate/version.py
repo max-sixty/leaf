@@ -1,9 +1,15 @@
 """Whole-version render attempts and retry policy."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from leaf.findings import Finding
-from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS, close_render_page
+from leaf.registry.contract import element_declarations
+from leaf.render_checks import (
+    RENDER_VIEWPORT,
+    SERVED_TIMEOUT_MS,
+    close_render_page,
+    evaluate_probe,
+)
 
 from .readings import (
     SWEEP_WIDTHS,
@@ -27,11 +33,14 @@ class RenderReading:
     tightest before it changes, with what changes. `complete` is False when the gate
     stopped before it had read the page through, as it does at a page that cannot
     start or under a browser that fails. One of the findings then says what stopped
-    it."""
+    it. `parts` is the parts each visual in the page offers a thread at the desktop
+    window, by the visual's id (`drawnParts` in `render-checks/widgets.js`), and empty
+    where the gate stopped before it read them."""
 
     findings: list[Finding]
     arrangement: list[tuple[int, str, str]]
     complete: bool = True
+    parts: dict[str, list[dict]] = field(default_factory=dict)
 
     @property
     def failures(self) -> list[Finding]:
@@ -100,11 +109,13 @@ def _render_version_attempt(
     samples = []
     advice = []
     arrangement = []
+    parts = []
     steps = sorted({*SWEEP_WIDTHS, desktop["width"]}, reverse=True)
 
     def desktop_sweep(page, registry):
         open_tags = open_widgets(registry)
         # Read the desktop viewport before the sweep changes it.
+        parts.append(evaluate_probe(page, "drawnParts", element_declarations(registry)))
         advice.extend(drawn_height_advice(page))
         samples.extend(sweep(page, [desktop["width"]], open_tags))
         widths = sweep(page, steps, open_tags)
@@ -137,7 +148,10 @@ def _render_version_attempt(
     if page_code:
         return RenderReading([], []), []
     reading = RenderReading(
-        [*dict.fromkeys(found), *swept_faults(samples), *advice], arrangement, complete
+        [*dict.fromkeys(found), *swept_faults(samples), *advice],
+        arrangement,
+        complete,
+        parts[0] if parts else {},
     )
     return reading, list(dict.fromkeys(notices))
 

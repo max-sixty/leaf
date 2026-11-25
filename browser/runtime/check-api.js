@@ -29,6 +29,7 @@ export {
   aimTargets,
   aimTargetAt,
   captured,
+  visualParts,
 } from "./readings/anchor-resolution.js";
 export {
   shownBand,

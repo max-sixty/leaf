@@ -1,5 +1,4 @@
-"""Registry composition and current declaration validation, and what an author's
-own declarations advise.
+"""What an author's own registry declarations advise.
 
 Composition refuses only what breaks the vocabulary (`registry.validation`). What a
 layer's own declarations do that works but may not be what their author meant, such
@@ -14,17 +13,16 @@ from pathlib import Path
 
 from leaf.data_contracts import declared_data_bindings
 from leaf.findings import Finding
+from leaf.markup_checks.instances import markup_findings
 from leaf.registry.contract import (
     is_element_name,
     read_registry_declarations,
     registry_finding,
 )
-from leaf.registry.layer import kernel_fact_advice, merged_registry, stamp_composition
-from leaf.registry.validation import event_clause_advice, validate_registry
+from leaf.registry.layer import kernel_fact_advice
+from leaf.registry.validation import event_clause_advice
 from leaf.registry.widgets import widget_advice
 from leaf.structure import SourceDocument
-
-from .instances import markup_findings
 
 
 def layer_advice(roots: list[Path], registry: dict) -> list[Finding]:
@@ -79,10 +77,3 @@ def _example_advice(tag: str, registry: dict, path) -> list[Finding]:
             )
         ]
     return []
-
-
-def incoming_registry(packages: list) -> dict:
-    """The merged registry (`registry.layer.merged_registry`) `page init` will vendor,
-    validated and stamped."""
-    merged, source = merged_registry(packages)
-    return stamp_composition(validate_registry(merged, source))

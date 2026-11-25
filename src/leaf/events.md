@@ -62,7 +62,7 @@ identical passages was meant carries `detached: true`, keeping its words without
 claiming a location.
 
 When a revision drops an open thread's passage or visual part, activation records a
-`reanchor` for it (`validation.source_history.revision_reanchors`). An automatic
+`reanchor` for it (`authored_checks.source_history.revision_reanchors`). An automatic
 move never invents a passage: it falls back to the surviving section or detaches. A
 reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as

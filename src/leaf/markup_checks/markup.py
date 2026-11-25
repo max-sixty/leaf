@@ -2,12 +2,10 @@
 
 import json
 from collections import Counter
-from pathlib import Path
-from urllib.parse import urlsplit
 
 from leaf.findings import Finding, element_at
 from leaf.passages import markdown_dialect
-from leaf.schema import ASSETS, MEDIA_DIR, SERVED_PATH
+from leaf.schema import ASSETS
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
     SECTION_TAGS,
@@ -328,43 +326,3 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     if links_with_rel(parser.authoring.links, "stylesheet"):
         errors.append(Finding("message-stylesheet", "<link>"))
     return errors + authored_allocation_errors(parser)
-
-
-def text_media_errors(
-    text: str, page_dir: Path, *, html: bool = False
-) -> list[Finding]:
-    """The same reference in a message's Markdown, which is the other way one arrives.
-
-    Markup names a picture in an attribute or a stylesheet, where the parsed reading
-    finds it (`revision_artifact.uncaptured_errors`); a message names one as a
-    Markdown destination, which that reading cannot see — so a screenshot an agent
-    sends that way would come through the one door that never asks. `check_markup`
-    runs only on a message holding HTML, and text without it would reach the log
-    unread.
-
-    A reference is a rendered link or image destination, never a scan of the words.
-    Parsing the Markdown resolves referenced definitions and leaves fenced examples
-    and unused definitions as text, so neither asks for a file the page will not load."""
-    refs = {
-        url
-        for token in markdown_dialect(True, html=html).parse(text)
-        for child in token.children or ()
-        if child.type in {"link_open", "image"}
-        if (url := child.attrGet("href" if child.type == "link_open" else "src"))
-        and url.startswith(f"/{MEDIA_DIR}/")
-    }
-    return unanswered_media(refs, page_dir)
-
-
-def unanswered_media(refs, page_dir: Path) -> list[Finding]:
-    """Every `/media/…` reference the page will not answer: one whose name the server
-    never serves (`schema.MEDIA_DIGEST`), whatever the directory holds under it, and
-    one the directory has not got."""
-    errors = []
-    for ref in sorted(refs):
-        path = urlsplit(ref).path
-        if not SERVED_PATH.fullmatch(path):
-            errors.append(Finding("unserved-media", values={"ref": ref}))
-        elif not (page_dir / path.lstrip("/")).is_file():
-            errors.append(Finding("missing-media", values={"ref": ref}))
-    return errors

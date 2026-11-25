@@ -47,6 +47,7 @@ from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache, partial
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
+from urllib.parse import urlsplit
 
 from pywhatwgurl import URL
 
@@ -63,7 +64,7 @@ from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import MODULES
 from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES, MEDIA_DIR, kernel_registry
+from leaf.schema import CONTENT_TYPES, MEDIA_DIR, SERVED_PATH, kernel_registry
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -74,7 +75,6 @@ from leaf.structure import (
     splice,
 )
 from leaf.styles import dropped_css
-from leaf.validation.markup import unanswered_media
 
 PUBLIC_MODULES = tuple(kernel_registry()["$public-modules"]["paths"])
 # The page's own declarations, which a revision captures beside its modules; the
@@ -609,6 +609,20 @@ def css_syntax_errors(
     ]
 
 
+def unanswered_media(refs, page_dir: Path) -> list[Finding]:
+    """Every `/media/…` reference the page will not answer: one whose name the server
+    never serves (`schema.MEDIA_DIGEST`), whatever the directory holds under it, and
+    one the directory has not got."""
+    errors = []
+    for ref in sorted(refs):
+        path = urlsplit(ref).path
+        if not SERVED_PATH.fullmatch(path):
+            errors.append(Finding("unserved-media", values={"ref": ref}))
+        elif not (page_dir / path.lstrip("/")).is_file():
+            errors.append(Finding("missing-media", values={"ref": ref}))
+    return errors
+
+
 def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]:
     """What a capture would refuse in markup no capture reads, such as a message's,
     which the log carries: what delivery's reader can't read in
@@ -616,8 +630,9 @@ def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]
     that the page won't answer (`unanswered_media`), in an attribute or a
     stylesheet. Its stylesheets are every one delivery rewrites
     (`structure.delivered_sheets`), its samples' included; a sample child's
-    attributes its own reading names (`validation.source.uncaptured_sample_errors`).
-    A page's own markup the capture reads (`_capture_artifact`)."""
+    attributes its own reading names
+    (`authored_checks.source.uncaptured_sample_errors`). A page's own markup the
+    capture reads (`_capture_artifact`)."""
     refused = []
     media = set(document.authoring.media_refs)
     for css, sheet, declarations in delivered_sheets(document):

@@ -1,5 +1,6 @@
-"""Complete registry validation orchestration, and the checks of a vocabulary's
-layer facts and the declarations beside its elements."""
+"""Complete registry validation orchestration, including the merged, validated and
+stamped registry of a layer's packages (`incoming_registry`), and the checks of a
+vocabulary's layer facts and the declarations beside its elements."""
 
 import hashlib
 import json
@@ -27,6 +28,7 @@ from .contract import (
     state_specs,
 )
 from .kernel import answer_kinds
+from .layer import merged_registry, stamp_composition
 from .schema import (
     check_schema,
     json_validator,
@@ -61,6 +63,13 @@ def validate_registry(registry: dict, source) -> dict:
     while len(_VALIDATED) > _VALIDATED_LIMIT:
         _VALIDATED.pop(next(iter(_VALIDATED)), None)
     return registry
+
+
+def incoming_registry(packages: list) -> dict:
+    """The merged registry (`registry.layer.merged_registry`) `page init` will vendor,
+    validated and stamped."""
+    merged, source = merged_registry(packages)
+    return stamp_composition(validate_registry(merged, source))
 
 
 def _validate(registry: dict, path) -> None:

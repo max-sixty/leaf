@@ -58,7 +58,7 @@
  * the page. A local page's read answers well within a second. Once a first read
  * has waited that second, as on leaf.page while a visitor's container starts, the
  * placeholder says "Loading file…" until the read answers and the page presents
- * without the file, whose text then lands as an arrival; the page's own controls
+ * without the file, whose text then lands as drawing under way; the page's own controls
  * and the names in its state don't wait for a server that is still starting.
  * Rejected: the word in the status slot, which sits at the header's far end from
  * the empty line the reader looks at; and never holding the page for the file,
@@ -75,7 +75,6 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
-  afterPresentation,
   boundFile,
   focusDestination,
   onCurrentLocation,
@@ -88,6 +87,7 @@ import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { rove } from "/runtime/lib/roving.js";
 import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { presented } from "/runtime/lib/presented.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
@@ -852,7 +852,7 @@ customElements.define(
           this.dispatchEvent(
             new PendingTaskEvent(Promise.race([first, waited.promise])),
           );
-          void afterPresentation(() => first);
+          void presented().then(() => this.dispatchEvent(new PendingTaskEvent(first)));
           initial = false;
         }
         watch();

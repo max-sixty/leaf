@@ -220,12 +220,10 @@ export function markDeclared(root) {
         );
       }
     }
-    // Message markup is all content (`authored_on`, `$marks`), so only a
-    // mark held to declaring tags asks which tag an occurrence is.
+    // Message markup is all content, where an override holds (`$marks`).
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
-        if (mark.authored_on !== "declared" || tags.includes(el.localName))
-          keeps(el, attribute, el.getAttribute(authored));
+        keeps(el, attribute, el.getAttribute(authored));
   }
 }
 

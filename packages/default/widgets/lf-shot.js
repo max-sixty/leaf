@@ -61,7 +61,6 @@ import { ShotView } from "./shot-view.js";
  * Print shows both complete original images. */
 import { render } from "/vendor/lit.js";
 import {
-  afterPresentation,
   frameFor,
   focusDestination,
   scopedMediaUrl,
@@ -70,6 +69,7 @@ import {
 } from "/runtime/widget-api.js";
 import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { presented } from "/runtime/lib/presented.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -295,7 +295,12 @@ export class Shot extends HTMLElement {
       registered
         .then((aligned) =>
           aligned
-            ? afterPresentation(() => inTurn(() => this.#markDifference(capture)))
+            ? presented().then(() => {
+                const marked = inTurn(() => this.#markDifference(capture));
+                // The catch below draws a failure.
+                this.#present(marked.catch(() => null));
+                return marked;
+              })
             : null,
         )
         .catch((reason) => {

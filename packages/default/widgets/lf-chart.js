@@ -13,10 +13,10 @@
  * What the host adds is what a drawing needs from the page it sits in. It is drawn for
  * the room it has and drawn again when that room changes, since a drawing scaled into a
  * new box takes its labels below legibility with it: the width is the host's, and the
- * body reads it to fit its ticks to the room. The height is the box's too: on a Leaf
- * page it is stated (`height`, or the occurrence's data-height), and the theme
- * holds the box at it before the drawing arrives, so the drawing and any legend Plot
- * sets beside it are drawn to fill it and move nothing below it. Its type and ink are
+ * body reads it to fit its ticks to the room. The height is the box's too: the chart's
+ * sheet (chart.css) holds the box at its `data-height` before the drawing arrives, so
+ * the drawing and any legend Plot sets beside it are drawn to fill it and move nothing
+ * below it. Its type and ink are
  * the theme's, and so are its series colours, because Plot takes `var(--lf-series-N)`
  * wherever it takes a colour. A user who cannot see it hears Plot's `ariaLabel` in its
  * place. A comment takes the whole chart, or the point the reader is on (below) as a
@@ -146,7 +146,7 @@ function drawOptions(body, Plot, width, height) {
     );
   if ("height" in spec)
     throw new Error(
-      "state the chart's height as data-height on the element rather than in the options: the page holds that box before the chart draws",
+      "state the chart's height as data-height on the element rather than in the options: the chart holds that box before it draws",
     );
   offsetsAreNumbers(spec.marks);
   return { ...spec, width, height };
@@ -394,8 +394,8 @@ customElements.define(
         // inside the drawing, whose height is fixed, so it moves no box the browser
         // watches. Everything else the chart writes waits for Leaf's next rendering
         // pass, since a box that moves above one the browser just delivered is a
-        // ResizeObserver loop error. The first drawing lets go of the box the theme
-        // held (`height`), which a row may stretch, and the page presents itself as
+        // ResizeObserver loop error. The first drawing lets go of the box the sheet
+        // held (`data-height`), which a row may stretch, and the page presents itself as
         // the drawing settles, so the room's first delivery is heard in that pass, as
         // the legend's measurement is (`paint`) and a refusal is written there. The
         // drawing follows there, or once Plot has loaded if that comes later. A width
@@ -423,7 +423,7 @@ customElements.define(
         // The box each drawing goes in. A redraw replaces what is in it and nothing else,
         // because by then the runtime may have hung its own words on the widget — the
         // line saying a comment stands on this chart is a child of the element. It holds
-        // the height the page held the chart at, so the chart's box keeps it whatever a
+        // the height its sheet held the chart at, so the chart's box keeps it whatever a
         // drawing measures, and only its width moves the observer.
         this.#height = height;
         this.drawing.className = "lf-chart-drawing";

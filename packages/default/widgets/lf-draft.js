@@ -84,7 +84,6 @@ import {
   motion,
   draft,
   whileConnected,
-  dressCode,
   focusDestination,
   scrollIntoView,
   onCurrentLocation,
@@ -173,8 +172,6 @@ customElements.define(
     #cancelSize = null;
     /** @type {ReturnType<typeof onPressAway> | null} */
     #stopPressAway = null;
-    /** @type {Promise<void> | undefined} */
-    #dressing;
     #states = this.attachInternals().states;
     // The toolbar shows again, after typing put it away, while the pointer is on it, and
     // takes presses once the pointer has rested there.
@@ -586,19 +583,6 @@ customElements.define(
           );
         }
       }
-    }
-
-    // The body `render` painted draws its code and formulas once it stands, and the
-    // update waits for them (lib/leaf-element.js, `pending-task`).
-    /** @param {Map<PropertyKey, unknown>} changed */
-    updated(changed) {
-      super.updated(changed);
-      this.#dressing = dressCode(this.#body);
-    }
-    async getUpdateComplete() {
-      const result = await super.getUpdateComplete();
-      await this.#dressing;
-      return result;
     }
 
     // A live editor owns its transient text; the complete state waits for it.

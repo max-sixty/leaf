@@ -125,15 +125,16 @@ source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into i
 ### Code
 
 `langForPath(path)` names the registry `$languages` language a file name means, or
-undefined where the page's table has none. `dressCode(root)` colours
-each `pre > code` in `root` whose `language-…` class names a language and that wears
-the reading face, and typesets each formula, a `<code class="language-math">`
+undefined where the page's table has none. Leaf colours each `pre > code` a widget
+draws as it arrives, whose `language-…` class names a language and that wears the
+reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
 (`package-themes.md`, "A page's theme"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
-`<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
-reading face as other content with its own design does.
+`<br>`, whose blocks remain uncoloured. A block keeps its colouring while its language
+stands, so draw a new `<code>` to show other words. A block with its own colouring
+turns off the reading face as other content with its own design does.
 
 A widget that draws each line of source in a box of its own, as an editor does, marks
 the box `data-lf-pre-line`. Leaf then indents the rows a long line wraps onto two

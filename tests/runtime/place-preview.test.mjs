@@ -550,14 +550,16 @@ test("a figure shows its picture under its caption, and a drawing its title", ()
   );
 });
 
-test("only a link an author wrote into the page names a place", () => {
+test("a link into the page names a place, whoever drew it, outside Leaf's surfaces", () => {
   document.body.innerHTML = `<main><p id="target">Here.</p>
     <a id="in" href="#target">in</a><a id="out" href="https://example.com/#target">out</a>
     <a id="gone" href="#missing">gone</a>
-    <nav class="lf-ui"><a id="drawn" href="#target">drawn</a></nav></main>`;
+    <nav class="lf-ui" data-lf-gen="1"><a id="drawn" href="#target">drawn</a></nav>
+    <nav data-lf-runtime><a id="leaf" href="#target">Leaf's</a></nav></main>`;
   const place = (id) => linkedPlace(document.getElementById(id))?.id ?? null;
   assert.equal(place("in"), "target");
   assert.equal(place("out"), null);
   assert.equal(place("gone"), null);
-  assert.equal(place("drawn"), null);
+  assert.equal(place("drawn"), "target");
+  assert.equal(place("leaf"), null);
 });

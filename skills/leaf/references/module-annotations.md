@@ -134,8 +134,7 @@ inside a datum. `prefix` and `suffix`, where the anchor has them, are the text b
 and after the quote, which tell two copies of the same words apart.
 [events.md](../../../src/leaf/events.md), "Anchors", defines every field.
 
-`threadInput(element)` returns the reply editor of the Thread containing that element,
-or `null` outside one. `landInThread(editor, {target, line})` enters an existing reply
+`landInThread(editor, {target, line})` enters an existing reply
 editor and records where Escape returns when the Thread has no own focus destination:
 `target` is the package's return element and `line` is its accessible return label.
 It returns whether it could land. Use `threadActions.open` below when starting from a

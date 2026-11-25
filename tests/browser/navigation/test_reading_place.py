@@ -2850,7 +2850,7 @@ def test_a_visit_whose_address_drops_its_fragment_doesnt_land_on_it_later(
             '<p id="target">The fragment target.</p><div style="height:1600px"></div>',
         ).replace(
             "</head>",
-            "<script type=\"module\">import {afterPresentation} from '/runtime/widget-api.js';"
+            "<script type=\"module\">const {afterPresentation} = await window.__lfCheckApi();"
             "afterPresentation(() => new Promise((done) => (window.__arrived = done)));"
             "</script></head>",
         )

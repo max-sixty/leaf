@@ -37,11 +37,12 @@ import {
   setChildLists,
   setChildren,
   focusDestination,
-  afterPresentation,
   pageLinks,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { presented } from "/runtime/lib/presented.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
 import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
@@ -769,8 +770,9 @@ class RunColours {
 }
 
 // First draws the page doesn't show, as in a closed tab, made once it has presented, one
-// a task in the order their updates asked (`show`). Until a document draws, a comment on
-// its data stands on the document (anchor-resolution.js).
+// a task in the order their updates asked (`show`). Each document says, as the page
+// presents, that its draw is under way until the whole queue is drawn. Until a document
+// draws, a comment on its data stands on the document (anchor-resolution.js).
 /** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */
@@ -778,14 +780,15 @@ let drawingAfterPresentation = null;
 /** @param {TextDocument} doc @param {string | null} value @param {number} rendering */
 function drawLater(doc, value, rendering) {
   drawingLater.push({ doc, value, rendering });
-  drawingAfterPresentation ??= afterPresentation(async () => {
+  const drawing = (drawingAfterPresentation ??= presented().then(async () => {
     for (let next; (next = drawingLater.shift());) {
       await new Promise((resolve) => setTimeout(resolve));
       if (next.rendering !== next.doc.rendering) continue;
       await next.doc.show(next.value, true);
     }
     drawingAfterPresentation = null;
-  });
+  }));
+  void presented().then(() => doc.dispatchEvent(new PendingTaskEvent(drawing)));
 }
 
 class TextDocument extends LeafElement {
@@ -1022,7 +1025,7 @@ class TextDocument extends LeafElement {
       }
       // A document the page shows draws at once; one it doesn't, as in a closed tab,
       // first draws once the page has presented (`drawLater`), and this update
-      // completes without it: the page counts the draws as an arrival. Drawn in page
+      // completes without it: the draws are under way from then. Drawn in page
       // order, a reload on the last of many tabs would show its document only after all
       // the documents before it. Drawn before presentation, they would hold it back, and
       // Firefox, which styles a closed tab's rows too, would restyle every one of them as

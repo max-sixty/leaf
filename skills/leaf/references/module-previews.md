@@ -102,8 +102,7 @@ or `empty`). There the element's own preview shows, or none, and the thread is r
 by its margin entry. Words a widget holds of the author's markup, outside any control
 in it, preview their thread.
 
-A link an author wrote to a place on the page previews that place with no declaration.
-A link a widget draws previews nothing of the place unless the widget declares it,
-since only the widget knows whether its words already say what the place holds; to
-show the place, return `placePreview(element)`, the name, first lines, answer and
-threads Leaf shows for an authored link.
+A link to a place on the page, an author's or one a widget draws, previews that place
+with no declaration: its name, first lines, answer and threads. A widget whose link's
+words already say what the place holds declares its own `lfPreview`, which stands in
+the place's, or returns `false` from it to preview nothing.

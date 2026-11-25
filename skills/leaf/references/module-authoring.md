@@ -59,8 +59,8 @@ the DOM takes the element it acts for as its first argument.
 In this file:
 
 - "Connection lifetimes": `whileConnected` holds a connection's listeners and observers.
-- "Startup and presentation": `afterPresentation` and `whenNear` defer heavy work, and
-  `whileInterfaceConnected` connects a page script to a widget.
+- "Startup and presentation": `whenNear` defers heavy work until the reader comes
+  near, and `whileInterfaceConnected` connects a page script to a widget.
 - "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
   place nodes the module keeps.
 - "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
@@ -89,7 +89,7 @@ In [module-reading.md](module-reading.md):
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath` and `dressCode`.
+- "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues`,
   `answerWords` and `obligationActions`.
@@ -116,15 +116,11 @@ In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
-- "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
-  `threadInput` and `landInThread`.
+- "Reading and opening Threads from a widget": `readThreads`, `threadActions` and
+  `landInThread`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.
-
-In [module-previews.md](module-previews.md):
-
-- "Previews": `placePreview`.
 
 ### Shared web code
 
@@ -198,8 +194,8 @@ script", lists.
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
   "Words it writes").
-- Keep the widget's visible geometry stable as its state updates ("First paint"), and
-  meet the rest of [interface-goals.md](interface-goals.md).
+- Keep the widget's visible geometry stable as its state updates, and meet the rest of
+  [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size through the library's frame pass, and
   write a value only where it changes ("Scheduling paints", "Writes that change
   nothing").
@@ -332,13 +328,15 @@ reconnection; the cleanup `connect` returns runs as the element leaves. A playgr
 page script is the worked example (the playground package's author instructions,
 "Stateful previews").
 
-Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`, or until they come near its element through
-`whenNear(element, () => …)`, which returns the step that stops waiting. Hand work that
-starts now but need not delay presentation, such as a slow load whose result moves
-nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wait for
-the page wait for the work each has started; `page check --render` starts what
-`whenNear` holds.
+Start a heavy renderer that can wait until the user has the page at `lf-presentation`,
+or at once where `body[data-lf-presented]` is already set, and say what it draws with a
+`pending-task` event (`module-plain-elements.md`, "Drawing"): said after presentation,
+it holds the page's readiness rather than its presentation, so checks and tests wait
+for it. Work that starts now but need not delay presentation, such as a slow load whose
+result moves nothing visible, is said the same way once the page has presented. Run one
+that can wait until the reader comes near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting;
+`page check --render` starts what it holds.
 
 ### First paint
 
@@ -348,11 +346,11 @@ readings.
 - Draw a widget's complete view in one place, its `state` setter or its one `render()`.
   The same drawing handles fresh mounts, thread messages and later updates; do not add
   a second initial renderer or transfer generated nodes between renderers.
-- Size the widget in the package theme, including its initial authored drawing.
-  A shadow template uses native slots for authored children, keeping their nodes and
-  browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `height` and add
-  the class `lf-rendered` once drawn.
+- Size the widget in the package theme, including its initial authored drawing. A
+  custom element is inline until a rule gives it a `display`, so give the tag its
+  `display` there. A shadow template uses native slots for authored children, keeping
+  their nodes and browser state in the light DOM. Where the markup can't say how tall
+  the drawing will be, the page moves once as it draws.
 - A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as

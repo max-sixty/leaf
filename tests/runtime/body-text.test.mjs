@@ -570,3 +570,29 @@ test("a table cell's words and a caret in them stand in its own cell, past the p
     }
   }
 });
+
+test("a page's Markdown opens a link out of the page in a new tab and a picture as its own file", async () => {
+  const { loadMarkdown, pageLinks, renderMarkdown } =
+    await import("/runtime/lib/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  const body = document.createElement("div");
+  body.innerHTML = renderMarkdown(
+    "[out](https://elsewhere.example/a) [in](#here) ![Room](/media/room.png) " +
+      "[![Linked](/media/linked.png)](https://elsewhere.example/b)",
+    pageLinks,
+  );
+  const links = [...body.querySelectorAll("a")];
+  const named = (words) => links.find((link) => link.textContent === words);
+  assert.equal(named("out")?.getAttribute("target"), "_blank");
+  assert.equal(named("in")?.hasAttribute("target"), false);
+  const room = body.querySelector('img[alt="Room"]');
+  assert.equal(room?.parentElement?.localName, "a");
+  assert.equal(room?.parentElement?.getAttribute("href"), "/media/room.png");
+  // A picture a link already holds goes where the link goes.
+  const linked = body.querySelector('img[alt="Linked"]');
+  assert.equal(
+    linked?.parentElement?.getAttribute("href"),
+    "https://elsewhere.example/b",
+  );
+  assert.equal(linked?.parentElement?.getAttribute("target"), "_blank");
+});

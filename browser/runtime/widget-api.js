@@ -38,7 +38,6 @@ export const threads = Object.assign(threadsReading, threadActions);
 export { comparisonChanges } from "./version.js";
 export { go, placePageThreads, registerThreadPresentation } from "./application.js";
 export { registerContribution } from "./contributions.js";
-export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";

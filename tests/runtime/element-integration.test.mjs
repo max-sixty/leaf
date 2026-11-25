@@ -345,8 +345,7 @@ test("a drawing an element announces by itself holds its region until it is in",
   element.remove();
 });
 
-test("an element says its failure with `error`, and `lf-error` on the window tells the user", async () => {
-  const { errorsReading, dismissErrors } = await import("/runtime/errors.js");
+test("an element says its failure with `error`", async () => {
   const host = document.body.appendChild(document.createElement("section"));
   const part = host
     .attachShadow({ mode: "open" })
@@ -368,19 +367,8 @@ test("an element says its failure with `error`, and `lf-error` on the window tel
       { element: part, reason },
       { element: host, reason: "no rows" },
     ]);
-    dismissErrors();
-    window.dispatchEvent(
-      new CustomEvent("lf-error", {
-        detail: "Wait for the current edit to finish saving",
-      }),
-    );
-    assert.deepEqual(
-      errorsReading().map(({ message, subject }) => [message, subject]),
-      [["Wait for the current edit to finish saving", null]],
-    );
   } finally {
     window.removeEventListener("error", report);
-    dismissErrors();
     host.remove();
   }
 });

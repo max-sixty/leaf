@@ -42,6 +42,7 @@ import { move } from "./lib/dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
+import { scopeMediaAddress } from "./media.js";
 
 /** @typedef {Document | DocumentFragment | Element} Scope */
 /** @type {Set<string>} */
@@ -113,10 +114,14 @@ export const opensElsewhere = (href) => window.lfLinks.opensElsewhere(href);
 
 export function watchNativeContent() {
   const { keepDisclosure, finishEarlyContent } = window.lfStorage;
-  watchArrivals("a, details", ["href"], {
+  watchArrivals("a, details, img", ["href", "src"], {
     arrive: (element) => {
       if (element instanceof HTMLDetailsElement) keepDisclosure(element);
-      else window.lfLinks.markExternalLink(element);
+      else if (element instanceof HTMLImageElement) scopeMediaAddress(element, "src");
+      else {
+        scopeMediaAddress(element, "href");
+        window.lfLinks.markExternalLink(element);
+      }
     },
     leave: (element) => element.removeAttribute(PAGE_PAINT_ATTRIBUTE.external),
   });

@@ -78,7 +78,7 @@
  * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import { html, render, nothing } from "/vendor/lit.js";
-import { aimedAt, nameOf, draft, pageLinks } from "/runtime/widget-api.js";
+import { aimedAt, nameOf, draft } from "/runtime/widget-api.js";
 import { playMotion } from "/runtime/lib/motion.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
@@ -89,6 +89,7 @@ import { motionTime } from "/runtime/lib/motion-timing.js";
 import { noInputSince } from "/runtime/lib/input-since.js";
 import { focusOn } from "/runtime/lib/focus-on.js";
 import {
+  pageLinks,
   paintMarkdown,
   markdownSourceOffset,
   markdownWords,
@@ -440,7 +441,7 @@ customElements.define(
       if (this.#editor) return;
       if (this.#sending) {
         window.dispatchEvent(
-          new CustomEvent("lf-error", {
+          new CustomEvent("lf-announce", {
             detail: "Wait for the current edit to finish saving",
           }),
         );

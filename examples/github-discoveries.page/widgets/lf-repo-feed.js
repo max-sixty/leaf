@@ -4,11 +4,16 @@
  * shown waits behind its "new stories" button, so the reader's place stays put.
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
-import { go, threads, pageLinks } from "/runtime/widget-api.js";
+import { go, threads } from "/runtime/widget-api.js";
 import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered } from "/runtime/lib/controls.js";
-import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
+import {
+  loadMarkdown,
+  markdownReady,
+  pageLinks,
+  renderMarkdown,
+} from "/runtime/lib/markdown.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 import { GitHubFeed } from "../github-feed.js";

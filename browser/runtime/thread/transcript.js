@@ -72,7 +72,7 @@ import { MessageView, arrivalTint, saidTime } from "./messages.js";
 import { offeredAction } from "../lib/controls.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 import { renderMarkdown } from "../lib/markdown.js";
-import { pageLinks } from "../page-markdown.js";
+import { viewerLinks } from "../page-markdown.js";
 import { summaryRanges, workingPlace } from "./summary-ranges.js";
 import {
   growthAfterIsSeen,
@@ -92,7 +92,7 @@ import { voiced } from "../voice.js";
 /** @param {{text: string, label?: string}} summary */
 function summaryWords({ text, label }) {
   const words = document.createElement("template");
-  words.innerHTML = text ? renderMarkdown(text, pageLinks) : "";
+  words.innerHTML = text ? renderMarkdown(text, viewerLinks) : "";
   if (!label) return words.innerHTML;
   const name = document.createElement("strong");
   name.className = "lf-summary-label";

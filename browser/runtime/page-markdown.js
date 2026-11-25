@@ -1,12 +1,12 @@
 /* Markdown on a Leaf page: how the page writes the links and pictures the library's
    dialect renders (lib/markdown.js), and the passes that render the words the composed
    registry declares Markdown. The dialect itself reads nothing of the page's. */
-import { opensElsewhere } from "./declared-words.js";
 import { offerContentElement } from "./element-markers.js";
 import { describeFailure } from "./lib/exception.js";
 import {
   loadMarkdown,
   markdownReady,
+  pageLinks,
   paintMarkdown,
   renderMarkdown,
 } from "./lib/markdown.js";
@@ -14,20 +14,14 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { declaredElements } from "./registry.js";
 import { dataBody } from "./lib/data-body.js";
 
-/** The page's links and pictures (`MarkdownLinks` in lib/markdown.js), which every
- * rendering on a Leaf page passes. The page's own media answers at the page's address
- * (media.js, `scopedMediaUrl`), and its picture is a press that opens the media viewer.
- * Markdown can't say where a link opens, so a link that leaves the page opens in a new
- * tab, and the page, and the thread the reader followed the link from, stay open where
- * they were.
+/** The links and pictures of the Markdown Leaf renders itself, in messages, versions
+ * and declared Markdown bodies: a page's (lib/markdown.js, `pageLinks`), except that a
+ * picture of the page's own media is a press of Leaf's that opens the media viewer, at
+ * the page's address (media.js, `scopedMediaUrl`), and a picture from elsewhere stands
+ * as written.
  * @type {import("./lib/markdown.js").MarkdownLinks} */
-export const pageLinks = {
-  link: (href) =>
-    isCanonicalMediaUrl(href)
-      ? { href: scopedMediaUrl(href) }
-      : opensElsewhere(href)
-        ? { target: "_blank" }
-        : undefined,
+export const viewerLinks = {
+  link: pageLinks.link,
   picture: (image) => {
     const href = image.getAttribute("src");
     if (href === null || !isCanonicalMediaUrl(href)) return image;
@@ -89,9 +83,9 @@ export function formatDeclaredMarkdown(scope) {
       body.hasAttribute("data-lf-prepaint") &&
       body.getAttribute("data-lf-source-words") === source
     ) {
-      const markup = renderMarkdown(source, pageLinks, false);
+      const markup = renderMarkdown(source, viewerLinks, false);
       if (body.innerHTML !== markup) body.innerHTML = markup;
-    } else paintMarkdown(body, source, pageLinks);
+    } else paintMarkdown(body, source, viewerLinks);
     body.removeAttribute("data-lf-prepaint");
     body.removeAttribute("data-lf-gen");
     pre.replaceWith(body);

@@ -322,19 +322,11 @@ def test_one_check_advises_on_each_example_a_page_could_not_hold(page_dir):
                         "refers": {"label": {}},
                     },
                 ),
-                "lf-eps": _faulty(
-                    "lf-eps",
-                    **{
-                        "content": "empty",
-                        "reading-role": "pane",
-                    },
-                ),
                 # What only a module provides, with no module for the tag.
                 "lf-delta": _faulty("lf-delta", upgrade=True),
             },
             [
                 ("undeclared-attributes", "<lf-beta>"),
-                ("requires", "<lf-eps>"),
                 ("needs-module", "<lf-delta>"),
             ],
         ),

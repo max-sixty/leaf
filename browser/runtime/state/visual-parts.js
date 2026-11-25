@@ -1,8 +1,8 @@
 /* Package-owned semantic parts of a rendered visual.
  *
- * A visual states one ordered inventory: the parts its nodes mark, or what the
- * element's `lfParts` says, read off the element at each reading so that a plain
- * element or another library's component states it without importing Leaf. Leaf
+ * A visual states one ordered inventory, its `lfParts`, read off the element at each
+ * reading so that a plain element or another library's component states it without
+ * importing Leaf. Leaf
  * validates that inventory and derives
  * both directions it needs: a durable token resolves to the current rendered element,
  * and a rendered hit resolves to the nearest part it names. `surface` is the native
@@ -41,12 +41,9 @@
  * visual draws it, rather than detaching. A label reader can name an absent part in
  * Threads without changing the visual's state.
  *
- * A visual whose `lfParts` gives no `read` marks its parts instead: each node in its
- * light tree carrying `data-lf-part="<id>"` is the part of that id, named by its
- * `aria-label` or else its words, in document order. A mark under a visual standing
- * inside the source is that visual's, by the page's declarations (`declaredVisuals`).
- * Marks and `lfParts` are read as they stand, and a reading kept from either is made
- * again once a layout change is said on the visual or inside it (lib/widget-events.js,
+ * A visual whose `lfParts` gives no `read` offers no part. `lfParts` is read as it
+ * stands, and a reading kept from it is made again once a layout change is said on the
+ * visual or inside it (lib/widget-events.js,
  * `LAYOUT`), which a visual says after it draws, a reveal that draws included, and Leaf
  * says for an element each time it sets the element's properties
  * (host/element-integration.js). A change said elsewhere leaves the reading kept, so a
@@ -72,15 +69,6 @@ import { version } from "./kept.js";
  * at?: (node: Element) => VisualPart | null | undefined,
  * focus?: (id: string) => void}} Parts */
 
-// Whether an element is a visual of its own, as the page declares them
-// (readings/anchor-resolution.js). A document that says nothing has none.
-/** @type {(element: Element) => boolean} */
-let isVisual = () => false;
-/** @param {(element: Element) => boolean} declared */
-export const declaredVisuals = (declared) => {
-  isVisual = declared;
-};
-
 // How many times an element in the page has said its layout changed, which a reader of
 // what widgets draw that the page's reading doesn't hear reads (kept.js, `version`).
 // The count is taken as the event starts down from the window, so it has moved before
@@ -98,22 +86,10 @@ document.addEventListener(LAYOUT, (event) => {
     if (node instanceof Element) drawings.get(node)?.move();
 });
 
-// The parts a source's nodes mark, less those under a visual standing inside it.
-/** @param {Element} source @returns {VisualPart[]} */
-const markedParts = (source) =>
-  [...source.querySelectorAll("[data-lf-part]")].flatMap((element) => {
-    for (let at = element.parentElement; at && at !== source; at = at.parentElement)
-      if (isVisual(at)) return [];
-    const id = element.getAttribute("data-lf-part") ?? "";
-    const label = element.getAttribute("aria-label") ?? element.textContent ?? "";
-    return [{ id, element, label }];
-  });
-
 /** What a source's `lfParts` says, read as each reading asks, so a reading kept from it
  * is made again once the visual says its layout changed.
  *
- * `read()` returns ordered `{id, element, label, surface?}` records, where the
- * source's marks don't say them. `reveal(id)` settles the state that holds declared
+ * `read()` returns ordered `{id, element, label, surface?}` records. `reveal(id)` settles the state that holds declared
  * part `id` before it returns, so the next `read` includes it and pending work cannot
  * retire it. It is called for visible destinations too. `label(id)` names a part
  * absent from the current state without revealing it. `find(id)` returns the record
@@ -156,8 +132,8 @@ export function revealRegisteredVisualPart(source, id) {
 }
 
 /** Invalid records, or ids outside a provider's declared prefixes. A visual that
- * offers no part has none: with marks, an empty inventory is a state its drawing can
- * be in, and the picture is then one target. */
+ * offers no part has none: an empty inventory is a state its drawing can be in, and
+ * the picture is then one target. */
 /** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
@@ -188,11 +164,10 @@ function checkedPart(source, part, number) {
   return { id, element, label, surface };
 }
 
-/** The source's inventory, each record checked: what its `lfParts` reads, or the parts
- * it marks. */
+/** The source's inventory, each record checked: what its `lfParts` reads. */
 /** @param {Element} source */
 export function registeredVisualParts(source) {
-  const read = partsOf(source)?.read ?? (() => markedParts(source));
+  const read = partsOf(source)?.read ?? (() => []);
   const seenIds = new Set();
   const seenElements = new Set();
   const seenSurfaces = new Set();

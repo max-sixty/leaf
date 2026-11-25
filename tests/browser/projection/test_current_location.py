@@ -777,7 +777,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
 
     # A pointer landing inside an open decision makes it the current location, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
-    page.locator("#live-question .lf-another textarea").click()
+    page.locator("#live-question .lf-another input").click()
     expect(question).to_have_attribute("data-lf-obligation", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question

@@ -42,6 +42,7 @@ import { move } from "../lib/dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { marks } from "../state/kernel-facts.js";
 import { generatedElement } from "../dom/widget-elements.js";
+import { scopeMediaAddress } from "./media.js";
 
 /** @typedef {Document | DocumentFragment | Element} Scope */
 /** @type {Set<string>} */
@@ -113,10 +114,14 @@ export const opensElsewhere = (href) => window.lfLinks.opensElsewhere(href);
 
 export function watchNativeContent() {
   const { keepDisclosure, finishEarlyContent } = window.lfStorage;
-  watchArrivals("a, details", ["href"], {
+  watchArrivals("a, details, img", ["href", "src"], {
     arrive: (element) => {
       if (element instanceof HTMLDetailsElement) keepDisclosure(element);
-      else window.lfLinks.markExternalLink(element);
+      else if (element instanceof HTMLImageElement) scopeMediaAddress(element, "src");
+      else {
+        scopeMediaAddress(element, "href");
+        window.lfLinks.markExternalLink(element);
+      }
     },
     leave: (element) => element.removeAttribute(PAGE_PAINT_ATTRIBUTE.external),
   });
@@ -164,7 +169,8 @@ export function paintDeclaredWords(root) {
 // Two more complete the set: `bound`, a block that holds its own height and scrolls
 // inside it (`readings/bounds.js` holds each bounded block that arrives as a reading region, and
 // keeps an `end` bound on its newest entry), and `reading-role`, the structure the
-// theme and the workspace Layout lay out, so every package's pane takes the same rules.
+// theme and the workspace Layout lay out, which the kernel names for Leaf's own pane
+// and group (`tags`) and a module writes on a pane it builds.
 //
 // An attribute, because the theme cannot read the registry. Which declarations are marks, the attribute
 // each is painted as, the attribute an occurrence overrides it with, and whether it
@@ -196,9 +202,10 @@ export function markDeclared(root) {
     // `$marks` keys each mark by the name of the fact it paints.
     const fact =
       /** @type {keyof import("../../types/contract.js").WidgetDeclaration} */ (key);
-    const tags = tagsDeclaring((entry) => entry[fact]);
+    const named = mark.tags ?? {};
+    const tags = [...tagsDeclaring((entry) => entry[fact]), ...Object.keys(named)];
     for (const tag of tags) {
-      const declared = registry[tag]?.[fact];
+      const declared = registry[tag]?.[fact] ?? named[tag];
       for (const el of elementsIn(root, tag)) {
         const value = holdsFor(el, declared);
         keeps(

@@ -31,7 +31,6 @@ import {
   focusedVisualPart,
   visualPartFocus,
   visualPartAdmission,
-  declaredVisuals,
   layoutsChanged,
 } from "../state/visual-parts.js";
 import {
@@ -217,9 +216,6 @@ export const standsIn = (anchor, placement) =>
 /** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
 export const awaitsDrawing = (anchor, placement) =>
   standsIn(anchor, placement) && placement?.status === "fallback";
-
-// Which elements are visuals of their own, for the reader of a visual's marks.
-declaredVisuals((element) => Boolean(registry[element.localName]?.visual));
 
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */

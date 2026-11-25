@@ -1224,22 +1224,22 @@ _TEXT = {
         ' child carries its own (page-layout.md, "A page of parts")'
     ),
     "pane-ends": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds more than one direct"
+        f"{_line(at, v)}: a {v['role']} holds more than one direct"
         " <header> or <footer>; its grid sets each one after the first beside it, in a"
         " column of its own, so put what they hold in one <header> or <footer>"
     ),
     "pane-header-first": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <header> after"
+        f"{_line(at, v)}: a {v['role']} holds its direct <header> after"
         " other children; its grid still draws the header on top, but keyboard and"
         " screen-reader order follow the markup"
     ),
     "pane-footer-last": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <footer> before"
+        f"{_line(at, v)}: a {v['role']} holds its direct <footer> before"
         " other children; its grid still draws the footer at the bottom, but keyboard"
         " and screen-reader order follow the markup"
     ),
     "pane-body": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} "
+        f"{_line(at, v)}: a {v['role']} "
         + (
             "holds loose text as its body, which stands without the body's padding"
             " and doesn't scroll as the pane's body; wrap it in a <p> or <div>"
@@ -1535,9 +1535,6 @@ _TEXT = {
     ),
     "undeclared-attributes": _declared(
         lambda v: f"`{v['key']}` names undeclared attributes {_json(v['names'])}"
-    ),
-    "reading-role-attr": _declared(
-        lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
     ),
     "data-contract": _declared(
         lambda v: (

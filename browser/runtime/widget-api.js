@@ -42,7 +42,6 @@ export {
   registerThreadPresentation,
 } from "./host/application.js";
 export { registerContribution } from "./features/contributions.js";
-export { pageLinks } from "./records/page-markdown.js";
 export { scopedMediaUrl } from "./records/media.js";
 export { boundFile } from "./host/file-api.js";
 export { generate } from "./host/llm-api.js";

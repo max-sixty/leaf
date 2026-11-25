@@ -191,8 +191,7 @@ interface Element {
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`annotations/preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/annotations/preview.js").Read;
-  /** A visual's parts where its `data-lf-part` marks don't say them, read as each
-   * reading of the visual asks (`state/visual-parts.js`). */
+  /** A visual's parts, read as each reading of the visual asks (`state/visual-parts.js`). */
   lfParts?: import("../runtime/state/visual-parts.js").Parts | undefined;
 }
 
@@ -249,9 +248,6 @@ interface WindowEventMap {
   "lf-walk": CustomEvent<
     import("../runtime/records/walk-position.js").SaidPlace | null
   >;
-  /** A widget's words for something the user did that has not taken, which Leaf keeps
-   * in its Errors list (`transport/errors.js`). */
-  "lf-error": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
@@ -380,14 +376,6 @@ interface ShadowRoot {
     listener: EventListenerOrEventListenerObject | null,
     options?: boolean | EventListenerOptions,
   ): void;
-}
-
-interface Element {
-  /** The word a widget's module names its kind by where it depends on the element
-   * (`lib/element-word.js`, `widgetWord`); a fixed word is the element's
-   * `aria-roledescription`. */
-  lfWord?(): string;
-  lfSays?(): string;
 }
 
 interface HTMLElement {

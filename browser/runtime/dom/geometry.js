@@ -29,6 +29,7 @@ import {
 } from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { keeps } from "../lib/keeps.js";
+import { setRuntimeRootStyle } from "../state/root-state.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},
@@ -781,13 +782,16 @@ function insetBand(scroller, inset) {
 }
 // The root's band at the window's foot, in pixels, which the floating panel states as
 // its box changes height (panel/floating-panel.js, `followBox`), or null where no panel
-// stands, as on an export. Returns whether the band changed.
+// stands, as on an export. Returns whether the band changed. The root wears it as its
+// `scroll-padding-bottom` too, so the browser's own reveals and focus scrolling, a
+// widget's included, bring what they land above the panel as Leaf's landings do.
 /** @type {number | null} */
 let footBand = null;
 /** @param {number} band */
 export function stateFootBand(band) {
   if (band === footBand) return false;
   footBand = band;
+  setRuntimeRootStyle(document.documentElement, "scroll-padding-bottom", `${band}px`);
   return true;
 }
 // How far each edge of `landingBand` stands in from the scroller's shown band: the

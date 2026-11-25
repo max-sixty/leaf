@@ -390,13 +390,13 @@ def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 
 def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Each pane (`reading-role: pane`) whose direct children aren't an optional header,
+    """Each pane (Leaf's `lf-pane`, `$marks`) whose direct children aren't an optional header,
     one body element and an optional footer, in that order, with what its grid does with
     them (`base.css`, "A pane is one task region"). Advice, since a pane holding a
     `<script>`, or blocks a script shows one at a time, works as it is."""
     findings = []
     for rec in document.lf_elements:
-        role = registry.get(rec["tag"], {}).get("reading-role")
+        role = kernel_marks()["reading-role"]["tags"].get(rec["tag"])
         if role != "pane":
             continue
         direct = rec["direct"]

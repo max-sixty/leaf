@@ -23,7 +23,6 @@ customElements.define(
           ([value, label]) =>
             html`<button
               type="button"
-              data-lf-part="choice:${value}"
               aria-pressed=${decide.value === value}
               aria-disabled=${!decide.available}
               @click=${() => this.choose(value, label)}
@@ -46,7 +45,7 @@ customElements.define(
 Lit's `render` calls an `@event` handler with the node it listens on as `this`, so
 where a handler is a method of the element, pass `{ host: this }` as `render`'s third
 argument. Its declaration ([packages.md, "A widget"](packages.md#a-widget)) puts the
-question on On Me and admits the ids its buttons mark:
+question on On Me:
 
 ```json
 "lf-verdict": {
@@ -60,7 +59,6 @@ question on On Me and admits the ids its buttons mark:
     "decide": { "record": { "attr": "verdict" } }
   },
   "awaits": { "value": "decide" },
-  "visual": { "prefixes": ["choice:"] },
   "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
 }
 ```
@@ -68,7 +66,7 @@ question on On Me and admits the ids its buttons mark:
 `leaf package init --widget` writes a smaller widget of this kind to start from
 ([packages.md, "Package reach"](packages.md#package-reach)). It draws from `state` and
 records with `lf-action` as this one does, under names of its own, and puts no question
-on On Me and marks no comment target.
+on On Me.
 
 `lf-action` and `lf-undo` record the widget's own actions and take them back, so Leaf
 listens for them on the widget's element: dispatch them on it; they need no option but
@@ -76,8 +74,8 @@ listens for them on the widget's element: dispatch them on it; they need no opti
 `pending-task` and `error`, tells the page something about that element. Leaf listens
 for it at the document, and an ancestor element may listen too, so dispatch it on the
 element with `bubbles: true` and `composed: true`, in addition to any option its entry
-names. `lf-announce` and `lf-error` are about no element, and are dispatched on the
-window, where they need neither option.
+names. `lf-announce` is about no element, and is dispatched on the window, where it
+needs neither option.
 
 Leaf notices one of these `lf-` events that its listeners will not hear: one that does
 not bubble, or, inside a shadow root, one that is not composed. It reports that as a
@@ -226,11 +224,6 @@ this.dispatchEvent(hold);
 - **`error`.** An element reports a failure by dispatching an `ErrorEvent` named
   `error` on itself, whose `error` property is the failure. Leaf
   reports it to the agent as a page error naming the widget, which fails `page check`.
-- **`lf-error`.** To tell the user that something they did has not taken, such as a
-  value the server refused, dispatch an `lf-error` event on the window whose `detail`
-  is the words, as `lf-announce` is dispatched (`module-scroll-and-motion.md`,
-  "Notices and spoken words"). The Leaf panel shows them until the user has dealt with
-  them. A failure in the widget itself is an `error`, never an `lf-error`.
 - **`redraw()`.** `page check --render` calls this method on an element that has one,
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** The element builds once, behind a first-connection guard
@@ -239,9 +232,8 @@ this.dispatchEvent(hold);
   (`module-authoring.md`, "Startup and presentation").
 - **A stroke drawn on it.** `lf-inspect` (`module-input.md`, "Pointer presses").
 - **On Me and comment targets.** The class's `static answerWords` words its answer
-  (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
-  target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
-  parts").
+  (`module-state.md`, "Declared widget state"), and the element's `lfParts` states its
+  comment targets (`module-annotations.md`, "Visual parts").
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
   with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
   regions"). `data-lf-bound` on a box has Leaf bound it and keep the reader's place
@@ -251,8 +243,8 @@ this.dispatchEvent(hold);
   `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
   (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,
   `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
-- **Its name, the parts a link reaches, its threads and its revisions.** `lfWord()` and
-  `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()`, `lfElementsFor()`,
+- **The parts a link reaches, its threads and its revisions.** `lfRevealDatum()`,
+  `lfElementsFor()`,
   `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Taking the user somewhere"),
   `threadOutlets()` and an outlet's `lfHold` (`module-annotations.md`, "Widget-local
   Thread placement") and `static lfPatch` (`module-authoring.md`, "Revisions").

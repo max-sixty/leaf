@@ -14,8 +14,6 @@
    Leaf page says in its live region (transport/notifications.js) and a plain page leaves unsaid.
    Where a step of a walk of the widget's own landed is `lf-walk` (`WALK`), which a Leaf
    page's panel says (records/walk-position.js).
-   Words telling the user that something they did has not taken are `lf-error` on the
-   window, which a Leaf page keeps in its Errors list (transport/errors.js).
    What pointing at an element reads is data on it too, `lfPreview`, and the widget says
    when that changes with `lf-preview`, as the user's aim moves from
    one of a chart's points to the next, or a grip's words stop being true once its card

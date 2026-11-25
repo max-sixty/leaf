@@ -378,7 +378,6 @@ FACTS: dict[str, dict] = {
     "exhibit": _conditional({"const": True}),
     "owners": _TAGS,
     "refers": REFERENCE_SCHEMA,
-    "reading-role": {"enum": ["pane", "group"]},
     "verbatim": {"const": True},
     "inline": {"const": True},
     "visual": {

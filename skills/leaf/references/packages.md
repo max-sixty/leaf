@@ -281,10 +281,9 @@ its typed `inputs`. Each is declared because some part of Leaf, such as the serv
 
 The merged registry's `$keys` entry defines each fact by its name and the values it
 takes (`leaf page vocabulary PAGE | jq '."$keys"'`); `$verbs` defines the members of
-`verbs`, and `$awaits` an obligation's answer. What the module alone can answer stays in the module, as a word
-for its kind that depends on the element is its `lfWord()`. So does a rule about the
-widget's markup that no declared fact states: the module checks it as it draws and
-reports a breach with an `error` event
+`verbs`, and `$awaits` an obligation's answer. What the module alone can answer stays in the module, as a rule
+about the widget's markup that no declared fact states does: the module checks it as
+it draws and reports a breach with an `error` event
 ([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
 card whose `shows` names a widget with no answer. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
@@ -341,11 +340,10 @@ pattern either, since `page check` requires its value to name an element the pag
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Fact           | Shipped example                                                                      |
-| -------------- | ------------------------------------------------------------------------------------ |
-| `reading-role` | `lf-pane`                                                                            |
-| `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
-| `parts`        | `lf-parts`                                                                           |
+| Fact     | Shipped example                                                                      |
+| -------- | ------------------------------------------------------------------------------------ |
+| `visual` | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
+| `parts`  | `lf-parts`                                                                           |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

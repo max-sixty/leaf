@@ -172,7 +172,7 @@ import {
 } from "../state/registry.js";
 import { inlineMarkdownFragment, paintMarkdown } from "../lib/markdown.js";
 import {
-  pageLinks,
+  viewerLinks,
   loadDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "../records/page-markdown.js";
@@ -918,7 +918,7 @@ function paintBodies(doc, widgets) {
       if (body) {
         if (typeof value.value !== "string")
           throw new Error("A body record requires Markdown text");
-        paintMarkdown(body, value.value, pageLinks);
+        paintMarkdown(body, value.value, viewerLinks);
       }
     }
 }
@@ -943,7 +943,7 @@ function placeCreated(doc, widgets) {
         const text = detail[words];
         if (typeof text !== "string")
           throw new Error("A created child requires its declared words");
-        created.append(doc.importNode(inlineMarkdownFragment(text, pageLinks), true));
+        created.append(doc.importNode(inlineMarkdownFragment(text, viewerLinks), true));
         owner.append(created);
       }
     }

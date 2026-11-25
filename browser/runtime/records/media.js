@@ -75,6 +75,17 @@ export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROO
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
 
+// A page media address an element arrives with, as a link's `href` or a picture's
+// `src`, answered at the page's address, whoever drew the element: the author, a
+// message or a widget's Markdown (declared-words.js, `watchNativeContent`).
+/** @param {Element} element @param {string} attribute */
+export function scopeMediaAddress(element, attribute) {
+  const address = element.getAttribute(attribute);
+  if (address === null || !isCanonicalMediaUrl(address)) return;
+  const scoped = scopedMediaUrl(address);
+  if (scoped !== address) element.setAttribute(attribute, scoped);
+}
+
 /** @param {string} value */
 export function readAttachedMedia(value) {
   const suffix = MEDIA_SUFFIX.exec(value);

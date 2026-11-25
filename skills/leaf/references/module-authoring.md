@@ -74,7 +74,6 @@ In [module-reading.md](module-reading.md):
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
-- "Markdown": `pageLinks`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `obligations` and `queues`.
 - "Page history and reports": `history`.

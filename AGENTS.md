@@ -469,7 +469,7 @@ A content widget is one a package ships, unlike Leaf's own elements in
 `browser/registry.json`, such as `lf-suggestion`, which core code may name. Leaf's
 runtime, server and stylesheets never branch on a content widget's tag name or keep
 a list of content widgets' tag names. They read each tag's facts, such as `verbs` or
-`reading-role`, from its element declaration in the registry. A package's modules
+`visual`, from its element declaration in the registry. A package's modules
 may name the widgets they compose, and a test or a `leaf-dev` command may name the
 widgets it exercises; a test that covers every widget with some property finds them
 in the registry. So a new content widget needs only files in its own package: its
@@ -482,7 +482,7 @@ Leaf's own instructions are `skills/leaf/SKILL.md`, its references, and the entr
 (`browser/runtime/kernel-registry.json`). They don't depend on a widget's name either.
 Where one of them tells an author what to use, it names the form the author needs, such
 as a before-and-after pair, a chart or a choice. Where a behavior depends on a declared
-fact, such as `awaits` or `reading-role`, it names that fact. It names a package's
+fact, such as `awaits` or `visual`, it names that fact. It names a package's
 widget only as an example of a form or of a declared fact, or inside a markup example.
 The page's vocabulary (`leaf page vocabulary <page>`) tells the author which widget
 provides each form, and `packages.md`, "A widget", says where a widget's own guidance

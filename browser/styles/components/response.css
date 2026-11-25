@@ -753,7 +753,8 @@ leaf-composition-field {
   border-color: transparent;
   border-radius: 0 0 calc(var(--lf-r-l) - 1px) calc(var(--lf-r-l) - 1px);
   background: linear-gradient(var(--lf-rule), var(--lf-rule)) top center /
-    calc(100% - 2 * var(--lf-compose-pad-inline-start)) 1px no-repeat;
+    var(--lf-compose-rule-w, calc(100% - 2 * var(--lf-compose-pad-inline-start))) 1px
+    no-repeat;
 }
 @media (hover: hover) and (pointer: fine) {
   :is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field {

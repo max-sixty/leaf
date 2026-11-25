@@ -763,7 +763,10 @@
      cut through words, and show nothing where the cut falls between them; the line
      shows wherever it falls. The upper line stands over the heads, the actions and
      the fade below them, at the foot of the paper the heads' line holds (above), where
-     the turns pass under it, and it spans the card as the reply box does. */
+     the turns pass under it. Both run from the card's side to its other, the lower one
+     over the field's border too, and both paint as a ground rather than a border,
+     which Firefox draws a shade lighter along its upper row. The lower one sets only
+     the rule's width, so a field holding the caret keeps its ground. */
   .lf-margin-thread .lf-page-thread[data-lf-scrolled]::before {
     content: "";
     position: absolute;
@@ -772,14 +775,15 @@
     grid-row: 2;
     align-self: start;
     z-index: 1;
-    border-block-start: 1px solid var(--lf-rule);
+    block-size: 1px;
+    background: var(--lf-rule);
     pointer-events: none;
   }
   .lf-margin-thread
     .lf-thread-transcript[data-lf-more-below]
     ~ .lf-thread-reply
     .lf-compose-field {
-    background-size: 100% 1px;
+    --lf-compose-rule-w: calc(100% + 2px);
   }
   /* The words stand the thread text inset inside the card's padding. The transcript
      keeps room past their edges for what is drawn beyond a box: a focus ring, which a

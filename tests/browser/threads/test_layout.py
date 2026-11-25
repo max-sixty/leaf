@@ -1074,19 +1074,23 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
 
     def edges():
-        """Whether the line under the heads' line shows, and the reply box's rule spans
-        the card rather than its words."""
+        """Whether the line under the heads' line shows, whether the reply box's rule
+        spans the card rather than its words, and whether the reply box, holding the
+        caret, keeps its whole ground."""
         return transcript.evaluate(
             """box => {
               const line = getComputedStyle(box.parentElement, '::before');
               const field = box.parentElement.querySelector(
                 '.lf-thread-reply .lf-compose-field');
-              return {above: line.content !== 'none' && line.borderTopWidth === '1px',
-                below: getComputedStyle(field).backgroundSize.startsWith('100% ')};
+              const style = getComputedStyle(field);
+              return {above: line.content !== 'none' && line.height === '1px',
+                below: style.getPropertyValue('--lf-compose-rule-w') !== '',
+                ground: field.contains(document.activeElement)
+                  && style.backgroundSize === 'auto'};
             }"""
         )
 
-    assert edges() == {"above": True, "below": False}
+    assert edges() == {"above": True, "below": False, "ground": True}
 
     def continuation():
         """Read the fade's actual painted box, including its grid positioning."""
@@ -1149,7 +1153,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             ), cue
         else:
             assert cue["height"] == 0, cue
-        assert edges() == {"above": index > 0, "below": True}
+        assert edges() == {"above": index > 0, "below": True, "ground": True}
 
     # Follow the outgoing header as the next author pushes it off the top, then
     # follow the transcript edge through the gap. Neither position fades a name. The

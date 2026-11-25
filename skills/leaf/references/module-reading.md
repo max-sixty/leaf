@@ -112,9 +112,10 @@ to its parts.
 Leaf reads Markdown in one dialect, the library's
 [`markdown.js`](../../../browser/runtime/lib/markdown.js), whose header says how it
 reads a message a person typed and a Markdown file. A widget that renders Markdown on
-the page passes `pageLinks` to the dialect's renderers, so a picture of the page's
-media answers at the page's address and opens in Leaf's viewer, and a link that leaves
-the page opens in a new tab.
+the page passes the library's `pageLinks` to the dialect's renderers, so a link that
+leaves the page opens in a new tab and a picture is a link to its own file, which Leaf's
+image viewer opens. Leaf answers a `/media/…` address at the page's address on every
+link and picture as it arrives, whoever drew it.
 
 A widget whose entry declares `content: markdown` has its data body arrive
 rendered as block Markdown, read as a Markdown file, while the recorded body stays the

@@ -11,9 +11,9 @@ import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { anchorForRange, resolveAnchor } from "/runtime/anchor-resolution.js";
-import { findQuote, pageText, readingPart } from "/runtime/passages.js";
-import { registry } from "/runtime/registry.js";
+import { anchorForRange, resolveAnchor } from "/runtime/readings/anchor-resolution.js";
+import { findQuote, pageText, readingPart } from "/runtime/readings/passages.js";
+import { registry } from "/runtime/state/registry.js";
 import { shadowStage } from "./shadow-stage.mjs";
 
 /** @param {string} lines the datum's rows, as markup */
@@ -167,7 +167,7 @@ const spanning = (from, start, to, end) => {
   range.setEnd(to, end);
   return range;
 };
-/** @param {import("/runtime/passages.js").Segment[] | undefined} segments */
+/** @param {import("/runtime/readings/passages.js").Segment[] | undefined} segments */
 const words = (segments) =>
   segments?.map(({ node, start, end }) => node.data.slice(start, end));
 

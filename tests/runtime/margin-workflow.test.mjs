@@ -8,7 +8,7 @@ import {
   presentContributionEntry,
   presentContributionHost,
   presentContributionReceipts,
-} from "../../browser/runtime/contribution-controls.js";
+} from "../../browser/runtime/features/contribution-controls.js";
 import { servedState, servedWorkflow } from "../served.mjs";
 
 // Where a workflow stands (`standing.py`), with the line the agent last wrote on it.
@@ -83,7 +83,7 @@ test("an entry draws the receipts it is given and keeps those a seat painted", (
 });
 
 test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {
-  const { html, render } = await import("/runtime/framework.js");
+  const { html, render } = await import("/vendor/lit.js");
   const root = document.createElement("section");
   document.body.append(root);
   const imperative = document.createElement("button");
@@ -134,9 +134,9 @@ test("template contribution hosts paint the retained-host contract and are found
 });
 
 test("a refused widget move without a projection coordinate does not break the annotation inventory", async () => {
-  const { applicationState } = await import("/runtime/semantic-state.js");
+  const { applicationState } = await import("/runtime/state/semantic-state.js");
   const { createAnnotationInventory } =
-    await import("/runtime/annotation-inventory.js");
+    await import("/runtime/features/annotation-inventory.js");
   applicationState.identify(1);
   const attempt = "margin-unprojected-move";
   applicationState.enqueue(
@@ -175,7 +175,7 @@ test("a refused widget move without a projection coordinate does not break the a
 // ends takes none. Once no published workflow holds the claim, a claim that comes back
 // arrives anew, on the carrier that drew it before too.
 test("a claim's carriers share one arrival while a published workflow holds it", async (t) => {
-  const { applicationState } = await import("/runtime/semantic-state.js");
+  const { applicationState } = await import("/runtime/state/semantic-state.js");
   document.documentElement.style.setProperty("--lf-motion-agent-arrival", "1000ms");
   let now = 0;
   t.mock.method(performance, "now", () => now);

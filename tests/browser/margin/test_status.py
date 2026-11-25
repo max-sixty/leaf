@@ -368,7 +368,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
-    # A click on › lands in the reply (thread/focus.js, `openingPart`); Escape stands
+    # A click on › lands in the reply (records/thread/focus.js, `openingPart`); Escape stands
     # the user on the thread, from which leaving takes the card down.
     expect(preview.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
     page.keyboard.press("Escape")
@@ -623,8 +623,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
-        "background": token_colour(page, "--lf-turn-wash"),
-        "icon": token_colour(page, "--lf-turn-ink"),
+        "background": token_colour(page, "--lf-ok-wash"),
+        "icon": token_colour(page, "--lf-ok-ink"),
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
 
@@ -1034,7 +1034,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             name,
         )
 
-    expected_ink = resolved_color("--lf-ink-2")
+    expected_ink = resolved_color("--lf-ink")
     expected_paper = resolved_color("--lf-paper")
     expected_rule = resolved_color("--lf-rule")
     expected_label_ink = resolved_color("--lf-tip-ink")
@@ -1093,7 +1093,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         words_still()
-        # The face is what fades and is drawn (preview.js).
+        # The face is what fades and is drawn (annotations/preview.js).
         drawn = label.locator(".lf-preview-face")
         expect(drawn).to_have_css("opacity", "1")
         hovered = face(control)

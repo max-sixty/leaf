@@ -26,14 +26,15 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   overflow: hidden;
   visibility: hidden;
   white-space: nowrap;
-  font: var(--lf-font-choice);
+  font: var(--lf-font-ui);
+  font-weight: 500;
   padding-inline: calc(
     3 * (var(--wa-form-control-padding-inline) + 1px) + 2px + 1px + var(--lf-sp-1)
   );
 }
 .lf-dial-depths {
   display: block;
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 /* The three depths are one width, the widest one's, so the row reads as one control
    and what stands under each depth lines up with it. In a column too narrow for that,
@@ -92,11 +93,13 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  font: var(--lf-font-choice-stacked);
+  font: var(--lf-font-ui);
+  font-weight: 500;
+  line-height: 1;
 }
 .lf-dial-time {
   display: block;
-  font: var(--lf-font-fine);
+  font: var(--lf-font-small);
   color: inherit;
   font-variant-numeric: tabular-nums;
 }
@@ -111,7 +114,7 @@ details[data-lf-dial-ghost="comes"] > summary,
 .lf-dial-more[data-lf-dial-ghost="comes"] {
   outline: 1.5px dashed var(--lf-accent);
   outline-offset: var(--lf-focus-ring-gap);
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
 }
 
 /* Pointing at a depth hangs each depth's page under its button as a sheet of its own,
@@ -162,7 +165,7 @@ details[data-lf-dial-ghost="comes"] > summary,
   display: flex;
   flex-direction: column;
   padding: 4px 7px;
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-radius: 5px;
   background: var(--lf-ground);
   box-shadow: var(--lf-raise-1);

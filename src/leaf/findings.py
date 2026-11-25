@@ -2280,6 +2280,13 @@ _TEXT = {
         f"{v['page']} is at an older page protocol, and this Leaf could not take it"
         f" to its own: {v['error']}"
     ),
+    # A start from a Leaf that doesn't act for the session the environment names
+    # (`hosting.claim_and_start`, `harness.unserved_session`).
+    "serves-for-no-session": lambda at, v: (
+        f"this Leaf ({v['leaf']}) isn't the one session {v['session']}'s hooks run,"
+        f" so it serves {v['page']} for no session: the session's hooks won't hear"
+        f" it. Hear it with `{v['leaf']}/bin/leaf wait {v['page']}`."
+    ),
     "server-stays-stopped": lambda at, v: (
         f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
         " it again."
@@ -2328,6 +2335,10 @@ _TEXT = {
     "not-owned": lambda at, v: (
         f"stopped watching {', '.join(v['pages'])}: this session no longer owns"
         + (" it" if len(v["pages"]) == 1 else " them")
+    ),
+    "held-for-a-session": lambda at, v: (
+        f"stopped watching {v['page']}: session {v['session']} holds it, and this "
+        "Leaf acts for no session"
     ),
     "nothing-to-watch": lambda at, v: (
         "nothing to watch: "

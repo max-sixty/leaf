@@ -62,9 +62,10 @@ def starting_detached(
     answered by `deadline`, a `time.monotonic()` reading, which also bounds the wait
     for its confirmation; a child that has not answered by then is terminated.
     `what` names the child in a refusal that carries no reason of its own.
-    sys.executable is the resolved uv environment, so this skips uv. A selected
-    session runtime supplies its launcher when starting delivery; the handshake
-    descriptor passes through that launcher's exec chain unchanged.
+    sys.executable is the resolved uv environment, so this skips uv. A child that
+    another copy of Leaf runs, as a successor or the adapter of a task whose hooks
+    run another copy does, starts through that copy's `launcher` instead; the
+    handshake descriptor passes through the launcher's exec chain unchanged.
     """
     caller, child = socket.socketpair()
     try:

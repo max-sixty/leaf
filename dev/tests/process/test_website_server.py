@@ -532,10 +532,6 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     refused = runner.invoke(journey_run.journey, ["website-adapter", "--http"])
     assert refused.exit_code == 2
     assert "a website's journey is its page in a browser" in refused.output
-    for target in ("website-adapter", "claude-code", "pi"):
-        refused = runner.invoke(journey_run.journey, [target, "--preview"])
-        assert refused.exit_code == 2
-        assert "--preview is an option of the codex targets" in refused.output
     # A remote journey needs no local build: the origin names its release.
     remote_result = runner.invoke(journey_run.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output

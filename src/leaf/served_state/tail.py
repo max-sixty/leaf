@@ -17,7 +17,7 @@ So an answer costs what changed since the tab's reading, however many records th
 page holds and however long a thread runs: a reply sends its message and the fields
 of its thread it changed, and `leaf data set` sends the one source it wrote. The
 browser applies the patch to the reading it named (`completeState` in
-`layer-client.js`); what it assembles is the whole answer, and whatever the patch
+`transport/layer-client.js`); what it assembles is the whole answer, and whatever the patch
 leaves alone keeps the identity it had there, down to each message and each source's
 value, which is what lets every reader downstream skip it.
 

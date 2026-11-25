@@ -47,7 +47,7 @@ lf-toc[data-lf-toc-empty] {
 }
 lf-toc .lf-toc-nav {
   position: relative;
-  border-inline-start: 1px solid var(--lf-border);
+  border-inline-start: 1px solid var(--lf-rule);
   padding-inline-start: var(--lf-sp-3);
   color: var(--lf-muted);
   font: var(--lf-font-ui);
@@ -149,11 +149,11 @@ lf-toc a[data-lf-focus] {
   color: var(--lf-accent);
 }
 /* A section's mark (toc-view.js) says it holds an On Me item, in the user's turn's
- * colour, or else an open thread, in a thread's (tokens.css, at `--lf-turn`); its link's
+ * colour, or else an open thread, in a thread's (tokens.css, at `--lf-here`); its link's
  * preview counts both. It is a small ring of its colour. An On Me item's ring also
  * stands in a soft disc of its colour (`--lf-toc-halo`), so what waits on the user
  * differs from a thread by its shape as well as its colour, which some readers can't
- * tell apart at this size (tokens.css, at `--lf-turn`); the user chose this over discs
+ * tell apart at this size (tokens.css, at `--lf-here`); the user chose this over discs
  * on both. The rule, the lens and a changed stretch meet every
  * mark flush, as they meet a plain marker. Rejected: a hairline of paper round each
  * mark, which cut the rule short on both sides of it. The outline draws the ring on its
@@ -163,7 +163,7 @@ lf-toc a[data-lf-focus] {
  * stretch of the rule wears the change's colour, as its bar in the margin does
  * (chrome.css), and a mark stands over it. The stretch is a change mark, so hiding
  * annotations (`g H`) hides it, as it hides that bar: the map reads the chrome's root
- * (`data-lf-annotations-hidden`, annotation-layer.js) through `:root:has()`, which
+ * (`data-lf-annotations-hidden`, annotations/annotation-layer.js) through `:root:has()`, which
  * restyles the stretches alone. Out of the words, no mark reads as part of
  * them, and out of flow, none moves a row. They take no
  * presses: the link is the only thing to press. Rejected: a dash after the words read
@@ -190,13 +190,13 @@ lf-toc .lf-toc-mark {
   pointer-events: none;
 }
 lf-toc [data-lf-toc-mark="thread"] {
-  --lf-toc-mark: var(--lf-thread);
+  --lf-toc-mark: var(--lf-accent);
   --lf-toc-halo: none;
 }
 /* Mixed in oklab, which keeps the mark's hue: oklch takes the short way round the hue
    circle to the paper's yellow, which turned the accent's halo green. */
 lf-toc [data-lf-toc-mark="on-me"] {
-  --lf-toc-mark: var(--lf-turn);
+  --lf-toc-mark: var(--lf-here);
   --lf-toc-halo: 0 0 0 3.5px
     color-mix(in oklab, var(--lf-toc-mark) 38%, var(--lf-paper));
 }
@@ -212,7 +212,7 @@ lf-toc
   inset-inline-start: calc(-2px - var(--lf-sp-3) - var(--lf-toc-indent));
   width: 3px;
   border-radius: 1.5px;
-  background: var(--lf-change);
+  background: var(--lf-muted);
 }
 :root:has(> .lf-chrome[data-lf-annotations-hidden])
   lf-toc
@@ -320,7 +320,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       bottom: 0;
       inset-inline-start: 0;
       width: var(--lf-toc-spine-width);
-      background: var(--lf-border);
+      background: var(--lf-rule);
     }
     /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
        * animation, which the compositor runs. */
@@ -459,7 +459,8 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       pointer-events: auto;
     }
     lf-toc .lf-toc-start a {
-      font: var(--lf-font-title);
+      font: var(--lf-font-ui);
+      font-weight: 600;
     }
     /* The spine is the map's rule, and its markers stand on it, so a section's mark is
        its marker, which shows at rest too: a ring of the mark's colour, where a
@@ -490,11 +491,11 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       width: 3px;
       height: calc(var(--lf-toc-reach, 0px) + 3px);
       border-radius: 1.5px;
-      background: var(--lf-change);
+      background: var(--lf-muted);
     }
     lf-toc
       :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {
-      color: var(--lf-ink-2);
+      color: var(--lf-ink);
     }
     lf-toc a {
       --lf-ring-at: var(--lf-focus-ring-inset);
@@ -507,7 +508,8 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       -webkit-line-clamp: 1;
     }
     lf-toc[data-lf-compact] .lf-toc-start a {
-      font: var(--lf-font-heading);
+      font: var(--lf-font-small);
+      font-weight: 600;
     }
   }
 }

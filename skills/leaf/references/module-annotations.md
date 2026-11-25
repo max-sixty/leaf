@@ -270,8 +270,8 @@ The widget creates, lays out and removes its outlets, and Leaf fills them, drawi
 thread as a card with its own frame that fills the outlet and stands on the ground the
 widget declares where it paints one (`--lf-ground`). So an outlet's box is the cards'
 shape, and the outlet draws no frame of its own. A card fills its outlet at any
-width. `--lf-thread-card-min` is the narrowest a card stands beside the page, and an
-outlet that insets its cards reads it to leave them that room. Leaf folds an outlet's
+width. A card stands no narrower than 320px beside the page, and an outlet that
+insets its cards leaves them that room. Leaf folds an outlet's
 resolved threads into a disclosure of class `lf-resolved-threads`, and the widget may
 size the disclosure's summary, of class `lf-resolved-summary`, as it sizes its own
 rows. An outlet you stop returning may

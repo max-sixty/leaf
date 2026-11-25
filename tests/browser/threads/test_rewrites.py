@@ -142,6 +142,54 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     assert _ring_gaps(page, save) == []
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_rewrite_at_the_foot_of_a_card_that_scrolls_keeps_its_whole_ring(
+    engine, request, serve
+):
+    """A rewrite of the user's last turn, at the foot of a card whose transcript
+    scrolls, draws its frame's ring into the room the transcript keeps below its turns.
+    Firefox leaves a grid scroller's end padding out of its scroll range while a box
+    sticks in it, so a room kept as padding ended the range at the frame's foot and cut
+    the ring's bottom side away with the card scrolled to its end. The ring stands
+    whole there in each engine."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS * 3, {"section": "how-store"}
+    )
+    for author, text in (
+        ("agent", "An answer. " + LANDING_WORDS * 12),
+        ("user", "And keep the example."),
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                **({"agent": "Indexer"} if author == "agent" else {}),
+                "parent": root,
+                "text": text,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1200, 600)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.press("ArrowUp")
+    field = card.locator(".lf-msg-editor .lf-compose-field")
+    expect(field.locator("leaf-text")).to_be_focused()
+    transcript = card.locator(".lf-thread-transcript")
+    assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
+    transcript.evaluate(
+        """box => {
+          const end = box.scrollHeight - box.clientHeight;
+          if (box.scrollTop < end) box.scrollTop = end;
+        }"""
+    )
+    rendered(page)
+    assert _ring_gaps(page, field) == []
+
+
 def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     browser, serve, subtests
 ):
@@ -1430,7 +1478,7 @@ def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(
         for anchor, text in (("p30", held), ("p40", long))
     }
     page = open_page(browser, url)
-    # Where the card stands once it has moved, not its motion (box-motion.js).
+    # Where the card stands once it has moved, not its motion (dom/box-motion.js).
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1512, 860)
     card = page.locator(".lf-margin-preview")

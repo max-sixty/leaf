@@ -7,14 +7,14 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowWord,
-} from "../../browser/runtime/thread/workflow.js";
+} from "../../browser/runtime/records/thread/workflow.js";
 import {
   deleted,
   foldThreads,
   readThreadRecords,
-} from "../../browser/runtime/thread/model.js";
-import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
-import { threadReading } from "../../browser/runtime/thread/thread-card.js";
+} from "../../browser/runtime/state/thread/model.js";
+import { isTurnEvent, turnMessage } from "../../browser/runtime/state/pending/model.js";
+import { threadReading } from "../../browser/runtime/records/thread/thread-card.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
@@ -57,7 +57,7 @@ const workflow = (id, standing, changes = {}) =>
     ...standing,
     ...changes,
   });
-// A send this tab has not delivered (`application.js`, `localWorkflow`), or with
+// A send this tab has not delivered (`host/application.js`, `localWorkflow`), or with
 // `refused` one the server refused.
 const local = (id, { refused = false, ...changes } = {}) => ({
   ...workflow(id, refused ? { ...HANDED_BACK, seen: false } : SENT, changes),
@@ -389,7 +389,7 @@ test("a thread the user is still sending waits on that send", () => {
     ts: "2026-09-22T10:00:00Z",
   };
   const [thread] = foldThreads([], [root]);
-  // The fold names the record the send publishes (`application.js`, `localUpdates`),
+  // The fold names the record the send publishes (`host/application.js`, `localUpdates`),
   // which the thread's reading then stands by.
   assert.equal(thread.attention, sending.obligation);
   const publishes = owed(sending);

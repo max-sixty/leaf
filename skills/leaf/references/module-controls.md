@@ -17,9 +17,9 @@ class of the widget's places the control; don't restyle its face. Shared control
 controls") apply to generated controls too.
 
 A box resizes the symbol presses it holds by setting `--lf-icon-action-face`, the size
-of their face. Where the box's own rules read such a press's width,
-`--lf-icon-action-hit`, the larger of the face and the aim floor, the box states that
-width again from the face it set. A box whose direct children are word, commit or mark
+of their face. Such a press is as wide as the larger of its face and the aim floor,
+`max(var(--lf-icon-action-face), var(--lf-aim-floor))`, which a rule of the box's
+that needs the width writes. A box whose direct children are word, commit or mark
 presses that join into one control, as a toolbar's marks do, declares `data-lf-joined`.
 The first and last press are square unless the box states, as `--lf-joined-r`, the
 rounding they take at the corners they share with it.
@@ -59,7 +59,7 @@ can change in any update.
 | `.lf-ui`           | a box of apparatus the module builds itself                                                      | words that are apparatus and take no comment; the library's constructors write it, with the marks that also keep a box off a printed page |
 | `.lf-label`        | a region's name, in the document                                                                 | the label font, in small capitals                                                                                                         |
 | `.lf-label-hidden` | a Web Awesome form control                                                                       | a label that a screen reader says and the screen doesn't show                                                                             |
-| `.lf-choice`       | a label that holds a radio or checkbox before its words                                          | a choice's face, its mark and words one target; a rule on the label reads its padding as `--lf-choice-pad`                                |
+| `.lf-choice`       | a label that holds a radio or checkbox before its words                                          | a choice's face, its mark and words one target, padded by the larger of `--lf-sp-1` and `--lf-focus-ring-room`                            |
 | `.lf-key-badge`    | a command's `bindingBadge` (`module-input.md`)                                                   | a key's face, in a box `--lf-key-badge-size` high                                                                                         |
 | `.lf-action-icon`  | a symbol drawn in a press with `actionTemplate` or `iconTemplate`, from the library's `icons.js` | a symbol that passes the pointer to its press                                                                                             |
 | `.lf-media-frame`  | a box that frames a picture                                                                      | the ring and lift a picture in markup wears                                                                                               |

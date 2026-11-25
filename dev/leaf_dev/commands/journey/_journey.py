@@ -148,7 +148,7 @@ from leaf_dev.website import (
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
 # How long the page gets to draw a reply the container has admitted; the runtime's own
-# quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
+# quiet-stream bound (`SILENCE_MS` in `runtime/host/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
 # How long a reply first shown by its notice gets for its own message to come into
 # view, which in an open thread is the next frame or two.
@@ -820,7 +820,21 @@ class Terminal:
         steps besides."""
         comments = comments or {}
         self.counted |= comments
-        settled(page, self.session, self.counted)
+
+        def holds() -> bool:
+            try:
+                settled(page, self.session, self.counted)
+            except click.ClickException:
+                return False
+            return True
+
+        # A watch's wake can open a turn just after the session goes idle, so this
+        # holds only through a quiet spell (`settle`), and fails naming what didn't.
+        try:
+            self.settle(holds, f"{name}: the session did not settle")
+        except click.ClickException:
+            settled(page, self.session, self.counted)
+            raise
         # A watch may start a moment after the turn that answered ends, as Claude
         # Code's background Stop hook starts one.
         self.until(self.listening, f"{name}: Leaf does not listen for the session", 60)
@@ -1241,7 +1255,7 @@ class BrowserEnd:
                 f"{url} reached revision {shown} but did not finish presenting it, "
                 f"with its status reading ‘{status}’",
             )
-            # The page is body less Leaf's own elements (passages.js, `inPage`).
+            # The page is body less Leaf's own elements (readings/passages.js, `inPage`).
             rendered = page.evaluate(
                 "() => [...document.body.children]"
                 ".filter((el) => !el.matches('.lf-chrome, [data-lf-runtime]'))"

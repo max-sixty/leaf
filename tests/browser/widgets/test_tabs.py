@@ -1231,7 +1231,7 @@ def test_a_tab_strip_s_place_goes_as_a_press_takes_the_user_to_another_tab(
     the user off the tab that step landed on, so the panel stops saying the place at
     once, where it would otherwise name a tab the user has left for the rest of the
     moment. The strip says nothing of the press: Leaf sees focus leave the stop the
-    place was said on (walk-position.js). The page's clock stands still from the step
+    place was said on (records/walk-position.js). The page's clock stands still from the step
     on, so the moment can't end the place here."""
     views = "".join(
         f'<lf-tab id="view-{n}" label="View {n}"><p id="view-{n}-p">Words of view {n}.'
@@ -1346,7 +1346,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.wait_for_function(shown, arg=["framed", 1])
     # Walking to the tab already open brings it back after a scroll took most of it
     # away. A sliver stays in the strip: with none, the tab is out of sight, so the key
-    # lets go of it and acts from what the user reads (page-keys/controller.js).
+    # lets go of it and acts from what the user reads (panel/page-keys/controller.js).
     page.evaluate("""() => {
       const strip = document.querySelector('#framed > .lf-tabstrip');
       const tab = strip.querySelector('[aria-selected="true"]');

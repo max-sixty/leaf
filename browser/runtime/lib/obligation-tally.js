@@ -17,7 +17,7 @@
    beside a disabled Next On Me once the last one went to the agent. The words name no total:
    "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
 
-/** @param {readonly import("../framework/application.js").ObligationRecord[]} held */
+/** @param {readonly import("../state/semantic-application.js").ObligationRecord[]} held */
 export function tally(held) {
   const open = held.filter((item) => item.state !== "done");
   return {

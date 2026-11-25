@@ -10,7 +10,7 @@
 
        if (scrollMoves(box, at)) box.scrollTo({ ...at, behavior: "instant" });
 
-   Leaf's own writer asks it too (arrivals.js, `setScroll`). */
+   Leaf's own writer asks it too (dom/arrivals.js, `setScroll`). */
 // The positions a box's scroll takes on each axis, as the browser clamps a write: from
 // zero to the side where the box's content flows from, the negative one where that is
 // the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which;

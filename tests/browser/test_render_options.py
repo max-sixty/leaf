@@ -941,7 +941,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
                  const context = document.createElement('canvas')
                    .getContext('2d', {willReadFrequently: true});
                  const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--lf-settled)';
+                 probe.style.color = 'var(--lf-ink)';
                  const paints = [
                    getComputedStyle(probe).color,
                    getComputedStyle(document.querySelector('#c-redis')).backgroundColor,

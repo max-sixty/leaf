@@ -20,7 +20,7 @@
         flex-wrap: wrap;
         /* Wrapped rows keep each button's reach, which stands past its face
            under a finger, clear of the row above it. */
-        gap: max(var(--lf-sp-2), 2 * var(--lf-reach-room)) var(--lf-sp-2);
+        gap: max(var(--lf-sp-2), var(--lf-aim-floor) - var(--lf-line)) var(--lf-sp-2);
         align-items: center;
       }
 
@@ -31,8 +31,8 @@
       .query-row {
         --lf-block-frame: 1;
         padding: var(--lf-sp-2);
-        border: 1px solid var(--lf-border);
-        border-radius: var(--lf-r-s);
+        border: 1px solid var(--lf-rule);
+        border-radius: calc(var(--lf-r) / 2);
         background: var(--lf-card);
       }
 
@@ -40,7 +40,7 @@
         display: grid;
         gap: var(--lf-sp-1);
         min-width: 8rem;
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: 600 var(--lf-t-6) / 1.2 var(--lf-sans);
       }
 
@@ -50,7 +50,7 @@
 
       .query-result-count {
         margin: 0;
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: 650 var(--lf-t-5) / 1.3 var(--lf-sans);
       }
 

@@ -63,7 +63,7 @@ THREAD_REGION = ".lf-margin-preview:visible, .lf-fp-opened:visible"
 def keyboard_modality(page: Page) -> None:
     """Press Tab, so focus placed next draws as the keyboard's, and wait until the Tab's
     step has ended. Focus arriving before then is the step's own, which opens the
-    focused control's preview (focus.js, `stepping`). The step ends in a timer the
+    focused control's preview (dom/focus.js, `stepping`). The step ends in a timer the
     Tab's keydown queued, and a timer queued now runs after it."""
     page.keyboard.press("Tab")
     page.evaluate("() => new Promise((done) => setTimeout(done))")
@@ -447,7 +447,7 @@ def panel_status_hover(page: Page) -> None:
 
 def panel_status_cut(page: Page) -> None:
     """The panel's field cutting the agent's long status short under a resting pointer,
-    which reads the status whole (floating-panel.js, `pageEditor`). A runtime that
+    which reads the status whole (panel/floating-panel.js, `pageEditor`). A runtime that
     reads nothing there shows the row as it stands."""
     client = PageClient(served_page.get().address)
     asked = client.post(
@@ -477,7 +477,7 @@ def panel_errors(page: Page) -> None:
     page.evaluate("""async () => {
         const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
         const {raiseError, passErrors} = await import(
-            new URL('runtime/errors.js', new URL(boot, location.href)));
+            new URL('runtime/transport/errors.js', new URL(boot, location.href)));
         passErrors([raiseError('That writing place is unavailable').id]);
     }""")
     expect(page.locator(".lf-fp-error-dot[data-lf-shown]")).to_be_attached()
@@ -727,7 +727,7 @@ def card_by_pointer(page: Page) -> None:
 
 def control_preview(page: Page) -> None:
     """The first margin card's Resolve under a resting pointer, whose preview names its
-    word and the key that presses it (preview.js). A runtime without previews shows
+    word and the key that presses it (annotations/preview.js). A runtime without previews shows
     the card alone."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview .lf-resolve").hover()
@@ -737,7 +737,7 @@ def control_preview(page: Page) -> None:
 
 def preview_shown(page: Page) -> None:
     """Wait until the preview of what the pointer rests on has opened, which it does
-    after its dwell (preview.js, `DWELL`), where the runtime draws previews at all. A
+    after its dwell (annotations/preview.js, `DWELL`), where the runtime draws previews at all. A
     state ending on such a hover waits here, or its still catches the preview in one
     capture and not the next.
 
@@ -758,7 +758,7 @@ def preview_shown(page: Page) -> None:
     )
 
 
-# Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
+# Longer than a preview's dwell (annotations/preview.js, `DWELL`), so a runtime that previews what
 # the pointer rests on has shown it, and one that doesn't shows the page as it stands.
 PREVIEW_DWELL_MS = 400
 
@@ -783,7 +783,7 @@ STOP_PASSAGE = "The trusted supervisor owns shutdown."
 def thread_preview(page: Page) -> None:
     """The open thread's passage mark under a resting pointer, which previews who wrote
     its last message and when, that message's opening line and where the thread stands
-    (thread/messages.js, `threadPreview`)."""
+    (records/thread/messages.js, `threadPreview`)."""
     line = word_lines(page, STOP_PASSAGE)[0]
     page.mouse.move(line["left"] - 20, line["top"] - 20)
     page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
@@ -813,7 +813,7 @@ def passage_reaction(page: Page) -> None:
 
 def age_preview(page: Page) -> None:
     """The first margin card's first age under a resting pointer, which previews the clock
-    time behind it in the reader's zone (presence.js, `agePreview`)."""
+    time behind it in the reader's zone (state/presence.js, `agePreview`)."""
     card_by_pointer(page)
     age = page.locator(".lf-margin-preview .lf-msg-head time").first
     box = age.bounding_box()
@@ -829,7 +829,7 @@ def age_preview(page: Page) -> None:
 def link_preview(page: Page) -> None:
     """The gallery's link to its session table under a resting pointer, whose preview
     shows the table's caption, its first rows and the thread about it
-    (place-preview.js). A runtime without link previews shows the link alone, once a
+    (annotations/place-preview.js). A runtime without link previews shows the link alone, once a
     second has passed without one."""
     page.locator("#bg-link-previews").evaluate(
         "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
@@ -976,6 +976,7 @@ def card_next_unread(page: Page) -> None:
     """A margin card opened on a reply too long for it to show whole, which stays
     unread, so Next unread stands on its head line."""
     long_reply("7b3e0a41")
+    wait_until_ready(page, PageClient(served_page.get().address).state())
     open_card(page, page.locator(RESYNC_MARKER))
     settle(page)
 
@@ -1057,6 +1058,17 @@ def card_next_unread_cluster(page: Page) -> None:
     )
     wait_until_ready(page, client.state(), through="state")
     card_next_unread(page)
+
+
+def card_rewrite_at_foot(page: Page) -> None:
+    """The user's own turn, last in a margin card that scrolls, opened for a rewrite by
+    ↑ from the reply box, so its frame and ring stand in the room below the turns."""
+    own_turn_in_card(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.press("ArrowUp")
+    expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    settle(page)
 
 
 def card_answer_at_cap(page: Page) -> None:
@@ -2203,7 +2215,7 @@ def error_about(page: Page, box: str) -> None:
     page.locator(f"{box} leaf-text").evaluate("""async (subject) => {
         const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
         const {raiseError} = await import(
-            new URL('runtime/errors.js', new URL(boot, location.href)));
+            new URL('runtime/transport/errors.js', new URL(boot, location.href)));
         raiseError('That writing place is unavailable', {subject});
     }""")
     expect(page.locator(f"{box} .lf-compose-error")).to_be_visible()
@@ -2628,7 +2640,7 @@ def diff_line_comment(page: Page) -> None:
     under the card."""
     diff_line_threads(page)
     # Clear of the panel at the window's foot, which would keep the box from a seat
-    # under it (composing/surface.js, `seatFab`).
+    # under it (annotations/composing/surface.js, `seatFab`).
     page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it").evaluate(
         "thread => scrollBy(0, thread.getBoundingClientRect().top - 120)"
     )
@@ -2730,7 +2742,7 @@ def plan_marks(page: Page) -> None:
     a paragraph the user aims at with Alt, which holds their comment; the changes since
     the earlier version barred in the margin; and the keyboard on the changed status
     line's Change entry, which traces that line. The agent's bars stand in one lane
-    clear of the user's marks (margin-bars.js)."""
+    clear of the user's marks (features/margin-bars.js)."""
     agent_at_work(page)
     versions_menu(page)
     page.keyboard.press("v")
@@ -3971,6 +3983,12 @@ STATES = (
         "ship-card-new-reply",
         "ship-review",
         card_new_reply,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-rewrite-at-foot",
+        "ship-review",
+        card_rewrite_at_foot,
         region=".lf-margin-preview",
     ),
     # A window with room for the rail but none beside the ask, so the card stands over

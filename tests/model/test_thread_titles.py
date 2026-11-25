@@ -10,6 +10,7 @@ import sys
 import threading
 from pathlib import Path
 
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     Prose,
@@ -608,6 +609,7 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     monkeypatch.setenv("TITLING_RECORD", str(record))
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("PI_SESSION_ID", "pi-session")
+    hooks_run_this_tree("pi-session")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     # Only the answer, never Pi's exit, can end the request within the wait below.
     monkeypatch.setattr(inference, "TIMEOUT", 3600)

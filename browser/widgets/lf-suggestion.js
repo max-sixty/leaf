@@ -23,16 +23,16 @@ import { registerContribution } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { keeps } from "/runtime/lib/keeps.js";
-import { foldBlock } from "../runtime/motion.js";
-import { renderRetired, says, textNodesUnder } from "../runtime/passages.js";
-import { addressableSays } from "../runtime/addressable-names.js";
+import { foldBlock } from "../runtime/dom/motion.js";
+import { renderRetired, says, textNodesUnder } from "../runtime/readings/passages.js";
+import { addressableSays } from "../runtime/readings/addressable-names.js";
 import { alignText } from "/runtime/lib/text-alignment.js";
-import { shownParts } from "../runtime/geometry.js";
+import { shownParts } from "../runtime/dom/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
 /** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
-/** @typedef {import("../runtime/contribution-model.js").EntryInput} EntryInput */
+/** @typedef {import("../runtime/base/contribution-model.js").EntryInput} EntryInput */
 const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
 /** @param {SuggestionState} state */
@@ -295,13 +295,13 @@ customElements.define(
       );
     }
 
-    /** @returns {import("../runtime/contribution-model.js").ReadingOptions} */
+    /** @returns {import("../runtime/base/contribution-model.js").ReadingOptions} */
     #readMargin() {
       const outcome = this.#outcome();
       const entries = this.#entries();
       return {
         // What a suggestion is, for a face that stands for it: a pin folded for want of
-        // room wears this kind's (margin-model.js, `clusterProjection`).
+        // room wears this kind's (features/margin-model.js, `clusterProjection`).
         kind: "change",
         // The slots use tint and strike/insert paint to carry their relationship on the
         // page. Away from that paint, concatenating them turns `red` → `blue` into the

@@ -545,7 +545,7 @@ def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser,
     expect(picks).to_be_in_viewport()
 
 
-# Whether the options with id `arg` are taking the tint of a change now (motion.js,
+# Whether the options with id `arg` are taking the tint of a change now (dom/motion.js,
 # `backgroundFlash`), rows and all: each row paints its own ground over the box's.
 TINTED = """(id) => [document.getElementById(id), ...document.querySelectorAll(`#${id} > lf-option`)]
   .every((box) => box.getAnimations().some((played) =>
@@ -1383,7 +1383,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
             page.keyboard.press(key)
         # The drop lands while the card still slides from where it stood, outside the
         # board that shrank under it: a slide held paused carries the user nowhere
-        # (user-place.js, `carried`), so it runs, too slowly to end before the refusal.
+        # (readings/user-place.js, `carried`), so it runs, too slowly to end before the refusal.
         page.evaluate(
             "() => __lfHeld.forEach(motion => {"
             " motion.playbackRate = 1e-6; motion.play(); })"

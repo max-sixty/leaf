@@ -8,7 +8,7 @@ import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const color = (role) =>
-  `var(${{ main: "--lf-accent", feat: "--lf-warn-ink", squash: "--lf-series-4", ghost: "--lf-border", ok: "--lf-ok-ink", bad: "--lf-danger-ink", warn: "--lf-warn-ink", muted: "--lf-muted" }[role] ?? "--lf-ink"})`;
+  `var(${{ main: "--lf-accent", feat: "--lf-warn-ink", squash: "--lf-series-4", ghost: "--lf-rule", ok: "--lf-ok-ink", bad: "--lf-danger-ink", warn: "--lf-warn-ink", muted: "--lf-muted" }[role] ?? "--lf-ink"})`;
 const el = (tag, attrs, parent) => {
   const node = document.createElementNS(SVG, tag);
   for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);

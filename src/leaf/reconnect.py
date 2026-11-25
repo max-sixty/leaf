@@ -62,7 +62,7 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
 
         deadline = _deadline(started)
         for page_dir in pages:
-            if unready := renew_layer(page_dir, harness, command=False):
+            if unready := renew_layer(page_dir, harness):
                 found.append(unready)
             try:
                 if time.monotonic() >= deadline:

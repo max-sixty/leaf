@@ -16,7 +16,7 @@
       }
 
       .bg-feature-detail {
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font-weight: 400;
       }
 
@@ -64,7 +64,7 @@
         align-items: center;
         /* Wrapped rows keep each button's reach, which stands past its face under a
            finger, clear of the row above it. */
-        gap: max(var(--lf-sp-2), 2 * var(--lf-reach-room)) var(--lf-sp-2);
+        gap: max(var(--lf-sp-2), var(--lf-aim-floor) - var(--lf-line)) var(--lf-sp-2);
         margin-block: var(--lf-sp-3);
       }
 
@@ -3029,11 +3029,7 @@ gallery/
                     title="The gallery's stamped v2 map decision"
                     loading="lazy"
                     hidden
-                    style="
-                      width: 100%;
-                      height: 460px;
-                      border: 1px solid var(--lf-border);
-                    "
+                    style="width: 100%; height: 460px; border: 1px solid var(--lf-rule)"
                   ></iframe>
                 </div>
               </section>

@@ -71,7 +71,7 @@ transition or `reanchor` as the thread's location and keeps the old anchor as
 A comment the user writes in the panel with nothing selected is about the whole page and
 has no anchor. The browser records with it `viewing`, the ids of the addressable
 elements around the words and pictures on the user's screen as they sent it, in page
-order (`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one
+order (`runtime/readings/reading-place.js`, `sectionsInView`), so that on a page showing one
 section at a time the agent can tell which section "this one" meant. Page chrome the
 author gave an id, such as a header, is among them. The thread still stands on the
 whole page, since the user chose to comment there; `viewing` records only what they saw.
@@ -83,7 +83,7 @@ with it `box`, the frame's size, `says`, the page's words under the ink, and the
 `viewport` and `scheme` of the window it was drawn in. `drawing.frame`, when present,
 names the native visual under that point by a structural path inside its element, so
 inserting or removing a sibling detaches it rather than retargeting it. Points are in
-the frame's local coordinates (`browser/runtime/composing/drawing-record.js`). The
+the frame's local coordinates (`browser/runtime/annotations/composing/drawing-record.js`). The
 browser reads all of this off the rendered page, which no file reading can reproduce, so
 the door bounds its shape, the stroke count and 500 characters of `says`, refuses a
 drawing without an anchor or `box`, and does not re-read it. `$events.handling.comment`
@@ -127,7 +127,7 @@ and how long ago, in every tab and after a reload. A press withdraws the gesture
 once, unless a message or settlement of the user's is still being sent, which it waits
 for, and leaves the user at the gesture's thread, message, passage or element,
 travelling there where it was out of view, so the user sees what the press took back
-however old it was (`runtime/undo.js`). `runtime/undo.js` names each gesture, and the served list words an
+however old it was (`runtime/records/undo.js`). `runtime/records/undo.js` names each gesture, and the served list words an
 action at its head (`GestureWords.gesture`). An exact control, such as a widget's Undo,
 may withdraw an older gesture it names. It and the undo key may withdraw an action whose
 POST has not returned: the browser keeps both gestures in its ordered ledger and sends

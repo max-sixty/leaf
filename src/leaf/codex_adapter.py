@@ -54,15 +54,16 @@ one, environment included, so an adapter left running would load each module it
 imports later from the new copy, beside the old modules it already holds. So the
 adapter asks each pass which copy should run it now (`state.LoadedCopy.successor`),
 as a page server does (`server.stop_when_service_ends`), and once that names one,
-hands its task to an adapter from that copy (`_hand_over`). An adapter running
-Codex's copy moves to the copy Codex puts at its path, and one that another
-installed copy started, as a bare `leaf` from a Claude Code shell does, moves to
-the copy the task's hooks run. An update that moves the page protocol leaves the
-task's pages at the old one, which the restart of each page's server renews
-(`hosting.follow_copy`), and the successor delivers their input once it does. A
-checkout's adapter follows no copy: it keeps the modules it loaded and imports any
-later one from the checkout as it stands, since whoever runs a checkout decides
-when it changes.
+hands its task to an adapter from that copy (`_hand_over`). Only the Leaf the
+task's hooks run claims for the task (`harness.session_harness`), so an adapter
+starts from that copy. One running Codex's copy moves to the copy Codex puts at its
+path, and one whose task's hooks have since run another installed copy moves to
+that one. An update that moves the page protocol leaves the task's pages at the old
+one, which the restart of each page's server renews (`hosting.follow_copy`), and
+the successor delivers their input once it does. An adapter from a checkout, as
+where the task's hooks run one, follows no copy: it keeps the modules it loaded
+and imports any later one from the checkout as it stands, since whoever runs a
+checkout decides when it changes.
 
 Restarting the adapter from the task's prompt hook would leave it on its deleted
 copy until the task's next prompt, which can come hours later. Replacing the process
@@ -157,8 +158,7 @@ ADAPTER = Record(
     "codex-adapter",
     described(
         "A Codex task's running delivery adapter, written into the lease it holds "
-        "at the state home's `sessions/<digest>.adapter`. A session can select a "
-        "replacement runtime while this lease remains held (`running_adapter`).",
+        "at the state home's `sessions/<digest>.adapter` (`running_adapter`).",
         object_schema(
             {
                 "app_server": described(
@@ -167,14 +167,10 @@ ADAPTER = Record(
                     {"type": ["string", "null"]},
                 )
             },
-            {
-                "launcher": described(
-                    "The launcher running the adapter.", {"type": "string"}
-                )
-            },
         ),
     ),
-    since=13,
+    since=56,
+    kept=("app_server",),
 )
 
 
@@ -961,10 +957,9 @@ def run_adapter(
     handshake: Handshake | None = None,
     app_server: str | None = None,
 ) -> int:
-    """Own the session watch until every claimed page ends or transfers, the session
-    selects another Leaf, or another copy should run the adapter
-    (`LoadedCopy.successor`), in which case the adapter first starts its successor
-    from that copy.
+    """Own the session watch until every claimed page ends or transfers, or another
+    copy should run the adapter (`LoadedCopy.successor`), in which case the adapter
+    first starts its successor from that copy.
 
     A detached adapter announces its readiness through `handshake` once it holds
     its leases and its transport answers, and exits if `leaf page claim` left
@@ -973,8 +968,6 @@ def run_adapter(
     if harness is None or harness.name != CodexHarness.name:
         raise Refused("the Codex adapter needs a Codex task identity")
     with ExitStack() as resources:
-        from .session_runtime import own_launcher, selected_launcher
-
         copy = LoadedCopy()
         resources.callback(copy.close)
         lease = take_lease(adapter_lease_path(harness.session))
@@ -984,9 +977,7 @@ def run_adapter(
         # in the task verifies any requested endpoint against the one it joins.
         resources.callback(release_lease, lease)
         lease.truncate(0)
-        lease.write(
-            ADAPTER.encode({"app_server": app_server, "launcher": str(own_launcher())})
-        )
+        lease.write(ADAPTER.encode({"app_server": app_server}))
         lease.flush()
         watch = Watch(harness)
         if not watch.acquire():
@@ -1018,12 +1009,6 @@ def run_adapter(
             return 1
         failures = 0
         while True:
-            selected = selected_launcher(harness.session)
-            if selected is not None and selected != own_launcher():
-                # Selection belongs to the session, so the former adapter leaves
-                # before reading another page. Preparation holds the start lock
-                # until these leases and the connection are released.
-                return 0
             if (root := copy.successor(harness.session)) is not None:
                 return _hand_over(harness, codex_path, app_server, resources, root)
             try:
@@ -1100,26 +1085,8 @@ def preparing_adapter(harness: CodexHarness):
     app_server = os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
         app_server_socket_path(app_server)
-    launch_lock = adapter_start_lock_path(session_id)
-    with ExitStack() as preparation:
-        from .session_runtime import selected_launcher
-
-        while True:
-            preparation.enter_context(flocked(launch_lock))
-            launcher = selected_launcher(session_id)
-            record = running_adapter(session_id)
-            if (
-                record is None
-                or launcher is None
-                or record.get("launcher") == str(launcher)
-            ):
-                break
-            # The former adapter leaves at the top of its next pass, which can
-            # follow a 30 s wait between retries, and its lease goes as it exits.
-            # Let it take the start lock on its way out too, then retry
-            # preparation under that lock rather than racing a third start.
-            preparation.pop_all().close()
-            time.sleep(0.05)
+    with flocked(adapter_start_lock_path(session_id)):
+        record = running_adapter(session_id)
         if record is not None:
             running = record["app_server"]
             if app_server is not None and app_server != running:
@@ -1131,14 +1098,12 @@ def preparing_adapter(harness: CodexHarness):
             yield
             return
         # Existing active ownership already proves the canonical lifetime and
-        # generation. A detached preview can replace its adapter, but its process
-        # ancestry cannot rediscover the interactive harness that took the page.
-        # A new acquisition still establishes that evidence in its own harness.
+        # generation. A new acquisition establishes that evidence in its own harness.
         # owned_pages checks generation and liveness, so retained claims cannot
         # lend an ended session their former authority.
         if not owned_pages(session_id):
             ensure_session(session_id, harness.lifetime())
-        _start_adapter(harness, executable, app_server, launcher)
+        _start_adapter(harness, executable, app_server, None)
         yield
 
 
@@ -1214,7 +1179,7 @@ def running_adapter(session_id: str) -> dict | None:
     it; that reads as no adapter."""
     if not adapter_is_live(session_id):
         return None
-    return ADAPTER.read(adapter_lease_path(session_id))
+    return ADAPTER.read_any(adapter_lease_path(session_id))
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

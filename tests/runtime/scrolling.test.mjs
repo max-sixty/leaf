@@ -26,7 +26,7 @@ import {
   scrollsFor,
   scrollToEnd,
   stopGlide,
-} from "/runtime/scrolling.js";
+} from "/runtime/dom/scrolling.js";
 
 // The frames a glide asks for run when a test says, at the time it gives.
 /** @type {FrameRequestCallback[]} */

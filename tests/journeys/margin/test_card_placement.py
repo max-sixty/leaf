@@ -135,7 +135,9 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
 # (placement-rules.json). Each finding names its case and the rule it breaks, so one run
 # reports every rule a placement breaks rather than the first.
 PLACEMENT_RULES = json.loads(
-    (ROOT / "browser/runtime/annotation-overlay/placement-rules.json").read_text()
+    (
+        ROOT / "browser/runtime/annotations/annotation-overlay/placement-rules.json"
+    ).read_text()
 )
 # Each finding the sweep can report, by the one rule that names it (`swept`).
 SWEEP_RULE = {
@@ -447,7 +449,7 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
         rendered(page)
 
     def closed():
-        # A click on the marker lands in the reply (thread/focus.js, `openingPart`);
+        # A click on the marker lands in the reply (records/thread/focus.js, `openingPart`);
         # Escape stands the user on the thread, from which the next takes the card down.
         expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
         page.keyboard.press("Escape")

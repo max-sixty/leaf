@@ -43,6 +43,7 @@ from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
 from leaf.schema import STREAM_FILE
 from leaf.state import (
+    CLAIM,
     EVENTS_FILE,
     STRING,
     TIME,
@@ -87,39 +88,6 @@ def claim_path(page_dir: Path) -> Path:
     return claims_home() / f"{page_key(page_dir)}.json"
 
 
-CLAIM = Record(
-    "claim",
-    described(
-        "The session that receives a page's updates, in the state home's "
-        "`claims/<page key>.json` (`claim_path`).",
-        object_schema(
-            {
-                "page": described("The page directory.", STRING),
-                "ts": described("When the claim was published.", TIME),
-                "id": described("The claimant session (`state.SESSION`).", STRING),
-                "generation": described(
-                    "The generation of the session this claim names.", STRING
-                ),
-                "acquisition": described(
-                    "This publication's own identity (`same_claim`).", STRING
-                ),
-                "harness": described("The claimant's `Harness.name`.", STRING),
-                "agent": described("The name the claimant shows.", STRING),
-                "cwd": described("The claimant's working directory.", STRING),
-            },
-            {
-                "messaged_ending": described(
-                    "The turn ending after which input last messaged the session "
-                    "(`note_messaged`).",
-                    STRING,
-                )
-            },
-        ),
-    ),
-    since=13,
-)
-
-
 def publish_claim(page_dir: Path, claim: dict) -> None:
     """Prepare discovery, then commit ownership in the canonical payload: the one
     writer of a claim.
@@ -135,7 +103,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     locator = session_claims(claim["id"]) / path.name
     with flocked(claims_lock()):
         locator.parent.mkdir(parents=True, exist_ok=True)
-        previous = CLAIM.read(path)
+        previous = CLAIM.read_any(path)
         staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
         try:
             staged.symlink_to(Path("..") / path.name)
@@ -148,21 +116,15 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
             drop_locator(previous["id"], path.name)
 
 
-# The keys a claim's reading takes from its session's lifetime (`claim_reading`).
-CLAIM_LIFETIMES = frozenset({"job", "app", "chat", "pid"})
-
-
 def claim_reading(claim: dict | None) -> dict | None:
     """A claim as its readers take it: the record, with its session's lifetime and
     turn while the session is still in the generation the claim names.
 
-    A claim naming a harness this Leaf does not know, as a later Leaf's may, reads
-    as no claim: the name is a value this Leaf dispatches on
+    It reads a claim whatever harness it names, a later Leaf's included; only code
+    that acts through the claimant's harness asks for one this Leaf knows
     (`harness.claim_harness`). Every reader goes through `page_claim` or
     `claim_records`."""
-    from leaf.harness import HARNESSES
-
-    if claim is None or claim["harness"] not in HARNESSES:
+    if claim is None:
         return None
     record = session_record(claim["id"])
     if record is None or claim["generation"] != record["generation"]:
@@ -178,29 +140,39 @@ def claim_reading(claim: dict | None) -> dict | None:
 
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one whose session or lifetime ended."""
-    return claim_reading(CLAIM.read(claim_path(page_dir)))
+    return claim_reading(CLAIM.read_any(claim_path(page_dir)))
 
 
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: its session's generation, not
-    ended, with a lifetime that still lives (`lifetime_is_live`). Cold hooks and
-    the CLI both call it."""
+    ended, with a lifetime that still lives (`session_lives`), whichever Leaf
+    recorded the session (`state.session_record`). Cold hooks and the CLI both call
+    it."""
     if not claim:
         return False
     record = session_record(claim["id"])
-    if not session_live(record) or record["generation"] != claim["generation"]:
+    if record is None or record["generation"] != claim["generation"]:
         return False
-    return lifetime_is_live(claim, record)
+    return session_lives({"id": claim["id"], **record["lifetime"]}, record)
 
 
-def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
-    """Whether the owner a `Harness.lifetime` names still lives: the job record a
-    background job's lifetime points at, the Claude desktop app's record an `app`
-    lifetime points at while it is unarchived and still names the session, the
-    native source a persisted `chat` stands on (`record`, the session's), or the
-    process every other lifetime's pid names. The only reading of that rule: a claim and the sandbox
-    bridge's registrations both carry a lifetime beside the session's `id`, so a
-    harness that states its lifetime a new way joins here alone."""
+def session_lives(lifetime: dict, record: dict | None) -> bool:
+    """Whether a session lives: its lifecycle `record`, where it has one, hasn't
+    recorded its end, and the owner its `lifetime` (`Harness.lifetime`) names still
+    lives: the job record a background job's lifetime points at, the Claude desktop
+    app's record an `app` lifetime points at while it is unarchived and still names
+    the session, the native source a persisted `chat` stands on (`record`'s), or the
+    process every other lifetime's pid names. The only reading of whether a session
+    lives: a claim and the sandbox bridge's registrations both carry a lifetime
+    beside the session's `id`.
+
+    A lifetime that names nothing yet has no owner, so nothing lives by it. A kind
+    this Leaf doesn't know, as a later Leaf's may, reads as live until the record
+    says the session ended, since this Leaf can't check it (`layer-registry.md`,
+    "Page protocol"). So a harness that states its lifetime a new way adds its form
+    to the session record's `lifetime` and its reading here."""
+    if record is not None and record["ended"] is not None:
+        return False
     if "job" in lifetime:
         return (Path(lifetime["job"]) / "state.json").is_file()
     if "app" in lifetime:
@@ -212,7 +184,9 @@ def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
         )
     if lifetime.get("chat") is True:
         return chat_exists(record)
-    return "pid" in lifetime and pid_alive(lifetime["pid"])
+    if "pid" in lifetime:
+        return pid_alive(lifetime["pid"])
+    return bool(lifetime.keys() - {"id"})
 
 
 def dead_session(claim: dict) -> str:
@@ -264,6 +238,33 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     )
 
 
+def held_elsewhere(page_dir: Path, harness: Harness | None) -> dict | None:
+    """The claim by which a session other than `harness`'s holds `page_dir`, or None
+    where none does: read whichever Leaf wrote it, it names another session that
+    still lives (`claim_is_active`), whatever harness it names."""
+    claim = CLAIM.read_any(claim_path(page_dir))
+    if claimant_matches(claim, harness) or not claim_is_active(claim):
+        return None
+    return claim
+
+
+def refuse_held(page_dir: Path, harness: Harness | None) -> None:
+    """Refuse to serve `page_dir` or change its layer record for anyone but the
+    session holding it (`held_elsewhere`). Another session takes the page over first
+    by claiming it (`leaf server start`). Since only the Leaf a session's hooks run
+    acts for it (`harness.session_harness`), no other Leaf, such as a checkout's or a
+    terminal's, moves a held page to a protocol those hooks can't read, whatever the
+    protocols are."""
+    if (claim := held_elsewhere(page_dir, harness)) is None:
+        return
+    raise Refused(
+        f"{page_dir} is held by session {claim['id']}, and only the Leaf that "
+        "session's hooks run serves it or changes its layer. Work on the page through "
+        f"that session, or take it over first by running `leaf server start "
+        f"{page_dir}` in another agent session"
+    )
+
+
 def same_claim(left: dict | None, right: dict | None) -> bool:
     """Whether two readings name the same acquisition, including no claimant.
 
@@ -286,7 +287,7 @@ def claim_records(session_id: str | None = None) -> list:
     paths = held_claims(session_id) if session_id else standing_claims()
     claims = []
     for path in paths:
-        claim = claim_reading(CLAIM.read(path))
+        claim = claim_reading(CLAIM.read_any(path))
         if (
             claim is not None
             and claim_path(Path(claim["page"])) == path.resolve()
@@ -415,13 +416,13 @@ class PageTransaction:
         if previous is None:
             remove_claim(path)
         else:
+            # The claim's own keys, less what its reading took from its session.
             publish_claim(
                 self.page_dir,
                 {
                     key: value
                     for key, value in previous.items()
-                    if key
-                    not in {"turn", "turn_opened", "turn_closed", *CLAIM_LIFETIMES}
+                    if key in CLAIM.schema["properties"]
                 },
             )
 
@@ -438,7 +439,7 @@ class PageTransaction:
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
         went out for."""
-        claim = CLAIM.read(claim_path(self.page_dir))
+        claim = CLAIM.read_any(claim_path(self.page_dir))
         assert claim is not None
         publish_claim(self.page_dir, {**claim, "messaged_ending": ending})
 
@@ -802,14 +803,14 @@ def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     live, ordinary serving and reclaiming preserve the selected watch.
     """
     from leaf.harness import session_harness
-    from leaf.session_runtime import select_checkout
 
     harness = session_harness()
     if harness is None:
-        raise Refused("only an agent harness session can claim a page")
+        raise Refused(
+            "only the Leaf an agent session's hooks run can claim a page for that "
+            "session"
+        )
     claim = prepare_claim(harness, page_dir)
-    # Before delivery prepares (`session_runtime.select_checkout`).
-    select_checkout(harness.session)
     preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
     with (
         preparation,

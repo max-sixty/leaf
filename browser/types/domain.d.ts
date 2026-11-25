@@ -12,7 +12,7 @@ import type {
   WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
-import type { Immutable } from "../runtime/framework/snapshot.js";
+import type { Immutable } from "../runtime/base/snapshot.js";
 export type StateRecord = NonNullable<ServedVerb["record"]>;
 export interface ActionSpec {
   unit: string;
@@ -140,7 +140,7 @@ export type PendingProjection =
       localOrder: number;
     };
 // A widget event or undo in the log, at the coordinate its view classifies it at, an
-// undo at its target's, or null (`logCoverage` in `framework/application.js`).
+// undo at its target's, or null (`logCoverage` in `state/semantic-application.js`).
 export interface Coverage {
   event: Event;
   coordinate: readonly string[] | null;

@@ -10,7 +10,7 @@ lf-file-editor {
   grid-template-rows: auto minmax(0, 1fr) auto;
   block-size: calc(var(--lf-file-editor-height) + 2.5rem);
   margin-block: 1rem;
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   --lf-ground: var(--lf-card);
   background: var(--lf-ground);

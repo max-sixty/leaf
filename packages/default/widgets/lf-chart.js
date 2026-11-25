@@ -40,14 +40,14 @@
  * Crossing the drawing where no point is within reach keeps the reading and its ring,
  * and the next point within reach takes its place. Plot's own tip clears in empty
  * space; this one stays because it can be read: the preview takes no pointer and
- * stands over the drawing (preview.js), so a pointer moving toward it to read it
+ * stands over the drawing (annotations/preview.js), so a pointer moving toward it to read it
  * crosses the drawing's empty space, and clearing there would take the reading away
  * from under the reader's eye.
  *
  * A comment on a point is about the point the reader is on. Leaf's aim and a pointed
  * comment take the point the pointer is on wherever it stands in the drawing: the one
  * its ring is on, or the one it rests on whose reading Escape or a press put away. ⌥
- * alone leaves the reading standing (preview.js). Focus on the chart takes the point
+ * alone leaves the reading standing (annotations/preview.js). Focus on the chart takes the point
  * the ring is on, so the keys reach one too, and the whole chart once Escape has put
  * the ring away, as does ⌥ where no point is within reach or over a legend. The comment
  * names its point by its datum (chart-points.js, `datumOf`). Leaf marks the point on
@@ -305,7 +305,8 @@ customElements.define(
       // A mouse reads where it moves to, so a drawing that arrives under a still one
       // says nothing; a finger, which lands before it moves, reads where it lands. A
       // finger's press is a new aim even on the point it held last, heard after the
-      // page has put the last hold's preview away (preview.js listens first).
+      // page has put the last hold's preview away (annotations/preview.js listens
+      // first).
       this.addEventListener("pointermove", aim, { passive: true });
       this.addEventListener(
         "pointerover",
@@ -758,7 +759,7 @@ customElements.define(
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does one whose preview stands, which the page puts away, and the ring with it
     // (the reading's `ended`), once the pointer is on neither the drawing nor the preview, or
-    // at the next touch after a held finger lifts (preview.js); back on the drawing, it
+    // at the next touch after a held finger lifts (annotations/preview.js); back on the drawing, it
     // reads from where it comes. A point no preview has shown yet goes with the pointer.
     #leave() {
       this.#over = false;

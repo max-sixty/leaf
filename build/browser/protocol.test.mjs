@@ -118,6 +118,88 @@ test("a record changes shape only with its since", () => {
   );
 });
 
+test("a record keeps each kept key through every shape", () => {
+  const kept = structuredClone(baseline);
+  kept.records.claim.kept = ["page"];
+  const moved = (edit) => (s) => {
+    s.records.claim.since = 4;
+    edit(s.records.claim);
+  };
+  assert.deepEqual(
+    changed(
+      moved((claim) => (claim.schema.properties.pid.type = "string")),
+      kept,
+    ),
+    none,
+  );
+  assert.deepEqual(
+    changed(
+      moved((claim) => {
+        delete claim.schema.properties.page;
+        claim.schema.required = [];
+        delete claim.kept;
+      }),
+      kept,
+    ),
+    refused("record claim: page is kept, so every shape keeps it"),
+  );
+  assert.deepEqual(
+    changed(
+      moved((claim) => (claim.schema.properties.page = { type: "integer" })),
+      kept,
+    ),
+    refused("record claim: kept page changed its schema"),
+  );
+  assert.deepEqual(
+    changed(
+      moved((claim) => (claim.schema.required = [])),
+      kept,
+    ),
+    refused("record claim: kept page is no longer required"),
+  );
+  assert.deepEqual(
+    changed((s) => (s.records.claim.kept = ["page", "batches/*/page"]), kept),
+    refused("record claim: kept batches/*/page is not in its schema"),
+  );
+});
+
+test("a kept key's anyOf may gain variants, but keeps each", () => {
+  const variant = (key) => ({
+    type: "object",
+    properties: { [key]: { type: "string" } },
+    required: [key],
+    additionalProperties: false,
+  });
+  const kept = structuredClone(baseline);
+  kept.records.claim.schema.properties.lifetime = { anyOf: [variant("pid")] };
+  kept.records.claim.kept = ["lifetime"];
+  const moved = (edit) => (s) => {
+    s.records.claim.since = 4;
+    edit(s.records.claim.schema.properties.lifetime.anyOf);
+  };
+  assert.deepEqual(
+    changed(
+      moved((variants) => variants.push(variant("window"))),
+      kept,
+    ),
+    none,
+  );
+  assert.deepEqual(
+    changed(
+      moved((variants) => (variants[0] = variant("process"))),
+      kept,
+    ),
+    refused("record claim: kept lifetime changed its schema"),
+  );
+  assert.deepEqual(
+    changed(
+      moved((variants) => variants.pop()),
+      kept,
+    ),
+    refused("record claim: kept lifetime changed its schema"),
+  );
+});
+
 test("an annotation changes nothing, at any depth", () => {
   const conditional = structuredClone(baseline);
   Object.assign(conditional.records.claim.schema, {

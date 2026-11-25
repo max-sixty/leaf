@@ -5,12 +5,12 @@
    Leaf page the same widget gets Leaf's features through what Leaf reads from outside
    it, rather than through calls into Leaf: the events it dispatches
    (lib/widget-events.js), the keys it declares as `lfCommands`, what pointing at an
-   element reads (`lfPreview`, preview.js, and `lf-preview` as that changes), the
-   words it asks a listener to hear
-   (`lf-announce`), where a step of its own walk landed (`lf-walk`, walk-position.js),
-   the inventory of Comment targets it states (`lfParts`, visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control
-   (`data-lf-copy`, code-copy.js) and a quiet word (`data-lf-quiet`,
-   declared-words.js).
+   element reads (`lfPreview`, annotations/preview.js, and `lf-preview` as that
+   changes), the words it asks a listener to hear
+   (`lf-announce`), where a step of its own walk landed (`lf-walk`, records/walk-position.js),
+   the inventory of Comment targets it states (`lfParts`, state/visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control
+   (`data-lf-copy`, records/code-copy.js) and a quiet word (`data-lf-quiet`,
+   records/declared-words.js).
    A page without Leaf reads none of them, so there the widget binds no key, shows no
    preview, says nothing aloud, offers no Comment target and shows no Leaf control.
 
@@ -20,4 +20,4 @@
    tests/smoke/test_plain_page.py holds the portable widgets to that. A portable widget
    also imports the library's modules (lib/), each of which loads in any document. */
 
-export { threadSurface } from "./thread/surface-handles.js";
+export { threadSurface } from "./records/thread/surface-handles.js";

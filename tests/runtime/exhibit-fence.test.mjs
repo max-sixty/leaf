@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-import { adoptRegistry } from "/runtime/registry.js";
-import { quoted, stageWidgetDescriptors } from "/runtime/widget-descriptors.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { quoted, stageWidgetDescriptors } from "/runtime/records/widget-descriptors.js";
 
 const { registry, cases } = JSON.parse(
   readFileSync(new URL("../exhibit_cases.json", import.meta.url), "utf8"),

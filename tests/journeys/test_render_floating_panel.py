@@ -350,7 +350,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
         identity={"agent": "Codex", "session": "codex-thread"},
     )
     told(page)
-    # The folded leaf's status is its preview (preview.js).
+    # The folded leaf's status is its preview (annotations/preview.js).
     peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
     leaf.hover()

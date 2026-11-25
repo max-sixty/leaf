@@ -1786,7 +1786,7 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # Each surface a page-level key opens, by the keys that open it from the page, and the
 # control that shows the page has one to open: a page with no thread has no card, and a
 # page with no other page live has no All pages. Escape unwinds any of them to the
-# page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
+# page (dom/keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
 # joins by its keys.
 #
 
@@ -1806,12 +1806,12 @@ def other_pages(page):
 
 
 # Where the focus stands in a thread, by the runtime's own selectors
-# (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
+# (records/thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
 # or null outside every thread or where the user sees none of the focused node. Seeing
 # it takes both what the browser draws, which `checkVisibility` reads through every
 # ancestor's display, visibility and opacity, and where it is drawn, which `seenRect`
-# (geometry.js) holds to the viewport, every clip and the chrome, as
-# anchor-resolution.js composes the two for a passage.
+# (dom/geometry.js) holds to the viewport, every clip and the chrome, as
+# readings/anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
   const {focused} = await window.__lfCheckApi();
@@ -2002,10 +2002,10 @@ def resize_findings(page, path):
 
 def untouched_resize_findings(page):
     """A page opened at its widest and scrolled by no one still shows its place, the
-    words at its landing edge (reading-place.js), once the window narrows to a phone's:
+    words at its landing edge (readings/reading-place.js), once the window narrows to a phone's:
     continuity keeps the page's own place, and a region the narrowing carries into the
     page, as a sidebar's track or a pane stacking under the one before, holds no place
-    of the reader's to take the page to (version.js, `placeFor`). Read on a page of its
+    of the reader's to take the page to (features/version.js, `placeFor`). Read on a page of its
     own, since every other journey scrolls the page it reads."""
     assert page.viewport_size["width"] == RESIZE_PATH[0]
     rendered(page)
@@ -2607,7 +2607,7 @@ COMPUTED_FACES = """([properties]) => {
 RELOCATE_ADOPTED = """async () => {
     const rules = document.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules]);
     // The page states its layer order in the first rule it loads (layer.py,
-    // CASCADE_LAYERS). A copy standing first has to state it again, or the first layer
+    // DOCUMENT_LAYER_ORDER). A copy standing first has to state it again, or the first layer
     // its own rules name becomes the lowest.
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
@@ -3731,7 +3731,7 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
     """A box turned a quarter shows across what it holds down, so what it clips to is
-    the box its turned padding box covers (geometry.js, `shownBand`): words it shows
+    the box its turned padding box covers (dom/geometry.js, `shownBand`): words it shows
     whole are not clipped out, and words held past its foot are."""
     source = leaf_page(
         "Turned column",

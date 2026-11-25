@@ -3431,7 +3431,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     tall = "<p>The old schema has three tables, each a year of records.</p>" * 30
     page = floating(browser, serve(OBLIGATION_PAGE.replace(heading, heading + tall)))
     room = """async () => {
-      const shown = (await window.__lfWidgetApi()).shownWindow();
+      const shown = (await window.__lfCheckApi()).shownWindow();
       return {top: shown.top, bottom: shown.bottom};
     }"""
     foot = page.locator(".lf-fp-row").bounding_box()["y"]

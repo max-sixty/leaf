@@ -796,7 +796,7 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", "right")
     reading = """async id => {
-      const geometry = await window.__lfWidgetApi();
+      const geometry = await window.__lfCheckApi();
       const target = document.getElementById(id).getBoundingClientRect();
       return {
         card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,

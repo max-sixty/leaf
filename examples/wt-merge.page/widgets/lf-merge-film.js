@@ -22,7 +22,6 @@
 import {
   holdFocus,
   scrollIntoView,
-  shownWindow,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
@@ -311,7 +310,7 @@ customElements.define(
           offset(10),
           shift({
             boundary: this.stage,
-            rootBoundary: this.hasAttribute("data-phone") ? shownWindow() : "document",
+            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
             padding: 10,
             crossAxis: true,
           }),

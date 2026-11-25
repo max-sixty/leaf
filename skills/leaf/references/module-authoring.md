@@ -59,9 +59,8 @@ the DOM takes the element it acts for as its first argument.
 In this file:
 
 - "Connection lifetimes": `whileConnected` holds a connection's listeners and observers.
-- "Startup and presentation": `afterPresentation` and `whenNear` defer heavy work,
-  `growthIsSeen` says whether growing now would move what the user sees, and
-  `whileInterfaceConnected` connects a page script to a widget.
+- "Startup and presentation": `whenNear` defers heavy work until the reader comes
+  near, and `whileInterfaceConnected` connects a page script to a widget.
 - "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
   place nodes the module keeps.
 - "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
@@ -112,10 +111,8 @@ In [module-input.md](module-input.md):
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`.
-- "Holding the reader's place": `holdPlace` and `HeldReading`.
-- "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
-  `landingInsets` and `shownWindow`.
+- "Holding the reader's place": `HeldReading`.
+- "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
@@ -333,16 +330,15 @@ reconnection; the cleanup `connect` returns runs as the element leaves. A playgr
 page script is the worked example (the playground package's author instructions,
 "Stateful previews").
 
-Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`, or until they come near its element through
-`whenNear(element, () => …)`, which returns the step that stops waiting. Hand work that
-starts now but need not delay presentation, such as a slow load whose result moves
-nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wait for
-the page wait for the work each has started; `page check --render` starts what
-`whenNear` holds.
-Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, say the work with a `pending-task` event instead
-(`module-plain-elements.md`, "Drawing"), so it lands before presentation.
+Start a heavy renderer that can wait until the user has the page at `lf-presentation`,
+or at once where `body[data-lf-presented]` is already set, and say what it draws with a
+`pending-task` event (`module-plain-elements.md`, "Drawing"): said after presentation,
+it holds the page's readiness rather than its presentation, so checks and tests wait
+for it. Work that starts now but need not delay presentation, such as a slow load whose
+result moves nothing visible, is said the same way once the page has presented. Run one
+that can wait until the reader comes near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting;
+`page check --render` starts what it holds.
 
 ### First paint
 

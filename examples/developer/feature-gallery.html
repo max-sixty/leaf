@@ -177,7 +177,6 @@
     </script>
     <script type="module">
       import {
-        afterPresentation,
         connection,
         generate,
         readObligations,
@@ -185,6 +184,7 @@
       } from "/runtime/widget-api.js";
       import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
+      import { presented } from "/runtime/lib/presented.js";
 
       document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-http");
@@ -289,7 +289,7 @@
         if (state.versions.some(({ version }) => version === 2))
           framingScenario.hidden = false;
       };
-      void afterPresentation(revealFraming);
+      void presented().then(revealFraming);
       const frameOpener = document.querySelector("#bg-durable-frame-open");
       frameOpener.addEventListener("click", () => {
         const frame = document.querySelector("#bg-durable-frame");

@@ -445,7 +445,7 @@ def clear_of_the_bottom_chrome(page, selector):
     row, which a page's end clears only by the end padding its Layout keeps."""
     return page.evaluate(
         """async selector => {
-          const {scrollerFor} = await window.__lfWidgetApi();
+          const {scrollerFor} = await window.__lfCheckApi();
           const target = document.querySelector(selector);
           const scroller = scrollerFor(target) ?? document.scrollingElement;
           scroller.scrollTop = scroller.scrollHeight;
@@ -556,7 +556,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     # the box the user sees move.
     carrier = page.evaluate(
         """async () => {
-          const {scrollerFor} = await window.__lfWidgetApi();
+          const {scrollerFor} = await window.__lfCheckApi();
           return scrollerFor(document.getElementById('pane-end'))?.id ?? null;
         }"""
     )

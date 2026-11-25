@@ -1149,7 +1149,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     rendered(page)
     held = log.evaluate(
         """async log => {
-          const { scrollerFor } = await window.__lfWidgetApi();
+          const { scrollerFor } = await window.__lfCheckApi();
           return {
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight > log.clientHeight

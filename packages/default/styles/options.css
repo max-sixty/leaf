@@ -55,7 +55,7 @@ lf-options {
   /* The width a row of its options needs, set only where the group lays them across, so
    * a group nested in an option does not inherit its holder's. */
   --lf-options-row-width: initial;
-  /* A picked row's or cell's ground: the card a step toward the settled colour, deeper
+  /* A picked row's or cell's ground: the card an eighth of the way toward the ink, deeper
    * than the aim's wash (below), so a pick still shows where the focus ring covers its
    * ring and a digit takes its check, but no deeper than keeps the muted words an
    * option holds, such as its mark's word and a § reference, at 4.5:1 on it
@@ -63,7 +63,7 @@ lf-options {
    * stands no deeper than the aim's wash and differs from it only in chroma, so over a
    * whole card it reads as khaki on the reading theme's paper, and it hides the card's
    * own chips. */
-  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 85%, var(--lf-ink));
+  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 87%, var(--lf-ink));
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its

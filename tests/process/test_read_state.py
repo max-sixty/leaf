@@ -11,12 +11,12 @@ from interact_support import (
     state_json,
 )
 
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as event_log_model
-from leaf import harness as harness_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.log import event_log as event_log_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import event_endpoint as endpoint_model
 
 
 def _post(server, event):

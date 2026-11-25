@@ -17,7 +17,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

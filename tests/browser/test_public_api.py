@@ -8,7 +8,8 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import open_page, resized, scroll_settled
 
-from leaf.render_checks import (
+from leaf.pages.render_gate.scheme import _render_page
+from leaf.source.render_checks import (
     HANDOVER_DEADLINE_MS,
     RENDER_VIEWPORT,
     SERVED_TIMEOUT_MS,
@@ -16,8 +17,7 @@ from leaf.render_checks import (
     rendered,
     wait_until_ready,
 )
-from leaf.render_gate.scheme import _render_page
-from leaf.revision_artifact import read_artifact
+from leaf.source.revision_artifact import read_artifact
 
 
 def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, subtests):
@@ -233,7 +233,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
     from playwright._impl.fetch import APIRequestContext, APIResponse
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    from leaf.render_gate import scheme, widget_quality
+    from leaf.pages.render_gate import scheme, widget_quality
 
     pages = []
     body, dispose = APIResponse.body, APIRequestContext.dispose

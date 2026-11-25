@@ -74,11 +74,11 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import presence as presence_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
-from leaf.schema import SERVICE_FILE
+from leaf.agents import presence as presence_model
+from leaf.base.schema import SERVICE_FILE
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source
 

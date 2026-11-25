@@ -70,49 +70,49 @@ from interact_support import (
     write_row,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import detached as detached_model
-from leaf import document_reading as document_reading_model
-from leaf import event_log as event_model
-from leaf import events as event_folds_model
-from leaf import files as files_model
-from leaf import gesture_words as gesture_words_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import inference as inference_model
-from leaf import interaction_log as interaction_model
-from leaf import leases as leases_model
-from leaf import media as media_model
-from leaf import page_inputs
-from leaf import page_snapshot as page_snapshot_model
-from leaf import passages as passages_model
-from leaf import presence as presence_model
-from leaf import projection as projection_model
-from leaf import publishing as publishing_model
-from leaf import revision_artifact as artifact_model
-from leaf import revisioning as revisioning_model
-from leaf import rows as rows_model
-from leaf import samples as samples_model
-from leaf import schema as schema_model
-from leaf import server as server_model
-from leaf import server_rows as server_rows_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf import thread_titles as thread_titles_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
-from leaf.refusals import Refused
-from leaf.registry import storage as registry_storage
-from leaf.runtime_selection import executing, execution_identity, serving_runtime
-from leaf.schema import USER_VIEWS_FILE
-from leaf.served_state import browser as served_browser
-from leaf.served_state import context as served_context
-from leaf.served_state import document as served_document
-from leaf.served_state import page as served_page
-from leaf.served_state import service as served_service
+from leaf.agents import inference as inference_model
+from leaf.agents import presence as presence_model
+from leaf.agents import server as server_model
+from leaf.agents import thread_titles as thread_titles_model
+from leaf.base import detached as detached_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import rows as rows_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.base.schema import USER_VIEWS_FILE
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as event_model
+from leaf.log import events as event_folds_model
+from leaf.log import gesture_words as gesture_words_model
+from leaf.log import interaction_log as interaction_model
+from leaf.log import projection as projection_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages import page_snapshot as page_snapshot_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import activity as activity_model
+from leaf.records import document_reading as document_reading_model
+from leaf.records import publishing as publishing_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import http as http_model
+from leaf.serving import media as media_model
+from leaf.serving import samples as samples_model
+from leaf.serving import server_rows as server_rows_model
+from leaf.serving.served_state import browser as served_browser
+from leaf.serving.served_state import context as served_context
+from leaf.serving.served_state import document as served_document
+from leaf.serving.served_state import page as served_page
+from leaf.serving.served_state import service as served_service
+from leaf.source import data as data_model
+from leaf.source import page_inputs
+from leaf.source import passages as passages_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.example_data import patch_manifest
 from leaf_dev.page_fixtures import example_media
 
@@ -2946,7 +2946,7 @@ def test_neighbor_discovery_needs_no_native_subscription(
     page_dir, tmp_path, monkeypatch
 ):
     """A short-lived reader sees new rows even when native watches cannot start."""
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     def no_watcher(*_args, **_kwargs):
         raise RuntimeError("native watch unavailable")
@@ -3649,10 +3649,10 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
     page_dir, monkeypatch
 ):
     """A slow read-only check neither blocks writers nor incorporates their changes."""
-    from leaf import thread as thread_model
-    from leaf.render_gate import command as browser_command
-    from leaf.render_gate.version import RenderReading
-    from leaf.validation.command import cmd_check
+    from leaf.agents import thread as thread_model
+    from leaf.pages.render_gate import command as browser_command
+    from leaf.pages.render_gate.version import RenderReading
+    from leaf.pages.validation.command import cmd_check
 
     started, release = threading.Event(), threading.Event()
 
@@ -3871,7 +3871,7 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
     server, page_dir, monkeypatch
 ):
     """A lazy historical projection holds the log/claim boundary until it finishes."""
-    from leaf.served_state import context as read_context
+    from leaf.serving.served_state import context as read_context
 
     publish(page_dir)
     (page_dir / "index.html").write_text(PAGE.replace("Plan", "A revised plan"))
@@ -4070,7 +4070,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
-    from leaf.authored_checks.source import check_source
+    from leaf.records.authored_checks.source import check_source
 
     source = PAGE.replace(
         "</head>", '<script type="module" src="./page/app.js"></script></head>'
@@ -4387,9 +4387,9 @@ def test_the_os_excludes_overlapping_leaf_listeners_across_processes(
             page_dir,
             """
 import json
-from leaf import hosting
-from leaf.hosting import LeafHTTPServer
-from leaf.http import page_endpoint
+from leaf.pages import hosting
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.serving.http import page_endpoint
 hosting.PORT_WAIT_SECONDS = 0
 try:
     server = LeafHTTPServer((os.environ["BIND"], int(os.environ["PORT"])),

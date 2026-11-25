@@ -48,25 +48,25 @@ from interact_support import (
     unlisted_dependencies,
 )
 
-from leaf import codex as codex_model
-from leaf import codex_adapter as codex_adapter_model
-from leaf import codex_desktop as codex_desktop_model
-from leaf import codex_state as codex_state_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
-from leaf.json_block import json_block, read_json_block
-from leaf.refusals import Refused
+from leaf.agents import codex as codex_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.agents import codex_desktop as codex_desktop_model
+from leaf.agents import codex_state as codex_state_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import json_block, read_json_block
+from leaf.base.refusals import Refused
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
 
 
 def codex_start_announcement(process) -> str:
@@ -1269,7 +1269,7 @@ def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
         "codex-thread", cleanup_model.STATUS_CHECKED_SUFFIX
     ).touch()
     program = """
-from leaf.hooks import cmd_hook
+from leaf.commands.hooks import cmd_hook
 
 cmd_hook(
     "codex",

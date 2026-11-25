@@ -12,13 +12,13 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import STATED_TIMEOUT, fetch, neighbour_page, record_claim
 
-from leaf import cli as cli_model
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf.detached import Handshake
+from leaf.agents import server as server_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.detached import Handshake
+from leaf.commands import cli as cli_model
 from leaf_dev.commands import preview
 
 
@@ -81,7 +81,7 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import vendoring as vendoring_model
+from leaf.pages import vendoring as vendoring_model
 
 
 def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
@@ -250,11 +250,11 @@ def test_failed_delivery_preserves_the_existing_preview(
     page_dir, monkeypatch, failure, handoff
 ):
     """Failure before acceptance preserves both listener and original watcher."""
-    from leaf import hosting as hosting_model
-    from leaf.harness import session_harness
-    from leaf.hosting import claim_and_start, cmd_serve, cmd_stop
-    from leaf.server import running_server
-    from leaf.service import page_claim
+    from leaf.agents.server import running_server
+    from leaf.base.harness import session_harness
+    from leaf.base.service import page_claim
+    from leaf.pages import hosting as hosting_model
+    from leaf.pages.hosting import claim_and_start, cmd_serve, cmd_stop
 
     original = preview.PreviewService(page_dir, user=True)
     with original.starting() as url:
@@ -290,9 +290,9 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
     page_dir, monkeypatch, refusal
 ):
     """A takeover refused or cancelled in preparation leaves the original claim."""
-    from leaf.detached import StartRefused
-    from leaf.hosting import claim_and_start, cmd_stop
-    from leaf.service import page_claim
+    from leaf.base.detached import StartRefused
+    from leaf.base.service import page_claim
+    from leaf.pages.hosting import claim_and_start, cmd_stop
 
     original = preview.PreviewService(page_dir, user=True)
     with original.starting():
@@ -309,7 +309,7 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
 
         vendored_at_another_protocol(page_dir)
     else:
-        from leaf import detached
+        from leaf.base import detached
 
         def interrupted(_socket, _data):
             assert page_claim(page_dir) == claim
@@ -334,10 +334,10 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
 def test_private_startup_keeps_previous_owner_until_acceptance(
     page_dir, monkeypatch, refusal
 ):
-    from leaf.detached import StartRefused
-    from leaf.hosting import claim_and_start, cmd_stop
-    from leaf.service import page_claim
-    from leaf.state import end_session, ensure_session
+    from leaf.base.detached import StartRefused
+    from leaf.base.service import page_claim
+    from leaf.base.state import end_session, ensure_session
+    from leaf.pages.hosting import claim_and_start, cmd_stop
 
     original = preview.PreviewService(page_dir, user=True)
     with original.starting() as url:
@@ -345,7 +345,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     previous = page_claim(page_dir)
     # A different harness is the candidate, so ending its session cannot itself end
     # the original watcher while the candidate is still unpublished.
-    from leaf import harness
+    from leaf.base import harness
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
     hooks_run_this_tree("candidate")
@@ -375,10 +375,10 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
 def test_service_publication_failure_keeps_previous_preview_claim(
     page_dir, monkeypatch
 ):
-    from leaf import hosting
-    from leaf.harness import session_harness
-    from leaf.service import page_claim, prepare_claim
-    from leaf.state import write_json
+    from leaf.base.harness import session_harness
+    from leaf.base.service import page_claim, prepare_claim
+    from leaf.base.state import write_json
+    from leaf.pages import hosting
 
     original = preview.PreviewService(page_dir, user=True)
     with original.starting():

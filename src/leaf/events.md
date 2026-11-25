@@ -40,7 +40,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix` where
 the neighbouring text tells two identical passages apart. The browser writes it from
 the user's selection. `leaf thread create`, and a reply command that moves a thread,
-write it from a quote read out of the authored HTML through `leaf.passages`, so they
+write it from a quote read out of the authored HTML through `leaf.source.passages`, so they
 write only anchors the file confirms (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the

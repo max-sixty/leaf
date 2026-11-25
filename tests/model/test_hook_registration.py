@@ -29,12 +29,12 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import session as session_model
+from leaf.records import transaction as transaction_model
 
 # Each harness's own registrations of Leaf's hooks (`harness.hook_harness`); Pi's
 # are its extension's calls (`test_interact_pi.py`).
@@ -384,9 +384,9 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
     (project / "pyproject.toml").touch()
-    program = project / "src/leaf/state.py"
+    program = project / "src/leaf/base/state.py"
     program.parent.mkdir(parents=True)
-    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
+    program.write_bytes((PLUGIN_ROOT / "src/leaf/base/state.py").read_bytes())
     interpreter = project / ".venv/bin/python"
     interpreter.parent.mkdir(parents=True)
     interpreter.symlink_to(sys.executable)
@@ -445,7 +445,7 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     page_dir,
 ):
     """A harness runs Leaf's hooks at every turn of every session the plugin is
-    installed in, and most hold no page. Each waits on `import leaf.hooks`, so
+    installed in, and most hold no page. Each waits on `import leaf.commands.hooks`, so
     that import, and a prompt or Stop hook in a session holding nothing, loads
     neither the page servers nor page reading: markup, registry schemas, and
     anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
@@ -474,7 +474,7 @@ for event, args, turn_id in cases:
     except SystemExit as error:
         assert error.code == 0, error.code
     if turn_id:
-        from leaf.codex_state import hook_turn
+        from leaf.agents.codex_state import hook_turn
         observed = hook_turn("holds-nothing")
         assert observed["turn"] == turn_id
         assert observed["running"] == (event not in ("Stop", "Interrupt"))
@@ -482,15 +482,15 @@ for event, args, turn_id in cases:
     _, imported = fresh_imports(program)
     assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
     page_reading_or_serving = (
-        "leaf.hosting",
-        "leaf.http",
-        "leaf.codex",
-        "leaf.delivery",
-        "leaf.thread",
-        "leaf.hook_transport",
-        "leaf.served_state.page",
-        "leaf.event_contracts",
-        "leaf.anchor_capture",
+        "leaf.pages.hosting",
+        "leaf.serving.http",
+        "leaf.agents.codex",
+        "leaf.agents.delivery",
+        "leaf.agents.thread",
+        "leaf.commands.hook_transport",
+        "leaf.serving.served_state.page",
+        "leaf.records.event_contracts",
+        "leaf.source.anchor_capture",
     )
     assert {
         module: imported[module]
@@ -505,7 +505,7 @@ def test_the_hook_transport_imports_no_page_model():
     transport loads the schema validators, the HTML, Markdown, CSS and script
     parsers and the file watcher only where a hook reads a page, vendors it or
     watches it; each costs tens of milliseconds at every start."""
-    _, imported = fresh_imports("import leaf.hook_transport\n")
+    _, imported = fresh_imports("import leaf.commands.hook_transport\n")
     assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
 
 
@@ -532,7 +532,7 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
     payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
     if process == "Stop":
         _, imported = fresh_imports(leaf_main(*hook, stdin=json.dumps(payload)))
-        assert "leaf.served_state.context" in imported, "the hook read no page"
+        assert "leaf.serving.served_state.context" in imported, "the hook read no page"
     else:
         asked = append_command(
             claimed,
@@ -566,8 +566,8 @@ def test_codex_startup_can_claim_its_first_page_without_a_prompt(
     Run its registered startup hooks with no prior lifecycle or claim. Only a
     native transcript naming this chat can establish the first page's owner.
     """
-    from leaf.hooks import cmd_hook
-    from leaf.refusals import Refused
+    from leaf.base.refusals import Refused
+    from leaf.commands.hooks import cmd_hook
 
     sid = "dispatched-chat"
     source = tmp_path / "native.jsonl"

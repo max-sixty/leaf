@@ -21,8 +21,8 @@ from render_harness import (
 )
 
 from browser.threads import claim_for_codex, open_panel_thread, thread_row
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed

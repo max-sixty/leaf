@@ -26,10 +26,13 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import cli as cli_model
-from leaf import hosting, server, service, transaction
-from leaf.interaction_log import read_interactions
-from leaf.registry.storage import layer_record
+from leaf.agents import server
+from leaf.base import service
+from leaf.commands import cli as cli_model
+from leaf.log.interaction_log import read_interactions
+from leaf.pages import hosting
+from leaf.records import transaction
+from leaf.source.registry.storage import layer_record
 from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 
@@ -45,7 +48,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
     its ordinary stamp door and HTTP delivery. Earlier executable resources retain
     their bytes, and a competing preview edit is refused until reconciled.
     """
-    from leaf.files import latest_revision
+    from leaf.base.files import latest_revision
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -394,11 +397,11 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     tmp_path, spawn, monkeypatch, request
 ):
     """A user slot resumes its durable page rather than replaying its fixture."""
-    from leaf.data import read_data
-    from leaf.event_log import read_events
-    from leaf.files import latest_revision, revision_path
-    from leaf.harness import session_harness
-    from leaf.registry.storage import load_registry
+    from leaf.base.files import latest_revision, revision_path
+    from leaf.base.harness import session_harness
+    from leaf.log.event_log import read_events
+    from leaf.source.data import read_data
+    from leaf.source.registry.storage import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -639,7 +642,7 @@ def test_fresh_preview_preparation_cannot_remove_a_successor(
     tmp_path, monkeypatch, failure, claimed
 ):
     """A complete private fixture can fail or lose its slot without owning it."""
-    from leaf.harness import IDENTITY_VARIABLES
+    from leaf.base.harness import IDENTITY_VARIABLES
 
     source = tmp_path / "reading.html"
     source.write_text(

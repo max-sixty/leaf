@@ -9,7 +9,7 @@ from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import _publish
 from render_harness import PANEL, all_pages_offered, open_page, panel_view, resized
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -34,8 +34,8 @@ from render_harness import (
     told,
 )
 
-from leaf import leases as leases_model
-from leaf import transaction as transaction_model
+from leaf.base import leases as leases_model
+from leaf.records import transaction as transaction_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

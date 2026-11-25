@@ -69,12 +69,12 @@ from render_harness import (
 from render_harness import leaf_page as titled_page
 
 from browser.threads import dispatch_paste, paste_image
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.agents import thread as thread_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import choose_threads_in_panel, open_on_me, panel_tab
 from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, near, settled

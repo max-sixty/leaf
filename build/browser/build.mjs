@@ -81,7 +81,7 @@ export async function compilerPaths(directory = root) {
       ]),
     ),
     "/runtime/*": [path.posix.relative(typeRoot, `${assets}/runtime/*`)],
-    "/checks/*": ["../../src/leaf/render-checks/*"],
+    "/checks/*": ["../../src/leaf/source/render-checks/*"],
   };
   return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
 }

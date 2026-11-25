@@ -49,30 +49,30 @@ from interact_support import (
 )
 from interact_support import declare as declare_status
 
-from leaf import cli as cli_model
-from leaf import completions as completions_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import file_changes as file_changes_model
-from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import presence as presence_model
-from leaf import schema as schema_model
-from leaf import server_rows as server_rows_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
-from leaf.json_block import read_json_block
-from leaf.refusals import Refused
-from leaf.registry.storage import LAYER, layer_record
-from leaf.served_state import context as context_model
+from leaf.agents import completions as completions_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import presence as presence_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import read_json_block
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import file_changes as file_changes_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import server_rows as server_rows_model
+from leaf.serving.served_state import context as context_model
+from leaf.source.registry.storage import LAYER, layer_record
 
 
 def handed(page_dir, input_id: str) -> bool:

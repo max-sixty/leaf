@@ -24,21 +24,21 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import delivery as delivery_model
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import hooks as hooks_model
-from leaf import inference as inference_model
-from leaf import leases as leases_model
-from leaf import rows as rows_model
-from leaf import server as server_model
-from leaf import server_rows as server_rows_model
-from leaf import session as session_model
-from leaf import thread as thread_model
-from leaf import thread_titles as thread_titles_model
-from leaf import transaction as transaction_model
-from leaf.harness import NUDGE_WORDS
-from leaf.interaction_log import read_interactions
+from leaf.agents import delivery as delivery_model
+from leaf.agents import inference as inference_model
+from leaf.agents import server as server_model
+from leaf.agents import thread as thread_model
+from leaf.agents import thread_titles as thread_titles_model
+from leaf.base import leases as leases_model
+from leaf.base import rows as rows_model
+from leaf.base.harness import NUDGE_WORDS
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records import transaction as transaction_model
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving import server_rows as server_rows_model
 
 DRIVER = Path(__file__).parents[1].joinpath("claude_code_driver.mjs")
 

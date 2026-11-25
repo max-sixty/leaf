@@ -19,14 +19,14 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
@@ -57,7 +57,7 @@ def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
     arrivals = [tmp_path / f"sweep-{number}" for number in range(2)]
     probe = """\
 import sys
-from leaf import delivery
+from leaf.agents import delivery
 
 original_lock = delivery.flocked
 def synchronized_lock(*args, **kwargs):

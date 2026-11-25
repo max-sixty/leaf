@@ -17,9 +17,9 @@ from interact_support import (
     styled,
 )
 
-from leaf import passages as passages_model
-from leaf import structure as structure_model
-from leaf.findings import Finding
+from leaf.base.findings import Finding
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
 
 
 def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
@@ -538,8 +538,8 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     root's included, and refuses with its words. A nested rule in a style attribute
     parses as a block's contents but not as the declaration list delivery reads,
     and unasked would pass every check only for delivery to refuse it."""
-    from leaf.revision_artifact import ArtifactError
-    from leaf.revision_delivery import DeliveryAddress, rebase_document
+    from leaf.serving.revision_delivery import DeliveryAddress, rebase_document
+    from leaf.source.revision_artifact import ArtifactError
 
     markup = holder.format(f'<p style="{style}">Shown</p>')
     source = styled("", markup)
@@ -626,9 +626,9 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     again on that one revision: an answer the parent no longer counts leaves the
     child's copy of its thread open too, and the action it had superseded, which
     answered nothing, decides the widget there as it does in the parent."""
-    from leaf.events import build_threads
-    from leaf.passages import enclosing_ids
-    from leaf.thread_context import sample_events
+    from leaf.log.events import build_threads
+    from leaf.log.thread_context import sample_events
+    from leaf.source.passages import enclosing_ids
 
     document = structure_model.SourceDocument(
         '<main><lf-suggestion id="sug-a" resolves="c1">'

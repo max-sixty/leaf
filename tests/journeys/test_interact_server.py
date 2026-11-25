@@ -33,29 +33,29 @@ from interact_support import (
     write_record,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as event_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import media as media_model
-from leaf import page_snapshot as page_snapshot_model
-from leaf import presence as presence_model
-from leaf import render_checks as render_checks_model
-from leaf import revision_artifact as artifact_model
-from leaf import revisioning as revisioning_model
-from leaf import rows as rows_model
-from leaf import server as server_model
-from leaf import server_rows as server_rows_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
-from leaf.http import assets_path
-from leaf.registry import storage as registry_storage
-from leaf.runtime_selection import executing, execution_identity, serving_runtime
+from leaf.agents import presence as presence_model
+from leaf.agents import server as server_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import rows as rows_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as event_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages import page_snapshot as page_snapshot_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import media as media_model
+from leaf.serving import server_rows as server_rows_model
+from leaf.serving.http import assets_path
+from leaf.source import render_checks as render_checks_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -888,9 +888,9 @@ from process.test_interact_server import (
     browser_observation,
 )
 
-from leaf import codex_adapter as codex_adapter_model
-from leaf import interaction_log as interaction_model
-from leaf import schema as schema_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.base import schema as schema_model
+from leaf.log import interaction_log as interaction_model
 
 
 def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
@@ -985,7 +985,7 @@ def test_a_start_serves_the_page_with_its_own_leaf(page_dir, persistent_server):
     as it is. One another Leaf started, here one whose record names another
     checkout, is restarted under this Leaf at the same URL, unless this Leaf can't
     serve the page, which is refused while the other Leaf goes on serving it."""
-    from leaf.registry.storage import LAYER, layer_record
+    from leaf.source.registry.storage import LAYER, layer_record
 
     runner = CliRunner()
 
@@ -1048,7 +1048,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     the page or records a service, and the refusal names the newer Leaf that would
     serve it. A server already running over such a page is refused the same way
     rather than handed out as this Leaf's."""
-    from leaf.event_contracts import write_refusal
+    from leaf.records.event_contracts import write_refusal
 
     runner = CliRunner()
     stamp = page_dir / schema_model.LAYER_FILE
@@ -1433,8 +1433,9 @@ def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
         page_dir,
         """
 from contextlib import contextmanager
-from leaf import hosting, server_rows
-from leaf import page_inputs
+from leaf.pages import hosting
+from leaf.serving import server_rows
+from leaf.source import page_inputs
 import sys
 
 leased = page_inputs.flocked

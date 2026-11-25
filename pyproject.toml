@@ -172,7 +172,7 @@ extra-paths = ["tests"]
 
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
-"src/leaf/state.py" = "py39"
+"src/leaf/base/state.py" = "py39"
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.

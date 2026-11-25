@@ -11,11 +11,11 @@ from interact_support import (
     record_claim,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.records import activity as activity_model
 
 
 def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(

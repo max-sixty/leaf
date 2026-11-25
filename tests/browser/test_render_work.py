@@ -10,7 +10,7 @@ from render_harness import (
     told,
 )
 
-from leaf import cli as cli_model
+from leaf.commands import cli as cli_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

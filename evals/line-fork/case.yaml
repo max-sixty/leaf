@@ -1,5 +1,5 @@
 # The fork that writes the agent's working line on a thread message
-# (`src/leaf/forks.py`), replayed on a short conversation written for each kind of
+# (`src/leaf/agents/forks.py`), replayed on a short conversation written for each kind of
 # message a session gets. Run every case with `uv run leaf-dev eval run 'line-fork*'
 # --harness claude-code`; inputs and rubrics are in workflows/fork_eval.yaml.
 description: Line fork

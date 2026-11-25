@@ -31,9 +31,9 @@ from browser.threads import (
     seed_panel_threads,
     stream_reply,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

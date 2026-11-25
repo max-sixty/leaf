@@ -41,29 +41,29 @@ from interact_support import (
     words,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import files as files_model
-from leaf import layer as layer_model
-from leaf import obligations as obligations_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import todos as todos_model
-from leaf import transaction as transaction_model
-from leaf.authored_checks.admission import (
+from leaf.base import files as files_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base.findings import Finding, Rejected
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.log import obligations as obligations_model
+from leaf.log.thread_context import logged_fragment, thread_digest
+from leaf.records import revisioning as revisioning_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.admission import (
     check_markup,
     revision_publication,
 )
-from leaf.authored_checks.declarations import declaration_advice
-from leaf.findings import Finding, Rejected
-from leaf.markup_checks.instances import question_errors, reference_errors
-from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
-from leaf.registry.validation import incoming_registry
-from leaf.structure import SourceDocument
-from leaf.thread_context import logged_fragment, thread_digest
+from leaf.records.authored_checks.declarations import declaration_advice
+from leaf.records.markup_checks.instances import question_errors, reference_errors
+from leaf.source import layer as layer_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry.contract import element_declarations
+from leaf.source.registry.validation import incoming_registry
+from leaf.source.structure import SourceDocument
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -91,7 +91,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     first = revisioning_model.activate_source(page_dir)
     assert first.error is None and first.created and first.revision == 2
     revision = files_model.revision_path(page_dir, 2)
-    from leaf.revision_artifact import artifact_name, read_artifact
+    from leaf.source.revision_artifact import artifact_name, read_artifact
 
     assert revision.name == artifact_name(2, read_artifact(page_dir, 2)) + ".html"
     assert revision.read_text() == changed
@@ -1260,8 +1260,8 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     with the wording it replaced, settled by a reply naming the edit, and reopening a
     thread the user had closed. Only the words the user wrote are theirs to revise.
     """
-    from leaf import delivery as delivery_model
-    from leaf.event_log import EventRefused
+    from leaf.agents import delivery as delivery_model
+    from leaf.log.event_log import EventRefused
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -1420,7 +1420,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     widget's ids, so the edit goes in and Leaf tells the agent where that answer now
     shows. An id any wording held stays the message's own, so no other message
     takes it and inherits the user's answer."""
-    from leaf.thread_context import thread_structure
+    from leaf.log.thread_context import thread_structure
 
     published(page_dir)
 
@@ -1455,8 +1455,8 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
 
     def said():
         """What the user's choice says, in the words they chose it in."""
-        from leaf.gesture_words import GestureWords
-        from leaf.registry.storage import require_registry
+        from leaf.log.gesture_words import GestureWords
+        from leaf.source.registry.storage import require_registry
 
         events = events_model.read_events(page_dir)
         words = GestureWords(events, require_registry(page_dir), {}.__getitem__)
@@ -1547,7 +1547,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
 def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
     """A rewrite replaced the words its message had when the user made it, and
     taking back an earlier rewrite later changes nothing it replaced."""
-    from leaf import delivery as delivery_model
+    from leaf.agents import delivery as delivery_model
 
     publish(page_dir)
     asked = append_command(
@@ -1579,8 +1579,8 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
     A long thread's digest suggests folding all but its last two messages; rewriting
     the newest user message is a turn the agent owes, and it moves no message into
     that range."""
-    from leaf.revision_artifact import active_enclosing
-    from leaf.thread_context import batch_threads
+    from leaf.log.thread_context import batch_threads
+    from leaf.source.revision_artifact import active_enclosing
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")

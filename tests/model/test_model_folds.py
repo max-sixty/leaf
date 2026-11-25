@@ -14,7 +14,7 @@ import model_folds as model
 import pytest
 from interact_support import page_packages, served_obligations, served_todos
 
-from leaf import standing as standing_model
+from leaf.base import standing as standing_model
 
 HUB = model.leaf_page(
     "command hub",
@@ -935,7 +935,7 @@ def test_a_data_write_sends_a_held_reading_only_the_source_it_wrote():
 def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
     """A key the server never named, or named so many readings ago that it has
     forgotten it, gets the whole answer (`served_state.tail.REMEMBERED`)."""
-    from leaf.served_state.tail import REMEMBERED
+    from leaf.serving.served_state.tail import REMEMBERED
 
     page = model.leaf_page("Tail", '<p id="p">One.</p>')
     log = [{"kind": "comment", "text": "Why?"}]
@@ -953,8 +953,8 @@ def test_a_pages_memory_keeps_the_readings_its_tabs_hold(tmp_path, monkeypatch):
     answers, such as a live sample's or another page's on a multiplexed server, never
     push out the reading another page's tab holds. A page whose memory the process
     dropped answers whole, and patches again from that answer."""
-    from leaf import page_memory
-    from leaf.served_state import tail
+    from leaf.base import page_memory
+    from leaf.serving.served_state import tail
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)
     html = model.leaf_page("Tail", '<p id="p">One.</p>')
@@ -979,7 +979,7 @@ def test_a_pages_memory_keeps_the_readings_its_tabs_hold(tmp_path, monkeypatch):
 
 
 def test_revision_labels_name_each_draft_after_the_newest_earlier_stamp():
-    from leaf.files import revision_labels
+    from leaf.base.files import revision_labels
 
     events = [
         {"kind": "note", "revision": 2, "version": 1},

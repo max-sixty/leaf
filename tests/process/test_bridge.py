@@ -15,10 +15,10 @@ import pytest
 from conftest import hooks_run_this_tree
 from interact_support import ROOT, STATED_TIMEOUT
 
-from leaf import bridge as bridge_model
-from leaf import hooks as hooks_model
-from leaf import service as service_model
-from leaf import state as state_model
+from leaf.base import bridge as bridge_model
+from leaf.base import service as service_model
+from leaf.base import state as state_model
+from leaf.commands import hooks as hooks_model
 
 LAUNCHER = str(ROOT / "bin" / "leaf")
 
@@ -190,16 +190,20 @@ def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):
     keeps the copy it loaded, so a bridge keyed by its copy would start again with
     every update and serve each session for its whole lifetime. A copy elsewhere
     with this `bridge.py` addresses this checkout's bridge."""
-    copy = tmp_path / "copy" / "leaf"
+    copy = tmp_path / "copy" / "leaf" / "base"
     copy.mkdir(parents=True)
     shutil.copy(bridge_model.__file__, copy / "bridge.py")
     # The copy's own `bridge.py`, beside this checkout's other modules.
-    (copy / "__init__.py").write_text(
-        f"__path__.append({str(ROOT / 'src' / 'leaf')!r})\n"
-    )
+    for package in (copy.parent, copy):
+        checkout = ROOT / "src" / package.relative_to(copy.parent.parent)
+        (package / "__init__.py").write_text(f"__path__.append({str(checkout)!r})\n")
     addressed = subprocess.run(
-        [sys.executable, "-c", "import leaf.bridge as b; print(b.__file__, b.KEY)"],
-        cwd=copy.parent,
+        [
+            sys.executable,
+            "-c",
+            "import leaf.base.bridge as b; print(b.__file__, b.KEY)",
+        ],
+        cwd=copy.parent.parent,
         capture_output=True,
         text=True,
         timeout=STATED_TIMEOUT,
@@ -327,7 +331,7 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
     bridge's sweep found no session left, the bridge goes on serving with its lease
     held, so that client is never told no bridge runs while this one serves it.
     Once the session ends, the bridge releases its lease."""
-    from leaf.leases import take_lease
+    from leaf.base.leases import take_lease
 
     bridge_model.bridge_path("lock").parent.mkdir(parents=True)
     lock = bridge_model.bridge_path("lock")
@@ -374,7 +378,7 @@ def test_a_bridge_ends_once_its_sweep_cannot_retire_it(tmp_path, monkeypatch, ca
     longer retire the bridge. Either way the bridge ends rather than serving for
     good, though a session registered with it still lives, and a removed state
     home stays removed."""
-    from leaf.leases import take_lease
+    from leaf.base.leases import take_lease
 
     bridge_model.bridge_path("lock").parent.mkdir(parents=True)
     lease = take_lease(bridge_model.bridge_path("lock"))
@@ -420,7 +424,7 @@ def test_a_bridge_whose_lease_file_was_replaced_as_it_started_leaves_the_next(
     """The state home can be removed while a bridge starts, and a hook in the home
     made again then starts the next bridge on a new lease file. Once the first
     bridge has loaded, it leaves the next one's address standing and ends."""
-    from leaf.leases import take_lease
+    from leaf.base.leases import take_lease
 
     lock = bridge_model.bridge_path("lock")
     lock.parent.mkdir(parents=True)

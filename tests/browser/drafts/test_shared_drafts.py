@@ -44,8 +44,8 @@ from browser.drafts import (
     cancel_draft,
     choose_comment_target,
 )
-from leaf import event_log as events_model
-from leaf.findings import Finding
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

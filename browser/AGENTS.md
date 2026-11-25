@@ -7,7 +7,7 @@ its local contract, the contracts modules and packages build on are in
 Python are in root `AGENTS.md`, "Cross-runtime invariants".
 
 Stylesheets need no build: page composition and the serving runtime place each file a
-sheet `@import`s where the import stands (`stylesheet` in `src/leaf/layer.py`).
+sheet `@import`s where the import stands (`stylesheet` in `src/leaf/source/layer.py`).
 
 ## Leaf's interface
 
@@ -139,7 +139,7 @@ rule draws at once is drawn.
   its task needs a region kept in view while its contents move, or for a live stream
   whose newest entry the reader follows, and then declares `--lf-holds-height: 1`. Checks: the widget
   quality checks `keeps-first-box` and `grows-with-content`
-  (`src/leaf/render_gate/widget_quality.py`).
+  (`src/leaf/pages/render_gate/widget_quality.py`).
 - **Room is held only for what will be drawn.** A state that may never come, such
   as a failed save, shows in a slot already on screen, as a message's head carries its
   delivery status, and the user's gesture makes the room it needs. Feedback may repaint
@@ -627,7 +627,7 @@ holds the measurement.
   `test_every_press_is_built_by_role`, `test_a_press_wears_its_role_s_face_alone`.
 - **Leaf's elements wear only Leaf's names.** A class or data attribute the runtime
   or a package module writes starts with `lf-` or `data-lf-`, the names `page check`
-  refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
+  refuses an author (`../src/leaf/pages/validation.md`), so a page's CSS for its own names
   never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
   tokens. The kernel's rules name no class a page coins for itself either, so a page's
   own `.button` or `.choice` keeps its author's look. A page's own controls take Leaf's
@@ -714,7 +714,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | threads, workflow, attention, obligations, to-dos, activity, unread                                            | the server's state, which the browser selects without folding again (obligations: `records/obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                                                                                                                                         |
 | what waits on the user and on the agent                                                                        | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                                                                                                                                                                                                            |
 | the machine's other live pages                                                                                 | the server's `/api/pages` answer, read again only when a news look names another pages reading than the one last asked for (`host/live-leaves.js`, `hearPages`); it keeps no consistency with the page's own reading, and nothing this page reads waits for it                                                                                                                                |
-| the user's unsent drafts                                                                                       | the page server's drafts (`src/leaf/drafts.py`), read again when a news look names another drafts store or version than the tab holds (`records/drafts.js`, `hearDrafts`); the tab's own copy holds only words the server hasn't taken yet                                                                                                                                                    |
+| the user's unsent drafts                                                                                       | the page server's drafts (`src/leaf/serving/drafts.py`), read again when a news look names another drafts store or version than the tab holds (`records/drafts.js`, `hearDrafts`); the tab's own copy holds only words the server hasn't taken yet                                                                                                                                            |
 | what the DOM shows                                                                                             | the presentation coordinator's renderer tickets and preparation regions                                                                                                                                                                                                                                                                                                                       |
 | when a document-wide renderer paints                                                                           | the DOM dependencies `PRESENTATION_DOM` in `runtime/state/semantic-state.js` declares                                                                                                                                                                                                                                                                                                         |
 | where each thread's passage is                                                                                 | `annotations/anchor-placement.js`, resolving its anchor in this version                                                                                                                                                                                                                                                                                                                       |
@@ -965,7 +965,7 @@ markup, where the file reads them (`content`).
 
 Run `leaf page check <page> --render`, or the relevant browser test file, after
 changing `leaf.js`, a runtime owner, a widget module, the registry or the theme
-(`../src/leaf/validation.md`, "Browser validation"). Put a check on the side that
+(`../src/leaf/pages/validation.md`, "Browser validation"). Put a check on the side that
 can observe the fact: static validation owns schema, ids, nesting, passages, event
 shapes and file readings, and the browser owns computed layout, composed trees, module
 writes, focus and replay idempotence.

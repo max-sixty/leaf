@@ -18,13 +18,13 @@ from interact_support import (
     state_json,
 )
 
-from leaf import activity as activity_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import standing as standing_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf.served_state.context import read_page
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import standing as standing_model
+from leaf.log import event_log as events_model
+from leaf.records import activity as activity_model
+from leaf.records import transaction as transaction_model
+from leaf.serving.served_state.context import read_page
 
 
 def _owed_answers(page_dir, reading):

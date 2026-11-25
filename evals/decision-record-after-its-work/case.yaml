@@ -201,7 +201,7 @@ vars:
             <p id="scope-finding">
               Widgets import by rooted paths, <code>/runtime/…</code> and
               <code>/vendor/…</code>, which Leaf already redirects with an import map
-              (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/src/leaf/revision_delivery.py#L565"><code>layer_import_map</code></a>).
+              (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/src/leaf/serving/revision_delivery.py#L565"><code>layer_import_map</code></a>).
               A plain page can map the same paths to a copy of Leaf's modules, and a bundled
               app can alias them. So the issue's bare name adds nothing, and no plain copy of
               the API is needed if Leaf's own modules load anywhere.
@@ -815,7 +815,7 @@ variants:
                   resolves. Widgets already import by rooted paths, <code>/runtime/widget-api.js</code>
                   and <code>/vendor/lit.js</code>, and Leaf already serves an import map that
                   sends them to the revision holding them
-                  (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/src/leaf/revision_delivery.py#L565"><code>layer_import_map</code></a>).
+                  (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/src/leaf/serving/revision_delivery.py#L565"><code>layer_import_map</code></a>).
                   A plain page can map the same paths to its own files, and a bundled app can
                   alias them, so the bare name adds nothing. What a plain page lacks is a
                   module exporting the names the widgets import.

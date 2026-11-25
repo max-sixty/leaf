@@ -31,11 +31,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import state as cleanup_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import scroll_settled
 from leaf_dev.example_data import patch_manifest
 

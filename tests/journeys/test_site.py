@@ -60,22 +60,22 @@ from render_harness import (
 
 import leaf_website as website_server
 from journeys import expect_showing
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf.event_log import read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.registry.kernel import kernel_protocol
-from leaf.registry.storage import layer_packages, layer_record, selected
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.structure import SourceDocument
-from leaf.transaction import acknowledged
+from leaf.base import files as files_model
+from leaf.base import schema as schema_model
+from leaf.log.event_log import read_events
+from leaf.log.events import bare_reaction, build_threads
+from leaf.pages import hosting as hosting_model
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.records.transaction import acknowledged
+from leaf.source import data as data_model
+from leaf.source import layer as layer_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.passages import enclosing_ids
+from leaf.source.registry.kernel import kernel_protocol
+from leaf.source.registry.storage import layer_packages, layer_record, selected
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.revision_artifact import read_artifact
+from leaf.source.structure import SourceDocument
 from leaf_dev.browser import (
     PANEL_THREAD,
     choose_threads_in_panel,
@@ -172,7 +172,7 @@ def framed_root_examples():
     """Every example whose `main` is a workspace (`.layout-workspace`).
 
     Derived rather than listed, so a new one is gated without naming it here. The
-    reading is `leaf.structure`'s, the one `page check` admits and the browser
+    reading is `leaf.source.structure`'s, the one `page check` admits and the browser
     takes, so an omitted `</p>` cannot split the two counts.
     """
     framed = []

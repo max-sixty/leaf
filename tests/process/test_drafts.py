@@ -1,4 +1,4 @@
-"""The user's drafts on the page's server (`leaf.drafts`): a write takes only the
+"""The user's drafts on the page's server (`leaf.serving.drafts`): a write takes only the
 generation it names, admitting a send settles the generation it carries, the store
 names itself, and tabs hear drafts through their own news, which moves no reading of
 the page and reaches no part of what the agent reads."""
@@ -8,10 +8,10 @@ import json
 from click.testing import CliRunner
 from interact_support import fetch, publish, server  # noqa: F401 (fixture)
 
-from leaf import cli as cli_model
-from leaf import drafts as drafts_model
-from leaf import page_memory as page_memory_model
-from leaf.event_log import append_event, start_log
+from leaf.base import page_memory as page_memory_model
+from leaf.commands import cli as cli_model
+from leaf.log.event_log import append_event, start_log
+from leaf.serving import drafts as drafts_model
 
 
 def _write(page_dir, expect, attempt, text="Words", **record):

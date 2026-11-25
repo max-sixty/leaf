@@ -35,23 +35,23 @@ from interact_support import (
 )
 from interact_support import declare as declare_status
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import obligations as obligations_model
-from leaf import presence as presence_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import standing as standing_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
-from leaf.served_state import context as read_context
-from leaf.served_state import page as served_page
+from leaf.agents import delivery as delivery_model
+from leaf.agents import presence as presence_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import obligations as obligations_model
+from leaf.records import activity as activity_model
+from leaf.records import transaction as transaction_model
+from leaf.serving.served_state import context as read_context
+from leaf.serving.served_state import page as served_page
 
 
 def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):

@@ -25,19 +25,19 @@ from interact_support import (
 )
 from model.test_interact_layer import PLAIN_PAGE, layer_files, layer_files_of_revision
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as interact_files
-from leaf import layer as layer_model
-from leaf import packages as packages_model
-from leaf.registry.contract import stamp_grammars
-from leaf.registry.storage import (
+from leaf.agents import delivery as delivery_model
+from leaf.base import files as interact_files
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import packages as packages_model
+from leaf.records.revisioning import activate_source
+from leaf.source import layer as layer_model
+from leaf.source.registry.contract import stamp_grammars
+from leaf.source.registry.storage import (
     layer_record,
     load_registry,
     selected,
 )
-from leaf.revisioning import activate_source
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -416,7 +416,8 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
 import contextlib
 import fcntl
 import sys
-from leaf import cli, locations
+from leaf.commands import cli
+from leaf.base import locations
 real_lock = locations.flocked
 @contextlib.contextmanager
 def observed(path):
@@ -476,7 +477,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
 
     for held_package in (
         package,
-        other_state / "leaf" / "packages" / "locks" / package.name,
+        other_state / "leaf" / "pages" / "packages" / "locks" / package.name,
     ):
         with packages_model.package_write_lock(held_package):
             installing = spawn(
@@ -650,11 +651,11 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
 import gc
 import weakref
 
-from leaf import page_memory
-from leaf import schema as schema_model
-from leaf import state as cleanup_model
-from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage
+from leaf.base import page_memory
+from leaf.base import schema as schema_model
+from leaf.base import state as cleanup_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.source.registry import storage as registry_storage
 
 
 @pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
@@ -662,7 +663,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
     claimed, server, unreadable
 ):
     """A read by another session cannot take a held page across a protocol bump."""
-    from leaf.service import claim_path
+    from leaf.base.service import claim_path
 
     publish(claimed)
     vendored_at_another_protocol(claimed)
@@ -807,8 +808,8 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
     from the selection leaves its copy for the revisions that name it, and an edit to
     the package reaches them at a new address, never under one a browser cached, and
     as a new generation, which an open document reloads on."""
-    from leaf.revision_artifact import read_artifact
-    from leaf.runtime_selection import execution_identity
+    from leaf.source.revision_artifact import read_artifact
+    from leaf.source.runtime_selection import execution_identity
 
     monkeypatch.chdir(tmp_path)
     custom = tmp_path / "custom"
@@ -842,8 +843,8 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
 def test_package_instructions_do_not_change_a_revisions_browser_address(
     tmp_path, monkeypatch
 ):
-    from leaf.revision_artifact import read_artifact
-    from leaf.runtime_selection import executing
+    from leaf.source.revision_artifact import read_artifact
+    from leaf.source.runtime_selection import executing
 
     monkeypatch.chdir(tmp_path)
     custom = tmp_path / "custom"

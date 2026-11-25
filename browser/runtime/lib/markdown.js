@@ -1,7 +1,7 @@
 /* Leaf's Markdown dialect: one reading of Markdown to HTML, in a message's reading and
    a file's (`renderMarkdown`), the words a rendering shows (`markdownWords`), and the
    source offset under a caret in a rendering (`markdownSourceOffset`). Python reads the
-   same dialect (`leaf.passages.markdown_dialect`), and the shared case files
+   same dialect (`leaf.source.passages.markdown_dialect`), and the shared case files
    (`tests/*markdown*_cases.json`, `tests/message_html_cases.json`) hold the two to the
    same words.
 
@@ -78,7 +78,7 @@ let ready;
 export const renderMarkdown = (text, links, message = true) =>
   render(text, links, message);
 // An agent's message holding HTML (`html` on its served message) reads as a message
-// that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`),
+// that keeps the raw HTML in it, as Python checked it (`leaf.source.passages.message_markup`),
 // so it is for markup its caller has already checked. Every other reading shows a tag
 // as the words that spell it, since what the user types is no markup Leaf checked. The
 // HTML reads by CommonMark's rules, as GitHub reads a comment's, which agents already
@@ -131,7 +131,7 @@ export function inlineMarkdownFragment(text, links, message = true) {
 // this source already holds its rendering and is left as it is; a paint before the
 // parser loads leaves the element unstamped, so the next paint renders. The body reads
 // as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
-// (`leaf.passages.markdown_markup`) and the field editing it in place reads it
+// (`leaf.source.passages.markdown_markup`) and the field editing it in place reads it
 // (annotations/composing/field-editor.js, `read`).
 /** @param {Element} element @param {string} source @param {MarkdownLinks} links */
 export function paintMarkdown(element, source, links) {

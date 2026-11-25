@@ -22,14 +22,18 @@ from typing import Literal, Protocol
 import click
 from click.testing import CliRunner
 
-from leaf.cli import cli
-from leaf.event_log import read_events
-from leaf.interaction_log import append_interactions
-from leaf.media import media_name
-from leaf.registry.storage import layer_packages
-from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
-from leaf.schema import HTML_NAME, MEDIA_DIR, MEDIA_TYPES
-from leaf.structure import SourceDocument
+from leaf.base.schema import HTML_NAME, MEDIA_DIR, MEDIA_TYPES
+from leaf.commands.cli import cli
+from leaf.log.event_log import read_events
+from leaf.log.interaction_log import append_interactions
+from leaf.serving.media import media_name
+from leaf.source.registry.storage import layer_packages
+from leaf.source.revision_artifact import (
+    Resource,
+    capture_artifact,
+    capture_local_resource,
+)
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
     DEVELOPER_GALLERIES,
@@ -298,7 +302,7 @@ def import_referenced_media(
             run_leaf("page", "media", str(page), str(candidate))
         return capture_local_resource(page, path)
 
-    from leaf.registry.storage import selected_vocabulary
+    from leaf.source.registry.storage import selected_vocabulary
 
     # The arm preparing the page may speak another protocol, which this Leaf would
     # refuse to serve; finding the media its documents name needs only a vocabulary,
@@ -335,9 +339,9 @@ def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> 
     what the page now holds there. Unchanged captures retain their run receipts;
     sources no longer captured remain available to historical revisions.
     """
-    from leaf.data import read_data
-    from leaf.data_contracts import working_data_bindings
-    from leaf.registry.storage import load_registry
+    from leaf.source.data import read_data
+    from leaf.source.data_contracts import working_data_bindings
+    from leaf.source.registry.storage import load_registry
 
     registry = load_registry(page)
     current = read_data(page, registry)["sources"]
@@ -386,11 +390,11 @@ ADMIT = """
 import json
 import sys
 from pathlib import Path
-from leaf.delivery import record_receipt
-from leaf.event_contracts import append_admitted
-from leaf.event_log import EventRefused
-from leaf.files import list_revisions
-from leaf.transaction import PageTransaction
+from leaf.agents.delivery import record_receipt
+from leaf.records.event_contracts import append_admitted
+from leaf.log.event_log import EventRefused
+from leaf.base.files import list_revisions
+from leaf.records.transaction import PageTransaction
 
 page = Path(sys.argv[1])
 stamped, acknowledge = (flag == "1" for flag in sys.argv[2:])

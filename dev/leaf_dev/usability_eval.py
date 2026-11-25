@@ -20,14 +20,14 @@ from pathlib import Path
 
 import yaml
 
-from leaf.anchor_capture import capture_anchor
-from leaf.delivery import opened_input_ids
-from leaf.event_log import read_events
-from leaf.harness import ClaudeCodeHarness
-from leaf.registry.kernel import kinds_declaring
-from leaf.state import turn_open
-from leaf.structure import SourceDocument
-from leaf.transaction import requires_agent_attention
+from leaf.agents.delivery import opened_input_ids
+from leaf.base.harness import ClaudeCodeHarness
+from leaf.base.state import turn_open
+from leaf.log.event_log import read_events
+from leaf.records.transaction import requires_agent_attention
+from leaf.source.anchor_capture import capture_anchor
+from leaf.source.registry.kernel import kinds_declaring
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     TURN_LIMIT,

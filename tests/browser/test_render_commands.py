@@ -33,11 +33,11 @@ from render_harness import (
     select,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import command as render_command_model
-from leaf.render_gate.screens import screens_dir
-from leaf.validation.command import check_page
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.pages.render_gate.screens import screens_dir
+from leaf.pages.validation.command import check_page
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

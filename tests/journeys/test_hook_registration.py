@@ -19,9 +19,9 @@ from interact_support import (
 )
 from model.test_hook_registration import _registered_hook_command
 
-from leaf import files as files_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
+from leaf.base import files as files_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
 
 
 @pytest.mark.parametrize("event", ["PostToolBatch", "UserPromptSubmit"])
@@ -97,9 +97,9 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
-    program = project / "src/leaf/state.py"
+    program = project / "src/leaf/base/state.py"
     program.parent.mkdir(parents=True)
-    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
+    program.write_bytes((PLUGIN_ROOT / "src/leaf/base/state.py").read_bytes())
     tools = tmp_path / "tools"
     tools.mkdir()
     system_python = Path("/usr/bin/python3")

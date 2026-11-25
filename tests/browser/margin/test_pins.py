@@ -26,7 +26,7 @@ from render_harness import (
 from browser.margin import (
     _comment_on,
 )
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import WINDOWS
 from leaf_dev.commands.placement import _pin_cases as pin_cases
 from leaf_dev.example_data import named_source

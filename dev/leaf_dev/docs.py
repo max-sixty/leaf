@@ -33,11 +33,11 @@ import json
 import re
 from pathlib import Path
 
-from leaf.media import media_name
-from leaf.registry.contract import complete_declarations, is_element_name
-from leaf.schema import ASSETS, BUNDLED_PACKAGES, MEDIA_DIR
-from leaf.state import KERNEL_REGISTRY
-from leaf.structure import SourceDocument, splice
+from leaf.base.schema import ASSETS, BUNDLED_PACKAGES, MEDIA_DIR
+from leaf.base.state import KERNEL_REGISTRY
+from leaf.serving.media import media_name
+from leaf.source.registry.contract import complete_declarations, is_element_name
+from leaf.source.structure import SourceDocument, splice
 from leaf_dev import ROOT, declared_records, prompts
 from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
@@ -45,11 +45,11 @@ from leaf_dev.leaf_assets import pinned_assets
 DOCS = ROOT / PRODUCT_DOCS
 EXAMPLES = ROOT / WORKED_EXAMPLES
 SCRIPTS = ROOT / "src" / "leaf"
-SERVED_SCHEMA = SCRIPTS / "served_state" / "state.schema.json"
+SERVED_SCHEMA = SCRIPTS / "serving" / "served_state" / "state.schema.json"
 INTERACTION_SCHEMA = SCRIPTS / "interaction-batch.schema.json"
 # Where each event kind's meaning is written: its row of the kinds table that opens
 # the file, at the anchor `kind-<kind>`.
-EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
+EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/log/events.md"
 
 # The site's route bar, the brand first.
 SITE_NAV = (

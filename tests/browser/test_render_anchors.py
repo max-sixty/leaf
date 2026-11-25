@@ -84,13 +84,13 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread, thread_row
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import evaluate_probe, rendered
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import data as data_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.render_checks import evaluate_probe, rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 

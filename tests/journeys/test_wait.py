@@ -19,9 +19,9 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import files as files_model
-from leaf import leases as leases_model
-from leaf import state as cleanup_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import state as cleanup_model
 
 
 def test_a_user_move_no_watcher_will_pick_up_messages_its_claude_code_session(
@@ -205,13 +205,13 @@ from interact_support import (
     write_record,
 )
 
-from leaf import cli as cli_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import transaction as transaction_model
+from leaf.agents import server as server_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.pages import hosting as hosting_model
+from leaf.records import transaction as transaction_model
 
 
 def test_wait_restarts_a_server_that_died_under_it(
@@ -504,9 +504,9 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
     held_subscription = """
 import sys
 from pathlib import Path
-from leaf import session
+from leaf.commands import session
 from leaf.__main__ import main
-from leaf.transaction import claim_page
+from leaf.records.transaction import claim_page
 
 constructor = session.FileChanges
 marker, page = map(Path, sys.argv[1:])

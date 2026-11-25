@@ -21,8 +21,8 @@ from render_harness import (
     write,
 )
 
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_for_probe
+from leaf.agents import thread as thread_model
+from leaf.source.render_checks import rendered, wait_for_probe
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

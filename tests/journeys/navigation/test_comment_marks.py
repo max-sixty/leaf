@@ -26,7 +26,7 @@ from render_cases_navigation import (
 )
 from render_harness import CHROME_ROOT, RELEASE_FOCUS, open_page, select
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

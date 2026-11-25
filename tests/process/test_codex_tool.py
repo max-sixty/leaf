@@ -13,9 +13,9 @@ import time
 import pytest
 from interact_support import ROOT, STATED_TIMEOUT
 
-from leaf.machine import pid_alive
+from leaf.base.machine import pid_alive
 
-SERVER = ROOT / "src" / "leaf" / "codex_tool.py"
+SERVER = ROOT / "src" / "leaf" / "agents" / "codex_tool.py"
 
 # Stands in for Leaf behind the plugin's launcher, which runs a host's launcher in
 # its place: it says where it ran, for which thread, with which words and stdin.
@@ -130,7 +130,7 @@ def test_a_call_that_hangs_holds_up_no_other_and_ends_with_the_server(server, tm
 def test_a_call_ends_before_codex_gives_up_on_it(tmp_path, monkeypatch):
     """Codex abandons a call at its timeout and cancels nothing, so the server
     ends the command first and says so with whatever it printed."""
-    from leaf import codex_tool
+    from leaf.agents import codex_tool
 
     launcher = tmp_path / "host-leaf"
     launcher.write_text(HOST_LAUNCHER)

@@ -21,9 +21,9 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.findings import Finding
-from leaf.render_checks import rendered
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

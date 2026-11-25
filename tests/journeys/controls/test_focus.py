@@ -7,7 +7,7 @@ from render_cases_layout import WIDE_DIFF_PAGE
 from render_cases_navigation import DIFF_PAGE
 from render_harness import open_page, resized, scroll_settled
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

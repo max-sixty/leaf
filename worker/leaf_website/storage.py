@@ -52,23 +52,30 @@ import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from leaf.drafts import DRAFTS, read_drafts
-from leaf.files import latest_revision, revision_path
-from leaf.http import assets_path
-from leaf.page_inputs import record_reading
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.revision_artifact import read_revision
-from leaf.revisioning import activate_source
-from leaf.runtime_selection import executing, execution_identity
-from leaf.schema import (
+from leaf.base.files import latest_revision, revision_path
+from leaf.base.schema import (
     DRAFTS_FILE,
     MEDIA_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
 )
-from leaf.state import STRING, Record, described, object_schema, page_key, state_home
-from leaf.transaction import PageTransaction
+from leaf.base.state import (
+    STRING,
+    Record,
+    described,
+    object_schema,
+    page_key,
+    state_home,
+)
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.records.revisioning import activate_source
+from leaf.records.transaction import PageTransaction
+from leaf.serving.drafts import DRAFTS, read_drafts
+from leaf.serving.http import assets_path
+from leaf.source.page_inputs import record_reading
+from leaf.source.revision_artifact import read_revision
+from leaf.source.runtime_selection import executing, execution_identity
 
 CHUNK_BYTES = 1024 * 1024
 # Chunk uploads in flight at once.

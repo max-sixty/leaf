@@ -20,19 +20,19 @@ from interact_support import (
     write_record,
 )
 
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 @pytest.fixture
 def native(monkeypatch):
     """Observers of this test's own, so what it counts, inspects or breaks meets no
     subscription an earlier test left open in the process."""
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     owned = file_changes._Native()
     monkeypatch.setattr(file_changes, "_native", owned)
@@ -151,10 +151,10 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     Where the volume ignores letter case, the page and the file are named in a
     spelling other than the one on disk, which notifications report: both must
     still wake the watchers."""
-    from leaf.cli import resolve_dir
-    from leaf.file_bindings import bind_file
-    from leaf.file_changes import FileChanges, page_changes
-    from leaf.page_inputs import page_reading
+    from leaf.commands.cli import resolve_dir
+    from leaf.log.file_changes import FileChanges, page_changes
+    from leaf.source.file_bindings import bind_file
+    from leaf.source.page_inputs import page_reading
 
     def respelled(path):
         alias = path.with_name(path.name.swapcase())
@@ -210,7 +210,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
 def _subscriber(kind, page_dir):
     """How each owner of a page's subscription takes it and a generation to wait
     from: the shared page subscription, or a session's watch between passes."""
-    from leaf.file_changes import page_changes
+    from leaf.log.file_changes import page_changes
 
     if kind == "page":
         yield lambda: page_changes(page_dir)
@@ -265,7 +265,7 @@ def test_a_directory_arriving_deep_in_a_page_tree_joins_its_subscription(
     moved there from outside the page, move the page's reading, which is what sends
     its owner to subscribe again, and that subscription hears a file written in the
     innermost one."""
-    from leaf.page_inputs import page_reading
+    from leaf.source.page_inputs import page_reading
 
     shallow = page_dir / "page" / "modules"
     shallow.mkdir(parents=True, exist_ok=True)
@@ -293,7 +293,7 @@ def test_a_process_follows_every_page_through_one_observer(tmp_path, native):
     is one inotify instance, and schedules each directory they want once.
     Subscribing to another page wakes no subscription already open, and each
     subscription hears only its own page's writes."""
-    from leaf.file_changes import page_changes
+    from leaf.log.file_changes import page_changes
 
     pages = [tmp_path / name for name in ("first", "second", "third")]
     for page in pages:
@@ -535,7 +535,7 @@ def test_native_watch_rearms_a_session_partition_created_after_startup(
 def test_a_directory_watched_with_and_without_its_tree_serves_each(tmp_path, native):
     """A directory one subscription watches with its tree and another without is
     scheduled in each mode, so closing one leaves the other hearing its writes."""
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     tree = tmp_path / "tree"
     (tree / "nested").mkdir(parents=True)
@@ -556,7 +556,7 @@ def test_a_directory_watched_with_and_without_its_tree_serves_each(tmp_path, nat
 def test_shared_page_native_owner_rearms_created_and_replaced_directories(
     tmp_path, monkeypatch, native
 ):
-    from leaf.file_changes import _PageChanges
+    from leaf.log.file_changes import _PageChanges
 
     page = tmp_path / "later-page"
     owner = _PageChanges()
@@ -617,7 +617,7 @@ def test_shared_page_watch_replans_a_root_removed_during_subscription(
     tmp_path, monkeypatch, native, phase
 ):
     """A page removed during subscription stays observable through its parent."""
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     page = tmp_path / "retiring-page"
     page.mkdir()
@@ -685,7 +685,7 @@ def test_session_native_watch_pins_roots_until_replacement(page_dir, native):
 def test_native_subscription_releases_partial_startup_resources(
     tmp_path, monkeypatch, native, failure
 ):
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     first, second = tmp_path / "first", tmp_path / "second"
     first.mkdir()
@@ -723,7 +723,7 @@ def test_native_subscription_rearms_a_root_replaced_during_installation(
     tmp_path, monkeypatch, native
 ):
     """A replacement between pinning and scheduling invalidates the plan."""
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     page = tmp_path / "installing"
     page.mkdir()
@@ -768,8 +768,8 @@ def test_shared_native_page_owner_survives_held_memory_and_closes_on_eviction(
 ):
     import gc
 
-    from leaf import page_memory
-    from leaf.file_changes import page_changes
+    from leaf.base import page_memory
+    from leaf.log.file_changes import page_changes
 
     monkeypatch.setattr(page_memory, "_memories", page_memory.PageMemories())
     retained = page_memory.memory_of(page_dir)
@@ -802,7 +802,7 @@ def test_an_exhausted_native_watcher_polls_instead(
     directory it refuses a watch for want of one is polled instead, and a note names
     the limit, rather than ending the process that asked. watchdog raises the
     kernel's errno, which only a Linux host with a spent limit gives."""
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     schedule = native._schedule
 
@@ -827,7 +827,7 @@ def test_an_exhausted_native_watcher_polls_instead(
 def test_any_other_native_watcher_failure_reaches_its_owner(
     tmp_path, monkeypatch, native
 ):
-    from leaf import file_changes
+    from leaf.log import file_changes
 
     def broken(*_args, **_kwargs):
         raise RuntimeError("the observer is broken")

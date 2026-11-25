@@ -18,14 +18,14 @@ from interact_support import (
 from interact_support import append_carried_log_record as append_event
 
 import leaf_website as website_server
-from leaf import codex as leaf_codex
-from leaf.codex import AppServerRequestRejected
-from leaf.delivery import response_addresses
-from leaf.event_log import read_events
-from leaf.interaction_log import read_interactions
-from leaf.session import set_status
-from leaf.state import session_record
-from leaf.thread import post_reply
+from leaf.agents import codex as leaf_codex
+from leaf.agents.codex import AppServerRequestRejected
+from leaf.agents.delivery import response_addresses
+from leaf.agents.thread import post_reply
+from leaf.base.state import session_record
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.log.interaction_log import read_interactions
 from process.website_server import (
     accept_in_turn,
     hosted_follower,
@@ -734,7 +734,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     def unopenable(*_args):
         raise OSError("the page could not be opened")
 
-    monkeypatch.setattr("leaf.codex.AppServerReplyStream._set_state", unopenable)
+    monkeypatch.setattr("leaf.agents.codex.AppServerReplyStream._set_state", unopenable)
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 
@@ -820,7 +820,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
 
 
 def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
-    from leaf.state import end_session, prompt_turn
+    from leaf.base.state import end_session, prompt_turn
 
     append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "An old request"}

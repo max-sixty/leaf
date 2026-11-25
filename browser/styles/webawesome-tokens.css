@@ -3,7 +3,7 @@
    inheritance, including declared shadow stages. Map Leaf tokens at that same root so
    upstream's derived tokens resolve against them, and on controls so local Leaf
    palettes still apply. A page without Leaf takes both at its root
-   (`leaf.layer.portable_sheet`), as it takes tokens.css, so the faces Leaf takes from
+   (`leaf.source.layer.portable_sheet`), as it takes tokens.css, so the faces Leaf takes from
    the library (controls.css) look the same in its widgets. Public parts carry Leaf's
    logical focus, rather than a second native focus ring (components/webawesome.css). */
 :where(:root),

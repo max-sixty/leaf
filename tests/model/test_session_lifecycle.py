@@ -18,18 +18,18 @@ from interact_support import (
     serving,
 )
 
-from leaf import codex as codex_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
+from leaf.agents import codex as codex_model
+from leaf.agents import server as server_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
 
 
 def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
@@ -216,7 +216,7 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
             [
                 sys.executable,
                 "-S",
-                str(PLUGIN_ROOT / "src/leaf/state.py"),
+                str(PLUGIN_ROOT / "src/leaf/base/state.py"),
             ],
             input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "s1"}),
             text=True,

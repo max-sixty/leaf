@@ -32,19 +32,19 @@ from render_harness import (
     sending,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
-from leaf.findings import Finding
-from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
-from leaf.structure import SourceDocument
+from leaf.agents import server as server_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT, arms
 from leaf_dev.commands import preview as preview_model
 from leaf_dev.example_data import named_source
@@ -984,7 +984,7 @@ def test_preview_resumes_loaded_code_changes_without_losing_feedback(
     assert status == 200, body
     old_grace = json.loads(body)["working_grace_ms"]
 
-    edited = runtime / "src/leaf/served_state/page.py"
+    edited = runtime / "src/leaf/serving/served_state/page.py"
     original = edited.read_text()
     updated = original.replace("WORKING_GRACE // timedelta(milliseconds=1)", "12345")
     assert updated != original

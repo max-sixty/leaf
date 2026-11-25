@@ -84,7 +84,6 @@ import {
   motion,
   draft,
   focusDestination,
-  retainUserIntent,
   scrollIntoView,
   onCurrentLocation,
   onPressAway,
@@ -96,6 +95,7 @@ import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import { restArming } from "/runtime/lib/rest-arming.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
 import {
   paintMarkdown,
   markdownSourceOffset,
@@ -529,7 +529,7 @@ customElements.define(
       // another tab's settlement brings takes focus from wherever they actually are.
       const left = document.activeElement;
       const stood = this.contains(left);
-      const mayReturn = retainUserIntent({ source: left });
+      const mayReturn = noInputSince();
       this.#editor.remove();
       this.#editor = null;
       this.#keepTools();

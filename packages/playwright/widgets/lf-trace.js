@@ -88,7 +88,6 @@ import {
   move,
   onUserInput,
   scopedMediaUrl,
-  retainUserIntent,
   scrollIntoView,
   setChildren,
 } from "/runtime/widget-api.js";
@@ -101,6 +100,7 @@ import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { actionTemplate, iconTemplate } from "/runtime/lib/icons.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { seconds } from "/runtime/lib/time-axis.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";
@@ -1437,7 +1437,7 @@ export class Trace extends LeafElement {
   // from the timeline, which stands beside the evidence, it moves nothing.
   /** @param {string} id @param {number} bookmark @param {boolean} [travel] */
   async #visitMoment(id, bookmark, travel = true) {
-    const mayArrive = retainUserIntent();
+    const mayArrive = noInputSince();
     this.#reveal(id, bookmark);
     const key = this.#bookmarks[bookmark]?.key;
     if (key)

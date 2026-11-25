@@ -413,7 +413,7 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
         page.evaluate(
             """async () => {
               const {reveal} = await window.__lfCheckApi();
-              const {retainUserIntent} = await window.__lfWidgetApi();
+              const {retainUserIntent} = await window.__lfCheckApi();
               reveal(document.querySelector('#tab-bath'), retainUserIntent());
             }"""
         )

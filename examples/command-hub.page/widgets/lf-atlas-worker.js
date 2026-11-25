@@ -1,13 +1,12 @@
-/* Atlas owns roster composition. A visible report keeps its reading until the
- * user asks for the latest, while identity and state come from the public projection. */
+/* Atlas owns roster composition. A worker's latest report draws as it arrives, while
+ * identity and state come from the public projection. */
 import { html, noChange } from "/vendor/lit.js";
-import { HeldReading, readReports, readWork } from "/runtime/widget-api.js";
+import { readReports, readWork } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-worker",
   class extends LeafElement {
-    pending = false;
     setup() {
       if (!this.querySelector("details")) {
         const details = document.createElement("details");
@@ -38,11 +37,6 @@ customElements.define(
         keeps(words, "data-lf-gen", "1");
         words.toggleAttribute("data-lf-said", true);
       }
-      this.held = new HeldReading(
-        this,
-        () => [this.querySelector(".atlas-worker-body")],
-        () => this.requestUpdate(),
-      );
     }
     createRenderRoot() {
       return this.querySelector(".atlas-worker-report");
@@ -59,24 +53,11 @@ customElements.define(
       const report = reports.findLast(
         (row) => row.source === "report" && row.disposition === "effective",
       );
-      const next = JSON.stringify({
-        heard: worker.heard,
-        text: report?.text ?? "No report yet.",
-      });
-      const shown = this.held.hold(next);
-      const reading = JSON.parse(shown);
-      if (this.pending !== (next !== shown)) {
-        this.pending = next !== shown;
-        this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
-      }
-      return html`${reading.text}${
-        reading.heard
-          ? html` Last heard <lf-age datetime=${reading.heard}></lf-age>`
+      return html`${report?.text ?? "No report yet."}${
+        worker.heard
+          ? html` Last heard <lf-age datetime=${worker.heard}></lf-age>`
           : ""
       }`;
-    }
-    showLatest() {
-      this.held.show();
     }
   },
 );

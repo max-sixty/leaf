@@ -4,8 +4,8 @@ import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
- * behavior module holds/reveals authoritative history through HeldReading and supplies
- * the thread action and current-document target reading. */
+ * behavior module supplies the reading to draw, the thread action and the
+ * current-document target reading. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";

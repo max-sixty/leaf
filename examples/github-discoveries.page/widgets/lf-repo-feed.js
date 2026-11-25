@@ -1,11 +1,11 @@
 /** A reading stream over one Leaf data source. Browsing stays in the tab and
  * creates no obligation. An explicit question starts agent work. GitHub ids
- * keep comments attached across refreshes; HeldReading protects reading place.
+ * keep comments attached across refreshes. A refresh that would reorder the stories
+ * shown waits behind its "new stories" button, so the reader's place stays put.
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   tabStore,
-  HeldReading,
   threadActions,
   readThreads,
   pageLinks,
@@ -95,11 +95,6 @@ class RepoFeed extends LeafElement {
     this.#loadMarkdown();
     this.filtered = [];
     this.openedSources = new Set();
-    this.news = new HeldReading(
-      this,
-      () => [...this.querySelectorAll(".feed-list")],
-      () => this.requestUpdate(),
-    );
     this.observer = new IntersectionObserver(
       (entries) => {
         if (
@@ -249,13 +244,12 @@ class RepoFeed extends LeafElement {
     );
     if (
       !incoming ||
-      (this.shown &&
-        this.filtered
-          .slice(0, this.limit)
-          .every((item, index) => ordered[index]?.id === item.id))
+      !this.shown ||
+      this.filtered
+        .slice(0, this.limit)
+        .every((item, index) => ordered[index]?.id === item.id)
     )
-      this.news.release();
-    this.shown = this.news.hold(incoming);
+      this.shown = incoming;
     if (!this.shown)
       return html`<p class="feed-empty">
         The stream is waiting for its first collection of repository changes.
@@ -418,7 +412,8 @@ class RepoFeed extends LeafElement {
 
   admit(count) {
     this.limit += count;
-    this.news.show();
+    this.shown = this.liveFeed || this.value;
+    this.requestUpdate();
   }
 
   sourceOpened(event, id) {

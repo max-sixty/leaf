@@ -101,7 +101,6 @@ In [module-input.md](module-input.md):
 - "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
   redraw, `onCurrentLocation` reads where the user is, and `onPress` and
   `onPressAway` follow a pointer's press.
-- "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
 - "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
@@ -109,7 +108,6 @@ In [module-input.md](module-input.md):
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Holding the reader's place": `HeldReading`.
 - "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 

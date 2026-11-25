@@ -732,9 +732,9 @@ export function createThreadPreview({
     if (!side) return false;
     const { line, at } = keptLine(side);
     const inReply = Boolean(at && closestAcross(standingAt(at), ".lf-thread-reply"));
-    return line === "top"
-      ? inReply && replyIsEditing(threadKey(session.item.thread))
-      : !inReply;
+    return line !== "top"
+      ? !inReply
+      : inReply && replyIsEditing(threadKey(session.item.thread));
   }
 
   // Placement supplies the outer bounds; the native tracks share them between
@@ -744,8 +744,17 @@ export function createThreadPreview({
   // delivery, where resizing the card would be a loop for the card's other observers
   // (box-motion.js, `placedParts`): it keeps the card's width and cap, and the next
   // frame fits the card again.
-  /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session @param {boolean} delivered */
-  function measureThreadCard(room, cap, reading, session, delivered) {
+  // A card keeping its reply box's top (`ownLine`) also caps a transcript that scrolls
+  // at its share of the cap: the cap less everything else the card holds. A line the
+  // draft loses then shortens the card in the layout that takes it, and the placement
+  // that follows only moves the card. Under the card's cap alone, that layout gave the
+  // line to the transcript, the browser clamped its scroll, and the placement's cap
+  // took the line back within the frame: no size reading saw the transcript change, so
+  // its reader was left a line short of its end (scrolling.js, `followEnd`) wherever
+  // scroll anchoring did not put them back. The card keeps its own cap, which its
+  // other tracks share once the transcript has none left to give.
+  /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session @param {boolean} delivered @param {boolean} ownLine */
+  function measureThreadCard(room, cap, reading, session, delivered, ownLine) {
     if (delivered && preview.style.getPropertyValue("width") !== layoutPx(room)) {
       scheduleThreadPreviewPosition();
       return preview.getBoundingClientRect().height;
@@ -762,13 +771,30 @@ export function createThreadPreview({
       );
     const worn = parseFloat(preview.style.getPropertyValue("max-height"));
     const height = preview.offsetHeight;
-    const overflow = [
-      session.transcript,
-      ...previewList.querySelectorAll(REPLY_BOX),
-    ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
-    if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5)) {
-      if (delivered) scheduleThreadPreviewPosition();
-      else preview.style.setProperty("max-height", layoutPx(cap));
+    /** @param {Element | null} box */
+    const scrolls = (box) => Boolean(box && box.scrollHeight > box.clientHeight + 0.5);
+    const overflow = [transcript, ...previewList.querySelectorAll(REPLY_BOX)].some(
+      scrolls,
+    );
+    const fits = !(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5);
+    const wornShare = parseFloat(
+      transcript?.style.getPropertyValue("max-height") ?? "",
+    );
+    const share =
+      ownLine && transcript && scrolls(transcript)
+        ? Math.max(0, cap - (height - transcript.offsetHeight))
+        : null;
+    const shares =
+      share === null ? wornShare >= 0 : !(Math.abs(wornShare - share) < 0.5);
+    if (delivered) {
+      if (fits || shares) scheduleThreadPreviewPosition();
+    } else {
+      if (fits) preview.style.setProperty("max-height", layoutPx(cap));
+      if (shares)
+        transcript?.style.setProperty(
+          "max-height",
+          share === null ? "" : layoutPx(share),
+        );
     }
     session.gutter?.();
     // A reader at the end stays there through this fit by the transcript's own keeper
@@ -990,27 +1016,24 @@ export function createThreadPreview({
             const stoodNarrow = Math.abs(preview.offsetWidth - narrow) < 0.5;
             if (!session.wide && stoodNarrow && outgrown()) session.wide = true;
             // Choosing its spot, the card is capped by the boundary alone, and slides
-            // inside it rather than shrinking. Held, it has the room from its held edge
-            // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. Beside its subject, it has the
+            // inside it rather than shrinking. Held, it has the room from the line it
+            // keeps to the boundary's far edge, or the tallest it has stood since its
+            // line last moved where that is more. Beside its subject, it has the
             // boundary's whole height (`rises`): a growing editor or an arriving
             // answer lifts it from the window's foot, then it scrolls internally.
-            let fitted = measureThreadCard(
-              room(),
-              Math.max(stood, height),
-              reading,
-              session,
-              delivered,
-            );
-            if (!session.wide && !stoodNarrow && outgrown()) {
-              session.wide = true;
-              fitted = measureThreadCard(
+            const measure = () =>
+              measureThreadCard(
                 room(),
                 Math.max(stood, height),
                 reading,
                 session,
                 delivered,
+                line === "line",
               );
+            let fitted = measure();
+            if (!session.wide && !stoodNarrow && outgrown()) {
+              session.wide = true;
+              fitted = measure();
             }
             // A card at the width it starts at declares that it may yet widen,
             // carrying its controls (tests/shift_watch.js, `permittedWidening`).

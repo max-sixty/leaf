@@ -595,7 +595,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     else:
         # A card gives the refused turn's room back too, and its field grows to show
         # the words whole: the reply box, and the page after it, move. A margin card
-        # holds its top through a send (`heldEdge`, thread-preview.js), so its reply
+        # holds its top through a send (`keptLine`, thread-preview.js), so its reply
         # box rises into that room while its head row stands still.
         def carried_by_card(problem):
             return problem.code == "moved-without-input" and any(

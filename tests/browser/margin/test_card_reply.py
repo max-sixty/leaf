@@ -514,10 +514,10 @@ def test_news_at_a_card_s_end_shows_where_its_held_edge_keeps_the_reply_still(
 ):
     """The caret a click's opening leaves in the empty box holds no line, so the card
     keeps its top and the answer the user waits for shows at once, growing the card
-    down past the box. Once the user types there, a card beside its words holds its
-    foot, so an answer shows at once and grows it up, the box staying where it stood; a
-    card under its words keeps its top, so an answer waits behind the card's notice
-    (thread-preview.js, `heldEdge`, `endNewsMoves`)."""
+    down past the box. Once the user types there, a card beside its words keeps the
+    box's top, so an answer shows at once and grows it up, the box staying where it
+    stood; a card under its words keeps its top, so an answer waits behind the card's
+    notice (thread-preview.js, `keptLine`, `endNewsMoves`)."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     resized(page, *size)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
@@ -995,7 +995,7 @@ def test_a_card_a_scroll_moves_onto_or_off_the_windows_foot_as_it_resizes_only_r
     would be drawn below the window's foot for a frame and rise back to it, whether or
     not the foot held it before or after. The
     user reads on the thread, where the card holds its top (thread-preview.js,
-    `heldEdge`)."""
+    `keptLine`)."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
@@ -1963,16 +1963,22 @@ def test_a_growing_draft_in_a_card_the_window_s_head_holds_grows_it_down(
             assert now[edge] > earlier[edge] + 10, (edge, earlier, now)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_full_card_s_draft_keeps_its_first_line_as_lines_and_a_picture_come_and_go(
-    browser, serve
+    engine, request, serve
 ):
     """A card beside its words that an answer has grown to the window's head, its
     transcript scrolling, still keeps the reply's first line where it stands: a line
     added grows the card down, the line taken away again shortens it from its foot,
     where a card allowed the height it stood at with the longer draft would give that
     line to its transcript and move down by it, and a picture pasted into the draft
-    stands over the line."""
+    stands over the line. The transcript keeps its size and its reader their place at
+    its end through both: one cap on the whole card passed the line taken away through
+    the transcript's layout, which left the reader a line short of the end in Firefox,
+    where no scroll anchoring put them back, and the next answer under the reply box."""
     from browser.threads import paste_image
+
+    browser = request.getfixturevalue(engine)
 
     source = leaf_page(
         "Room for a conversation",
@@ -2009,31 +2015,52 @@ def test_a_full_card_s_draft_keeps_its_first_line_as_lines_and_a_picture_come_an
     told(page)
     expect(preview.locator(f'[data-lf-event="{answer["id"]}"]')).to_be_attached()
     rendered(page)
-    full = page.evaluate(CARD_AND_REPLY)
+    transcript = preview.locator(".lf-thread-transcript")
+
+    def read():
+        return {
+            **page.evaluate(CARD_AND_REPLY),
+            "fromEnd": transcript.evaluate(
+                "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+            ),
+        }
+
+    assert read()["fromEnd"] > 100
+    # The reader wheels to the transcript's end, where the answer's last line stands
+    # over the reply box.
+    transcript.hover()
+    page.mouse.wheel(0, 2000)
+    scroll_settled(page)
+    rendered(page)
+    full = read()
     assert full["cardTop"] == pytest.approx(full["head"], abs=0.5), full
-    assert preview.locator(".lf-thread-transcript").evaluate(
-        "list => list.scrollHeight > list.clientHeight"
-    )
+    assert full["fromEnd"] == pytest.approx(0, abs=0.5), full
 
     editor.press("Shift+Enter")
     rendered(page)
-    longer = page.evaluate(CARD_AND_REPLY)
+    longer = read()
     assert longer["cardBottom"] > full["cardBottom"] + 10, (full, longer)
     editor.press("Backspace")
     rendered(page)
     # The placement that follows the edit's own lands a frame later.
     page.evaluate("() => new Promise(done => requestAnimationFrame(() => done()))")
     rendered(page)
-    shorter = page.evaluate(CARD_AND_REPLY)
+    shorter = read()
     assert shorter["cardBottom"] == pytest.approx(full["cardBottom"], abs=0.5), (
         full,
         shorter,
     )
-    paste_image(editor, (example_media() / "051bee487bfb5d13.png").read_bytes())
-    expect(preview.locator(".lf-composer-media img")).to_have_count(1)
-    rendered(page)
-    pictured = page.evaluate(CARD_AND_REPLY)
-    for now in (longer, shorter, pictured):
+    readings = [longer, shorter]
+    for now in readings:
+        for edge in ("turn", "fromEnd"):
+            assert now[edge] == pytest.approx(full[edge], abs=0.5), (edge, full, now)
+    # The suite's paste reaches Chromium's editor alone.
+    if engine == "browser":
+        paste_image(editor, (example_media() / "051bee487bfb5d13.png").read_bytes())
+        expect(preview.locator(".lf-composer-media img")).to_have_count(1)
+        rendered(page)
+        readings.append(read())
+    for now in readings:
         for edge in ("cardTop", "editorTop"):
             assert now[edge] == pytest.approx(full[edge], abs=0.5), (edge, full, now)
 

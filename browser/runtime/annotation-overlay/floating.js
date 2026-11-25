@@ -51,7 +51,8 @@
    In either plane the box stands by the edges that hold it, one per axis (`held`). On
    the axis its placement stands it beside something, that is the edge facing it; on the
    other, the edge its alignment names, the start for a centred box, or the edge the
-   surface keeps still of its own accord (a `hold` middleware's `edge`); and on an axis
+   surface names (a `hold` middleware's `edge`): the one it keeps still, or its foot
+   where it keeps a line between its edges (comment-placement.js); and on an axis
    where the boundary shifted the box in, the edge against that boundary. Content that
    grows the box then moves only its free edges, in the layout that grows it. Stood by
    its top-left corner, a box that grows at its left or top would paint grown the wrong
@@ -145,7 +146,7 @@ const anchorAt = (reference) => ({
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
 // from. It runs after the surface's middleware, so it reads the box as sized and shifted.
-// A surface middleware named `hold` that keeps a block edge still reports it as `edge`,
+// A surface middleware named `hold` names the block edge to stand the box by as `edge`,
 // and one that carries an inline offset its inline edge as `inline`; an edge the
 // boundary shifted the box against outranks either.
 /** @type {import("@floating-ui/dom").Middleware} */

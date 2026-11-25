@@ -2038,7 +2038,11 @@ export default [
     // `focus()` and reveals one with its own `scrollIntoView`, and hears where focus
     // goes with `focusin`, `focusout` and `focus` on its own tree: Leaf reads why focus
     // moved for itself (runtime/focus.js), so the placements and
-    // current-location-listeners rules hold the runtime alone. Each other rule repeats
+    // current-location-listeners rules hold the runtime alone. A package adds a history
+    // entry with the browser's own `pushState`, whose `navigate` event has Leaf keep
+    // the place the user leaves and return to it on Back (runtime/history.js), so the
+    // history writes the runtime makes through that owner are open here. Each other
+    // rule repeats
     // what it keeps of the layer's, since a file takes a rule's options from the last
     // block matching it.
     files: ["packages/*/**/*.js"],
@@ -2053,7 +2057,6 @@ export default [
       "no-restricted-properties": [
         "error",
         ...renderingProperties(PACKAGE_RENDERING_NAMES),
-        ...HISTORY_PROPERTIES,
         ...ID_PROPERTIES,
       ],
       "architecture/open-layers": "off",

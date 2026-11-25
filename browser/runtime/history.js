@@ -166,6 +166,7 @@ import { readingIn, showReading } from "./thread/reply-landing.js";
 import {
   anchorForRange,
   anchoringIsReady,
+  elementNamed,
   resolveAnchor,
 } from "./anchor-resolution.js";
 import { targetSegments } from "./resolved-target.js";
@@ -558,9 +559,10 @@ const placesPage = (page) =>
   Boolean(page.start) || hasLandmark(page) || rawOffsetFits(page, pageScroller);
 
 // Whether this document is writing an entry itself. The Navigation API fires `navigate`
-// synchronously inside `pushState` and `replaceState`, and those events look like a
-// press on a link to the fragment the page already shows: both are a same-document
-// `replace` or `push` with no hash change. Only the writer can tell them apart.
+// synchronously inside `pushState` and `replaceState`, and one that keeps the address
+// looks like a press on a link to the fragment the page already shows: both are a
+// same-document `replace` or `push` with no hash change. Only the writer can tell them
+// apart.
 let writing = false;
 /** @param {"pushState" | "replaceState"} method @param {unknown} state
  * @param {string | URL | null | undefined} url */
@@ -575,11 +577,25 @@ function write(method, state, url) {
 
 // Each entry this document writes names the thread view standing open as it is
 // written (thread/address.js, `name`), so no URL a route, a widget or a waiting rename
-// captured earlier carries a thread name the page no longer shows.
+// captured earlier carries a thread name the page no longer shows. Nor does it name a
+// view the page now hides behind another (`hidden="until-found"`), as a tab's panel
+// after travel opened another tab: it names the view shown in its place, where that
+// has an id, or none, so Back and Forward to the entry open the view it showed.
 /** @type {(url: URL) => URL} */
 let nameThread = (url) => url;
 /** @param {string | URL | null | undefined} url */
-const named = (url) => nameThread(new URL(url ?? location.href, location.href));
+const named = (url) => {
+  const address = nameThread(new URL(url ?? location.href, location.href));
+  const target = address.hash ? elementNamed(address.hash) : null;
+  const hidden = target && closestAcross(target, '[hidden="until-found"]');
+  if (hidden) {
+    const shown = [...(hidden.parentElement?.children ?? [])].find(
+      (view) => view !== hidden && view.id && !view.hasAttribute("hidden"),
+    );
+    address.hash = shown ? shown.id : "";
+  }
+  return address;
+};
 
 /** @param {string | URL | null | undefined} url @param {unknown} state */
 function pushEntry(url, state = null) {
@@ -826,10 +842,26 @@ export function mountHistory({
   window.navigation.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
+    // A history write a script makes with `pushState` or `replaceState`, as this
+    // document does (`write`) and a tab set does as it names the page's view it shows:
+    // one that changes the address with no fragment navigation. A followed link to the
+    // fragment already shown is a `replace` that changes nothing, and still a
+    // navigation step.
+    const written = writing || (!event.hashChange && url.href !== location.href);
     if (event.navigationType !== "replace")
       window.navigation.updateCurrentEntry({ state: leaving ?? readRecord() });
-    // Any navigation but this document's own rename ends the restoration under way.
-    if (!writing || event.navigationType !== "replace") restoring?.abort();
+    // Any navigation but a rename ends the restoration under way: this document's own,
+    // or a script's that changes only the fragment, to one naming an element of the
+    // page, as a tab set's naming the view it opened does. One that drops the fragment
+    // takes the address off the place the arrival aims at.
+    const renamed =
+      event.navigationType === "replace" &&
+      (writing ||
+        (written &&
+          url.pathname === location.pathname &&
+          url.search === location.search &&
+          elementNamed(url.hash) !== null));
+    if (!renamed) restoring?.abort();
     if (event.navigationType === "traverse") {
       const record = /** @type {EntryRecord | undefined} */ (
         event.destination.getState()
@@ -856,7 +888,8 @@ export function mountHistory({
         for (const box of scrollers) stopGlide(box);
         await stopBrowserScroll(scrollers);
         if (!mayReturn()) return;
-        // Travel places the viewport unless it resolves to false.
+        // Travel places the viewport, unless it resolves to false, where the entry's
+        // fragment names a place the page doesn't show.
         /** @type {unknown} */
         let work;
         mayReturn.handoff(() => {
@@ -910,9 +943,9 @@ export function mountHistory({
       });
       return;
     }
-    // A followed link again to the fragment already shown is a `replace` with no hash
-    // change, and still a navigation step: its target may have been shut since.
-    if (writing || event.formData || !url.hash) return;
+    // A followed link again to the fragment already shown is a navigation step: its
+    // target may have been shut since. A script's own entry is placed by the script.
+    if (written || event.formData || !url.hash) return;
     const handler = followFragment(url);
     if (handler)
       event.intercept({

@@ -2549,8 +2549,7 @@ def test_restore_selection_back_keeps_the_place_read_before_reveal(browser, serv
 
 
 def test_restore_selection_across_views_keeps_the_source_history_entry(browser, serve):
-    """Restoring a selection in another view opens that view and adds one entry, and
-    Back and Forward move between the entry the user left and the selection's."""
+    """Exposure may rename the current URL, but Back still belongs to the source view."""
     page = open_page(
         browser,
         serve(
@@ -2573,16 +2572,21 @@ def test_restore_selection_across_views_keeps_the_source_history_entry(browser, 
     before = page.evaluate(
         "({url:location.href,offset:scrollY,length:history.length,key:navigation.currentEntry.key})"
     )
+    assert before["url"].endswith("#second")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function("() => getSelection().toString().includes('amber passage')")
     expect(page.get_by_role("tab", name="First", exact=True)).to_have_attribute(
         "aria-selected", "true"
     )
+    assert page.evaluate("location.hash") == "#first"
     assert page.evaluate("history.length") == before["length"] + 1
     page.go_back()
-    page.wait_for_function("navigation.transition === null")
+    expect(page.get_by_role("tab", name="Second", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
     assert page.url == before["url"]
+    page.wait_for_function("offset => Math.abs(scrollY-offset)<2", arg=before["offset"])
     assert page.evaluate("navigation.currentEntry.key") == before["key"]
     page.go_forward()
     expect(page.get_by_role("tab", name="First", exact=True)).to_have_attribute(

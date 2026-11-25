@@ -8,13 +8,16 @@
  * surface; its CSS still decides
  * whether that panel scrolls. The open tab is view state for this user,
  * remembered per browser tab (lib/one-shown.js): switching is reading, not editing, so
- * it never sends an action, adds no history entry and no version carries it — this
- * widget doesn't ride the action channel at all. A set opens on the tab holding the
- * place the address names, else the one this tab showed last, else its first; until
- * the module runs, the package theme shows only the first. A link inside a panel is
- * fragment travel (history.js).
+ * it never sends an action and no version carries it — this widget doesn't ride the
+ * action channel at all. A set opens on the tab holding the place the address names,
+ * else the one this tab showed last, else its first; until the module runs, the
+ * package theme shows only the first. A link inside a panel is fragment travel
+ * (history.js).
  * The first tab set placed directly in main is the page's navigation over sections of
- * that page, whatever else main holds.
+ * that page, whatever else main holds, and so is a page's parts. Their address names
+ * the panel open, so a copy of it links to the panel, and each switch the user makes
+ * there is a history entry, so Back and Forward return to the panel and the place
+ * they left (`#address`, `#traversal`). A switch in any other set adds no entry.
  *
  * The authored `flow="page"` puts the set in the document's flow (`flow`), and
  * the package styles its unframed face. In
@@ -25,7 +28,9 @@
  * box that what it holds measures itself against. A switch leaves the page where it
  * stands until the strip is pinned; then it opens the new panel at its start, under
  * the strip, which a set in the page's flow and a box alike keep where it is on
- * screen. A page's part always opens at its start. `list="side"`
+ * screen. A page's part opens at its start. In the page's flow, a panel the user read
+ * past its start and left opens again where they left it, by how far past its start
+ * they had read (`#places`, for this page's life). `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (base.css says where it stacks); a side list is a box even as
  * the root set. Its column sticks in the window beside the
@@ -93,7 +98,7 @@ import { motionTime } from "/runtime/lib/motion-timing.js";
 import { openingMember, showMember } from "/runtime/lib/one-shown.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";
-import { landAtTop } from "/runtime/lib/scroller.js";
+import { landAtTop, pastTop, scrollerOf } from "/runtime/lib/scroller.js";
 
 /** @param {Element} owner */
 const substantiveChildren = (owner) =>
@@ -129,8 +134,10 @@ const face = (panel) => {
 };
 
 // Bring `node` into `box`'s scrollport at its nearest edge, clear of the box's
-// `scroll-padding` and the node's `scroll-margin`, moving no other box. A node larger
-// than the scrollport lands at its start.
+// `scroll-padding` and the node's `scroll-margin`, moving no other box, and only along
+// an axis the box scrolls: a row strip hides its overflow down, so however far a tab's
+// box reaches below it, the row scrolls only across. A node larger than the scrollport
+// lands at its start.
 /** @param {Element} box @param {Element} node */
 function revealWithin(box, node) {
   /** @param {string} value */
@@ -156,7 +163,12 @@ function revealWithin(box, node) {
     top + px(pad.scrollPaddingTop),
     top + box.clientHeight - px(pad.scrollPaddingBottom),
   );
-  const to = { left: box.scrollLeft + x, top: box.scrollTop + y };
+  /** @param {string} overflow */
+  const scrolls = (overflow) => overflow !== "hidden" && overflow !== "clip";
+  const to = {
+    left: box.scrollLeft + (scrolls(pad.overflowX) ? x : 0),
+    top: box.scrollTop + (scrolls(pad.overflowY) ? y : 0),
+  };
   if (scrollMoves(box, to)) box.scrollTo({ ...to, behavior: "instant" });
 }
 
@@ -186,6 +198,10 @@ export class TabSet extends LeafElement {
   #strip = offer("div", "lf-tabstrip");
   #side = false;
   #pageFlow = false;
+  // How far the reader had read past the start of each panel of the page's flow when
+  // they last left it.
+  /** @type {WeakMap<Element, number>} */
+  #places = new WeakMap();
   /** @type {Animation | null} */
   #revealMotion = null;
 
@@ -350,7 +366,9 @@ export class TabSet extends LeafElement {
     this.classList.add("lf-ring-frame");
     // Open the tab the address names, or this user's last, whose id resolves in later
     // versions because check forbids dropping ids, else the first.
-    this.#activate(openingMember(this, panels) ?? panels[0] ?? null);
+    const opening = openingMember(this, panels) ?? panels[0];
+    this.#activate(opening ?? null);
+    if (opening) this.#address(opening, "arrival");
     strip.addEventListener("scroll", this.#stopSelectionMotion);
   }
 
@@ -361,10 +379,31 @@ export class TabSet extends LeafElement {
     this.#syncRootContext();
     this.#stripSize = this.#watchStrip();
     this.#syncListRegion();
+    window.navigation?.addEventListener("navigate", this.#traversal);
   }
+
+  // Back or Forward to an entry whose address names one of the page's views, or a
+  // place in one, opens that view as the traversal begins, after Leaf has kept where
+  // the user was on the entry they leave and before it returns them to where they were
+  // on this one (history.js), so that place stands in the view it reads.
+  #traversal = (/** @type {NavigateEvent} */ event) => {
+    if (!this.#root || event.navigationType !== "traverse") return;
+    if (!event.destination.sameDocument) return;
+    const hash = new URL(event.destination.url).hash.slice(1);
+    let named = null;
+    try {
+      named = hash && document.getElementById(decodeURIComponent(hash));
+    } catch {
+      // An address that doesn't decode names no element.
+    }
+    const panel = named && this.#panels.find((each) => each.contains(named));
+    if (panel && panel !== this.#active)
+      this.#activate(panel, { reveal: true, traversal: true });
+  };
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.navigation?.removeEventListener("navigate", this.#traversal);
     this.#revealMotion?.cancel();
     this.#revealMotion = null;
     this.#stopSelectionMotion();
@@ -522,8 +561,9 @@ export class TabSet extends LeafElement {
   // Open a panel: the user's own switch, by `pointer` or key, or a `reveal`, which is
   // travel to something inside the panel, or Back and Forward, each landing the user
   // itself.
-  /** @param {Element | null} active @param {{reveal?: boolean, pointer?: boolean}} [how] */
-  #activate(active, { reveal = false, pointer = false } = {}) {
+  /** @param {Element | null} active
+   * @param {{reveal?: boolean, pointer?: boolean, traversal?: boolean}} [how] */
+  #activate(active, { reveal = false, pointer = false, traversal = false } = {}) {
     const activeButton = active ? this.#buttons.get(active) : undefined;
     if (!active || !activeButton) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
@@ -544,12 +584,22 @@ export class TabSet extends LeafElement {
     keeps(this.#strip, "data-lf-selection-travel", travels ? "" : null);
     // The user's own switch made while the strip is pinned opens the panel at its start,
     // and so does any switch between the parts of the page.
+    const switched = previous && !reveal;
     const pinned =
-      previous &&
-      !reveal &&
+      switched &&
       ((this.#parts && this.#pageFlow) ||
         this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1);
+    if (switched) {
+      // A panel in the page's flow keeps how far the reader read past its start.
+      if (this.#pageFlow) {
+        const past = this.#pastStart(previous);
+        if (past > 0.5) this.#places.set(previous, past);
+        else this.#places.delete(previous);
+      }
+      this.#address(active, "step");
+    }
     showMember(this, this.#panels, active);
+    if (reveal && !traversal) this.#address(active, "reveal");
     for (const panel of this.#panels) {
       // A tabpanel of prose has no focusable content, so Tab reaches the open
       // panel itself. hidden="until-found" skips only what a panel holds, not
@@ -577,9 +627,13 @@ export class TabSet extends LeafElement {
           { duration: motionTime("--lf-motion-flash") },
         );
     }
-    // A box comes in with its strip; a set in the page's flow, whose strip is the
-    // page's header, lands its panel under it.
-    if (pinned) landAtTop(this.#pageFlow ? active : this);
+    // A panel in the page's flow the reader has read past its start opens where they
+    // left it. Otherwise a box comes in with its strip, and a set in the page's flow,
+    // whose strip is the page's header, lands its panel under it.
+    const place = switched && this.#pageFlow ? this.#places.get(active) : undefined;
+    if (place !== undefined || (pinned && this.#pageFlow))
+      this.#openAt(active, place ?? 0);
+    else if (pinned) landAtTop(this);
 
     for (const panel of previous ? [previous, active] : [active]) {
       const child = soleSubstantiveElement(panel);
@@ -589,6 +643,60 @@ export class TabSet extends LeafElement {
         );
     }
     this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+  }
+
+  // The page's own views name the panel open in the address, so a copy of it is a link
+  // to the panel. The user's switch is a step through the page's history (`step`): an
+  // entry written while the panel they leave still shows, so the page keeps where they
+  // were on the entry they leave, and Back and Forward return there (`#traversal`,
+  // history.js). An arrival at an address with no fragment, and a reveal outside a
+  // navigation, as find-in-page makes, rename the entry the user is on instead, unless
+  // its fragment already names a place in the panel. A history write during a
+  // navigation would end it, and that navigation's own entry names what it opened.
+  /** @param {Element} panel @param {"step" | "reveal" | "arrival"} how */
+  #address(panel, how) {
+    if (!this.#root || !panel.id) return;
+    const url = new URL(location.href);
+    const step = how === "step";
+    if (how === "arrival" && url.hash) return;
+    if (!step) {
+      if (window.navigation?.transition) return;
+      let named = null;
+      try {
+        named =
+          url.hash && document.getElementById(decodeURIComponent(url.hash.slice(1)));
+      } catch {
+        // An address that doesn't decode names no element.
+      }
+      if (named && panel.contains(named)) return;
+    }
+    url.hash = panel.id;
+    if (url.href === location.href) return;
+    if (step) history.pushState(null, "", url);
+    else history.replaceState(history.state, "", url);
+  }
+
+  // How far the reader has read past the start of a panel of the page's flow: below
+  // the strip stuck over it, or for a page's parts, whose list stands beside them,
+  // below the window's band (lib/scroller.js).
+  /** @param {Element} panel */
+  #pastStart(panel) {
+    if (this.#parts) return pastTop(panel);
+    const stuck = Number.parseFloat(getComputedStyle(this.#strip).top) || 0;
+    return (
+      stuck +
+      this.#strip.getBoundingClientRect().height -
+      panel.getBoundingClientRect().top
+    );
+  }
+
+  // Scroll the page so the reader stands `past` the start of `panel` (`#pastStart`).
+  /** @param {Element} panel @param {number} past */
+  #openAt(panel, past) {
+    if (this.#parts) return landAtTop(panel, "instant", past);
+    const scroller = scrollerOf(this);
+    const top = scroller.scrollTop - this.#pastStart(panel) + past;
+    if (scrollMoves(scroller, { top })) scroller.scrollTo({ top, behavior: "instant" });
   }
 
   #syncRootContext() {

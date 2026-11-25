@@ -70,8 +70,10 @@ A widget that shows one member at a time, as a tab set does, writes
 Leaf's travel still reach what they hold. Each then fires `beforematch` on the member
 holding it, and the widget's listener shows that member as a press does. Keep the
 member shown in this tab, so a reload opens on it, as the bundled widgets do through the
-library's `one-shown.js`. A switch adds no history entry, and the member opened keeps
-nothing of where the user was in it.
+library's `one-shown.js`. Where the members are the page's own views, the widget names
+the member it shows in the address and makes each switch a history entry
+(`module-scroll-and-motion.md`, "Travel and history"), and a member the user returns
+to opens where they left it.
 
 ## Declared widget state
 

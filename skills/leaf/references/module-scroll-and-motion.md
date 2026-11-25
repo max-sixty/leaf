@@ -237,10 +237,16 @@ skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` 
 Lit element holding what it revealed before placing the target, so a widget whose view
 switch finishes later extends its own `updateComplete`.
 
-Leaf writes the page's history entries, and a widget writes none, so a switch between
-the members it shows adds none. Leaf keeps where the user was on each entry, and Back,
-Forward and a reload return them there. Where an entry's fragment names a place the
-page doesn't show, as one in a closed tab, Leaf reveals that place and lands there.
+Leaf keeps where the user was on each entry of the page's history, and Back, Forward
+and a reload return them there. A widget whose members are the page's own views, as
+the first tab set in `main` is, makes each switch the user makes between them a
+history entry with the browser's `history.pushState`, naming the member it opens in
+the address, before it hides the one they leave. Leaf keeps where they were on the
+entry they leave, and doesn't treat the entry as a step to its fragment. As Back or
+Forward begins, the widget opens the member the entry's address names, which it hears
+as a `navigate` event, and Leaf then returns the user to their place in it. Where an
+entry's fragment names a place the page doesn't show, as one in a closed tab of any
+other widget, Leaf reveals that place and lands there.
 
 ## Motion
 

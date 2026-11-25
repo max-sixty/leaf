@@ -1122,6 +1122,31 @@ bars). Once they match in both, the attribute and its rule can go.
 `test_a_card_that_scrolls_gives_its_scrollbar_room` in
 `tests/browser/margin/test_card_reply.py` covers the card in Chromium.
 
+### A grid scroller's end padding beside a sticky item in Firefox
+
+Firefox leaves a grid scroll container's block-end padding, and its last item's
+end margin, out of its scroll range whenever one of its items is `position:
+sticky`. A block or flex scroller, or a sticky box inside a grid item, keeps the
+padding. A margin card's transcript is such a grid, with the paper row over its
+heads and New reply sticking in it, so in the user's Firefox on 2026-11-24 a
+rewrite of the last turn, scrolled to the card's end, lost the bottom side of its
+focus ring, which it draws in the room the transcript kept below its turns as
+padding. In Playwright Firefox 159.0 (build 1572), a 100px grid scroller with
+8px of end padding holding a 150px item reports a `scrollHeight` of 158, and
+170 with a 20px sticky item added; Chromium 159.0.8154.6 (build 1255) and WebKit
+27.2 (build 2388) report 178. A playground's controls pane is such a grid too,
+and loses its 16px of end padding the same way when a sticky widget, such as
+`lf-dial`, stands directly in it, which no page does yet. No Mozilla bug found
+matches (searched 2026-11-24), and Leaf has left it unreported.
+
+So the transcript keeps that room as a row its `::after` holds after the last
+turn, which every engine counts (`annotation-chrome.css`), as it keeps the room
+above its heads as a row before the first. Recheck with that fixture: once
+Firefox reports 178, the room can go back to padding.
+`test_a_rewrite_at_the_foot_of_a_card_that_scrolls_keeps_its_whole_ring` in
+`tests/browser/threads/test_rewrites.py` fails in Firefox while the room is
+padding.
+
 ### A landing in a skipped `content-visibility: auto` box in Firefox and WebKit
 
 Firefox 157 (Playwright's build, macOS) leaves a `content-visibility: auto` box skipped

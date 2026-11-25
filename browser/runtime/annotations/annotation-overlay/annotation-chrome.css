@@ -672,16 +672,19 @@
     min-height: 1lh;
     overflow-y: auto;
     scroll-padding-block: var(--lf-focus-ring-room);
-    /* The room above the heads is where their slot starts (`--lf-top-start`,
-       base.css), held open by a row before the first message, not padding: Firefox
-       (155 and 158) sticks a box in a subgrid scroller at the scroller's
-       edge, ignoring its padding, which stood the stuck head that room above the
-       actions' line. */
+    /* The rooms above and below the turns are rows, not padding, since Firefox
+       ignores the transcript's block padding wherever a box sticks in it. It sticks
+       the box at the scroller's edge rather than inside the padding, so the room above
+       the heads, where their slot starts (`--lf-top-start`, base.css), is a row before
+       the first message, or a stuck head would stand that room above the actions'
+       line. And it leaves the end padding out of the scroll range, so the room below,
+       where a rewrite's ring stands at the card's end, is a row after the last turn
+       (`::after`, below; notes/browser-support.md, "A grid scroller's end padding
+       beside a sticky item in Firefox"). */
     --lf-top-start: var(--lf-transcript-edge-room);
     --lf-top: var(--lf-top-start);
     padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
       var(--lf-transcript-edge-room);
-    padding-block-end: var(--lf-transcript-room);
     margin-inline: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-start: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
@@ -716,7 +719,6 @@
   }
   .lf-margin-thread .lf-awaited {
     z-index: 1;
-    bottom: calc(-1 * var(--lf-transcript-room));
     margin-inline: calc(
         -1 * (var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
       )
@@ -747,6 +749,11 @@
         var(--lf-msg-head-height)
     );
     background: var(--lf-paper);
+  }
+  .lf-margin-thread .lf-thread-transcript::after {
+    content: "";
+    grid-column: 1 / -1;
+    block-size: var(--lf-transcript-room);
   }
   /* The words stand the thread text inset inside the card's padding. The transcript
      keeps room past their edges for what is drawn beyond a box: a focus ring, which a

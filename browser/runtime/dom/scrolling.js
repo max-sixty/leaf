@@ -422,9 +422,10 @@ const riding = new WeakSet();
 export const contentRides = (box, rides) =>
   rides ? riding.add(box) : riding.delete(box);
 // A box's scroll height as its layout gives it: from where its children stand, which
-// offsets read without any transform, and its own end padding. A child placed against
-// something other than the box leaves the browser's reading. It is the height of what
-// the box holds, so a box taller than its content reads its content's height.
+// offsets read without any transform, and what follows them in its flow, its `::after`
+// and its own end padding. A child placed against something other than the box leaves
+// the browser's reading. It is the height of what the box holds, so a box taller than
+// its content reads its content's height.
 /** @param {Element} box */
 export function laidOutHeight(box) {
   let end = 0;
@@ -439,8 +440,15 @@ export function laidOutHeight(box) {
         Number.parseFloat(getComputedStyle(child).marginBottom),
     );
   }
+  const after = getComputedStyle(box, "::after");
+  const tail =
+    after.content === "none" ||
+    after.position === "absolute" ||
+    after.position === "fixed"
+      ? 0
+      : Number.parseFloat(after.blockSize) || 0;
   const padding = Number.parseFloat(getComputedStyle(box).paddingBottom);
-  return Math.min(box.scrollHeight, end + padding);
+  return Math.min(box.scrollHeight, end + tail + padding);
 }
 // The furthest a box scrolls down: its scroll height less what its scrollport shows.
 /** @param {Element} box */

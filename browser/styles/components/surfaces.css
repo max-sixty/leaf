@@ -4,6 +4,17 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
+/* A bounded block scrolls within its stated height, in the document or in a widget's
+ * shadow root, where a module bounds the box it scrolls and keeps its own caption
+ * outside the scroller (`data-lf-bound`, runtime/bounds.js). */
+@media screen {
+  [data-lf-bound] {
+    max-block-size: var(--lf-bound, 28rem);
+    overflow: auto;
+    --lf-top: 0px;
+    --lf-holds-height: 1;
+  }
+}
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
    the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with

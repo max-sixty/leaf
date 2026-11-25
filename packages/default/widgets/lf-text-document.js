@@ -1067,7 +1067,7 @@ class TextDocument extends LeafElement {
         this.starts = starts;
         // Without a preview, the listing is the box that scrolls in the bound; with
         // one, each tab is (`build`).
-        if (!view.preview) pre.setAttribute("data-lf-bound", "start");
+        if (!view.preview) pre.setAttribute("data-lf-bound", this.bound);
         setChildren(view.listing, [pre]);
         this.sourceView = { pre, code };
         // The rows meet the `pre` while it shows them, and stop as a fold closes over
@@ -1166,6 +1166,13 @@ class TextDocument extends LeafElement {
     }
   }
 
+  // The bound of the box that scrolls the text: the page's `data-bound`, as delivery
+  // paints it on the element, else the start. The element's own box doesn't scroll
+  // (text-document.css).
+  get bound() {
+    return this.getAttribute("data-lf-bound") ?? "start";
+  }
+
   /** @param {string | null} preview
    * @returns {{figure: HTMLElement, caption: HTMLElement, listing: HTMLDivElement, preview: HTMLElement | null}} */
   build(preview) {
@@ -1187,11 +1194,11 @@ class TextDocument extends LeafElement {
     const rendered = document.createElement("lf-tab");
     rendered.id = `${this.id}--preview`;
     rendered.setAttribute("label", "Preview");
-    rendered.setAttribute("data-lf-bound", "start");
+    rendered.setAttribute("data-lf-bound", this.bound);
     const literal = document.createElement("lf-tab");
     literal.id = `${this.id}--source`;
     literal.setAttribute("label", "Source");
-    literal.setAttribute("data-lf-bound", "start");
+    literal.setAttribute("data-lf-bound", this.bound);
     const drawn =
       preview === "html"
         ? document.createElement("iframe")

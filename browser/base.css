@@ -732,14 +732,6 @@ main {
   :where(lf-suggestion) {
     max-inline-size: var(--lf-measure);
   }
-  /* A bounded block scrolls within its stated height. A widget bounds the box it
-   * scrolls, keeping its own caption outside the scroller. */
-  [data-lf-bound] {
-    max-block-size: var(--lf-bound, 28rem);
-    overflow: auto;
-    --lf-top: 0px;
-    --lf-holds-height: 1;
-  }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {

@@ -335,11 +335,7 @@ flowchart TD
 
 A section left out reads as not assessed. Where you assessed one and found nothing,
 keep its heading and say so with the reason, such as “No code changed; this campaign
-only graded saved outputs again.” A diagram reserves no height before it draws, so
-the content below it moves when it does. Set its `data-height` to the drawing's height
-in pixels, which `leaf page check --render PAGE` reports wherever the two differ. The
-value stays the diagram's minimum height, so a larger one leaves blank room under the
-drawing.
+only graded saved outputs again.”
 
 `lf-eval-cite` reaches what an author can't write by hand, and the report replaces it
 with elements Leaf ships, so the served page holds none. A citation that names an

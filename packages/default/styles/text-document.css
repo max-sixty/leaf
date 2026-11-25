@@ -180,9 +180,16 @@ lf-text-document .lf-text-document-run:only-child {
    Without the runtime, as in a page read with scripts off, the `<pre>` shows its
    text. */
 @media screen {
+  /* A page's `data-bound` on the document sets the bound of the box the module
+     scrolls, so the document's own box doesn't scroll. */
+  lf-text-document[data-lf-bound] {
+    max-block-size: none;
+    overflow: visible;
+    --lf-top: inherit;
+  }
   /* The module bounds the listing it builds (`data-lf-bound`). The listing restarts
-     the sticky-header slot from the first paint with every value the runtime's mark on
-     a box that scrolls sets (state.css, `[data-lf-scrolls]`), so the mark changes
+     the sticky-header slot as it is built with every value the runtime's mark on a box
+     that scrolls sets (state.css, `[data-lf-scrolls]`), so the mark changes
      nothing its rows inherit. Firefox styles the rows of runs it skips too
      (notes/browser-support.md, "Styling content Firefox skips"), so a mark that
      changed the values would restyle every row of a long listing. */

@@ -25,7 +25,7 @@ SLOT_MOVE = """async ([first, change]) => {
   const { adoptShadowStage } = await import(new URL("runtime/shadow-stage.js", entry).href);
   let generation = 0;
   const fresh = () => {
-    registry["lf-staged"] = { shadow: true };
+    registry["lf-staged"] = {};
     registry.$layer = { ...registry.$layer, generation: `pieces-${(generation += 1)}` };
   };
   const datum = (id, inner) =>

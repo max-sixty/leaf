@@ -39,11 +39,10 @@
    and its own hidden state. What is registered is what stands in the page.
 
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
-   left as it stands until it is drawn (lib/shadow-tree.js, `skipped`). Finding its scroller
-   reads the bounded element's style, and finding its end reads layout, and either
-   question makes the browser style and lay out the hidden subtree first; Chromium has
-   left style elsewhere on the page stale after that forced pass. A block first seen
-   hidden stands as its own scroller meanwhile. Each skipped sync renews the block's
+   left as it stands until it is drawn (lib/shadow-tree.js, `skipped`). Finding its end
+   reads layout, which makes the browser style and lay out the hidden subtree first;
+   Chromium has left style elsewhere on the page stale after that forced pass. Each
+   skipped sync renews the block's
    size observation, whose first delivery comes once the block is drawn and asks again.
    A bound panel can keep the same box while its hidden attribute changes, so that
    change also asks again. A log that grew while hidden then opens on its newest entry.
@@ -64,18 +63,16 @@ const BOUND = marks.bound.attribute;
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
 // Each block's hold, for the element's life, and the holds registered now.
-/** @typedef {{bounded: Element, id: string, bound: string | null, box: Element | null, follow: import("./scrolling.js").EndKeeper | null, sync: () => void}} BoundHold */
+/** @typedef {{bounded: Element, id: string, bound: string | null, follow: import("./scrolling.js").EndKeeper | null, sync: () => void}} BoundHold */
 /** @type {WeakMap<Element, BoundHold>} */
 const holds = new WeakMap();
 /** @type {Set<BoundHold>} */
 const registered = new Set();
-/** @type {WeakMap<Element, BoundHold>} */
-const byBox = new WeakMap();
 
 /** @param {Element} box */
 const heldBy = (box) => {
-  const hold = byBox.get(box);
-  return hold?.box === box && registered.has(hold) ? hold : null;
+  const hold = holds.get(box);
+  return hold && registered.has(hold) ? hold : null;
 };
 
 // Whether the box's bounded block follows its end and the user is there.
@@ -93,7 +90,6 @@ function holdBlock(bounded) {
     bounded,
     id: regionId(bounded, "bound", bounded),
     bound: null,
-    box: null,
     follow: null,
     sync: () => sync(false),
   };
@@ -107,13 +103,10 @@ function holdBlock(bounded) {
     stopFollowing();
     stopRegion?.();
     stopRegion = null;
-    hold.box = null;
     registered.delete(hold);
   };
   const adopt = () => {
-    if (hold.box) return;
-    byBox.set(bounded, hold);
-    hold.box = bounded;
+    if (registered.has(hold)) return;
     stopRegion = registerReadingRegion({ id: hold.id, host: bounded, body: bounded });
     registered.add(hold);
   };

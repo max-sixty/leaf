@@ -349,7 +349,7 @@ customElements.define(
       let stop = () => {};
       // A failed drawing ends the watch: the failure replaced the drawing, and a chart
       // that returns to the page keeps showing it rather than drawing again. The
-      // refusal's box, its words over the source, is taller than the box the theme
+      // refusal's box, its words over the source, is taller than the box the sheet
       // held, and a drawing can fail inside a size delivery, a redraw in the one that
       // measured its room, so the refusal is written in Leaf's next rendering pass
       // (below).

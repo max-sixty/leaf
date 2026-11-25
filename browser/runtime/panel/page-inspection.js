@@ -7,7 +7,7 @@
  * block with its copy control. This module loads only when About opens. */
 import { capitalized } from "../lib/words.js";
 import { describeFailure } from "../lib/exception.js";
-import { html, nothing, render } from "/runtime/records/framework.js";
+import { html, nothing, render } from "/vendor/lit.js";
 import { chromeForeground } from "../base/chrome.js";
 import { offlineInteractive, pageUrl, runtime } from "../state/context.js";
 import { copyControl } from "../transport/copy-control.js";

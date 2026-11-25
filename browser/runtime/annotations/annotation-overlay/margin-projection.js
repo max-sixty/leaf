@@ -64,7 +64,7 @@ import { createThreadPreview } from "./thread-preview.js";
 import { windowHoldsRail } from "../../readings/content-layout.js";
 import { threadsInPanel } from "../../records/thread/threads-in-panel.js";
 
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { tick } from "../../state/version-signal.js";
 import { afterScript } from "../../base/rendering.js";
 import { cancelRender, nextRender } from "../../lib/frame-pass.js";

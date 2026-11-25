@@ -140,7 +140,7 @@ import { offerAction } from "../../lib/controls.js";
 import { keeps, keepsText } from "../../lib/keeps.js";
 import { keys } from "../../dom/keyboard/scopes.js";
 import { focusThread } from "./focus.js";
-import { isReaction, messageKey, turns } from "./model.js";
+import { isReaction, messageKey, turns } from "../../state/thread/model.js";
 import { threadIdNamed, threadNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { runtime } from "../../state/context.js";

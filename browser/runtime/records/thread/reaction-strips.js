@@ -3,7 +3,7 @@ import { isHTML } from "../../lib/shadow-tree.js";
    registers template-owned controls and owns only disclosure, keyboard and focus.
    The strip below a reply's words holds its reactions; its trigger stands with the
    message's other controls at its head (messages.js), which draws `trigger`. */
-import { html, ref, render, repeat } from "/runtime/records/framework.js";
+import { html, ref, render, repeat } from "/vendor/lit.js";
 import { offeredAction } from "../../lib/controls.js";
 
 /** @typedef {{registerSurface: ReturnType<typeof import("../../annotations/reactions.js").createReactionController>["registerReactSurface"],

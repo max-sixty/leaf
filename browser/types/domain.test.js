@@ -9,10 +9,10 @@ export {};
 /** @typedef {import("./domain.js").Event} Event */
 /** @typedef {import("./domain.js").Command} Command */
 /** @typedef {import("./domain.js").Thread} Thread */
-/** @typedef {typeof import("../runtime/records/framework/application.js").createSemanticApplication} CreateApplication */
-/** @typedef {typeof import("../runtime/records/thread/model.js").discussed} Discussed */
-/** @typedef {typeof import("../runtime/records/thread/model.js").threadNames} ThreadNames */
-/** @typedef {typeof import("../runtime/records/projection/model.js").foldProjection} FoldProjection */
+/** @typedef {typeof import("../runtime/state/semantic-application.js").createSemanticApplication} CreateApplication */
+/** @typedef {typeof import("../runtime/state/thread/model.js").discussed} Discussed */
+/** @typedef {typeof import("../runtime/state/thread/model.js").threadNames} ThreadNames */
+/** @typedef {typeof import("../runtime/state/projection/model.js").foldProjection} FoldProjection */
 /** @typedef {typeof import("../runtime/host/application.js").post} Post */
 /** @typedef {typeof import("../runtime/host/application.js").dispatchWidget} DispatchWidget */
 
@@ -35,7 +35,7 @@ const projectionIsChecked = false;
  * @param {Event} event
  * @param {Thread} thread
  * @param {ReturnType<typeof import("../runtime/records/pending/dispatch.js").createCommandDispatch>} dispatch
- * @param {typeof import("../runtime/records/pending/model.js").actionForWidget} actionForWidget
+ * @param {typeof import("../runtime/state/pending/model.js").actionForWidget} actionForWidget
  * @param {Post} post
  */
 function boundary(app, event, thread, dispatch, actionForWidget, post) {

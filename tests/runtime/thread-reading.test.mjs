@@ -3,7 +3,7 @@ import test from "node:test";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 const { foldThreads, moved, readThreadRecords } =
-  await import("/runtime/records/thread/model.js");
+  await import("/runtime/state/thread/model.js");
 const { threadAttention } = await import("/runtime/records/thread/workflow.js");
 const { threadName, prepareAuthoredMessage, messageReading } =
   await import("/runtime/records/thread/messages.js");

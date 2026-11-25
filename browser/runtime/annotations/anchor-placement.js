@@ -65,9 +65,9 @@ import {
 import { under } from "../lib/shadow-tree.js";
 import { afterScript } from "../base/rendering.js";
 import { placePoints } from "../readings/pointed-place.js";
-import { threadKey, threadNames } from "../records/thread/model.js";
+import { threadKey, threadNames } from "../state/thread/model.js";
 import { messageHolding } from "../records/thread/messages.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { tick } from "../state/version-signal.js";
 import { version as keptVersion } from "../state/kept.js";
 import { inChrome } from "../base/ui-marks.js";

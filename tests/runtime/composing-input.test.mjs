@@ -3,7 +3,7 @@
  * browser geometry are exercised by the existing composer browser journeys. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import {
   createCompositionInputs,
   syncInput,

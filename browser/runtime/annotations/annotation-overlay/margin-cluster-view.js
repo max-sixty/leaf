@@ -7,7 +7,7 @@
  * The overlay owns selection, keyboard state, and whole-host placement; no other code
  * inserts, moves, or removes a child inside a view.
  */
-import { html, render } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
 import { setChildLists } from "../../dom/dom-children.js";
 import {
   clearContributionControls,

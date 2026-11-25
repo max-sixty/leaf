@@ -21,7 +21,7 @@
 
    It records with `lf-action` and `lf-undo`, which Leaf hears on the element itself
    (`hearRecords`) and which reach `dispatch`. */
-import { untracked } from "/runtime/records/framework.js";
+import { untracked } from "/vendor/signals-core.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -40,7 +40,7 @@ import { holdRendering } from "../base/rendering.js";
 
 /** @typedef {ReturnType<typeof createWidgetController>} Controller
  * @typedef {Pick<Controller, "read" | "dispatch">} WidgetController
- * @typedef {import('../records/framework/application.js').WidgetDescriptor} WidgetDescriptor
+ * @typedef {import('../state/semantic-application.js').WidgetDescriptor} WidgetDescriptor
  * @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading
  * @typedef {{completion: Promise<unknown[]>}} Preparation
  * @typedef {ReturnType<typeof attachWidgetPresentation>} PreparationHandle */

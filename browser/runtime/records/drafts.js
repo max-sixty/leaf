@@ -116,7 +116,7 @@ import {
   layerHeaders,
   takeLeafUnload,
 } from "../transport/layer-client.js";
-import { PENDING } from "./thread/identity.js";
+import { PENDING } from "../state/thread/identity.js";
 import { writingStore } from "../state/storage.js";
 import { tabStore } from "../state/tab-store.js";
 import { randomId } from "../base/ids.js";
@@ -129,7 +129,7 @@ import { setScroll } from "../dom/arrivals.js";
 import { CARET_KEYS, selectsAll } from "../dom/control-selectors.js";
 import { passErrorsAt, raiseError } from "../transport/errors.js";
 import { notice } from "../transport/notifications.js";
-import { signal } from "./framework.js";
+import { signal } from "/vendor/signals-core.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft

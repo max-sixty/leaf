@@ -10,7 +10,7 @@
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/records/framework.js";
+import { render } from "/vendor/lit.js";
 import { linkedPlace, placePreview } from "/runtime/annotations/place-preview.js";
 import {
   conversationsAbout,

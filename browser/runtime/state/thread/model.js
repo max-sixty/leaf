@@ -18,13 +18,13 @@
    thread this tab opened goes by its pending message's id until the log answers. */
 import { sameAnchor } from "../../base/anchor-coordinate.js";
 import { PENDING } from "./identity.js";
-import { kept, keptEach } from "../../state/kept.js";
+import { kept, keptEach } from "../kept.js";
 
 /** @typedef {import("../../../types/domain.js").Thread} Thread */
 /** @typedef {import("../../../types/domain.js").Message} Message */
 /** @typedef {import("../../../types/domain.js").Settlement} Settlement */
 /** @typedef {import("../../../types/domain.js").Anchor} Anchor */
-/** @typedef {NonNullable<import("../framework/application.js").SemanticDocument["messageBodies"]> extends ReadonlyMap<string, ReadonlyMap<string, infer B>> ? B : never} CapturedBody */
+/** @typedef {NonNullable<import("../semantic-application.js").SemanticDocument["messageBodies"]> extends ReadonlyMap<string, ReadonlyMap<string, infer B>> ? B : never} CapturedBody */
 
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
@@ -444,8 +444,8 @@ function grouped(items, key) {
 }
 
 /** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../../types/domain.js").AuthoredWidget["state"]}} Unit */
-/** @typedef {import("../framework/application.js").Workflow} Workflow */
-/** @typedef {import("../framework/application.js").ObligationRecord} ObligationRecord */
+/** @typedef {import("../semantic-application.js").Workflow} Workflow */
+/** @typedef {import("../semantic-application.js").ObligationRecord} ObligationRecord */
 /** @typedef {import("../../../types/domain.js").ContentVersion} ContentVersion */
 /** @typedef {ReadonlyMap<string, CapturedBody>} ThreadBodies */
 
@@ -467,7 +467,7 @@ const markingByMessage = kept((/** @type {readonly ContentVersion[]} */ marking)
 );
 // A widget in a thread's message, with its state, kept while that state stands.
 const unitOf = keptEach(
-  /** @param {import("../framework/application.js").WidgetDescriptor} descriptor
+  /** @param {import("../semantic-application.js").WidgetDescriptor} descriptor
    * @param {Unit["state"]} state @returns {Unit} */
   (descriptor, state) => ({
     id: descriptor.id,
@@ -479,7 +479,7 @@ const unitOf = keptEach(
 );
 // The widgets in each thread's messages, with their state.
 const unitsByThread = kept(
-  /** @param {import("../framework/application.js").SemanticDocument["descriptors"]} descriptors
+  /** @param {import("../semantic-application.js").SemanticDocument["descriptors"]} descriptors
    * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets */
   (descriptors, widgets) => {
     /** @type {Map<string | undefined, Unit[]>} */
@@ -662,7 +662,7 @@ const threadRecord = keptEach(
 
 /** Each thread's record, kept until the thread or something it holds moves (state/kept.js).
  * @param {readonly Thread[]} threads
- * @param {import("../framework/application.js").SemanticDocument} document
+ * @param {import("../semantic-application.js").SemanticDocument} document
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {readonly Workflow[]} workflows
  * @param {readonly ObligationRecord[]} obligations

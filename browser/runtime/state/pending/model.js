@@ -2,9 +2,9 @@
 /* Pure readings of the events an unresolved browser gesture carries.
 
    The ledger holding each gesture, and the lifecycle that decides when it leaves, belong
-   to the application publisher (`runtime/records/framework/application.js`). */
+   to the application publisher (`runtime/state/semantic-application.js`). */
 import { PENDING } from "../thread/identity.js";
-import { MESSAGE_KINDS } from "../../state/kernel-facts.js";
+import { MESSAGE_KINDS } from "../kernel-facts.js";
 
 /** @param {import("../../../types/domain.js").Command} event
  * @returns {event is Extract<import("../../../types/domain.js").Command, {kind: import("../../../types/contract.js").MessageKind}>}
@@ -55,7 +55,7 @@ export const editForAttempt = (event, timestamp) => ({
 // undo's `undoes`. A gesture of this tab's still sending is named there by its pending
 // id, so these are the gesture's dependencies on the ledger. Each is renamed to the id
 // the log gave once the log has answered (`nameAdmitted`), and a gesture naming one the
-// log refused goes with it (`refuse`, records/framework/application.js). A new field naming an event
+// log refused goes with it (`refuse`, state/semantic-application.js). A new field naming an event
 // joins this list, and nothing that reads or renames dependencies changes.
 const NAMING_FIELDS = /** @type {const} */ (["parent", "message", "base", "undoes"]);
 
@@ -94,7 +94,7 @@ export const nameAdmitted = (event, admitted) => {
 };
 
 /** The widget dispatcher's command, before the ledger assigns its attempt.
- * @param {Pick<import("../framework/application.js").WidgetDescriptor, "id">} descriptor
+ * @param {Pick<import("../semantic-application.js").WidgetDescriptor, "id">} descriptor
  * @param {{verb: string, detail?: Record<string, unknown>, attempt?: string}} command
  * @param {number} revision
  * @returns {Extract<import("../../../types/domain.js").BrowserCommand, {kind: "action"}>}

@@ -91,7 +91,7 @@ import {
 import { readingBlock } from "../readings/reading-place.js";
 import { readingRegionFor } from "../readings/reading-regions.js";
 import { byRenderedOrder, under, closestAcross } from "../lib/shadow-tree.js";
-import { hasObligationSource } from "../records/obligations/source.js";
+import { hasObligationSource } from "../state/obligations/source.js";
 import { ON_CARD } from "../records/obligations/view-elements.js";
 import { obligationEnding, obligationWord } from "../records/obligations/answer.js";
 import { answeredInWords } from "../records/obligations/model.js";

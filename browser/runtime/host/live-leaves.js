@@ -8,7 +8,7 @@
    (state-feed.js), and the list is asked for again only when that names another
    reading than the one it was last asked for (`hearPages`). So another page's
    change re-reads this list alone, and never this page's state. */
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { pageUrl, runtime } from "../state/context.js";
 import { authoredTitle } from "../base/tab-title.js";
 import { pagePresented } from "../base/page-paint.js";

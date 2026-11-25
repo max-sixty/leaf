@@ -14,7 +14,7 @@ import { agentSays, leafSays, saidBy, wordsText } from "../base/voice.js";
 /** @typedef {import("../../types/contract.js").ServedReading["publication"]} Publication */
 /** @typedef {import("../base/voice.js").Said & {readonly source?: Activity["detail_source"]}} Said */
 /** @typedef {string | Said | readonly (string | Said)[]} Words */
-/** @typedef {import("../records/framework/snapshot.js").Immutable<import("../records/framework/application.js").CurrentQueueItem>} QueueItem */
+/** @typedef {import("../base/snapshot.js").Immutable<import("./semantic-application.js").CurrentQueueItem>} QueueItem */
 /** @typedef {{on_user: readonly QueueItem[], on_agent: readonly QueueItem[]}} Queues */
 /** @typedef {{activity: Activity, publication?: Publication | null, agent?: string}} ActivityReading */
 /** @typedef {{kind: string, tone: string, summary: string, explanation: string, adds: string,
@@ -275,7 +275,7 @@ function statusWords({
 // (panel/page-status.js): a server that went away and then starts refusing this tab's key
 // asks something new of the user.
 /** @param {ActivityReading | null} state
- * @param {Exclude<import("../records/framework/application.js").Reach, {reach: "waiting"}> | {reach?: never}} options */
+ * @param {Exclude<import("./semantic-application.js").Reach, {reach: "waiting"}> | {reach?: never}} options */
 export function pageStatus(state, options = {}) {
   const { reach = "reached" } = options;
   if (reach === "broken")

@@ -11,7 +11,7 @@
 
    New agent content is the server's `unread` reading, the same one the floating panel
    paints: a version is news the first time this tab sees it unread in a thread that
-   announces its words (records/thread/model.js, `announces`), and never once the user has
+   announces its words (state/thread/model.js, `announces`), and never once the user has
    taken it in, here or in another tab, nor once this tab has seen it read. Words that
    reach a resolved thread wait unannounced, and are news if the thread reopens while
    they are still unread. An undo of the resolve or reply that marked a message read
@@ -25,7 +25,7 @@
    obligation away. The list is the one the panel's badge counts (state/queue-api.js,
    `onUserCount`). The user asked to be told when they finish
    what waits on them, taking words over a flash of the panel's colour for now. */
-import { announces, moved } from "../records/thread/model.js";
+import { announces, moved } from "../state/thread/model.js";
 import { NOT_ANSWERED } from "../records/thread/workflow.js";
 import { agentSays, leafSays } from "../base/voice.js";
 import { counted, excerptWords } from "../lib/words.js";

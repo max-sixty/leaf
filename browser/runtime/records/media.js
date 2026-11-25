@@ -29,7 +29,7 @@
    image and focus intact. */
 
 import { describeFailure } from "../lib/exception.js";
-import { html, render } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "../state/context.js";
 import { inBaseLayer } from "../base/base-layer.js";
 import {

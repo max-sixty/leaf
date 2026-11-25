@@ -22,8 +22,8 @@
    still decides when a passive settlement may move the reader. */
 import { setChildren } from "../../dom/dom-children.js";
 import { generatedElement } from "../../dom/widget-elements.js";
-import { html, render } from "/runtime/records/framework.js";
-import { threadKey } from "./model.js";
+import { html, render } from "/vendor/lit.js";
+import { threadKey } from "../../state/thread/model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import {
   holdFocus,

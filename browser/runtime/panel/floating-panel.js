@@ -209,8 +209,8 @@ import {
   ref,
   render,
   repeat,
-  signal,
-} from "/runtime/records/framework.js";
+} from "/vendor/lit.js";
+import { signal } from "/vendor/signals-core.js";
 import { reveal } from "../dom/widget-elements.js";
 import { el } from "../lib/elements.js";
 import { offeredAction } from "../lib/controls.js";
@@ -244,7 +244,7 @@ import {
   readThreads,
   threadNamed,
 } from "../records/thread/state.js";
-import { discussed, isNews, threadCounts } from "../records/thread/model.js";
+import { discussed, isNews, threadCounts } from "../state/thread/model.js";
 import { LeafElement } from "../lib/leaf-element.js";
 import {
   RESOLVED,
@@ -3955,7 +3955,7 @@ export function createFloatingPanel({
 
   // The undo list's entry for the gesture that answered an obligation, where it can still be
   // taken back (annotations/undo.js).
-  /** @param {import("../records/framework/application.js").ObligationRecord} item */
+  /** @param {import("../state/semantic-application.js").ObligationRecord} item */
   const answerGesture = (item) => {
     const id = item?.answer?.event?.id ?? item?.answer?.event;
     if (!id) return null;

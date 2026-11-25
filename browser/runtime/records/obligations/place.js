@@ -59,7 +59,7 @@ import { readPart } from "../../state/semantic-state.js";
 import { composedParentNode, under } from "../../lib/shadow-tree.js";
 import { kept, keptEach } from "../../state/kept.js";
 
-/** @typedef {import("../framework/application.js").ObligationRecord} ObligationRecord */
+/** @typedef {import("../../state/semantic-application.js").ObligationRecord} ObligationRecord */
 
 const pageObligations = readPart((root) => root.effective.obligations);
 /** The page's reading less its index, holding what one region holds, and whether the
@@ -200,7 +200,7 @@ function heldBy(region, all) {
 // whose markup is captured.
 const captured = readPart((root) => root.document.descriptors);
 const asking = keptEach(
-  /** @param {ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>} widgets */
+  /** @param {ReadonlyMap<string, import("../../state/semantic-application.js").WidgetDescriptor>} widgets */
   (widgets) => {
     const declaring = [...widgets.values()].filter(
       ({ declaration }) => declaration.awaits !== undefined,

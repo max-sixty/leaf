@@ -67,7 +67,7 @@
      interpolation, it goes in the same frame. */
 import { counted } from "../../lib/words.js";
 import { focusDestination, focused } from "../../dom/focus.js";
-import { html, render, nothing, repeat, ref } from "/runtime/records/framework.js";
+import { html, render, nothing, repeat, ref } from "/vendor/lit.js";
 import { MessageView, arrivalTint, saidTime } from "./messages.js";
 import { offeredAction } from "../../lib/controls.js";
 import { keeps, keepsHidden } from "../../lib/keeps.js";

@@ -83,7 +83,7 @@ test("an entry draws the receipts it is given and keeps those a seat painted", (
 });
 
 test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {
-  const { html, render } = await import("/runtime/records/framework.js");
+  const { html, render } = await import("/vendor/lit.js");
   const root = document.createElement("section");
   document.body.append(root);
   const imperative = document.createElement("button");

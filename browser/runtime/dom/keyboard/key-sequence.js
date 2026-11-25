@@ -1,7 +1,7 @@
 /* This module owns how a binding is drawn: the steps a row's sequence or label breaks
  * into, which leading steps match presses the active interaction has accepted, and the
  * immutable key-sequence reading every keyboard surface renders through one Lit template. */
-import { html, nothing, repeat } from "/runtime/records/framework.js";
+import { html, nothing, repeat } from "/vendor/lit.js";
 
 import { bindings, spell, word } from "./bindings.js";
 

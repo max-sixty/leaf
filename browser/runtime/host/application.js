@@ -3,7 +3,7 @@
    Importing this module is inert. leaf.js supplies the concrete feature views once and
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
-import { effect, untracked } from "/runtime/records/framework.js";
+import { effect, untracked } from "/vendor/signals-core.js";
 import { annotationMode, runtime } from "../state/context.js";
 import {
   applicationState,
@@ -16,7 +16,7 @@ import {
   readPart,
 } from "../state/semantic-state.js";
 import { announce } from "../transport/notifications.js";
-import { hasObligationSource } from "../records/obligations/source.js";
+import { hasObligationSource } from "../state/obligations/source.js";
 import { answeredInWords } from "../records/obligations/model.js";
 import { readObligations } from "../records/obligations/place.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
@@ -46,7 +46,7 @@ import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "../features/margin-bars.js";
 import { renderMarginThread } from "../records/thread/inline.js";
 import { showHeld } from "../records/thread/held-news.js";
-import { isMessageEvent } from "../records/pending/model.js";
+import { isMessageEvent } from "../state/pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
   renderSurfaces,

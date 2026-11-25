@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSemanticApplication } from "../../browser/runtime/records/framework/application.js";
-import { createPresentationCoordinator } from "../../browser/runtime/records/framework/presentation.js";
+import { createSemanticApplication } from "../../browser/runtime/state/semantic-application.js";
+import { createPresentationCoordinator } from "../../browser/runtime/base/presentation.js";
 import {
   servedGestureSequence,
   servedObligationRow,

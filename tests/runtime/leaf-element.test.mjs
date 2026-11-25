@@ -5,7 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { html, nothing } from "/vendor/lit.js";
 import { shadowStage } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";

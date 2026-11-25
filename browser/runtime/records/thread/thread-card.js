@@ -85,17 +85,10 @@ import {
   focused,
   currentLocationIn,
 } from "../../dom/focus.js";
-import {
-  effect,
-  html,
-  nothing,
-  ref,
-  render,
-  share,
-  signal,
-  untracked,
-} from "/runtime/records/framework.js";
-import { turns, threadKey } from "./model.js";
+import { effect, signal, untracked } from "/vendor/signals-core.js";
+import { html, nothing, ref, render } from "/vendor/lit.js";
+import { share } from "../../base/snapshot.js";
+import { turns, threadKey } from "../../state/thread/model.js";
 import {
   HOLDS,
   anchorPlace,
@@ -157,7 +150,7 @@ import { partTrail } from "./placement.js";
 import { addressableLabel } from "../../readings/addressable-names.js";
 import { PRESS } from "../../lib/keys.js";
 
-/** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} ThreadRecord */
+/** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @typedef {ReturnType<typeof messageReading>} MessageReading */
 /** @typedef {{who: string, position: number, timestamp: string | null,
  * words: string, feedback: {
@@ -265,7 +258,7 @@ function workingMessage(thread, messages) {
   const running = workflows.find(inHand);
   const runningLine = running && hasWorkflowLine(running) ? running : null;
   const stopped = workflows.find(
-    /** @returns {workflow is Extract<import("../framework/application.js").Workflow, {detail: string}>} */
+    /** @returns {workflow is Extract<import("../../state/semantic-application.js").Workflow, {detail: string}>} */
     (workflow) =>
       workflow.state === "blocked" &&
       workflow.reason !== null &&

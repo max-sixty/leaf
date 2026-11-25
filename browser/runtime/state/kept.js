@@ -37,7 +37,7 @@
    record it is made from, so a publication about one thing makes only that thing's
    records again: the served reading keeps every record the server didn't change
    (`completeState` in `transport/layer-client.js`), and publication gives each unchanged part
-   its old identity (records/framework/snapshot.js, `share`). A make at module scope reads only
+   its old identity (base/snapshot.js, `share`). A make at module scope reads only
    its arguments, so a fold can't read more than it is kept by.
 
    This module imports nothing but signals, so the pure folds can use it. */

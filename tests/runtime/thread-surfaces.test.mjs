@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { effect } from "/runtime/records/framework.js";
+import { effect } from "/vendor/signals-core.js";
 import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   claimed,
@@ -9,7 +9,7 @@ import {
   renderSurfaces,
   watchThreadSurfaces,
 } from "/runtime/records/thread/surfaces.js";
-import { readThreadRecords } from "/runtime/records/thread/model.js";
+import { readThreadRecords } from "/runtime/state/thread/model.js";
 import { threadSurface } from "/runtime/records/thread/surface-handles.js";
 import { servedThread } from "../served.mjs";
 

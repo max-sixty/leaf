@@ -28,7 +28,7 @@ import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
 import { renderedUnder } from "../../lib/shadow-tree.js";
 import { elementFromPointAcross } from "../passages.js";
-import { html, render } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
 import { inlineStyle, keepsText } from "../../lib/keeps.js";
 import { repaint } from "../../dom/repaint.js";
 import { scrolling, watchScrollEnds, watchScrolls } from "../../dom/arrivals.js";

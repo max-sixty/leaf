@@ -44,15 +44,8 @@ import {
   followingFocus,
   onCurrentLocation,
 } from "../focus.js";
-import {
-  AsyncDirective,
-  PartType,
-  computed,
-  directive,
-  effect,
-  nothing,
-  untracked,
-} from "/runtime/records/framework.js";
+import { AsyncDirective, PartType, directive, nothing } from "/vendor/lit.js";
+import { computed, effect, untracked } from "/vendor/signals-core.js";
 import {
   ariaShortcuts,
   bindings,

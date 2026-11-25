@@ -11,12 +11,8 @@
 // only when the page asks for it, and `core-independent-of-overlay` keeps every other
 // owner from reaching it. Site-absolute `/vendor/` and `/checks/` specifiers, which the
 // browser resolves and Node does not, are excluded by name; every other unresolvable
-// specifier is a missing module and an error. So is the framework's facade by its
-// served path, `/runtime/records/framework.js`: like Lit beneath it, the framework is a
-// dependency every owner may hold, in any layer, not one of the owners whose routes
-// these rules read. Its own modules, under `records/framework/`, are checked as any
-// owner is. JSON, such as the kernel registry `state/kernel-facts.js` imports, is
-// excluded too: data holds no route between owners.
+// specifier is a missing module and an error. JSON, such as the kernel registry
+// `state/kernel-facts.js` imports, is excluded too: data holds no route between owners.
 
 import fs from "node:fs";
 
@@ -36,6 +32,24 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // shared web code (`lib/`) is no owner, and lint keeps each clear of every owner
 // (`eslint.config.mjs`), so a root may reach one without naming it here.
 const library = `^${runtime}lib/`;
+// A reader of the application state reaches the publisher and the record folds it
+// composes.
+const applicationState = [
+  "state/semantic-state.js",
+  "state/version-signal.js",
+  "state/semantic-application.js",
+  "base/snapshot.js",
+  "base/presentation.js",
+  "state/obligations/source.js",
+  "state/pending/model.js",
+  "state/projection/model.js",
+  "state/thread/model.js",
+  "state/thread/identity.js",
+  "state/kept.js",
+  "state/kernel-facts.js",
+  "state/registry-contract.js",
+  "base/anchor-coordinate.js",
+];
 const exactClosures = {
   "base/ui-marks.js": [],
   "dom/control-selectors.js": ["base/inputs.js", "base/document-inputs.js"],
@@ -51,32 +65,24 @@ const exactClosures = {
     "records/thread/workflow.js",
     "base/voice.js",
   ],
-  "records/projection/model.js": ["state/kernel-facts.js", "state/kept.js"],
-  "records/projection/state.js": ["state/semantic-state.js", "state/version-signal.js"],
-  "records/thread/model.js": [
+  "state/projection/model.js": ["state/kernel-facts.js", "state/kept.js"],
+  "records/projection/state.js": applicationState,
+  "state/thread/model.js": [
     "base/anchor-coordinate.js",
     "state/kept.js",
-    "records/thread/identity.js",
-    "records/thread/workflow.js",
-    "base/voice.js",
+    "state/thread/identity.js",
   ],
   "records/thread/state.js": [
-    "state/semantic-state.js",
-    "state/version-signal.js",
-    "records/thread/model.js",
-    "base/anchor-coordinate.js",
-    "state/kept.js",
-    "records/thread/identity.js",
+    ...applicationState,
     "records/thread/workflow.js",
     "base/voice.js",
   ],
   "records/thread/workflow.js": ["base/voice.js"],
-  "records/pending/model.js": ["records/thread/identity.js", "state/kernel-facts.js"],
-  "records/pending/state.js": ["state/semantic-state.js", "state/version-signal.js"],
+  "state/pending/model.js": ["state/thread/identity.js", "state/kernel-facts.js"],
+  "records/pending/state.js": applicationState,
   "dom/keyboard/dispatch.js": [
+    ...applicationState,
     "state/context.js",
-    "state/semantic-state.js",
-    "state/version-signal.js",
     "dom/focus.js",
     "dom/dom-move.js",
     "dom/control-selectors.js",
@@ -93,15 +99,12 @@ const exactClosures = {
     "base/pointer.js",
     "dom/user-intent.js",
     "state/registry.js",
-    "state/registry-contract.js",
-    "state/kernel-facts.js",
     "base/rendering.js",
     "base/frame-visibility.js",
     "dom/repaint.js",
     "dom/shadow.js",
     "dom/arrivals.js",
     "base/page-paint.js",
-    "state/kept.js",
   ],
 };
 
@@ -229,6 +232,15 @@ export default {
       to: { path: isModule("host/application.js") },
     },
     {
+      name: "one-application-publisher",
+      comment:
+        "Only state/semantic-state.js constructs the application publisher, so a page " +
+        "holds one application state.",
+      severity: "error",
+      from: { path: owners, pathNot: isModule("state/semantic-state.js") },
+      to: { path: isModule("state/semantic-application.js") },
+    },
+    {
       name: "page-keyboard-from-boot-only",
       comment:
         "panel/page-keys/page.js declares the page's own keys as it evaluates and exports " +
@@ -287,13 +299,7 @@ export default {
     moduleSystems: ["es6"],
     // /checks probes are supplied by the Python server, outside the runtime graph.
     exclude: {
-      path: [
-        `^${assets}(?!runtime/)`,
-        "^/vendor/",
-        "^/checks/",
-        "^/runtime/records/framework\\.js$",
-        "\\.json$",
-      ],
+      path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/", "\\.json$"],
     },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `dom/repaint.js` and passes here while the browser 404s it.

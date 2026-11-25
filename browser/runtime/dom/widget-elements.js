@@ -54,7 +54,8 @@ import {
 } from "../lib/shadow-tree.js";
 
 import { keeps } from "../lib/keeps.js";
-import { html, render, signal } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
+import { signal } from "/vendor/signals-core.js";
 
 // A scroll target can sit inside a collapsed container: a closed <details> or popover,
 // an inactive tab. Leaf reveals it as the browser's find-in-page and fragment

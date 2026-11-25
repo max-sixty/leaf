@@ -59,7 +59,7 @@ import { ELEMENTS, pageScopes } from "./register.js";
 import { projectControlShortcuts, reflectElementShortcuts } from "./scopes.js";
 import { nativeActivationAt } from "./text-entry.js";
 import { focused, focusRevision } from "../focus.js";
-import { untracked } from "/runtime/records/framework.js";
+import { untracked } from "/vendor/signals-core.js";
 
 /** @typedef {import("./bindings.js").Scope} Scope
  * @typedef {import("./bindings.js").Command} Command */

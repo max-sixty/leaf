@@ -1,6 +1,9 @@
 /* Leaf runtime boot and application composition root. */
+// Leaf's Lit loads in any document and inserts natively until the page installs its
+// mover (dom/dom-move.js); importing the mover's focus accounting first installs both
+// before any module the boot loads can render.
+import "./runtime/dom/move-focus.js";
 import { registerSampleCommand, onSampleNotice } from "./runtime/host/sample-child.js";
-import "/runtime/records/framework.js";
 import "./runtime/stage-integration.js";
 import { hostDeclaredElements } from "./runtime/host/element-integration.js";
 import "./runtime/transport/interaction-log.js";
@@ -183,10 +186,7 @@ import { installMoveSelection } from "./runtime/dom/dom-move.js";
 import { holdSelection } from "./runtime/dom/native-selection.js";
 
 // Leaf's selection writer keeps a page selection across `setChildLists`'s moves
-// (dom/dom-move.js), installed before the boot draws anything. It stands here rather than
-// beside `installMoveFocus` (dom/move-focus.js): dom/native-selection.js reaches state/context.js
-// through dom/shadow.js, and imported from dom/move-focus.js, which records/framework.js imports
-// first, it ran a module before `readPart` (state/semantic-state.js) was initialized.
+// (dom/dom-move.js), installed before the boot draws anything.
 installMoveSelection(holdSelection);
 
 // The boot runs in a function, since a compiled module awaits nothing at its top

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
+// A page's boot installs the mover's focus accounting before anything renders
+// (leaf.js), which keeps focus on a row the reorder moves.
+import "/runtime/dom/move-focus.js";
 import { tabStore } from "/runtime/state/tab-store.js";
 import {
   ACTIVITY_VIEW,

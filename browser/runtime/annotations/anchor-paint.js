@@ -21,7 +21,7 @@ import {
 import { elementFromPointAcross, pageWords } from "../readings/passages.js";
 import { presentDocument } from "../state/semantic-state.js";
 import { WORKS } from "../dom/control-selectors.js";
-import { bareReaction } from "../records/thread/model.js";
+import { bareReaction } from "../state/thread/model.js";
 import { threadNamed } from "../records/thread/state.js";
 import { threadPreview } from "../records/thread/messages.js";
 import { declareRanges, pointRange } from "./preview.js";

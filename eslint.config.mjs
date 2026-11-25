@@ -28,7 +28,7 @@ const runtimePrimitives = [
   "base/frame-visibility.js",
   "dom/repaint.js",
   "state/root-state.js",
-  "records/thread/identity.js",
+  "state/thread/identity.js",
   "base/ui-marks.js",
 ];
 
@@ -338,87 +338,6 @@ const runtimeName = (file) =>
   path.relative(runtimeRoot, file).split(path.sep).join("/");
 
 const pagePaintAttributeValues = new Map(Object.entries(PAGE_PAINT_ATTRIBUTE));
-
-export const semanticStoreOwnershipRule = {
-  meta: { type: "problem", schema: [] },
-  create(context) {
-    const file = runtimeName(context.filename ?? context.getFilename());
-    // A module behind the facade is reached only through it, so the facade's
-    // exports are every framework capability a runtime module can name. The facade
-    // and the modules behind it reach one another directly.
-    const inFramework =
-      file === "records/framework.js" || file.startsWith("records/framework/");
-    const browserFrameworkSource = (source) => {
-      if (typeof source?.value !== "string") return false;
-      if (
-        /(?:^|\/)runtime\/records\/framework\/|^\.{1,2}\/(?:.*\/)?framework\//u.test(
-          source.value,
-        )
-      ) {
-        if (!inFramework)
-          context.report({
-            node: source,
-            message:
-              "Import browser framework capabilities from its facade, runtime/records/framework.js.",
-          });
-        return false;
-      }
-      return /(?:^\/runtime\/records\/|^\.{1,2}\/(?:.*\/)?)framework\.js$/u.test(
-        source.value,
-      );
-    };
-    const report = (node) =>
-      context.report({
-        node,
-        message:
-          "Only state/semantic-state.js may construct the application publisher.",
-      });
-    return {
-      ImportDeclaration(node) {
-        if (!browserFrameworkSource(node.source)) return;
-        for (const specifier of node.specifiers) {
-          if (specifier.type === "ImportNamespaceSpecifier") {
-            context.report({
-              node: specifier,
-              message:
-                "Import named browser framework capabilities so semantic publisher ownership remains statically visible.",
-            });
-            continue;
-          }
-          if (
-            specifier.imported?.name === "createSemanticApplication" &&
-            file !== "state/semantic-state.js"
-          )
-            report(specifier);
-        }
-      },
-      ExportNamedDeclaration(node) {
-        if (!browserFrameworkSource(node.source)) return;
-        // Only named specifiers reach here: `export * as ns from` is an
-        // ExportAllDeclaration below, which answers the whole-namespace reexport.
-        for (const specifier of node.specifiers) {
-          if (specifier.local?.name === "createSemanticApplication") report(specifier);
-        }
-      },
-      ImportExpression(node) {
-        if (!browserFrameworkSource(node.source)) return;
-        context.report({
-          node,
-          message:
-            "Import browser framework capabilities statically so semantic publisher ownership remains visible.",
-        });
-      },
-      ExportAllDeclaration(node) {
-        if (!browserFrameworkSource(node.source)) return;
-        context.report({
-          node,
-          message:
-            "Reexport browser framework capabilities by name so semantic publisher ownership remains statically visible.",
-        });
-      },
-    };
-  },
-};
 
 // The user’s current location, and what moved them there, is dom/focus.js's one reading
 // (`onCurrentLocation`). A `focusin` or `focusout` listener hears nothing of a move between two
@@ -1163,7 +1082,6 @@ export const spelledKeysRule = {
 
 const architecturePlugin = {
   rules: {
-    "semantic-store-ownership": semanticStoreOwnershipRule,
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
     "native-layers": nativeLayersRule,
@@ -1862,7 +1780,6 @@ export default [
     rules: {
       ...ownerBoundary,
       "architecture/root-state-ownership": "error",
-      "architecture/semantic-store-ownership": "error",
     },
   },
   {
@@ -1933,9 +1850,8 @@ export default [
     // The library of shared web code holds none of the page's state and reaches none
     // of Leaf's (browser/AGENTS.md, "The library of shared web code"), so a module of
     // it names only a /vendor/ bundle and the modules beside it, whether it imports
-    // statically or lazily. That keeps out the runtime, and with it the framework's
-    // facade (/runtime/records/framework.js) and the kernel registry, neither of which is in
-    // the graph the import graph's check reads. So each module loads in a document
+    // statically or lazily. That keeps out the runtime, and with it the kernel registry,
+    // which is not in the graph the import graph's check reads. So each module loads in a document
     // Leaf did not compose. A module holds one concern, so none gathers the others'
     // exports.
     files: ["browser/runtime/lib/**/*.js"],
@@ -1965,11 +1881,11 @@ export default [
     // Of the library, a fold reaches only the rank keys (lib/rank.js), which take
     // values too.
     files: [
-      "browser/runtime/records/projection/model.js",
+      "browser/runtime/state/projection/model.js",
       "browser/runtime/records/projection/state.js",
-      "browser/runtime/records/pending/model.js",
+      "browser/runtime/state/pending/model.js",
       "browser/runtime/records/pending/state.js",
-      "browser/runtime/records/thread/model.js",
+      "browser/runtime/state/thread/model.js",
       "browser/runtime/records/thread/state.js",
     ],
     rules: {
@@ -1979,7 +1895,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./\\.\\./(?:base/anchor-coordinate|state/kept|state/kernel-facts|state/semantic-state|lib/rank)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./\\.\\./(?:base/anchor-coordinate|state/semantic-state|lib/rank)\\.js$|\\.\\./(?:kept|kernel-facts|thread/identity)\\.js$|\\./identity\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

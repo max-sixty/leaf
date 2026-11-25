@@ -40,11 +40,11 @@ import {
   semanticNewsReading,
 } from "./semantic-news.js";
 
-/** @typedef {import("../records/thread/model.js").CapturedBody} CapturedBody */
+/** @typedef {import("../state/thread/model.js").CapturedBody} CapturedBody */
 // Each message's captured words, kept while they read the same (state/kept.js): an authored
 // message's are its island's, and any other's its words as a label reads them. A
 // thread's are kept together while its messages' are, so its record stands while its
-// messages do (records/thread/model.js, `readThreadRecords`).
+// messages do (state/thread/model.js, `readThreadRecords`).
 const plainBody = keptEach(
   /** @param {object} _message @param {string} text @returns {CapturedBody} */
   (_message, text) => ({ text }),

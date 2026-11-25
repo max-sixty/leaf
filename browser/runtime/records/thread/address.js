@@ -49,7 +49,7 @@
    that names the view it opens in the fragment, as a tab set names the panel the
    thread's passage stands in, leaves an address a reload or a copied link still reaches
    the thread by. */
-import { effect, untracked } from "/runtime/records/framework.js";
+import { effect, untracked } from "/vendor/signals-core.js";
 import { replaceEntry } from "../history.js";
 import { raiseError } from "../../transport/errors.js";
 import { fragmentTarget } from "../../readings/anchor-resolution.js";

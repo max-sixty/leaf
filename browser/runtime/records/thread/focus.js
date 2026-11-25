@@ -14,7 +14,7 @@ import { nextRender } from "../../lib/frame-pass.js";
 import { repaint } from "../../dom/repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
 import { threadNamed } from "./state.js";
-import { threadKey } from "./model.js";
+import { threadKey } from "../../state/thread/model.js";
 import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 

@@ -126,7 +126,7 @@ export {
 export { replaceEntry } from "./records/history.js";
 export { walkOrigin, heldObligation, placeOf } from "./records/current-target.js";
 export { beginWalk, walkPosition } from "./records/walk-position.js";
-export { threadCounts } from "./records/thread/model.js";
+export { threadCounts } from "./state/thread/model.js";
 export {
   closeNativeLayer,
   nativeLayers,
@@ -157,7 +157,7 @@ export {
   onFrameVisibility,
   readSampleVisibility,
 } from "./base/frame-visibility.js";
-export { createPresentationSchedule } from "/runtime/records/framework.js";
+export { createPresentationSchedule } from "./base/presentation.js";
 export { reachScrollers, releaseReachStop } from "./dom/reach.js";
 export { reveal, dragHeld } from "./dom/widget-elements.js";
 export { replyIsEditing } from "./records/thread/replies.js";

@@ -81,7 +81,7 @@ import {
   keySequenceTemplate,
   progressSteps,
 } from "../../dom/keyboard/key-sequence.js";
-import { html, nothing } from "/runtime/records/framework.js";
+import { html, nothing } from "/vendor/lit.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../../base/page-paint.js";
 import { drawnByWidget, PRESSABLE } from "../../dom/widget-elements.js";
 import { el } from "../../lib/elements.js";

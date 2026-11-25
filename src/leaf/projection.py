@@ -680,7 +680,7 @@ def folded_positions(
 
     Authored units rank by authored index; each move in force this markup has not
     absorbed (`StateProjection.absorbed`) puts its unit in its container at the rank
-    it names, and a container lists its units by rank, ties by id. `records/projection/model.js`'s
+    it names, and a container lists its units by rank, ties by id. `state/projection/model.js`'s
     `foldWidgetStates` is the browser's reading of the same rule."""
     order = orders.of(owner, record)
     ranks = {

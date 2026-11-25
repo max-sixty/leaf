@@ -12,7 +12,7 @@
    they changed (`passageRows`). An entry stays the same object from one collection to
    the next for as long as what it is made from holds still (`keptEntry`), so a reader
    learns whether an entry changed by comparing the two. */
-import { share } from "/runtime/records/framework.js";
+import { share } from "../base/snapshot.js";
 import { replyIsEditing } from "../records/thread/replies.js";
 import { KINDS } from "../base/contribution-model.js";
 import { excerptWords, labelWords } from "../lib/words.js";
@@ -34,7 +34,7 @@ import { keptEach } from "../state/kept.js";
 import { addressableLabel } from "../readings/addressable-names.js";
 import { addressableWord } from "../lib/element-word.js";
 import { threadList, threadNamed } from "../records/thread/state.js";
-import { threadKey } from "../records/thread/model.js";
+import { threadKey } from "../state/thread/model.js";
 import {
   readingOrder,
   readingPlace,
@@ -44,7 +44,7 @@ import {
 } from "../readings/resolved-target.js";
 import { focusedVisualPart } from "../state/visual-parts.js";
 import { draftAnchor, draftSends, draftsReading } from "../records/drafts.js";
-import { projectionOrigins } from "../records/projection/model.js";
+import { projectionOrigins } from "../state/projection/model.js";
 import { authoredStates } from "../records/projection/authored.js";
 import { currentProjection } from "../records/projection/state.js";
 import { notice } from "../transport/notifications.js";
@@ -63,7 +63,7 @@ import { agentSays, leafSays } from "../base/voice.js";
 import { renderedOrdering, shadowHost, under } from "../lib/shadow-tree.js";
 import { placeOf } from "../records/current-target.js";
 import { obligationPlace } from "../records/obligations/place.js";
-import { hasObligationSource } from "../records/obligations/source.js";
+import { hasObligationSource } from "../state/obligations/source.js";
 import { scrollBehavior } from "../dom/motion.js";
 import {
   changeAccount,
@@ -95,7 +95,7 @@ const inProgress = readPart(
  * @typedef {import("./contributions.js").ContributionOffer} ContributionOffer
  * @typedef {import("./margin-model.js").MarginEntry<ContributionOffer>} InventoryEntry
  * @typedef {import("./margin-model.js").MarginGroup<ContributionOffer>} EntryGroup
- * @typedef {import("../records/framework/application.js").Workflow} Workflow
+ * @typedef {import("../state/semantic-application.js").Workflow} Workflow
  * @typedef {import("../records/thread/workflow.js").ThreadRecord} ThreadRecord
  * @typedef {import("../annotations/anchor-placement.js").Placement} Placement
  * @typedef {import("../readings/passages.js").Segment} Segment
@@ -116,7 +116,7 @@ const inProgress = readPart(
 // where the thread, or a saved draft, is placed (`placedAt`, `savedAt`) and whether a
 // widget seats it (`claimed`), so a pass that moves one repaints the margin, and one
 // that moves none leaves it.
-/** @param {import("../records/framework/application.js").SemanticRoot} root */
+/** @param {import("../state/semantic-application.js").SemanticRoot} root */
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
   obligations: root.effective.obligations,

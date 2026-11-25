@@ -39,7 +39,7 @@ import { adoptShadowStage } from "../../browser/runtime/dom/shadow-stage.js";
 import { watchOwner } from "../../browser/runtime/dom/arrivals.js";
 import { mountRepaint } from "../../browser/runtime/dom/repaint.js";
 import { nextRender } from "../../browser/runtime/lib/frame-pass.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 
@@ -2078,7 +2078,7 @@ test("a face shows over its control or the box that holds it, and is withheld ov
 });
 
 test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
-  const { html, render } = await import("/runtime/records/framework.js");
+  const { html, render } = await import("/vendor/lit.js");
   const other = document.createElement("button");
   document.body.append(other);
   keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
@@ -2133,7 +2133,7 @@ test("a scope's attachment and re-render run its latest callbacks and read only 
 });
 
 test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
-  const { html, render } = await import("/runtime/records/framework.js");
+  const { html, render } = await import("/vendor/lit.js");
   const { scopesAt } = await import("../../browser/runtime/dom/keyboard/scopes.js");
   const root = document.createElement("section");
   document.body.append(root);
@@ -2174,7 +2174,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
 });
 
 test("a template scope's rows read the element the template renders", async () => {
-  const { html, render } = await import("/runtime/records/framework.js");
+  const { html, render } = await import("/vendor/lit.js");
   const root = document.createElement("section");
   document.body.append(root);
   render(
@@ -2203,7 +2203,7 @@ test("a template scope's rows read the element the template renders", async () =
 });
 
 test("template scopes follow current rows and retire without removing projected commands", async () => {
-  const { html, nothing, render } = await import("/runtime/records/framework.js");
+  const { html, nothing, render } = await import("/vendor/lit.js");
   const root = document.createElement("section");
   document.body.append(root);
   const invoked = [];
@@ -2632,7 +2632,7 @@ test("a chosen contribution offer retains its exact reading across a later updat
       activateContributionControl,
     )(chosen.reading.entries[0]);
     // What an entry says is its preview (annotations/preview.js).
-    const { render } = await import("/runtime/records/framework.js");
+    const { render } = await import("/vendor/lit.js");
     const said = (control) => {
       const box = document.createElement("div");
       render(control.lfPreview().name, box);

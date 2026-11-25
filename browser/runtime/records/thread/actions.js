@@ -7,7 +7,7 @@
    defaults to the active revision; a resumed draft supplies the revision captured
    with its anchor, even after the active document has changed. */
 import { randomId } from "../../base/ids.js";
-import { discussed, editable } from "./model.js";
+import { discussed, editable } from "../../state/thread/model.js";
 import { threadNamed } from "./state.js";
 
 /** @typedef {import("../../../types/domain.js").PendingCommand} PendingCommand */

@@ -18,7 +18,7 @@ import { commandScope, keys } from "/runtime/dom/keyboard/scopes.js";
 import { liveEl } from "/runtime/transport/notifications.js";
 import { mountRepaint } from "/runtime/dom/repaint.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
-import { html } from "/runtime/records/framework.js";
+import { html } from "/vendor/lit.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
 const KEYS = ["a", "s", "d"];

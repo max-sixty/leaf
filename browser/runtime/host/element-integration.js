@@ -88,7 +88,7 @@
    widget's reading, or, on an element that only reads data, an empty one once its
    inputs are set. Leaf also dresses the open shadow root of an element that says it
    (dom/shadow-stage.js), whatever its tag declares. */
-import { effect, signal, untracked } from "/runtime/records/framework.js";
+import { effect, signal, untracked } from "/vendor/signals-core.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
@@ -186,10 +186,10 @@ function host(element) {
   const name = descriptor
     ? `widget:${descriptor.id}:render`
     : `element:${element.localName}:${++regions}`;
-  /** @type {import("../records/framework/presentation.js").PresentationHandle | null} */
+  /** @type {import("../base/presentation.js").PresentationHandle | null} */
   let region = null;
   // The open claim the next pass settles.
-  /** @type {import("../records/framework/presentation.js").PresentationTicket | null} */
+  /** @type {import("../base/presentation.js").PresentationTicket | null} */
   let ticket = null;
   /** @type {import("./widget-controller.js").WidgetReading | null} */
   let shown = null;
@@ -323,7 +323,7 @@ function host(element) {
     });
   // What a pass's sets came to, said to whoever hears it: the claim, the page's error
   // report, and the readers of a visual's layout.
-  /** @param {import("../records/framework/presentation.js").PresentationTicket | null} drawing
+  /** @param {import("../base/presentation.js").PresentationTicket | null} drawing
    * @param {unknown[]} failures @param {PromiseLike<unknown>[]} held */
   const settle = (drawing, failures, held) => {
     if (visual) layoutChanged(element);

@@ -11,10 +11,10 @@ import { addressableAt } from "../thread/messages.js";
 import { perVocabulary, tagsDeclaring } from "../../state/registry.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../../base/voice.js";
-import { hasObligationSource } from "./source.js";
+import { hasObligationSource } from "../../state/obligations/source.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
-/** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
+/** @typedef {Exclude<import("../../state/semantic-application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
 
 const awaitingWidgets = perVocabulary(() =>
   tagsDeclaring((entry) => entry.awaits).join(","),
@@ -34,7 +34,7 @@ export function obligationWord(item) {
 }
 
 /** Answer text where the source supplies words or a widget formatter; other sources have none.
- * @param {import("../framework/application.js").ObligationRecord} item */
+ * @param {import("../../state/semantic-application.js").ObligationRecord} item */
 export function answerWords(item) {
   if (item.answer === null) return "";
   if (answeredInWords(item))

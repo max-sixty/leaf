@@ -125,7 +125,7 @@ import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../../dom/widget-elements.js";
 import { visibleTargetParts } from "../../readings/visible-target-parts.js";
 import { renderedUnder, closestAcross } from "../../lib/shadow-tree.js";
-import { deleted, discussed, editable } from "./model.js";
+import { deleted, discussed, editable } from "../../state/thread/model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";

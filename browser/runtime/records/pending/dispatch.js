@@ -2,7 +2,7 @@
 /* Widget command construction and the checked submission boundary. Presentation
    and collision notices belong to the composition root; its callbacks run after
    the ledger publishes the command synchronously. */
-import { actionForWidget, isThreadEvent } from "./model.js";
+import { actionForWidget, isThreadEvent } from "../../state/pending/model.js";
 import { createPendingLedger } from "./state.js";
 import { applicationState, readApplication } from "../../state/semantic-state.js";
 import { randomId } from "../../base/ids.js";
@@ -13,8 +13,8 @@ import { messageText } from "../thread/messages.js";
 
 /** @typedef {import("../../../types/domain.js").PendingCommand} PendingCommand */
 /** @typedef {import("../../../types/domain.js").Event} Event */
-/** @typedef {import("../framework/application.js").WidgetDescriptor} WidgetDescriptor */
-/** @typedef {ReturnType<typeof import("../framework/application.js").createSemanticApplication>} Application */
+/** @typedef {import("../../state/semantic-application.js").WidgetDescriptor} WidgetDescriptor */
+/** @typedef {ReturnType<typeof import("../../state/semantic-application.js").createSemanticApplication>} Application */
 /** @typedef {ReturnType<ReturnType<Application["selectWidget"]>["read"]>["actions"][string]["undo"][number]} UndoCandidate */
 /** A package's command, as `widgetController(owner).dispatch` takes it. Admission
  * judges each registry-declared detail schema. An action's `says` names the gesture in

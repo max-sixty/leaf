@@ -28,7 +28,7 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * accessibleLabel?: string | null, context?: import("./voice.js").Words | null,
  * description?: string | null, behavior?: Behavior, tone?: Tone, rank?: Rank,
  * state?: ContributionState, visible?: boolean, disabled?: boolean, count?: number,
- * pressed?: boolean | null, workflowReceipt?: import("../records/framework/application.js").Workflow | null | undefined,
+ * pressed?: boolean | null, workflowReceipt?: import("../state/semantic-application.js").Workflow | null | undefined,
  * relation?: EntryRelationInput | null, activation?: string | null, title?: string | null,
  * scope?: NonNullable<Element["lfCommands"]> | import("../dom/keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry

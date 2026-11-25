@@ -7,7 +7,7 @@ import test from "node:test";
 
 const { ReactionStripView } =
   await import("/runtime/records/thread/reaction-strips.js");
-const { tokenChoices } = await import("/runtime/records/thread/model.js");
+const { tokenChoices } = await import("/runtime/state/thread/model.js");
 
 function strip(inForce) {
   const asked = [];
@@ -45,7 +45,7 @@ test("pressing a reaction the user does not have puts it on", () => {
 });
 
 test("a trigger drawn again is the one the picker opens from", async () => {
-  const { html, nothing, render } = await import("/runtime/records/framework.js");
+  const { html, nothing, render } = await import("/vendor/lit.js");
   const registered = [];
   const view = new ReactionStripView({
     registerSurface: (_surface, { trigger }) => {
@@ -64,7 +64,7 @@ test("a trigger drawn again is the one the picker opens from", async () => {
 });
 
 test("a mounted reaction sends before closing the picker and revealing held news", async () => {
-  const { html, render } = await import("/runtime/records/framework.js");
+  const { html, render } = await import("/vendor/lit.js");
   const order = [];
   const view = new ReactionStripView({
     registerSurface: () => ({ close: () => order.push("close"), toggle() {} }),

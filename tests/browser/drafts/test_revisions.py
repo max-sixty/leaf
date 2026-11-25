@@ -195,7 +195,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     write(reply, "A thought I changed my mind about.")
     write(reply, "")
     # A thread's reply draft is keyed by the name the log's answer does not change —
-    # the attempt the user's own comment opened it with (records/thread/model.js).
+    # the attempt the user's own comment opened it with (state/thread/model.js).
     assert stored_draft_text(page, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."

@@ -27,7 +27,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from leaf.event_log import (
     _append_event_unlocked,
@@ -64,6 +64,7 @@ from leaf.state import (
     page_key,
     page_stands,
     remove_claim,
+    replace_bytes,
     session_claims,
     session_file,
     session_live,
@@ -91,7 +92,7 @@ def claim_path(page_dir: Path) -> Path:
     return claims_home() / f"{page_key(page_dir)}.json"
 
 
-def publish_claim(page_dir: Path, claim: dict) -> None:
+def publish_claim(page_dir: Path, claim: dict) -> dict[Path, bytes]:
     """Prepare discovery, then commit ownership in the canonical payload: the one
     writer of a claim.
 
@@ -102,7 +103,8 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     cannot destroy discovery. The claims lock keeps a retirement from removing
     what this publishes (`state.retire_claim`). A claim of another shape goes with
     the claim this replaces, since it would otherwise hold the page beside it
-    (`held_at_another_shape`).
+    (`page_holder`); its bytes, unread, are returned for a rollback to write back
+    (`PageTransaction.restore_claim`).
     """
     path = claim_path(page_dir)
     name = CLAIM.file(path).name
@@ -118,10 +120,23 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
         finally:
             staged.unlink(missing_ok=True)
         CLAIM.write(path, claim)
-        for other in CLAIM.others(path):
+        displaced = {other: other.read_bytes() for other in CLAIM.others(path)}
+        for other in displaced:
             other.unlink(missing_ok=True)
         if previous is not None and previous["id"] != claim["id"]:
             drop_locator(previous["id"], name)
+    return displaced
+
+
+class ClaimTransition(NamedTuple):
+    """One claim's publication (`PageTransaction.publishing_claim`), for its
+    rollback (`PageTransaction.restore_claim`): the page's claim at this shape before
+    it, the claim as its readers take it (`claim_reading`), and the bytes of each
+    claim of another shape it removed (`publish_claim`), filled as it publishes."""
+
+    previous: dict | None
+    claim: dict
+    displaced: dict[Path, bytes]
 
 
 def claim_reading(claim: dict | None) -> dict | None:
@@ -226,20 +241,28 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
 def may_receive(page_dir: Path, claim: dict | None, session_id: str | None) -> bool:
     """Whether `session_id` may take receipt of `page_dir`'s input under `claim`
     (`delivery.receive_batch`): the claim names it, or, for a reader with no
-    session, no session holds the page, at this shape or another
-    (`held_at_another_shape`)."""
+    session, no one holds the page (`page_holder`)."""
     if session_id is None:
-        return not claim_is_active(claim) and not held_at_another_shape(page_dir, claim)
+        return page_holder(page_dir, claim, None) is None
     return claim_names_session(claim, session_id)
 
 
-def held_at_another_shape(page_dir: Path, claim: dict | None) -> str | None:
-    """Who holds `page_dir` by a record a Leaf of another shape wrote, which this
-    Leaf reads as holding the page without reading it (`state.Record`), where this
-    Leaf's claim isn't active: for `claim`, this Leaf's, a lifecycle of another shape
-    of its session where this Leaf's doesn't name its generation and hasn't seen it
-    end, and otherwise a claim of another shape. None where neither stands."""
-    if claim is not None:
+def page_holder(
+    page_dir: Path, claim: dict | None, session_id: str | None
+) -> dict | str | None:
+    """Who holds `page_dir`, as this Leaf sees it for a reader acting for the session
+    `session_id`, or for no session: `claim`, the page's claim at this shape, while
+    its session lives (`claim_is_active`); a holder this Leaf reads as holding the
+    page without reading it (`state.Record`), as words naming it: `claim`'s session
+    where a lifecycle of another shape of it stands that this Leaf's record doesn't
+    match and hasn't seen end, unless that session is the reader's, which takes its
+    page again (`reconnect`), or else a claim of another shape; or None where no one
+    holds the page. Every reader that decides whether it may act on a page someone
+    else holds asks this: `held_elsewhere`, `may_receive`, `PageTransaction.
+    watch_state` and a server's retirement (`server.stop_when_service_ends`)."""
+    if claim is not None and claim_is_active(claim):
+        return claim
+    if claim is not None and claim["id"] != session_id:
         record = session_record(claim["id"])
         if (
             record is None
@@ -266,15 +289,14 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
 
 
 def held_elsewhere(page_dir: Path, harness: Harness | None) -> str | None:
-    """Who holds `page_dir`, where a session other than `harness`'s does, or None:
-    a claim naming another session that still lives (`claim_is_active`), whatever
-    harness it names, or a record of another shape that holds the page
-    (`held_at_another_shape`)."""
-    claim = CLAIM.read(claim_path(page_dir))
-    own = claim is not None and claimant_matches(claim, harness)
-    if claim is not None and claim_is_active(claim):
-        return None if own else f"session {claim['id']}"
-    return held_at_another_shape(page_dir, None if own else claim)
+    """Who holds `page_dir`, where a session other than `harness`'s does, or None
+    (`page_holder`), whatever harness the holder names."""
+    holder = page_holder(
+        page_dir, CLAIM.read(claim_path(page_dir)), harness.session if harness else None
+    )
+    if isinstance(holder, dict):
+        return None if claimant_matches(holder, harness) else f"session {holder['id']}"
+    return holder
 
 
 def refuse_held(page_dir: Path, harness: Harness | None) -> None:
@@ -379,8 +401,15 @@ class PageTransaction:
 
     @property
     def active_claim(self) -> dict | None:
+        """The claim while its session lives, which a reader acting for that session
+        acts by; who holds the page for a reader deciding whether it may act
+        against its holder is `holder`'s."""
         claim = self.claim
         return claim if claim_is_active(claim) else None
+
+    def holder(self, session_id: str | None) -> dict | str | None:
+        """Who holds the page for a reader acting for `session_id` (`page_holder`)."""
+        return page_holder(self.page_dir, self.claim, session_id)
 
     def open_reply_reservation(self, responds: str) -> dict | None:
         """The reply reservation on `responds` while the claim turn it names is open
@@ -409,7 +438,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_names_session(claim, session_id) else None
 
-    def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
+    def take_claim(self, harness: Harness) -> ClaimTransition:
         """Record this session as the page's watcher.
 
         The record carries the claimant's harness as well as its id, so every
@@ -431,19 +460,21 @@ class PageTransaction:
         """
         with flocked(session_lock_path(claim["id"])):
             projected = claim_reading(claim)
+            assert projected is not None  # a claim reads as one
             if not claim_is_active(projected):
-                assert projected is not None
                 raise Refused(dead_session(projected))
-            previous = self.claim
-            yield previous, projected
-            publish_claim(self.page_dir, claim)
+            transition = ClaimTransition(self.claim, projected, {})
+            yield transition
+            transition.displaced.update(publish_claim(self.page_dir, claim))
 
-    def restore_claim(self, expected: dict, previous: dict | None) -> None:
-        """Roll back one failed claim without erasing a successor's."""
-        if not same_claim(self.claim, expected):
+    def restore_claim(self, transition: ClaimTransition) -> None:
+        """Roll back one failed claim without erasing a successor's, putting back
+        what it replaced: the previous claim at this shape and, unread, each claim
+        of another shape the publication removed."""
+        if not same_claim(self.claim, transition.claim):
             return
         path = claim_path(self.page_dir)
-        if previous is None:
+        if transition.previous is None:
             remove_claim(path)
         else:
             # The claim's own keys, less what its reading took from its session.
@@ -451,10 +482,13 @@ class PageTransaction:
                 self.page_dir,
                 {
                     key: value
-                    for key, value in previous.items()
+                    for key, value in transition.previous.items()
                     if key in CLAIM.schema["properties"]
                 },
             )
+        with flocked(claims_lock()):
+            for other, stored in transition.displaced.items():
+                replace_bytes([(other, stored, False)])
 
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
@@ -771,7 +805,8 @@ class PageTransaction:
         return acknowledged(self.events)
 
     def watch_state(self, harness: Harness | None) -> str:
-        if not claimant_matches(self.active_claim, harness):
+        holder = self.holder(harness.session if harness else None)
+        if isinstance(holder, str) or not claimant_matches(holder, harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
 
@@ -805,7 +840,7 @@ def prepare_claim(harness: Harness, page_dir: Path) -> dict:
     }
 
 
-def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
+def take_page_claim(page_dir: Path) -> ClaimTransition | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
     `server start` and `page claim` claim; waiting and authoring commands do not.
@@ -824,15 +859,12 @@ def claim_page(page_dir: Path) -> bool:
     return take_page_claim(page_dir) is not None
 
 
-def restore_page_claim(
-    page_dir: Path, transition: tuple[dict | None, dict] | None
-) -> None:
+def restore_page_claim(page_dir: Path, transition: ClaimTransition | None) -> None:
     """Undo a failed startup's claim, provided no successor replaced it."""
     if transition is None:
         return
-    previous, expected = transition
     with PageTransaction(page_dir) as page:
-        page.restore_claim(expected, previous)
+        page.restore_claim(transition)
 
 
 def no_stream() -> dict:

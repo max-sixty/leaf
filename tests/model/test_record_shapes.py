@@ -9,10 +9,11 @@ import os
 import pytest
 from click.testing import CliRunner
 from conftest import hooks_run_this_tree
-from interact_support import record_claim
+from interact_support import append_carried_log_record, record_claim, serving
 from model_folds import leaf_page
 
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import state as state_model
 from leaf import vendoring as vendoring_model
 from leaf.cli import cli
@@ -27,6 +28,7 @@ def another_shapes(record, path, value):
     """Write `value` where a Leaf at another shape of `record` keeps it, beside this
     Leaf's file."""
     other = path.with_name(f"{path.stem}@999{path.suffix}")
+    other.parent.mkdir(parents=True, exist_ok=True)
     other.write_text(json.dumps({"format": f"leaf-{record.kind}/999", **value}))
     return other
 
@@ -133,3 +135,45 @@ def test_taking_over_a_page_held_at_another_shape_leaves_one_owner(
     assert taken is not None and taken["id"] == "taker"
     assert service_model.claim_is_active(taken)
     assert service_model.held_elsewhere(page_dir, None) == "session taker"
+
+
+def test_a_wait_for_no_session_takes_no_input_from_a_page_held_at_another_shape(
+    page_dir, sessionless, capsys
+):
+    """A wait acting for no session stops at a page whose claim is at another
+    shape, as at one a session holds at this shape, naming the takeover, rather
+    than handing out input it could never acknowledge."""
+    serving(page_dir, 1)
+    payload = service_model.claim_path(page_dir)
+    another_shapes(state_model.CLAIM, payload, {"page": str(page_dir)})
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "for its holder"}
+    )
+
+    assert session_model.cmd_wait(page_dir) == 2
+    printed = capsys.readouterr()
+    assert printed.out == ""
+    assert "a session of another Leaf version" in printed.err
+    assert f"leaf server start {page_dir}` in an agent session" in printed.err
+
+
+def test_a_rolled_back_takeover_leaves_the_other_shapes_holder_in_place(
+    page_dir, monkeypatch
+):
+    """A takeover that fails after publishing, as a Codex start whose offer fails
+    does, puts back the claim of another shape it removed, so the session holding
+    the page under another Leaf keeps it."""
+    payload = service_model.claim_path(page_dir)
+    other = another_shapes(state_model.CLAIM, payload, {"page": str(page_dir)})
+    held = other.read_bytes()
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "taker")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    hooks_run_this_tree("taker")
+
+    transition = service_model.take_page_claim(page_dir)
+    assert transition is not None and not other.exists()
+    service_model.restore_page_claim(page_dir, transition)
+
+    assert other.read_bytes() == held
+    assert service_model.page_claim(page_dir) is None
+    assert service_model.held_elsewhere(page_dir, None)

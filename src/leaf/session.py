@@ -102,11 +102,16 @@ def cmd_idle(page_dir: Path) -> dict:
         harness = claim_harness(claim)
         pending = len(unacknowledged(events, page.cursor))
         if pending:
-            remedy = (
-                harness.input_unpicked(page_dir, listening=state["listening"])
-                if harness
-                else "`leaf wait` prints them."
-            )
+            holder = page.holder(None)
+            if harness:
+                remedy = harness.input_unpicked(page_dir, listening=state["listening"])
+            elif isinstance(holder, str):
+                remedy = (
+                    f"{holder} holds the page; `leaf server start {page_dir}` in an "
+                    "agent session takes it over."
+                )
+            else:
+                remedy = "`leaf wait` prints them."
             raise Refused(
                 f"{pending} event{'s' if pending != 1 else ''} nobody has picked up, "
                 f"so the page cannot close yet. {remedy}"
@@ -566,9 +571,11 @@ def _lost(readings: list[PageTick], harness: Harness | None) -> Finding:
     no longer does, or, for a wait acting for no session, which names one page,
     a session does."""
     pages = [str(reading.page_dir) for reading in readings]
-    if harness is None and (claim := readings[0].transaction.claim):
+    if harness is None and (holder := readings[0].transaction.holder(None)):
+        if isinstance(holder, dict):
+            holder = f"session {holder['id']}"
         return Finding(
-            "held-for-a-session", values={"page": pages[0], "session": claim["id"]}
+            "held-for-a-session", values={"page": pages[0], "holder": holder}
         )
     return Finding("not-owned", values={"pages": pages})
 

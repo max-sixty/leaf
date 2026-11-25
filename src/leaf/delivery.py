@@ -1357,7 +1357,7 @@ def receive_batch(
             raise ReceiptRefused(
                 f"delivery no longer owns its page: {page.page_dir}; another "
                 "session or Leaf version holds it, and `leaf server start "
-                f"{page.page_dir}` takes it over"
+                f"{page.page_dir}` in an agent session takes it over"
             )
         if refusal := write_refusal(page.page_dir):
             raise ReceiptRefused(str(refusal))

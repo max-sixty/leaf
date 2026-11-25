@@ -733,7 +733,8 @@ def cmd_serve(
                 try:
                     with PageTransaction(page_dir) as page:
                         if acquire and claimed:
-                            with page.publishing_claim(prepared_claim) as (_, claim):
+                            with page.publishing_claim(prepared_claim) as taken:
+                                claim = taken.claim
                                 if httpd is not None:
                                     assert service is not None
                                     write_service(page_dir, service)

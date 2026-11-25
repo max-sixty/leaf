@@ -427,13 +427,13 @@ class PreviewService:
     def stop(self) -> None:
         """Stop serving and withdraw this preview's acquisition, keeping successors."""
         from leaf.hosting import cmd_stop
-        from leaf.service import PageTransaction
+        from leaf.service import ClaimTransition, PageTransaction
 
         if self.user:
             cmd_stop(self.page, owner=self.claim)
             if self.claim is not None:
                 with PageTransaction(self.page) as page:
-                    page.restore_claim(self.claim, None)
+                    page.restore_claim(ClaimTransition(None, self.claim, {}))
         else:
             self._close_temporary()
 

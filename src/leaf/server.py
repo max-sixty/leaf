@@ -22,7 +22,7 @@ from .schema import (
     SERVER_LOCK,
     SERVICE_FILE,
 )
-from .service import PREVIEW, PageTransaction, claim_is_active, page_claim
+from .service import PREVIEW, PageTransaction, page_claim, page_holder
 from .state import (
     PLUGIN_ROOT,
     STRING,
@@ -268,7 +268,8 @@ def stop_when_service_ends(page_dir: Path) -> None:
             exit_serving(0)
         persistent = service["lifetime"] == "persistent"
         held = page_claim(page_dir)
-        claimed = claim_is_active(held)
+        holder = page_holder(page_dir, held, None)
+        claimed = isinstance(holder, dict)
         if persistent or claimed:
             root = copy.successor(held["id"] if held is not None and claimed else None)
             if root is not None and root != asked:
@@ -281,7 +282,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
         if persistent:
             time.sleep(2.0)
             continue
-        if claimed:
+        if holder is not None:
             orphaned_at = None
         elif orphaned_at is None:
             orphaned_at = time.monotonic()
@@ -294,7 +295,10 @@ def stop_when_service_ends(page_dir: Path) -> None:
                     service = read_service(page_dir)
                     if not service or not service["enabled"]:
                         exit_serving(0)
-                    if service["lifetime"] == "persistent" or page.active_claim:
+                    if (
+                        service["lifetime"] == "persistent"
+                        or page.holder(None) is not None
+                    ):
                         orphaned_at = None
                         continue
                     exit_serving(0)

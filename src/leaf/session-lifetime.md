@@ -313,7 +313,7 @@ session's hooks can't read, whatever the two protocols are.
 A Leaf reads a session's lifecycle record and its claims only at its own shapes,
 and reads a page as held while a claim of another shape stands, or a lifecycle of
 another shape for a claim's session whose generation this Leaf's record doesn't name
-(`service.held_at_another_shape`). So across an update that changes either record's
+(`service.page_holder`). So across an update that changes either record's
 shape, the session's pages stay held: no terminal re-initializes them, no `leaf wait`
 takes their input, and another session takes them only by claiming them, which ends
 the claim at every shape (`service.publish_claim`). One that changes the lifecycle's

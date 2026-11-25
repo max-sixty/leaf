@@ -134,6 +134,7 @@ from .json_block import json_block
 from .refusals import Refused
 from .registry.schema import aware_instant
 from .service import (
+    ClaimTransition,
     PageTransaction,
     delivery_reply_attempt,
     owned_pages,
@@ -2038,7 +2039,7 @@ class PreparedDelivery:
 
     prompt: str
     payload: dict
-    claim_transition: tuple[dict | None, dict] | None = field(
+    claim_transition: ClaimTransition | None = field(
         default=None, compare=False, repr=False
     )
 

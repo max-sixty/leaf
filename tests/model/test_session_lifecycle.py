@@ -266,24 +266,24 @@ def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
     previous = service_model.page_claim(claimed)
     harness = harness_model.session_harness()
     with service_model.PageTransaction(claimed) as page:
-        _, expected = page.take_claim(harness)
+        expected = page.take_claim(harness)
         cleanup_model.prompt_turn("s1", "provider")
-        page.restore_claim(expected, previous)
+        page.restore_claim(expected)
         assert previous is not None
         assert page.claim["acquisition"] == previous["acquisition"]
-        _, first = page.take_claim(harness)
-        _, successor = page.take_claim(harness)
-        assert first["acquisition"] != successor["acquisition"]
-        page.restore_claim(first, previous)
-        assert page.claim["acquisition"] == successor["acquisition"]
+        first = page.take_claim(harness)
+        successor = page.take_claim(harness)
+        assert first.claim["acquisition"] != successor.claim["acquisition"]
+        page.restore_claim(first)
+        assert page.claim["acquisition"] == successor.claim["acquisition"]
         # A Leaf of another claim shape replaced the claim, which this Leaf reads
         # none of and leaves as it was.
         path = service_model.claim_path(claimed)
         other = path.with_name(f"{path.stem}@999{path.suffix}")
         service_model.CLAIM.remove(path)
-        cleanup_model.write_json(other, {**successor, "format": "leaf-claim/999"})
+        cleanup_model.write_json(other, {**successor.claim, "format": "leaf-claim/999"})
         held = other.read_bytes()
-        page.restore_claim(successor, previous)
+        page.restore_claim(successor)
         assert page.claim is None
         assert other.read_bytes() == held
 

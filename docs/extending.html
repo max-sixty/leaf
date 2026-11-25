@@ -2214,21 +2214,145 @@ $ leaf page check PAGE --render</code></pre>
             </p>
 
             <h3 id="styles-tiers">The tiers</h3>
-            <figure id="cascade-figure" class="diagram-figure">
-              <h4 id="cascade-document">The page’s document</h4>
-              <lf-diagram id="cascade-document-order" data-height="635" parts="all">
-                <pre>
-flowchart TD
-  accTitle: CSS precedence in the page document
-  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-overrides, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
-  Page["Page rules · unlayered"] --> Layers["Page's own layers"]
-  Layers --> State["lf-state · Leaf"]
-  State --> Theme["lf-overrides · packages"]
-  Theme --> Layout["lf-layouts · Leaf"]
-  Layout --> Base["lf-base · Leaf and widgets"]
-  Base --> Reset["lf-reset · Leaf"]
-</pre>
-              </lf-diagram>
+            <p id="styles-tiers-lede">
+              A page's own CSS goes in one of four places, and each ranks against Leaf's
+              tiers as below. Unlayered rules, and rules in a layer of any name but
+              <code>base</code> or <code>reset</code>, outrank everything Leaf draws, so
+              a page restyles a widget there.
+            </p>
+            <figure id="cascade-figure" data-width="wide">
+              <div class="lf-scroll" id="cascade-scroll" style="overflow-x: auto">
+                <svg
+                  class="lf-drawing"
+                  style="max-width: none; min-width: 760px"
+                  viewBox="0 0 760 310"
+                  role="img"
+                  aria-label="The page document's cascade tiers, highest first: the page's unlayered rules; any other layer the page names, where Tailwind's theme, components and utilities go; Leaf's widgets, controls, Layouts and drawn text; the page's base layer, where Tailwind puts preflight and the author's base rules; the theme the page selects; Leaf's clearing of form controls; and the page's reset layer, where a page can import preflight instead."
+                >
+                  <defs>
+                    <marker
+                      id="cascade-tip"
+                      viewBox="0 0 10 10"
+                      refX="5"
+                      refY="5"
+                      markerWidth="7"
+                      markerHeight="7"
+                      orient="auto-start-reverse"
+                    >
+                      <path class="tip" d="M0 0 L10 5 L0 10 z" />
+                    </marker>
+                  </defs>
+                  <path class="arrow" d="M20 300 V44" marker-end="url(#cascade-tip)" />
+                  <text
+                    x="10"
+                    y="170"
+                    text-anchor="middle"
+                    transform="rotate(-90 10 170)"
+                  >
+                    wins
+                  </text>
+                  <text class="small strong" x="48" y="26">Tier</text>
+                  <text class="small strong" x="198" y="26">What goes there</text>
+                  <text class="small strong" x="528" y="26">Tailwind 4 puts here</text>
+                  <g id="cascade-unlayered">
+                    <rect class="box" x="36" y="40" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="61">unlayered</text>
+                    <text x="198" y="61">your rules for this page</text>
+                  </g>
+                  <g id="cascade-other">
+                    <rect class="box" x="36" y="78" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="99">any other @layer</text>
+                    <text x="198" y="99">restyle a widget here</text>
+                    <rect class="box" x="516" y="78" width="236" height="32" rx="4" />
+                    <text x="528" y="99">theme · components · utilities</text>
+                  </g>
+                  <g id="cascade-leaf">
+                    <rect
+                      class="box hot"
+                      x="36"
+                      y="116"
+                      width="464"
+                      height="32"
+                      rx="4"
+                    />
+                    <text class="mono strong" x="48" y="137">lf-base … lf-state</text>
+                    <text x="198" y="137">
+                      Leaf's widgets, controls, Layouts, drawn text
+                    </text>
+                  </g>
+                  <g id="cascade-base">
+                    <rect class="box" x="36" y="154" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="175">@layer base</text>
+                    <text x="198" y="175">element defaults, such as an h1's size</text>
+                    <rect class="box" x="516" y="154" width="236" height="32" rx="4" />
+                    <text x="528" y="175">base: preflight + base rules</text>
+                  </g>
+                  <g id="cascade-theme">
+                    <rect
+                      class="box hot"
+                      x="36"
+                      y="192"
+                      width="464"
+                      height="32"
+                      rx="4"
+                    />
+                    <text class="mono strong" x="48" y="213">lf-theme</text>
+                    <text x="198" y="213">
+                      the theme you select, on your own markup
+                    </text>
+                  </g>
+                  <g id="cascade-lf-reset">
+                    <rect
+                      class="box hot"
+                      x="36"
+                      y="230"
+                      width="464"
+                      height="32"
+                      rx="4"
+                    />
+                    <text class="mono strong" x="48" y="251">lf-reset</text>
+                    <text x="198" y="251">Leaf clears form controls' faces</text>
+                  </g>
+                  <g id="cascade-reset">
+                    <rect class="box" x="36" y="268" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="289">@layer reset</text>
+                    <text x="198" y="289">a reset that fills only the gaps</text>
+                    <rect
+                      class="ghost"
+                      x="516"
+                      y="268"
+                      width="236"
+                      height="32"
+                      rx="4"
+                    />
+                    <text x="528" y="289">preflight, if imported here</text>
+                  </g>
+                </svg>
+              </div>
+              <figcaption>
+                <strong>The page's document, highest first.</strong> Leaf's tiers are
+                tinted. Leaf's panel and thread cards are unlayered too, after the
+                page's rules, and keep their look against a selector as light as one
+                class. <code>!important</code> reverses the order.
+              </figcaption>
+            </figure>
+            <p id="styles-base-slot">
+              A framework's base layer holds its reset beside the element rules its
+              author writes, as Tailwind 4's <code>base</code> holds preflight. The
+              author's rules must beat the theme, and the reset must leave Leaf's
+              widgets their margins and borders, so Leaf places
+              <code>base</code> between its theme and its own elements. A layer ranks as
+              a whole, so the reset also beats the theme's look on the page's own
+              markup: a list loses its bullets and a code block its frame. A page that
+              wants the theme's look under Tailwind imports preflight into
+              <code>reset</code> instead:
+            </p>
+            <pre
+              id="styles-tailwind-reset"
+            ><code class="language-css">@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(reset);
+@import "tailwindcss/utilities.css" layer(utilities);</code></pre>
+            <figure id="cascade-shadow-figure" class="diagram-figure">
               <h4 id="cascade-shadow">A widget’s shadow tree</h4>
               <lf-diagram id="cascade-shadow-order" data-height="449" parts="all">
                 <pre>
@@ -2243,21 +2367,11 @@ flowchart TD
               </lf-diagram>
               <figcaption>
                 <strong>Normal declarations, highest precedence first.</strong>
-                Leaf’s <code>lf-state</code> hides what a decision removed;
-                <code>lf-reset</code> clears the browser’s form-control styles; marks
-                are the highlights Leaf draws. <code>!important</code> reverses the
-                layer order.
+                Page rules stop at the shadow root; marks are the highlights Leaf draws.
               </figcaption>
             </figure>
             <details id="cascade-sheets">
               <summary>Which styles contribute to each tier?</summary>
-              <p>
-                A page’s unlayered rules come first. Leaf’s panel, cards and marks are
-                also unlayered and appear later, winning a tie. The page’s own
-                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them,
-                except one named <code>reset</code>, which Leaf ranks below its own so a
-                page’s reset leaves Leaf’s controls their frames.
-              </p>
               <table>
                 <thead>
                   <tr>
@@ -2266,6 +2380,10 @@ flowchart TD
                   </tr>
                 </thead>
                 <tbody>
+                  <tr>
+                    <td><code>lf-state</code></td>
+                    <td>Leaf's rules that hide what a decision removed.</td>
+                  </tr>
                   <tr>
                     <td><code>lf-overrides</code></td>
                     <td>
@@ -2286,10 +2404,18 @@ flowchart TD
                   <tr>
                     <td><code>lf-base</code></td>
                     <td>
-                      In the document: Leaf’s <code>base.css</code>, then packages’
-                      <code>defaults.css</code> and <code>widget-shadow.css</code>. In a
-                      shadow tree: defaults the widget adopts inside
-                      <code>@layer lf-base { … }</code>.
+                      In the document: the reading look for text Leaf draws, such as a
+                      thread's messages, then Leaf's faces for its own elements and
+                      controls, then packages' <code>widget-shadow.css</code> and
+                      <code>defaults.css</code>. In a shadow tree: defaults the widget
+                      adopts inside <code>@layer lf-base { … }</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-theme</code></td>
+                    <td>
+                      Leaf's tokens and page shell, the reading look for the page's own
+                      markup and controls, and each package's <code>theme.css</code>.
                     </td>
                   </tr>
                 </tbody>

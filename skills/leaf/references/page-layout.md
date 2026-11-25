@@ -358,6 +358,17 @@ outranks Leaf's rules, as unlayered CSS does, so a utility class on a widget, su
 Tailwind's `mt-0`, restyles it. To restyle what Leaf draws, write the rule in such a
 layer or unlayered, not in `base`.
 
+A reset in `base` also outranks the theme's look, on the page's own markup and on the
+code a widget such as `lf-code` shows in that look: lists lose their bullets and code
+blocks their frames. A page that wants the theme's look imports the reset into `reset`
+instead, as Tailwind 4 allows:
+
+```css
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(reset);
+@import "tailwindcss/utilities.css" layer(utilities);
+```
+
 A page whose framework has design tokens hands Leaf three of them, so
 what Leaf draws takes the framework's colours:
 

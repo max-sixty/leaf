@@ -746,6 +746,14 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
     ],
     ["Return inside an entity", "Fish &amp; chips", 7, "⏎", "Fish &amp;\\\n chips"],
     ["Return among a task's markers", "- [ ] task", 3, "⏎", "- \n- [ ] task"],
+    ["Return before marks the words show", "foo_bar_", 3, "⏎", "foo\\\n\\_bar_"],
+    [
+      "not where the heading's words would read as a table's header",
+      "| xa | b |\n---",
+      3,
+      "⏎",
+      "| xa | b |\n---",
+    ],
     [
       "Return before a mark on a nested item's second line",
       "  - nested\n    q - x",
@@ -783,14 +791,18 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
     ["typing on a first, empty line", "\n", 0, "x", "x\n"],
     ["typing after a hard break at the draft's end", "A\\\n", 3, "x", "A\\\nx"],
     ["typing a heading's mark after it", "A\\\n", 3, "=", "A\\\n\\="],
+    ["typing an item's marker after it", "A\\\n", 3, "1. hi", "A\\\n1\\. hi"],
   ]) {
     const field = await draftField(source, caret, false);
     assert.equal(field.type(keys), expected, name);
     if ([...keys].length === 1)
       assert.equal(field.type("↶"), source, `${name}, undone`);
   }
-  // A message shows each line, so words typed on one stay there.
+  // A message shows each line, so words typed on one stay there, and Backspace or
+  // Delete beside a blank line takes it, joining the paragraphs around it.
   assert.equal((await draftField("a\n\nb", 2, true)).type("Z"), "a\nZ\nb");
+  assert.equal((await draftField("a\n\nb", 3, true)).type("⌫"), "a\nb");
+  assert.equal((await draftField("a\n\nb", 1, true)).type("⌦"), "a\nb");
   // Pasted paragraphs stand apart from those beside the gap, and a pasted item after a
   // hard break stays its list's.
   assert.equal(
@@ -1020,10 +1032,7 @@ test("the field's keys keep their promises over generated drafts", async () => {
           `typing showed ${gained}`,
           shows,
         );
-      // Joining two lines can set an emphasis mark beside a letter, which stops it
-      // opening, as `ta` before `**\*Hello**` does.
-      else if (!(deletion && /^[*_~]+$/.test(gained)))
-        expect(gained === "", `${key} showed markup`, shows);
+      else expect(gained === "", `${key} showed markup`, shows);
       if (deletion) expect([...lost].length <= 1, `${key} took words`, shows);
       else if (!key.includes(":")) expect(lost === "", `${key} took words`, shows);
     }

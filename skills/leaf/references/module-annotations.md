@@ -53,16 +53,6 @@ thing.
 items each with an `id` unique within the contribution and an optional `activate`,
 which the registration's `activateReading(id)` calls.
 
-A widget that shows margin entries inside its own content, as the feature gallery does,
-draws its own control as an entry with
-`presentContributionEntry(control, entry, {selected, unread, receipt, awaitsUser})`,
-where `unread` draws the dot for agent words the user hasn't read beside the entry's
-count, `receipt` shows whether the agent is working on it, and `awaitsUser` whether it
-waits on the user. `receipt` is `null` or a workflow's
-`{id, subject, state, reason, seen, detail}`. The control shows the agent at work while
-`state` is `"running"`, and an update a turn has taken in while `state` is `"waiting"`
-and `seen` is true.
-
 The returned registration's `hasCurrentLocation()` says whether the user's focus is
 inside any control presenting that contribution, across shadow roots and presentation
 surfaces. Its `contains(node)` answers the same ownership question for an arbitrary

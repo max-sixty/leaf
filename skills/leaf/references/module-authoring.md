@@ -121,7 +121,7 @@ In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
 In [module-annotations.md](module-annotations.md):
 
-- "Margin contributions": `registerContribution` and `presentContributionEntry`.
+- "Margin contributions": `registerContribution`.
 - "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
   `threadInput`, `landInThread` and `agentName`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.

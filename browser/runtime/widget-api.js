@@ -70,7 +70,6 @@ export { readThreads } from "./thread/state.js";
 export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { rowWalk } from "./walk-position.js";
-export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";

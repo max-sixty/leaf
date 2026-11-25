@@ -3244,14 +3244,15 @@ def code_reader_feedback(page: Page) -> None:
 
 
 def margin_gallery(page: Page) -> None:
-    """The margin gallery's real controls and labels in a finger-sized column."""
+    """The margin gallery's contributed control at its margin, in a finger-sized
+    column."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
         "Page & layout", exact=True
     ).click()
     settle(page)
     page.locator(
-        "#bg-margin-controls-samples .margin-entry-gallery-group"
-    ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
+        "#bg-margin-controls-samples .margin-entry-gallery-projection"
+    ).evaluate("exhibit => exhibit.scrollIntoView({block: 'start'})")
 
 
 def trace_controls(page: Page) -> None:

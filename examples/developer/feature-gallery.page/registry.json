@@ -7,7 +7,7 @@
     "example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
   },
   "lf-margin-entry-gallery": {
-    "description": "A developer exhibit of page-edge controls and status indicators across their supported states.",
+    "description": "A developer exhibit of one contributed action, drawn at the page edge and as a Page Map row.",
     "attributes": { "required": ["id"] },
     "content": "empty",
     "exhibit": true,

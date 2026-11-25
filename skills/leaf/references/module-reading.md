@@ -40,7 +40,7 @@ document around it, as a contents list does, reads it with
 
 To name something elsewhere, such as in a feed row, use `nameOf(thing)`, the name Leaf
 gives it in words. It names an element, the page (`document`), a thread from
-`readThreads()` and a row from `readQueues()`, and returns "" where Leaf gives no name.
+`threads.read()` and a row from `queues.read()`, and returns "" where Leaf gives no name.
 An element's name is its title, caption or label; failing those, a paragraph or list
 item is named by its first words, and another element by the nearest named element
 around it. A registered widget with no name gets an empty name: say the
@@ -176,21 +176,25 @@ symbol and the words its press says.
 
 ## Page readings
 
-Each function here returns a page reading. A `LeafElement`'s `render()` that reads one
-synchronously runs again when the reading changes (`module-plain-elements.md`,
-"`LeafElement`"); a read after an `await` is not followed.
+`obligations`, `queues`, `threads` and `history` are the page's readings. Each one's
+`read()` returns its current value, which a `LeafElement`'s `render()` that reads it
+synchronously follows, drawing again as it moves (`module-plain-elements.md`,
+"`LeafElement`"); a read after an `await` is not followed. Each also dispatches `change`
+after its value moves, so any element follows it with
+`obligations.addEventListener("change", draw)`. `comparisonChanges` below is followed
+the first way only.
 
 ### Reading obligations and the On lists
 
 An obligation is what a widget waits on the user for, what an update the user
 handed over is owed, or a to-do the agent opened; the On lists show each one under its
-next actor. `readObligations()` returns `{phase, all, user, unanswered, byId}`: `all`
+next actor. `obligations.read()` returns `{phase, all, user, unanswered, byId}`: `all`
 holds every obligation whose source is still there, answered and withdrawn ones
 included, `user` the open obligations waiting on the user, `unanswered` every open
 obligation, including those with the agent, and `byId` a `Map` from each one's `id` to
 its record.
 
-`readObligations(region)` returns the three lists holding only what a region of the
+`obligations.read(region)` returns the three lists holding only what a region of the
 page holds, by the rule `lf-tabs` and `lf-tally` count with: the obligations whose
 widget is `region` or stands inside it, shadow trees included, less those withdrawn.
 It adds `asks`, whether the region's markup holds a widget declaring `awaits`, even one
@@ -255,7 +259,7 @@ does, gives each heading the stretch of the page from the element it opens, such
 its `section`, to the next heading's, and counts each item in the stretch holding its
 first word, comparing positions with `compareDocumentPosition`.
 
-`readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
+`queues.read()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has its obligation's `id`, which names the row as
 it moves between lists; a `kind`, which is its obligation's `source.kind`, `todo` for a
 to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `user` or
@@ -270,14 +274,14 @@ is `ready`.
 ### Page history and reports
 
 A widget that shows the page's history declares `history` and reads
-`readHistory()`: `{phase, events}`, the server's rows, newest first, each carrying its
+`history.read()`: `{phase, events}`, the server's rows, newest first, each carrying its
 thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
 The report in force on a widget an agent reports on is its own `state`: the
 agent-written verb's `value`, with the words a `text` verb carries in its `detail`.
-When it last reported, and what it said before, are `readHistory()` rows of `kind`
+When it last reported, and what it said before, are `history.read()` rows of `kind`
 `report`, naming the `widget`, with its words as `excerpt` and the time as `ts`. The
 history holds the newest rows only, so a report older than them is not there.
 

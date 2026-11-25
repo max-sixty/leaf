@@ -3,7 +3,7 @@ import { render as tallyTemplate } from "./tally-view.js";
  * way to the next one waiting on the user.
  *
  * The region is the element `for` names, and which obligations it holds is
- * `readObligations(region)`, the rule a side list's rows read too, so the total
+ * `obligations.read(region)`, the rule a side list's rows read too, so the total
  * counts the obligations whose marks the queue shows. An obligation stays open until the
  * page adopts the reading that admits its answer, never on a guess. The count splits the
  * open ones by the server's next actor, in the words `tally` and `tallyWords`
@@ -23,7 +23,7 @@ import { render as tallyTemplate } from "./tally-view.js";
  * reading in the same nodes. Its room holds the widest words, both sides two digits
  * wide, so the words change without moving the control beside them or what follows. A
  * longer count widens the room once. */
-import { go, readObligations } from "/runtime/widget-api.js";
+import { go, obligations } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
@@ -47,8 +47,8 @@ customElements.define(
       const region = this.#region();
       // The page's reading is read with no region yet too, so the reading that brings
       // the region draws the tally again.
-      const ready = readObligations().phase === "ready" && Boolean(region);
-      const held = ready && region ? readObligations(region).all : [];
+      const ready = obligations.read().phase === "ready" && Boolean(region);
+      const held = ready && region ? obligations.read(region).all : [];
       const count = tally(held);
       // The drawing's room holds the widest words; a longer count widens it once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));

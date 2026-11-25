@@ -1264,8 +1264,8 @@ def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(
     page = open_page(browser, url)
     workflows = page.evaluate(
         """async id => {
-          const {readThreads} = await window.__lfWidgetApi();
-          return readThreads().threads.find(thread => thread.id === id).workflows;
+          const {threads} = await window.__lfWidgetApi();
+          return threads.read().threads.find(thread => thread.id === id).workflows;
         }""",
         root,
     )

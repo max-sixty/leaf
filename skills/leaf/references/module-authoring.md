@@ -81,8 +81,8 @@ In [module-reading.md](module-reading.md):
 - "Markdown": `pageLinks`.
 - "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
-- "Reading obligations and the On lists": `readObligations` and `readQueues`.
-- "Page history and reports": `readHistory`.
+- "Reading obligations and the On lists": `obligations` and `queues`.
+- "Page history and reports": `history`.
 - "Reading version changes": `comparisonChanges`.
 
 In [module-input.md](module-input.md):
@@ -99,7 +99,7 @@ In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
-- "Reading and opening Threads from a widget": `readThreads` and `threadActions`.
+- "Reading and opening Threads from a widget": `threads`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.

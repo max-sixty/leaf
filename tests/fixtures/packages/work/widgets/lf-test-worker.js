@@ -4,7 +4,7 @@
  * `history` has the server send, else the note of the version that asserted its state. A
  * worker claiming work it hasn't reported on for a quarter of an hour is quiet. */
 import { html, noChange } from "/vendor/lit.js";
-import { readHistory } from "/runtime/widget-api.js";
+import { history } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
@@ -24,7 +24,7 @@ customElements.define(
     render() {
       const { value: state, detail } = this.state.state;
       keeps(this, "state", state);
-      const { phase, events } = readHistory();
+      const { phase, events } = history.read();
       if (phase !== "ready") return noChange;
       const heard =
         events.find((row) => row.kind === "report" && row.widget === this.id)?.ts ??

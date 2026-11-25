@@ -5,7 +5,7 @@
  * waits on the user; a worker is quiet while it claims work it hasn't reported on
  * for a quarter of an hour (lf-atlas-worker.js). */
 import { html, noChange, render, repeat } from "/vendor/lit.js";
-import { readObligations } from "/runtime/widget-api.js";
+import { obligations } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
@@ -16,13 +16,15 @@ const workerState = (worker) =>
   worker.state?.state.value ?? worker.getAttribute("state");
 const stopped = (task) =>
   STOPPED.has(status(task)) ||
-  readObligations(task).user.some(
-    (item) =>
-      item.source.kind === "widget" &&
-      document
-        .getElementById(item.source.id)
-        ?.parentElement?.closest("lf-atlas-task") === task,
-  );
+  obligations
+    .read(task)
+    .user.some(
+      (item) =>
+        item.source.kind === "widget" &&
+        document
+          .getElementById(item.source.id)
+          ?.parentElement?.closest("lf-atlas-task") === task,
+    );
 const stoppedAt = (task) =>
   Date.parse(task.getAttribute("stopped-at") ?? "") || Infinity;
 

@@ -51,13 +51,13 @@ from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
-import { nameOf, readThreads } from '/runtime/widget-api.js';
+import { nameOf, threads } from '/runtime/widget-api.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
-    const collection = readThreads();
+    const collection = threads.read();
     this.collection = collection;
-    this.sameReading = collection === readThreads();
+    this.sameReading = collection === threads.read();
     this.topic = collection.threads[0] && nameOf(collection.threads[0]);
     return html`<pre>${collection.threads.map(thread =>
       thread.turns.map(message => message.body.text).join('\n')
@@ -78,15 +78,15 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { go, nameOf, readThreads } from '/runtime/widget-api.js';
+import { go, nameOf, threads } from '/runtime/widget-api.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
   static properties = { query: { state: true } };
   setup() { this.query = this.getAttribute('filter') ?? ''; }
   render() {
-    const collection = readThreads();
+    const collection = threads.read();
     this.collection = collection;
-    this.sameReading = collection === readThreads();
+    this.sameReading = collection === threads.read();
     this.updates = (this.updates ?? 0) + 1;
     const shown = collection.threads.filter(thread =>
       nameOf(thread).toLowerCase().includes(this.query.toLowerCase()));
@@ -1192,7 +1192,7 @@ def arrived(page, thread_id):
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
     page.wait_for_function(
-        "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
+        "id => window.__lfThreadsApi.threads.read().threads.some((t) => t.id === id)",
         arg=thread_id,
     )
     return thread_id
@@ -1200,7 +1200,7 @@ def arrived(page, thread_id):
 
 THREAD_ACTIONS = r"""
 import { noChange } from '/vendor/lit.js';
-import { readThreads, threadActions } from '/runtime/widget-api.js';
+import { threads } from '/runtime/widget-api.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
@@ -1211,17 +1211,17 @@ customElements.define('lf-thread-actions', class extends LeafElement {
       const key = this.thread.key;
       const agent = this.thread.msgs.find(message => message.author === 'agent');
       this.last = button.textContent === 'Reply'
-        ? threadActions.reply(key, this.querySelector('input').value)
+        ? threads.reply(key, this.querySelector('input').value)
         : button.textContent === 'Resolve'
-          ? threadActions.resolve(key)
+          ? threads.resolve(key)
           : button.textContent === 'Reopen'
-            ? threadActions.reopen(key)
-            : threadActions.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').inForce);
+            ? threads.reopen(key)
+            : threads.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').inForce);
       keeps(this, 'data-accepted', this.last !== null);
     });
   }
   render() {
-    this.thread = readThreads().threads[0];
+    this.thread = threads.read().threads[0];
     keeps(this, 'data-lf-resolved', Boolean(this.thread?.resolved));
     keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
     return noChange;
@@ -1452,7 +1452,7 @@ def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
 
     other_thread.click()
     assert page.evaluate(
-        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.go(item); }"
+        "async () => { const item = api.queues.read().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.go(item); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(
@@ -1679,10 +1679,10 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
         choice.inForce && choice.glyph && choice.label && Object.isFrozen(choice);
     }""")
     assert page.evaluate("""async () => {
-      const {threadActions,readThreads} = await window.__lfWidgetApi();
-      const thread = readThreads().threads[0];
+      const {threads} = await window.__lfWidgetApi();
+      const thread = threads.read().threads[0];
       const agent = thread.msgs.find(message => message.author === 'agent');
-      return threadActions.setReaction(thread.key, agent.key, 'keep', true) === null;
+      return threads.setReaction(thread.key, agent.key, 'keep', true) === null;
     }""")
     # The package's resolve moved the panel on from the thread; the user reads its
     # reaction back in the thread's view.
@@ -1782,7 +1782,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "node => node === nestedOption && node.closest('#workspace') !== null"
     )
     round_trip(page)
-    assert page.evaluate("api.readThreads().threads[0].unread") == [
+    assert page.evaluate("api.threads.read().threads[0].unread") == [
         {"message": "nested-question", "version": "nested-question"}
     ]
     assert not [
@@ -2013,7 +2013,7 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
           await workspace.presentation.update();
         }
         if (event.key === 'F10')
-          window.created = api.threadActions.create({text:'Retain this turn'});
+          window.created = api.threads.create({text:'Retain this turn'});
       });
     }""")
     page.keyboard.press("F8")

@@ -697,9 +697,9 @@ function createApplication(dependencies) {
   // A package's one travel (widget-api.js, `go`), told apart by what it is handed: an
   // element, or the part a key names in it, as a link to `#<id>:<key>` reaches it; a
   // step of the On Me walk within a region, from where the user is, as an `lf-tally`
-  // steps; a thread by its `key`, as `readThreads` gives it, opened where a margin
-  // mark would open it; and an obligation by its `id`, as `readObligations` and the
-  // rows of `readQueues` give it, where On Me's arrival would land.
+  // steps; a thread by its `key`, as `threads.read()` gives it, opened where a margin
+  // mark would open it; and an obligation by its `id`, as `obligations.read()` and the
+  // rows of `queues.read()` give it, where On Me's arrival would land (readings.js).
   /** @typedef {{within: Element, dir?: number}} Step
    * @typedef {{key: string}} ThreadRow
    * @typedef {{id: string}} ObligationRow

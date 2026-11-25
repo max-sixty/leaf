@@ -115,14 +115,14 @@ def thread_head(page, thread_id):
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
     page.wait_for_function(
-        "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
+        "id => window.__lfThreadsApi.threads.read().threads.some((t) => t.id === id)",
         arg=thread_id,
     )
     choose_threads_in_panel(page)
     page.evaluate(
         """async (id) => {
           const api = window.__lfThreadsApi;
-          const thread = api.readThreads().threads.find((t) => t.id === id);
+          const thread = api.threads.read().threads.find((t) => t.id === id);
           await api.go(thread, { part: "thread", travel: false });
         }""",
         thread_id,
@@ -149,7 +149,7 @@ def stranded_quotes(page):
     """The quote of each thread the page reads whose passage it finds nowhere, read in
     the panel's view of every thread, which is put away again."""
     ids = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readThreads().threads"
+        "async () => (await window.__lfWidgetApi()).threads.read().threads"
         ".map((thread) => thread.id)"
     )
     stranded = []

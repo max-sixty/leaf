@@ -428,19 +428,11 @@ export const standingAt = (node) =>
 // The caret a click on a focused container's words leaves (`caretWords`), where it lies
 // in what the container shows: the letter after it, which the keep holds as it holds
 // words at the reading line, so the message stays as a message above it grows or an
-// answer joins below it, and the box moves. A letter a shadow root holds directly, as
-// an age's is, has no element holding it for `holderOf` and `seenRect`, so a click on
-// an age keeps what `placeOf` names: the box the container stands at, its reply box
-// where that shows.
+// answer joins below it, and the box moves.
 /** @param {Element} node @returns {Range | null} */
 const caretPlace = (node) => {
-  const words = caretWords(node);
-  if (!words) return null;
-  const text = /** @type {Text} */ (words.node);
-  const at = Math.min(words.offset, text.length - 1);
-  const caret = document.createRange();
-  caret.setStart(text, at);
-  caret.setEnd(text, at + 1);
+  const caret = caretWords(node)?.letter;
+  if (!caret) return null;
   const holder = holderOf(caret);
   if (!holder || !seenRect(caret, new Map())) return null;
   const [scroller] = scrollersOf(holder);

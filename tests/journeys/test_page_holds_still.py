@@ -159,7 +159,10 @@ def thread_page(serve):
     early = append_agent_reply(d, jobs, "The beds first, then. " + WORDS)["id"]
     user(jobs, "And the mounts?")
     linked = append_agent_reply(
-        d, jobs, "See [the mounts](#p-5) before you start. " + WORDS
+        d,
+        jobs,
+        "See [the mounts](#p-5) before you start. They were last checked "
+        '<lf-age datetime="2026-11-20T02:10:00Z">20 Nov</lf-age>. ' + WORDS,
     )["id"]
     user(jobs, "Fine, and after that?")
     user(notes, "That the beds drain slowly.")
@@ -479,6 +482,14 @@ def put_message(page, built):
     Chromium, but Firefox on macOS tabs to no link or button.)"""
     scroll_to(page, message(built, "linked"), 700)
     page.locator(message(built, "linked")).get_by_text("before you start").click()
+    expect(page.locator(thread_of(built, "jobs"))).to_be_focused()
+
+
+def put_message_age(page, built):
+    """Click an age in a message, whose letters a shadow root draws, which stands the
+    user in its thread with the caret in the age."""
+    scroll_to(page, message(built, "linked"), 700)
+    page.locator(f"{message(built, 'linked')} lf-age").click()
     expect(page.locator(thread_of(built, "jobs"))).to_be_focused()
 
 
@@ -1004,6 +1015,19 @@ PLACES = [
         "thread",
         put_message,
         Found('.lf-msg[data-lf-event="$linked"]'),
+        {
+            "thread above": "upper",
+            "thread below": "jobs",
+            "message above": "early",
+            "seat above": "fresh",
+            "page above": None,
+        },
+    ),
+    Place(
+        "message-age",
+        "thread",
+        put_message_age,
+        Found('.lf-msg[data-lf-event="$linked"] lf-age'),
         {
             "thread above": "upper",
             "thread below": "jobs",

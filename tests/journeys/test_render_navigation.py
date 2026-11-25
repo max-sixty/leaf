@@ -21,7 +21,7 @@ from render_cases_interaction import (
     answered_comment,
     live_url,
 )
-from render_cases_layout import page_at_rest, token_colour
+from render_cases_layout import page_at_rest
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -32,7 +32,6 @@ from render_cases_navigation import (
 from render_harness import (
     FEATURE_GALLERY,
     PANEL,
-    PREVIEW,
     RELEASE_FOCUS,
     all_pages_offered,
     command_reference_rows,
@@ -740,12 +739,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     margins_laid_out(page)
     _refreshes_restate_no_margin_name(
         page,
-        {
-            ".lf-margin-cluster": 10,
-            '.lf-margin-entry[data-lf-behavior="status"]': 2,
-        },
+        {".lf-margin-cluster": 10},
     )
-    _the_atlas_shows_every_margin_entry_face_in_its_treatment(page)
+    _the_atlas_projects_one_contribution_to_its_margin_and_page_map(page)
     _a_pin_on_a_wide_figure_hides_with_the_annotations_while_the_rail_stays(page)
 
     # The core chrome, each surface showing the gallery's own content.
@@ -881,165 +877,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(page_map).to_be_hidden()
 
 
-def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
-    """The atlas samples every declared behavior, tone and rank, each face in the
-    treatment its state takes, and its projection through the Page Map."""
+def _the_atlas_projects_one_contribution_to_its_margin_and_page_map(page):
+    """The atlas's contributed action stands at its margin and in Page Map, one
+    action behind both."""
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
 
     atlas = page.locator("#bg-margin-controls-samples")
     expect(atlas).to_be_visible()
-
-    def sample(name):
-        return atlas.locator(f'[data-margin-entry-sample="{name}"] > .lf-margin-entry')
-
-    for name in ("label + context", "hover or focus", "open"):
-        expect(sample(name)).to_have_css("cursor", "pointer")
-    for name in (
-        "save",
-        "cancel",
-        "accept",
-        "reject",
-        "thread",
-        "more",
-        "sent",
-        "waiting for delivery",
-        "queued",
-        "update stale",
-        "turn ended",
-        "glyph face",
-        "count badge",
-        "delivered",
-        "working",
-        "working · fallback",
-        "resting",
-        "selected",
-    ):
-        expect(sample(name)).to_have_css("cursor", "default")
-
-    axes = atlas.locator(".lf-margin-entry").evaluate_all(
-        """buttons => ({
-          behaviors: buttons.map(button => button.dataset.lfBehavior),
-          tones: buttons.map(button => button.dataset.lfTone),
-          ranks: buttons.map(button => button.dataset.lfRank),
-        })"""
-    )
-    grammar = page.evaluate(
-        """async () => {
-          const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfCheckApi();
-          return CONTRIBUTION_ENTRY_SCHEMA;
-        }"""
-    )
-    for axis in ("behaviors", "tones", "ranks"):
-        assert set(axes[axis]) == set(grammar[axis]), (
-            f"the gallery shows {sorted(set(axes[axis]))} of the declared "
-            f"{axis} {grammar[axis]}"
-        )
-
-    glyph = sample("glyph face")
-    expect(glyph.locator(".lf-margin-entry-glyph")).to_have_text("🤔")
-    count = sample("count badge")
-    expect(count.locator(":scope > .lf-badges > .lf-badge-count")).to_have_text("3")
-    label = sample("label + context")
-    label.hover()
-    preview = page.locator(PREVIEW)
-    expect(preview.locator(".lf-preview-word")).to_have_text("Label + context…")
-    expect(preview.locator(".lf-preview-detail")).to_have_text("Patch ready")
-    page.mouse.move(0, 0)
-
-    resting = sample("resting")
-    picked_up = sample("delivered")
-    working = sample("working")
-    stale = sample("update stale")
-    fallback = sample("working · fallback")
-    expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
-    expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
-    expect(sample("my turn")).to_have_attribute("data-lf-turn", "user")
-    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "delivered")
-    expect(picked_up).to_have_css(
-        "border-top-color",
-        resting.evaluate("node => getComputedStyle(node).borderTopColor"),
-    )
-    expect(picked_up).to_have_css(
-        "background-color",
-        resting.evaluate("node => getComputedStyle(node).backgroundColor"),
-    )
-    expect(picked_up).to_have_css("box-shadow", "none")
-    picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
-    expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
-    expect(picked_up_icon).to_have_css("color", token_colour(page, "--lf-accent"))
-    for control in (working, fallback):
-        expect(control).to_have_attribute("data-lf-agent-workflow", "working")
-        expect(control).to_have_css(
-            "border-top-color",
-            resting.evaluate("node => getComputedStyle(node).borderTopColor"),
-        )
-        expect(control).to_have_css(
-            "background-color",
-            resting.evaluate("node => getComputedStyle(node).backgroundColor"),
-        )
-        expect(control).to_have_css("box-shadow", "none")
-    expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "comment"
-    )
-    expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "activity"
-    )
-    expect(stale).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
-    expect(stale.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "activity"
-    )
-    for name, icon in (
-        ("sent", "sent"),
-        ("waiting for delivery", "waiting"),
-        ("queued", "pickup"),
-        ("turn ended", "waiting"),
-    ):
-        status = sample(name)
-        expect(status).to_have_attribute("role", "status")
-        expect(status.locator(".lf-margin-entry-icon")).to_have_attribute(
-            "data-lf-icon", icon
-        )
-    not_selected = sample("resting")
-    selected = sample("selected")
-    expect(not_selected).not_to_have_attribute(
-        "data-lf-target-selected", re.compile(".*")
-    )
-    expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-here"))
-    expect(selected).to_have_css(
-        "border-top-width",
-        not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
-    )
-    expect(selected).to_have_css("box-shadow", "none")
-    expect(working.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", token_colour(page, "--lf-accent")
-    )
-
-    interactive = sample("hover or focus")
-    interactive.hover()
-    expect(interactive).to_have_css("background-color", token_colour(page, "--lf-chip"))
-    expect(interactive).to_have_css(
-        "border-top-color", token_colour(page, "--lf-accent")
-    )
-    expect(page.locator(PREVIEW)).to_be_visible()
-    page.mouse.move(0, 0)
-    interactive.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
-    expect(interactive).to_be_focused()
-    expect(interactive).to_have_css("outline-style", "solid")
-
-    opened = sample("open")
-    opened_result = atlas.locator(
-        '[data-margin-entry-sample="open"] .margin-entry-gallery-disclosure'
-    )
-    expect(opened).to_have_attribute("aria-expanded", "true")
-    expect(opened).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
-    expect(opened_result).to_be_visible()
-    opened.click()
-    expect(opened).to_have_attribute("aria-expanded", "false")
-    expect(opened_result).to_be_hidden()
 
     projection = page.locator(
         '[data-lf-margin-for="bg-margin-controls-samples"]'

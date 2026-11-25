@@ -142,7 +142,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
-          const {presentContributionEntry} = await window.__lfWidgetApi();
+          const {presentContributionEntry} = await window.__lfCheckApi();
           const control = document.createElement('button');
           control.id = 'projected-only-command';
           document.querySelector('main').append(control);

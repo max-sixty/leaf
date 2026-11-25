@@ -33,14 +33,14 @@ class RenderReading:
     tightest before it changes, with what changes. `complete` is False when the gate
     stopped before it had read the page through, as it does at a page that cannot
     start or under a browser that fails. One of the findings then says what stopped
-    it. `parts` is the parts each visual in the page offers a thread at the desktop
-    window, by the visual's id (`drawnParts` in `render-checks/widgets.js`), and empty
-    where the gate stopped before it read them."""
+    it. `visuals` is what each visual in the page draws at the desktop window, by the
+    visual's id (`drawnVisuals` in `render-checks/widgets.js`), and empty where the
+    gate stopped before it read them."""
 
     findings: list[Finding]
     arrangement: list[tuple[int, str, str]]
     complete: bool = True
-    parts: dict[str, list[dict]] = field(default_factory=dict)
+    visuals: dict[str, dict] = field(default_factory=dict)
 
     @property
     def failures(self) -> list[Finding]:
@@ -109,13 +109,15 @@ def _render_version_attempt(
     samples = []
     advice = []
     arrangement = []
-    parts = []
+    visuals = []
     steps = sorted({*SWEEP_WIDTHS, desktop["width"]}, reverse=True)
 
     def desktop_sweep(page, registry):
         open_tags = open_widgets(registry)
         # Read the desktop viewport before the sweep changes it.
-        parts.append(evaluate_probe(page, "drawnParts", element_declarations(registry)))
+        visuals.append(
+            evaluate_probe(page, "drawnVisuals", element_declarations(registry))
+        )
         advice.extend(drawn_height_advice(page))
         samples.extend(sweep(page, [desktop["width"]], open_tags))
         widths = sweep(page, steps, open_tags)
@@ -151,7 +153,7 @@ def _render_version_attempt(
         [*dict.fromkeys(found), *swept_faults(samples), *advice],
         arrangement,
         complete,
-        parts[0] if parts else {},
+        visuals[0] if visuals else {},
     )
     return reading, list(dict.fromkeys(notices))
 

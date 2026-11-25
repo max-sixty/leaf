@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import NamedTuple, Never
 
 from leaf.activity import answer_command, reply_command
+from leaf.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
 from leaf.authored_checks.admission import (
     check_markup,
     checked_text,
@@ -43,7 +44,7 @@ from leaf.passages import SourceReading, holds_html, message_markup
 from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring, title_limit
-from leaf.revision_artifact import active_enclosing, read_revision
+from leaf.revision_artifact import active_enclosing, read_artifact, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_message, thread_names, thread_structure
@@ -272,8 +273,6 @@ def _capture_anchor(
 ) -> dict:
     """Capture a target against one exact document reading. A quote the reading
     lacks is refused as `UnsaidQuote`, which a caller may answer from the drawn page."""
-    from leaf.anchor_capture import Unsaid, capture_anchor
-
     page = page_reading(reading, events, revision)
     try:
         anchor = capture_anchor(
@@ -302,6 +301,63 @@ def _capture_anchor(
     return anchor
 
 
+# How a message names the page's render reading as the drawing that read its visuals
+# (`anchor_capture.Drawing`).
+LAST_CHECKED = "when the page was last checked"
+
+
+class UndrawnPart(Exception):
+    """A `--part` in a visual that no render reading of `revision`, with the page's
+    data as it stands, read (`render_reading`), which a caller may learn by drawing the
+    page (`render_gate.drawn_anchor.drawn_visuals`)."""
+
+    def __init__(self, revision: int):
+        super().__init__(f"no render reading of revision r{revision} read the visual")
+        self.revision = revision
+
+
+class Drawn(NamedTuple):
+    """What the page drew of `revision` in a browser, where the files couldn't settle a
+    thread's target (`render_gate.drawn_anchor`): the `anchor` a quote takes there, or
+    the `drawing` of the page's visuals that a `--part` is checked against."""
+
+    revision: int
+    anchor: dict | None = None
+    drawing: Drawing | None = None
+
+
+def _drawn_part(
+    page_dir: Path, revision: int, section: str, part: str, drawing: Drawing | None
+) -> Finding | None:
+    """What the page drew says of a thread on `part` in the visual `section` of
+    `revision` (`anchor_capture.drawn_part`), as `drawing` read the page, or else as
+    the page's render reading of `revision` with the data the page holds now read it.
+    Raises `UndrawnPart` where that reading didn't read the visual, and refuses a part
+    the page would show nowhere as a capture refuses its target."""
+    if drawing is None:
+        from leaf.data import read_data
+        from leaf.render_reading import drawn_visuals
+
+        data = read_data(page_dir, read_revision(page_dir, revision).registry)
+        visuals = drawn_visuals(
+            page_dir, read_artifact(page_dir, revision).digest, data["version"]
+        )
+        if section not in visuals:
+            raise UndrawnPart(revision)
+        drawing = Drawing(visuals, LAST_CHECKED)
+    try:
+        return drawn_part(section, part, drawing)
+    except ValueError as err:
+        raise Rejected(
+            [
+                Finding(
+                    "unanchorable",
+                    values={"revision": revision, "error": str(err), "held": None},
+                )
+            ]
+        ) from err
+
+
 @contract_writer
 def cmd_comment(
     page_dir: Path,
@@ -312,7 +368,7 @@ def cmd_comment(
     *,
     title: str | None = None,
     obligation: bool = False,
-    drawn: tuple[int, dict] | None = None,
+    drawn: Drawn | None = None,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -320,10 +376,13 @@ def cmd_comment(
     the work rather than a passage belongs. An anchor is captured against the active
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
-    so a quote is met here the way it would land there. A quote that reading lacks is
-    refused as `UnsaidQuote`; `drawn` is then the revision and anchor the drawn page
-    gave it (`render_gate.drawn_anchor`), which the command passes in, since the render
-    gate stands above this module."""
+    so a quote is met here the way it would land there, and a `--part` is checked
+    against what the page drew (`anchor_capture.drawn_part`).
+
+    Two targets need the drawn page, which the command draws and passes back as
+    `drawn` (`render_gate.drawn_anchor`), since the render gate stands above this
+    module. A quote the file's reading lacks is refused as `UnsaidQuote`, and a part in
+    a visual no render reading of the version read as `UndrawnPart`."""
     title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(body):
@@ -355,16 +414,33 @@ def open_thread(
     title: str | None = None,
     obligation: bool = False,
     identity: dict | None = None,
-    drawn: tuple[int, dict] | None = None,
+    drawn: Drawn | None = None,
 ) -> dict:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
     describes, from a `body` already checked (`checked_text`); `identity` names the
     agent and session where the writer isn't the agent's own process, as Leaf's clerk
-    is (`clerk.apply_answer`). `drawn` is the revision and anchor a quote took on the
-    drawn page where the file's reading lacked it (`render_gate.drawn_anchor`)."""
+    is (`clerk.apply_answer`). `drawn` is what the page drew of the revision the
+    command's first attempt read, where the files couldn't settle the target
+    (`render_gate.drawn_anchor`)."""
     events = page.events
-    revision, anchor = drawn or current_anchor(
-        page_dir, events, quote, section, part, transaction=page
+    if drawn is not None and drawn.anchor is not None:
+        revision, anchor = drawn.revision, drawn.anchor
+    else:
+        revision, anchor = current_anchor(
+            page_dir,
+            events,
+            quote,
+            section,
+            part,
+            None if drawn is None else drawn.revision,
+            transaction=page,
+        )
+    placed = (
+        _drawn_part(
+            page_dir, revision, section, part, None if drawn is None else drawn.drawing
+        )
+        if part
+        else None
     )
     twice = []
     if markup := drawn_markup(body):
@@ -389,7 +465,7 @@ def open_thread(
         event["title"] = title
     record = append_admitted(page, event)[0]
     # Said once the message stands, which a later gate could still refuse.
-    note(*twice)
+    note(*twice, *([placed] if placed else []))
     return record
 
 

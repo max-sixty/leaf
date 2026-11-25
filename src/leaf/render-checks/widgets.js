@@ -5,6 +5,7 @@ import {
   commandDeclarationsWithin,
   commandRoutes,
   commandsUnread,
+  drawsAbsentParts,
   pageDocument,
   inPage,
   TEXT_BOX,
@@ -117,19 +118,27 @@ export const invalidVisualProviders = (declarations) =>
     )
     .filter((instance) => instance.problems.length);
 
-// The parts each visual in the page offers a thread now, by the visual's id, which
-// `leaf page state` shows an agent naming a part (`render_reading.py`). They are the
-// parts the page's picker offers and `thread create --part` takes (`visualParts`), so a
-// visual that admits none lists none. A visual with no id can't be named, so it is
-// left out.
+// What each visual in the page draws now, by the visual's id (`render_reading.py`):
+// `parts`, the parts it offers a thread, which `leaf page state` lists, and `whole`,
+// whether the page puts a thread on a part the visual didn't draw on the whole visual
+// (`drawsAbsentParts`) rather than nowhere. `leaf thread create --part` reads both to
+// refuse a part the page would show nowhere. The parts are those the page's picker
+// offers (`visualParts`), so a visual that admits none lists none. A visual with no id
+// can't be named, so it is left out.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-export const drawnParts = (declarations) =>
+export const drawnVisuals = (declarations) =>
   Object.fromEntries(
     Object.entries(declarations)
       .filter(([, entry]) => entry.visual)
       .flatMap(([tag]) => [...document.querySelectorAll(`${tag}[id]`)])
       .filter(inPage)
-      .map((el) => [el.id, visualParts(el).map(({ id, label }) => ({ id, label }))]),
+      .map((el) => [
+        el.id,
+        {
+          parts: visualParts(el).map(({ id, label }) => ({ id, label })),
+          whole: drawsAbsentParts(el),
+        },
+      ]),
   );
 
 // Attributes on a widget that its entry never declared. The schema is the

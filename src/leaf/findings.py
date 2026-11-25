@@ -2453,6 +2453,18 @@ _TEXT = {
             )
         ),
     ),
+    # What `thread create --part` notes beside a thread on a part its visual didn't
+    # draw (`anchor_capture.drawn_part`): one the page shows on the whole visual, and
+    # one no drawing of the page could check.
+    "part-on-whole": lambda at, v: (
+        f"§ {v['section']} drew no part {v['part']!r} {v['when']}, so the thread"
+        " stands on the whole visual until the visual draws that part; it drew"
+        f" {', '.join(v['drew'])}"
+    ),
+    "unchecked-part": lambda at, v: (
+        f"Leaf couldn't read what § {v['section']} draws, so it didn't check part"
+        f" {v['part']!r}"
+    ),
     "superseded-reply": _refuses(
         _NEWER,
         lambda at, v: (

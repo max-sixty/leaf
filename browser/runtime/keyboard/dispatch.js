@@ -563,7 +563,7 @@ export function answerCloseRequest() {
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
 // which command wins. The controller leaves composing input to the IME. It reads a key
 // once ahead of the page's document and window listeners, for every row but one that
-// `waits`, and once after them with `waiting`, for that row alone (controller.js).
+// `waits`, and once after them with `waiting`, for that row alone (page-keys/controller.js).
 // The stack answers with the same row both times, so the read that is not the row's own
 // runs nothing, and no row further out takes its place.
 /** @param {KeyboardEvent} ev @param {boolean} [waiting] */
@@ -679,7 +679,7 @@ export function availableCommandRoutes({
   }
   return routes;
 }
-// A control standing in for a press (touch-controls.js) makes that press itself: the
+// A control standing in for a press (page-keys/touch-controls.js) makes that press itself: the
 // binding names which of a routed row's results it is, and a nearer claim on the key is
 // about the key, not the command.
 /** @param {{id: string, row: Command, binding?: string | undefined}} press */

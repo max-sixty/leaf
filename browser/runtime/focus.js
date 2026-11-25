@@ -1392,7 +1392,7 @@ addEventListener(
     const at = deepFocus();
     // A field the user types in is theirs whatever it takes to see it, and a keystroke
     // pays for no read of the page's geometry. Tab types nothing, so it lets go of a
-    // field the user can't see (keyboard/controller.js) and names nothing.
+    // field the user can't see (page-keys/controller.js) and names nothing.
     const typing = typesText(at) && event.key !== "Tab";
     if (at !== document.body && (typing || focusIsPlace())) placeInput = "focus";
     const recovering = labelPress;

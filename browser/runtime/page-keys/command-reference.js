@@ -45,7 +45,7 @@ import {
   showNativeLayer,
   closeNativeLayer,
   dismissPopoversOutside,
-} from "./layer-stack.js";
+} from "../keyboard/layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { html, nothing, render, repeat } from "/runtime/framework.js";
 
@@ -68,7 +68,7 @@ import {
   spell,
   spokenBinding,
   word,
-} from "./bindings.js";
+} from "../keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import {
   completeRowKeySteps,
@@ -76,7 +76,7 @@ import {
   stepText,
   keySequenceModel,
   keySequenceTemplate,
-} from "./key-sequence.js";
+} from "../keyboard/key-sequence.js";
 import {
   handBack,
   focusDestination,
@@ -92,14 +92,23 @@ import { closeControl, searchField } from "../widget-elements.js";
 import { offeredAction } from "../lib/controls.js";
 import { keeps } from "../lib/keeps.js";
 import { renderedOrder } from "../lib/shadow-tree.js";
-import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
-import { doorSteps } from "./control-keys.js";
+import { ELEMENTS, pageCommand, pageScope, pageScopes } from "../keyboard/register.js";
+import { doorSteps } from "../keyboard/control-keys.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
-import { EVERYTHING } from "./text-entry.js";
-import { pruneScopedElements, scopeRefs, scopesAt, scopesFor } from "./scopes.js";
+import { EVERYTHING } from "../keyboard/text-entry.js";
+import {
+  pruneScopedElements,
+  scopeRefs,
+  scopesAt,
+  scopesFor,
+} from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
-import { availableCommandRoutes, executeCommand, userIn } from "./dispatch.js";
+import {
+  availableCommandRoutes,
+  executeCommand,
+  userIn,
+} from "../keyboard/dispatch.js";
 import { returnPlace } from "../history.js";
 import { reachScrollers } from "../reach.js";
 import { registerReadingRegion } from "../reading-regions.js";
@@ -130,9 +139,9 @@ const commandReferenceClose = closeControl({
 // and command wiring are ready before the first opening. Local renders only seat them.
 commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
 
-/** @typedef {import("./bindings.js").Command} Command
- * @typedef {import("./bindings.js").CommandRoute} CommandRoute
- * @typedef {import("./bindings.js").Scope} Scope
+/** @typedef {import("../keyboard/bindings.js").Command} Command
+ * @typedef {import("../keyboard/bindings.js").CommandRoute} CommandRoute
+ * @typedef {import("../keyboard/bindings.js").Scope} Scope
  * @typedef {{row: Command, sequence: Scope["sequence"]}} ReferenceRow
  * @typedef {{title?: Scope["title"], reach?: Scope["reach"], when?: Scope["when"], at?: Scope["at"], liveInCommandReference?: Scope["liveInCommandReference"]}} ReferenceMetadata
  * @typedef {ReferenceMetadata & {rows: Map<string | symbol, ReferenceRow>}} ReferenceSection
@@ -314,9 +323,9 @@ const availableWhere = (row, scopeTitle, scopeReach) => {
   return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
 };
 
-/** @param {import("./bindings.js").CommandRoute | null} route
+/** @param {import("../keyboard/bindings.js").CommandRoute | null} route
  * @param {readonly (readonly string[])[]} keys @param {readonly string[]} declared
- * @returns {import("./key-sequence.js").KeySequenceStep[]} */
+ * @returns {import("../keyboard/key-sequence.js").KeySequenceStep[]} */
 const referenceKeySteps = (route, keys, declared) => {
   const alternatives = route?.binding === undefined ? declared : [route.binding];
   const [binding, ...rest] = alternatives;
@@ -397,9 +406,9 @@ function captureCommandReferenceCatalog() {
       : alternatives.some((binding) => routes.has(binding));
   };
   // Whether the reference can run a row is a fact of its declaration, and whether it
-  // can run it now is `available`'s. It runs what the row's key runs (dispatch.js,
+  // can run it now is `available`'s. It runs what the row's key runs (keyboard/dispatch.js,
   // `invocationFor`): its action, the command it routes to, or the press of the control
-  // it names, as `r` presses a thread's Resolve (bindings.js, `commandRun`).
+  // it names, as `r` presses a thread's Resolve (keyboard/bindings.js, `commandRun`).
   /** @param {Command} row @param {CommandRoute | null} route */
   const actionable = (row, route) =>
     Boolean(
@@ -1006,7 +1015,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo, query
     // stands on `body`, which is not a place to be given back — focusing it resets the
     // browser's sequential focus navigation starting point to the top of the document,
     // and the user who opened the reference four screens down would Tab from there.
-    // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
+    // A popover opened while nothing held focus lets go as it closes (keyboard/layer-stack.js),
     // so that user reads as standing on `body` here too.
     openLayer(commandReferenceDialog);
     commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
@@ -1084,7 +1093,7 @@ const commandReferenceCommandActive = () =>
   commandReferenceView.visibleCommands.length > 0 &&
   (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
 
-/** @param {import("./bindings.js").Step} dir */
+/** @param {import("../keyboard/bindings.js").Step} dir */
 function moveCommandReferenceSelection(dir) {
   const records = commandReferenceView.visibleCommands;
   if (!hasRows(records)) return;

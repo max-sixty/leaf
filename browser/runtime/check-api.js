@@ -24,6 +24,7 @@ export {
 export { restoreThreadsInPanel } from "./records/thread/threads-in-panel.js";
 export {
   ADDRESSABLE,
+  anchorForPassage,
   anchorForRange,
   resolveAnchor,
   aimTargets,
@@ -67,6 +68,7 @@ export {
   layoutBox,
   pageDocument,
   inPage,
+  pageMatches,
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,

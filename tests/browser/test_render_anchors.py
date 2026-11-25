@@ -383,6 +383,64 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
+# A custom element the page's own script fills with words no file holds.
+DRAWN_WORDS_PAGE = leaf_page(
+    "drawn words",
+    """
+<h1 id="title">Lanterns</h1>
+<p id="authored">The authored words stand in the file.</p>
+<lantern-note id="drawn"></lantern-note>
+""",
+    head="""<script>
+customElements.define("lantern-note", class extends HTMLElement {
+  connectedCallback() { this.textContent ||= "Lantern words a script draws."; }
+});
+</script>""",
+)
+
+
+def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
+    browser, serve
+):
+    """`leaf thread create --quote` finds words the page's own script draws, which no
+    file holds, on the page as the browser draws it, and stores the anchor the user's
+    selection of them makes, so the thread marks those words. Words the drawn page
+    doesn't show are refused as before."""
+    url = serve(DRAWN_WORDS_PAGE)
+
+    def create(quote: str):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "create",
+                str(serve.page_dir),
+                "--quote",
+                quote,
+                "--text",
+                "Why lanterns?",
+            ],
+        )
+
+    created = create("Lantern words")
+    assert created.exit_code == 0, created.output
+    root = json.loads(created.output)
+    assert root["anchor"] == {
+        "section": "drawn",
+        "quote": "Lantern words",
+        "prefix": "words stand in the file.",
+        "suffix": "a script draws.",
+    }
+    page = open_page(browser, url)
+    expect(thread_head(page, root["id"]).locator(".lf-thread-quote")).to_have_text(
+        "Lantern words"
+    )
+
+    refused = create("Words no script draws")
+    assert refused.exit_code != 0
+    assert "doesn't say 'Words no script draws'" in refused.output
+
+
 # One sentence two quoted threads discuss, which the agent's next revision rewrites.
 REVISED_QUOTES_PAGE = leaf_page(
     "revised quotes",

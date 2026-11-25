@@ -1224,7 +1224,7 @@ def proxy_gloss(page: Page) -> None:
 
 def option_empty(page: Page) -> None:
     """An option list's empty one-line add field, focused."""
-    field = page.locator(".lf-another :is(leaf-text, textarea)").first
+    field = page.locator(".lf-another :is(leaf-text, input)").first
     field.scroll_into_view_if_needed()
     field.click()
     expect(field).to_be_focused()
@@ -2225,7 +2225,7 @@ def card_reply_error(page: Page) -> None:
 
 def option_long(page: Page) -> None:
     """An option list's added option, typed long enough to wrap."""
-    field = page.locator(".lf-another :is(leaf-text, textarea)").first
+    field = page.locator(".lf-another :is(leaf-text, input)").first
     field.scroll_into_view_if_needed()
     field.click()
     page.keyboard.insert_text(

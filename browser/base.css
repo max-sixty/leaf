@@ -395,11 +395,12 @@ body {
     --lf-landing-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-top: var(--lf-landing-top) !important;
     /* The floating panel states the root's landing band at the window's foot as its box
-     * changes height (floating-panel.js, `followBox`), from these. It states it to
-     * Leaf's landings alone (geometry.js, `landingBand`): as the root's
-     * `scroll-padding-bottom` it would hold every reveal the browser makes above a band
-     * across the whole window, and scroll the page under a box stuck beside the panel to
-     * bring the box out of it. */
+     * changes height (floating-panel.js, `followBox`), from these, to Leaf's landings
+     * (geometry.js, `landingBand`) and as the root's `scroll-padding-bottom`
+     * (geometry.js, `stateFootBand`), so every reveal and focus the browser makes, a
+     * widget's included, lands above the panel. The band spans the window, so a reveal
+     * beside the panel stops that much higher too, and one of a box stuck at the
+     * window's foot beside the panel scrolls the page under it. */
     --lf-foot-band: calc(var(--lf-foot-room) + var(--lf-landing-room))
       calc(var(--lf-floating-gap) + var(--lf-landing-room));
     /* Floating editors stand above the chrome that this padding clears. Chromium and

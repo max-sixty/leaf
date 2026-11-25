@@ -2,7 +2,7 @@
 
 `tests/fixtures/packages/verdict` holds `lf-verdict`, whose module imports nothing: Leaf
 sets its `state` and its bound `notes`, hears the `lf-action` a press dispatches, and
-reads each choice as a comment target from its `data-lf-part` mark
+reads each choice as a comment target from its `lfParts`
 (module-plain-elements.md). `tests/fixtures/packages/shortlist` holds one with a pick
 for each row, which `test_widget_composition.py` holds to Undo, a revision and an
 export. `tests/fixtures/packages/controls` holds two components with no code written
@@ -97,7 +97,7 @@ def decide(value):
 
 
 def choice(page, widget, value):
-    return page.locator(f'#{widget} [data-lf-part="choice:{value}"]')
+    return page.locator(f'#{widget} button[value="{value}"]')
 
 
 def decided(page_dir, value, widget="verdict"):
@@ -161,9 +161,7 @@ def test_a_plain_element_draws_records_and_takes_a_comment(browser, serve):
     expect_obligations_answered(page, "1/1")
 
     hold.click(modifiers=["Alt"])
-    expect(page.locator('[data-lf-mark~="pending"]')).to_have_attribute(
-        "data-lf-part", "choice:hold"
-    )
+    expect(page.locator('[data-lf-mark~="pending"]')).to_have_attribute("value", "hold")
     write(page.locator(".lf-composer leaf-text"), "What would holding cost us?")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
@@ -254,9 +252,10 @@ def test_an_event_that_reaches_nobody_is_its_elements_failure(browser, serve):
     hold = """async ([options, staged]) => {
       let origin = document.getElementById("verdict");
       if (staged) {
-        const {shadowStage} = await window.__lfWidgetApi();
         origin = document.createElement("lf-part");
-        shadowStage(document.getElementById("verdict"), [origin]);
+        const verdict = document.getElementById("verdict");
+        (verdict.shadowRoot ?? verdict.attachShadow({mode: "open"})).replaceChildren(origin);
+        verdict.dispatchEvent(new Event("lf-connect", {bubbles: true, composed: true}));
       }
       const event = Object.assign(new Event("lf-hold", options), {
         complete: Promise.resolve(),
@@ -638,15 +637,11 @@ WORKER = {
         },
     }
 }
-WORKER_MODULE = """import { readReports } from "/runtime/widget-api.js";
-customElements.define("lf-plain-worker", class extends HTMLElement {
+WORKER_MODULE = """customElements.define("lf-plain-worker", class extends HTMLElement {
   #line = null;
   set state({ state }) {
-    const { phase, reports } = readReports(this);
-    if (phase !== "ready") return;
-    const said = reports.findLast((report) => report.disposition === "effective");
     this.#line ??= this.appendChild(document.createElement("output"));
-    this.#line.textContent = `${state.value}: ${said?.text ?? "no report yet"}`;
+    this.#line.textContent = `${state.value}: ${state.detail.text ?? "no report yet"}`;
   }
 });"""
 
@@ -683,11 +678,12 @@ def report_working(page, page_dir):
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_plain_element_draws_its_reports_once_they_are_ready(engine, serve, request):
-    """An element with no base class reads its own reports in its `state` setter. A
-    reading is not ready inside the set that a report moves, so the element draws
-    nothing then, and Leaf sets its `state` again once the reports are ready: on
-    arrival, as a report comes in, and on a page that opens holding one."""
+def test_a_plain_element_draws_the_report_in_force_from_its_state(
+    engine, serve, request
+):
+    """An element with no base class and no import from Leaf draws what its agent
+    last reported from its `state`: the verb's value and the words its `detail`
+    carries, as the report comes in and on a page that opens holding one."""
     url = roster(serve)
     page = open_page(request.getfixturevalue(engine), url)
     worker = page.locator("#wren output")
@@ -700,38 +696,47 @@ def test_a_plain_element_draws_its_reports_once_they_are_ready(engine, serve, re
     expect(worker).to_have_text("working: checking the mount prices")
 
 
-def test_a_plain_element_that_left_waits_again_for_the_work_it_left_with(
-    browser, serve
-):
-    """A report waits for work under way inside its element. The element leaves and
-    returns before that work is in: Leaf sets its `state` again as it returns, and it
-    is still told to wait, since the work it left with holds its preparation again
-    before it draws. It draws the report once the work is in."""
-    page = open_page(browser, roster(serve))
-    worker = page.locator("#wren output")
-    expect(worker).to_have_text("idle: no report yet")
-    page.evaluate(
-        """async () => {
-          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
-          const {readApplicationPresentation} = await window.__lfCheckApi();
-          window.wren = document.querySelector('#wren');
-          window.home = wren.parentNode;
-          window.work = Promise.withResolvers();
-          window.preparing = () => readApplicationPresentation().pending
-            .includes('widget:wren:preparation');
-          // Said from inside the element, the work is its preparation.
-          wren.querySelector('output').dispatchEvent(new PendingTaskEvent(work.promise));
-        }"""
+FEED = {
+    "lf-plain-feed": {
+        "description": "What the agent last reported, read from the page's history.",
+        "attributes": {"required": ["id"]},
+        "content": "empty",
+    }
+}
+FEED_MODULE = """import { history } from "/runtime/widget-api.js";
+customElements.define("lf-plain-feed", class extends HTMLElement {
+  connectedCallback() {
+    const draw = () => {
+      const report = history.read().events.find((row) => row.kind === "report");
+      const said = report?.excerpt ?? "nothing reported";
+      if (this.textContent !== said) this.textContent = said;
+    };
+    history.addEventListener("change", draw);
+    draw();
+  }
+});"""
+
+
+def test_a_plain_element_follows_a_page_reading_by_its_change(browser, serve):
+    """A page reading says `change` as its value moves, so an element that follows no
+    signal draws each new value: here the newest report in the page's history, as a
+    report arrives behind the open page."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Roster",
+                '<lf-plain-worker id="wren" state="idle"></lf-plain-worker>'
+                '<lf-plain-feed id="feed"></lf-plain-feed>',
+            ),
+            layer_registry={**WORKER, **FEED},
+            layer_widgets={
+                "lf-plain-worker.js": WORKER_MODULE,
+                "lf-plain-feed.js": FEED_MODULE,
+            },
+        )
     )
+    page = open_page(browser, url)
+    feed = page.locator("#feed")
+    expect(feed).to_have_text("nothing reported")
     report_working(page, serve.page_dir)
-    assert worker.text_content() == "idle: no report yet"
-
-    page.evaluate("() => { wren.remove(); }")
-    page.wait_for_function("() => !preparing()")
-    page.evaluate("() => { home.append(wren); }")
-    # The return has drawn by the time the work it left with is presented again.
-    page.wait_for_function("() => preparing()")
-    assert worker.text_content() == "idle: no report yet"
-
-    page.evaluate("() => { work.resolve(); }")
-    expect(worker).to_have_text("working: checking the mount prices")
+    expect(feed).to_have_text("checking the mount prices")

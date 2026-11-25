@@ -1112,7 +1112,7 @@ def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
 
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           api.focusDestination(document.getElementById('notes-link'), 'move');
         }"""
     )
@@ -2306,8 +2306,8 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
 ):
     """Escape puts a focus preview away, and an element declaring its preview again,
     as a chart redrawing with the same point does, brings nothing back; nor does a
-    grip whose words come back once its card is put down. The element hears that its
-    preview ended (`lf-preview-ended`). A widget placing focus as a move after a
+    grip whose words come back once its card is put down. The reading hears that it
+    ended (its `ended`). A widget placing focus as a move after a
     microtask shows it, since the cause is the placement's, and the user stepping
     back with the keyboard shows it again."""
     page = open_page(
@@ -2325,8 +2325,8 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
         """() => {
           window.lf = {point: 1, held: false, ended: 0};
           const chart = document.getElementById('chart');
-          chart.lfPreview = () => ({name: `Point ${window.lf.point}`});
-          chart.addEventListener('lf-preview-ended', () => { window.lf.ended += 1; });
+          chart.lfPreview = () => ({name: `Point ${window.lf.point}`,
+            ended: () => { window.lf.ended += 1; }});
           document.getElementById('grip').lfPreview = () =>
             !window.lf.held && {name: 'Drag to move'};
         }"""
@@ -2766,7 +2766,7 @@ def test_k_reads_a_landing_s_preview_inside_a_modal_dialog(browser, serve):
     )
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           for (const id of ['one', 'two'])
             document.getElementById(id).lfPreview = () => ({name: `${id} detail`});
           const rows = document.getElementById('rows');
@@ -3220,7 +3220,7 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     )
     page.evaluate(
         """async () => {
-          window.lfApi = await window.__lfWidgetApi();
+          window.lfApi = await window.__lfCheckApi();
           window.label = 'First item detail';
           document.getElementById('host').lfPreview = () => ({name: window.label});
         }"""
@@ -3265,10 +3265,9 @@ SHARED_ROW_LOG = """() => {
     el.lfPreview = () => {
       window.lfLog.push(`read ${id}`);
       return {name: `Reads ${id}`, at: id === 'three' ? undefined : row,
-        detail: id === 'two' ? ['Two', 'Three', 'Four', 'Five', 'Six'] : []};
+        detail: id === 'two' ? ['Two', 'Three', 'Four', 'Five', 'Six'] : [],
+        ended: () => window.lfLog.push(`ended Reads ${id}`)};
     };
-    el.addEventListener('lf-preview-ended', (event) =>
-      window.lfLog.push(`ended ${event.detail.declared.name}`));
   }
   document.getElementById('lf-preview').addEventListener('beforetoggle', (event) => {
     if (event.newState === 'closed') window.lfLog.push('closed');
@@ -4065,10 +4064,9 @@ def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
     held = page.locator("#held")
     held.evaluate(
         """el => {
-          el.lfPreview = () => ({name: 'Read report',
-            detail: ['Details for the held control']});
           el.ended = 0;
-          el.addEventListener('lf-preview-ended', () => (el.ended += 1));
+          el.lfPreview = () => ({name: 'Read report',
+            detail: ['Details for the held control'], ended: () => (el.ended += 1)});
         }"""
     )
     step = page.locator("#step")
@@ -4141,7 +4139,7 @@ def test_a_held_reading_stays_as_a_redraw_gives_focus_back(browser, serve):
     expect(tip.locator(".lf-preview-word")).to_have_text("Value to enter")
     page.evaluate(
         """async () => {
-          const { holdFocus } = await window.__lfWidgetApi();
+          const { holdFocus } = await window.__lfCheckApi();
           const field = document.getElementById('note');
           const restore = holdFocus(document.getElementById('form'));
           const replacement = field.cloneNode(true);
@@ -4258,7 +4256,7 @@ def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
     )
     page.evaluate(
         """async () => {
-          window.lfApi = await window.__lfWidgetApi();
+          window.lfApi = await window.__lfCheckApi();
           document.getElementById('late').lfPreview = () => ({name: 'Late says'});
           // The target stands above the window as focus reaches it.
           scrollTo(0, 1200);

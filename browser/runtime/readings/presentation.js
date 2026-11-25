@@ -1,6 +1,6 @@
 /* The page's readiness: the stamps written on body, the work an owner finishes after
-   presentation (`deferredArrival`), and the events startup dispatches to present the
-   page (`PRESENTATION`, `PAGE_INTERFACE`). The words and marks the runtime paints onto
+   presentation (`deferredArrival`), and the event startup dispatches to present the
+   page (`PAGE_INTERFACE`). The words and marks the runtime paints onto
    page-owned elements live in records/declared-words.js.
 
    The page has three readiness facts, all three written on `body` rather than on the
@@ -41,21 +41,25 @@
    the page that knows a deferred upgrade exists is whoever remembered to name it, which
    is a reader repeating what the page should settle.
 
-   A widget reaches this through two routes, and each declares what it defers, so no
-   widget keeps work off the presentation path without the page counting it.
-   `afterPresentation` is the wait and the declaration together, for work the widget
-   earns the right to start only once the user has the page, or work already running
-   that presentation need not wait for, which its `work` callback returns: the page
-   presents without it, and `arrived` waits for it, counted from the call either way.
-   `whenNear` is the same for work it earns only once the reader comes near the
-   node, such as a live sample's child page: the page counts the browser's first
-   reading of the node, so a reader of its final boxes waits for whatever that reading
-   starts, and a check that reads every document the page can show starts the rest
-   (`startNearWork`), in each live sample's child too. Neither hands a package the bare
-   `presented` wait. `deferredArrival` is the declaration alone, which both routes
-   make and the runtime's own owners make for work they have started. */
+   The runtime's own owners declare such work with `afterPresentation`, the wait and
+   the declaration together, for work started only once the user has the page or
+   already running work that presentation need not wait for, which its `work` callback
+   returns: the page presents without it, and `arrived` waits for it, counted from the
+   call either way. A widget instead starts such work once `body[data-lf-presented]` is
+   set (lib/presented.js) and says it with `pending-task`, which after presentation
+   holds the page's rendering readiness. `whenNear`, which a widget reaches, is the wait and the
+   declaration for work earned only once the reader comes near the node, such as a
+   live sample's child page: the page counts the browser's first reading of the node,
+   so a reader of its final boxes waits for whatever that reading starts, and a check
+   that reads every document the page can show starts the rest (`startNearWork`), in
+   each live sample's child too. `whenNear` stays in the package interface because only
+   Leaf hears that check ask and counts the wait in the page's readiness: a widget's
+   own IntersectionObserver would leave a live sample below the window unread by
+   `page check --render`. Folded into `mountSample`, the wait would hold back every
+   sample a page script or a test mounts out of view. `deferredArrival` is the
+   declaration alone, which both routes make and the runtime's owners make for work
+   they have started. */
 
-import { whileConnected } from "../dom/arrivals.js";
 import { applicationPresented } from "../state/semantic-state.js";
 import { reportPageError } from "../transport/layer-client.js";
 import { activityTransitionAt } from "../state/presence.js";
@@ -77,6 +81,10 @@ export function markPagePresented() {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.presented, "1");
   resolvePresented();
 }
+// The page's first presentation, for the runtime's own readers of it. Its reactions run
+// once startup's synchronous turn after the stamp is done, so a geometry reader reads
+// the layout the landing left.
+export const whenPagePresented = () => presented;
 
 // The arrivals their owners placed after presentation and that have not landed yet.
 // Registration is synchronous at the point the owner decides to defer — before
@@ -246,19 +254,11 @@ export function pageReadiness(held = null, through = "rendering") {
   }
 }
 
-// The one initial turn in which box-derived page apparatus can read the complete
-// authoritative layout before semantic interaction opens. Widget upgrade gives
-// components enough geometry to build and paint from authored state, while presentation
-// adds replay, restored chrome, and fragment reveal. Components keep observing later
-// real layout changes through their ordinary ResizeObserver or layout signal; this event
-// exists only to replace a provisional startup reading synchronously.
-export const PRESENTATION = "lf-presentation";
-
 // Interface derived from authored structure joins the same settlement boundary as the
 // widget modules that compose it. Initial startup and an in-place version activation
 // both pass here, so such a surface cannot appear after either page is already in
 // front of the user.
-export const PAGE_INTERFACE = "lf-page-interface";
+const PAGE_INTERFACE = "lf-page-interface";
 // Prepare interface owners over the current DOM. This joins their reconciliation,
 // separately from the semantic document's canonical presentation proof.
 export async function settlePageInterface() {
@@ -278,37 +278,4 @@ export async function settlePageInterface() {
     if (result.status === "rejected")
       reportPageError(result.reason, "Page interface failed");
   }
-}
-
-// A page script's view of a widget, such as a playground's preview, which can reach the
-// widget only once it has upgraded. The first connection waits for PAGE_INTERFACE and
-// holds the page's presentation until `connect` has run; a reconnection runs it at once.
-// `declare` runs once, before the first `connect`, for what the widget accepts once per
-// lifetime; `connect(signal)` runs on each connection, and its returned cleanup runs as
-// the element leaves. A later PAGE_INTERFACE, from a revision applied in place, finds
-// the view already connected.
-/** @param {Element} element @param {{declare?: () => void, connect: (signal: AbortSignal) => (() => void) | void}} callbacks */
-export function whileInterfaceConnected(element, { declare, connect }) {
-  let declared = false;
-  return whileConnected(element, (signal) => {
-    let connected = false;
-    /** @type {(() => void) | void} */
-    let cleanup;
-    const start = () => {
-      if (signal.aborted || connected) return;
-      if (!declared) {
-        declare?.();
-        declared = true;
-      }
-      connected = true;
-      cleanup = connect(signal);
-    };
-    document.addEventListener(
-      PAGE_INTERFACE,
-      (event) => event.detail.present(Promise.resolve().then(start)),
-      { signal },
-    );
-    if (declared) start();
-    return () => cleanup?.();
-  });
 }

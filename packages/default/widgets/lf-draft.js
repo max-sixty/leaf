@@ -56,7 +56,7 @@
  * offers, puts them back and opens the editor on them (the draft's `discard`), so a
  * stray press on Discard loses nothing for good; every other way out saves them as Save
  * does, which submits one absolute edit through the shared send generation. A
- * press away from the draft saves (dom/focus.js, `onPressAway`), so a tap elsewhere on a
+ * press away from the draft saves (`#pressAway`), so a tap elsewhere on a
  * phone keeps what was typed without finding Save first, and Android's back
  * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
  * sends the agent a turn, as a stray tap does (the user's decision). Rejected: back closing the editor with its
@@ -78,27 +78,18 @@
  * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import { html, render, nothing } from "/vendor/lit.js";
-import {
-  aimedAt,
-  nameOf,
-  motion,
-  draft,
-  whileConnected,
-  dressCode,
-  focusDestination,
-  retainUserIntent,
-  scrollIntoView,
-  onCurrentLocation,
-  onPressAway,
-  pageLinks,
-} from "/runtime/widget-api.js";
+import { aimedAt, nameOf, draft } from "/runtime/widget-api.js";
+import { playMotion } from "/runtime/lib/motion.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import { restArming } from "/runtime/lib/rest-arming.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import {
+  pageLinks,
   paintMarkdown,
   markdownSourceOffset,
   markdownWords,
@@ -167,14 +158,16 @@ customElements.define(
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
-    /** @type {ReturnType<typeof motion> | null} */
+    // Whether the draft offers its doors: not as an exhibit.
+    #live = false;
+    /** @type {(() => void) | null} */
+    #disconnect = null;
+    /** @type {Animation | null} */
     #returnMotion = null;
     /** @type {number | null} */
     #cancelSize = null;
-    /** @type {ReturnType<typeof onPressAway> | null} */
+    /** @type {(() => void) | null} */
     #stopPressAway = null;
-    /** @type {Promise<void> | undefined} */
-    #dressing;
     #states = this.attachInternals().states;
     // The toolbar shows again, after typing put it away, while the pointer is on it, and
     // takes presses once the pointer has rested there.
@@ -244,30 +237,38 @@ customElements.define(
       // settlement is the case that does move this tab: the words are sent or discarded,
       // so an open box holding them has nothing left to hold, and closing it lets replay
       // paint whatever the log ends up saying.
-      whileConnected(this, () => {
-        const stopDraft = this.#watchDraft();
-        // Typing lasts while the caret does: a box the user has left shows Save and
-        // Discard, so it never reads as saved while it still holds their words.
-        const stopLocation = onCurrentLocation((node) => {
-          if (this.#states.has("typing") && node !== this.#editor) this.#keepTools();
-        });
-        // An editor a refused save reopened while the draft was out of the page says
-        // its keys as the draft returns.
-        this.#editor?.dispatchEvent(
-          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-        );
-        if (this.#editor && !this.#resumeProjection && this.#available())
-          this.#resumeProjection = this.defer();
-        return () => {
-          this.#returnMotion?.cancel();
-          this.#stopPressAway?.();
-          this.#stopPressAway = null;
-          stopDraft?.();
-          stopLocation();
-          this.#resumeProjection?.();
-          this.#resumeProjection = null;
-        };
+      this.#live = true;
+      // Typing lasts while the caret does: a box the user has left shows Save and
+      // Discard, so it never reads as saved while it still holds their words.
+      this.addEventListener("focusout", (event) => {
+        if (this.#states.has("typing") && event.target === this.#editor)
+          this.#keepTools();
       });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      if (!this.#live) return;
+      const stopDraft = this.#watchDraft();
+      this.#disconnect = () => stopDraft?.();
+      // An editor a refused save reopened while the draft was out of the page says
+      // its keys as the draft returns.
+      this.#editor?.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
+      if (this.#editor && !this.#resumeProjection && this.#available())
+        this.#resumeProjection = this.defer();
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#returnMotion?.cancel();
+      this.#stopPressAway?.();
+      this.#stopPressAway = null;
+      this.#disconnect?.();
+      this.#disconnect = null;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
     #recoverEdit() {
@@ -440,7 +441,7 @@ customElements.define(
       if (this.#editor) return;
       if (this.#sending) {
         window.dispatchEvent(
-          new CustomEvent("lf-error", {
+          new CustomEvent("lf-announce", {
             detail: "Wait for the current edit to finish saving",
           }),
         );
@@ -475,10 +476,7 @@ customElements.define(
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
-      this.#stopPressAway = onPressAway(
-        (/** @type {EventTarget[]} */ path) => !path.includes(this),
-        () => void this.#commit(),
-      );
+      this.#stopPressAway = this.#pressAway();
       this.#paintTools();
       // A pointer is already on visible words. Opening their editor preserves that
       // place before handing the clicked caret across; the Edit control instead reveals
@@ -489,9 +487,50 @@ customElements.define(
       // resumed edit opens with different words at those offsets.
       if (at && editor.value === effective) editor.setSelectionRange(at[0], at[1]);
       if (arrive) {
-        focusDestination(editor, "move");
-        if (at === undefined) scrollIntoView(editor, { block: "nearest" });
+        editor.focus({ preventScroll: true });
+        if (at === undefined) editor.scrollIntoView({ block: "nearest" });
       }
+    }
+
+    // A primary press that begins and completes outside the draft, and leaves the user
+    // outside it, saves it, so a drag into or out of the box, a finger's scroll the
+    // browser cancels and a secondary press save nothing. Where the press leaves the
+    // user is read once the click its release owes is past: a control that stands for
+    // the draft's place keeps the caret in it, as Leaf's writing beacon does, so a press
+    // on it takes the user back and saves nothing. Returns what stops hearing presses.
+    #pressAway() {
+      const listening = new AbortController();
+      addEventListener(
+        "pointerdown",
+        (down) => {
+          if (
+            !down.isPrimary ||
+            down.button !== 0 ||
+            down.composedPath().includes(this)
+          )
+            return;
+          const press = new AbortController();
+          const options = {
+            capture: true,
+            signal: AbortSignal.any([listening.signal, press.signal]),
+          };
+          addEventListener(
+            "pointerup",
+            (up) => {
+              press.abort();
+              if (up.composedPath().includes(this)) return;
+              setTimeout(() => {
+                if (!listening.signal.aborted && !this.matches(":focus-within"))
+                  void this.#commit();
+              });
+            },
+            options,
+          );
+          addEventListener("pointercancel", () => press.abort(), options);
+        },
+        { capture: true, passive: true, signal: listening.signal },
+      );
+      return () => listening.abort();
     }
 
     /** @param {boolean} discard */
@@ -502,10 +541,10 @@ customElements.define(
       // Hold the old allocation before any control repaint can read layout and
       // clamp a reader at the document foot. Native auto follows the restored body.
       if (before !== null)
-        this.#returnMotion = motion(
+        this.#returnMotion = playMotion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          motionTime("--lf-motion-return"),
+          { duration: motionTime("--lf-motion-fold") },
         );
       // Words the box already says are no loss, so only changed ones are kept for ⌘Z
       // to take back.
@@ -519,21 +558,21 @@ customElements.define(
       // another tab's settlement brings takes focus from wherever they actually are.
       const left = document.activeElement;
       const stood = this.contains(left);
-      const mayReturn = retainUserIntent({ source: left });
+      const mayReturn = noInputSince();
       this.#editor.remove();
       this.#editor = null;
       this.#keepTools();
       this.#failed = false;
       this.#paintTools();
       if (stood) {
-        if (this.#sending) focusDestination(this, "return");
+        if (this.#sending) focusOn(this);
         else
           nextRender(() => {
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
             const edit = this.#control("edit");
             if (this.isConnected && !this.#editor && mayReturn() && edit)
-              focusDestination(edit, "return");
+              edit.focus({ preventScroll: true });
           });
       }
       // Replay may have been held by this editor. Its close is the generic projection
@@ -586,19 +625,6 @@ customElements.define(
           );
         }
       }
-    }
-
-    // The body `render` painted draws its code and formulas once it stands, and the
-    // update waits for them (lib/leaf-element.js, `pending-task`).
-    /** @param {Map<PropertyKey, unknown>} changed */
-    updated(changed) {
-      super.updated(changed);
-      this.#dressing = dressCode(this.#body);
-    }
-    async getUpdateComplete() {
-      const result = await super.getUpdateComplete();
-      await this.#dressing;
-      return result;
     }
 
     // A live editor owns its transient text; the complete state waits for it.

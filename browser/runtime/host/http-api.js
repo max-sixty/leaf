@@ -1,5 +1,7 @@
 /* A page names an explicit host grant; credentials and HTTP policy stay there.
-   Fetching neither changes page state nor retries a failed request. */
+   Fetching neither changes page state nor retries a failed request. `connection`
+   stays in the package interface because only Leaf's server holds the host's
+   credentials, which never reach the page. */
 import { offlineInteractive, pageUrl } from "../state/context.js";
 import { requestJson } from "../transport/layer-client.js";
 import { readPart } from "../state/semantic-state.js";

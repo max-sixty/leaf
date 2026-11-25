@@ -56,8 +56,8 @@ from leaf.authored_checks.admission import (
     revision_publication,
 )
 from leaf.authored_checks.declarations import declaration_advice
-from leaf.findings import Finding, Rejected
-from leaf.markup_checks.instances import question_errors, reference_errors
+from leaf.findings import Rejected
+from leaf.markup_checks.instances import question_errors
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.registry.validation import incoming_registry
@@ -360,34 +360,6 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     assert markup_findings(first, registry) == []
 
 
-def test_a_worker_is_assigned_only_to_a_goal(page_dir):
-    """The work reading assigns a worker only to the goal its `on` names, so an id of
-    an element with another role is refused, while a goal's passes."""
-    registry = registry_storage.load_registry(page_dir)
-    parser = SourceDocument(
-        '<lf-test-plan id="hub">'
-        '<lf-test-task id="goal" status="active"><strong>Goal</strong>'
-        '<lf-test-worker id="worker" state="waiting" on="tree"><strong>Worker</strong>'
-        '<lf-test-tree id="tree" source="project-worktrees"></lf-test-tree>'
-        "</lf-test-worker>"
-        '<lf-test-worker id="assigned" state="working" on="goal">'
-        "<strong>Assigned</strong></lf-test-worker>"
-        "</lf-test-task></lf-test-plan>"
-    )
-
-    errors = reference_errors(
-        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
-    )
-
-    assert errors == [
-        Finding(
-            "work-assignment",
-            "<lf-test-worker>",
-            {"line": 1, "attr": "on", "target": "tree", "target_tag": "lf-test-tree"},
-        )
-    ]
-
-
 def test_registry_examples_validate(page_dir):
     registry = registry_storage.load_registry(page_dir)
     assert any(
@@ -627,8 +599,8 @@ def test_a_message_admits_an_option_that_leads_with_a_strong_and_no_label(page_d
 
 
 def test_reply_assigns_a_worker_to_a_goal_on_the_page(page_dir):
-    """A worker in reply markup may work on a goal on the page beside it, and one
-    naming a page element that isn't a goal never enters the log."""
+    """A worker in reply markup may name a goal on the page beside it, and one naming
+    no element never enters the log."""
     subjects = (
         '<lf-test-plan id="hub"><lf-test-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-test-task></lf-test-plan>"
@@ -657,9 +629,9 @@ def test_reply_assigns_a_worker_to_a_goal_on_the_page(page_dir):
             ],
         )
 
-    misassigned = reply("tree")
+    misassigned = reply("nowhere")
     assert misassigned.exit_code != 0
-    assert 'on="tree" must name a goal' in words(misassigned.output)
+    assert 'on="nowhere" names no element' in words(misassigned.output)
 
     assigned = reply("goal")
     assert assigned.exit_code == 0, assigned.output

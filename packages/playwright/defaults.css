@@ -19,7 +19,7 @@ lf-trace {
   box-sizing: border-box;
   container-type: inline-size;
   margin-block: var(--lf-sp-4);
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   padding: var(--lf-sp-3);
   /* A solid surface, so it names its ground, and its opaque parts, the sticky heading
@@ -150,7 +150,7 @@ lf-trace[hidden="until-found"] {
   grid-template-columns: 76px minmax(0, 1fr);
   min-inline-size: 0;
   margin-block-end: var(--lf-sp-2);
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   /* The drawing's words stand in lanes and rows of stated heights, so their line is as
      tall as the words, as a mark's count is. */
@@ -161,7 +161,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-lane-names {
   display: grid;
   align-content: start;
-  border-inline-end: 1px solid var(--lf-border);
+  border-inline-end: 1px solid var(--lf-rule);
   background: var(--lf-ground);
   color: var(--lf-muted);
 }
@@ -176,7 +176,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-lane {
   block-size: calc(var(--lf-trace-rows, 1) * var(--lf-trace-row-h) + 6px);
   box-sizing: border-box;
-  border-block-start: 1px solid var(--lf-border);
+  border-block-start: 1px solid var(--lf-rule);
 }
 .lf-trace-lane-name-ruler,
 .lf-trace-ruler {
@@ -229,7 +229,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-bar {
   inline-size: max(2px, calc(var(--d) * var(--lf-trace-span)));
   box-sizing: border-box;
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
   cursor: pointer;
 }
 .lf-trace-call-bar {
@@ -240,7 +240,7 @@ lf-trace[hidden="until-found"] {
   overflow: hidden;
   display: flex;
   align-items: center;
-  color: var(--lf-ink-2, var(--lf-ink));
+  color: var(--lf-ink);
 }
 .lf-trace-call-name {
   min-inline-size: 0;
@@ -302,9 +302,9 @@ lf-trace[hidden="until-found"] {
   text-overflow: ellipsis;
   padding-inline: 4px;
   padding-block: calc((var(--lf-trace-row-h) - 4px - 1lh) / 2);
-  border-radius: 0 var(--lf-r-s) var(--lf-r-s) 0;
+  border-radius: 0 calc(var(--lf-r) / 2) calc(var(--lf-r) / 2) 0;
   background: var(--lf-ground);
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-inline-start: 0;
   font-weight: 600;
 }
@@ -319,15 +319,15 @@ lf-trace[hidden="until-found"] {
   padding-inline: 4px 0;
 }
 .lf-trace-moment-pin[data-lf-flip] .lf-trace-moment-flag {
-  border-radius: var(--lf-r-s) 0 0 var(--lf-r-s);
-  border-inline-start: 1px solid var(--lf-border);
+  border-radius: calc(var(--lf-r) / 2) 0 0 calc(var(--lf-r) / 2);
+  border-inline-start: 1px solid var(--lf-rule);
   border-inline-end: 0;
 }
 /* Ticks with an image are the strong ones; a checkpoint without one is faint. */
 .lf-trace-capture {
   inset-block: 4px;
   inline-size: 1px;
-  background: var(--lf-border);
+  background: var(--lf-rule);
 }
 .lf-trace-capture[data-lf-image] {
   inset-block: 2px;
@@ -345,7 +345,7 @@ lf-trace[hidden="until-found"] {
 }
 /* The selected mark's own name is highlighted, inside a shared label too. */
 :is(.lf-trace-word, .lf-trace-more)[data-lf-current] {
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
   background: var(--lf-accent);
   color: var(--lf-paper);
   box-shadow: 0 0 0 var(--lf-trace-word-band) var(--lf-accent);
@@ -359,7 +359,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-more {
   margin-inline-start: 2px;
   padding-inline: 3px;
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
   background: var(--lf-ground);
   color: var(--lf-ink);
   font-weight: 600;
@@ -425,7 +425,7 @@ lf-trace[hidden="until-found"] {
   grid-column: -2;
   position: relative;
   block-size: var(--lf-trace-overview-h);
-  border-block-start: 1px solid var(--lf-border);
+  border-block-start: 1px solid var(--lf-rule);
   background: var(--lf-ground);
   touch-action: none;
 }
@@ -438,7 +438,7 @@ lf-trace[hidden="until-found"] {
   inline-size: calc(100% / var(--lf-trace-zoom, 1));
   animation: lf-trace-pan linear both;
   animation-timeline: --lf-trace-pan;
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
   background: color-mix(in srgb, var(--lf-accent) 22%, transparent);
 }
 @keyframes lf-trace-pan {
@@ -530,7 +530,8 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-phase {
   margin-block: var(--lf-sp-1) var(--lf-sp-2);
-  font: var(--lf-font-status);
+  font: var(--lf-font-small);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .lf-trace-no-action :is(.lf-trace-action, .lf-trace-phase, .lf-trace-error) {
@@ -592,7 +593,7 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-missing-image {
   padding: var(--lf-sp-4);
-  border: 1px dashed var(--lf-border);
+  border: 1px dashed var(--lf-rule);
   color: var(--lf-muted);
   margin-block: 0;
 }
@@ -636,7 +637,8 @@ lf-trace[hidden="until-found"] {
 .lf-trace-node-path {
   display: block;
   color: var(--lf-muted);
-  font: var(--lf-font-code);
+  font: var(--lf-font-small);
+  font-family: var(--lf-mono);
 }
 lf-trace-bookmark {
   display: none;
@@ -656,7 +658,7 @@ lf-trace-bookmark {
   block-size: 22px;
   padding-inline: 3px;
   box-sizing: border-box;
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-radius: 999px;
   background: var(--lf-ground);
   font-weight: 600;
@@ -757,7 +759,7 @@ lf-trace-bookmark {
   block-size: 100%;
   margin-inline: auto;
   overflow: hidden;
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   box-sizing: border-box;
   background: var(--lf-ground);
   z-index: 0;
@@ -866,7 +868,8 @@ lf-trace-bookmark {
   padding: var(--lf-sp-1) var(--lf-sp-2);
   background: var(--lf-ground);
   color: var(--lf-accent);
-  font: var(--lf-font-heading);
+  font: var(--lf-font-small);
+  font-weight: 600;
   pointer-events: none;
 }
 /* The input's point in the capture's viewport, as fractions of the viewport's width
@@ -912,7 +915,7 @@ lf-trace-compare > :not(.lf-trace-compare-controls) {
   z-index: 4;
   background: var(--lf-ground);
   padding-block: var(--lf-trace-chooser-padding);
-  border-block-end: 1px solid var(--lf-border);
+  border-block-end: 1px solid var(--lf-rule);
 }
 lf-trace-compare .lf-trace-heading {
   position: static;
@@ -929,12 +932,25 @@ lf-trace-compare lf-trace {
 }
 
 /* The chooser has fixed apparatus geometry; its native slot holds that room
- * while the module loads. View selection remains the shared view owner's job. */
+ * while the module loads, over the first view alone, and the module then opens the view
+ * the address or this tab names. A view not shown (`hidden="until-found"`) keeps its
+ * own box in flow; it takes no room. */
 @scope (html[data-lf-interactive]) {
   lf-trace-compare:not(:defined)::before {
     content: "";
     display: block;
-    block-size: calc(var(--lf-chooser) + 2 * var(--lf-trace-chooser-padding) + 1px);
+    block-size: calc(var(--lf-line) + 6px + 2 * var(--lf-trace-chooser-padding) + 1px);
+  }
+  lf-trace-compare:not(:defined)
+    > :not(script, style, template)
+    ~ :not(script, style, template) {
+    display: none;
+  }
+  lf-trace-compare > [hidden="until-found"] {
+    block-size: 0;
+    min-block-size: 0;
+    padding-block: 0;
+    border-block-width: 0;
   }
 }
 

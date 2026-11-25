@@ -1282,7 +1282,9 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, named } = await window.__lfWidgetApi();
+      const { says } = await import('/runtime/passages.js');
+      const { quoteFrom, textNodesUnder } = await window.__lfCheckApi();
+      const named = (node) => quoteFrom(textNodesUnder(node, 'named'));
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,

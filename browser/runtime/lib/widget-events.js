@@ -14,13 +14,10 @@
    Leaf page says in its live region (transport/notifications.js) and a plain page leaves unsaid.
    Where a step of a walk of the widget's own landed is `lf-walk` (`WALK`), which a Leaf
    page's panel says (records/walk-position.js).
-   Words telling the user that something they did has not taken are `lf-error` on the
-   window, which a Leaf page keeps in its Errors list (transport/errors.js).
    What pointing at an element reads is data on it too, `lfPreview`, and the widget says
    when that changes with `lf-preview`, as the user's aim moves from
    one of a chart's points to the next, or a grip's words stop being true once its card
-   is grabbed: Leaf reads it again (annotations/preview.js). Leaf says at the element when that
-   preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
+   is grabbed: Leaf reads it again (annotations/preview.js). */
 
 // That an element has connected and wants what its host sets on it now: a bubbling,
 // composed event the element dispatches from `connectedCallback`. A Leaf page answers
@@ -71,11 +68,6 @@ export const layoutChanged = (el) =>
 // another point, which shows its preview whatever put the last one away, on the side a
 // standing one stood, where a redraw of the same reading shows nothing new.
 export const PREVIEW = "lf-preview";
-// That the preview Leaf showed of an element has gone, a `CustomEvent` dispatched at
-// that element alone whose `detail.declared` is what its `lfPreview` returned for the
-// reading that ended (annotations/preview.js): a mark the widget drew for that reading, as a chart's
-// ring on its point, comes off then, and one for a reading declared since stays.
-export const PREVIEW_ENDED = "lf-preview-ended";
 // That an element's `lfCommands`, or anything its rows read, changed: a bubbling,
 // composed CustomEvent the element dispatches on itself while it stands in the page,
 // since nothing hears one from an element out of it. `detail.within` true says the

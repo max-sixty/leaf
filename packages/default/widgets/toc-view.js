@@ -1,4 +1,3 @@
-import { titledElement } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
 /* The contents view draws its frame and outline from the complete document, less the
@@ -50,13 +49,13 @@ const markView = (marks) =>
     ? nothing
     : html`<span class="lf-toc-mark" aria-hidden="true"></span>`;
 
-// The outline belongs to the document holding it: the view member holding it, such as
-// a tab's panel, or else the `main` holding it. For contents standing beside the page's
+// The outline belongs to the document holding it: the tab panel holding it, or else the
+// `main` holding it. For contents standing beside the page's
 // main, it is that main. Scope follows document ownership, not visibility: closed
 // disclosures still contribute headings that a native fragment link can reveal.
 /** @param {HTMLElement} host */
 const outlineDocument = (host) =>
-  host.closest("[data-lf-views] > *, main") ??
+  host.closest('[role="tabpanel"], main') ??
   host.closest("body")?.querySelector(":scope > main") ??
   null;
 
@@ -74,11 +73,12 @@ export function drawToc(host, headingReading) {
   // One preview for each row's link, kept as long as its heading, which reads the row's
   // marks as it shows: their counts alone, in place of the name the link's face already
   // says, so a room holding one line holds the counts, and a screen reader hears them
-  // after the link's name; none where the row has none, so the link previews nothing.
+  // after the link's name; none where the row has none, so the link previews nothing,
+  // not even the place it leads, which Leaf previews for a link that declares nothing.
   /** @param {Element | null} heading */
   const preview = (heading) => () => {
     const words = marksWords(marks.get(heading));
-    return words ? { name: words } : null;
+    return words ? { name: words } : false;
   };
   /** @type {WeakMap<Element, ReturnType<typeof preview>>} */
   const previews = new WeakMap();
@@ -260,8 +260,33 @@ export function drawToc(host, headingReading) {
   };
 }
 
+// The element a heading opens: its hgroup, and the section or article that starts
+// with the heading or that hgroup, words or any other element before it opening the
+// section instead. A heading anywhere else, a widget's included, opens only itself.
+/** @param {Element} heading */
+function titledElement(heading) {
+  let titled = heading;
+  const group = heading.parentElement;
+  if (
+    group?.localName === "hgroup" &&
+    group.querySelector(":scope > :is(h1, h2, h3, h4, h5, h6)") === heading
+  )
+    titled = group;
+  const section = titled.parentElement;
+  if (section?.matches("section, article") && opensWith(section, titled))
+    titled = section;
+  return titled;
+}
+/** @param {Element} container @param {Element} child */
+function opensWith(container, child) {
+  for (const node of container.childNodes)
+    if (node instanceof Element) return node === child;
+    else if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return false;
+  return false;
+}
+
 // A section's destination: the outermost element its author identified above the
-// heading, up to the element the heading titles (`titledElement`) and short of the
+// heading, up to the element the heading opens (`titledElement`) and short of the
 // document the outline covers, so the public fragment names the section or question the
 // heading opens rather than its label; else the hgroup that owns its heading, so an
 // eyebrow and title share one address and measured box, for h1 as for every level;

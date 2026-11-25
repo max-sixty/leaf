@@ -14,7 +14,7 @@ import {
   textNodesUnder,
 } from "/runtime/readings/passages.js";
 import { registry } from "/runtime/state/registry.js";
-import { shadowStage } from "/runtime/dom/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 const { cases } = JSON.parse(
   readFileSync(new URL("../quote_cases.json", import.meta.url), "utf8"),

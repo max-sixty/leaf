@@ -1,23 +1,28 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
- * draft generation, and the option nodes each `add` in force puts in the group. */
+ * draft generation, and the option nodes each `add` in force puts in the group.
+ *
+ * The field is a text `<input>` of the widget's own, alone in its form, since an
+ * option's words are one line: Return submits the form from every keyboard, a phone's
+ * included, whose key says Send, and the browser drops a line break pasted into it, as
+ * it does in any one-line field. Leaf keeps its words (`draft`), so they outlive a
+ * reload, a revision and the tab, and a refused add gives them back.
+ *
+ * Rejected: a textarea, whose words wrap as the option's will, since a phone's Return
+ * writes a line break there unless a press of Leaf's own adds the option. */
 import { guard, html, render, repeat } from "/vendor/lit.js";
-import {
-  draft,
-  move,
-  whileConnected,
-  wireInput,
-  pageLinks,
-} from "/runtime/widget-api.js";
+import { draft } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { offer } from "/runtime/lib/controls.js";
 import {
   inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
+  pageLinks,
 } from "/runtime/lib/markdown.js";
 
 const ANOTHER = "Another option";
 
-/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap["leaf-text"], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
+/** @typedef {{form: HTMLFormElement, input: HTMLInputElement, bindingBadge: HTMLSpanElement}} OptionEditor */
 
 export class OptionAddition {
   #host;
@@ -30,6 +35,8 @@ export class OptionAddition {
   #inForce = new Set();
   /** @type {Comment | null} */
   #end = null;
+  /** @type {(() => void) | null} */
+  #unwatch = null;
 
   /** @param {import("/runtime/lib/leaf-element.js").LeafElement} host
    * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
@@ -47,18 +54,28 @@ export class OptionAddition {
     return this.#offered;
   }
 
+  // The group's connection: the field follows its draft while the group stands.
   connect() {
     if (!this.#offered) return;
-    if (this.#ui) return;
-    const ui = (this.#ui = this.#buildForm());
-    whileConnected(this.#host, () =>
-      this.#draft.watch((value) => ui.sync.load(value ?? ""), {
+    const ui = (this.#ui ??= this.#buildForm());
+    this.disconnect();
+    this.#unwatch = this.#draft.watch(
+      (value) => {
+        // Writing the value a box already holds would move its caret to the end.
+        if (ui.input.value !== (value ?? "")) ui.input.value = value ?? "";
+      },
+      {
         input: ui.input,
-        box: () => ui.sync.composition().frame,
+        box: () => ui.form,
         // Resume writing (`g i`) comes back to the field, which stands in the group.
         resume: () => ({ where: ui.input, input: () => ui.input }),
-      }),
+      },
     );
+  }
+
+  disconnect() {
+    this.#unwatch?.();
+    this.#unwatch = null;
   }
 
   get input() {
@@ -69,38 +86,41 @@ export class OptionAddition {
     return this.#ui?.bindingBadge ?? null;
   }
 
-  refresh() {
-    this.#ui?.sync();
-  }
-
   /** @returns {OptionEditor} */
   #buildForm() {
     const form = offer("form", "lf-another");
-    const input = offer("leaf-text");
+    const input = offer("input");
+    input.type = "text";
     input.name = "option";
+    input.autocomplete = "off";
+    input.placeholder = "Add another option…";
+    input.enterKeyHint = "send";
     input.setAttribute("aria-label", ANOTHER);
-    // Its hint is Leaf's words, as every empty box's is (base/voice.js).
-    input.setAttribute("data-lf-voice", "leaf");
-    // An option's title is one line, so Return adds it from a phone's keyboard too.
-    input.setAttribute("aria-multiline", "false");
     const bindingBadge = offer("span", "lf-key-badge");
     bindingBadge.setAttribute("aria-hidden", "true");
     input.value = this.#draft.read()?.text ?? "";
     form.append(bindingBadge, input);
-    const sync = wireInput(input, {
-      hint: "Add another option…",
-      sendClass: "lf-option-add",
-      sends: "add and select option",
-      action: "add",
-      allowsMedia: () => "Images can be added to comments, not options",
-      busy: () => !this.available(),
-      hasContent: (raw) => Boolean(raw.trim()),
-      save: () => this.remember(this.#picked()),
-      send: (text, _raw, owns) => this.#submit(text, owns),
+    // Return adds the option in the keypress's own task, as Send does in Leaf's boxes;
+    // a keyboard still composing a word leaves it to the form's own submission.
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.isComposing) return;
+      event.preventDefault();
+      form.requestSubmit();
+    });
+    input.addEventListener("input", () => this.remember(this.#picked()));
+    // A press in the field's row beside its words, its digit's column included, is a
+    // press on the field, as one on a label is.
+    form.addEventListener("click", (event) => {
+      if (event.target === form) input.focus();
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const raw = input.value;
+      const text = raw.trim();
+      if (text && this.available()) void this.#submit(text, () => input.value === raw);
     });
     this.#host.append(form);
-    sync();
-    return { form, input, bindingBadge, sync };
+    return { form, input, bindingBadge };
   }
 
   #picked() {

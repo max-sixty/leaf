@@ -5,9 +5,9 @@
    by browser tests, owns whether a package's imports actually exist.
 
    The library of shared web code (browser/runtime/lib/) is not part of that surface:
-   each module documents itself, and the references name only its directory. The one
-   check here holds the list that admits a package's import of a library module to
-   the directory. */
+   each module documents itself, and a reference that sends a widget to one names the
+   module and may call what it exports. The one check here holds the list that admits
+   a package's import of a library module to the directory. */
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -133,6 +133,8 @@ function sectionOf(file, heading) {
 function runtimeNames() {
   const exports = new Set();
   const members = new Set();
+  // What the library's modules export, which a reference may call by name.
+  const library = new Set();
   const walk = (node) => {
     if (!node || typeof node.type !== "string") return;
     if (node.type === "MemberExpression" && !node.computed)
@@ -153,14 +155,19 @@ function runtimeNames() {
     const program = parseModule(read(path));
     for (const node of program.body) {
       if (node.type !== "ExportNamedDeclaration") continue;
-      for (const spec of node.specifiers) exports.add(spec.exported.name);
-      if (node.declaration?.id) exports.add(node.declaration.id.name);
-      for (const each of node.declaration?.declarations ?? [])
-        if (each.id.type === "Identifier") exports.add(each.id.name);
+      const names = [
+        ...node.specifiers.map((spec) => spec.exported.name),
+        ...(node.declaration?.id ? [node.declaration.id.name] : []),
+        ...(node.declaration?.declarations ?? [])
+          .filter((each) => each.id.type === "Identifier")
+          .map((each) => each.id.name),
+      ];
+      for (const name of names) exports.add(name);
+      if (path.includes("/runtime/lib/")) for (const name of names) library.add(name);
     }
     walk(program);
   }
-  return { exports, members };
+  return { exports, members, library };
 }
 
 test("a page or package may import every module of the library", () => {
@@ -212,6 +219,7 @@ test("every helper the module references call is exported", () => {
   const exported = surface();
   const reference = referenceCode();
   const runtime = runtimeNames();
+  const library = runtime.library;
   const called = new Set(
     reference.spans
       .map((span) => span.match(/^([A-Za-z_$][\w$]*)\((?!-)/)?.[1])
@@ -222,7 +230,9 @@ test("every helper the module references call is exported", () => {
     reference.members.has(name) ||
     (runtime.members.has(name) && !runtime.exports.has(name));
   assert.deepEqual(
-    [...called].filter((name) => !exported.has(name) && !member(name)),
+    [...called].filter(
+      (name) => !exported.has(name) && !library.has(name) && !member(name),
+    ),
     [],
     "the module references call these, and widget-api.js does not export them",
   );

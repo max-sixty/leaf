@@ -227,13 +227,6 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     registry = {
         tag: {
             **entry,
-            **(
-                {
-                    "shadow": True,
-                }
-                if tree == "shadow"
-                else {}
-            ),
             "example": f'<{tag} id="{tree}-example"></{tag}>',
         }
         for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
@@ -258,14 +251,14 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
 }
 """)
     modules = {}
-    for tag, declaration in registry.items():
+    for tag in registry:
         stage = (
-            "shadowStage(this, nodes)"
-            if declaration.get("shadow")
+            "this.attachShadow({mode: 'open'}).append(...nodes); "
+            "this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}))"
+            if tag == "lf-motion-shadow"
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
-import {{ shadowStage }} from '/runtime/widget-api.js';
 import {{ once }} from '/runtime/lib/once.js';
 customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
@@ -355,7 +348,6 @@ def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
     }
     shadow = {
         **entry,
-        "shadow": True,
         "example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
     }
     authored = leaf_page(
@@ -389,7 +381,6 @@ customElements.define('lf-settled-link', class extends HTMLElement {
 });
 """,
                 "lf-shadow-link.js": """
-import {shadowStage} from '/runtime/widget-api.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-shadow-link', class extends HTMLElement {
   connectedCallback() {
@@ -403,7 +394,8 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
       link.textContent = 'shadow destination';
       this.shadowRoot.append(link);
     };
-    shadowStage(this, [button]);
+    this.attachShadow({mode: 'open'}).append(button);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """,

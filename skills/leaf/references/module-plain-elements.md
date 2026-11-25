@@ -23,7 +23,6 @@ customElements.define(
           ([value, label]) =>
             html`<button
               type="button"
-              data-lf-part="choice:${value}"
               aria-pressed=${decide.value === value}
               aria-disabled=${!decide.available}
               @click=${() => this.choose(value, label)}
@@ -46,7 +45,7 @@ customElements.define(
 Lit's `render` calls an `@event` handler with the node it listens on as `this`, so
 where a handler is a method of the element, pass `{ host: this }` as `render`'s third
 argument. Its declaration ([packages.md, "A widget"](packages.md#a-widget)) puts the
-question on On Me and admits the ids its buttons mark:
+question on On Me:
 
 ```json
 "lf-verdict": {
@@ -60,7 +59,6 @@ question on On Me and admits the ids its buttons mark:
     "decide": { "record": { "attr": "verdict" } }
   },
   "awaits": { "value": "decide" },
-  "visual": { "prefixes": ["choice:"] },
   "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
 }
 ```
@@ -68,7 +66,7 @@ question on On Me and admits the ids its buttons mark:
 `leaf package init --widget` writes a smaller widget of this kind to start from
 ([packages.md, "Package reach"](packages.md#package-reach)). It draws from `state` and
 records with `lf-action` as this one does, under names of its own, and puts no question
-on On Me and marks no comment target.
+on On Me.
 
 `lf-action` and `lf-undo` record the widget's own actions and take them back, so Leaf
 listens for them on the widget's element: dispatch them on it; they need no option but
@@ -76,16 +74,15 @@ listens for them on the widget's element: dispatch them on it; they need no opti
 `pending-task` and `error`, tells the page something about that element. Leaf listens
 for it at the document, and an ancestor element may listen too, so dispatch it on the
 element with `bubbles: true` and `composed: true`, in addition to any option its entry
-names. `lf-announce` and `lf-error` are about no element, and are dispatched on the
-window, where they need neither option.
+names. `lf-announce` is about no element, and is dispatched on the window, where it
+needs neither option.
 
 Leaf notices one of these `lf-` events that its listeners will not hear: one that does
 not bubble, or, inside a shadow root, one that is not composed. It reports that as a
 failure of the element that dispatched the event, as it reports an `error` (below),
 and the event has no other effect. It does not notice a `pending-task` or an `error`
 dispatched without `bubbles` and `composed`. Nor does it notice anything inside a
-shadow root other than one `shadowStage` builds or the open root of an element that
-dispatches `lf-connect` (`module-authoring.md`, "Shadow stages and styles"): there, an
+shadow root other than the open root of an element that dispatches `lf-connect` (`module-authoring.md`, "Shadow stages and styles"): there, an
 event that is not composed goes unheard and unreported.
 
 Where an entry says an event carries a promise, the promise is the event's `complete`
@@ -106,7 +103,9 @@ this.dispatchEvent(hold);
   `no agent or server is available`, or `null` where Leaf gives no reason; and
   `undoable`, whether `lf-undo` would take back the action in force. A verb with a
   per-part unit holds `undoable` on each of its `units` instead. The setter draws the
-  whole state, and Leaf may set an equal state twice.
+  whole state, and Leaf may set an equal state twice: `page check --render` sets a copy
+  of the state again on each widget whose `state` reads back, and reports a draw that
+  changes the page.
 - **Bound inputs.** Leaf sets each one's property, and the element marks what it drew
   and dispatches `drawn`, as `module-state.md`, "Bound data and projections",
   describes. Leaf sets no property, `state` included, until the widget's state and the
@@ -114,7 +113,7 @@ this.dispatchEvent(hold);
   arrives with those first sets, so the element leaves its `<pre>` in place until then.
 - **`lf-action`.** The element records a gesture by dispatching a `CustomEvent` on
   itself. Its `detail` holds the `verb`, `detail`, `says`
-  and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller").
+  and `attempt` (`module-state.md`, "Recorded state").
   The inner `detail` is the action's own, in the shape the verb declares: `{value}`
   for a verb with a `record`, and for any other the fields its `detail` schema names.
   Those fields are the package's to name, so they stay under `detail`, where none can
@@ -149,7 +148,7 @@ this.dispatchEvent(hold);
   own. The `state` Leaf sets is how the element learns the user may not act: Leaf
   neither disables it nor makes it inert, so an element that doesn't read the verb's
   `available` shows the user's change until Leaf sets the property back. Undo names
-  the action in Leaf's own words (`module-state.md`, "The widget controller"). The
+  the action in Leaf's own words (`module-state.md`, "Recorded state"). The
   tag may also declare the property an output for other widgets to read, and the
   element needs no code for that either (`package-data.md`, "Widget outputs").
 - **A third-party component.** A component from a third-party library keeps its own
@@ -227,49 +226,32 @@ this.dispatchEvent(hold);
 - **`error`.** An element reports a failure by dispatching an `ErrorEvent` named
   `error` on itself, whose `error` property is the failure. Leaf
   reports it to the agent as a page error naming the widget, which fails `page check`.
-- **`lf-error`.** To tell the user that something they did has not taken, such as a
-  value the server refused, dispatch an `lf-error` event on the window whose `detail`
-  is the words, as `lf-announce` is dispatched (`module-scroll-and-motion.md`,
-  "Notices and spoken words"). The Leaf panel shows them until the user has dealt with
-  them. A failure in the widget itself is an `error`, never an `lf-error`.
-- **`redraw()`.** `page check --render` calls this method on an element that has one,
-  to draw the same state again, and reports a draw that changes the page.
 - **Building.** The element builds once, behind a first-connection guard
   (`module-authoring.md`, "Upgrade").
-- **Startup.** `lf-presentation` and `lf-page-interface` on `document`
+- **Startup.** `lf-page-interface` on `document`, and `body[data-lf-presented]`
   (`module-authoring.md`, "Startup and presentation").
-- **A stroke drawn on it.** `lf-inspect` (`module-input.md`, "Pointer presses").
 - **On Me and comment targets.** The class's `static answerWords` words its answer
-  (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
-  target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
-  parts").
+  (`module-state.md`, "Declared widget state"), and the element's `lfParts` states its
+  comment targets (`module-annotations.md`, "Visual parts").
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
   with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
-  regions").
-- **The page's views.** An element whose members (`views`) are the page's own views,
-  as the first tab set in `main` is, wears `data-lf-page-views` for as long as it is.
-  Leaf then names the member it shows in the address, by the member's id. A member
-  the element shows itself (`keepView`, `module-state.md`, "State only this tab
-  keeps") is the user's step, as a followed link is: Leaf adds a history entry for it,
-  and the entry the user leaves keeps where they were. A member something reveals
-  renames the entry the user is on, unless that entry's fragment already names a place
-  inside the member, and arriving at an address with no fragment renames its entry too.
-  Back or Forward to an entry whose fragment names a place inside another member
-  reveals that member, and returns the user to where they were on the entry.
-- **Previews, spoken words and a Copy control.** `lfPreview()`, `lf-preview` and
-  `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
+  regions"). `data-lf-bound` on a box has Leaf bound it and keep the reader's place
+  in it, following its end where it says `end` (`module-scroll-and-motion.md`,
+  "Scrolling").
+- **Previews, spoken words and a Copy control.** `lfPreview()` and `lf-preview`
+  (`module-previews.md`), `lf-announce` and `data-lf-quiet`
   (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,
   `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
-- **Its name, the parts a link reaches, its threads and its revisions.** `lfWord()` and
-  `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()`, `lfElementsFor()`,
-  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Following a reference"),
+- **The parts a link reaches, its threads and its revisions.** `lfRevealDatum()`,
+  `lfElementsFor()`,
+  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Taking the user somewhere"),
   `threadOutlets()` and an outlet's `lfHold` (`module-annotations.md`, "Widget-local
   Thread placement") and `static lfPatch` (`module-authoring.md`, "Revisions").
 - **Words it writes.** Words the element writes into the page are the page's: the user
   can comment on them, and a version comparison, which reads each version's source,
   never shows them as a change. To set apart words it writes, such as a count after an
-  authored sentence, it marks the element holding them `data-lf-gen="1"`. `named()`
-  then leaves them out, and a comment's quote doesn't run across them into the
+  authored sentence, it marks the element holding them `data-lf-gen="1"`. A widget
+  naming a part (`authoredWords`, lib/authored-words.js) then leaves them out, and a comment's quote doesn't run across them into the
   author's words. Words in a generated control, such as its label, or in a generated
   box of controls (`module-controls.md`) are apparatus: they take no comment, and a
   printed page drops the control or box. Marked `data-lf-said`, it keeps words that
@@ -286,8 +268,8 @@ protocol in the library's
 [`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js). Its `render()` draws `this.state`, its Lit properties and the page readings it reads
 synchronously (`module-reading.md`, "Page readings"), and runs again when one of them
 changes, with handlers bound to the widget as in any Lit element. It says `lf-connect`,
-announces each update with `pending-task`, says `lf-commands` after each draw, defines
-`redraw()`, and wraps the events as `record()`, `takeBack()` and `defer()`. Its
+announces each update with `pending-task`, says `lf-commands` after each draw, and
+wraps the events as `record()`, `takeBack()` and `defer()`. Its
 `setup()` is the build behind its first-connection guard. It draws into the element
 itself, so a widget that holds authored children returns from `createRenderRoot()` a
 part it generated beside them, or says `static shadow = true` and slots them. The

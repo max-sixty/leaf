@@ -35,10 +35,10 @@ export const readApplication = applicationState.read;
  * @param {(root: ReturnType<typeof readApplication>) => T} derive
  */
 export const readPart = (derive) => applicationState.select(derive).read;
-// What the page calls its agent: the name the server's answer gives, or "the agent"
-// before one has arrived. Every surface naming the agent's side reads it here.
-const agent = readPart((root) => root.authoritative?.agent ?? null);
-export const agentName = () => agent() || "the agent";
+// What the page calls its agent, as the On lists carry it (framework/application.js,
+// `queues`). Every surface naming the agent's side reads it here, and a package
+// reads it on the `queues` reading.
+export const agentName = readPart((root) => root.effective.queues.agent);
 // Whether a session holds the page's claim, by the server's reading: false before one
 // has arrived.
 export const pageClaimed = readPart(
@@ -284,12 +284,12 @@ export const whenWidgetsPresented = (widgets) =>
  */
 export const whenApplicationRegionsPresented = (regions, current) =>
   presentation.whenCurrentRegionsPresented(regions, current);
-/** @param {readonly string[]} regions */
-export const applicationRegionsPresented = (regions) =>
-  presentation.currentRegionsPresented(regions);
 /** @param {readonly string[]} widgets */
 export const projectionRegionsPresented = (widgets) =>
-  applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
+  presentation.currentRegionsPresented([
+    "projection:chrome",
+    ...widgets.flatMap(widgetRegions),
+  ]);
 export const watchPresentation = presentation.subscribe;
 export const readApplicationPresentation = presentation.read;
 /** @param {(reason: unknown, title: string) => unknown} report */

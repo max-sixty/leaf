@@ -7,9 +7,9 @@
    `render()` reads whatever it shows: `this.state`, the reading Leaf sets on a widget
    whose tag declares `verbs`, each bound input through the property Leaf sets
    (host/element-data.js, "Bound values"), Lit's reactive properties for state the widget
-   keeps itself, and any signal-backed reader, such as obligations, reports, work or
-   the time (`clockValue`). Every signal `render()` reads synchronously is
-   tracked by Lit's Preact SignalWatcher, so the element draws again when one moves.
+   keeps itself, and any signal-backed reader, such as the page's obligations or
+   history. Every signal `render()` reads synchronously is tracked by Lit's Preact
+   SignalWatcher, so the element draws again when one moves.
 
    What it says to its host, all of it events a plain element could dispatch:
 
@@ -54,7 +54,7 @@
 
    Off a Leaf page nobody answers `lf-connect` or hears the rest, so `state` stays
    undefined and the element draws what its markup and its own properties give it. */
-import { LitElement, render } from "/vendor/lit.js";
+import { LitElement } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import { COMMANDS, CONNECT, DeferEvent } from "./widget-events.js";
 import { PendingTaskEvent } from "./pending-task.js";
@@ -204,10 +204,12 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       if (event.composedPath()[0] !== this && this.hasUpdated) this.requestUpdate();
     });
     placesFailure(this, (box) => {
-      const root = this.renderRoot ?? this;
-      // A widget showing a shadow stage over its host shows the box as that stage,
-      // which its next stage replaces, as any shadow widget does.
-      if (root === this && this.shadowRoot) return false;
+      // A host showing a shadow root shows only what the root holds, so the box
+      // stands there.
+      const root =
+        (this.renderRoot ?? this) === this
+          ? (this.shadowRoot ?? this)
+          : this.renderRoot;
       // The same failure again leaves the box that already says it.
       if (this.#box?.parentNode === root && this.#box.textContent === box.textContent)
         return true;
@@ -330,16 +332,5 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     } finally {
       this.#updating = updating;
     }
-  }
-
-  /** The render drawn again at once, outside Lit's own schedule, with a failure thrown
-   *  rather than shown: the render check's replay (render-checks/replay.js), which
-   *  reads this method off any element that has one and holds a draw of the same
-   *  reading to change nothing. `updated()` does not run, since what follows a draw
-   *  may start preparation that would land after the check reads the page. An update
-   *  Lit has queued stays queued. An element with no reading to draw draws nothing
-   *  here either, so one whose `setup()` threw keeps showing that failure. */
-  redraw() {
-    if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
   }
 }

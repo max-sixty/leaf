@@ -19,7 +19,7 @@
  * inside it.
  *
  * Which depth stands is this tab's view of the page, as a tab set's open panel is
- * (`tabStore`): no event records it, and a reload comes back to it. Read is the
+ * (lib/tab-memory.js): no event records it, and a reload comes back to it. Read is the
  * default, so a page shows as authored until the reader turns the dial.
  *
  * Skim folds the rest with `hidden="until-found"`, so find-in-page, a fragment, the On
@@ -68,9 +68,9 @@
  * heading or gist it ran under takes its place on the line, so the reader lands on
  * what summarizes what they were reading. The blocks still shown then glide from where
  * they stood and the ones arriving fade in, so the eye can follow the page closing up
- * around the reader or opening out from them. Leaf's one hold keeps the place
- * (`holdPlace`), since the browser's scroll anchoring can't: Skim hides the block it
- * anchors.
+ * around the reader or opening out from them. The dial keeps the place itself
+ * (`#keepingPlace`), since the browser's scroll anchoring can't: Skim hides the block
+ * it anchors.
  *
  * The dial is a radio group of the three depths, Web Awesome's, the control every
  * choice among a few views takes, as a recording's scopes and an image pair's views
@@ -107,18 +107,10 @@
  * acts: pressing one only aims at the sheets again. Pointing marks the page only within
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
-import {
-  nameOf,
-  focusDestination,
-  holdPlace,
-  motion,
-  move,
-  phrasing,
-  onPress,
-  shownWindow,
-  tabStore,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { nameOf } from "/runtime/widget-api.js";
+import { playMotion } from "/runtime/lib/motion.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -126,6 +118,8 @@ import { nextRender } from "/runtime/lib/frame-pass.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { plainPress } from "/runtime/lib/keys.js";
+import { scrollerOf } from "/runtime/lib/scroller.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
@@ -159,10 +153,13 @@ const rank = (heading) =>
     (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
       7,
   );
+/** @param {Element} element */
+const inline = (element) => getComputedStyle(element).display.startsWith("inline");
 // Whether an element is a line of text: one with words of its own, or one whose
-// children all stand in a line of words (`phrasing`), as an image beside a link and an
-// `em` does. A block among its children makes it structure, whose stray inline
-// children, such as a button, fold as blocks.
+// children all stand in a line of words, as the page draws them: an image beside a
+// link and an `em` do, and so does a widget whose stylesheet leaves it inline. A block
+// among its children makes it structure, whose stray inline children, such as a
+// button, fold as blocks.
 /** @param {Element} element */
 const isLine = (element) => {
   if (
@@ -172,7 +169,7 @@ const isLine = (element) => {
   )
     return true;
   const children = [...element.children].filter((child) => !child.matches(STANDS));
-  return children.length > 0 && children.every(phrasing);
+  return children.length > 0 && children.every(inline);
 };
 // The headings in `blocks` that no earlier one among them outranks: the sections a run
 // folds, rather than each of their subsections.
@@ -249,6 +246,15 @@ const barsAt = (blocks, depth, scale) => {
 };
 /** @param {Bar[]} bars */
 const rowsOf = (bars) => bars.reduce((sum, bar) => sum + bar.rows, 0);
+
+// What the window shows, top to bottom: the visual viewport, which pinch zoom and a
+// phone's keyboard shrink, in the coordinates a box's rectangle reads.
+const shownWindow = () => {
+  const view = visualViewport;
+  return view
+    ? { top: view.offsetTop, bottom: view.offsetTop + view.height }
+    : { top: 0, bottom: innerHeight };
+};
 
 // The nodes among `nodes`, in document order down the page, that stand within a
 // window's height of what the window shows, found by halving, so pointing marks the
@@ -334,6 +340,8 @@ customElements.define(
     #opened = new Set();
     /** @type {AbortController | null} */
     #listening = null;
+    // What the dial listens to while it stands in the page.
+    #connection = new AbortController();
     // The page's reading time at each depth, measured once for each presentation of the
     // page.
     /** @type {Sizes | null} */
@@ -350,8 +358,10 @@ customElements.define(
     // The depth whose preview stands.
     /** @type {string | null} */
     #pointed = null;
-    // Whether a plain press on the dial is under way.
+    // Whether a plain press on the dial is under way, and what ends it.
     #pressing = false;
+    /** @type {(() => void) | null} */
+    #endPress = null;
     // What puts the sheets away once the press on the dial is over.
     /** @type {(() => void) | null} */
     #lifted = null;
@@ -360,9 +370,9 @@ customElements.define(
     // it turned to again (`#aim`) after the press or key that put Leaf's preview away.
     // So they go a frame later, or for a press once it is over, and stay up through a
     // turn without a flicker.
-    #ended = (/** @type {Event} */ event) => {
-      if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
-      const declared = this.#declared;
+    /** @param {object} declared */
+    #ended(declared) {
+      if (declared !== this.#declared) return;
       const away = () => {
         if (this.#declared === declared) this.#unpoint();
       };
@@ -371,7 +381,7 @@ customElements.define(
         if (this.#pressing) this.#lifted = away;
         else away();
       });
-    };
+    }
     // The panel the sheets hang in, under the dial, open while its preview stands.
     /** @type {HTMLElement | null} */
     #hang = null;
@@ -407,7 +417,6 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
-        depth.addEventListener("lf-preview-ended", this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -427,54 +436,78 @@ customElements.define(
       // as each depth's does, and keeps them.
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
-      this.addEventListener("lf-preview-ended", this.#ended);
       // The dial sticks at the window's top while the reader scrolls the page under it,
       // so landings arrive below it.
       this.toggleAttribute("data-lf-root-header", true);
       this.#draw();
-      whileConnected(this, (signal) => {
-        // A revision applied in place rebuilds the folds over its new structure.
-        this.ownerDocument.addEventListener(
-          "lf-page-interface",
-          () => {
-            this.#sizes = null;
-            this.#apply(this.#depth, { moving: false });
-          },
-          { signal },
-        );
-        // A plain press on the dial puts Leaf's preview away as it goes down, and its
-        // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
-        // until the press is over. A finger's tap reads no preview again, so its sheets
-        // go at once.
-        const stopPress = onPress((down, path) => {
-          if (!path.includes(this) || !plainPress(down) || down.pointerType === "touch")
-            return null;
-          this.#pressing = true;
-          return () => () => {
-            this.#pressing = false;
-            const away = this.#lifted;
-            this.#lifted = null;
-            if (away) nextRender(away);
-          };
-        });
-        signal.addEventListener("abort", stopPress);
-        this.addEventListener(
-          "click",
-          (event) => {
-            if (!plainPress(event)) return;
-            const depth =
-              event.target instanceof Element && event.target.closest(".lf-dial-depth");
-            // The standing depth's button, which turns no radio, folds an unfolded gap.
-            if (depth && depth === this.#radios.get(this.#depth))
-              this.turn(this.#depth);
-            this.#aim(depth || this);
-          },
-          { signal },
-        );
-        const stored = tabStore.get(this.#key);
-        if (stored) this.#apply(stored, { moving: false });
-        return () => this.#restore();
+      this.addEventListener("click", (event) => {
+        if (!plainPress(event)) return;
+        const depth =
+          event.target instanceof Element && event.target.closest(".lf-dial-depth");
+        // The standing depth's button, which turns no radio, folds an unfolded gap.
+        if (depth && depth === this.#radios.get(this.#depth)) this.turn(this.#depth);
+        this.#aim(depth || this);
       });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      const { signal } = (this.#connection = new AbortController());
+      // A revision applied in place rebuilds the folds over its new structure.
+      this.ownerDocument.addEventListener(
+        "lf-page-interface",
+        () => {
+          this.#sizes = null;
+          this.#apply(this.#depth, { moving: false });
+        },
+        { signal },
+      );
+      // A plain press on the dial puts Leaf's preview away as it goes down, and its
+      // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
+      // until the press is over, and then for the click a release owes, which the
+      // browser dispatches in the release's task. The press is over at its release; at
+      // its cancel or a lost capture, as when a native menu or a touch scroll takes it;
+      // as the window loses focus, which a release off it can leave unsaid; or as the
+      // next press begins. A finger's tap reads no preview again, so its sheets go at
+      // once.
+      this.addEventListener(
+        "pointerdown",
+        (down) => {
+          this.#endPress?.();
+          if (!down.isPrimary || !plainPress(down) || down.pointerType === "touch")
+            return;
+          this.#pressing = true;
+          const press = new AbortController();
+          const over = () => {
+            if (press.signal.aborted) return;
+            press.abort();
+            this.#endPress = null;
+            setTimeout(() => {
+              this.#pressing = false;
+              const away = this.#lifted;
+              this.#lifted = null;
+              if (away) nextRender(away);
+            });
+          };
+          this.#endPress = over;
+          const options = {
+            capture: true,
+            signal: AbortSignal.any([signal, press.signal]),
+          };
+          for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
+            addEventListener(type, over, options);
+          addEventListener("blur", over, { signal: options.signal });
+        },
+        { capture: true, passive: true, signal },
+      );
+      const stored = tabMemory.get(this.#key);
+      if (stored) this.#apply(stored, { moving: false });
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
+      this.#restore();
     }
 
     // Turn the dial to `name`, keeping the reader's place and moving the page there.
@@ -484,7 +517,7 @@ customElements.define(
         if (this.#radios.get(name)?.hasAttribute(PARTIAL)) this.#refold();
         return;
       }
-      tabStore.set(this.#key, name === "read" ? null : name);
+      tabMemory.set(this.#key, name === "read" ? null : name);
       this.#apply(name, { moving: true });
     }
 
@@ -524,10 +557,13 @@ customElements.define(
         );
     }
 
-    // Read what pointing at a depth shows, as Leaf's preview of it does.
+    // Read what pointing at a depth shows, as Leaf's preview of it does, which ends
+    // through the reading's `ended`.
     /** @param {string} name */
     #read(name) {
-      return (this.#declared = this.#preview(name));
+      /** @type {object} */
+      const declared = { ...this.#preview(name), ended: () => this.#ended(declared) };
+      return (this.#declared = declared);
     }
 
     // Take back what pointing at a depth showed, as its preview goes.
@@ -926,15 +962,17 @@ customElements.define(
       if (before) {
         // The press's own control is gone, so the reader lands on what it showed.
         const [first] = run.blocks;
-        if (first) focusDestination(first, "return");
+        if (first) focusOn(first);
         this.#move(before, scope);
       }
     }
 
-    // Make `change` keep the reader's place: what stands at the reading line, or, where
-    // Skim folds it, the heading or gist its run follows, lands where it stood
-    // (`holdPlace`). Each run's ⋯ stands for that heading or gist too, as leaving Skim
-    // takes it away.
+    // Make `change` keep the reader's place: the block at the reading line, a quarter of
+    // the way down what the window shows, or, where Skim folds it, the heading or gist
+    // its run follows, lands where it stood. Each run's ⋯ stands for that heading or
+    // gist too, as leaving Skim takes it away. Folding hides what the browser's scroll
+    // anchoring would hold, so the dial scrolls the box that carries the block by the
+    // distance it moved.
     /** @param {Element} scope @param {() => void} change */
     #keepingPlace(scope, change) {
       /** @type {Map<Element, Element>} */
@@ -942,12 +980,23 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? scope);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
-      const hold = holdPlace(scope, (node) => {
-        const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
-        return folded && owner.get(folded);
-      });
+      const window = shownWindow();
+      const line = window.top + (window.bottom - window.top) / 4;
+      let read = null;
+      for (const block of this.#blocks(scope, scope)) {
+        if (!shown(block) || block.getBoundingClientRect().bottom <= line) continue;
+        read = block;
+        break;
+      }
+      const top = read?.getBoundingClientRect().top ?? 0;
       change();
-      hold();
+      if (!read) return;
+      const folded = read.closest(`[${FOLDED}], .lf-dial-more`);
+      const stand = (folded && owner.get(folded)) ?? read;
+      if (!stand.isConnected) return;
+      const by = stand.getBoundingClientRect().top - top;
+      if (Math.abs(by) >= 1)
+        scrollerOf(stand).scrollBy({ top: by, behavior: "instant" });
     }
 
     // Where each block shown near the window stands in it now.
@@ -981,18 +1030,18 @@ customElements.define(
         if (box.bottom < window.top || box.top > window.bottom) continue;
         const was = before.get(node);
         if (was === undefined) {
-          motion(node, [{ opacity: 0 }, { opacity: 1 }], duration);
+          playMotion(node, [{ opacity: 0 }, { opacity: 1 }], { duration: duration });
           continue;
         }
         const by = was - top;
         if (Math.abs(by) >= 1)
-          motion(
+          playMotion(
             node,
             [
               { translate: `0 ${by}px`, overflowAnchor: "none" },
               { translate: "0 0", overflowAnchor: "none" },
             ],
-            duration,
+            { duration: duration },
           );
       }
     }

@@ -2,7 +2,8 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { startNearWork } from "./readings/presentation.js";
+export { afterPresentation, startNearWork } from "./readings/presentation.js";
+export { clockValue } from "./state/presence.js";
 export { declarationFor } from "./state/registry.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./state/visual-parts.js";
@@ -41,6 +42,9 @@ export {
   userScrollport,
   seenRect,
   growthAfterIsSeen,
+  growthIsSeen,
+  landingInsets,
+  shownWindow,
   stuckBox,
   stackLevel,
   shownParts,
@@ -49,10 +53,13 @@ export { inChrome, uiInside } from "./base/ui-marks.js";
 export { anchoringIsReady } from "./readings/anchor-resolution.js";
 export { windowHoldsRail } from "./readings/content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./base/contribution-model.js";
+export { presentContributionEntry } from "./features/contribution-controls.js";
+export { widgetController } from "./host/widget-controller.js";
 export { NOTICE_MS, notice } from "./transport/notifications.js";
 export { raiseError } from "./transport/errors.js";
 export {
   readingRegions,
+  scrollerFor,
   shownRegionBounds,
   userReadingRegion,
   scrollersOf,
@@ -61,6 +68,7 @@ export {
   readingRegion,
   unconcealedReadingRegions,
   regionScrollBehavior,
+  preserveReadingRegions,
   watchReadingRegionTransitions,
 } from "./readings/reading-regions.js";
 export { carriersOf } from "./readings/scroll-containers.js";
@@ -70,6 +78,7 @@ export {
   inPage,
   pageMatches,
   quoteFrom,
+  says,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
   pageText,
@@ -104,9 +113,13 @@ export {
   draftsWaiting,
 } from "./records/drafts.js";
 export {
+  focusDestination,
   focused,
   handBack,
+  holdFocus,
   onCurrentLocation,
+  onPressAway,
+  onUserInput,
   releaseFocus,
   ringBox,
   takesLetters,
@@ -126,6 +139,7 @@ export {
   restorePlace,
 } from "./readings/reading-place.js";
 export { replaceEntry } from "./records/history.js";
+export { retainUserIntent } from "./dom/user-intent.js";
 export { walkOrigin, heldObligation, placeOf } from "./records/current-target.js";
 export { beginWalk, walkPosition } from "./records/walk-position.js";
 export { threadCounts } from "./state/thread/model.js";
@@ -136,7 +150,7 @@ export {
 } from "./dom/keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./dom/element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./dom/element-axes.js";
-export { fitsWhole, alreadyShown } from "./readings/landing-scroll.js";
+export { fitsWhole, alreadyShown, scrollIntoView } from "./readings/landing-scroll.js";
 export {
   browserScrolls,
   holdScroll,
@@ -164,6 +178,7 @@ export { reachScrollers, releaseReachStop } from "./dom/reach.js";
 export { reveal, dragHeld } from "./dom/widget-elements.js";
 export { replyIsEditing } from "./records/thread/replies.js";
 export { THREAD, SAY_BOX } from "./records/thread/selectors.js";
+export { anchorLabel } from "./records/thread/messages.js";
 export { registerSampleCommand } from "./host/sample-child.js";
 export { recordInteraction } from "./transport/interaction-log.js";
 export { bringBackSurfaceOf } from "./readings/off-flow.js";

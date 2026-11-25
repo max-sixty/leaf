@@ -403,7 +403,7 @@ CARD_AND_REPLY = """async () => {
   const box = card.getBoundingClientRect();
   const editor = card.querySelector('leaf-text');
   const reply = editor.getBoundingClientRect();
-  const geometry = await window.__lfWidgetApi();
+  const geometry = await window.__lfCheckApi();
   return {cardTop: box.top, cardBottom: box.bottom,
           turn: card.querySelector('.lf-msg').getBoundingClientRect().top,
           editorTop: reply.top, editorBottom: reply.bottom, scrolled: editor.scrollTop,

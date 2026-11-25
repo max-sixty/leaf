@@ -4,7 +4,12 @@
    A captured document or export never gains write access to a live file. The state
    answer names and stamps each binding (`file_bindings.bound_files`), so `label`
    names a file before it is read and `watch` hears a file move on the page's own
-   news rather than by reading it on a timer. */
+   news rather than by reading it on a timer.
+
+   `boundFile` stays in the package interface because only Leaf holds the page
+   server's file endpoint, its delivery-generation gate and each binding's label and
+   stamp; a widget's own `fetch` has none of them, and a save needs the server's
+   answer. */
 import { offlineInteractive, pageUrl } from "../state/context.js";
 import { LayerRefused, RequestError, requestJson } from "../transport/layer-client.js";
 import { applicationState, readPart } from "../state/semantic-state.js";

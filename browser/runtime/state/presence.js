@@ -163,22 +163,6 @@ export function agePreview() {
   return at ? { name: at } : null;
 }
 
-// How long working may go unheard before it reads as quiet. The server's activity fold
-// owns the number and serves it beside `now`; until a state has arrived nothing is
-// quiet, since there is no served clock to measure the silence against either.
-/** @type {number | null} */
-let workingGrace = null;
-/** @param {number} ms */
-export const observeWorkingGrace = (ms) => {
-  workingGrace = ms;
-};
-/** @param {string | null | undefined} ts */
-export const quietSince = (ts) =>
-  clockValue(
-    (now) =>
-      workingGrace !== null && !!ts && now - new Date(ts).getTime() >= workingGrace,
-  );
-
 // Temporal policy belongs to the server's canonical activity fold. The browser uses
 // its calibrated copy of server time only to ask for the next projection when that
 // fold says an answer can change; it never decides what the new answer is.

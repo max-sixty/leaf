@@ -126,7 +126,7 @@ leaf-composition-field {
 }
 /* The new-line key a focused box that holds lines says after its send key
    (annotations/composing/input.js, `lineHint`), in the label's face and size, quiet in the ink
-   every empty box's words wear (`--lf-quiet`). The user chose one size over this hint
+   every empty box's words wear (`--lf-muted`). The user chose one size over this hint
    a step smaller, which left the label as loud as it was.
    Where room runs short the label stands
    whole, and what follows it goes whole onto a line the placeholder doesn't show, this
@@ -150,7 +150,7 @@ leaf-composition-field {
 }
 :is(.lf-compose-placeholder, .lf-compose-press) .lf-key-badge {
   background: transparent;
-  color: var(--lf-quiet);
+  color: var(--lf-muted);
 }
 /* An error about the box stands over its words and its actions, in the danger's ink,
    until the user comes back to them (annotations/composing/input.js). It wraps within the box's
@@ -506,7 +506,7 @@ leaf-composition-field {
   padding: 2px;
   font: var(--lf-font-fine);
   background: var(--lf-paper);
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
 }
 .lf-composer-drawing > .lf-composer-media-open > canvas {
   display: block;

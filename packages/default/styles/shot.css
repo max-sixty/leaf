@@ -19,12 +19,16 @@ lf-shot {
   --lf-shot-screen: 100svh;
   --lf-shot-gap: var(--lf-sp-2);
   --lf-shot-label-height: var(--lf-line);
-  --lf-shot-toolbar-pad: max(var(--lf-sp-1), var(--lf-reach-room));
+  --lf-shot-toolbar-pad: max(
+    var(--lf-sp-1),
+    (var(--lf-aim-floor) - var(--lf-line)) / 2
+  );
   /* The toolbar's height: the row the view chooser sets, inside its padding, and a
      second row in a narrow shot (below). */
-  --lf-shot-toolbar: calc(var(--lf-chooser) + 2 * var(--lf-shot-toolbar-pad));
-  /* Keep the shared image frame's shadow inside the stage's scrollport. */
-  --lf-shot-frame-room: calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur));
+  --lf-shot-toolbar: calc(var(--lf-line) + 6px + 2 * var(--lf-shot-toolbar-pad));
+  /* Keep the shared image frame's shadow inside the stage's scrollport: the lift of
+     a box lying on the page falls 2px and spreads 8px. */
+  --lf-shot-frame-room: 10px;
 }
 /* Until its module draws, a shot holds the room its first drawing takes, so nothing
    below it moves when the drawing lands: the toolbar, and the stage's padding and
@@ -151,7 +155,7 @@ lf-shot {
   max-inline-size: 100%;
   margin-inline: auto;
   anchor-scope: --lf-shot-options;
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 .lf-shot-actions,
 .lf-shot-tools {
@@ -167,7 +171,8 @@ lf-shot {
   /* Selection changes the face, never the width of its words. At two classes' weight
      the rule ties the font a thread gives the presses in it (controls.css), and wins
      by standing after it. */
-  font: var(--lf-font-choice);
+  font: var(--lf-font-ui);
+  font-weight: 500;
   white-space: nowrap;
 }
 .lf-shot-toolbar > .lf-shotcap[data-lf-state="before"] {
@@ -196,7 +201,7 @@ lf-shot {
   inline-size: max-content;
   max-inline-size: calc(100vw - 32px);
   padding: var(--lf-sp-2);
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 .lf-shot-scale-options {
   display: flex;
@@ -208,8 +213,9 @@ lf-shot {
 .lf-shotchoice {
   display: flow-root;
   font: inherit;
-  /* Its mark stands on the scale choices' edge (controls.css, `--lf-choice-pad`). */
-  margin-inline-start: calc(-1 * var(--lf-choice-pad));
+  /* Its mark stands on the scale choices' edge: out by the padding a choice's face
+     takes, the larger of the scale's first step and a control's ring's room. */
+  margin-inline-start: calc(-1 * max(var(--lf-sp-1), var(--lf-focus-ring-room)));
 }
 .lf-shotchoice[hidden] {
   display: none;
@@ -241,7 +247,7 @@ lf-shot {
   padding-block-start: var(--lf-sp-2);
   display: flex;
   align-items: center;
-  gap: var(--lf-choice-gap);
+  gap: 0.5em;
 }
 .lf-shot-pixel-key > * {
   font: inherit;
@@ -252,7 +258,7 @@ lf-shot {
   block-size: 0.75em;
   margin-inline: calc((var(--wa-form-control-toggle-size) - 0.75em) / 2);
   flex: none;
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
 }
 /* The source blocks and controls fit one row down to this width, including
    touch targets. Reserve a second row only below that combined width. */
@@ -267,7 +273,7 @@ lf-shot {
   }
   lf-shot::before {
     --lf-shot-toolbar: calc(
-      var(--lf-chooser) + 2 * var(--lf-shot-toolbar-pad) + var(--lf-sp-1) +
+      var(--lf-line) + 6px + 2 * var(--lf-shot-toolbar-pad) + var(--lf-sp-1) +
         var(--lf-shot-label-height)
     );
   }
@@ -405,11 +411,11 @@ lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"]
   user-select: text;
 }
 .lf-shotcap[data-lf-state="before"] {
-  background: var(--lf-del-tint);
+  background: var(--lf-danger-tint);
   color: var(--lf-danger-ink);
 }
 .lf-shotcap[data-lf-state="after"] {
-  background: var(--lf-add-tint);
+  background: var(--lf-ok-tint);
   color: var(--lf-ok-ink);
 }
 .lf-shotcap[data-lf-shot-hidden] {
@@ -467,18 +473,18 @@ lf-shot:not([data-lf-shot-mode="pair"]) .lf-shotcanvas {
   --divider-width: 2px;
   --handle-size: 30px;
   --wa-color-surface-default: var(--lf-card);
-  --wa-color-neutral-on-quiet: var(--lf-ink-2);
+  --wa-color-neutral-on-quiet: var(--lf-ink);
   --wa-focus-ring: var(--lf-focus-ring);
   --wa-focus-ring-offset: 1px;
 }
 .lf-shotcomparison::part(divider) {
-  background: var(--lf-ink-2);
+  background: var(--lf-ink);
 }
 .lf-shotcomparison .lf-shotviewport {
   box-shadow: none;
 }
 .lf-shotcomparison::part(handle) {
-  border: 1px solid var(--lf-ink-2);
+  border: 1px solid var(--lf-ink);
   box-shadow: var(--lf-raise-1);
   opacity: 0.52;
 }

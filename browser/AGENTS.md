@@ -33,6 +33,16 @@ rare path the user takes in at a glance may move what is on screen rather than c
 mechanism of its own (`../skills/leaf/SOUL.md`, "Keep the foundation small and
 extensible").
 
+Leaf keeps the user's focus, selection and reading place across its own revisions
+and news from outside, for every element, from what the element already states: its
+DOM, its ids and `data-lf-carry` keys, its `data-lf-scroll` regions and standard focus
+events. A widget needs no call for that. A widget's own redraw is the widget's code: it
+keeps the user on the node they stood on, or on the control that replaced it, with the
+browser's `focus()` and `scrollIntoView()`, and the library's `focus-on.js` holds the
+few lines most widgets want. Leaf reads why focus moved for itself (`focus.js`), so a
+widget tells it nothing. A widget that keeps no one's place across its own redraw
+leaves the user where the browser leaves them, as on any page.
+
 A hold rule is tested in `tests/journeys/test_page_holds_still.py`, whose cases cross
 places the user can be with changes that can arrive. A new rule joins it as a place, a
 change or a move the user chose, and takes no browser test of its own, so each rule is
@@ -91,21 +101,21 @@ rule draws at once is drawn.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
-  and a message's words (`setRenderedChildren` in `dom/dom-children.js`) do. Leaf turns
+  and a message's words (`setRenderedChildren` in `lib/dom-children.js`) do. Leaf turns
   anchoring off in a box the reader reads in only while its own motion moves the box,
   as a glide does, whose landing then places the destination (`dom/scrolling.js`), or the
   box's content, as a ride does (`dom/box-motion.js`). A revision then restores the reader's
   landmark (`features/version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
-  control under the user's hands; for a reader whose focus is scrolled away, the
-  reading line where growth starts between anchoring's box and it; and a place the
-  change hides. A reader who focused nothing is anchoring's to keep. A reading from outside the tab
+  control under the user's hands, and for a reader whose focus is scrolled away, the
+  reading line where growth starts between anchoring's box and it. A place a widget's
+  own change hides, as the dial's fold does, is the widget's to keep. A reader who
+  focused nothing is anchoring's to keep. A reading from outside the tab
   takes it where it is applied and keeps it once the page shows it
   (`host/state-application.js`), whichever surfaces the reading redraws. A surface that
   changes with no reading behind it takes the same hold around that change, as Page
-  Map does when a widget's own contribution joins it, and the dial around its fold; a
-  gesture's own result is its handler's to place. Owner: `readings/user-place.js`
-  (`holdUserPlace`, `holdPlace`, `holdPlaceOf`), whose header records the costs the
-  user accepted.
+  Map does when a widget's own contribution joins it; a gesture's own result is its
+  handler's to place. Owner: `readings/user-place.js` (`holdUserPlace`, `holdPlaceOf`), whose
+  header records the costs the user accepted.
   Checks:
   `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`,
   `test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still`.
@@ -119,8 +129,10 @@ rule draws at once is drawn.
   panel stands over the page too, with no room kept for it: the page lays out in the
   whole window, and the user folds the panel to its leaf where it covers what they
   read; it folds itself where focus lands on a place it alone would hide
-  (`panel/floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
-  (`dom/geometry.js`, `declareCover`). Checks:
+  (`panel/floating-panel.js`, `giveWay`). Leaf's own landings and readings of what the user
+  sees count the panel's box (`dom/geometry.js`, `declareCover`); a widget's landing is
+  the browser's own, which clears what the root's `scroll-padding-top` states and can
+  stop under the panel at the window's foot. Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotations/annotation-overlay/margin-placement.js`.
 - **A box floating over the page grows inside the window**, toward the edge that has
@@ -137,8 +149,8 @@ rule draws at once is drawn.
 - **A widget grows with its content.** In ordinary flow a widget grows with its content,
   and keeps its visible geometry as its state updates. It scrolls inside itself only when
   its task needs a region kept in view while its contents move, or for a live stream
-  whose newest entry the reader follows, and then declares `--lf-holds-height: 1`. Checks: the widget
-  quality checks `keeps-first-box` and `grows-with-content`
+  whose newest entry the reader follows, and then declares `--lf-holds-height: 1`. Check:
+  the widget quality check `grows-with-content`
   (`src/leaf/render_gate/widget_quality.py`).
 - **Room is held only for what will be drawn.** A state that may never come, such
   as a failed save, shows in a slot already on screen, as a message's head carries its
@@ -353,10 +365,12 @@ directly as in a terminal").
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
-- **A mark's colour says one thing, the same on every surface.** A mark reads the
-  token for what it tells the user (`styles/tokens.css`, at `--lf-turn`), never a hue, so
-  the user's turn, a thread, the agent's work, what is unread, what changed and what
-  is settled each look alike in the margin, the contents and the panel. Every surface
+- **A mark's colour says one thing, the same on every surface.** A mark's colour says
+  whose it is, and each party has one token (`styles/tokens.css`, at `--lf-here`): the
+  user's colour for the user's turn and where they are, the accent for a thread, the
+  agent's work and what is unread, the muted ink for what changed and the ink for what
+  is settled. A mark reads its party's token, never a hue of its own, so each looks
+  alike in the margin, the contents and the panel. Every surface
   paints a thread's `unread` and `attention` from one value, so the leaf's dot,
   Threads, the panel, a margin entry and the Page Map change together, and marking read
   never moves the user.
@@ -692,10 +706,9 @@ follow the browser's focus visibility. `dom/geometry.js` decides whether the use
 box (`seenRect`), because Leaf's chrome covers the page without clipping it: each
 surface fixed over the page declares the one box it covers (`declareCover`), and a box
 is in front of the user where no scroller clips it and no such box covers it.
-`readings/user-place.js` holds the user's place across one change (`holdPlaceOf`, and `holdPlace`
-around a module's own), because scroll anchoring holds the first box on screen: it
-can't keep still a control below growth on screen, the reading line below growth inside
-that box, or a place the change hides.
+`readings/user-place.js` holds the user's place across one change (`holdPlaceOf`), because
+scroll anchoring holds the first box on screen: it can't keep still a control below
+growth on screen, or the reading line below growth inside that box.
 
 ### One writer for each fact
 
@@ -769,7 +782,6 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether the user is inside a scope, across shadow trees and slots                                     | `dom/focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `records/history.js` `readPlace`, `returnPlace`                                        |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `records/thread/address.js` `createThreadAddress`                                      |
-| Which member a widget shows of several, its name in the address, and the user's place in each         | `records/views.js` `keepView`, `entryView`                                             |
 | Where the user's caret stands, and its element, through open shadow trees                             | `dom/native-selection.js` `userCaret`                                                  |
 | The page place focus or the caret identifies, or none                                                 | `records/current-target.js` `currentLocationOrigin`                                    |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `records/current-target.js` `walkOrigin`, `stepFrom`                                   |
@@ -781,8 +793,8 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | The next element in a walk; Chromium keeps each `children` or `childNodes` list for its node's life   | `firstElementChild` and `nextElementSibling`, or `firstChild` and `nextSibling`        |
 | The nodes a node draws as its children, through the shadow roots the walk names (`rootOf`)            | `lib/shadow-tree.js` `eachRenderedChild`, `eachRenderedElement`                        |
 | Put the user on an element, saying what moved them                                                    | `dom/focus.js` `focusDestination(node, cause)` (_lint_)                                |
-| Move a node, keeping the user's place in it                                                           | `dom/dom-move.js` `move(parent, node, before)` (_lint_)                                |
-| Make a list of nodes, some already placed, a parent's children                                        | `dom/dom-children.js` `setChildren`                                                    |
+| Move a node, keeping the user's place in it                                                           | `lib/dom-move.js` `move(parent, node, before)` (_lint_)                                |
+| Make a list of nodes, some already placed, a parent's children                                        | `lib/dom-children.js` `setChildren`                                                    |
 | Whether a control takes typed letters                                                                 | `dom/focus.js` `typesText`, `takesLetters`                                             |
 | Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `dom/keyboard/text-entry.js` `nativeClaimAt`                                           |
 | Which keys move a caret, and whether a key is Select All                                              | `dom/control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
@@ -791,7 +803,6 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `readings/user-place.js` `focusPlace`                                                  |
 | What the user reads where focus isn't where they are, in their column                                 | `readings/reading-place.js` `pageReadingBlock`                                         |
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `readings/user-place.js` `readingAt`, `holdPlaceOf`                                    |
-| Holding what the reader reads across a module's own change that hides it                              | `readings/user-place.js` `holdPlace`                                                   |
 | Whether a click came from the keyboard                                                                | `base/pointer.js` `pressIsKeyboardActivation`                                          |
 | Whether a press is a plain primary-button press with no modifier                                      | `lib/keys.js` `plainPress`                                                             |
 | Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |
@@ -844,7 +855,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `records/thread/messages.js` `addressableAt`                                           |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `base/anchor-coordinate.js` `fragmentUrl`                                              |
 | The address a heading's link names                                                                    | `records/heading-links.js` `headingAddress`                                            |
-| The language a file path means                                                                        | `base/language-paths.js` `langForPath`, from the registry's `$languages`               |
+| The language a file path means                                                                        | `lib/language-paths.js` `langForPath`, from the registry's `$languages`                |
 | The attributes that bind a widget's input, which `host/data.js` asks to tell whether markup sets one  | `state/registry.js` `bindingAttributes`                                                |
 | Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `state/registry.js` `bodyIsData`, `DATA_CONTENT`                                       |
 | Paint on the next frame, or watch a size                                                              | `lib/frame-pass.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                 |

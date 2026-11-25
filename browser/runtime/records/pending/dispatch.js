@@ -16,7 +16,7 @@ import { messageText } from "../thread/messages.js";
 /** @typedef {import("../../state/semantic-application.js").WidgetDescriptor} WidgetDescriptor */
 /** @typedef {ReturnType<typeof import("../../state/semantic-application.js").createSemanticApplication>} Application */
 /** @typedef {ReturnType<ReturnType<Application["selectWidget"]>["read"]>["actions"][string]["undo"][number]} UndoCandidate */
-/** A package's command, as `widgetController(owner).dispatch` takes it. Admission
+/** A widget's command, as an `lf-action` or `lf-undo` carries it. Admission
  * judges each registry-declared detail schema. An action's `says` names the gesture in
  * the widget's words: the one name Leaf acknowledges it by once the log admits it, and
  * names it by when the user undoes it.

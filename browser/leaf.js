@@ -19,7 +19,6 @@ import { initializeServedDocument } from "./runtime/state/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/base/chrome.js";
 import { landingPlace } from "./runtime/readings/reading-place.js";
 import { arrive, beginArrival, mountHistory } from "./runtime/records/history.js";
-import { entryView } from "./runtime/records/views.js";
 import { holdArrivingBounds } from "./runtime/readings/bounds.js";
 import {
   chromeSheet,
@@ -37,7 +36,6 @@ import {
   settlePageInterface,
   afterPresentation,
   deferredArrival,
-  PRESENTATION,
 } from "./runtime/readings/presentation.js";
 import { pagePresented } from "./runtime/base/page-paint.js";
 import { renderingState, observePreparations } from "./runtime/base/rendering.js";
@@ -182,7 +180,7 @@ import {
 import { announce, liveEl, notice } from "./runtime/transport/notifications.js";
 import { mediaViewer } from "./runtime/records/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/dom/user-intent.js";
-import { installMoveSelection } from "./runtime/dom/dom-move.js";
+import { installMoveSelection } from "./runtime/lib/dom-move.js";
 import { holdSelection } from "./runtime/dom/native-selection.js";
 
 // Leaf's selection writer keeps a page selection across `setChildLists`'s moves
@@ -850,7 +848,6 @@ async function boot() {
   mountHistory({
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
-    view: entryView,
     thread: {
       claim: (url, record, intent) => threadAddress.claim(url, record, intent),
       open: () => openThreadView(),
@@ -937,20 +934,19 @@ async function boot() {
     void arriving(() => whenArrived().then(landFragment));
     if (offlineInteractive) {
       landFragment();
-      document.dispatchEvent(new Event(PRESENTATION));
       return;
     }
     paintKeys();
     repaint();
     app.overlay?.flushLayout();
     landFragment();
-    // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
-    // interaction, after the landing's synchronous part, rather than after an editor
-    // the landing waits for: awaited first, a margin map presented its authored spans.
+    // The geometry readers waiting on the stamp above (`whenPagePresented`,
+    // lib/presented.js) run as this turn yields, after the landing's synchronous part,
+    // rather than after an editor the landing waits for: awaited first, a margin map
+    // presented its authored spans.
     const arrival = deferredArrival(
       restoration ? arrive(restoration, landArrival) : landArrival(async () => {}),
     );
-    document.dispatchEvent(new Event(PRESENTATION));
     await arrival;
     const currentRevision = runtime.currentRevision;
     if (savedView && currentRevision !== null && savedView.revision < currentRevision)

@@ -87,9 +87,7 @@ const widgetOf = (el) => {
 // element has one such placer, and registering again replaces it, so an owner may
 // register on every connection. `place(box)` answers whether it placed the box; one that
 // declines leaves it to the rest, and the owner removes the box once the failed content
-// recovers. Next, a shadow host shows only what its stage holds, so the box stands
-// there (`stagesFailure`, which only Leaf's shadow stage registers), and the widget's
-// next stage replaces it. Otherwise the box replaces the element's children.
+// recovers. Otherwise the box replaces the element's children.
 /** @type {WeakMap<Element, (box: HTMLDivElement) => boolean>} */
 const placers = new WeakMap();
 /** @param {Element} el @param {(box: HTMLDivElement) => boolean} place */
@@ -98,11 +96,6 @@ export const placesFailure = (el, place) => placers.set(el, place);
  * element it drives asks first, so the element's own placer stands.
  * @param {Element} el */
 export const failurePlaced = (el) => placers.has(el);
-/** @type {WeakMap<Element, (box: HTMLDivElement) => boolean>} */
-const stages = new WeakMap();
-/** @param {Element} host @param {(box: HTMLDivElement) => boolean} place */
-export const stagesFailure = (host, place) => stages.set(host, place);
-
 /** Show `err` where `el` stands, with `source` beneath it when given, and dispatch
  * nothing.
  * @param {Element} el @param {unknown} err @param {string} [source] */
@@ -115,7 +108,7 @@ export function showFailure(el, err, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  if (placers.get(el)?.(box) || stages.get(el)?.(box)) return;
+  if (placers.get(el)?.(box)) return;
   const part = el._$litPart$;
   if (!part) {
     el.replaceChildren(box);

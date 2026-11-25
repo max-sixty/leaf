@@ -546,8 +546,8 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     [
         (
             "lf-activity",
-            lambda entry: entry.update(bound="top"),
-            "at `bound`: 'top' is not one of ['start', 'end']",
+            lambda entry: entry.update(content="top"),
+            "at `content`: 'top' is not one of ['markup', 'members', 'data', 'markdown', 'empty']",
         ),
         (
             "lf-options",
@@ -587,7 +587,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     ("tag", "key", "fallback"),
     [
         ("lf-options", "verbs", None),
-        ("lf-note", "shadow", True),
+        ("lf-note", "verbatim", True),
     ],
 )
 def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
@@ -606,37 +606,37 @@ def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
     assert key in refused.values["keys"]
 
 
-def test_a_fact_read_through_another_names_the_one_it_lacks(page_dir):
-    """A retiring member is read through its owners, so a declaration without them
-    is refused naming both facts."""
+def test_a_decision_takes_off_only_members_that_stand_in_it(page_dir):
+    """A decision retires its widget's members, so one naming a tag whose `owners`
+    leave the widget out is refused, naming the member."""
     registry = vocabulary(page_dir)
     del registry["lf-old"]["owners"]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    [refused] = found(
-        findings, "invalid-declaration", "<lf-old>", keyword="dependentRequired"
+    assert found(
+        findings, "decides-member", "<lf-suggestion>", verb="decide", member="lf-old"
     )
-    assert refused.values["reason"] == "'owners' is a dependency of 'retired-when'"
 
 
-def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir):
-    """A retirement outcome is a cross-entry reference, not a free-form label.
+def test_check_refuses_a_retirement_outcome_its_widget_does_not_decide(page_dir):
+    """A retirement outcome is a reference to the verb's `outcome`, not a free-form label.
 
-    If it names no outcome of the parent widget's deciding verb, the browser's selector can never
+    If it names no outcome of the widget's deciding verb, the browser's selector can never
     match and the file reading can disagree with what that widget knows how to
     settle. Refuse that vocabulary at its one ingress instead of leaving every
     consumer to rediscover the broken reference.
     """
     registry = vocabulary(page_dir)
-    registry["lf-old"]["retired-when"] = "approve"
+    decide = registry["lf-suggestion"]["verbs"]["decide"]
+    decide["decides"] = {"approve": ["lf-old"], "reject": ["lf-new"]}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
     assert found(
-        findings, "retired-when", "<lf-old>", outcome="approve", owner="lf-suggestion"
+        findings, "decides-outcome", "<lf-suggestion>", verb="decide", outcome="approve"
     )
 
 
@@ -670,27 +670,9 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
         assert found(findings, "invalid-declaration", "<lf-suggestion>")
 
 
-@pytest.mark.parametrize("schema", [False, True])
-def test_a_boolean_attribute_schema_is_refused_beside_a_layer_fault(page_dir, schema):
-    """JSON Schema admits `true` or `false` as an attribute's schema, neither naming a
-    type, so a pane whose `label` is one is refused for it, in the same run as a layer
-    fact's problem."""
-    registry = deepcopy(read_page_registry(page_dir).registry)
-    registry["lf-pane"]["attributes"]["properties"]["label"] = schema
-    registry["$languages"]["paths"][".zz"] = "unnamed"
-
-    with pytest.raises(registry_contract.RegistryError) as refused:
-        registry_validation.validate_registry(registry, "test registry")
-
-    assert [(f.code, f.at) for f in refused.value.findings] == [
-        ("undeclared-language", ""),
-        ("reading-role-attr", "<lf-pane>"),
-    ]
-
-
-def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
-    """The parent and the children retiring under it are checked in one run, so each
-    reads the parent's decision before its own check holds it to an outcome."""
+def test_a_deciding_verb_without_outcomes_is_refused(page_dir):
+    """A decision whose verb lost its `outcome` is refused at its widget, which reads
+    its own decision before holding the members it names to an outcome."""
 
     def drop_outcome(registry):
         detail = registry["lf-suggestion"]["verbs"]["decide"]["detail"]
@@ -701,7 +683,6 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
 
     assert status != 0
     assert found(findings, "awaits-blanket", "<lf-suggestion>")
-    assert found(findings, "retired-when", "<lf-old>", owner="lf-suggestion")
 
 
 @pytest.mark.parametrize(
@@ -876,7 +857,7 @@ def test_check_refuses_a_reference_naming_an_attribute_the_widget_has_not_got(
 @pytest.mark.parametrize(
     "reference",
     [
-        {"via": "$work.widgets", "where": {"role": "goal"}},
+        {"via": "roles", "where": {"role": "goal"}},
         {"owns": True},
         {"tag": "lf-option", "key": "id"},
     ],

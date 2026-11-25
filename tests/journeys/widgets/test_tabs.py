@@ -116,11 +116,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     never read opens at its start when the strip is stuck and leaves the shared header
     alone when it is not, and a view read past its start reopens where the user left it.
     Pointer and keyboard agree. Back and Forward open their entry's view where the user
-    was on that entry, and a fresh load of the remembered view shows the page's top.
-
-    A view's place is where the user was reading in it, not a pixel offset: a window
-    resized while the view is hidden rewraps everything above that passage, and the view
-    still reopens with the passage where the user left it."""
+    was on that entry, and a fresh load of the remembered view shows the page's top."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(browser, url)
     resized(page, 1280, 720)
@@ -216,7 +212,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
-          const {retainUserIntent} = await window.__lfWidgetApi();
+          const {retainUserIntent} = await window.__lfCheckApi();
           reveal(document.querySelector('#evidence-tab'), retainUserIntent());
         }"""
     )
@@ -234,20 +230,6 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     assert page.url.endswith("#evidence-tab")
     assert settled() == 0
 
-    # The passage read in a hidden view keeps its place through a resize.
-    passage = page.locator("#evidence-sign-in p").first
-    below_landing_edge = """element => element.getBoundingClientRect().top
-        - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
-    passage.evaluate("element => element.scrollIntoView({block: 'start'})")
-    page.evaluate("scrollBy({top: -40, behavior: 'instant'})")
-    settled()
-    left = passage.evaluate(below_landing_edge)
-    assert left == pytest.approx(40, abs=2)
-    switch(plan)
-    resized(page, 520, 720)
-    switch(evidence)
-    assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
-
 
 def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve):
     """A switch between a page's parts is not fragment travel. The list stays where it is
@@ -255,11 +237,7 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     of the page level with the title, and a part read past its start reopens where the
     user left it. Pointer and keyboard agree. Back and Forward open their entry's part
     where the user was on that entry, and a fresh load of the remembered part shows the
-    page's top.
-
-    A part's place is where the user was reading in it, not a pixel offset: a window
-    resized while the part is hidden rewraps everything above that passage, and the part
-    still reopens with the passage where the user left it."""
+    page's top."""
     url = serve(ROOT_PARTS_PAGE)
     page = open_page(browser, url)
     resized(page, 1280, 720)
@@ -367,7 +345,7 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
-          const {retainUserIntent} = await window.__lfWidgetApi();
+          const {retainUserIntent} = await window.__lfCheckApi();
           reveal(document.querySelector('#evidence-part'), retainUserIntent());
         }"""
     )
@@ -384,20 +362,6 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     expect(evidence).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#evidence-part")
     assert settled() == 0
-
-    # The passage read in a hidden part keeps its place through a resize.
-    passage = page.locator("#part-evidence-sign-in p").first
-    below_landing_edge = """element => element.getBoundingClientRect().top
-        - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
-    passage.evaluate("element => element.scrollIntoView({block: 'start'})")
-    page.evaluate("scrollBy({top: -40, behavior: 'instant'})")
-    settled()
-    left = passage.evaluate(below_landing_edge)
-    assert left == pytest.approx(40, abs=2)
-    switch(plan)
-    resized(page, 900, 720)
-    switch(evidence)
-    assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
 
 
 def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):

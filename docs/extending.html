@@ -19,7 +19,7 @@
         margin-top: var(--lf-sp-2);
       }
       .package-next dd {
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
       }
       .package-catalog {
         display: grid;
@@ -30,7 +30,7 @@
       .package-card {
         display: block;
         padding: var(--lf-sp-4);
-        border: 1px solid var(--lf-border);
+        border: 1px solid var(--lf-rule);
         border-radius: var(--lf-r);
         color: inherit;
         text-decoration: none;
@@ -44,7 +44,7 @@
         font: 600 var(--lf-t-3) / 1.25 var(--lf-serif);
       }
       .package-card span {
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
       }
       .package-card em {
         color: var(--lf-accent);
@@ -165,7 +165,7 @@
       .developer-galleries {
         margin-block: 96px 80px;
         padding-top: 36px;
-        border-top: 1px solid var(--lf-border);
+        border-top: 1px solid var(--lf-rule);
         --lf-block-frame: 1;
       }
       .developer-galleries-copy > p:last-of-type {
@@ -177,7 +177,7 @@
         gap: 24px;
         align-items: center;
         padding: 18px 0;
-        border-top: 1px solid var(--lf-border);
+        border-top: 1px solid var(--lf-rule);
         color: inherit;
         text-decoration: none;
       }
@@ -185,7 +185,7 @@
         margin-top: 24px;
       }
       .developer-gallery-link:last-of-type {
-        border-bottom: 1px solid var(--lf-border);
+        border-bottom: 1px solid var(--lf-rule);
       }
       .developer-gallery-link strong,
       .developer-gallery-description {
@@ -198,7 +198,7 @@
       .developer-gallery-description {
         max-width: 52ch;
         margin-top: 5px;
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font-size: var(--lf-t-5);
         line-height: 1.5;
       }
@@ -258,7 +258,7 @@
         margin: 6px 0 0;
         padding-bottom: 12px;
         border-bottom: 1px solid var(--lf-rule);
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
       }
       .reference-entry h4 {
         margin: 0;
@@ -287,7 +287,7 @@
       }
       .reference-more > p {
         margin: 8px 0 0;
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
       }
       .reference-entry:target {
         border-bottom-color: var(--lf-accent);
@@ -639,7 +639,7 @@
               author arranges the page and makes local adjustments.
             </p>
             <figure id="styles-capture" class="diagram-figure">
-              <lf-diagram id="styles-theme-capture" data-height="370" parts="all">
+              <lf-diagram id="styles-theme-capture" parts="all">
                 <pre>
 flowchart TD
   accTitle: A page selects its theme as a package
@@ -899,8 +899,8 @@ flowchart TD
                 <figcaption id="cap-kind-column">
                   <strong>A column page</strong>
                   <code>layout-column</code> on <code>main</code>. Text keeps the 720px
-                  column, and a block with a declared width, such as a diagram, extends
-                  past it.
+                  column, and a block given a width with <code>data-width</code>, such
+                  as a diagram, extends past it.
                 </figcaption>
               </figure>
               <figure id="kind-sidebar">
@@ -1752,7 +1752,7 @@ flowchart TD
               the shared record of what the user does.
             </p>
             <figure id="ownership-anatomy" class="diagram-figure">
-              <lf-diagram id="ownership-architecture" data-height="719" parts="all">
+              <lf-diagram id="ownership-architecture" parts="all">
                 <pre>
 flowchart TD
   accTitle: Ownership boundaries in a Leaf page
@@ -1891,7 +1891,7 @@ flowchart TD
               files, without either package knowing the other’s implementation.
             </p>
             <figure id="package-data-diagram" class="diagram-figure">
-              <lf-diagram id="package-data-contract" data-height="285" parts="all">
+              <lf-diagram id="package-data-contract" parts="all">
                 <pre>
 flowchart TD
   accTitle: A typed output connects independent widgets
@@ -2462,7 +2462,7 @@ $ leaf page check PAGE --render</code></pre>
             </figure>
             <figure id="cascade-shadow-figure" class="diagram-figure">
               <h4 id="cascade-shadow">A widget’s shadow tree</h4>
-              <lf-diagram id="cascade-shadow-order" data-height="449" parts="all">
+              <lf-diagram id="cascade-shadow-order" parts="all">
                 <pre>
 flowchart TD
   accTitle: CSS precedence inside a widget's shadow tree
@@ -2545,7 +2545,7 @@ flowchart TD
               theme inputs, such as color and type, flow through both.
             </p>
             <figure id="styles-scope" class="diagram-figure">
-              <lf-diagram id="styles-nested-boundary" data-height="484" parts="all">
+              <lf-diagram id="styles-nested-boundary" parts="all">
                 <pre>
 flowchart TD
   accTitle: A nested widget keeps its own styling when the outer package names its own structure

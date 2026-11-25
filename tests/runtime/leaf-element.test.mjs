@@ -2,12 +2,12 @@
 
    These drive elements the registry does not declare as widgets, so each owns a region
    of its own; a declared widget's controller path, its startup gate and its gesture
-   holds, are the browser suite's. */
+   holds, are the browser suite's. Leaf's answer to `lf-connect` is element-integration.js's. */
+import "/runtime/host/element-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { signal } from "/vendor/signals-core.js";
 import { html, nothing } from "/vendor/lit.js";
-import { shadowStage } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { focused, focusDestination } from "/runtime/dom/focus.js";
 import { showFailure } from "/runtime/lib/failure.js";
@@ -524,7 +524,7 @@ test("a draw reads again the keys of what it drew and around it, not of the page
   }
 });
 
-test("a setup that throws shows its failure and the element draws nothing, a check's redraw included", async () => {
+test("a setup that throws shows its failure and the element draws nothing, a check's equal state included", async () => {
   applicationState.setPhase("waiting");
   const errors = [];
   const original = console.error;
@@ -549,7 +549,8 @@ test("a setup that throws shows its failure and the element draws nothing, a che
   await settled(element);
   applicationState.setPhase("offline");
   await settled(element);
-  element.redraw();
+  element.state = Object.freeze({});
+  await settled(element);
   console.error = original;
   assert.deepEqual(draws, []);
   assert.match(element.textContent, /failed: cannot build/);
@@ -565,7 +566,7 @@ test("a setup that throws inside its own shadow root shows its failure there", a
     tag,
     class extends LeafElement {
       setup() {
-        shadowStage(this, [document.createElement("p")]);
+        this.attachShadow({ mode: "open" }).append(document.createElement("p"));
         throw new Error("cannot stage");
       }
       render() {
@@ -738,19 +739,6 @@ test("a failure before the render settles the claim with the failure", async () 
   await new Promise((resolve) => setTimeout(resolve, 0));
   console.error = original;
   assert.match(element.textContent, /failed: cannot begin/);
-  assert.ok(!pending(element));
-  element.remove();
-});
-
-test("a check's redraw leaves the update a move queued, and its claim", async () => {
-  applicationState.setPhase("waiting");
-  const { element, draws } = probe(() => phase());
-  document.body.append(element);
-  await settled(element);
-  applicationState.setPhase("offline");
-  element.redraw();
-  await settled(element);
-  assert.deepEqual(draws, ["waiting", "offline", "offline"]);
   assert.ok(!pending(element));
   element.remove();
 });

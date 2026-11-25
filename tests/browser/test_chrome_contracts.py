@@ -659,7 +659,7 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     caret, band_top = field.evaluate(f"""async box => {{{CARET_AT}
       const caret = document.createRange();
       caret.setStart(at, offset);
-      const band = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
+      const band = (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom;
       return [caret.getBoundingClientRect().bottom, innerHeight - band];
     }}""")
     assert caret > band_top, (
@@ -1200,9 +1200,10 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
             await window.__lfCheckApi();
           if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
-          const {shadowStage}=await window.__lfWidgetApi();
           const host=document.createElement('div'); document.querySelector('main').append(host);
-          const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
+          const root=host.attachShadow({mode: 'open'});
+          root.append(document.createTextNode('A declared shadow stage'));
+          host.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
           if (!root.adoptedStyleSheets.includes(marks))
             throw new Error('The shadow stage did not adopt the marks');
           if (annotationSheets.length !== (files['annotation-chrome'] ? 1 : 0))
@@ -1232,7 +1233,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         assert ".lf-mark-el {" not in carrier
         assert ".lf-margin-preview { position: fixed" not in carrier
     assert "::highlight(lf-mark)" in selected["marks"]
-    assert ".lf-inspect {" in selected["chrome"]
+    assert ".lf-aim-name {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert ".lf-change-card {" in selected["chrome"]
     mark = page.request.get(urljoin(layer, "icon.svg"))

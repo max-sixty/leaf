@@ -4,11 +4,11 @@
  *
  * Each mixes its status token into the code canvas in oklch, 15% for a row and 30%
  * for a mark, then triples the mix's chroma up to a cap. So a row's lightness follows
- * --lf-pre-bg and its hue is the token's, whatever a theme or page sets for each, a
+ * --lf-card and its hue is the token's, whatever a theme or page sets for each, a
  * dark code canvas on a light page included. Without the tripling a mix can't separate
  * the rows: the status colours are muted, so a mix light enough for a row stays near
- * grey (16% in sRGB left the rows 0.032 apart in Oklab, and the theme's --lf-add-tint
- * and --lf-del-tint are 0.039 apart), and one coloured enough makes a mid-tone row.
+ * grey (16% in sRGB left the rows 0.032 apart in Oklab, and the theme's --lf-ok-tint
+ * and --lf-danger-tint are 0.039 apart), and one coloured enough makes a mid-tone row.
  * With it, an added and a removed row stand 0.058 apart, as GitHub's light rows stand
  * 0.057; the row's cap is near the most chroma sRGB holds for a red that light. A
  * heavier mark stands further from its row but takes the light scheme's code under
@@ -23,7 +23,7 @@
 :where(lf-diff),
 :where(lf-worktree),
 :where(lf-worktree-diffs) {
-  --lf-code-canvas: oklch(from var(--lf-pre-bg) l 0 none);
+  --lf-code-canvas: oklch(from var(--lf-card) l 0 none);
   --lf-code-add-fill: oklch(
     from color-mix(in oklch, var(--lf-ok) 15%, var(--lf-code-canvas)) l
       min(c * 3, 0.034) h

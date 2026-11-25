@@ -555,9 +555,7 @@ try {{
         )
         expect(search).to_be_focused()
         expect(search).to_have_value("second")
-        assert page.evaluate(
-            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
-        )
+        assert page.evaluate("!window.lfRootState && !window.lfDocumentLifetime")
 
 
 def test_a_host_builds_named_controls_without_leaf(browser):
@@ -569,12 +567,12 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{searchField}} = await import("/runtime/portable-api.js");
   const {{offer, nameAction}} = await import("/runtime/lib/controls.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});
-  const search = searchField("host-search", {{name: "files", label: "Find files"}});
+  const search = offer("wa-input", "host-search");
+  Object.assign(search, {{type: "search", name: "files", label: "Find files"}});
   document.querySelector("main").append(button, search);
 }} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}
 finally {{ window.hostReady = true; }}
@@ -593,6 +591,4 @@ finally {{ window.hostReady = true; }}
         button.focus()
         page.keyboard.press("Tab")
         expect(search).to_be_focused()
-        assert page.evaluate(
-            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
-        )
+        assert page.evaluate("!window.lfRootState && !window.lfDocumentLifetime")

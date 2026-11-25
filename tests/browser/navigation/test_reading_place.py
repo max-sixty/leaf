@@ -524,7 +524,7 @@ def test_history_returns_a_widgets_named_control_across_a_revision(
 # does, so a part of another item is in no element until its item is drawn, and every
 # item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,
 # through the hooks every route reads (readings/anchor-resolution.js, `revealAddressed` and
-# `addressedElements`); a referrer travels to one with `navigateToDatum`.
+# `addressedElements`); a referrer travels to one with `go`.
 ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
@@ -580,7 +580,7 @@ customElements.define('lf-items', class extends HTMLElement {
 });
 """,
     "lf-item-link.js": """
-import {navigateToDatum} from '/runtime/widget-api.js';
+import {go} from '/runtime/widget-api.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-item-link', class extends HTMLElement {
   connectedCallback() {
@@ -588,7 +588,7 @@ customElements.define('lf-item-link', class extends HTMLElement {
     const button = document.createElement('button');
     button.textContent = `Open ${this.getAttribute('key')}`;
     button.addEventListener('click', () =>
-      navigateToDatum(this, 'for', this.getAttribute('key')));
+      go(document.getElementById(this.getAttribute('for')), {key: this.getAttribute('key')}));
     this.append(button);
   }
 });
@@ -600,7 +600,7 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     """A URL fragment names a part of a widget by the widget's id and a key, which the
     widget draws however the URL is reached. A fresh load, a followed link, and Back and
     Forward to an entry whose item the user has since left land on the part; a reload of
-    the URL `navigateToDatum` writes draws its item under the restored offset."""
+    the URL `go` writes draws its item under the restored offset."""
     url = live_url(
         serve(
             leaf_page(
@@ -1961,7 +1961,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a fixed box"):
         assert (
             page.evaluate("""async () => {
-              const {scrollIntoView} = await window.__lfWidgetApi();
+              const {scrollIntoView} = await window.__lfCheckApi();
               scrollTo({top: 100, behavior: 'instant'});
               const fixed = document.querySelector('#fixed');
               scrollIntoView(fixed, {block: 'nearest', behavior: 'instant'});
@@ -1973,7 +1973,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a fixed box a transformed box holds"):
         reading = page.evaluate("""async () => {
           const {landingBand, seenRect} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           scrollTo({top: 0, behavior: 'instant'});
           const carried = document.querySelector('#carried');
           const before = carried.getBoundingClientRect().top;
@@ -1989,8 +1989,8 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
 
     with subtests.test(case="what the window shows"):
         reading = page.evaluate("""async () => {
-          const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
-          const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
+          const {alreadyShown, fitsWhole, landingBand, shownWindow} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const partly = (node) => {
             const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
             scrollBy({top, behavior: 'instant'});
@@ -2010,7 +2010,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a box whole in a pane below the window"):
         reading = page.evaluate("""async () => {
           const {alreadyShown, landingBand} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const pane = document.querySelector('#pane');
           const box = document.querySelector('#whole');
           scrollBy({top: pane.getBoundingClientRect().top - (innerHeight - 200),
@@ -2028,7 +2028,7 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     with subtests.test(case="a box longer than its pane"):
         reading = page.evaluate("""async () => {
           const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const pane = document.querySelector('#short-pane');
           const box = document.querySelector('#long');
           const band = landingBand(document.scrollingElement).top;
@@ -2113,7 +2113,7 @@ def test_end_landing_reveals_a_tall_items_closing_edge_through_outer_scrollers(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {scrollIntoView} = await window.__lfWidgetApi();
+      const {scrollIntoView} = await window.__lfCheckApi();
       const {landingBand} = await window.__lfCheckApi();
       const target = document.querySelector('#tall-ending');
       const inner = document.querySelector('#inner-reading');
@@ -2184,7 +2184,7 @@ def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_rea
     assert all(left > 0 for left, _ in before["offsets"])
     page.evaluate(
         """async (block) => {
-          const {scrollIntoView} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfCheckApi();
           const target = document.querySelector('#quarter-target');
           scrollIntoView(target, {block, behavior: 'instant'});
         }""",
@@ -2850,7 +2850,7 @@ def test_a_visit_whose_address_drops_its_fragment_doesnt_land_on_it_later(
             '<p id="target">The fragment target.</p><div style="height:1600px"></div>',
         ).replace(
             "</head>",
-            "<script type=\"module\">import {afterPresentation} from '/runtime/widget-api.js';"
+            '<script type="module">const {afterPresentation} = await window.__lfCheckApi();'
             "afterPresentation(() => new Promise((done) => (window.__arrived = done)));"
             "</script></head>",
         )

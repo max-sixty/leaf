@@ -131,7 +131,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     assert action["meaning"]["state"]["decides"] is False
 
     # Reusing the verb as a whole-widget decision does not reinterpret that answer.
-    entry["verbs"]["review"] |= {"unit": "widget", "decides": True}
+    entry["verbs"]["review"] |= {"unit": "widget", "decides": {"pass": [], "fail": []}}
     validate_registry(registry, "revised review package")
     assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
 
@@ -423,13 +423,12 @@ def test_a_pick_names_only_options_its_group_holds():
     assert admit([*STATED_LOG, added], pick)["detail"] == {"value": ["live-mine"]}
 
 
-def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
+def test_history_keeps_a_pick_as_made():
     """The served history words a pick from the document it was made in.
 
     A later version that removes the question leaves the row naming the option the
     user picked, by its label rather than its words, and a withdrawn pick stays a row
-    marked undone. A page whose markup holds no widget declaring `history` is not
-    served the reading.
+    marked undone.
     """
     question = model.leaf_page(
         "Route",
@@ -457,9 +456,6 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
         ("e2", {"form": "choice", "chosen": ["Slow path"]}, True),
         ("e1", {"form": "choice", "chosen": ["Fast path"]}, False),
     ]
-
-    unwatched = question.replace('<lf-activity id="feed"></lf-activity>', "")
-    assert "history" not in model.reading(unwatched, events)
 
 
 def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():

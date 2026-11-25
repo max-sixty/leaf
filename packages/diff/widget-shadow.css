@@ -2,7 +2,7 @@
 @import "./styles/disclosure.css";
 @import "./styles/worktrees.css";
 
-/* The diff's rules inside its own shadow tree (`shadow`). A selector in defaults.css stops
+/* The diff's rules inside its own shadow tree. A selector in defaults.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
    in the package's
    stylesheets because the package owns the look: a project overriding it overrides these
@@ -21,8 +21,8 @@
   margin: 0;
   padding: 0;
   overflow: clip;
-  background: var(--lf-pre-bg);
-  border: 1px solid var(--lf-code-border);
+  background: var(--lf-card);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-diff-r-start) var(--lf-diff-r-start) var(--lf-diff-r-end)
     var(--lf-diff-r-end);
 }
@@ -33,8 +33,8 @@
 :host(lf-diff.lf-rendered) .lf-diff-metadata {
   padding: 7px var(--lf-diff-head-inset);
   font: var(--lf-font-ui);
-  color: var(--lf-code-ink);
-  background: var(--lf-code-chrome);
+  color: var(--lf-ink);
+  background: var(--lf-paper);
 }
 :host(lf-diff.lf-rendered) .lf-diff-fold > .lf-error {
   padding: 10px;
@@ -188,7 +188,7 @@
   margin: 0 0 var(--lf-diff-gap);
 }
 .lf-diff-progress {
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -256,11 +256,12 @@
 }
 /* An auxiliary control of the filter field, like its Clear: the field's frame carries
    the focus band for the group, and the press shows it is the one focused by its fill.
-   Its face stands clear of the field's frame above and below (`--lf-clear`), inside
+   Its face stands clear of the field's frame above and below, by the scale's first
+   step, inside
    the field's line less its 1px border, so the field keeps the height it has without
    it, and a finger's floor is its reach, as it is every other press's. */
 .lf-diff-fold-all {
-  --lf-icon-action-face: calc(var(--lf-line) - 2px - 2 * var(--lf-clear));
+  --lf-icon-action-face: calc(var(--lf-line) - 2px - 2 * var(--lf-sp-1));
   margin-inline-end: -3px;
 }
 .lf-diff-fold-all[data-lf-focus-visible] {
@@ -319,7 +320,7 @@
   user-select: none;
 }
 span.lf-diff-line-number {
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
 }
 .lf-diff-line:hover > .lf-diff-line-comment::before {
   opacity: 1;
@@ -397,7 +398,8 @@ span.lf-diff-line-number {
 /* The path is evidence — a file's name in the file's own face — and a shadow tree
    inherits no document rule, so its font is named here or it is the UA's. */
 .lf-diff-path {
-  font: var(--lf-font-code);
+  font: var(--lf-font-small);
+  font-family: var(--lf-mono);
   overflow-wrap: anywhere;
 }
 .lf-diff-additions {
@@ -411,12 +413,12 @@ span.lf-diff-line-number {
 }
 .lf-diff-evidence {
   padding: 7px 10px;
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   font: var(--lf-font-small);
-  background: var(--lf-code-chrome);
+  background: var(--lf-paper);
 }
 .lf-diff-stat {
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   margin-left: 8px;
   font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
@@ -424,23 +426,20 @@ span.lf-diff-line-number {
 }
 /* Highlighted tokens use Leaf's syntax palette. Native blocks own layout, so
    source rows and conversations need no synchronized columns or measurements. */
-/* The code's canvas is the ground anything Leaf draws on it stands on, such as a
-   conversation's card (surfaces.css), and its quiet grey border frames what stands
-   there; a field on it is the canvas, since nothing stands lighter than white. The
-   user chose this over the author notes' grey, which made a conversation look like a
-   note. */
+/* The code's canvas is a card, the ground anything Leaf draws on it stands on, so a
+   conversation's card there (surfaces.css) is the canvas's own colour, framed by the
+   line. The user chose this over the author notes' grey, which made a conversation
+   look like a note. */
 :host(lf-diff.lf-rendered) .lf-diff-fold > pre {
   position: relative;
   margin: 0;
   padding: 0;
   border: none;
-  border-top: 1px solid var(--lf-code-border);
+  border-top: 1px solid var(--lf-rule);
   border-radius: 0;
   overflow: visible;
-  color: var(--lf-code-ink);
-  --lf-ground: var(--lf-pre-bg);
-  --lf-card: var(--lf-pre-bg);
-  --lf-border: var(--lf-code-border);
+  color: var(--lf-ink);
+  --lf-ground: var(--lf-card);
   background: var(--lf-ground);
 }
 :host(lf-diff.lf-rendered) code[data-code] {
@@ -492,8 +491,8 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 :where(:host(lf-diff)) [data-separator],
 :where(:host(lf-diff)) [data-no-newline] {
   padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;
-  color: var(--lf-code-muted);
-  background: var(--lf-code-chrome);
+  color: var(--lf-muted);
+  background: var(--lf-paper);
   white-space: pre-wrap;
 }
 :where(:host(lf-diff)) [data-separator] svg {
@@ -524,7 +523,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 .lf-diff-thread-outlet {
   min-width: 0;
   white-space: normal;
-  font: var(--lf-font-message);
+  font: var(--lf-font-ui);
   contain: inline-size;
 }
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
@@ -535,7 +534,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   padding-block: var(--lf-sp-2);
   padding-inline: clamp(
       var(--lf-sp-2),
-      100cqw - var(--lf-thread-card-min) - var(--lf-sp-2),
+      100cqw - 320px - var(--lf-sp-2),
       var(--lf-diff-code-at)
     )
     var(--lf-sp-2);

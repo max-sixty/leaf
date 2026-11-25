@@ -13,8 +13,8 @@ import { readApplication, whenWidgetsPresented } from "../../state/semantic-stat
 import { elementById } from "../../readings/passages.js";
 import { THREAD, declareThreadParts, threadPart, wholeThread } from "./selectors.js";
 import { threadRewrites } from "./message-edit.js";
-import { orderChildren } from "../../dom/dom-children.js";
-import { move } from "../../dom/dom-move.js";
+import { orderChildren } from "../../lib/dom-children.js";
+import { move } from "../../lib/dom-move.js";
 import { growthIsSeen } from "../../dom/geometry.js";
 import { HeldNews, newsNotice } from "./held-news.js";
 import { turns } from "../../state/thread/model.js";

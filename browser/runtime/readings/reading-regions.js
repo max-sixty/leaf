@@ -22,9 +22,9 @@
    box the host. One watch (dom/arrivals.js) keeps those regions registered. Every question
    asked of the registry first reads the mutations the watch has yet to deliver
    (`readMarks`), because a question can come in the task that wrote the mark: a widget
-   draws a box and shows its first subject in it (`showReadingSubject`), lands
-   something in it, or brackets its first change with `preserveReadingRegions`. A mark
-   heard only at the watch's delivery would be a region none of those knew. A reading
+   draws a box and lands something in it, or Leaf brackets its first change with
+   `preserveReadingRegions`. A mark heard only at the watch's delivery would be a region
+   neither knew. A reading
    of the marks is one batch, which decides its departures first, so a box that replaces
    another takes the id the other held. The watch is this module's own: reach's watch
    of the same mark (dom/reach.js) starts once the page has presented and gives back a
@@ -59,12 +59,6 @@
    cue at its actual edge, on the same scroll and size observations. It receives
    false when no words remain above or the region is released.
 
-   A region can show one subject of several in turn, as a trace's saved tree shows one
-   checkpoint's elements at a time. Its owner replaces the body's contents through
-   `showReadingSubject(body, subject, render)`, which tells watchers the subject is
-   `leaving` and then `showing`, so a continuity owner keeps the reader's place in each
-   subject and returns them to it.
-
    `onReadingInput` tells a reader where the user explicitly clicked. It includes
    unfocusable words, which update the reading region without a focus arrival, and a
    control already holding focus, where the browser announces none. A step by Tab is
@@ -97,13 +91,12 @@ import {
 } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "../dom/focus.js";
 
-/** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
+/** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element}} ReadingRegion
  * @typedef {ReadingRegion & {scroller: Element | null, width: number | null | undefined, away: boolean}} RegionRegistration
  * @typedef {string | ReadingRegion | Element | null | undefined} RegionTarget
  * @typedef {{region: ReadingRegion, from: Element, to: Element, returned: boolean} | {region: null, band: number}} RegionShift
  * @typedef {{owner: Element, regions: ReadingRegion[]}} CompositionTransition
- * @typedef {{phase: "leaving" | "showing", region: ReadingRegion} |
- * {phase: "shift", shifted: RegionShift[]} |
+ * @typedef {{phase: "shift", shifted: RegionShift[]} |
  * (CompositionTransition & ({phase: "before", retained: boolean} | {phase: "after", cancelled: boolean}))} ReadingTransition */
 /** @type {Map<string, RegionRegistration>} */
 const regions = new Map();
@@ -166,7 +159,6 @@ const regionRecord = (region) => ({
   id: region.id,
   host: region.host,
   body: region.body,
-  subject: region.subject,
 });
 
 // The id of the region `name` that `owner` names, whose body is `box` (the header says
@@ -201,7 +193,6 @@ export function registerReadingRegion({
     id,
     host,
     body,
-    subject: undefined,
     scroller: null,
     width: null,
     away: false,
@@ -271,23 +262,6 @@ export function syncLayoutRegion() {
         id,
         stop: registerReadingRegion({ id, host: body, body }),
       });
-}
-
-// Replace a region's contents with another subject's (see the header). A box that is no
-// region's body has no place to keep, so the render runs alone.
-/** @template T @param {Element} body @param {string | null} subject @param {() => T} render @returns {T} */
-export function showReadingSubject(body, subject, render) {
-  readMarks();
-  const region = byBody.get(body)?.find(current);
-  if (!region || region.subject === subject) {
-    if (region) region.subject = subject;
-    return render();
-  }
-  notify({ phase: "leaving", region: regionRecord(region) });
-  region.subject = subject;
-  const rendered = render();
-  notify({ phase: "showing", region: regionRecord(region) });
-  return rendered;
 }
 
 /** @param {string | null | undefined} id */

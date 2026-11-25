@@ -304,7 +304,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     )
     in_force = page.evaluate(
         """async ids => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {widgetController} = await window.__lfCheckApi();
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
             const state = widgetController(widget).read().state;
@@ -1060,8 +1060,9 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
 
 
 @pytest.mark.parametrize("fresh", [False, True], ids=["patched", "fresh"])
-def test_activity_held_targets_follow_the_current_document(browser, serve, fresh):
-    """Held history keeps its words and seat, but never a departed destination."""
+def test_activity_targets_follow_the_current_document(browser, serve, fresh):
+    """A history row links to its destination only while the current document holds
+    it, and the user stays on the row as the document changes."""
 
     def source(destination, executable=""):
         return leaf_page(
@@ -1084,9 +1085,7 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
     expect(target).to_have_attribute("href", "#route")
     page.keyboard.press("Tab")
     expect(target).to_be_focused()
-    before = row.bounding_box()
     what = row.locator(".lf-activity-what").text_content()
-    label = target.text_content()
     fragment = page.evaluate("location.hash")
     executable = '<script type="module">void 0;</script>' if fresh else ""
     if fresh:
@@ -1096,7 +1095,7 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
           function readTarget() {
             const target = document.querySelector('#feed a.lf-activity-target');
             if (target) window.activityTargetFrames.push({
-              href: target.getAttribute('href'), label: target.textContent,
+              href: target.getAttribute('href'),
               parsed: document.readyState !== 'loading'
             });
             if (--remaining) requestAnimationFrame(readTarget);
@@ -1108,11 +1107,9 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
     wait_for_revision(page, 2)
     wait_until_ready(page)
     expect(row.locator(".lf-activity-what")).to_have_text(what)
-    expect(target).to_have_text(label)
     expect(target).not_to_have_attribute("href", "#route")
     expect(row.get_by_role("link")).to_have_count(0)
     expect(target).to_be_focused()
-    assert row.bounding_box() == before
     target.press("Enter")
     assert page.evaluate("location.hash") == fragment
     target.click()
@@ -1120,11 +1117,9 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
     if fresh:
         frames = page.evaluate("window.activityTargetFrames")
         assert frames
-        assert all(
-            frame["href"] is None and frame["label"] == label for frame in frames
-        )
+        assert all(frame["href"] is None for frame in frames)
 
-    # A destination returning is current capability too; held labels stay historical.
+    # A destination returning is current capability too.
     restored = '<section id="route"><h2>A different route heading</h2></section>'
     restored_executable = '<script type="module">void 1;</script>' if fresh else ""
     blocked = []
@@ -1146,17 +1141,13 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
     wait_for_revision(page, 3)
     expect(target).to_have_attribute("href", "#route")
     expect(row.locator(".lf-activity-what")).to_have_text(what)
-    expect(target).to_have_text(label)
     expect(target).to_be_focused()
-    assert row.bounding_box() == before
     if fresh:
         frames = page.evaluate(
             "window.activityTargetFrames.filter(frame => frame.parsed)"
         )
         assert frames
-        assert all(
-            frame["href"] == "#route" and frame["label"] == label for frame in frames
-        )
+        assert all(frame["href"] == "#route" for frame in frames)
     target.press("Enter")
     expect(page).to_have_url(re.compile(r"#route$"))
     expect(page.locator("#route")).to_be_in_viewport()

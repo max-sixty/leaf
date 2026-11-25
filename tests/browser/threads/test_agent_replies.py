@@ -1149,7 +1149,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     rendered(page)
     held = log.evaluate(
         """async log => {
-          const { scrollerFor } = await window.__lfWidgetApi();
+          const { scrollerFor } = await window.__lfCheckApi();
           return {
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight > log.clientHeight
@@ -1264,8 +1264,8 @@ def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(
     page = open_page(browser, url)
     workflows = page.evaluate(
         """async id => {
-          const {readThreads} = await window.__lfWidgetApi();
-          return readThreads().threads.find(thread => thread.id === id).workflows;
+          const {threads} = await window.__lfWidgetApi();
+          return threads.read().threads.find(thread => thread.id === id).workflows;
         }""",
         root,
     )

@@ -20,7 +20,7 @@
    the disclosure. Its semantic placement and focus change at once; its outgoing pixels
    are inert. Opening the disclosure, undo or refusal ends that fold immediately. HeldNews
    still decides when a passive settlement may move the reader. */
-import { setChildren } from "../../dom/dom-children.js";
+import { setChildren } from "../../lib/dom-children.js";
 import { generatedElement } from "../../dom/widget-elements.js";
 import { html, render } from "/vendor/lit.js";
 import { threadKey } from "../../state/thread/model.js";

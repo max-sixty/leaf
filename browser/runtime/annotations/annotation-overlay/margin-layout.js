@@ -133,7 +133,7 @@ import {
 } from "../../readings/resolved-target.js";
 import { proseMeasure, proseRect, railStands } from "../../readings/content-layout.js";
 import { layoutPx, inlineStyle } from "../../lib/keeps.js";
-import { move } from "../../dom/dom-move.js";
+import { move } from "../../lib/dom-move.js";
 import { objectIds } from "../../base/ids.js";
 import { offerActionElement } from "../../lib/controls.js";
 import { LAYOUT } from "../../lib/widget-events.js";

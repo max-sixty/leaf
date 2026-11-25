@@ -55,7 +55,8 @@
    instead (controls.css, `.lf-rows-head`), whose author's capitals these would mangle. */
 .lf-label,
 :where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
-  font: var(--lf-font-label);
+  font: var(--lf-font-small);
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -90,20 +91,20 @@ lf-suggestion {
 }
 lf-old,
 lf-new {
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
   padding: 0 3px;
 }
-/* --lf-ink-2, not --lf-muted: the strike and the tint already say retired, and muted on
+/* --lf-ink, not --lf-muted: the strike and the tint already say retired, and muted on
  * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
  * every user-facing word to. */
 lf-old {
-  background: var(--lf-del-tint);
-  color: var(--lf-ink-2);
+  background: var(--lf-danger-tint);
+  color: var(--lf-ink);
   text-decoration: line-through;
   text-decoration-color: var(--lf-danger);
 }
 lf-new {
-  background: var(--lf-add-tint);
+  background: var(--lf-ok-tint);
 }
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is
@@ -323,7 +324,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 :where([data-lf-reading-role="pane"]) > header {
   padding: var(--lf-pane-bar-pad);
   border-bottom: 1px solid var(--lf-rule);
-  font: var(--lf-font-title);
+  font: var(--lf-font-ui);
+  font-weight: 600;
   --lf-block-frame: 1;
 }
 /* A pane is a region of a workspace, so its name takes the label font (`.lf-label`):

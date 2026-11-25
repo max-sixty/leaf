@@ -68,7 +68,7 @@ import {
 } from "../lib/shadow-tree.js";
 import { watchArrivals } from "./arrivals.js";
 import { inlineStyle, keeps, layoutPx } from "../lib/keeps.js";
-import { move } from "./dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { chromeRoot } from "../base/chrome.js";
 
 /** @typedef {import("./rect.js").Box} Box

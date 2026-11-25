@@ -271,7 +271,7 @@ const bundles = {
   // optional cloneElement factory prepares compact native motion previews at both
   // creation sites. Existing dragEl relocations use the shared move primitive,
   // preserving native state where supported and reordering by insertion elsewhere; as
-  // package payload, the bundle takes it from the public widget-api.js.
+  // package payload, the bundle takes it from the library (lib/dom-move.js).
   // Keep the upstream ESM/autoscroll implementation otherwise intact: the module
   // entry mounts autoscroll, unlike core; complete adds unused swap and multi-drag.
   sortable: () => ({
@@ -279,7 +279,7 @@ const bundles = {
     copy: "sortablejs/modular/sortable.esm.js",
     typeEntry: input("entries/sortable/entry.mjs"),
     finish: (source) =>
-      'import {move as leafMove} from "/runtime/widget-api.js";\n' +
+      'import {move as leafMove} from "/runtime/lib/dom-move.js";\n' +
       /** @satisfies {[string, string, number?][]} */ ([
         [
           "ghostEl = dragEl.cloneNode(true);",
@@ -983,7 +983,7 @@ async function syntaxLoaders() {
         .join("") +
       "};\n" +
       `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n` +
-      "/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s, in the package API.\n" +
+      "/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s (language-paths.js).\n" +
       ` * @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
   );
 }

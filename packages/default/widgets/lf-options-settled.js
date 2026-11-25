@@ -4,7 +4,8 @@
  * page-authored layout selectors read. A native details wrapper would reparent them,
  * so this disclosure owns their hidden state without changing that boundary. */
 import { html, nothing, render } from "/vendor/lit.js";
-import { comparisonChanges, tabStore } from "/runtime/widget-api.js";
+import { comparisonChanges } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { selectableOffer } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
@@ -40,7 +41,7 @@ export class SettledOptions {
     this.#host.prepend(this.#row);
     this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
     this.#host.classList.toggle("lf-rendered", true);
-    this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);
+    this.#open(tabMemory.get(SETTLED_KEY + this.#host.id) === "1", false);
   }
 
   /** @param {boolean} open @param {boolean} remember */
@@ -48,7 +49,7 @@ export class SettledOptions {
     this.#isOpen = open;
     this.sync();
     keeps(this.#row, "aria-expanded", open);
-    if (remember) tabStore.set(SETTLED_KEY + this.#host.id, open ? "1" : "0");
+    if (remember) tabMemory.set(SETTLED_KEY + this.#host.id, open ? "1" : "0");
   }
 
   sync() {

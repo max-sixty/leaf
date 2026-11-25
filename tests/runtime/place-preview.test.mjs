@@ -20,7 +20,7 @@ import {
 import { addressableLabel } from "/runtime/readings/addressable-names.js";
 import { registry } from "/runtime/state/registry.js";
 import { applicationState } from "/runtime/state/semantic-state.js";
-import { shadowStage } from "/runtime/dom/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 import { pageText } from "/runtime/readings/passages.js";
 import { servedState, servedThread } from "../served.mjs";
 
@@ -196,9 +196,7 @@ test("a message's markup previews by its own document: its words, names and outl
 
 test("a heading's section is walked through declared shadow trees and their slots", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "place-preview-shadow" },
   });
   // Two sections a widget draws in its declared tree, in a reply's markup.
@@ -303,9 +301,7 @@ test("a heading's section is walked through declared shadow trees and their slot
 // them there (readings/passages.js, `walk`), so a preview of what holds it shows the same words.
 test("a preview reads an empty slot's fallback as the page's reading does", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "place-preview-fallback" },
   });
   document.querySelector(".lf-chrome")?.remove();
@@ -491,9 +487,7 @@ test("a heading counts the conversations about what it titles, as about its own 
 
 test("a slotted section reads its slot's run once, and only as far as its preview shows", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "place-preview-run" },
   });
   document.querySelector(".lf-chrome")?.remove();
@@ -554,14 +548,16 @@ test("a figure shows its picture under its caption, and a drawing its title", ()
   );
 });
 
-test("only a link an author wrote into the page names a place", () => {
+test("a link into the page names a place, whoever drew it, outside Leaf's surfaces", () => {
   document.body.innerHTML = `<main><p id="target">Here.</p>
     <a id="in" href="#target">in</a><a id="out" href="https://example.com/#target">out</a>
     <a id="gone" href="#missing">gone</a>
-    <nav class="lf-ui"><a id="drawn" href="#target">drawn</a></nav></main>`;
+    <nav class="lf-ui" data-lf-gen="1"><a id="drawn" href="#target">drawn</a></nav>
+    <nav data-lf-runtime><a id="leaf" href="#target">Leaf's</a></nav></main>`;
   const place = (id) => linkedPlace(document.getElementById(id))?.id ?? null;
   assert.equal(place("in"), "target");
   assert.equal(place("out"), null);
   assert.equal(place("gone"), null);
-  assert.equal(place("drawn"), null);
+  assert.equal(place("drawn"), "target");
+  assert.equal(place("leaf"), null);
 });

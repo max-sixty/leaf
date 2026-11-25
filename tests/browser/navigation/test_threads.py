@@ -351,18 +351,18 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
             "The linked destination begins here.</lf-shadow-reading>"
         )
         declaration = element_declaration("lf-shadow-reading", upgrade=True)
-        declaration["shadow"] = True
         layer_registry = {"lf-shadow-reading": declaration}
         layer_widgets = {
             "lf-shadow-reading.js": """
-import { shadowStage } from "/runtime/widget-api.js";
 import { once } from "/runtime/lib/once.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
-    shadowStage(this, [paragraph]);
+    this.replaceChildren();
+    this.attachShadow({ mode: "open" }).append(paragraph);
+    this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));
   }
 });
 """
@@ -733,7 +733,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     )
     # The panel's band at the window's foot, which it states to Leaf's landings.
     foot = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "async () => (await window.__lfCheckApi()).landingInsets("
         "document.scrollingElement).bottom"
     )
     page.wait_for_function(

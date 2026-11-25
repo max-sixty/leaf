@@ -64,7 +64,7 @@
   let rootFoot = 0;
   let carriersOf;
   const readPage = async () => {
-    const { landingInsets } = await window.__lfWidgetApi();
+    const { landingInsets } = await window.__lfCheckApi();
     ({ carriersOf } = await window.__lfCheckApi());
     rootFoot = landingInsets(document.scrollingElement).bottom;
   };

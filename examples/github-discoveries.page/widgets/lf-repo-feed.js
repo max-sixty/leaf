@@ -1,20 +1,19 @@
 /** A reading stream over one Leaf data source. Browsing stays in the tab and
  * creates no obligation. An explicit question starts agent work. GitHub ids
- * keep comments attached across refreshes; HeldReading protects reading place.
+ * keep comments attached across refreshes. A refresh that would reorder the stories
+ * shown waits behind its "new stories" button, so the reader's place stays put.
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
-import {
-  clockValue,
-  whileConnected,
-  tabStore,
-  HeldReading,
-  threadActions,
-  readThreads,
-  pageLinks,
-} from "/runtime/widget-api.js";
+import { go, threads } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered } from "/runtime/lib/controls.js";
-import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
+import {
+  loadMarkdown,
+  markdownReady,
+  pageLinks,
+  renderMarkdown,
+} from "/runtime/lib/markdown.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 import { GitHubFeed } from "../github-feed.js";
@@ -84,8 +83,8 @@ class RepoFeed extends LeafElement {
   }
 
   setup() {
-    this.distance = tabStore.get(`${this.id}:distance`) ?? "all";
-    this.topic = tabStore.get(`${this.id}:topic`) ?? "all";
+    this.distance = tabMemory.get(`${this.id}:distance`) ?? "all";
+    this.topic = tabMemory.get(`${this.id}:topic`) ?? "all";
     this.limit = 12;
     this.workState = { busy: false, exhausted: false, error: "" };
     this.loading = false;
@@ -97,26 +96,17 @@ class RepoFeed extends LeafElement {
     this.#loadMarkdown();
     this.filtered = [];
     this.openedSources = new Set();
-    this.news = new HeldReading(
-      this,
-      () => [...this.querySelectorAll(".feed-list")],
-      () => this.requestUpdate(),
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries.some((entry) => entry.isIntersecting && entry.target.isConnected) &&
+          this.canAdvance &&
+          !this.readAheadPaused
+        )
+          this.more();
+      },
+      { rootMargin: "350px" },
     );
-    whileConnected(this, (signal) => {
-      this.observer = new IntersectionObserver(
-        (entries) => {
-          if (
-            entries.some((entry) => entry.isIntersecting && entry.target.isConnected) &&
-            this.canAdvance &&
-            !this.readAheadPaused
-          )
-            this.more();
-        },
-        { rootMargin: "350px" },
-      );
-      this.signal = signal;
-      return () => this.observer.disconnect();
-    });
   }
 
   choose(field, value) {
@@ -124,7 +114,7 @@ class RepoFeed extends LeafElement {
     this.readAheadPaused = false;
     this.workState.exhausted =
       this.github.loaded && !this.github.hasMore(this.distance);
-    tabStore.set(`${this.id}:${field}`, value);
+    tabMemory.set(`${this.id}:${field}`, value);
     this.limit = 12;
     this.requestUpdate();
     this.performUpdate();
@@ -228,21 +218,23 @@ class RepoFeed extends LeafElement {
   }
 
   ask(item) {
-    const existing = readThreads().threads.find(
-      (thread) =>
-        thread.anchor?.section === this.id &&
-        thread.anchor?.datum === item.id &&
-        !thread.resolved,
-    );
+    const existing = threads
+      .read()
+      .threads.find(
+        (thread) =>
+          thread.anchor?.section === this.id &&
+          thread.anchor?.datum === item.id &&
+          !thread.resolved,
+      );
     if (existing) {
-      void threadActions.open(existing.key, { part: "reply" });
+      void go(existing, { part: "reply" });
       return;
     }
-    const created = threadActions.create({
+    const created = threads.create({
       text: `How does “${item.title}” in ${item.repo} connect to my work?\n\n${item.url}`,
       anchor: { section: this.id, datum: item.id },
     });
-    if (created) void threadActions.open(created.key, { part: "thread" });
+    if (created) void go(created, { part: "thread" });
   }
 
   render() {
@@ -255,13 +247,12 @@ class RepoFeed extends LeafElement {
     );
     if (
       !incoming ||
-      (this.shown &&
-        this.filtered
-          .slice(0, this.limit)
-          .every((item, index) => ordered[index]?.id === item.id))
+      !this.shown ||
+      this.filtered
+        .slice(0, this.limit)
+        .every((item, index) => ordered[index]?.id === item.id)
     )
-      this.news.release();
-    this.shown = this.news.hold(incoming);
+      this.shown = incoming;
     if (!this.shown)
       return html`<p class="feed-empty">
         The stream is waiting for its first collection of repository changes.
@@ -424,7 +415,8 @@ class RepoFeed extends LeafElement {
 
   admit(count) {
     this.limit += count;
-    this.news.show();
+    this.shown = this.liveFeed || this.value;
+    this.requestUpdate();
   }
 
   sourceOpened(event, id) {
@@ -446,19 +438,12 @@ class RepoFeed extends LeafElement {
       .replace(/[^a-z0-9]/gi, "")
       .slice(0, 2)
       .toUpperCase();
-    // The day count on the page's clock: the card redraws as it changes, on the
-    // server's time, as every age Leaf draws does.
-    const days = clockValue((now) =>
-      Math.floor((now - Date.parse(item.at)) / 86400000),
-    );
+    // A week's age in Leaf's words for one, kept current as the tab sits open
+    // (`lf-age`); anything older by its date.
     const when =
-      days < 1
-        ? "Today"
-        : days === 1
-          ? "Yesterday"
-          : days < 7
-            ? `${days}d ago`
-            : date.format(new Date(item.at));
+      Date.now() - Date.parse(item.at) < 7 * 86400000
+        ? html`<lf-age datetime=${item.at}></lf-age>`
+        : html`<time datetime=${item.at}>${date.format(new Date(item.at))}</time>`;
     return html`<article
       class="feed-card"
       data-change=${item.id}
@@ -482,9 +467,7 @@ class RepoFeed extends LeafElement {
             rel="noreferrer"
             >${item.repo}</a
           >
-          <time datetime=${item.at} title=${date.format(new Date(item.at))}
-            >${item.kind === "project" ? `Updated ${when}` : when}</time
-          >
+          <span>${item.kind === "project" ? "Updated " : nothing}${when}</span>
           ${item.kind === "project" ? html`<span class="feed-angle">Project to explore</span>` : nothing}
           <span class="feed-angle">${angle}</span>
         </div>

@@ -255,7 +255,7 @@
     position: absolute;
     inset: -100vmax;
     z-index: -1;
-    --lf-box-ring: var(--lf-border);
+    --lf-box-ring: var(--lf-rule);
     --lf-box-fill: var(--lf-card);
   }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(> .lf-composer[data-lf-open])
@@ -366,7 +366,7 @@
     position: absolute;
     inset: -100vmax;
     z-index: -1;
-    --lf-box-ring: var(--lf-border);
+    --lf-box-ring: var(--lf-rule);
     --lf-box-fill: var(--lf-paper);
   }
   /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
@@ -467,13 +467,13 @@
     )
     > .lf-fab-ground
     > .lf-box-ring {
-    background: color-mix(in srgb, var(--lf-accent) 55%, var(--lf-border));
+    background: color-mix(in srgb, var(--lf-accent) 55%, var(--lf-rule));
     transition: background-color 0.1s 0.15s;
   }
   .lf-margin-preview:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
     .lf-margin-preview-ground
     > .lf-box-ring {
-    background: color-mix(in srgb, var(--lf-accent) 55%, var(--lf-border));
+    background: color-mix(in srgb, var(--lf-accent) 55%, var(--lf-rule));
     transition: background-color 0.1s 0.15s;
   }
   [data-lf-carried],

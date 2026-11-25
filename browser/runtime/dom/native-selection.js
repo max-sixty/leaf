@@ -12,8 +12,8 @@ import { holdingElement, isElement, isText } from "../lib/shadow-tree.js";
 // author, but a quote anchored somewhere the user never pointed.
 //
 // `getComposedRanges` is the only thing that answers truthfully, and it answers only
-// for the roots it is handed, which is why the declaration (`shadow`) and not a
-// sweep decides what is passed. An end in any other root moves out to its host's edge,
+// for the roots it is handed, which is why the roots widgets connect (shadow.js) and
+// not a sweep decide what is passed. An end in any other root moves out to its host's edge,
 // past the host where the selection ends, as the page's reading reads that host by its
 // light children: a drag from prose into a typeset formula (readings/formulas.js) takes the
 // whole formula. Firefox's legacy Range is wrong there: a drag across a formula came

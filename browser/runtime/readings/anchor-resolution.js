@@ -31,7 +31,6 @@ import {
   focusedVisualPart,
   visualPartFocus,
   visualPartAdmission,
-  declaredVisuals,
   layoutsChanged,
 } from "../state/visual-parts.js";
 import {
@@ -181,7 +180,7 @@ export const addressedFocus = (source, key) =>
 // anything reads it. A visual part drawn only in another state is drawn now, as
 // a visual's `lfParts.reveal` promises; a lazy datum answers with its hydration promise. Every
 // travel to a part of a widget asks this, for a thread's anchor (`revealAnchor`) and a
-// module's `navigateToDatum` key alike, so neither route reaches a part the other
+// module's `go` with a key alike, so neither route reaches a part the other
 // cannot.
 /** @param {Element} source @param {string} key */
 export function revealAddressed(source, key) {
@@ -217,9 +216,6 @@ export const standsIn = (anchor, placement) =>
 /** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
 export const awaitsDrawing = (anchor, placement) =>
   standsIn(anchor, placement) && placement?.status === "fallback";
-
-// Which elements are visuals of their own, for the reader of a visual's marks.
-declaredVisuals((element) => Boolean(registry[element.localName]?.visual));
 
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */
@@ -1106,8 +1102,8 @@ export function fragmentTarget(fragment) {
   return address ? (address.place ?? address.element) : null;
 }
 
-// The element an address a package module holds names (widget-api.js, `elementById`):
-// an id, or a widget's id and key, spelled as a fragment (`#…`, encoded as a URL holds
+// The element an address names, as views.js reads a view's address: an id, or a
+// widget's id and key, spelled as a fragment (`#…`, encoded as a URL holds
 // it) or bare, as `fragmentTarget` reads it. Each id is looked up as `from` gives it
 // (references.js, `authoredElement`), in `from`'s own message first and then the page,
 // so a copy of a page id that Leaf draws in a reply never answers for the page's own.

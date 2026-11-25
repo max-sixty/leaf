@@ -262,13 +262,6 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
             },
             "inline",
         ),
-        (
-            ".hazard",
-            {
-                "space": "wide",
-            },
-            "room",
-        ),
         (".hazard::before", {}, "pseudo"),
         (".hazard[", {}, "invalid-selector-without-marks"),
         (

@@ -17,7 +17,7 @@ import {
   focusDestination,
   nativeFocusTarget,
 } from "../dom/focus.js";
-import { reducedMotion } from "../dom/motion.js";
+import { reducedMotion } from "../lib/motion.js";
 import { motionTime } from "../lib/motion-timing.js";
 import { projectCommandScope, statedScope } from "../dom/keyboard/scopes.js";
 import {

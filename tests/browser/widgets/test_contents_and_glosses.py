@@ -135,7 +135,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # The title is a visible page label, while each repeated heading is the label of a
     # browser-owned link under .lf-ui. The authored heading remains the one passage.
     spoken = page.locator("main").evaluate(
-        "async main => (await window.__lfWidgetApi()).says(main)"
+        "async main => (await import('/runtime/passages.js')).says(main)"
     )
     assert spoken.count("Prepare gradually") == 1
     assert spoken.count("Move the readers") == 1
@@ -660,8 +660,9 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     against the complete presented page before semantic interaction opens.
 
     The recorded draft makes the first section much taller during replay. The contents
-    map has already painted the short authored form, so the presentation signal must
-    replace that stale map in the same turn that releases durable interaction."""
+    map has already painted the short authored form, so the page's presentation must
+    replace that stale map before the first frame that releases durable interaction
+    paints."""
     source = contents_page(
         "stable generated interface",
         """
@@ -700,14 +701,16 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
         window.__tocFirstPaint = null;
         new MutationObserver((records, observer) => {
           if (document.body?.dataset.lfPresented !== '1') return;
-          const nav = document.querySelector('.lf-toc-nav');
-          window.__tocFirstPaint = {
-            visible: nav.checkVisibility({visibilityProperty: true}),
-            reach: ("""
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            const nav = document.querySelector('.lf-toc-nav');
+            window.__tocFirstPaint = {
+              visible: nav.checkVisibility({visibilityProperty: true}),
+              reach: ("""
         + PREPARE_REACH
         + """)(nav),
-          };
-          observer.disconnect();
+            };
+          });
         }).observe(document, {
           subtree: true,
           attributes: true,
@@ -1347,7 +1350,7 @@ ROW_MARKS = """(toc) => {
     probe.remove();
     return value;
   };
-  const marks = { thread: colour('--lf-thread'), 'on-me': colour('--lf-turn') };
+  const marks = { thread: colour('--lf-accent'), 'on-me': colour('--lf-here') };
   const markers = [...toc.querySelectorAll('.lf-toc-marker')];
   return Object.fromEntries([...toc.querySelectorAll('.lf-toc-start, li')]
     .filter((row, index) => row.dataset.lfTocMark && (

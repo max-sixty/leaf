@@ -164,7 +164,7 @@ def open_compact_comment(page, text=None):
 
 # The top of the window the page shows (dom/geometry.js, `shownWindow`): what a float the
 # page places stands below.
-SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
+SHOWN_TOP = """async () => (await window.__lfCheckApi()).shownWindow().top"""
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
@@ -692,7 +692,7 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
         bar.evaluate(
             """async node => {
           const {left, right} = node.getBoundingClientRect();
-          return (await window.__lfWidgetApi())
+          return (await window.__lfCheckApi())
             .shownWindow({gap: 8, across: {left, right}}).bottom;
         }"""
         )
@@ -774,7 +774,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     foot = bar.evaluate(
         """async node => {
           const {left, right} = node.getBoundingClientRect();
-          return (await window.__lfWidgetApi())
+          return (await window.__lfCheckApi())
             .shownWindow({gap: 8, across: {left, right}}).bottom;
         }"""
     )
@@ -980,7 +980,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
     ceiling = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
+        """async () => (await window.__lfCheckApi())
           .shownWindow({gap: 8}).top"""
     )
     assert compact["y"] > ceiling + 20, compact
@@ -1738,7 +1738,7 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     # its window posture rather than choosing another side of an invisible target.
     target.evaluate(
         """async (node, up) => {
-          const {shownWindow} = await window.__lfWidgetApi();
+          const {shownWindow} = await window.__lfCheckApi();
           const boundary = shownWindow({gap: 8}), box = node.getBoundingClientRect();
           const top = up ? boundary.top + 8
             : boundary.bottom - box.height - 8;
@@ -2226,7 +2226,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # Hovering names the target — the tag and the id a fix is written against — and
     # draws the aim's own box on it, the promise about the next press.
     option.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
+    expect(page.locator(".lf-aim-name")).to_have_text("lf-option · opt-shim")
     expect(page.locator("[data-lf-aimed]")).to_have_id("opt-shim")
     option.click(modifiers=["Alt"])
     composer = page.locator(".lf-composer")
@@ -2272,7 +2272,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect_design_mode(page)
     page.keyboard.press("Escape")
     expect_design_mode(page, on=False)
-    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-aim-name")).to_be_hidden()
     expect(page.locator(".lf-legend-box")).to_have_count(0)
 
 
@@ -2397,9 +2397,9 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
         page.keyboard.press("s")
         expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     control.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    expect(page.locator(".lf-aim-name")).to_have_text("Volume · section · volume")
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    expect(page.locator(".lf-aim-name")).to_have_text("Volume · section · volume")
     page.keyboard.up("Alt")
     if route == "picker-keyboard":
         said = page.locator(".lf-live")
@@ -2757,8 +2757,8 @@ CONTROL_PRESSES = {
 # Each control a shape's selector names: the target a press on it reads, and that same
 # control's entry in the inventory the picker offers, before and after its capture.
 READ_CONTROL_SHAPES = """async (shapes) => {
-  const {aimTargets, aimTargetAt, captured, resolveAnchor} = await window.__lfCheckApi();
-  const {anchorLabel} = await window.__lfWidgetApi();
+  const {aimTargets, aimTargetAt, anchorLabel, captured, resolveAnchor} =
+    await window.__lfCheckApi();
   const inventory = aimTargets({design: true});
   const identity = (target) => target.controlElement ?? target.element;
   // A control with no target reads as null, for its own case to report.
@@ -3039,14 +3039,14 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
 
     exit_mode = stance_exit(page)
     exit_mode.hover()
-    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-aim-name")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel = page.locator(panel_view("threads"))
     panel_settled(page, view="threads")
     expect(panel).to_be_visible()
     panel.hover()
-    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-aim-name")).to_be_hidden()
     expect(composer).to_be_hidden()
 
     page.locator(".lf-fp-close").click()
@@ -3223,7 +3223,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # The name floats where the box's tag stood, over the item's corner — on a scrolled
     # page as on a fresh one.
     p.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("paragraph · p20")
+    expect(page.locator(".lf-aim-name")).to_have_text("paragraph · p20")
     expect(page.locator("[data-lf-aimed]")).to_have_id("p20")
     _label_stands_on_the_aim(page, p)
     # Threads opens over the page. Opened by key.
@@ -3330,7 +3330,7 @@ def _label_stands_on_the_aim(page, target):
     the outline `target` draws it as, so this still checks attachment when its gap
     changes."""
     ring = target.evaluate(MARK)
-    name = page.locator(".lf-inspect").bounding_box()
+    name = page.locator(".lf-aim-name").bounding_box()
     assert abs(name["y"] + name["height"] - ring["ring"]["top"]) < 1, (name, ring)
     assert abs(name["x"] - ring["box"]["left"]) < 4, (name, ring)
 
@@ -3388,7 +3388,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
         )
     ) == {"t", "p", "flow", "tree"}
     node.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
+    expect(page.locator(".lf-aim-name")).to_have_text("lf-diagram · flow")
 
 
 def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve):
@@ -3857,7 +3857,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
-  .authored-contour { outline:1px dashed var(--lf-ink-2); }
+  .authored-contour { outline:1px dashed var(--lf-ink); }
   </style>""",
             )
         ),
@@ -4705,7 +4705,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
     """Every frame Chrome draws while a pane scrolls under the pointer in Design mode
     shows the name and the legend box level with what they name."""
     follower = (
-        f".lf-inspect {{ background: {FOLLOWER_MARK} !important; }}"
+        f".lf-aim-name {{ background: {FOLLOWER_MARK} !important; }}"
         if paint == "inspect"
         else '.lf-legend-box[data-lf-for="pane-target"]'
         f" {{ border: 6px solid {FOLLOWER_MARK} !important; }}"
@@ -4725,7 +4725,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
     _design_mode(page)
     target = page.locator("#pane-target").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 130)
-    expect(page.locator(".lf-inspect")).to_have_text(re.compile("pane-target"))
+    expect(page.locator(".lf-aim-name")).to_have_text(re.compile("pane-target"))
     rendered(page)
     assert_follows_in_every_frame(page, "#design-pane > div")
 

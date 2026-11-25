@@ -65,7 +65,7 @@ def validate_widget_state_relations(
             # A creates verb owns id-and-words members, not independent widget
             # owners. Capabilities read from the authored owner inventory cannot
             # be supplied by these members. Presentation-only upgrades are allowed.
-            owner_keys = ("verbs", "awaits", "history", "inputs")
+            owner_keys = ("verbs", "awaits", "inputs")
             owned = [key for key in owner_keys if child.get(key)]
             if isinstance(child.get("visual"), dict):
                 owned.append("visual")
@@ -188,17 +188,19 @@ def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) 
             verb=deciding_verb(entry),
             outcome=withdrawn,
         )
-    retired = entry.get("retired-when")
-    if retired is None:
-        return
-    # Every owner, not the first: a slot that retires under its owner's outcome has
-    # to retire whichever owner it was written in, or it would be settled under one
-    # and undecidable under another.
-    for owner in entry["owners"]:
-        if retired not in deciding_outcomes(declarations[owner]):
+    # Each outcome the decision names is one its `outcome` field takes, and each
+    # member it takes off the page stands directly in this widget.
+    verb = deciding_verb(entry)
+    for outcome, members in (entry["verbs"][verb]["decides"] if verb else {}).items():
+        if outcome not in deciding_outcomes(entry):
             raise registry_error(
-                "retired-when", path, tag, outcome=retired, owner=owner
+                "decides-outcome", path, tag, verb=verb, outcome=outcome
             )
+        for member in members:
+            if tag not in declarations.get(member, {}).get("owners", []):
+                raise registry_error(
+                    "decides-member", path, tag, verb=verb, member=member
+                )
 
 
 def validate_deciding_verb(tag: str, entry: dict, path) -> None:

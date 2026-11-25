@@ -17,12 +17,22 @@ import { excerptWords } from "../lib/words.js";
 
 // The label is rooted at the addressable and reads its authored words. Generated annotation
 // chrome is excluded by the same passage reader used for anchor resolution. Display
-// surfaces constrain these complete words to their available space.
+// surfaces constrain these complete words to their available space. A suggestion, one
+// of Leaf's own elements, says its slots apart, the old words before the new: they
+// stand two words apart on the page and no characters apart in the text, so read
+// together a rewrite of "red" to "blue" says "redblue".
 /** @param {Element | null | undefined} addressable */
 export function addressableSays(addressable) {
   if (!addressable) return "";
-  return addressable.lfSays?.() || elementReading(addressable);
+  if (!isSuggestion(addressable)) return elementReading(addressable);
+  return [":scope > lf-old", ":scope > lf-new"]
+    .map((slot) => addressable.querySelector(slot))
+    .map((slot) => (slot ? elementReading(slot) : ""))
+    .filter(Boolean)
+    .join(" → ");
 }
+/** @param {Element} element */
+const isSuggestion = (element) => element.localName === "lf-suggestion";
 
 // What names an element, where the authoring contract gives it a name
 // (`skills/leaf/references/module-reading.md`, "Naming"): the name its author
@@ -140,7 +150,7 @@ export const addressableName = (element) =>
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its
-// own, or a module that answers `lfSays`) is otherwise named by them, cut short. Any other
+// own, or a suggestion) is otherwise named by them, cut short. Any other
 // element's words are its members' run together, a question's with its options' and
 // their chips', which name nothing, so it takes the name of the nearest element
 // holding it that has one, short of the document it stands in (the page's column, or
@@ -184,7 +194,7 @@ export const ownName = (element) => namingWords(ownNaming(element));
 /** @param {Element} element */
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
-  element.lfSays?.() ||
+  isSuggestion(element) ||
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
   );

@@ -54,8 +54,8 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 # keyed by the thread's key, which for a thread this tab started is the attempt that
 # sent it (state/thread/model.js, `threadKey`), so the page's own reading names its id.
 LIST_ORDER = """async () => {
-  const {readThreads} = await window.__lfWidgetApi();
-  const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
+  const {threads} = await window.__lfWidgetApi();
+  const ids = new Map(threads.read().threads.map((t) => [t.key, t.id]));
   return [...document.querySelectorAll(
     '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving]) .lf-fp-thread')]
     .map((row) => ids.get(row.dataset.lfKey));
@@ -1158,7 +1158,6 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     if deep:
         # The body is rendered from the widget's own root, so the entry stops
         # claiming the user gets it verbatim from the markup.
-        declarations["lf-drift"]["shadow"] = True
         del declarations["lf-drift"]["verbatim"]
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.

@@ -1,10 +1,21 @@
-/* The rules that dress both sides of a shadow boundary. A widget declaring `shadow`
+/* The rules that dress both sides of a shadow boundary. A widget drawing in its shadow root
  * renders into a tree no document selector reaches (runtime/dom/shadow-stage.js), and the
  * controls, threads and composer a widget seats there are the layer's own. So what they
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of Leaf's faces (parts.css),
  * above the page's `base` layer. A rule belongs here when a declared tree has to
  * see it too. The marks and band Leaf draws on any element are element-marks.css's. */
+/* A bounded block scrolls within its stated height, in the document or in a widget's
+ * shadow root, where a module bounds the box it scrolls and keeps its own caption
+ * outside the scroller (`data-lf-bound`, runtime/readings/bounds.js). */
+@media screen {
+  [data-lf-bound] {
+    max-block-size: var(--lf-bound, 28rem);
+    overflow: auto;
+    --lf-top: 0px;
+    --lf-holds-height: 1;
+  }
+}
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
    the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with
@@ -81,8 +92,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     margin-right: 0;
   }
 }
-/* Where a widget upgrade fails, it fails soft into this box, in the document or in an
- * `shadow` widget's stage (runtime/lib/failure.js). Its face is the sans the
+/* Where a widget upgrade fails, it fails soft into this box, in the document or in a
+ * shadow-root widget's stage (runtime/lib/failure.js). Its face is the sans the
  * theme gives other labels (.lf-tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
@@ -107,11 +118,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--lf-key-badge-size);
   height: var(--lf-key-badge-size);
   padding: 0 4px;
-  border: 1px solid var(--lf-border);
-  border-radius: var(--lf-r-s);
+  border: 1px solid var(--lf-rule);
+  border-radius: calc(var(--lf-r) / 2);
   background: var(--lf-chip);
-  color: var(--lf-ink-2);
-  font: var(--lf-font-code);
+  color: var(--lf-ink);
+  font: var(--lf-font-small);
+  font-family: var(--lf-mono);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -216,7 +228,7 @@ a[data-lf-external]::after,
  * list of the tags and roles that count, so a role a widget reaches for next year is a
  * pressable the day its module names it.
  *
- * In this file, because a widget declaring `shadow` builds its controls in a tree
+ * In this file, because a widget drawing in its shadow root builds its controls in a tree
  * the document's stylesheet does not reach, and a floor that stopped at the light DOM
  * would be a floor the newest kind of widget is the one to fall through. */
 /* A focused box whose band something would cover or cut, such as positioned content
@@ -264,7 +276,7 @@ a[data-lf-external]::after,
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(
     :not([aria-disabled="true"], :disabled)
   ) {
-  box-shadow: var(--lf-offer-hover-shadow);
+  box-shadow: inset 0 0 0 100px var(--lf-offer-hover);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: not-allowed;
@@ -458,7 +470,7 @@ summary {
 [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
   padding: var(--lf-thread-frame);
   border-radius: var(--lf-r-l);
-  box-shadow: inset 0 0 0 1px var(--lf-border);
+  box-shadow: inset 0 0 0 1px var(--lf-rule);
   background: var(--lf-ground);
 }
 /* A forced palette drops shadows, so there the frame is an outline on the card's edge. */
@@ -591,7 +603,7 @@ summary {
   --lf-msg-rest-ground: transparent;
   --lf-msg-ground: color-mix(
     in srgb,
-    var(--lf-hi-tint) calc(var(--lf-msg-arrival) * 100%),
+    var(--lf-warn-tint) calc(var(--lf-msg-arrival) * 100%),
     var(--lf-msg-rest-ground)
   );
   background-color: var(--lf-msg-ground);
@@ -751,7 +763,7 @@ summary {
   padding: 8px var(--lf-thread-text-inset);
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   border-radius: var(--lf-r);
-  background: var(--lf-settled-tint);
+  background: var(--lf-chip);
 }
 /* Open, the region takes in the messages the summary folds: the fill stands under
    them, and each stands on the tint as its own ground, so a head stuck at a card's top
@@ -774,19 +786,20 @@ summary {
   );
   inset-inline-end: anchor(var(--lf-fold-head) end);
   border-radius: var(--lf-r);
-  background: var(--lf-settled-tint);
+  background: var(--lf-chip);
   pointer-events: none;
 }
 .lf-thread-transcript > .lf-msg[data-lf-summarized] {
-  --lf-ground: var(--lf-settled-tint);
-  --lf-msg-rest-ground: var(--lf-settled-tint);
+  --lf-ground: var(--lf-chip);
+  --lf-msg-rest-ground: var(--lf-chip);
 }
 /* The press at the summary's head stands in a message time's quiet face, which it
    takes as words among others do (controls.css, the inline face). */
 .lf-summary-header {
   display: flex;
   color: var(--lf-muted);
-  font: var(--lf-font-status);
+  font: var(--lf-font-small);
+  font-weight: 500;
 }
 /* The name the agent gave the range, leading its words. */
 .lf-summary-label {
@@ -794,7 +807,7 @@ summary {
   font-weight: 600;
 }
 .lf-summary-text {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
   font: var(--lf-font-ui);
   overflow-wrap: anywhere;
   user-select: text;
@@ -1059,7 +1072,8 @@ summary {
    (`NEWS_ROOM`, held-news.js; `data-lf-room`, controls.css), so a count that grows
    keeps to that room. */
 button.lf-thread-news {
-  font: var(--lf-font-heading);
+  font: var(--lf-font-small);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .lf-thread-news > span {
@@ -1087,7 +1101,7 @@ button.lf-thread-news {
    clips its words rather than hiding their overflow, since a box that hides it
    scrolls, and focus scrolled its words up out of the head's line. */
 .lf-msg-head span.lf-msg-leaves {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
 }
 .lf-msg-head button.lf-msg-leaves {
   overflow: clip;
@@ -1114,7 +1128,8 @@ button.lf-thread-news {
   margin: 0;
   padding-inline: var(--lf-thread-text-inset) 8px;
   color: var(--lf-muted);
-  font: var(--lf-font-status);
+  font: var(--lf-font-small);
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 .lf-thread-quote-head:not([hidden]) {
@@ -1128,7 +1143,7 @@ button.lf-thread-news {
   margin: 0;
   padding-block: 2px;
   padding-inline: calc(var(--lf-thread-text-inset) - 1px) 8px;
-  border-inline-start: 1px solid var(--lf-border);
+  border-inline-start: 1px solid var(--lf-rule);
   min-width: 0;
   color: var(--lf-muted);
   font: var(--lf-font-compact);

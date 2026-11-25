@@ -245,7 +245,7 @@ export function alongClimb(parentOf) {
 // Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
 // boundary and these readings walk through one, so the climb is the same one
 // `closestAcross` makes. The boundary decides whether a quote is found at all: a section
-// holding a `shadow` widget does not `contains` the words that widget renders, so a
+// holding a widget drawing in its shadow root does not `contains` the words that widget renders, so a
 // search narrowed to that section by `contains` would find no candidate inside it.
 export const under = alongClimb(composedParentNode).under;
 // Which of two nodes the reader reaches first in the page as rendered, and containment in

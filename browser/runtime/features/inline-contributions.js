@@ -4,7 +4,7 @@
    page selects. The shared control owner retains each native entry when its dynamic
    target moves between a page annotation and a Thread. This owner only seats those
    controls beside the currently connected target, after conversation commits. */
-import { setChildren } from "../dom/dom-children.js";
+import { setChildren } from "../lib/dom-children.js";
 import { contributionEntries } from "./contributions.js";
 import {
   activateContributionControl,
@@ -15,7 +15,7 @@ import {
 import { compareContributions, spokenSubject } from "../base/contribution-model.js";
 import { addressableWord } from "../lib/element-word.js";
 import { holdFocus } from "../dom/focus.js";
-import { move } from "../dom/dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { generatedElement } from "../dom/widget-elements.js";
 import { el } from "../lib/elements.js";
 import { keeps } from "../lib/keeps.js";

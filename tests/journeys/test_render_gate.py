@@ -531,7 +531,7 @@ def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {afterPresentation} = await window.__lfWidgetApi();
+            const {afterPresentation} = await window.__lfCheckApi();
             afterPresentation(() => new Promise(resolve => setTimeout(() => {
                 const nested = document.createElement('iframe');
                 nested.srcdoc = `<body><script>
@@ -1967,7 +1967,7 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # Fifteen arrivals a step apart: one and a half bounds in all.
     page.evaluate(
         """async step => {
-          const {afterPresentation} = await window.__lfWidgetApi();
+          const {afterPresentation} = await window.__lfCheckApi();
           for (let i = 1; i <= 15; i++)
             afterPresentation(() => new Promise(resolve => setTimeout(resolve, i * step)));
         }""",
@@ -1979,7 +1979,7 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # has taken its place, so the arrivals left swing between two and three.
     page.evaluate(
         """async step => {
-          const {afterPresentation} = await window.__lfWidgetApi();
+          const {afterPresentation} = await window.__lfCheckApi();
           afterPresentation(() => new Promise(() => {}));
           window.churn = setInterval(() => {
             afterPresentation(() => new Promise(resolve => setTimeout(resolve, step * 1.5)));

@@ -38,7 +38,7 @@ lf-board {
   --lf-board-columns: 1;
   --lf-grip-room: 0px;
   --lf-grip-block: 0px;
-  --lf-grip-inset: var(--lf-clear);
+  --lf-grip-inset: var(--lf-sp-1);
 }
 @media screen {
   lf-board {
@@ -82,7 +82,9 @@ lf-board {
   gap: var(--lf-sp-2);
   margin: 14px 0;
   align-items: stretch;
-  overflow-x: auto;
+  /* Sideways only: a visible vertical axis would compute to auto beside it, and the
+     board would read as the box that scrolls its cards up and down. */
+  overflow: auto hidden;
   scroll-snap-type: inline proximity;
   /* Scrolling sideways, it is the scroller for anything sticking in a card. */
   --lf-top: 0px;
@@ -150,8 +152,9 @@ lf-column {
 lf-column::before,
 lf-column > .lf-column-name {
   display: block;
-  font: var(--lf-font-title);
-  color: var(--lf-ink-2);
+  font: var(--lf-font-ui);
+  font-weight: 600;
+  color: var(--lf-ink);
   padding: 2px var(--lf-card-inset) 10px;
 }
 lf-column::before {
@@ -160,11 +163,12 @@ lf-column::before {
 /* The column's heading row: a status dot, the name, and its card count at the far
    edge. A tone says what landing in the column means, in the page's three status tones;
    only the dot takes it, so a board reads as one surface with its blocking column
-   marked rather than as blocks of colour. A column without a tone keeps a quiet dot so
-   every heading starts at the same place. */
+   marked rather than as blocks of colour. A column without a tone keeps a dot in the
+   muted ink, so every heading starts at the same place and the dot reads on the
+   column's tinted ground, where one in the line's colour stood 1.3:1 from it. */
 lf-column {
   position: relative;
-  --lf-tone-dot: var(--lf-border);
+  --lf-tone-dot: var(--lf-muted);
 }
 lf-column[tone="ok"] {
   --lf-tone-dot: var(--lf-ok);
@@ -186,7 +190,8 @@ lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
-  font: var(--lf-font-title);
+  font: var(--lf-font-ui);
+  font-weight: 600;
   color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -199,7 +204,7 @@ lf-card {
   position: relative;
   --lf-ground: var(--lf-card);
   background: var(--lf-ground);
-  font: var(--lf-font-widget);
+  font: var(--lf-font-ui);
   border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   padding: var(--lf-card-inset-block) var(--lf-card-inset);
@@ -236,7 +241,7 @@ lf-card {
    the child after it is still the card's first. */
 @media screen {
   html[data-lf-interactive] lf-board:not(:where([data-lf-exhibit]) *) {
-    --lf-grip-room: var(--lf-icon-action-hit);
+    --lf-grip-room: max(var(--lf-icon-action-face), var(--lf-aim-floor));
     --lf-grip-block: var(--lf-icon-action-face);
   }
   html[data-lf-interactive] lf-card:not(:where([data-lf-exhibit]) *)::before {
@@ -257,7 +262,8 @@ lf-card {
    paragraph's margin sets its prose lower than a sentence's. */
 lf-card > strong {
   display: block;
-  font: var(--lf-font-title);
+  font: var(--lf-font-ui);
+  font-weight: 600;
   margin: 0;
 }
 lf-card > strong + p {

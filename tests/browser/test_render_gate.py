@@ -126,85 +126,6 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-# A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
-# its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
-# diagram package's does.
-SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
-SKETCH_WIDGET = """
-import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
-import {once} from '/runtime/lib/once.js';
-customElements.define('lf-sketch', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    this.dispatchEvent(new PendingTaskEvent(new Promise((drawn) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const drawing = document.createElement('div');
-        drawing.style.blockSize = '240px';
-        this.replaceChildren(drawing);
-        this.classList.add('lf-rendered');
-        drawn();
-      })))));
-  }
-});
-"""
-
-
-def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serve):
-    """Advice gives a drawing's height wherever the box before it drew differed.
-
-    The boxes before drawing: nothing stated, a stated height too small and one too
-    large, beside a stated height that matches and an authored body that already
-    takes the drawing's height, as an inline diff's source text can.
-    """
-    findings = []
-    _, _, completed = render_gate_scheme._render_page(
-        browser,
-        serve(
-            leaf_page(
-                "Drawn heights",
-                """
-<h1>Drawn heights</h1>
-<lf-sketch id="unstated"></lf-sketch>
-<lf-sketch id="short" data-height="100"></lf-sketch>
-<lf-sketch id="tall" data-height="400"></lf-sketch>
-<lf-sketch id="exact" data-height="240"></lf-sketch>
-<lf-sketch id="authored"><div style="block-size: 240px"></div></lf-sketch>
-""",
-                head="<style>lf-sketch { display: block }"
-                " lf-sketch.lf-rendered"
-                " { min-block-size: attr(data-lf-height px, 0px) }</style>",
-            ),
-            layer_registry={"lf-sketch": SKETCH_DECLARATION},
-            layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
-        ),
-        {"width": 1200, "height": 900},
-        3_000,
-        [],
-        then=lambda page, _: findings.extend(
-            render_gate_readings.drawn_height_advice(page)
-        ),
-    )
-    assert completed, findings
-    drawn = {
-        finding.at: (finding.values, finding.severity)
-        for finding in findings
-        if finding.code == "drawn-height"
-    }
-    assert drawn == {
-        "<lf-sketch id=unstated>": ({"before": 0, "drawn": 240, "box": 240}, "advice"),
-        "<lf-sketch id=short>": ({"before": 100, "drawn": 240, "box": 240}, "advice"),
-        "<lf-sketch id=tall>": ({"before": 400, "drawn": 240, "box": 400}, "advice"),
-    }, findings
-    words = {
-        finding.at: str(finding)
-        for finding in findings
-        if finding.code == "drawn-height"
-    }
-    assert "moved down 140px" in words["<lf-sketch id=short>"], words
-    assert "leaving 160px blank" in words["<lf-sketch id=tall>"], words
-    assert 'data-height="240"' in words["<lf-sketch id=tall>"], words
-
-
 EARLY_KEYS_WIDGET = """
 customElements.define('lf-early', class extends HTMLElement {
   connectedCallback() {
@@ -1047,11 +968,11 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
 
 
 def test_replay_findings_keep_the_throw_site(browser, serve):
-    """A direct complete-state replay retains the package's original exception."""
+    """A complete-state replay retains the package's original exception."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
       const {validationWidgetStates} = await window.__lfCheckApi();
-      const widget = validationWidgetStates().find(s => s.widget?.redraw).widget;
+      const widget = validationWidgetStates().find(s => s.widget?.state).widget;
       window.restoreReplay = () => { delete widget.render; };
       widget.render = function replayProjection() { throw new TypeError('replay rejected'); };
     }""")
@@ -1588,7 +1509,7 @@ def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {afterPresentation} = await window.__lfWidgetApi();
+            const {afterPresentation} = await window.__lfCheckApi();
             const entry = document.querySelector('script[data-lf-entry]');
             afterPresentation(() => new Promise(resolve => {
                 entry.releaseArrival = () => {
@@ -3152,21 +3073,19 @@ def test_horizontal_scrollbar_clearance_does_not_change_after_layout(
     ("browser_fixture", "track"),
     [("browser", 0), ("scrollbar_browser", 15), ("scrollbar_browser", 20)],
 )
-def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
+def test_a_diagrams_box_includes_its_scrollbar_clearance(
     request, serve, browser_fixture, track
 ):
     """The diagram fits standard tracks; a wider native track grows without clipping.
 
-    An ample authored reservation is stable through startup on either platform's
-    font metrics. Removing it exposes the natural drawing and native track sizes;
-    the overlay and classic track share the drawing's own blank bottom padding.
-    """
+    The overlay and classic track share the drawing's own blank bottom padding, so the
+    box is the drawing's height, plus what a track wider than that padding takes."""
     source = named_source("security-boundary").read_text()
     # The example's chain fits any column it is laid out for; a row of six calls
     # still runs past a 678px viewport and scrolls, which this test needs.
     source, drawn = re.subn(
-        r'(id="security-before-flow") data-height="449"( parts="all">\s*<pre>).*?</pre>',
-        lambda m: f'{m[1]} data-height="240"{m[2]}\n{FAN_OUT}</pre>',
+        r'(id="security-before-flow")( parts="all">\s*<pre>).*?</pre>',
+        lambda m: f"{m[1]}{m[2]}\n{FAN_OUT}</pre>",
         source,
         count=1,
         flags=re.S,
@@ -3180,66 +3099,22 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     page = request.getfixturevalue(browser_fixture).new_page(
         viewport={"width": 678, "height": 900}
     )
-    page.add_init_script("""window.diagramFrames = [];
-      function read() {
-        const box = document.querySelector('#security-before-flow');
-        const following = document.querySelector('#security-counterexample');
-        if(box && following) {
-          const svg=box.querySelector('svg');
-          const ink=svg?.getBBox({stroke:true});
-          const bottom=ink && new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
-          window.diagramFrames.push({drawn:!!svg,visible:box.checkVisibility({visibilityProperty:true}),
-            height:box.getBoundingClientRect().height,
-            following:following.getBoundingClientRect().top,
-            track:box.offsetHeight-box.clientHeight,
-            clear:svg ? box.getBoundingClientRect().bottom-bottom : null});
-        }
-        if(!window.diagramFramesDone) requestAnimationFrame(read);
-      }
-      requestAnimationFrame(read);
-    """)
-    render_checks_model.install_driver(page)
     page.goto(serve(source))
     wait_until_ready(page)
-    frames = page.evaluate("""async () => {
-      for(let i=0;i<3;i++) await new Promise(requestAnimationFrame);
-      window.diagramFramesDone=true;
-      return window.diagramFrames;
+    box = page.locator("#security-before-flow")
+    expect(box.locator("svg")).to_be_visible()
+    reading = box.evaluate("""box => {
+      const svg=box.querySelector('svg'), bounds=box.getBoundingClientRect();
+      const ink=svg.getBBox({stroke:true});
+      const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
+      return {height:bounds.height, svg:svg.getBoundingClientRect().height,
+        track:box.offsetHeight-box.clientHeight, clear:bounds.bottom-bottom};
     }""")
-    frames = [frame for frame in frames if frame["visible"]]
-    assert frames, frames
-    assert frames[-1]["drawn"], frames
-    assert frames[-1]["track"] == track, frames
-    assert frames[-1]["clear"] >= max(15, track + 1), frames
-    assert {frame["height"] for frame in frames} == {240}, frames
-    assert len({frame["following"] for frame in frames}) == 1, frames
-    # A missing or underestimated reservation must not sacrifice content to the bar;
-    # extra reserved room must not stretch the drawing into it.
-    reservations = page.locator("#security-before-flow").evaluate("""box => {
-      const svg=box.querySelector('svg');
-      const natural=svg.getBoundingClientRect().height;
-      return ['', String(natural - 16), String(natural + 100)].map(height=>{
-        box.setAttribute('data-lf-height',height);
-        const bounds=box.getBoundingClientRect(), ink=svg.getBBox({stroke:true});
-        const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
-        return {height:bounds.height,svg:svg.getBoundingClientRect().height,
-          clear:bounds.bottom-bottom};
-      });
-    }""")
-    natural = reservations[0]["svg"]
-    height = natural + max(0, track - 15)
-    assert 0 < height < 240, reservations
-    assert [reading["height"] for reading in reservations] == [
-        height,
-        height,
-        natural + 100,
-    ]
-    assert {reading["svg"] for reading in reservations} == {natural}
-    assert all(reading["clear"] >= max(15, track + 1) for reading in reservations), (
-        reservations
-    )
+    assert reading["track"] == track, reading
+    assert reading["clear"] >= max(15, track + 1), reading
+    assert reading["height"] == reading["svg"] + max(0, track - 15), reading
     page.emulate_media(media="print")
-    printed = page.locator("#security-before-flow").evaluate("""box => ({
+    printed = box.evaluate("""box => ({
       height:box.getBoundingClientRect().height,
       svg:box.querySelector('svg').getBoundingClientRect().height
     })""")
@@ -3469,11 +3344,9 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-callout"].pop("verbatim")
-    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { shadowStage } from "/runtime/widget-api.js";\n'
         'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
@@ -3482,7 +3355,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
         '    this.textContent = "";\n'
         '    const span = document.createElement("span");\n'
         "    span.textContent = text;\n"
-        "    shadowStage(this, [span]);\n"
+        '    this.attachShadow({ mode: "open" }).append(span);\n'
+        '    this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));\n'
         "  }\n"
         "});\n"
     )
@@ -4252,10 +4126,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-callout"].pop("verbatim")
-    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        'import { shadowStage } from "/runtime/widget-api.js";\n'
         'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
@@ -4263,7 +4135,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
         "    const content = document.createElement('span');\n"
         "    content.textContent = this.textContent;\n"
         "    this.textContent = '';\n"
-        "    shadowStage(this, [content]);\n"
+        '    this.attachShadow({ mode: "open" }).append(content);\n'
+        '    this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));\n'
         "  }\n"
         "});\n"
     )

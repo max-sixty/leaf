@@ -3,14 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applicationState } from "../../browser/runtime/state/semantic-state.js";
 import { dispatchKey } from "../../browser/runtime/dom/keyboard/dispatch.js";
-import { adoptRegistry } from "../../browser/runtime/state/registry.js";
+import { openingMember, showMember } from "../../browser/runtime/lib/one-shown.js";
 import "../../packages/default/widgets/lf-tabs.js";
-
-adoptRegistry({
-  "lf-tabs": {
-    views: { members: "lf-tab" },
-  },
-});
 
 for (const phase of ["waiting", "offline"])
   test(`package tabs remain keyboard-operable while saved state is ${phase}`, () => {
@@ -36,53 +30,29 @@ for (const phase of ["waiting", "offline"])
     }
   });
 
-test("view reads leave generated holders untouched and keeping a choice paints them", async () => {
-  const { openingView, keepView, viewMembers } =
-    await import("../../browser/runtime/records/views.js");
-  adoptRegistry({
-    "lf-package-views": {
-      views: { members: ".view", parts: true },
-    },
-  });
-  const holders = ["opening", "keeping"].map((id) => {
-    const holder = document.createElement("lf-package-views");
-    holder.id = `package-${id}`;
-    // A package-generated holder can contain real views, beside generated apparatus.
-    holder.setAttribute("data-lf-gen", "");
-    holder.innerHTML = `
-      <article id="${id}-first" class="view">First</article>
-      <article id="${id}-second" class="view">Second</article>
-      <article class="view" data-lf-gen>Apparatus</article>
-      <p data-lf-view hidden="until-found">Former member</p>
-      <section><article class="view">Nested view</article></section>`;
-    document.body.append(holder);
-    return holder;
-  });
+test("a widget's member shown stays the one it opens on in this tab", () => {
+  const holder = document.createElement("section");
+  holder.id = "package-views";
+  holder.innerHTML = `
+    <article id="first">First</article>
+    <article id="second">Second</article>
+    <article><p id="third-words">Third</p></article>`;
+  document.body.append(holder);
+  const members = [...holder.children];
+  const [first, second, third] = members;
   try {
-    const [opening, keeping] = holders;
-    const [first, second, apparatus, former] = opening.children;
-    const before = opening.outerHTML;
-    assert.equal(openingView(opening), first);
-    assert.equal(openingView(opening, null), null);
-    assert.deepEqual(viewMembers(opening), [first, second]);
-    assert.equal(opening.outerHTML, before);
-    keepView(opening, first);
-    assert.equal(opening.getAttribute("data-lf-views"), "parts");
-    assert.equal(apparatus.hasAttribute("data-lf-view"), false);
-    assert.equal(former.hasAttribute("data-lf-view"), false);
-    assert.equal(former.hasAttribute("hidden"), false);
-
-    first.classList.remove("view");
-    assert.equal(openingView(opening), second);
-    keepView(opening, second);
-    assert.equal(first.hasAttribute("data-lf-view"), false);
-
-    const [leaving, selected] = keeping.children;
-    keepView(keeping, selected);
-    assert.equal(leaving.getAttribute("hidden"), "until-found");
-    assert.equal(selected.hasAttribute("hidden"), false);
-    assert.equal(openingView(keeping), selected);
+    assert.equal(openingMember(holder, members), null);
+    showMember(holder, members, third, second);
+    assert.equal(first.getAttribute("hidden"), "until-found");
+    assert.equal(second.hasAttribute("hidden"), false);
+    assert.equal(third.hasAttribute("hidden"), false);
+    // A member without an id is kept by its first descendant's.
+    assert.equal(openingMember(holder, members), third);
+    showMember(holder, members, null);
+    assert.equal(third.getAttribute("hidden"), "until-found");
+    assert.equal(openingMember(holder, members), third);
   } finally {
-    for (const holder of holders) holder.remove();
+    holder.remove();
+    sessionStorage.clear();
   }
 });

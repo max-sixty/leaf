@@ -112,7 +112,7 @@ import {
   clusterProjection,
 } from "../../features/margin-model.js";
 
-import { move } from "../../dom/dom-move.js";
+import { move } from "../../lib/dom-move.js";
 
 import {
   declareRelease,
@@ -139,7 +139,7 @@ import { readingPlace } from "../../readings/resolved-target.js";
 import { keeps, keepsHidden } from "../../lib/keeps.js";
 
 import { cycledRow, nativePress } from "../../dom/keyboard/bindings.js";
-import { rowWalk } from "../../records/walk-position.js";
+import { rowWalk } from "../../lib/row-walk.js";
 
 import { readingRegionFor } from "../../readings/reading-regions.js";
 

@@ -16,8 +16,7 @@ Only the kinds in `SHOWN` become rows; every other kind is bookkeeping. `undo` i
 one of those, since it marks the gesture it took back instead of appearing as its own
 row.
 
-`history` is a served reading only a page that renders it pays for: the state
-carries it when the page's markup holds a widget whose entry declares `history`.
+Every page's state carries the reading, whether or not a widget on the page draws it.
 """
 
 from .events import taken_back
@@ -35,16 +34,6 @@ SHOWN = THREAD_KINDS | {
     "report",
     "note",
 }
-
-
-def wants_history(readings) -> bool:
-    """Whether any of these documents (`SourceReading`s) holds a widget declaring
-    `history` in its own registry."""
-    return any(
-        reading.registry.get(record["tag"], {}).get("history")
-        for reading in readings
-        for record in reading.document.lf_elements
-    )
 
 
 def _report(event: dict, words: GestureWords) -> dict:

@@ -48,7 +48,7 @@ import {
   closeNativeLayer,
 } from "../dom/keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "../lib/keeps.js";
-import { reducedMotion } from "../dom/motion.js";
+import { reducedMotion } from "../lib/motion.js";
 import { motionTime } from "../lib/motion-timing.js";
 import { says } from "../readings/passages.js";
 import { plainPress } from "../lib/keys.js";
@@ -68,9 +68,23 @@ const MEDIA_SUFFIX = new RegExp(
 /** @param {string} href */
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
 
+// The address a canonical `/media/...` path loads at on this page. It stays in the
+// package interface because only Leaf holds the page's root and an export's resource
+// map, without which a widget's media from data fails on a published or exported page.
 /** @param {string} href */
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
+
+// A page media address an element arrives with, as a link's `href` or a picture's
+// `src`, answered at the page's address, whoever drew the element: the author, a
+// message or a widget's Markdown (declared-words.js, `watchNativeContent`).
+/** @param {Element} element @param {string} attribute */
+export function scopeMediaAddress(element, attribute) {
+  const address = element.getAttribute(attribute);
+  if (address === null || !isCanonicalMediaUrl(address)) return;
+  const scoped = scopedMediaUrl(address);
+  if (scoped !== address) element.setAttribute(attribute, scoped);
+}
 
 /** @param {string} value */
 export function readAttachedMedia(value) {

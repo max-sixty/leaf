@@ -450,7 +450,7 @@ READ = """async () => {
   const runtime = (path) => import(new URL(`runtime/${path}`, entry));
   const [api, anchors, placement] = await Promise.all([runtime('widget-api.js'),
     runtime('readings/anchor-resolution.js'), runtime('annotations/annotation-overlay/comment-placement.js')]);
-  const [thread] = api.readThreads().threads;
+  const [thread] = api.threads.read().threads;
   const target = anchors.resolveAnchor(thread.anchor);
   const quote = (target.segments ?? []).flatMap((segment) => {
     const range = document.createRange();

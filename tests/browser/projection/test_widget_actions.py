@@ -287,7 +287,7 @@ customElements.define("lf-tally", class extends LeafElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     kept = page.evaluate(
         """async () => {
-          const {state} = (await window.__lfWidgetApi())
+          const {state} = (await window.__lfCheckApi())
             .widgetController(document.getElementById('tally-fitted')).read();
           return [state.set.value, state.observe.value];
         }"""
@@ -496,7 +496,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     kept = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {widgetController} = await window.__lfCheckApi();
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
             const {state} = widgetController(widget).read();
@@ -827,7 +827,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     """The test above takes its decisions in front of the user, on a page that has
     been up long enough for everything to have arrived. Here the log holds it before
     the page opens, which is what puts the anchor pass's skip list on the clock: the
-    registry names the slot a decision retires (`retired-when`), and the registry
+    registry names the slot a decision retires (`decides`), and the registry
     arrives over the network, after the module that reads it has evaluated. Replay
     settles the suggestion on the first poll, so the pass that runs with it has to be
     skipping lf-old already — or the page opens with a live mark on words the user

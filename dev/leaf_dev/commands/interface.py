@@ -40,8 +40,7 @@ Each part is read from the list that defines it, as the check that guards it rea
   a package's module, so it counts with the packages. A name that both sides set and
   a package reads, or that nothing sets, is `unsorted`. A property is set by a
   declaration, `@property` or `setProperty`, and read anywhere else, as by `var()`, a
-  style query or a helper handed its name: `dom/root-headers.js` hands
-  `--lf-root-headers` to `setRuntimeRootStyle`, so nothing reads as setting it. A
+  style query or a helper handed its name. A
   class is read where a `.` leads it and set, as by a `class` attribute, elsewhere,
   but a whole string naming an event the script makes, hears or exports is the
   event, as `"lf-preview"` is in `new CustomEvent("lf-preview")`.

@@ -1,11 +1,11 @@
-import { elementById, tabStore } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
- * behavior module holds/reveals authoritative history through HeldReading and supplies
- * the thread action and current-document target reading. */
+ * behavior module supplies the reading to draw, the thread action and the
+ * current-document target reading. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";
@@ -26,6 +26,11 @@ function refreshTarget(link, widget, write, names) {
   if (href) write(link, "tabindex", null);
 }
 
+// The page's element a fragment names, by the id it encodes.
+/** @param {string} fragment */
+const byFragment = (fragment) =>
+  document.getElementById(decodeURIComponent(fragment.slice(1)));
+
 // What a row's target previews: when its row happened, as the age at the row's end
 // previews it to a pointer, since the keyboard reaches the target and not the age.
 /** @this {Element} @param {"pointer" | "focus" | "hold"} route */
@@ -38,7 +43,7 @@ function rowTime(route) {
 /** @param {HTMLElement} host */
 export function createActivity(host) {
   const storageKey = ACTIVITY_VIEW + host.id;
-  const saved = tabStore.get(storageKey);
+  const saved = tabMemory.get(storageKey);
   /** @type {ActivityReading} */
   const reading = saved
     ? JSON.parse(saved)
@@ -85,7 +90,7 @@ export function createActivity(host) {
       .lfPreview=${rowTime}
       ${ref(
         (node) =>
-          node && refreshTarget(node, widget, keeps, capabilities.names ?? elementById),
+          node && refreshTarget(node, widget, keeps, capabilities.names ?? byFragment),
       )}
       >${row.label}</a
     >`;
@@ -118,6 +123,7 @@ export function createActivity(host) {
       </button>
       <ol
         class="lf-activity-list"
+        data-lf-bound="start"
         data-lf-scroll
         data-lf-gen="1"
         ?hidden=${hidden}

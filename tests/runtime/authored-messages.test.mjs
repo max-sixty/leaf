@@ -152,7 +152,7 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
     "lf-options": { awaits: { value: "choose" } },
     "lf-option": {},
     "lf-chart": {},
-    "lf-group": { "reading-role": "group" },
+    "lf-group": {},
   });
   assert.equal(await loadMarkdown(), true);
   const prepared = await prepareAuthoredMessage(
@@ -181,7 +181,7 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
 test("a drawing that doesn't hold a message's widgets keeps a group that asks nothing", async () => {
   adoptRegistry({
     $layer: { generation: "message-group-kept" },
-    "lf-group": { "reading-role": "group" },
+    "lf-group": {},
   });
   assert.equal(await loadMarkdown(), true);
   const prepared = await prepareAuthoredMessage(

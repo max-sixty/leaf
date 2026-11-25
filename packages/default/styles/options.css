@@ -38,7 +38,8 @@
 }
 /* The line an option's words stand on, resolved on the group and inherited: the prose
  * line for a card, the row face below. The add field stands on the same line whatever
- * its type (--lf-entry-floor), so the option that replaces it keeps the row's height. */
+ * its type, which a finger's platform sets larger, so the option that replaces it keeps
+ * the row's height. */
 @property --lf-option-line {
   syntax: "<length>";
   inherits: true;
@@ -54,7 +55,7 @@ lf-options {
   /* The width a row of its options needs, set only where the group lays them across, so
    * a group nested in an option does not inherit its holder's. */
   --lf-options-row-width: initial;
-  /* A picked row's or cell's ground: the card a step toward the settled colour, deeper
+  /* A picked row's or cell's ground: the card an eighth of the way toward the ink, deeper
    * than the aim's wash (below), so a pick still shows where the focus ring covers its
    * ring and a digit takes its check, but no deeper than keeps the muted words an
    * option holds, such as its mark's word and a § reference, at 4.5:1 on it
@@ -62,7 +63,7 @@ lf-options {
    * stands no deeper than the aim's wash and differs from it only in chroma, so over a
    * whole card it reads as khaki on the reading theme's paper, and it hides the card's
    * own chips. */
-  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 85%, var(--lf-settled));
+  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 87%, var(--lf-ink));
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -74,7 +75,7 @@ lf-options {
   }
 }
 lf-options:not(:has(> lf-option:where([label]))) {
-  font: var(--lf-font-widget);
+  font: var(--lf-font-ui);
 }
 lf-options:has(> lf-option:where([label])) {
   --lf-option-pad-min: var(--lf-sp-3);
@@ -201,7 +202,7 @@ lf-options:has(> lf-option:where([label])) {
     padding: 0;
   }
   & > lf-option > dl.lf-facts dd {
-    font: var(--lf-font-widget);
+    font: var(--lf-font-ui);
     margin: 0;
   }
 }
@@ -212,7 +213,7 @@ lf-options:has(> lf-option:where([label])) {
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option:where([label])) > lf-option[selected] {
     --lf-ground: var(--lf-picked-ground);
-    border-color: var(--lf-settled);
+    border-color: var(--lf-ink);
     background: var(--lf-ground);
   }
 }
@@ -265,7 +266,7 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
     & > .lf-another:not([hidden]) {
       padding-block: var(--lf-option-pad-block);
     }
-    & > .lf-another > leaf-composition-field > .lf-compose-field {
+    & > .lf-another > input {
       min-height: var(--lf-card-state-height);
     }
     /* The mark's box is the whole seat the binding badge takes, the mark centred in it,
@@ -310,10 +311,8 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-sp-2);
     }
-    /* An empty draft's binding badge stands in the Add seat while Add is hidden, at the
-    * digit column every card's badge shares; once the field has words, the write
-    * route's badge takes the inner seat. Both seats are reserved before either face
-    * appears. */
+    /* The field's binding badge stands at the digit column every card's badge shares,
+    * centred on the field's last line. */
     & > .lf-another > .lf-key-badge {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-sp-2);
@@ -321,53 +320,19 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
       bottom: var(--lf-option-add-badge-end);
       margin: 0;
     }
-    & > .lf-another {
-      --lf-option-action-room: calc(
-        var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--lf-sp-2)
-      );
-    }
-    & > .lf-another:has(.lf-option-add:not([data-lf-empty])) > .lf-key-badge {
-      inset-inline-end: var(--lf-option-write-badge-inset);
-    }
     /* A card's digit draws in its mark's seat, over the mark, which turns transparent.
      * The mark still takes a press there, since the digit takes no pointer
      * (surfaces.css, `.lf-binding-seat`). */
     & > lf-option:has(> .lf-key-badge[data-lf-binding-badge]) > .lf-pick {
       opacity: 0;
     }
-    /* Add stands in the field's end corner by the field's own grid, sharing the words'
-     * cell and painted over them in document order, its face centred on their last line
-     * as the seat's insets (above) stand it: no positioned box, which Chromium's hit
-     * test visits on every call. The cell is the containing block of its badge and of
-     * the field's error only while one shows. Under a mouse, Add's face meets the aim
-     * floor, so it hangs no reach (surfaces.css); under a finger the floor is taller
-     * than the face, so Add keeps its reach and is the reach's containing block. */
+    /* The cell is the containing block of its badge only while the badge shows: no
+     * positioned box otherwise, which Chromium's hit test visits on every call. */
     & > .lf-another {
       position: static;
     }
-    & > .lf-another:has(> .lf-key-badge:not(:empty), .lf-compose-error:not([hidden])) {
+    & > .lf-another:has(> .lf-key-badge:not(:empty)) {
       position: relative;
-    }
-    & > .lf-another .lf-option-add {
-      grid-area: 1 / 1;
-      position: static;
-      z-index: auto;
-      justify-self: end;
-      align-self: end;
-      margin-inline-end: calc(var(--lf-option-add-seat-inset) - var(--lf-sp-3));
-      margin-block: calc(-1 * var(--lf-icon-action-hit))
-        calc((var(--lf-option-line) - var(--lf-icon-action-face)) / 2);
-    }
-    @media (pointer: coarse) {
-      & > .lf-another .lf-option-add {
-        position: relative;
-        inset: auto;
-      }
-    }
-    @media not (pointer: coarse) {
-      & > .lf-another .lf-option-add::after {
-        content: none;
-      }
     }
   }
 }
@@ -398,7 +363,7 @@ lf-options:not([multiple]) > lf-option > .lf-pick::before {
   border-radius: 50%;
 }
 lf-options[multiple] > lf-option > .lf-pick::before {
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
 }
 /* The hand is on the mark exactly while it can take a selection. */
 lf-option .lf-pick[role="checkbox"] {
@@ -420,19 +385,19 @@ lf-option .lf-pick:not([data-lf-said]) {
   lf-options:not(:where([data-lf-exhibit]) *)
     > lf-option:not([selected])
     > .lf-pick[data-lf-focus]::before {
-    border-color: var(--lf-ink-2);
+    border-color: var(--lf-ink);
   }
 }
 /* Child combinators, so an inner group's marks do not take the outer option's state. */
 lf-option[selected] > .lf-pick {
-  color: var(--lf-settled-ink);
+  color: var(--lf-ink);
 }
 /* The pick fills the box and cuts the layer's check out of it (`check`,
  * runtime/lib/icon-paths.js), so the option's ground shows through the check. A ✓
  * glyph needed a type size of its own, 8px, to stand clear of the ring. */
 lf-option[selected] > .lf-pick::before {
-  border-color: var(--lf-settled);
-  background: var(--lf-settled);
+  border-color: var(--lf-ink);
+  background: var(--lf-ink);
   mask:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 8.25 3.15 3.15L13 4.75'/%3E%3C/svg%3E")
       center / 9px no-repeat,
@@ -452,12 +417,12 @@ lf-option[selected] > .lf-pick::before {
 @media print {
   lf-option[selected]::after {
     content: "✓";
-    color: var(--lf-settled-ink);
+    color: var(--lf-ink);
     font-weight: 600;
   }
 }
 lf-option .lf-pick[data-lf-focus-visible] {
-  border-radius: var(--lf-r-s);
+  border-radius: calc(var(--lf-r) / 2);
 }
 /* The obligation's action keys, on the cells they bind. The gutter reads status, badge, then
  * prose. A card's digit takes the state seat at its opening edge (above); a row centres
@@ -599,7 +564,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * (above). */
     & > lf-option[selected] {
       --lf-fill: var(--lf-picked-ground);
-      box-shadow: inset 0 0 0 2px var(--lf-settled);
+      box-shadow: inset 0 0 0 2px var(--lf-ink);
     }
     /* The control owns focus at row scale: the mark's ring stays off and the row draws
      * an inset ring (below). */
@@ -625,7 +590,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     --lf-cell-edge: 0px;
     --lf-ground: var(--lf-card);
     background: var(--lf-rule);
-    border: 1px solid var(--lf-border);
+    border: 1px solid var(--lf-rule);
     border-radius: var(--lf-r);
     /* The group draws its own edge, so its marks stand on it (tokens.css, "Where it
      * stands"), the location ring where it asks alone in a message included. */
@@ -656,7 +621,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
         }
       }
     }
-    /* A cell standing in the group's corners takes its rounding there (`--lf-r-in`), so a
+    /* A cell standing in the group's corners takes its rounding there, the frame's less
+     * its hairline, so a
      * ring the cell draws inside its edge, a pick's or the keyboard's, follows the frame
      * rather than squaring a corner the clip then thins. The first cell takes the head's
      * start corner and the last cell the foot's end corner. A cell filling its row takes
@@ -669,21 +635,25 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * option is the first cell, though not always the first child: a word for a screen
      * reader, such as "my change", stands before it (records/declared-words.js). */
     & > lf-option:first-of-type {
-      border-start-start-radius: var(--lf-r-in);
-      border-start-end-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
+      border-start-start-radius: calc(var(--lf-r) - 1px);
+      border-start-end-radius: calc(
+        (var(--lf-r) - 1px) * (1 - var(--lf-option-in-row))
+      );
     }
     & > lf-option:last-child,
     & > .lf-another:last-child,
     & > lf-options-done:last-child {
-      border-end-start-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
-      border-end-end-radius: var(--lf-r-in);
+      border-end-start-radius: calc(
+        (var(--lf-r) - 1px) * (1 - var(--lf-option-in-row))
+      );
+      border-end-end-radius: calc(var(--lf-r) - 1px);
     }
     & > lf-option:last-of-type:not(:first-of-type) {
-      border-start-end-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
+      border-start-end-radius: calc((var(--lf-r) - 1px) * var(--lf-option-in-row));
     }
     &:not(:has(> lf-option:last-of-type ~ *))
       > lf-option:first-of-type:not(:last-child) {
-      border-end-start-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
+      border-end-start-radius: calc((var(--lf-r) - 1px) * var(--lf-option-in-row));
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the
@@ -818,7 +788,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
-  .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
+  .lf-another > input {
     --lf-focus-box: .lf-another;
   }
   lf-options:not(:where([data-lf-exhibit]) *)
@@ -828,13 +798,11 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   .lf-another {
     --lf-ring-at: var(--lf-focus-ring-inset);
-    /* Add stands clear of the row's edges (`--lf-clear`) at any density: its face is
+    /* Add stands clear of the row's edges, by the scale's first step: its face is
        the row's line and a pixel either side, inside the row's least padding
-       (`--lf-option-pad-min`), and it stands that clearance from the row's end. Its
-       hit box is worked out again from its face, for the seats below. */
+       (`--lf-option-pad-min`), and it stands that clearance from the row's end. */
     --lf-icon-action-face: calc(var(--lf-option-line) + 2px);
-    --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--lf-aim-floor));
-    --lf-option-add-seat-inset: var(--lf-clear);
+    --lf-option-add-seat-inset: var(--lf-sp-1);
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
     --lf-option-add-seat-end: calc(
@@ -845,10 +813,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       var(--lf-option-add-seat-end) +
         (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2
     );
-    --lf-option-write-badge-inset: calc(
-      var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--lf-sp-2)
-    );
-    --lf-option-action-room: var(--lf-option-write-badge-inset);
     position: relative;
     display: flex;
     align-items: center;
@@ -865,20 +829,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     bottom: 0;
     margin: auto 0;
   }
-  /* The field takes the group's answer face before and after it becomes an lf-option.
-   * Its submit action carries the accessible name; the empty state changes paint, not
-   * layout. */
-  .lf-another > leaf-composition-field > .lf-compose-field {
-    --lf-compose-pad-block: 0px;
-    --lf-compose-pad-inline-start: 0px;
-    position: static;
-  }
-  .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
+  /* The field takes the group's answer face before and after it becomes an lf-option,
+   * one line high, where the UI library's field face stands a control's height. */
+  .lf-another > input {
     flex: 1;
     min-width: 0;
     min-height: 0;
+    height: 1lh;
     padding: 0;
-    --lf-field-end-room: var(--lf-option-action-room);
     border: 0;
     outline: none;
     background: transparent;
@@ -890,18 +848,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
        option's height. */
     font: inherit;
     margin-block: calc((var(--lf-option-line) - 1lh) / 2);
-    resize: none;
-  }
-  .lf-another .lf-compose-placeholder {
-    font: inherit;
-  }
-  .lf-another .lf-option-add {
-    inset-inline-end: var(--lf-option-add-seat-inset);
-    inset-block-end: var(--lf-option-add-seat-end);
-  }
-  /* Keep an empty Add press visible while it owns focus after submission. */
-  .lf-another .lf-option-add[data-lf-empty]:not([data-lf-focus]) {
-    visibility: hidden;
   }
   /* The leading column holds the key badge (from an 8px inset, --lf-key-badge-size wide)
    * and 6px before the words. It is held before the badge appears, so focusing an
@@ -912,7 +858,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * The draft and the option it becomes use this same padded text line. */
     --lf-option-pad-block: max(
       var(--lf-option-pad-min),
-      (var(--lf-icon-action-hit) - var(--lf-option-line)) / 2
+      (max(var(--lf-icon-action-face), var(--lf-aim-floor)) - var(--lf-option-line)) / 2
     );
     --lf-key-badge-start: var(--lf-sp-2);
     --lf-key-badge-col: calc(
@@ -976,7 +922,7 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another:not([hidden]) {
   lf-options:not(:has(> lf-option:where([label]))) > lf-option[selected] {
     --lf-ground: var(--lf-picked-ground);
     background: var(--lf-ground);
-    box-shadow: inset 0 0 0 2px var(--lf-settled);
+    box-shadow: inset 0 0 0 2px var(--lf-ink);
   }
 }
 /* An opened settled group's option answers the pointer with the aim's wash a live cell
@@ -1058,18 +1004,6 @@ lf-options:not(:has(> lf-option:where([label])))
     inset-block: 0;
     inset-inline: calc(-1 * var(--lf-key-badge-col)) 100%;
   }
-}
-lf-options:not(:has(> lf-option:where([label])))
-  > .lf-another
-  > .lf-key-badge[data-lf-binding-badge]
-  ~ leaf-composition-field
-  > .lf-compose-field
-  > leaf-text::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: calc(var(--lf-key-badge-col) + var(--lf-pick-col) + var(--lf-row-gap));
 }
 /* Paper prints the group as never choosable: the offers go with the rest of the UI and
  * the chosen card's mark stays, because its label declares a word the page says

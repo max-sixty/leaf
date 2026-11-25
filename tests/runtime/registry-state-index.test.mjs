@@ -131,11 +131,11 @@ test("records that differ only in how the element keeps the value are one record
 });
 
 test("a layer fact is the registry's own value, which a module cannot change", () => {
-  load("frozen", { $work: { widgets: { "lf-task": { role: "goal" } } } });
-  const work = layerFact("$work");
-  assert.equal(layerFact("$work"), work);
+  load("frozen", { $reactions: { tokens: { keep: { glyph: "+" } } } });
+  const reactions = layerFact("$reactions");
+  assert.equal(layerFact("$reactions"), reactions);
   assert.throws(() => {
-    work.widgets["lf-task"].role = "worker";
+    reactions.tokens.keep.glyph = "-";
   }, TypeError);
-  assert.equal(registry.$work.widgets["lf-task"].role, "goal");
+  assert.equal(registry.$reactions.tokens.keep.glyph, "+");
 });

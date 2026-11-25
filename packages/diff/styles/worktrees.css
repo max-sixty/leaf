@@ -9,7 +9,7 @@
   min-width: 0;
   max-width: 100%;
   margin-block: var(--lf-sp-4);
-  font: var(--lf-font-widget);
+  font: var(--lf-font-ui);
   container-type: inline-size;
 }
 
@@ -30,7 +30,7 @@
   border-radius: var(--lf-r);
   background: var(--lf-paper);
   color: var(--lf-ink);
-  font: var(--lf-font-widget);
+  font: var(--lf-font-ui);
 }
 
 /* Slots distribute the authored members through the same shared grid. No wrapper
@@ -66,7 +66,8 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 
 .lf-worktree-total {
   color: var(--lf-ink);
-  font: var(--lf-font-title);
+  font: var(--lf-font-ui);
+  font-weight: 600;
 }
 
 .lf-worktree-disclosure {
@@ -102,7 +103,7 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
      square where the evidence follows it (above). It stands its ring, and every mark
      on it, inside its edge (base.css, "Where it stands"), as a row padded inside a
      frame it fills does. */
-  border-radius: var(--lf-r-in);
+  border-radius: calc(var(--lf-r) - 1px);
   font-weight: 400;
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
@@ -130,7 +131,8 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 }
 
 .lf-worktree-ref {
-  font: var(--lf-font-code);
+  font: var(--lf-font-small);
+  font-family: var(--lf-mono);
   color: var(--lf-muted);
   overflow-wrap: anywhere;
 }
@@ -306,6 +308,7 @@ html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
 html[data-lf-interactive] lf-worktree-diffs:not(:defined)::before {
   content: "";
   grid-column: 1 / -1;
-  font: var(--lf-font-title);
+  font: var(--lf-font-ui);
+  font-weight: 600;
   block-size: calc(1lh + var(--lf-sp-3));
 }

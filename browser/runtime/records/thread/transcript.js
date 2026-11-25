@@ -72,7 +72,7 @@ import { MessageView, arrivalTint, saidTime } from "./messages.js";
 import { offeredAction } from "../../lib/controls.js";
 import { keeps, keepsHidden } from "../../lib/keeps.js";
 import { renderMarkdown } from "../../lib/markdown.js";
-import { pageLinks } from "../page-markdown.js";
+import { viewerLinks } from "../page-markdown.js";
 import { summaryRanges, workingPlace } from "./summary-ranges.js";
 import {
   growthAfterIsSeen,
@@ -81,7 +81,8 @@ import {
   showsContents,
 } from "../../dom/geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { foldBlock, motionPlays } from "../../dom/motion.js";
+import { foldBlock } from "../../dom/motion.js";
+import { motionPlays } from "../../lib/motion.js";
 import { voiced } from "../../base/voice.js";
 
 // A summary's words, led by the name its agent gave the range as their first
@@ -91,7 +92,7 @@ import { voiced } from "../../base/voice.js";
 /** @param {{text: string, label?: string}} summary */
 function summaryWords({ text, label }) {
   const words = document.createElement("template");
-  words.innerHTML = text ? renderMarkdown(text, pageLinks) : "";
+  words.innerHTML = text ? renderMarkdown(text, viewerLinks) : "";
   if (!label) return words.innerHTML;
   const name = document.createElement("strong");
   name.className = "lf-summary-label";

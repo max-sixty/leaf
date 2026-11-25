@@ -1,6 +1,8 @@
 /* File-language declarations. A plain host uses the shipped vocabulary; a Leaf
-   page installs its composed table, including extension overrides and removals. */
-import { syntaxLanguagePaths } from "../lib/syntax-languages.js";
+   page installs its composed table at boot (registry.js), including extension
+   overrides and removals, so a widget importing `langForPath` from here reads the
+   page's table on Leaf and the shipped one anywhere else. */
+import { syntaxLanguagePaths } from "./syntax-languages.js";
 
 let paths = syntaxLanguagePaths;
 /** @param {Record<string, string>} declarations */

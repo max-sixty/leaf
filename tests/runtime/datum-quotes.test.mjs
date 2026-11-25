@@ -14,7 +14,7 @@ import test from "node:test";
 import { anchorForRange, resolveAnchor } from "/runtime/readings/anchor-resolution.js";
 import { findQuote, pageText, readingPart } from "/runtime/readings/passages.js";
 import { registry } from "/runtime/state/registry.js";
-import { shadowStage } from "/runtime/dom/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 /** @param {string} lines the datum's rows, as markup */
 const page = (lines, prose = "<p>Words before the data</p>") => {
@@ -260,9 +260,7 @@ test("capturing a word a datum repeats reads the words beside only the copies th
 // so the datum's one copy is still the quote's.
 test("a datum's quote counts no copy among the words its slot shows from outside it", () => {
   Object.assign(registry, {
-    "lf-slotted-datum": {
-      shadow: true,
-    },
+    "lf-slotted-datum": {},
     $layer: { generation: "datum-quote-slot" },
   });
   document.body.innerHTML =

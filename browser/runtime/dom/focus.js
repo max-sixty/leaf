@@ -265,7 +265,7 @@ export const wearsLentStop = (element) => lent.has(element);
 // is no longer its root's activeElement: `el.blur()`, and focus moving to another
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
 /** @param {Element} element @param {() => unknown} leave */
-export function whenLeft(element, leave) {
+function whenLeft(element, leave) {
   const blur = () => {
     if (activeIn(element.getRootNode()) === element) return;
     element.removeEventListener("blur", blur);
@@ -1443,7 +1443,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
 // control the focus paint marks, so only that control has one, and a landing made in the
-// focus task finds it only after the paint (`rowWalk`, records/walk-position.js). Reading the
+// focus task finds it only after the paint. Reading the
 // ring must not paint an intermediate focus destination: a return in the same
 // task would otherwise remove and restore the previous focus marks.
 /** @template {Element | Range} T @param {T} node @returns {T | Element} */

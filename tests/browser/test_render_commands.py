@@ -286,7 +286,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
 
     def assert_source_words():
         reading = shot.evaluate("""async node => {
-          const {says} = await import('/runtime/widget-api.js');
+          const {says} = await import('/runtime/passages.js');
           const labels = [...node.querySelectorAll('.lf-shotcap')]
             .filter(label => label.checkVisibility());
           return {whole: says(node), visible: labels.map(label =>
@@ -904,8 +904,8 @@ def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     held_entry = []
-    # As the widget check holds it (`render_gate/widget_quality.py`): the first
-    # request for the entry waits, and the route stays until the page closes.
+    # The first request for the entry waits, and the route stays until the page
+    # closes.
     page.route(
         "**/leaf.js",
         lambda route: route.fallback() if held_entry else held_entry.append(route),

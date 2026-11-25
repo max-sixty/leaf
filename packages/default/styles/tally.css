@@ -48,8 +48,9 @@ lf-tally:not(:defined)::before {
   content: "00 left to answer · 00 on the agent";
   display: inline-block;
   visibility: hidden;
-  font: var(--lf-font-chip);
-  padding: var(--lf-chip-pad);
+  font: var(--lf-font-small);
+  line-height: 1.6;
+  padding: 0 var(--lf-sp-2);
 }
 lf-tally[next]:not(:defined)::after {
   content: "Next On Me";

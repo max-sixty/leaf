@@ -26,7 +26,7 @@
         flex-wrap: wrap;
         /* Wrapped rows keep each button's reach, which stands past its face
            under a finger, clear of the row above it. */
-        gap: max(var(--lf-sp-2), 2 * var(--lf-reach-room)) var(--lf-sp-2);
+        gap: max(var(--lf-sp-2), var(--lf-aim-floor) - var(--lf-line)) var(--lf-sp-2);
         align-items: center;
       }
 
@@ -94,7 +94,8 @@
       .treatment > label {
         justify-self: stretch;
         padding: var(--lf-sp-3) var(--lf-sp-3) 0;
-        font: var(--lf-font-title);
+        font: var(--lf-font-ui);
+        font-weight: 600;
       }
 
       .treatment > .code-candidate {
@@ -146,7 +147,7 @@
 
       .code-measurement {
         margin: 0 0 var(--lf-sp-2);
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
@@ -161,14 +162,9 @@
       }
     </style>
     <script type="module">
-      import {
-        frameFor,
-        whileConnected,
-        whileInterfaceConnected,
-      } from "/runtime/widget-api.js";
       import { offer, offerAction } from "/runtime/lib/controls.js";
       import { once } from "/runtime/lib/once.js";
-      import { sizeObserver } from "/runtime/lib/frame-pass.js";
+      import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
       import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const DEFAULT_COMPARISON = {
@@ -188,11 +184,20 @@
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileInterfaceConnected(this, {
-              declare: () => this.#initialize(),
-              connect: () => this.#playground.subscribe(() => this.#render()),
-            });
-            whileConnected(this, (signal) => this.#connect(signal));
+            this.addEventListener("lf-layout", this.#readerLayout);
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              watching.observe(reader);
+            }
+            // The playground takes a contributor once the page's widgets have upgraded.
+            document.addEventListener(
+              "lf-page-interface",
+              () => {
+                this.#initialize();
+                this.#playground.subscribe(() => this.#render());
+              },
+              { once: true },
+            );
           }
 
           #button(label, run) {
@@ -217,15 +222,6 @@
             )) {
               keeps(words, "data-lf-gen", "1");
               words.toggleAttribute("data-lf-said", true);
-            }
-          }
-
-          #connect(signal) {
-            this.addEventListener("lf-layout", this.#readerLayout, { signal });
-            const watching = sizeObserver(this.#scheduleMeasurement);
-            signal.addEventListener("abort", () => watching.disconnect());
-            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-              watching.observe(reader);
             }
           }
 

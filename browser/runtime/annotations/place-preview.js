@@ -2,12 +2,12 @@
    says where it points before a press takes the reader there (browser/AGENTS.md,
    "Pointing reads; pressing acts").
 
-   A link into the page is one an author wrote, in the page or in a message's markup,
-   whose fragment names a place of the page (`fragmentTarget`): an element by its id,
-   or the part of a widget its key names. A link Leaf or a widget draws, such as a
-   contents row or a heading's own link, is its drawer's to preview (`lfPreview`), since
-   only it knows whether its words already say what the place holds; a contents row
-   does. A link to another document keeps only the browser's status bar.
+   A link into the page is one in the page or in a message's markup, an author's or one
+   a widget draws, whose fragment names a place of the page (`fragmentTarget`): an
+   element by its id, or the part of a widget its key names. A drawer whose words already
+   say what the place holds, as a contents row's do, declares a preview of its own
+   (`lfPreview`), which stands in this one's place. Leaf's own surfaces preview their
+   own links. A link to another document keeps only the browser's status bar.
 
    The preview is a short rendering of the place, in the face's excerpt room:
 
@@ -85,7 +85,6 @@ import {
 } from "../readings/passages.js";
 import { declarationFor, registry } from "../state/registry.js";
 import { readPart } from "../state/semantic-state.js";
-import { overIn } from "../lib/shadow-tree.js";
 import {
   conversationsAbout,
   headingAfter,
@@ -159,10 +158,9 @@ const draws = (element) => reading.whole || drawsWithin(element, false);
  * @param {Element} link */
 export function linkedPlace(link) {
   if (!link.matches('a[href^="#"]')) return null;
-  const scope = authoredScope(link);
-  const authored =
-    (scope !== pageDocument() || inPage(link)) && !overIn(link, GENERATED, scope);
-  return authored ? fragmentTarget(link.getAttribute("href")) : null;
+  return authoredScope(link) !== pageDocument() || inPage(link)
+    ? fragmentTarget(link.getAttribute("href"))
+    : null;
 }
 
 /** What a link into the page previews: the place it names (`placePreview`).

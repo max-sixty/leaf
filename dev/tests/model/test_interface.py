@@ -24,7 +24,7 @@ def test_each_part_reads_its_list_and_its_users():
         ("keys", "verbs"): "packages",
         ("elements", "lf-suggestion"): "examples",
         ("protocol", "lf-commands"): "packages",
-        ("functions", "whileConnected"): "packages",
+        ("functions", "mountSample"): "packages",
         ("styling", "--lf-ink"): "packages",
     }
     for (part, name), group in used.items():

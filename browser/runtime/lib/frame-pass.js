@@ -4,7 +4,8 @@
 
    A host's runtime, each widget's module and a page's own script schedule through this
    module, and so through the one queue it holds: `nextRender`, `nextFrame` and
-   `cancelRender` for callbacks, and `sizeObserver` in place of `new ResizeObserver`.
+   `cancelRender` for callbacks, `frameFor` for a paint asked for many times a frame,
+   and `sizeObserver` in place of `new ResizeObserver`.
 
    The pass takes one animation frame and works through every queued callback in it, in
    the order they were queued. `nextRender` asked for from inside that pass runs in the
@@ -96,6 +97,23 @@ export const nextRender = (callback) => request(queued, callback);
  * @param {FrameRequestCallback} callback
  */
 export const nextFrame = (callback) => request(running ? afterPaint : queued, callback);
+
+/** A function that queues `run` with `nextRender` once however often it is called
+ * before that pass, as each size delivery and input asking a widget to paint calls it.
+ * The pass runs it only while `owner` stands in its document.
+ * @param {Node} owner @param {() => void} run
+ */
+export function frameFor(owner, run) {
+  let asked = false;
+  return () => {
+    if (asked || !owner.isConnected) return;
+    asked = true;
+    nextRender(() => {
+      asked = false;
+      if (owner.isConnected) run();
+    });
+  };
+}
 
 /** Withdraw a callback `nextRender` or `nextFrame` queued.
  * @param {number | null | undefined} id

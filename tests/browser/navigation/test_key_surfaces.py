@@ -86,9 +86,6 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
     page.keyboard.press("Escape")
-    expect(page.locator("#live-question .lf-another leaf-text")).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
-    )
 
     page.keyboard.press("m")
     mark = page.locator("#live-question .lf-pick").first
@@ -279,7 +276,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     expect(page_comment(page)).not_to_have_attribute("placeholder", re.compile(r" c$"))
     expect(badge).to_have_count(0)
     thread = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readThreads().threads[0].id"
+        "async () => (await window.__lfWidgetApi()).threads.read().threads[0].id"
     )
     open_panel_thread(page, thread)
     reply = panel_field(page)
@@ -472,7 +469,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # With every thread resolved and a resolved one open, the reference still names
     # only what runs.
     threads = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readThreads().threads.map(t => t.id)"
+        "async () => (await window.__lfWidgetApi()).threads.read().threads.map(t => t.id)"
     )
     for n, thread in enumerate(threads, start=1):
         open_panel_thread(page, thread)

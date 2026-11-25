@@ -165,7 +165,7 @@ written for.
 
 The browser resolves an anchor and records it in the log, so `leaf thread create` reads
 the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
-header comment owns that reading: what the registry's `verbatim` and `retired-when`
+header comment owns that reading: what the registry's `verbatim` and `decides`
 contribute, and where a fence stops a quote. Both runtimes take
 whitespace collapse from the kernel's `$passages`.
 

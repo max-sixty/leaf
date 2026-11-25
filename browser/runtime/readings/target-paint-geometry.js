@@ -28,7 +28,7 @@ import {
   shownBox,
 } from "../dom/geometry.js";
 import { hasArea, intersect } from "../dom/rect.js";
-import { move } from "../dom/dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { objectIds } from "../base/ids.js";
 import { keeps, layoutPx } from "../lib/keeps.js";
 

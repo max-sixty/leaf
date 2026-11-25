@@ -80,7 +80,6 @@ const exactClosures = {
     ...applicationState,
     "state/context.js",
     "dom/focus.js",
-    "dom/dom-move.js",
     "dom/control-selectors.js",
     "base/inputs.js",
     "base/document-inputs.js",

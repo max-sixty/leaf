@@ -186,7 +186,6 @@ PROGRESSIVE_REGISTRY = {
             "required": ["id"],
         },
         "content": "markup",
-        "shadow": True,
     }
 }
 

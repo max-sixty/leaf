@@ -81,8 +81,7 @@
   },
   "lf-test-roster": {
     "description": "A view of multiple workers, their durable remits, and their current activity.",
-    "content": "members",
-    "space": "wide"
+    "content": "members"
   },
   "lf-test-worker": {
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
@@ -185,38 +184,6 @@
         "property": "value"
       }
     },
-    "owners": ["lf-test-worker"],
-    "space": "wide"
-  },
-  "$work": {
-    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in `verbs`, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
-    "widgets": {
-      "lf-test-plan": {
-        "role": "scope"
-      },
-      "lf-test-task": {
-        "role": "goal",
-        "state": "status",
-        "done": ["done"],
-        "stopped": ["blocked", "review", "stalled"],
-        "stoppedAt": "stopped-at"
-      },
-      "lf-test-worker": {
-        "role": "worker",
-        "state": "state",
-        "running": ["working", "waiting"],
-        "retired": ["reaped", "done"],
-        "on": "on"
-      },
-      "lf-test-tree": {
-        "role": "evidence"
-      },
-      "lf-test-tasks": {
-        "role": "scope"
-      },
-      "lf-test-roster": {
-        "role": "scope"
-      }
-    }
+    "owners": ["lf-test-worker"]
   }
 }

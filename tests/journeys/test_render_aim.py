@@ -80,7 +80,7 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
     assert bar.get_attribute("data-lf-placement") == placement
     window = page.evaluate(
         """async () => {
-          const {top, bottom} = (await window.__lfWidgetApi())
+          const {top, bottom} = (await window.__lfCheckApi())
             .shownWindow({gap: 8});
           return {top, bottom, scroll: scrollY};
         }"""
@@ -320,7 +320,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     expect(accept).to_be_visible()
 
     accept.hover()
-    expect(page.locator(".lf-inspect")).to_have_text(
+    expect(page.locator(".lf-aim-name")).to_have_text(
         re.compile(r"^Accept .* · lf-suggestion · sug-refill$")
     )
     accept.click()
@@ -587,7 +587,7 @@ def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, s
             "#tab-word",
             """async () => {
               const {reveal} = await window.__lfCheckApi();
-              const {retainUserIntent} = await window.__lfWidgetApi();
+              const {retainUserIntent} = await window.__lfCheckApi();
               reveal(document.getElementById('other-view'), retainUserIntent());
             }""",
         ),

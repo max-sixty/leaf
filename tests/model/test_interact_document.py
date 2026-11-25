@@ -1338,7 +1338,7 @@ def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
     registry.parent.mkdir(exist_ok=True)
     invalid = {
         "run-plan": {
-            "space": "own",
+            "inline": "own",
         }
     }
     registry.write_text(json.dumps(invalid))
@@ -1705,48 +1705,6 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
                     if value not in seen
                 )
     assert missing == [], missing
-
-
-def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
-    """A package can supply a pane under its own name without joining a built-in tag
-    list: the role its registry entry declares is what the grammar reads, and the page
-    arranges both panes in a workspace however it likes."""
-    zone = {
-        "description": "A project package's differently named pane.",
-        "attributes": {
-            "properties": {
-                "label": {"type": "string"},
-            },
-            "required": ["id", "label"],
-        },
-        "content": "markup",
-        "reading-role": "pane",
-    }
-    declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
-    version = page_dir / "index.html"
-    regions = """<header><h2>Plan</h2></header>
-  <div id="regions" style="display: grid; grid-template-columns: 1fr 2fr">
-    <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
-    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
-  </div>
-  <footer><p>Finish</p></footer>"""
-    version.write_text(
-        PAGE.replace("<main>", '<main class="layout-workspace">').replace(
-            PAGE[PAGE.index('<lf-group id="plan-questions"') : PAGE.index("</main>")],
-            regions,
-        )
-    )
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-    # The same grammar reaches the package's pane, as advice.
-    version.write_text(
-        version.read_text().replace(
-            "<p>First</p></lf-zone>", "<p>First</p><p>Split</p></lf-zone>"
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 0
-    (pane,) = found(findings, "pane-body", "<lf-zone>", body=["p", "p"])
-    assert pane.severity == "advice"
 
 
 def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
@@ -4476,11 +4434,10 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     does carry retires that element's losing slot, or empties a widget it leaves
     showing nothing, exactly as the walk given it does."""
     registry = {
-        "lf-old": {
-            "retired-when": "accepted",
-        },
-        "lf-new": {
-            "retired-when": "rejected",
+        "lf-suggestion": {
+            "verbs": {
+                "decide": {"decides": {"accepted": ["lf-old"], "rejected": ["lf-new"]}}
+            },
         },
     }
     document = structure_model.SourceDocument(

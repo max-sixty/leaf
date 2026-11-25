@@ -133,7 +133,7 @@
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
 import { inlineStyle, keeps } from "../lib/keeps.js";
-import { motionPlays, playMotion } from "./motion.js";
+import { motionPlays, playMotion } from "../lib/motion.js";
 import { motionEasing, motionTime } from "../lib/motion-timing.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { VISIBLE_FOCUS_MARKS, onUserInput } from "./focus.js";

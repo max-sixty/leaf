@@ -108,8 +108,8 @@ import {
   observePreparations,
   renderingState,
 } from "../base/rendering.js";
-import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
-import { frameFor, watchScrollEnds } from "../dom/arrivals.js";
+import { cancelRender, frameFor, nextRender, sizeObserver } from "../lib/frame-pass.js";
+import { watchScrollEnds } from "../dom/arrivals.js";
 import {
   LIVE_ROOT,
   PAGE_ROOT,
@@ -141,7 +141,7 @@ import {
 } from "../dom/focus.js";
 import { restrictUserIntent, retainUserIntent } from "../dom/user-intent.js";
 import { focusPlace } from "../readings/user-place.js";
-import { SourcePairs, patchTree, patchRetains } from "../dom/dom-children.js";
+import { SourcePairs, patchTree, patchRetains } from "../lib/dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "../dom/keyboard/bindings.js";
 import { commandSteps } from "../dom/keyboard/control-keys.js";
 import { paintKeys, pruneScopedElements } from "../dom/keyboard/scopes.js";
@@ -172,7 +172,7 @@ import {
 } from "../state/registry.js";
 import { inlineMarkdownFragment, paintMarkdown } from "../lib/markdown.js";
 import {
-  pageLinks,
+  viewerLinks,
   loadDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "../records/page-markdown.js";
@@ -306,8 +306,6 @@ const versionedHeadNode = (node) =>
 const authoredMarkup = (root) => {
   // Prepaint can already have painted the first document. Both source snapshots
   // exclude runtime-owned attributes; their live values stay with their writers.
-  for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`))
-    member.removeAttribute("hidden");
   for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
     for (const element of root.querySelectorAll(`[${name}]`))
       element.removeAttribute(name);
@@ -920,7 +918,7 @@ function paintBodies(doc, widgets) {
       if (body) {
         if (typeof value.value !== "string")
           throw new Error("A body record requires Markdown text");
-        paintMarkdown(body, value.value, pageLinks);
+        paintMarkdown(body, value.value, viewerLinks);
       }
     }
 }
@@ -945,7 +943,7 @@ function placeCreated(doc, widgets) {
         const text = detail[words];
         if (typeof text !== "string")
           throw new Error("A created child requires its declared words");
-        created.append(doc.importNode(inlineMarkdownFragment(text, pageLinks), true));
+        created.append(doc.importNode(inlineMarkdownFragment(text, viewerLinks), true));
         owner.append(created);
       }
     }
@@ -1756,7 +1754,8 @@ export const gapHolder = ({ at, gap }) =>
   gap === "in" ? at : (at.parentElement ?? at);
 /** The changes the comparison marks (`changeRuns`), in page order; under `owner`, each
  * change with blocks inside it, holding only those, and each one that only took blocks
- * out whose gap stands inside it.
+ * out whose gap stands inside it. It stays in the package interface because only Leaf
+ * holds the comparison, and a removal stands at no element a widget could read.
  * @param {Element | null} [owner]
  * @returns {readonly Change[]} */
 export function comparisonChanges(owner = null) {
@@ -2085,7 +2084,7 @@ export function createVersionController({
       (content !== "members" && content !== "markup")
     )
       return false;
-    const members = content === "members" || entry.views !== undefined;
+    const members = content === "members";
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -2096,7 +2095,7 @@ export function createVersionController({
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
   // id or matching markup alone.
-  /** @param {Document} doc @returns {import("../dom/dom-children.js").RetentionRules} */
+  /** @param {Document} doc @returns {import("../lib/dom-children.js").RetentionRules} */
   function patchRules(doc) {
     const arrivingRoot = layerRoot(doc);
     return {
@@ -2656,10 +2655,7 @@ export function createVersionController({
   // reader chose a scroll in since its place was recorded is left where they chose. The
   // end of a scroll a restore started is the runtime's, wherever layout carried the box
   // before it (`writing`), and input counts for the box it scrolls, not the document.
-  //
-  // A region can show one subject of several in turn (readings/reading-regions.js,
-  // `showReadingSubject`). The place of a subject leaving is kept by subject, and the
-  // one showing returns the reader to theirs.
+
   const PAGE = "$page";
   /** @typedef {{reading: ReadingPlace, at: number, choices: number, inputs: number}} RecordedPlace */
   /** @typedef {{box: WeakRef<Element>, reading: ReadingPlace, since: number, offset: number, top: number, currentIntent: UserIntent}} PlaceHold */
@@ -2672,8 +2668,6 @@ export function createVersionController({
   // revision leaves memory with the document, and its hold ends at its next reading.
   /** @type {Map<string, PlaceHold>} */
   const holds = new Map();
-  /** @type {Map<string, Map<string | null | undefined, ReadingPlace>>} */
-  const subjectPlaces = new Map();
   /** @type {ResizeObserver | null} */
   let reapply = null;
   // The identity a box scrolls as: the page, a bounded region's id, or undefined.
@@ -2782,8 +2776,8 @@ export function createVersionController({
     effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
     const present = new Set(readingRegions().map(({ id }) => id));
-    for (const map of [places, subjectPlaces])
-      for (const id of map.keys()) if (id !== PAGE && !present.has(id)) map.delete(id);
+    for (const id of places.keys())
+      if (id !== PAGE && !present.has(id)) places.delete(id);
   };
 
   // A place is the reader's when they chose a scroll in its box since it was last
@@ -3033,49 +3027,8 @@ export function createVersionController({
     return region;
   }
 
-  // A subject leaving keeps the reader's place in it, read now where the region's own
-  // box scrolls it, on screen or not; the one showing returns them to theirs. Neither
-  // waits on a composition around it, which restores where the reader is in what shows
-  // rather than which subject shows.
-  /** @param {"leaving" | "showing"} phase @param {ReadingRegion} region */
-  function showSubject(phase, region) {
-    const box = region.body;
-    const own = regionForBox(box) && box.checkVisibility();
-    if (phase === "leaving") {
-      if (own) recordPlaces([box]);
-      const place = places.get(region.id);
-      if (!place) return;
-      let subjects = subjectPlaces.get(region.id);
-      if (!subjects) {
-        subjects = new Map();
-        subjectPlaces.set(region.id, subjects);
-      }
-      subjects.set(region.subject, place.reading);
-      return;
-    }
-    holds.delete(region.id);
-    const reading = subjectPlaces.get(region.id)?.get(region.subject);
-    if (!reading) {
-      places.delete(region.id);
-      return;
-    }
-    // The place stands for this subject from now: the reader's scrolls in the box under
-    // another subject chose nothing in this one.
-    places.set(region.id, {
-      reading,
-      at: ++placeCount,
-      choices: scrollChoices(),
-      inputs: inputCount(),
-    });
-    if (own) restorePlace(reading, regionForBox(box));
-  }
-
   /** @param {import("../readings/reading-regions.js").ReadingTransition} transition */
   function readingRegionTransition(transition) {
-    if ("region" in transition) {
-      showSubject(transition.phase, transition.region);
-      return;
-    }
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     // Nothing is recorded from the announcement until then: a scroll the shift itself
@@ -3382,9 +3335,7 @@ export function createVersionController({
   // the page presents, and after declared deferred arrivals settle. Each landing is
   // the browser's own rule (`scrollToFragment`), the target's start at its scroller's
   // landing edge, taken in the geometry of that step, so a target nothing moved stays
-  // where it is. The fragment is read before widgets upgrade, since the page's open
-  // view is then named in the URL (records/views.js, as a root tab set's open panel), and that
-  // is display state, not a destination. A reload or history traversal returns to its
+  // where it is. A reload or history traversal returns to its
   // entry's record instead (records/history.js), and input during the arrival ends it. However
   // the page arrived, a URL naming a widget's key asks the widget to draw the key's
   // part (`revealAddressed`) where the page doesn't show it once widgets upgrade

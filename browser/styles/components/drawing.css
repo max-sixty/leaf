@@ -43,18 +43,18 @@
   svg.lf-drawing .mono {
     font-family: var(--lf-mono);
     font-size: var(--lf-drawing-small-size);
-    fill: var(--lf-ink-2);
+    fill: var(--lf-ink);
   }
   svg.lf-drawing .frame {
     fill: var(--lf-paper);
-    stroke: var(--lf-border);
+    stroke: var(--lf-rule);
   }
   svg.lf-drawing .frame-head {
     fill: color-mix(in srgb, var(--lf-ink) 7%, transparent);
   }
   svg.lf-drawing .box {
     fill: var(--lf-card);
-    stroke: var(--lf-border);
+    stroke: var(--lf-rule);
   }
   svg.lf-drawing .box.hot {
     fill: color-mix(in srgb, var(--lf-accent) 9%, var(--lf-card));
@@ -82,7 +82,7 @@
   }
   svg.lf-drawing .dim {
     fill: none;
-    stroke: var(--lf-ink-2);
+    stroke: var(--lf-ink);
   }
   svg.lf-drawing .arrow {
     fill: none;

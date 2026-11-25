@@ -8,9 +8,8 @@ import {
   setChildLists,
   setChildren,
   setRenderedChildren,
-} from "/runtime/dom/dom-children.js";
+} from "/runtime/lib/dom-children.js";
 import { under } from "/runtime/lib/shadow-tree.js";
-import { shadowStage } from "/runtime/dom/shadow-stage.js";
 import { placesFailure, showFailure } from "/runtime/lib/failure.js";
 import { createRef, html, ref, render } from "/vendor/lit.js";
 
@@ -46,38 +45,6 @@ test("an owner that registers its failure placer on every connection keeps one",
     });
   showFailure(host, new Error("failed"));
   assert.deepEqual(asked, ["second"]);
-});
-
-test("a staged widget shows each failure in its stage and its next stage replaces it", () => {
-  const host = document.createElement("test-widget");
-  document.body.append(host);
-  const view = document.createElement("p");
-  view.textContent = "Good reading";
-  shadowStage(host, [view]);
-  const rendererSheet = new CSSStyleSheet();
-  rendererSheet.replaceSync("p { color: red }");
-  // An embedded renderer owns its sheet; restaging adds Leaf's apparatus without
-  // losing the renderer's face or accumulating copies on later draws.
-  host.shadowRoot.adoptedStyleSheets = [rendererSheet];
-  for (const message of ["first failure", "second failure"]) {
-    showFailure(host, new Error(message));
-    const errors = host.shadowRoot.querySelectorAll(".lf-error");
-    assert.deepEqual(
-      [...errors].map((box) => box.textContent),
-      [`<test-widget> failed: ${message}`],
-    );
-    assert.equal(view.isConnected, false);
-    shadowStage(host, [view]);
-    assert.equal(
-      host.shadowRoot.adoptedStyleSheets.filter((sheet) => sheet === rendererSheet)
-        .length,
-      1,
-    );
-    assert.ok(host.shadowRoot.adoptedStyleSheets.length > 1);
-    assert.equal(host.shadowRoot.querySelector(".lf-error"), null);
-    assert.equal(view.isConnected, true);
-  }
-  host.remove();
 });
 
 function patch(beforeMarkup, afterMarkup = beforeMarkup) {

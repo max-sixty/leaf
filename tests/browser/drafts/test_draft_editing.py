@@ -645,7 +645,9 @@ def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
     """On a phone the user types into a draft and taps elsewhere, expecting it kept, as
     a form keeps what was typed. A press away from the open draft saves it as Save does,
     and the edit names the draft as the chrome does, by its holder's heading here, not
-    by its id. A press on the draft's own Discard stays a discard."""
+    by its id. A press on the draft's own Discard stays a discard. A press on a control
+    that keeps the caret in the draft, as Leaf's writing beacon does when it stands for
+    the box, leaves the user in the draft and saves nothing."""
     page = open_page(
         browser,
         serve(
@@ -653,11 +655,15 @@ def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
                 "Draft notes",
                 '<h1>Draft notes</h1><section id="landing"><h2>Landing the branches</h2>'
                 '<lf-draft id="q9-note"><pre>\n</pre></lf-draft></section>'
-                '<p id="elsewhere">Something else on the page.</p>',
+                '<p id="elsewhere">Something else on the page.</p>'
+                '<button type="button" id="keeps-caret">Back to the note</button>',
             )
         ),
     )
     resized(page, 390, 844)
+    page.locator("#keeps-caret").evaluate(
+        "button => button.addEventListener('mousedown', (event) => event.preventDefault())"
+    )
     draft = page.locator("#q9-note")
     draft.click()
     editor = draft.locator("leaf-text")
@@ -667,6 +673,14 @@ def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
     expect(editor).to_have_count(0)
     draft.click()
     write(editor, "Land the pointer branch first.")
+    page.locator("#keeps-caret").click()
+    round_trip(page)
+    expect(editor).to_be_focused()
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
+    ]
     page.locator("#elsewhere").click()
     round_trip(page)
     expect(editor).to_have_count(0)

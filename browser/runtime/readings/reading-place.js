@@ -51,8 +51,7 @@
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (features/version.js) across revisions, reading-region shifts and the subjects a
- * region shows in turn, records/views.js for each view of the page's flow that a widget shows
- * in turn, and history for each entry the user leaves, in the entry's record
+ * region shows in turn, and history for each entry the user leaves, in the entry's record
  * (records/history.js).
  * `readingBlock` is the block on screen the reader reads in one region or the page,
  * across the column their pointer or focus names, the column a captured place reads its

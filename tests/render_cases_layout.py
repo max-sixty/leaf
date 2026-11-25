@@ -605,7 +605,7 @@ def ceiling(limit, approvals):
 # line comes first on purpose: a gate that stopped at a color's first span would take that
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
-# other than --lf-pre-bg.
+# other than its canvas.
 TINTED_CODE = """<lf-code id="tinted" hi="2"><pre><code class="language-python">
 first = "on the block's own colour"
 second = "on the band"
@@ -639,10 +639,10 @@ CODE_FAULT_PAGE = LONG_PAGE.replace(
     """<style>
 #shadowed { --lf-syn-number: #1c1b18; }
 @media (prefers-color-scheme: light) {
-  #snippet { --lf-syn-comment: var(--lf-code-ink); }
+  #snippet { --lf-syn-comment: var(--lf-ink); }
   #snippet { --lf-syn-keyword: #8b8577; }
   #snippet-faint-name { --lf-syn-name: #8b8577; }
-  #tinted { --lf-hi-tint: #6f6a60; }
+  #tinted { --lf-warn-tint: #6f6a60; }
 }
 </style>
 </head>""",

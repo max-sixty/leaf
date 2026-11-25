@@ -342,8 +342,8 @@ allowance list.
   It runs on every test except those marked `shifts_unsurveyed`, which opt in per test
   with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
   Forward are input; a script's `click()`, a value set by script and server news are
-  not. It ignores first
-  presentation, whose remaining defects `known_widget_findings.py` records. An input
+  not. It ignores first presentation, where a widget may move the page once as it
+  first draws (root `AGENTS.md`, "Keep the package interface small"). An input
   owns every move its rendering makes, up to the first frame that reads that rendering
   settled, which can paint after `rendered` returns. So a test that delivers news after
   an input, or moves the page itself, to see the move judged, first waits for

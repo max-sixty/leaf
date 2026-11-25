@@ -28,7 +28,7 @@
       .pr-change-key span {
         padding: 2px 8px;
         border: 1px solid var(--lf-rule);
-        border-radius: var(--lf-r-s);
+        border-radius: calc(var(--lf-r) / 2);
       }
 
       .pr-change-key .pr-added {
@@ -42,7 +42,7 @@
       }
 
       #pr-flow-diagram .pele-node.removed rect {
-        fill: var(--lf-del-tint);
+        fill: var(--lf-danger-tint);
         stroke: var(--lf-danger);
       }
       #pr-flow-diagram .pele-node.removed text {
@@ -305,7 +305,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram id="pr-flow-diagram" data-height="564" parts="all">
+              <lf-diagram id="pr-flow-diagram" parts="all">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -592,21 +592,12 @@ index b856171b57..cfa4f0448e 100644
             it. Comments retain their file coordinate—and, for line comments, side,
             line, and quote—even when the file disclosure is closed.
           </p>
-          <lf-diff
-            id="pr-exact-patch"
-            data-height="1697"
-            source="pr-review-patch"
-            collapsed
-          ></lf-diff>
+          <lf-diff id="pr-exact-patch" source="pr-review-patch" collapsed></lf-diff>
         </section>
 
         <section class="lf-panel" id="pr-source-facts">
           <h2>Captured pull request</h2>
-          <lf-pr-brief
-            id="pr-reviewed-request"
-            data-height="1037"
-            source="pr-review-facts"
-          ></lf-pr-brief>
+          <lf-pr-brief id="pr-reviewed-request" source="pr-review-facts"></lf-pr-brief>
         </section>
 
         <section class="lf-panel" id="pr-history">

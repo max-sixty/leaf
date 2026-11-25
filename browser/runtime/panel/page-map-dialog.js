@@ -43,7 +43,7 @@ import { guard, html, nothing, render, repeat } from "/vendor/lit.js";
 import { iconTemplate } from "../lib/icons.js";
 import { keys, paintKeys, paintKeysWithin } from "../dom/keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "../base/pointer.js";
-import { rowWalk } from "../records/walk-position.js";
+import { rowWalk } from "../lib/row-walk.js";
 import { closeControl, searchField } from "../dom/widget-elements.js";
 import { el } from "../lib/elements.js";
 import { offeredAction } from "../lib/controls.js";

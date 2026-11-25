@@ -2228,7 +2228,7 @@ def test_an_answer_arriving_lifts_a_card_beside_its_words(browser, serve, repeat
     room = preview.evaluate(
         """async card => {
           const {left, right} = card.getBoundingClientRect();
-          const {top, bottom} = (await window.__lfWidgetApi())
+          const {top, bottom} = (await window.__lfCheckApi())
             .shownWindow({gap: 8, across: {left, right}});
           return {top, bottom};
         }"""

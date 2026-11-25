@@ -358,7 +358,7 @@ import {
 } from "../transport/errors.js";
 import { stanceWords, statusContextReading } from "./page-keys/status-context.js";
 import { passingWords, readField } from "./field-readings.js";
-import { motionPlays, playMotion } from "../dom/motion.js";
+import { motionPlays, playMotion } from "../lib/motion.js";
 import { motionEasing, motionTime } from "../lib/motion-timing.js";
 import { pagePresented } from "../base/page-paint.js";
 import {
@@ -378,7 +378,8 @@ import {
   currentLocationIn,
 } from "../dom/focus.js";
 import { rove } from "../lib/roving.js";
-import { rowWalk, walkWords } from "../records/walk-position.js";
+import { walkWords } from "../records/walk-position.js";
+import { rowWalk } from "../lib/row-walk.js";
 import { capitalized, counted, excerptWords } from "../lib/words.js";
 import { coarsePointer } from "../base/pointer.js";
 import { afterScript, afterSettling, holdRendering } from "../base/rendering.js";
@@ -5631,7 +5632,7 @@ export function createFloatingPanel({
       rows: listRows,
       // A list names its rows' places to a screen reader itself; the walk shows no
       // position over it.
-      position: () => null,
+      place: false,
       landed: (row) => rove(listRows(), row),
     }).map((row) => ({ ...row, when: inList })),
     {

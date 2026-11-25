@@ -27,7 +27,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         },
         "content": "data",
     }
-    stage = {**source, "content": "markup", "shadow": True}
+    stage = {**source, "content": "markup"}
     url = serve(
         leaf_page(
             "Source states",
@@ -60,10 +60,11 @@ customElements.define('lf-source-view', class extends HTMLElement {
 });
 """,
             "lf-source-stage.js": """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-source-stage', class extends HTMLElement {
   connectedCallback() {
-    if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
+    if (this.shadowRoot) return;
+    this.attachShadow({mode: 'open'}).append(...this.childNodes);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """,

@@ -2,7 +2,9 @@
    The registration owns data and commands; shared control views retain browser
    capabilities, and each subscribed renderer owns its own paint and geometry.
    Changes in one script publish once. Immediate updates settle subscribed renderers
-   synchronously before focus or control lookup, without selecting a layout here. */
+   synchronously before focus or control lookup, without selecting a layout here.
+   `registerContribution` stays in the package interface because only Leaf draws the
+   margin and Page Map that a widget's action joins. */
 import { commandRun } from "../dom/keyboard/bindings.js";
 import { afterScript } from "../base/rendering.js";
 import { watchCommandAvailability } from "../dom/keyboard/scopes.js";

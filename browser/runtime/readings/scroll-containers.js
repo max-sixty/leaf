@@ -20,6 +20,7 @@
    moves, whose events fold into those the glide sends every frame. */
 import { inputs } from "../base/inputs.js";
 import { isElement, renderedParent } from "../lib/shadow-tree.js";
+import { scrollerOf } from "../lib/scroller.js";
 import { anchorHolder, anchorNamed } from "../dom/css-anchors.js";
 import { scrollAxes } from "../dom/element-axes.js";
 import {
@@ -43,7 +44,6 @@ import {
   seenRect,
   shownBox,
   shownWindow,
-  userScrollport,
 } from "../dom/geometry.js";
 import { shifted } from "../dom/rect.js";
 
@@ -51,17 +51,7 @@ import { shifted } from "../dom/rect.js";
  * @typedef {import("../dom/rect.js").Box} Box */
 
 /** @type {(node: Node | null | undefined) => Element} */
-let lookup = (node) => {
-  for (
-    let at = node instanceof Element ? node : node?.parentElement;
-    at;
-    at = renderedParent(at)
-  ) {
-    if (at === pageScroller || userScrollport(getComputedStyle(at).overflowY))
-      return at;
-  }
-  return pageScroller;
-};
+let lookup = scrollerOf;
 /** @param {typeof lookup} read */
 export function installScrollerLookup(read) {
   lookup = read;

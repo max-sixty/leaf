@@ -319,9 +319,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(options).to_be_visible()
     assert page.evaluate(
         """async id => {
-          const {readThreads, threadActions} = await window.__lfWidgetApi();
-          const thread = readThreads().threads.find(thread => thread.id === id);
-          return Boolean(await threadActions.open(thread.key, {part: 'thread'}));
+          const {threads, go} = await window.__lfWidgetApi();
+          const thread = threads.read().threads.find(thread => thread.id === id);
+          return await go(thread, {part: 'thread'});
         }""",
         second["id"],
     )
@@ -360,9 +360,9 @@ def test_opening_a_thread_reveals_its_closed_tab(browser, serve, options):
     expect(page.locator("#view-closed")).to_be_hidden()
     opened = page.evaluate(
         """async options => {
-          const {readThreads, threadActions} = await window.__lfWidgetApi();
-          const [thread] = readThreads().threads;
-          const opening = threadActions.open(thread.key, options);
+          const {threads, go} = await window.__lfWidgetApi();
+          const [thread] = threads.read().threads;
+          const opening = go(thread, options);
           const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
           const shown = await Promise.race([opening, late]);
           return shown === 'late' ? shown : Boolean(shown);
@@ -396,10 +396,9 @@ def open_where_the_user_stands(page, section, **options):
     say whether it opened, or "late" where it had not answered within five seconds."""
     return page.evaluate(
         """async ([section, options]) => {
-          const {readThreads, threadActions} = await window.__lfWidgetApi();
-          const thread = readThreads().threads.find(t => t.anchor.section === section);
-          const opening = threadActions.open(
-            thread.key, {focus: false, travel: false, ...options});
+          const {threads, go} = await window.__lfWidgetApi();
+          const thread = threads.read().threads.find(t => t.anchor.section === section);
+          const opening = go(thread, {focus: false, travel: false, ...options});
           const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
           const shown = await Promise.race([opening, late]);
           return shown === 'late' ? shown : Boolean(shown);

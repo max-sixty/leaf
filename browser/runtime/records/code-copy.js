@@ -49,7 +49,7 @@ import { leafSurface } from "../readings/passages.js";
 import { skipped, upFrom } from "../lib/shadow-tree.js";
 import { nextRender, sizeObserver } from "../lib/frame-pass.js";
 import { focusDestination, onCurrentLocation } from "../dom/focus.js";
-import { move } from "../dom/dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { claimReachStop, releaseReachStop } from "../dom/reach.js";
 import { commandScope, projectCommandScope } from "../dom/keyboard/scopes.js";
 import { DATA_BODY } from "../readings/syntax.js";

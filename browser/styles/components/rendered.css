@@ -193,7 +193,7 @@ leaf-text.lf-fab-input,
   font-size: var(--lf-code-size);
   line-height: var(--lf-code-line);
   font-variant-ligatures: none;
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   overflow-x: auto;
 }
 :where([data-lf-content="data"]:not([data-lf-verbatim]):not(.lf-rendered)) > pre {

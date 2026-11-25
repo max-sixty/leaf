@@ -23,7 +23,7 @@ import {
   ref,
   render,
 } from "/vendor/lit.js";
-import { setRenderedChildren } from "../../dom/dom-children.js";
+import { setRenderedChildren } from "../../lib/dom-children.js";
 import { generatedElement, worksInside } from "../../dom/widget-elements.js";
 import { offeredAction } from "../../lib/controls.js";
 import {
@@ -33,7 +33,7 @@ import {
   renderMarkdown,
   renderedWords,
 } from "../../lib/markdown.js";
-import { pageLinks } from "../page-markdown.js";
+import { viewerLinks } from "../page-markdown.js";
 import { reportPageError } from "../../transport/layer-client.js";
 import {
   deleted,
@@ -76,6 +76,7 @@ import {
 } from "./workflow.js";
 import { agentSays, leafSays, voiced, wordsText } from "../../base/voice.js";
 import { markDeclared, renderQuiet } from "../declared-words.js";
+import { marks } from "../../state/kernel-facts.js";
 import { dressCode } from "../../readings/code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../../state/presence.js";
 import { elementById, says } from "../../readings/passages.js";
@@ -88,7 +89,7 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../../lib/keeps.js";
 import { loadDraft } from "../drafts.js";
 import { showsContents } from "../../dom/geometry.js";
-import { motion } from "../../dom/motion.js";
+import { playMotion } from "../../lib/motion.js";
 import { motionTime } from "../../lib/motion-timing.js";
 import { agentName, pageClaimed } from "../../state/semantic-state.js";
 import { copyControl } from "../../transport/copy-control.js";
@@ -147,8 +148,8 @@ function proseReading(message) {
     reading.markdown !== markdown
   ) {
     const pasted = readAttachedMedia(text);
-    const html = renderMarkdown(pasted.text, pageLinks);
-    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths), pageLinks);
+    const html = renderMarkdown(pasted.text, viewerLinks);
+    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths), viewerLinks);
     reading = Object.freeze({
       id: message.id,
       edited,
@@ -399,15 +400,15 @@ const keptElements = new Map();
 // and each custom element, which a module upgrades once. A widget set among words
 // (`inline`) leaves its words, and any other goes whole, as a choice the drawing
 // asks in its own controls does. The innermost named group round a widget that asks,
-// an element whose declaration's `reading-role` is `group` (`obligations.widget_groups`
-// in Python), is its question, so it goes whole with it rather than leaving the
+// Leaf's own group (`$marks`, `reading-role`; `obligations.widget_groups` in Python),
+// is its question, so it goes whole with it rather than leaving the
 // question's words with nothing to answer them. Any other group leaves what it holds,
 // less its widgets, as a figure keeps its caption when its chart goes.
 /** The innermost named group holding `element`, or null.
  * @param {Element} element @returns {Element | null} */
 function groupRound(element) {
   for (let at = element.parentElement; at; at = at.parentElement)
-    if (declarationFor(at)?.["reading-role"] === "group") return at;
+    if (marks["reading-role"].tags?.[at.localName] === "group") return at;
   return null;
 }
 /** @param {DocumentFragment} message */
@@ -421,7 +422,10 @@ function heldElsewhere(message) {
   for (const element of copy.content.querySelectorAll("*")) {
     const declaration = declarationFor(element);
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declaration?.inline || declaration?.["reading-role"] === "group")
+    else if (
+      declaration?.inline ||
+      marks["reading-role"].tags?.[element.localName] === "group"
+    )
       element.replaceWith(...element.childNodes);
     else element.remove();
   }
@@ -495,11 +499,11 @@ export function prepareAuthoredMessage(message, thread) {
     // stands in with until it loads.
     if (!markdownReady())
       throw new Error("leaf: an authored message needs its loaded Markdown renderer");
-    const markup = renderAuthoredMarkdown(source, pageLinks);
+    const markup = renderAuthoredMarkdown(source, viewerLinks);
     const template = document.createElement("template");
     template.innerHTML = markup;
     // A page's media at the address the page answers at, as the message's Markdown
-    // images take it (records/page-markdown.js, `pageLinks`): any attribute naming it.
+    // images take it (records/page-markdown.js, `viewerLinks`): any attribute naming it.
     for (const element of template.content.querySelectorAll("*"))
       for (const { name, value } of element.attributes)
         if (isCanonicalMediaUrl(value))
@@ -738,7 +742,9 @@ export function messageReading(
 // answers for restoration and reduced motion.
 /** @param {Element} node */
 export const arrivalTint = (node) =>
-  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], motionTime("--lf-motion-flash"));
+  playMotion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], {
+    duration: motionTime("--lf-motion-flash"),
+  });
 
 export class MessageView {
   #commands;
@@ -757,7 +763,7 @@ export class MessageView {
   // edit replaces.
   /** @type {readonly ChildNode[] | null} */
   #dressed = null;
-  /** @type {ReturnType<typeof motion> | null} */
+  /** @type {Animation | null} */
   #arrivalMotion = null;
   /** @type {(() => void) | null} */
   #stopRead = null;

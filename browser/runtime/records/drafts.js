@@ -144,7 +144,7 @@ import { signal } from "/vendor/signals-core.js";
  * @typedef {{record: DraftRecord, stored: string | null, store: string | null, version: number, durable: boolean, ours: ReadonlySet<string>}} DraftCopy
  * @typedef {{attempts: string[], copy: Pick<DraftCopy, "record" | "stored" | "store" | "version" | "durable"> | null}} WaitingDraft
  * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
- * @typedef {import('../annotations/composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
+ * @typedef {import('../annotations/composing/text-field.js').LeafTextElement | HTMLTextAreaElement | HTMLInputElement} DraftField
  * @typedef {import('../annotations/composing/input.js').InputSync} InputSync
  * @typedef {import('../features/anchor-travel.js').EditorDestination} EditorDestination
  * @typedef {import('../dom/focus.js').Caret} Caret
@@ -1600,6 +1600,14 @@ export function watchDraft(
 // A package's draft: the functions above bound to one context, which the package API
 // exports in their place (widget-api.js). Its types offer none of what only Leaf's own
 // boxes pass: a reply the draft holds (`held`), and a mirror's options.
+//
+// It stays a function because it hands a widget the page server's draft store, which
+// only Leaf holds, and keeps SOUL.md's promise that typed words survive the changes
+// around them and go only once the user sent or cancelled them. A draft name a text
+// field carries, which Leaf would read from outside, was weighed in its place: a send
+// also needs the generation's attempt, which names what the send makes so a resend
+// after a reload makes the same thing, and its settlement, and a discard puts the
+// words on the page's undo, so the field would need more names than this one.
 /** @param {string} ctx */
 export const draft = (ctx) => ({
   read: () => loadDraft(ctx),

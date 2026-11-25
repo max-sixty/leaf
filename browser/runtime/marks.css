@@ -107,7 +107,7 @@
     inset-block: 1lh 0;
     inset-inline-start: calc(var(--lf-pre-line-inset, 0px) + var(--lf-code-hang) - 2ch);
     inline-size: 1ch;
-    background: var(--lf-code-muted);
+    background: var(--lf-muted);
     mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y;
   }
 }

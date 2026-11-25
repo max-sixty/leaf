@@ -24,7 +24,7 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     instance of it read as a retired slot however the log stood, its words silenced from
     the anchor pass, while the pair that was meant matched nothing at all.
 
-    Unreachable until this layer's licensing opened `retired-when` past the
+    Unreachable until this layer's licensing opened retirement past the
     suggestion family, which is why the shipped vocabulary — every slot of it naming
     one holder — could never have said so. The page holds an undecided trial, so
     nothing here is retired and a quote inside it must anchor like any other."""
@@ -103,8 +103,6 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     holder = declarations["lf-trial"]
-    if shadow:
-        holder["shadow"] = True
     holder["attributes"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder["attributes"].setdefault("required", []).append("decision")
     holder["example"] = holder["example"].replace(
@@ -114,14 +112,18 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     decide["detail"]["required"].append("decision")
     registry_path.write_text(json.dumps(declarations))
-    stage = "shadowStage(this, [...this.children]);" if shadow else ""
+    stage = (
+        'this.attachShadow({ mode: "open" }).append(...this.children); '
+        'this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));'
+        if shadow
+        else ""
+    )
     if shadow:
         (tmp_path / ".leaf" / "widget-shadow.css").write_text(
             "lf-current, lf-proposed { display: block; }"
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { shadowStage } from "/runtime/widget-api.js";
-import { LeafElement } from "/runtime/lib/leaf-element.js";
+        """import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-trial", class extends LeafElement {
   setup() { STAGE }

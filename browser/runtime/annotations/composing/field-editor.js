@@ -2510,6 +2510,29 @@ function fieldEditor(
     return [[{ from: at, to: next.words }, ...intoHeading(state, parts, next.words)]];
   }
 
+  // `changes` without the source each edit puts back as it was, so the field rewrites
+  // only what the key changes: an edit spans the blocks it joins for `keeps` to check
+  // them, as Backspace on a message's blank line runs from the end of the block above.
+  /** @param {EditorState} state @param {Changes} changes */
+  function narrowed(state, changes) {
+    /** @type {Edit[]} */
+    const edits = [];
+    changes.iterChanges((from, to, _fromB, _toB, inserted) => {
+      const [was, put] = [state.sliceDoc(from, to), inserted.toString()];
+      const most = Math.min(was.length, put.length);
+      let head = 0;
+      while (head < most && was[head] === put[head]) head++;
+      let tail = 0;
+      while (tail < most - head && was.at(-1 - tail) === put.at(-1 - tail)) tail++;
+      edits.push({
+        from: from + head,
+        to: to - tail,
+        insert: put.slice(head, put.length - tail),
+      });
+    });
+    return state.changes(edits);
+  }
+
   /** @param {boolean} forward @returns {(view: StateTarget) => boolean} */
   const deleteAtEdge = (forward) => (view) => {
     const { state } = view;
@@ -2524,7 +2547,7 @@ function fieldEditor(
     if (changes)
       view.dispatch(
         state.update({
-          changes,
+          changes: narrowed(state, changes),
           // The caret stays before the words it stood before, past a line put above them.
           selection: { anchor: changes.mapPos(main.head, 1) },
           scrollIntoView: true,

@@ -15,7 +15,9 @@ These rules hold for everything Leaf draws: its runtime, its chrome and its bund
 packages. Each section opens with a goal, which
 `../skills/leaf/references/interface-goals.md` gives other authors too, and the specs
 under it are Leaf's own ways of meeting it; weigh a case no spec covers against its goal
-and `../skills/leaf/SOUL.md`. A spec names its check and owner where one exists. How
+and `../skills/leaf/SOUL.md`. A spec is guidance toward its goal, weighed
+as root `AGENTS.md`'s opening says: a change that meets the goal more simply rewrites
+the spec and its check. A spec names its check and owner where one exists. How
 the owner meets it, and any exception the user chose for one surface, belong in that owner's header and
 the check's credit, not here. Which specs should also bind other authors is still being
 settled. Leaf targets desktop first, so judge layout at a representative desktop
@@ -53,8 +55,8 @@ rule draws at once is drawn.
   replaces, with motion the eye can follow. A scroll the gesture makes carries the
   pressed control only to bring it whole into a scroller that showed part of it, or
   where the gesture says it takes the user somewhere. Without a gesture, as when news
-  arrives or a widget finishes loading, a box may grow or shrink into free room, but
-  reading content and controls stay put. The exception is a thread card narrower than
+  arrives, a box may grow or shrink into free room, but reading content and controls
+  stay put. The exception is a thread card narrower than
   the measure, which the user chose to let widen once, from its start, when a long message
   arrives, carrying its controls (`data-lf-widens`; `annotation-overlay/thread-preview.js`).
   No hard-to-undo action arrives under a pointer
@@ -138,8 +140,7 @@ rule draws at once is drawn.
   whose newest entry the reader follows, and then declares `--lf-holds-height: 1`. Checks: the widget
   quality checks `keeps-first-box` and `grows-with-content`
   (`src/leaf/render_gate/widget_quality.py`).
-- **Room is held only for what will be drawn**, such as a widget's upgraded controls, and
-  generated interface appears in its final position. A state that may never come, such
+- **Room is held only for what will be drawn.** A state that may never come, such
   as a failed save, shows in a slot already on screen, as a message's head carries its
   delivery status, and the user's gesture makes the room it needs. Feedback may repaint
   a control or change its label, but never its size: `data-lf-room` (`controls.css`)
@@ -744,6 +745,10 @@ question in "The browser answers first" and then here. A change that creates an 
 adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`, whose packages'
 block names what a package answers with the browser's own call instead.
 
+The table serves the runtime's own callers. A row is no reason to export its owner to
+packages: a widget answers with the browser's own call or its own code, and asks Leaf
+only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Leaf").
+
 | Question                                                                                              | Owner                                                                                  |
 | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                         |
@@ -926,10 +931,10 @@ Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "K
 layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
 
-Add a fact only where some part of Leaf, such as the server, `page check` or the first
-paint, must act on it without running the widget's module, and the module can't keep
-the same rule itself. A rule about one widget's markup that its module can check as it
-draws stays in the module, which reports a breach with an `error` event, even where
+Add a fact only where Leaf's server or `page check` must act on it without running the
+widget's module, and the module can't keep the same rule itself. How an element stands
+before its module draws is its package's stylesheet's to say. A rule about one
+widget's markup that its module can check as it draws stays in the module, which reports a breach with an `error` event, even where
 static validation could observe the same breach. The author then hears of the breach
 from `page check --render`, and in a thread message only after the user opens the
 thread. Keep a rule static where a breach would otherwise reach the log or a stored

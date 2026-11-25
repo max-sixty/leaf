@@ -28,6 +28,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    word_point,
     write,
 )
 
@@ -458,7 +459,7 @@ def test_history_returns_a_selection_in_unnamed_prose_across_a_revision(
     page.wait_for_function("navigation.transition === null")
     page.go_forward()
     expect(page.locator("#ask")).to_be_focused()
-    # A selection the revision would rewrite holds the revision back (version.js).
+    # A selection the revision would rewrite holds the revision back (features/version.js).
     page.evaluate("getSelection().removeAllRanges()")
     _publish(
         serve.page_dir,
@@ -490,7 +491,7 @@ def test_history_returns_a_widgets_named_control_across_a_revision(
     request, serve, engine
 ):
     """Focus on a control a widget generates comes back by the key the widget names it
-    by inside its element (carry.js), though a revision has drawn the widget again."""
+    by inside its element (records/carry.js), though a revision has drawn the widget again."""
     page_html = leaf_page(
         "Named control",
         '<h1>Named control</h1><lf-code id="snippet"><pre><code class="language-python">'
@@ -522,7 +523,7 @@ def test_history_returns_a_widgets_named_control_across_a_revision(
 # A widget that draws one item at a time, as one fetching each item when it is picked
 # does, so a part of another item is in no element until its item is drawn, and every
 # item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,
-# through the hooks every route reads (anchor-resolution.js, `revealAddressed` and
+# through the hooks every route reads (readings/anchor-resolution.js, `revealAddressed` and
 # `addressedElements`); a referrer travels to one with `navigateToDatum`.
 ITEMS_LAYER = {
     "lf-items": {
@@ -728,7 +729,7 @@ def test_a_revision_s_reload_during_a_navigation_carries_its_mark(browser, serve
     with page.expect_request(lambda request: request.is_navigation_request()) as reload:
         page.evaluate(
             """async () => {
-              const {reloadAt} = await import('/runtime/history.js');
+              const {reloadAt} = await import('/runtime/records/history.js');
               navigation.addEventListener('navigate', (event) => {
                 if (event.navigationType === 'push')
                   event.intercept({handler: () => new Promise(() => {})});
@@ -1143,7 +1144,7 @@ LINE_AT_TOP = """(line) => {
 def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
     """A reading place in a long text document names the first line drawn at the top of
     the document's box, with runs of lines the browser skips above it. The place passes
-    over each skipped run whole (reading-place.js, `lastHeld`), and passing over lines
+    over each skipped run whole (readings/reading-place.js, `lastHeld`), and passing over lines
     past a run's end named a line further down."""
     url = serve(
         leaf_page(
@@ -1651,21 +1652,6 @@ def _select_remembered_backwards(page):
     }""")
 
 
-def _word_point(locator, word):
-    """Place an actual gesture over letters, avoiding blank space in a block's box."""
-    return locator.evaluate(
-        """(node, sought) => {
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
-      const range = document.createRange(), start = word.data.indexOf(sought);
-      range.setStart(word, start); range.setEnd(word, start + sought.length);
-      const box = range.getBoundingClientRect();
-      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
-    }""",
-        word,
-    )
-
-
 ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
@@ -1783,7 +1769,7 @@ def test_align_current_item_uses_bounded_reading_region_and_preserves_horizontal
     assert page.evaluate("scrollY") == root_y
     expect(page.locator("#nested-heading")).to_be_focused()
     # A click and collapsed caret still identify the paragraph in this region.
-    point = _word_point(page.locator("#nested-reading"), "bounded")
+    point = word_point(page.locator("#nested-reading"), "bounded")
     page.mouse.click(point["x"], point["y"])
     page.keyboard.press("g")
     page.keyboard.press("z")
@@ -1818,7 +1804,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     )
     assert codes and all("z" not in code for code in codes)
     page.keyboard.press("Escape")
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
     page.evaluate("""() => {
       const s = getSelection();
@@ -1852,7 +1838,7 @@ def test_the_menu_keeps_its_place_when_a_revision_shortens_the_words_it_held(
     )
     context = browser.new_context(has_touch=True)
     page = open_page(browser, live_url(serve(source)), context=context)
-    point = _word_point(page.locator("#remembered"), "keeps")
+    point = word_point(page.locator("#remembered"), "keeps")
     page.mouse.click(point["x"], point["y"])
     held = page.evaluate(
         "() => { window.held = getSelection().focusNode; return getSelection().focusOffset; }"
@@ -2231,7 +2217,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     )
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE), context=context)
     page.locator("#remembered").scroll_into_view_if_needed()
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.click(point["x"], point["y"])
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -2390,7 +2376,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
     expect(selection_field(page)).to_be_visible()
     selected = page.evaluate("() => getSelection().toString()")
@@ -2438,7 +2424,7 @@ def test_restore_selection_reveals_a_filtered_diff_datum(browser, serve):
     page = open_page(browser, serve(DIFF_PAGE))
     line = page.locator("lf-diff [data-line]").filter(has_text="window: 60").first
     line.scroll_into_view_if_needed()
-    point = _word_point(line, "window")
+    point = word_point(line, "window")
     page.mouse.dblclick(point["x"], point["y"])
     selected = page.evaluate("() => getSelection().toString()")
     assert selected
@@ -2477,7 +2463,7 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     page = open_page(browser, live_url(url))
     line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(line).to_contain_text("amber")
-    point = _word_point(line, "amber")
+    point = word_point(line, "amber")
     page.mouse.dblclick(point["x"], point["y"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
@@ -2623,7 +2609,7 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
         viewport={"width": 1200, "height": 900}, has_touch=True
     )
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
-    point = _word_point(page.locator("#remembered"), "identity")
+    point = word_point(page.locator("#remembered"), "identity")
     page.mouse.dblclick(point["x"], point["y"])
     expect(selection_field(page)).to_be_visible()
     initial = page.evaluate("() => getSelection().toString()")
@@ -2748,7 +2734,7 @@ def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
     even where its destination already stands where it lands: the log the reader set
     moving stops where the landing found it, rather than running on past what they
     chose. Firefox ran the log on to its end, since it stops no smooth scroll for an
-    instant write of the position the page last saw (arrivals.js,
+    instant write of the position the page last saw (dom/arrivals.js,
     `stopWhereItStands`)."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(3))
     rows = "".join(

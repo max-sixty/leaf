@@ -185,7 +185,7 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
     the lane's other marks, which are thinner than the owner's hit tests are apart. It
     covers another mark only where no side holds a line clear of them, as at the end of
     a phone's input lane, and then says so and lets the pointer through to them
-    (preview.js, `data-lf-covers`).
+    (annotations/preview.js, `data-lf-covers`).
     """
     browser = request.getfixturevalue(engine)
     record = json.loads(
@@ -215,7 +215,7 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
         if zoom:
             widget.get_by_role("button", name="Zoom in", exact=True).click()
             rendered(page)
-        # Every mark that says something when pointed at (preview.js).
+        # Every mark that says something when pointed at (annotations/preview.js).
         timeline.evaluate("""node => [...node.querySelectorAll('*')]
             .forEach((el) => el.toggleAttribute('data-test-tip',
               typeof el.lfPreview === 'function'))""")
@@ -296,7 +296,7 @@ def press_scale(widget, name):
 
     The menu hangs from its trigger by CSS anchor positioning, which Chromium moves for
     a scroll only at the page's next rendering update. Below image tools near the
-    window's foot, the menu reaches into the root's foot padding (floating-panel.js,
+    window's foot, the menu reaches into the root's foot padding (panel/floating-panel.js,
     `followBox`), so Playwright's click scrolls the choice into view and then presses
     where the menu stood before that update. On a slower runner the update comes first,
     the press lands on the page, and the menu closes, as any press outside it does. So
@@ -1131,3 +1131,21 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
     user.get_by_role("radio", name="Before", exact=True).click()
     wait_until_ready(user)
     assert image_view(before) == pytest.approx(inspected, abs=1)
+
+
+def test_trace_reveal_of_a_part_it_lacks_draws_playback_stopped(browser, serve):
+    """Travel to a part the recording doesn't hold stops playback, and the Play
+    control says so, so its next press starts playback rather than stopping it."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    user = context.new_page()
+    user.goto(serve(named_source("playwright-trace-gallery")))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace").first
+    widget.get_by_role("button", name="Start", exact=True).click()
+    rendered(user)
+    widget.get_by_role("button", name="Play", exact=True).click()
+    play = widget.locator(".lf-trace-play")
+    expect(play).to_have_attribute("data-lf-playing", "")
+    widget.evaluate("widget => widget.lfParts.reveal('trace-0000-action-missing')")
+    expect(play).not_to_have_attribute("data-lf-playing", "")
+    expect(play).to_have_attribute("aria-label", "Play")

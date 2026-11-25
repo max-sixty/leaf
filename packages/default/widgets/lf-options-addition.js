@@ -79,7 +79,7 @@ export class OptionAddition {
     const input = offer("leaf-text");
     input.name = "option";
     input.setAttribute("aria-label", ANOTHER);
-    // Its hint is Leaf's words, as every empty box's is (voice.js).
+    // Its hint is Leaf's words, as every empty box's is (base/voice.js).
     input.setAttribute("data-lf-voice", "leaf");
     // An option's title is one line, so Return adds it from a phone's keyboard too.
     input.setAttribute("aria-multiline", "false");

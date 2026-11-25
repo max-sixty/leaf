@@ -179,7 +179,7 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     since it loaded makes the page differ from any source, so a patch that reconciled
     the live tree against the arriving revision would take all of it back. Four owners,
     none of them the author, on one page: the user's open disclosure, the tokenizer's
-    spans in a code block, a tab stop `focus.js` lends to land the keyboard somewhere,
+    spans in a code block, a tab stop `dom/focus.js` lends to land the keyboard somewhere,
     and what a page module built inside an authored container. The revision rewrites one
     paragraph and mentions none of them.
 
@@ -309,7 +309,7 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
 
 
 def test_a_revision_that_rewrites_a_code_block_boxes_its_new_lines(browser, serve):
-    """A code block's lines stand in boxes the runtime made (code-lines.js), so the
+    """A code block's lines stand in boxes the runtime made (readings/code-lines.js), so the
     patch takes the block whole: one the revision leaves alone keeps its boxes, and one
     whose code it rewrites arrives as authored and is boxed again, its text the new
     source."""

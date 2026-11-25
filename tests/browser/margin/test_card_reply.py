@@ -139,7 +139,7 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card.locator("leaf-text")).to_be_focused()
-    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # The click puts the caret in the reply (records/thread/focus.js, `openingPart`); Escape
     # stands the user on the thread.
     page.keyboard.press("Escape")
     expect(card.locator(".lf-page-thread")).to_be_focused()
@@ -557,7 +557,7 @@ def test_news_under_a_card_s_words_waits_once_the_user_begins_in_its_reply_box(
     """Under its words a card keeps its top, so news at its end moves the reply box
     down. The empty box a click's opening leaves the caret in, and the thread a send
     leaves the user on, let the answer the user waits for show until they begin a reply
-    in the box (thread-preview.js, `endNewsMoves`; thread/replies.js): by typing, even
+    in the box (thread-preview.js, `endNewsMoves`; records/thread/replies.js): by typing, even
     words they erase, or by coming back to it."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     resized(page, 1000, 600)
@@ -626,7 +626,7 @@ def test_a_margin_reply_send_shows_the_sent_turn(browser, serve, place):
 
 
 # Where the card's outline, its head row and each turn are drawn now: the outline as its
-# surface's ring is cut (box-motion.js), the rest by their boxes.
+# surface's ring is cut (dom/box-motion.js), the rest by their boxes.
 CARD_DRAWN = """card => {
   const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
   const ground = card.querySelector('.lf-margin-preview-ground');
@@ -979,7 +979,7 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     page.wait_for_function(CARD_RELEASED)
     rest = preview.evaluate(CARD_DRAWN)
     assert rest[0] > held_up[0] + 5, f"the summary closed and the card stayed: {rest}"
-    # The transcript changed size, so its turns show where they now stand (box-motion.js).
+    # The transcript changed size, so its turns show where they now stand (dom/box-motion.js).
     assert drawn[:2] == pytest.approx(held_up[:2], abs=1), f"{held_up} -> {drawn}"
 
 
@@ -1073,7 +1073,7 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     browser, serve
 ):
     """A line typed into a card's reply grows the field in the frame the key lands
-    (box-motion.js, "Whose change it is"), its focus ring drawn whole at its new size
+    (dom/box-motion.js, "Whose change it is"), its focus ring drawn whole at its new size
     in that frame. Were the growth to travel, the field's own paper would stand at its
     grown size over the ring's lower edge until the ring had nearly reached its rest."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
@@ -1722,7 +1722,7 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
     marker.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview.locator("leaf-text")).to_be_focused()
-    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # The click puts the caret in the reply (records/thread/focus.js, `openingPart`); Escape
     # stands the user on the thread.
     page.keyboard.press("Escape")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
@@ -2868,7 +2868,7 @@ def test_next_unread_beside_previous_and_next_leaves_a_head_its_words(
     """Beside Previous and Next, Next unread stands on its symbol, its words its name, so
     the first head keeps its author and time, which its words cut to "Me ju". The time,
     written on another day, keeps that day whole and gives up its time of day whole,
-    where a cut read "18 Sep, …" (`saidTime`, thread/messages.js). Under a finger, where each
+    where a cut read "18 Sep, …" (`saidTime`, records/thread/messages.js). Under a finger, where each
     press is a finger wide, a card draws none there (annotation-chrome.css)."""
     second = {**LONG_THREAD_ROOT, "text": "A second question.", "id": "e" * 32}
     url = serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, LONG_THREAD[1], second])

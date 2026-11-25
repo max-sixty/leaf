@@ -25,8 +25,8 @@ import {
   sectionLabel,
   titledElement,
   titlingHeading,
-} from "/runtime/addressable-names.js";
-import { registry } from "/runtime/registry.js";
+} from "/runtime/readings/addressable-names.js";
+import { registry } from "/runtime/state/registry.js";
 
 // The cases the server's `gesture_words.element_name` answers too.
 const CASES = JSON.parse(

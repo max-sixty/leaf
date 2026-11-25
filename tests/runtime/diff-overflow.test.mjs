@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { installLanguagePaths } from "../../browser/runtime/language-paths.js";
+import { installLanguagePaths } from "../../browser/runtime/base/language-paths.js";
 import { syntaxLanguagePaths } from "../../browser/runtime/lib/syntax-languages.js";
 import { overflowFor } from "../../packages/diff/widgets/overflow.js";
 

@@ -38,7 +38,7 @@ and focused, the evidence a message's exposure waits for too), posted as they le
 it, and `seen_revision` is the newest one any tab named.
 A hosted copy serves none (`served_state.page`), since its reader is not the page's
 user. It needs no exposure of each passage, as a message's read does: a reader comes
-back to a page to see what moved, and how much moved since then (since-seen.js) is the
+back to a page to see what moved, and how much moved since then (host/since-seen.js) is the
 evidence's whole use. A page has one user, so like `read` it names no account and holds across tabs and
 browsers.
 """

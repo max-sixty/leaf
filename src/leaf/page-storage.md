@@ -59,7 +59,7 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 - `observations.jsonl` — a private, best-effort diagnostic trace: browser observations,
   server requests and thread-title requests, each `leaf` command's duration, and
   developer run context. It never enters page state or acknowledgement and is never
-  served. `interaction_log.py` owns admission and reading, `browser/runtime/interaction-log.js`
+  served. `interaction_log.py` owns admission and reading, `browser/runtime/transport/interaction-log.js`
   what a tab sends and sheds, `interaction-batch.schema.json` a browser batch, and
   `leaf-dev logs response-times` the timing query over it.
 
@@ -142,9 +142,10 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 - `<state-home>/rows/<page-key>.json` — disposable output of a serving page's own
   activity, for its neighbours (`server_rows.py`). No page's fold reads it.
 
-- `<state-home>/render-readings/<page-key>.json` — the page's latest render check,
-  for its server (`render_gate/handover_pass.py`). No page's fold reads it, and
-  without it a version is read again.
+- `<state-home>/render-readings/<page-key>.json` — the page's latest render check
+  (`render_reading.py`), for its server (`render_gate/handover_pass.py`) and for the
+  parts `leaf page state` lists. No page's fold reads it, and without it a version is
+  read again.
 
 ## Revision delivery
 
@@ -152,7 +153,7 @@ The live root serves the active revision, and revision and version addresses go 
 the same delivery, all naming the page root as canonical (`revision_delivery.py`). The
 revision manifest's `executable` digest decides whether an open tab patches its
 document or replaces it (`revision_artifact.py`). The browser compares the two
-authored DOM baselines to decide which widgets a patch keeps (`version.js`).
+authored DOM baselines to decide which widgets a patch keeps (`features/version.js`).
 
 A publication that also changes the log stages its bundle, names it in its first
 admitted event, and writes the revision marker last, and the next page transaction

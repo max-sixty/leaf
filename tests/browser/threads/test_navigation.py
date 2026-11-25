@@ -18,6 +18,7 @@ from render_harness import (
     told,
 )
 
+from browser.margin import CARD_AT_REST
 from browser.threads import append_agent_reply, open_panel_thread, summarize_thread
 from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -170,7 +171,7 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         left_by = page.locator(".lf-fp-head .lf-fp-on-page")
         left_by.click()
         # A press lands on the card's thread, its reply holding no words
-        # (floating-panel.js, `movedPart`).
+        # (panel/floating-panel.js, `movedPart`).
         destination = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         )
@@ -192,7 +193,7 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
     ).to_be_hidden()
     # Forward to a card's reply box returns to the thread's passage instead, with the
     # panel's view still open: a reply's editing continuity carries it across a
-    # revision (version.js), and a return carries no reply.
+    # revision (features/version.js), and a return carries no reply.
     if left != "Show on page":
         page.go_forward()
         expect(destination).to_be_focused()
@@ -206,7 +207,7 @@ def test_back_returns_to_the_card_a_later_open_in_panel_left(
 ):
     """Back to an entry whose thread the user read in its card opens the card again,
     though a later Open in panel chose the panel for threads from then on: the entry's
-    record names the view they stood in, which the choice doesn't (thread/address.js),
+    record names the view they stood in, which the choice doesn't (records/thread/address.js),
     as Back after Show on page returns to the panel's view. Where no card can stand by
     then, as on a window too narrow for the rail, the thread opens in the panel, as Leaf
     places it there whatever was chosen."""
@@ -224,6 +225,10 @@ def test_back_returns_to_the_card_a_later_open_in_panel_left(
     expect(card).to_have_attribute("data-lf-thread", first)
     page.keyboard.press("t")
     expect(card).to_have_attribute("data-lf-thread", second)
+    # The card glides from the first passage's seat to the second's after the scroll
+    # that brings it lands; a click issued mid-glide can land on the page beside it.
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
     cards.get_by_role("button", name="Open in panel", exact=True).click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{second}"]')).to_be_visible()
     expect(cards).to_be_hidden()
@@ -265,6 +270,10 @@ def test_a_rewrite_written_in_a_card_back_returned_to_reopens_there(
     expect(card).to_have_attribute("data-lf-thread", first)
     page.keyboard.press("t")
     expect(card).to_have_attribute("data-lf-thread", second)
+    # The card glides from the first passage's seat to the second's after the scroll
+    # that brings it lands; a click issued mid-glide can land on the page beside it.
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
     cards.get_by_role("button", name="Open in panel", exact=True).click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{second}"]')).to_be_visible()
     page.wait_for_function("navigation.transition === null")

@@ -18,7 +18,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { fragmentKey, fragmentUrl } from "/runtime/anchor-coordinate.js";
+import { fragmentKey, fragmentUrl } from "/runtime/base/anchor-coordinate.js";
 import {
   addressedElements,
   addressedFocus,
@@ -31,13 +31,13 @@ import {
   revealAddressed,
   visualPartLabel,
   visualParts,
-} from "/runtime/anchor-resolution.js";
-import { targetElement } from "/runtime/resolved-target.js";
-import { registry } from "/runtime/registry.js";
-import { visualPartProblems } from "/runtime/visual-parts.js";
+} from "/runtime/readings/anchor-resolution.js";
+import { targetElement } from "/runtime/readings/resolved-target.js";
+import { registry } from "/runtime/state/registry.js";
+import { visualPartProblems } from "/runtime/state/visual-parts.js";
 import { layoutChanged } from "/runtime/lib/widget-events.js";
-import { kept } from "/runtime/kept.js";
-import { focusDestination, handBack } from "/runtime/focus.js";
+import { kept } from "/runtime/state/kept.js";
+import { focusDestination, handBack } from "/runtime/dom/focus.js";
 
 beforeEach(() => {
   for (const tag of Object.keys(registry)) delete registry[tag];

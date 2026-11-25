@@ -70,7 +70,7 @@
  * stable disclosure, a reading region whose subject is the checkpoint whose tree it
  * shows: the runtime keeps the reader's place in each checkpoint's tree, and returns
  * them to it as the tree opens or the checkpoint returns
- * (reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
+ * (readings/reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
  * the disclosure and lands on its destination instead.
  */
 import {
@@ -364,7 +364,7 @@ export class Trace extends LeafElement {
   #scope = null;
   /** @type {string | null} */
   #selected = null;
-  /** @type {import("../../../browser/runtime/visual-parts.js").VisualPart[]} */
+  /** @type {import("../../../browser/runtime/state/visual-parts.js").VisualPart[]} */
   #inventory = [];
   /** @type {Map<string, TraceTarget>} */
   #targets = new Map();
@@ -1405,11 +1405,11 @@ export class Trace extends LeafElement {
 
   /** @param {string} id @param {number | null} [bookmark] */
   #reveal(id, bookmark = null) {
-    this.pause(false);
     const selected = this.#destination(id);
-    if (!selected) return;
     const target = this.#targets.get(id);
-    if (!target) return;
+    // A part this recording doesn't hold still stops playback, drawn as stopped.
+    if (!selected || !target) return this.pause();
+    this.pause(false);
     this.#chosenBookmark = bookmark;
     // Following a point already present in the overview keeps that overview.
     // A page filter changes only when it cannot display the exact destination.
@@ -1502,7 +1502,7 @@ export class Trace extends LeafElement {
     const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
     const fitted = !this.#scopeView().image;
     keepsText(this.#nodes.zoomLabel, fitted ? "Fit" : percent);
-    // What the scale stands at, which its preview says beside its name (preview.js).
+    // What the scale stands at, which its preview says beside its name (annotations/preview.js).
     keeps(
       this.#nodes.imageScale,
       "aria-description",

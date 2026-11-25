@@ -5,7 +5,7 @@ violations are errors, shared with `page check --render`: a page cannot rely on 
 data, and the finding names the producer whose author must fix it.
 
 The report renders the package's worked examples (`example`) under the layer the
-package appears in (`packages.package_layer_inputs`), and reads only the tags the
+package appears in (`layer.package_layer_inputs`), and reads only the tags the
 package's own `registry.json` declares. Examples share a page where their ids allow,
 so an example that points at another's element finds it, and a page costs one render
 however many examples it holds; the next page starts where an example's ids would
@@ -48,8 +48,7 @@ from pathlib import Path
 
 from leaf.data_contracts import output_findings
 from leaf.findings import Finding, element_at
-from leaf.layer import checked_layer_inputs, compose_layer
-from leaf.packages import package_layer_inputs
+from leaf.layer import checked_layer_inputs, compose_layer, package_layer_inputs
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry.contract import (
     element_declarations,

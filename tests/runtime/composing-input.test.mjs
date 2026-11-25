@@ -3,10 +3,13 @@
  * browser geometry are exercised by the existing composer browser journeys. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/runtime/framework.js";
-import { createCompositionInputs, syncInput } from "/runtime/composing/input.js";
-import { raiseError } from "/runtime/errors.js";
-import { focusDestination } from "/runtime/focus.js";
+import { signal } from "/runtime/records/framework.js";
+import {
+  createCompositionInputs,
+  syncInput,
+} from "/runtime/annotations/composing/input.js";
+import { raiseError } from "/runtime/transport/errors.js";
+import { focusDestination } from "/runtime/dom/focus.js";
 
 function composer(t, options = {}, owner = null) {
   const row = document.createElement("div");

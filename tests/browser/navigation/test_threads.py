@@ -34,10 +34,10 @@ from render_harness import (
 )
 
 from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -663,7 +663,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     then centre it vertically in the document. `scrollIntoView` also moved the document,
     jumping it to the nearest edge in the press's own task before the smooth centred
     navigation step began. Both local axes must move in that task, while the page waits
-    for its glide (scrolling.js, `glideTo`), whose frames carry it to the centre in one
+    for its glide (dom/scrolling.js, `glideTo`), whose frames carry it to the centre in one
     trip: each one further down, never turning back."""
     lead = "".join(
         f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)

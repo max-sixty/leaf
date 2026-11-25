@@ -12,59 +12,63 @@ const reportsFor = (source, filename = "browser/runtime/example-store.js") =>
 
 test("semantic publisher ownership closes every browser framework import path", () => {
   assert.equal(
-    reportsFor("import {createSemanticApplication} from '/runtime/framework.js'")
-      .length,
-    1,
-  );
-  assert.equal(
     reportsFor(
-      "const {createSemanticApplication} = await import('/runtime/framework.js')",
+      "import {createSemanticApplication} from '/runtime/records/framework.js'",
     ).length,
     1,
   );
   assert.equal(
-    reportsFor("export {createSemanticApplication} from '/runtime/framework.js'")
-      .length,
+    reportsFor(
+      "const {createSemanticApplication} = await import('/runtime/records/framework.js')",
+    ).length,
     1,
   );
   assert.equal(
     reportsFor(
-      "export {createSemanticApplication as make} from '/runtime/framework.js'",
+      "export {createSemanticApplication} from '/runtime/records/framework.js'",
     ).length,
     1,
   );
-  assert.equal(reportsFor("export * from '/runtime/framework.js'").length, 1);
   assert.equal(
-    reportsFor("export * as browser from '/runtime/framework.js'").length,
+    reportsFor(
+      "export {createSemanticApplication as make} from '/runtime/records/framework.js'",
+    ).length,
+    1,
+  );
+  assert.equal(reportsFor("export * from '/runtime/records/framework.js'").length, 1);
+  assert.equal(
+    reportsFor("export * as browser from '/runtime/records/framework.js'").length,
     1,
   );
   assert.deepEqual(
     reportsFor(
-      "import {createSemanticApplication} from '/runtime/framework.js'",
-      "browser/runtime/semantic-state.js",
+      "import {createSemanticApplication} from '/runtime/records/framework.js'",
+      "browser/runtime/state/semantic-state.js",
     ),
     [],
   );
 });
 
 // The modules behind the facade are its own, so the facade is the only edge into the
-// framework: a deep path is refused whatever it names, semantic-state.js included.
+// framework: a deep path is refused whatever it names, state/semantic-state.js included.
 test("a module behind the browser framework's facade is not an import path", () => {
   const facade =
-    "Import browser framework capabilities from its facade, runtime/framework.js.";
+    "Import browser framework capabilities from its facade, runtime/records/framework.js.";
   for (const source of [
     "import {createApplicationPublisher} from './framework/snapshot.js'",
-    "import {createSemanticApplication} from '/runtime/framework/application.js'",
+    "import {createSemanticApplication} from '/runtime/records/framework/application.js'",
     "export {createSemanticApplication} from './framework/application.js'",
     "const {createSemanticApplication} = await import('./framework/application.js')",
   ]) {
     assert.deepEqual(reportsFor(source), [facade]);
-    assert.deepEqual(reportsFor(source, "browser/runtime/semantic-state.js"), [facade]);
+    assert.deepEqual(reportsFor(source, "browser/runtime/state/semantic-state.js"), [
+      facade,
+    ]);
   }
   // The facade and the modules behind it reach one another directly.
   for (const filename of [
-    "browser/runtime/framework.js",
-    "browser/runtime/framework/application.js",
+    "browser/runtime/records/framework.js",
+    "browser/runtime/records/framework/application.js",
   ])
     assert.deepEqual(
       reportsFor("export {share} from './framework/snapshot.js'", filename),

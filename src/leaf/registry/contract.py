@@ -23,7 +23,7 @@ from .kernel import kernel_marks, verb_writers
 
 def same_state_definition(recorded, current) -> bool:
     """Whether two recorded state definitions, or values in them, are one JSON value,
-    as the browser compares them (`registry-contract.js`): `true` is not `1`, which
+    as the browser compares them (`state/registry-contract.js`): `true` is not `1`, which
     Python's `==` takes it for, while `1.0` is `1`, as in JavaScript."""
     if isinstance(recorded, dict) and isinstance(current, dict):
         return recorded.keys() == current.keys() and all(
@@ -546,7 +546,7 @@ def recorded(spec: dict) -> dict | None:
     verb with no record. An admitted event stores this, so a declaration that names
     another property or event keeps every decision recorded before it, and a state
     in `leaf page state` shows it as its construction. The browser's `sameRecord`
-    (`runtime/registry.js`) compares two records the same way."""
+    (`runtime/state/registry.js`) compares two records the same way."""
     record = spec.get("record")
     return record and {
         key: value for key, value in record.items() if key not in RECORD_BINDING

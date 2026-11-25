@@ -132,7 +132,7 @@ export function inlineMarkdownFragment(text, links, message = true) {
 // parser loads leaves the element unstamped, so the next paint renders. The body reads
 // as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
 // (`leaf.passages.markdown_markup`) and the field editing it in place reads it
-// (composing/field-editor.js, `read`).
+// (annotations/composing/field-editor.js, `read`).
 /** @param {Element} element @param {string} source @param {MarkdownLinks} links */
 export function paintMarkdown(element, source, links) {
   if (element.getAttribute("data-lf-source-words") === source) return;
@@ -148,11 +148,22 @@ const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // spaces. The shared lossless aligner maps either transformation back to source.
 /** @param {string} source @param {string} raw @param {number} at @param {number} limit @param {boolean} cell */
 function inlineSourcePositions(source, raw, at, limit, cell) {
-  // A verbatim block ends with its words, past the opening markers. A cell shares its line.
-  const start = at + source.slice(at, limit).trimEnd().length - raw.length;
-  if (!cell && start >= at && source.startsWith(raw, start))
-    return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
-  // Even an empty inline token has one boundary (for example, an empty table cell).
+  // A verbatim block ends with its words, past the opening markers. A cell's words are
+  // the first on its row past the cell before it, spelled with a `\` before each `|`:
+  // the table reads `\|` as a pipe in a cell's words, and a bare `|` as one between
+  // cells.
+  const span = source.slice(at, limit);
+  const spelled = cell ? raw.replaceAll("|", "\\|") : raw;
+  const start =
+    at + (cell ? span.indexOf(spelled) : span.trimEnd().length - raw.length);
+  if (start >= at && source.startsWith(spelled, start)) {
+    const positions = [start];
+    let sourceAt = start;
+    for (let i = 0; i < raw.length; i++)
+      positions.push((sourceAt += cell && raw[i] === "|" ? 2 : 1));
+    return positions;
+  }
+  // Even an empty inline token has one boundary.
   const positions = [at];
   let sourceAt = at;
   let inlineAt = 0;
@@ -366,8 +377,13 @@ export function markdownSourceOffset(body, node, offset) {
         characters,
         Infinity,
       )) {
-        if (run.kind === "delete") sourceAt += run.text.length;
-        else {
+        // A caret before an escaped first character stands before its backslash, which
+        // a key there would split from the character.
+        if (run.kind === "delete") {
+          if (aim === tokenAt && placed.spelled?.some(([a]) => a === sourceAt))
+            return sourceAt;
+          sourceAt += run.text.length;
+        } else {
           if (aim <= tokenAt + run.text.length)
             return sourceAt + (run.kind === "same" ? aim - tokenAt : 0);
           tokenAt += run.text.length;

@@ -92,6 +92,32 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     }
     assert.equal(matches, 1);
   }
+  // A caret before an escaped first character stands before its backslash, which a
+  // key there would otherwise split from the character it escapes, and one before
+  // code's first character stays in the code.
+  for (const [source, word, at] of [
+    ["```py\nalpha()\n```", "alpha", 6],
+    ["Run:\n\n    alpha()", "alpha", 10],
+  ]) {
+    const body = document.createElement("div");
+    paintMarkdown(body, source);
+    const node = body.querySelector("code").firstChild;
+    assert.equal(markdownSourceOffset(body, node, node.data.indexOf(word)), at, source);
+  }
+  for (const source of ["\\*word300", "Say **\\*word300**."]) {
+    const body = document.createElement("div");
+    paintMarkdown(body, source);
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    for (let node; (node = walker.nextNode());) {
+      const at = node.data.indexOf("*word300");
+      if (at < 0) continue;
+      const offset = markdownSourceOffset(body, node, at);
+      assert.ok(
+        offset !== null && offset <= source.indexOf("\\*"),
+        `${source}: ${offset}`,
+      );
+    }
+  }
   for (const source of ["First\nword300", "First  \nword300"]) {
     const body = document.createElement("div");
     paintMarkdown(body, source);
@@ -426,9 +452,9 @@ test("a list item records the indent its later lines stand at past its container
 });
 
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
-  const { registry } = await import("/runtime/registry.js");
-  const { preloadWidgets } = await import("/runtime/widget-loader.js");
-  const { formatDeclaredMarkdown } = await import("/runtime/page-markdown.js");
+  const { registry } = await import("/runtime/state/registry.js");
+  const { preloadWidgets } = await import("/runtime/records/widget-loader.js");
+  const { formatDeclaredMarkdown } = await import("/runtime/records/page-markdown.js");
   const { dataBody } = await import("/runtime/lib/data-body.js");
   registry["lf-source-contract"] = {
     content: "markdown",
@@ -462,11 +488,11 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
 });
 
 test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
-  const { registry } = await import("/runtime/registry.js");
+  const { registry } = await import("/runtime/state/registry.js");
   const { loadDeclaredMarkdown, formatDeclaredMarkdown } =
-    await import("/runtime/page-markdown.js");
-  const { annotationAt } = await import("/runtime/anchor-resolution.js");
-  const { blockAt, elementReading } = await import("/runtime/passages.js");
+    await import("/runtime/records/page-markdown.js");
+  const { annotationAt } = await import("/runtime/readings/anchor-resolution.js");
+  const { blockAt, elementReading } = await import("/runtime/readings/passages.js");
   registry["lf-seat-contract"] = {
     content: "markdown",
   };
@@ -509,5 +535,38 @@ test("a table cell's words stand in its own row, inside quotes and items", async
       [source.lastIndexOf("Total")],
       source,
     );
+  }
+});
+
+test("a table cell's words and a caret in them stand in its own cell, past the pipes it escapes", async () => {
+  const { loadMarkdown, paintMarkdown, markdownSourceOffset, placedMarkdownTokens } =
+    await import("/runtime/lib/markdown.js");
+  await loadMarkdown();
+  for (const cells of [
+    ["\\|", "\\|"],
+    ["a\\|b\\|c", "d\\*e", "`f\\|g`", "\\`", "\\|"],
+  ]) {
+    let source = "|";
+    const spans = cells.map((cell) => {
+      const from = source.length + 1;
+      source += ` ${cell} |`;
+      return [from, from + cell.length];
+    });
+    source += `\n|${" - |".repeat(cells.length)}`;
+    assert.deepEqual(
+      placedMarkdownTokens(source, false)
+        .filter(({ token }) => !token.nesting)
+        .map(({ from, to }) => [from, to]),
+      spans,
+      source,
+    );
+    const body = document.createElement("div");
+    paintMarkdown(body, source, {});
+    for (const [index, cell] of body.querySelectorAll("th").entries()) {
+      const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT).nextNode();
+      const offset = markdownSourceOffset(body, words, words.data.length);
+      const [from, to] = spans[index];
+      assert.ok(from < offset && offset <= to, `${source}: cell ${index} at ${offset}`);
+    }
   }
 });

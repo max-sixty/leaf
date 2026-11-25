@@ -1,11 +1,15 @@
 /* What the floating panel's empty field says and offers at its end
- * (field-readings.js), from the moment's facts, and the guide's table of the readings
+ * (panel/field-readings.js), from the moment's facts, and the guide's table of the readings
  * held to their order. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { FIELD_READINGS, passingWords, readField } from "/runtime/field-readings.js";
-import { leafSays, wordsText } from "/runtime/voice.js";
+import {
+  FIELD_READINGS,
+  passingWords,
+  readField,
+} from "/runtime/panel/field-readings.js";
+import { leafSays, wordsText } from "/runtime/base/voice.js";
 
 /** @param {string} word */
 const press = (word) => ({ word, keys: [], run: () => {} });

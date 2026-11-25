@@ -46,6 +46,7 @@ from leaf import harness as harness_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf import tasks as tasks_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.refusals import Refused
@@ -319,7 +320,7 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_d
     assert reply("--done", "--text", "Rebuilt it.") == delivered
     assert events_model.read_events(page_dir) == events
     # With the to-do ended, another answer to the update is refused.
-    todos_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
+    tasks_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
     [refused] = command_findings(
         "thread", "reply", reference, "--done", "--text", "Rebuilt it again."
     )
@@ -1194,7 +1195,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
             thread_model.post_response(reference, "This is not a revision.", **options)
         assert refused_on(refused.value).code == "not-a-reply"
         assert events_model.read_events(page_dir) == before
-    started = todos_model.cmd_start(
+    started = tasks_model.cmd_start(
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]

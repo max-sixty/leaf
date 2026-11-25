@@ -5,20 +5,20 @@
    (go-to-sequence.js, target-picker.js) does: `read` names the links in view that
    nothing covers, each with its code and its box, and `layout` puts a chip on each. A
    paint is called where a frame would run one, and a scroll is the `scroll` and
-   `scrollend` events the page's scroll tracking hears (arrivals.js), so no case waits
-   on a clock. The live region speaks after its own delay (notifications.js), which the
+   `scrollend` events the page's scroll tracking hears (dom/arrivals.js), so no case waits
+   on a clock. The live region speaks after its own delay (transport/notifications.js), which the
    mocked timers run. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createHintSession, codedHints } from "/runtime/keyboard/hints.js";
-import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
-import { commandScope, keys } from "/runtime/keyboard/scopes.js";
-import { liveEl } from "/runtime/notifications.js";
-import { mountRepaint } from "/runtime/repaint.js";
+import { createHintSession, codedHints } from "/runtime/readings/key-badges/hints.js";
+import { setQuickShortcuts } from "/runtime/dom/keyboard/bindings.js";
+import { commandScope, keys } from "/runtime/dom/keyboard/scopes.js";
+import { liveEl } from "/runtime/transport/notifications.js";
+import { mountRepaint } from "/runtime/dom/repaint.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
-import { html } from "/runtime/framework.js";
+import { html } from "/runtime/records/framework.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
 const KEYS = ["a", "s", "d"];

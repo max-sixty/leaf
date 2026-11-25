@@ -21,7 +21,7 @@ after its turn ended, and the step has no end that could say where its result is
 step of work is therefore a record with an end of its own: the agent's a to-do, which
 `leaf task end` ends with where its result is (`detail`), the user's an obligation.
 `leaf task plan` opens a to-do for each step written as `todo` and names it in the plan
-by its id (`cmd_plan`), so an outline of new work is one command, and a later rewrite
+by its id (`tasks.cmd_plan`), so an outline of new work is one command, and a later rewrite
 names that step by the id the plan printed.
 
 The plan keeps the breakdown apart from what is owed. A to-do or an obligation keeps its
@@ -46,16 +46,14 @@ its steps that ended done of those not dropped. A step naming an obligation a la
 version removed reads as dropped.
 
 The floating panel's On <agent> shows the plan above its list while one stands, and On
-Me can group its items under the goals whose steps name them (`floating-panel.js`,
-`queue-walk.js`). `conversation-loop.md`, "When to write", asks an agent for a plan
+Me can group its items under the goals whose steps name them (`panel/floating-panel.js`,
+`panel/queue-walk.js`). `conversation-loop.md`, "When to write", asks an agent for a plan
 when its work runs to several steps and past the turn it is in.
 
 Experimental, like to-dos and the lists; nothing outside this repository depends on it.
 """
 
-from pathlib import Path
-
-from .findings import Finding, note
+from .findings import Finding
 from .standing import ended, leading
 
 _STANDING = ("next_actor", "state", "reason", "outcome")
@@ -199,64 +197,3 @@ def _heading_standing(beneath: list[dict]) -> dict:
         return ended("dropped")
     failed = any(record["outcome"] == "failed" for record in kept)
     return ended("failed" if failed else "done")
-
-
-def cmd_plan(page_dir: Path, steps: list) -> dict:
-    """Write `steps` as the page's plan; the record. Each step written as `todo` opens
-    a to-do with that title on the page, which the plan names by its id; the to-dos
-    and the plan land together or not at all (`append_all_admitted`). A long title is
-    fitted (`thread.agent_title`), and a step that skips a level is noted
-    (`skipped_levels`)."""
-    from .event_contracts import append_all_admitted
-    from .event_log import new_event_id
-    from .leases import contract_writer
-    from .revisioning import activate_source
-    from .service import PageTransaction
-    from .thread import agent_title
-
-    # A step naming an item too says two things, so it goes to the door as written,
-    # as does a plan that isn't a list, and the door says what is wrong.
-    def opens(step) -> bool:
-        return (
-            isinstance(step, dict)
-            and isinstance(step.get("todo"), str)
-            and "item" not in step
-        )
-
-    def written(step, ids) -> dict:
-        if opens(step):
-            kept = {key: value for key, value in step.items() if key != "todo"}
-            return {**kept, "item": next(ids)}
-        if isinstance(step, dict) and isinstance(step.get("title"), str):
-            return {**step, "title": agent_title(step["title"])}
-        return step
-
-    @contract_writer
-    def write(page_dir: Path) -> dict:
-        with PageTransaction(page_dir) as page:
-            activate_source(page_dir, transaction=page)
-            listed = steps if isinstance(steps, list) else []
-            todos: list[dict] = []
-            for step in filter(opens, listed):
-                todos.append(
-                    {
-                        "kind": "todo",
-                        "author": "agent",
-                        "id": new_event_id([*page.events, *todos]),
-                        "subject": {"kind": "page"},
-                        "title": agent_title(step["todo"]),
-                    }
-                )
-            named = iter(todo["id"] for todo in todos)
-            plan = {
-                "kind": "plan",
-                "author": "agent",
-                "steps": [written(step, named) for step in listed]
-                if isinstance(steps, list)
-                else steps,
-            }
-            *_, record = append_all_admitted(page, [*todos, plan])
-            note(*skipped_levels(record["steps"]))
-            return record
-
-    return write(page_dir)

@@ -84,6 +84,9 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf.authored_checks.admission import message_markup_findings
+from leaf.authored_checks.source import check_source
+from leaf.authored_checks.source_history import predecessor_reading
 from leaf.refusals import Refused
 from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema, stamp_words
 from leaf.registry.schema import schema_error
@@ -91,14 +94,11 @@ from leaf.registry.storage import (
     load_registry,
     read_page_registry,
 )
+from leaf.registry.validation import incoming_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.runtime_selection import executing
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.validation import composition as validation_model
-from leaf.validation.admission import message_markup_findings
-from leaf.validation.source import check_source
-from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
 
 # PAGE's group asking, and the same group once the author settles it.
@@ -1671,7 +1671,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     here, which is how it followed lf-diagram and lf-diff into their own packages.
     Widening it that way brought pr-review's two widgets under the floor for the
     first time and found one uncovered attribute, exempted below."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     used = {}
 
     def read(document):

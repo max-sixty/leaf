@@ -591,7 +591,7 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     and, coming round, back up through the list, while the item it opens starts in the
     window. Running with the page, the walk scrolled each item's start away, and a tab
     left past the window's foot, or read away from, was out of sight, so the next arrow
-    let go of it (keyboard/controller.js), focus fell to the page and no tab opened.
+    let go of it (panel/page-keys/controller.js), focus fell to the page and no tab opened.
     The row the walk heads for shows beside the open tab, so the list doesn't look as
     though it starts or ends there. Read down an item, the list stays beside it, and the
     next arrow opens the next item at its start. A list shorter than the window stays

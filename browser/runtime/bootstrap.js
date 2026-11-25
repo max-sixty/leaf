@@ -3,7 +3,7 @@
 (() => {
   // The one rename this script makes of the entry the user is on: to `url`, keeping the
   // entry's own state, the record of where the user was on it, which a reload returns
-  // them to (history.js) and `replaceState` alone drops. A sandboxed sample's document
+  // them to (records/history.js) and `replaceState` alone drops. A sandboxed sample's document
   // keeps no entries.
   /** @param {URL} url */
   const rename = (url) => {
@@ -32,14 +32,14 @@
     return entry;
   })();
   const root = document.documentElement;
-  // runtime/ids.js's randomId, which this classic script cannot import: a sample
+  // runtime/base/ids.js's randomId, which this classic script cannot import: a sample
   // child served by `leaf --host` over plain HTTP has no crypto.randomUUID, nor does a
   // site build served that way.
   const randomId = () =>
     Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
-  // A framed document places focus only while it holds input (focus.js,
+  // A framed document places focus only while it holds input (dom/focus.js,
   // `canPlaceFocus`). Aim cancels native mousedown focus and places its editor after
   // layout, so a trusted input enters the browsing context before those handlers run.
   if (window !== window.top) {
@@ -58,15 +58,15 @@
       root.lfSample = window.lfSampleBridge;
       root.lfSample.install();
     } else {
-      /** @type {{port: MessagePort, settings: import("./sample-protocol.js").SampleSettings} | null} */
+      /** @type {{port: MessagePort, settings: import("./base/sample-protocol.js").SampleSettings} | null} */
       let connection = null;
       /** @type {PromiseWithResolvers<void>} */
       const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
-      /** @type {import("./sample-protocol.js").ChildMessage[]} */
+      /** @type {import("./base/sample-protocol.js").ChildMessage[]} */
       const queued = [];
-      /** @type {Set<(message: import("./sample-protocol.js").ParentMessage) => void>} */
+      /** @type {Set<(message: import("./base/sample-protocol.js").ParentMessage) => void>} */
       const listeners = new Set();
-      /** @param {import("./sample-protocol.js").ChildMessage} value */
+      /** @param {import("./base/sample-protocol.js").ChildMessage} value */
       const send = (value) =>
         connection ? connection.port.postMessage(value) : queued.push(value);
       /** @type {LeafSampleBridge} */
@@ -107,7 +107,7 @@
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
       const nonce = randomId();
-      /** @param {MessageEvent<import("./sample-protocol.js").SampleOffer | undefined>} event */
+      /** @param {MessageEvent<import("./base/sample-protocol.js").SampleOffer | undefined>} event */
       const connect = (event) => {
         const port = event.ports[0];
         if (
@@ -123,7 +123,7 @@
         // The bootstrap element owns diagnostic readings before the entry starts.
         script.lfDocumentPort = port;
         port.onmessage =
-          /** @param {MessageEvent<import("./sample-protocol.js").ParentMessage>} event */ ({
+          /** @param {MessageEvent<import("./base/sample-protocol.js").ParentMessage>} event */ ({
             data,
           }) => {
             if (data.type === "dress") dress(data.detail);
@@ -155,7 +155,7 @@
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       // A frame's own navigation never keeps its document in the page cache, so a
       // persisted pagehide is the containing page's, which takes this document and
-      // its port along and brings both back together (sample.js keeps the host then).
+      // its port along and brings both back together (host/sample.js keeps the host then).
       window.addEventListener("pagehide", (event) => {
         if (!event.persisted) send({ type: "departed" });
       });
@@ -217,7 +217,7 @@
   // the textarea while it is empty. Return makes a line, since nothing can send yet.
   // While the user is in the field, the row stands as the panel's does while the user
   // writes, as far as the row draws it: the field's ring
-  // (`data-lf-control-focus-visible`, focus.js).
+  // (`data-lf-control-focus-visible`, dom/focus.js).
   // Rejected: dropping the keys typed there, which loses every word typed before the
   // runtime loads; drawing them in the field's words as typed, which needs a caret,
   // endings, wrapping and a phone's keyboard of its own; a `contenteditable`, which
@@ -229,7 +229,7 @@
   // The panel takes the row over as it mounts, in the task that draws the panel's first
   // frame, whose leaf, field and marks stand where the row's stood (floating-panel.css,
   // `data-lf-served`), and offers its field (`lf-held-keys-seat`), which takes the
-  // textarea's words and caret (floating-panel.js, `write`) as the row goes. An input
+  // textarea's words and caret (panel/floating-panel.js, `write`) as the row goes. An input
   // method composing in the textarea finishes there first, since words taken
   // mid-composition the method writes again as it ends. Where no panel is coming,
   // because the document reports it cannot start or the runtime gives it up, the row
@@ -361,14 +361,16 @@
   // pressed on the page starts it, and every printed key after it
   // joins. Any other key ends the run, and so does a pointer press, which puts the user
   // somewhere the keys were not aimed at: what was held is dropped and the new press
-  // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
-  // press, which neither starts nor ends one. After a beat the held keys are shown, so a
-  // press visibly landed; a runtime that takes the run within the beat shows nothing.
+  // keeps its own meaning. Words typed through Leaf's reload are no run: they go into
+  // their box as they are typed (`typeBack`). A chord never starts a run, and a
+  // modifier alone is half a press, which neither starts nor ends one. After a beat
+  // the held keys are shown, so a press visibly landed; a runtime that takes the run
+  // within the beat shows nothing.
   //
   // They are shown where the page says what it is doing, the floating panel's field,
   // in place of the status: before the panel mounts, in the row the document served
   // (`standRow`, below), and once the panel offers its field as their seat
-  // (`lf-held-keys-seat`, floating-panel.js), there. The user chose the panel's look
+  // (`lf-held-keys-seat`, panel/floating-panel.js), there. The user chose the panel's look
   // and field over a notice of the keys' own, a second interface that often stood
   // beside the panel.
   //
@@ -383,8 +385,11 @@
   const { takesLetters, holdKeys } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
-  // Where the tab keeps the run of held keys (`holdEarlyKeys`).
+  // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words typed
+  // through Leaf's reload for a draft (`typeBack`). The event of the same name tells
+  // the runtime that words wait there.
   const HELD_KEYS = "lf-held-keys";
+  const HELD_WORDS = "lf-held-words";
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -399,28 +404,46 @@
     // `placesUser`); a handoff of values alone hands back none. While the place comes
     // back a held key is no input (`holdKeys`, below). Where the user was writing in a
     // box (`typing`), a user typing through the reload means their keys as words for
-    // that box: a Space starts a run as a letter does, rather than scrolling the page,
-    // and the hold takes keys whatever the single-key preference.
-    const { handoff, tabStore, placesUser } = window.lfStorage;
-    const typingBack = () => placesUser() && handoff?.typing === true;
+    // that box (`typeBack`): a Space is a word space rather than a scroll of the page,
+    // whatever the single-key preference. Once an input of theirs ends the hand-back
+    // (`counted`), their keys are the page's again.
+    const { handoff, tabStore, placesUser, handedFocus } = window.lfStorage;
+    let moved = false;
+    const typingBack = () => placesUser() && handoff?.typing === true && !moved;
+    // The box the reload hands back: a draft's editor, named by its draft's context
+    // (features/version.js, `captureHandoff`), or a field of the page's own (prepaint.js,
+    // `handedFocus`) that holds a caret, which typing into it needs. A date, time or
+    // number field holds none, so a key typed for it waits in the run, and the field
+    // takes it as it takes any key once the reload puts the user back (`queue`).
+    const draft = handoff?.draftEditing?.context ?? null;
+    const field = draft || !handedFocus?.caret ? null : handedFocus;
+    /** @param {string} key */
+    const read = (key) => {
+      try {
+        return JSON.parse(tabStore.get(key) || "null");
+      } catch {
+        return null;
+      }
+    };
+    // The words the tab keeps for their drafts until the runtime types them in
+    // (`typeBack`), in the order they were typed.
+    /** @returns {{context: string, words: string}[]} */
+    const keptWords = () => {
+      const kept = read(HELD_WORDS);
+      return Array.isArray(kept) ? kept : [];
+    };
     // The run is kept in the tab as it changes, as each key is held, pressed or let go
     // (`save`), so a document that goes leaves the keys it held and never pressed. A
     // reload Leaf asks for of the same address hands a place back, and its document's
     // run starts with those keys, even where the document before it had put its own
     // place back and was pressing them as it went; any other load starts a run of its
     // own.
+    const stored = read(HELD_KEYS);
     /** @type {KeyboardEvent[]} */
-    const held = (() => {
-      if (!placesUser()) return [];
-      try {
-        const kept = JSON.parse(tabStore.get(HELD_KEYS) || "[]");
-        return Array.isArray(kept)
-          ? kept.map((init) => new KeyboardEvent("keydown", init))
-          : [];
-      } catch {
-        return [];
-      }
-    })();
+    const held =
+      placesUser() && Array.isArray(stored)
+        ? stored.map((init) => new KeyboardEvent("keydown", init))
+        : [];
     const save = () =>
       tabStore.set(
         HELD_KEYS,
@@ -451,17 +474,31 @@
     /** @type {((words: HeldWords | null) => void) | null} */
     let seat = null;
     // What the held keys say, wherever they show: each key as its badge, then Leaf's
-    // words. The keys lead, so a narrow field that cuts the line short keeps them.
+    // words. The keys lead, so a narrow field that cuts the line short keeps them. Words
+    // typed for a draft are in it already, which is what Leaf says of them, until the
+    // user moves on.
+    /** @param {string[]} keys @param {string} saying @returns {HeldWords} */
+    const said = (keys, saying) =>
+      keys.length
+        ? [
+            ...keys.flatMap((key, at) => [
+              ...(at ? [" "] : []),
+              { key: key === " " ? "Space" : key },
+            ]),
+            saying,
+          ]
+        : [];
     /** @returns {HeldWords} */
-    const words = () => [
-      ...held.flatMap(({ key }, at) => [
-        ...(at ? [" "] : []),
-        { key: key === " " ? "Space" : key },
-      ]),
-      held.length === 1
-        ? " runs when the page is ready"
-        : " run when the page is ready",
-    ];
+    const words = () => {
+      const kept = said(moved ? [] : [...typed], " kept in the draft");
+      const waiting = said(
+        held.map(({ key }) => key),
+        held.length === 1
+          ? " runs when the page is ready"
+          : " run when the page is ready",
+      );
+      return [...kept, ...(kept.length && waiting.length ? [" · "] : []), ...waiting];
+    };
     // Words already shown are not shown again: the panel's field repaints for each, and
     // each of its paints asks the keyboard owner to take the keys again
     // (controller.js, `watchCommandAvailability`), which pauses on the same key.
@@ -487,6 +524,59 @@
       save();
       hide();
     };
+    // A key the user types through Leaf's reload is a word for the box it hands back
+    // as soon as it is typed, so nothing that ends the hold can drop it: a scroll, a
+    // press elsewhere, a step away or a page that can't start ends the return of the
+    // user's place, not their wish for the words. A field of the page's own takes it
+    // at once (`typeIntoField`). A draft's takes it through the tab, which keeps it
+    // until the runtime types it in, at once where the runtime has loaded and else as
+    // a document of the page next loads (records/drafts.js, `takeHeldWords`), so the box comes
+    // back holding it. Until the hand-back ends the hold shows the draft's words as it
+    // shows held keys (`typed`), and then asks the runtime whether they are on screen.
+    let typed = "";
+    /** @param {string} key */
+    const typeBack = (key) => {
+      if (!draft) return typeIntoField(key);
+      typed += key;
+      tabStore.set(
+        HELD_WORDS,
+        JSON.stringify([...keptWords(), { context: draft, words: key }]),
+      );
+      document.dispatchEvent(new Event(HELD_WORDS));
+      if (shown) show();
+      else beat ||= setTimeout(show, 150);
+    };
+    // A field of the page's own takes the words in the value and caret the reload
+    // carries for it, which the arrival puts back (records/carry.js, `restoreCarry`), and in the
+    // field itself, which may already hold that value; the page hears them there as the
+    // field's input, which is the user's typing replayed rather than a new input of
+    // theirs (`echo`, `holdKeys`). Neither leaves the document.
+    /** @type {InputEvent | null} */
+    let echo = null;
+    /** @param {string} key */
+    const typeIntoField = (key) => {
+      if (!field) return;
+      const element = document.getElementById(field.id);
+      const control =
+        element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
+          ? element
+          : null;
+      const value = field.value ?? control?.defaultValue ?? "";
+      const [start, end] = /** @type {[number, number]} */ (field.caret);
+      const at = start + key.length;
+      field.value = value.slice(0, start) + key + value.slice(end);
+      field.caret = [at, at];
+      if (!control) return;
+      control.value = field.value;
+      control.setSelectionRange(at, at);
+      echo = new InputEvent("input", {
+        bubbles: true,
+        inputType: "insertText",
+        data: key,
+      });
+      control.dispatchEvent(echo);
+      echo = null;
+    };
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
@@ -496,9 +586,10 @@
       if (shown) show();
       else beat ||= setTimeout(show, 150);
     };
-    // Whether the hold takes `event`, which then acts only when the run is replayed.
-    // Where a place is handed back, the input clock asks this first and leaves such a
-    // key uncounted until then (document-inputs.js, `holdKeys`).
+    // Whether the hold takes `event`, which then goes into the box the reload hands back
+    // (`typeBack`) or waits in the run until it is replayed (`queue`). Where a place is
+    // handed back, the input clock asks this first and leaves such a key uncounted
+    // (base/document-inputs.js, `holdKeys`).
     /** @param {KeyboardEvent} event */
     const holds = (event) => {
       if (!window.lfKeyboard.quick && !typingBack()) return false;
@@ -530,7 +621,8 @@
     const hold = (event) => {
       if (!window.lfKeyboard.quick && !typingBack()) return letGo();
       if (holds(event)) {
-        queue(event);
+        if (typingBack() && (draft || field)) typeBack(event.key);
+        else queue(event);
         event.preventDefault();
         event.stopImmediatePropagation();
       } else if (
@@ -551,7 +643,13 @@
     const take = (event) => {
       ready = event.detail.ready;
       keep = event.detail.keep;
+      // The hand-back is over, and the runtime says the draft is kept where its words
+      // aren't on screen in their box, as after a step to another entry (records/drafts.js,
+      // `takeHeldWords`).
+      if (typed) document.dispatchEvent(new CustomEvent(HELD_WORDS, { detail: draft }));
+      typed = "";
       if (!held.length) {
+        hide();
         if (!keep?.()) stopHoldingKeys();
         return;
       }
@@ -586,6 +684,7 @@
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
       document.removeEventListener("lf-held-keys-seat", seated);
+      typed = "";
       letGo();
       endRow();
     };
@@ -594,26 +693,33 @@
     // modifier, which acts on nothing, as the Shift before a capital the hold keeps.
     // Any other input the document's clock counts, a scroll or a step Back or Forward as
     // much as a press, ends that hand-back, so the keys held for the place it would put
-    // back go at once (`counted`), and a document that goes then leaves none of them.
+    // back go at once (`counted`, `letGo`), and a document that goes then leaves none of
+    // them as keys.
     // The run's own presses, once the place is back, are the clock's inputs too, and
     // let go of nothing (`taken`). Elsewhere a held key still counts, so a key typed
     // while the page starts still stops arrival work, such as reopening a comment box,
     // as it always did. Whatever the load, the run belongs to the entry its keys were
     // typed at: a step Back or Forward lets it go, the keys the runtime has yet to
     // press included, only where the browser says the user took it; otherwise the keys
-    // stay and run where the user then stands (document-inputs.js, `step`). Whether
+    // stay and run where the user then stands (base/document-inputs.js, `step`). Whether
     // the place is handed back is asked of the entry the user stands at as each input
     // comes (prepaint.js, `placesUser`).
     holdKeys({
-      holds: (event) => placesUser() && (HALF_PRESSES.has(event.key) || holds(event)),
+      holds: (event) =>
+        event === echo ||
+        (event instanceof KeyboardEvent &&
+          placesUser() &&
+          (HALF_PRESSES.has(event.key) || holds(event))),
       counted: (stepped) => {
-        if (stepped || (!taken && placesUser())) letGo();
+        if (!stepped && (taken || !placesUser())) return;
+        moved = true;
+        letGo();
       },
     });
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through
-    // its own handler (runtime/keyboard/controller.js).
+    // its own handler (runtime/panel/page-keys/controller.js).
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
     if (held.length) beat = setTimeout(show, 150);
@@ -796,7 +902,7 @@
     // is then using a page this would otherwise navigate out from under them, so the
     // one place that acts is the one place that has to ask whether the page started.
     // The one document recovery asks for is this address marked, reloaded as a
-    // revision's handoff reloads (version.js), past a cache that answered the address
+    // revision's handoff reloads (features/version.js), past a cache that answered the address
     // the user typed.
     const ask = () => {
       const next = new URL(location.href);

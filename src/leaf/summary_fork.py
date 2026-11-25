@@ -16,8 +16,8 @@ answer: a fork's answer arrives whole, and a summary's few hundred words would h
 back the working line by seconds.
 
 The hint is the fork's for a thread whose newest delivered message came to a round
-that awaited a line (`forks.unlined`) while a follower listed the session's line forks
-(`forks.lane_up`), since `forks.ask` asks this fork beside that round's line fork:
+that awaited a line (`events.unlined`) while a follower listed the session's line forks
+(`leases.lane_up`), since `forks.ask` asks this fork beside that round's line fork:
 the session's delivery leaves it out (`thread_context.batch_threads`), so the session
 spends no step on it. A delivery whose newest message in the thread joined a round
 the agent had spoken in, as one arriving while the session still owed the thread its
@@ -64,8 +64,12 @@ the fork's usage, time and what it resent, as `forks` notes the line fork's.
 from pathlib import Path
 
 from .clerk import queue, read_answer, reference_paragraph
+from .events import active_summaries, build_threads, spoken_turns
 from .refusals import Refused
+from .revision_artifact import active_enclosing
 from .service import PageTransaction
+from .thread import cmd_summarize
+from .thread_context import summary_hint
 
 OPENING = "<leaf-summary-fork>"
 
@@ -98,8 +102,7 @@ ANSWER = {
 }
 
 # The id the summary takes while `_fence` asks whether it would still be in force.
-# The page readings this module takes are imported where they're read: `forks`,
-# which every delivery imports (`delivery.batch_data`), imports this module.
+# `forks` imports this module, so this module imports from `forks` where it calls it.
 _WEIGHED = "summary-fork"
 
 
@@ -107,10 +110,7 @@ def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
     """The fork to make beside the line fork for the round `basis` names,
     as `{"prompt", "basis"}`, where Leaf suggests a range of it to summarize; else
     None. `data` is the thread whole, as `forks._thread_data` reads it from `page`."""
-    from .events import active_summaries, build_threads
     from .forks import thread_json
-    from .revision_artifact import active_enclosing
-    from .thread_context import summary_hint
 
     threads = build_threads(page.events, active_enclosing(page.page_dir))
     thread = threads.get(basis["thread"])
@@ -177,7 +177,6 @@ def take_answer(
     noted in the page's diagnostics, with what `forks.run_facts` read of the fork's run
     (`run`)."""
     from .forks import note
-    from .thread import cmd_summarize
 
     page_dir = Path(basis["page"])
     outcome: dict
@@ -228,9 +227,6 @@ def _fence(page: PageTransaction, session_id: str, basis: dict, chosen: dict) ->
     the fork was asked, would be in force now. A range that isn't spoken messages of
     the thread in order, ending before the user's newest messages (`inputs`) that
     still stand, is refused."""
-    from .events import active_summaries, build_threads, spoken_turns
-    from .revision_artifact import active_enclosing
-
     claim = page.active_claim
     if claim is None or claim["id"] != session_id:
         return False

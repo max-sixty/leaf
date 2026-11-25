@@ -3,7 +3,7 @@ import { createActivity } from "./activity-view.js";
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
- * reading of `readHistory` restates the whole feed. A row says who acted (You for the
+ * reading of `readHistory` restates the whole feed. A row says who acted (Me for the
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
  *

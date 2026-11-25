@@ -1,6 +1,6 @@
 /* A document owns one text and its source/preview readings. The text is its `value`,
  * which Leaf sets from a bound source or widget output, or from the `<pre>` the page
- * wrote when the markup binds neither (element-data.js, "Bound values"). Optional
+ * wrote when the markup binds neither (host/element-data.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, which keeps its scroll place independent, and switching keeps the page
@@ -60,7 +60,7 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
 // Each reading shows the same document whatever text its source holds, so its key is
-// also its identity (projection/data.js). A comment on a passage then follows the
+// also its identity (records/projection/data.js). A comment on a passage then follows the
 // passage's words across replacements, and stays marked while they still stand.
 /** @param {HTMLElement} node @param {string} key */
 const mark = (node, key) => {
@@ -770,7 +770,7 @@ class RunColours {
 
 // First draws the page doesn't show, as in a closed tab, made once it has presented, one
 // a task in the order their updates asked (`show`). Until a document draws, a comment on
-// its data stands on the document (anchor-resolution.js).
+// its data stands on the document (readings/anchor-resolution.js).
 /** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */

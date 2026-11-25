@@ -5,8 +5,8 @@ import {
   createApplicationPublisher,
   share,
   shareFold,
-} from "../../browser/runtime/framework/snapshot.js";
-import { createPresentationCoordinator } from "../../browser/runtime/framework/presentation.js";
+} from "../../browser/runtime/records/framework/snapshot.js";
+import { createPresentationCoordinator } from "../../browser/runtime/records/framework/presentation.js";
 
 for (const kind of ["semantic", "presentation"]) {
   test(`${kind} observers own their reads during registration and notification`, () => {

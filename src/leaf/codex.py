@@ -377,7 +377,7 @@ def app_server_request(
         message = json.loads(socket.recv())
         if message.get("id") == request_id and "method" not in message:
             if error := message.get("error"):
-                from .registry.schema import json_value
+                from .json_block import json_value
 
                 raise AppServerRequestRejected(
                     error.get("message") or json_value(error)

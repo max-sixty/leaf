@@ -3420,7 +3420,7 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
             )
         ),
     )
-    accent = token_colour(page, "--lf-accent")
+    ring_ink = token_colour(page, "--lf-here")
     fill = "(text) => getComputedStyle(text).fill"
     outline = "(part) => [getComputedStyle(part).outlineStyle, getComputedStyle(part).outlineColor]"
     drawer = page.locator("#fig-drawer rect")
@@ -3428,13 +3428,13 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-drawer")
-    assert_drawn_in(page.locator("#fig-drawer"), accent, 2)
+    assert_drawn_in(page.locator("#fig-drawer"), ring_ink, 2)
     assert page.locator("#fig-drawer text").evaluate(fill) == "rgb(51, 51, 51)"
     page.keyboard.up("Alt")
     page.locator("#fig-key text").hover()
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-key")
-    assert page.locator("#fig-key").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-key").evaluate(outline) == ["solid", ring_ink]
     assert page.locator("#fig-key text").evaluate(fill) == "rgb(51, 51, 51)"
     page.keyboard.up("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_count(0)
@@ -3442,7 +3442,7 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
     page.locator("#fig-dot use").hover()
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-dot")
-    assert page.locator("#fig-dot").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-dot").evaluate(outline) == ["solid", ring_ink]
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
@@ -3481,13 +3481,13 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
-    accent = token_colour(page, "--lf-accent")
-    assert_drawn_in(page.locator("#outer-surface"), accent, 2)
+    ring_ink = token_colour(page, "--lf-here")
+    assert_drawn_in(page.locator("#outer-surface"), ring_ink, 2)
     assert (
         page.locator("#outer-decoration").evaluate(
             "line => getComputedStyle(line).stroke"
         )
-        != accent
+        != ring_ink
     )
     page.keyboard.up("Alt")
 
@@ -3495,7 +3495,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The inner part, with no surface of its own, draws it along all it holds.
     expect(page.locator("[data-lf-aimed]")).to_have_id("inner")
-    assert_drawn_in(page.locator("#inner"), accent, 2)
+    assert_drawn_in(page.locator("#inner"), ring_ink, 2)
     page.keyboard.up("Alt")
 
 
@@ -3726,7 +3726,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     page.keyboard.down("Alt")
     aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
-    assert_drawn_in(aimed, token_colour(page, "--lf-accent"), 2)
+    assert_drawn_in(aimed, token_colour(page, "--lf-here"), 2)
     assert (
         rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
         == "none"
@@ -5574,13 +5574,13 @@ def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
         after = beside(target)
         page.keyboard.up("Alt")
         # The marker is the text's near-black before the aim. The band is the
-        # accent's blue the aim adds, so the coloured edges of text that a
-        # subpixel-smoothed font draws, blue before as after, aren't band.
+        # user's green the aim adds (`--lf-here`), so the coloured edges of text that a
+        # subpixel-smoothed font draws, green before as after, aren't band.
         marker = [x for x, r, g, b in before if max(r, g, b) < 110]
         band = [
             x
-            for (x, r, _, b), (_, r0, _, b0) in zip(after, before, strict=True)
-            if b - r > 40 and b0 - r0 <= 40
+            for (x, r, g, _), (_, r0, g0, _) in zip(after, before, strict=True)
+            if g - r > 40 and g0 - r0 <= 40
         ]
         assert band and marker, f"#{target}: no band or no marker beside the item"
         assert max(band) < min(marker), (

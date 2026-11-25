@@ -1,6 +1,6 @@
 # Package state and data
 
-Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers how widgets work together, the user state a widget records, references between widgets, work roles, and external or derived data sources.
+Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers how widgets work together, the user state a widget records, references between widgets, and external or derived data sources.
 
 ## Widgets working together
 
@@ -292,49 +292,6 @@ defines. `page check` refuses an id that names no element.
 
 Rules about content, such as a value within its range, belong to the widget and `page
 check --render`.
-
-## Work roles
-
-Leaf owns four work roles and reads a hierarchy of work from them
-([module-reading.md, "Work hierarchies"](module-reading.md#work-hierarchies)). A
-package maps its tags onto them in `$work.widgets`:
-
-- `scope` bounds a hierarchy; a reading stops at a nested scope.
-- `goal` is a piece of work. `state` names the attribute holding its state, which
-  exactly one verb's value record names, and `done` and `stopped` list the
-  values that mean finished and stopped. `stoppedAt` may name an attribute saying
-  when it stopped.
-- `worker` is an agent doing the work, with `state`, the values that mean `running`
-  and `retired`, and optionally `on`, a `refers` attribute naming the goal it works
-  on.
-- `evidence` marks an element that shows observed data.
-
-```json
-{
-  "$work": {
-    "widgets": {
-      "lf-atlas-task": {
-        "role": "goal",
-        "state": "status",
-        "done": ["done"],
-        "stopped": ["blocked"]
-      },
-      "lf-atlas-worker": {
-        "role": "worker",
-        "state": "state",
-        "running": ["working"],
-        "retired": ["done"],
-        "on": "on"
-      }
-    }
-  }
-}
-```
-
-`page init`, `page check` and `package check` hold each entry to its tag's
-declaration, refusing a mistake with a finding that names the tag and key, and `page
-check` refuses a worker whose `on` names anything but a goal. Atlas in
-`examples/command-hub.page/` is the worked example.
 
 ## External or derived data
 

@@ -7,9 +7,7 @@
 
    - `state`, where the element is a widget whose tag declares `verbs`: its reading
      (`widgetState`, widget-controller.js), once its class is defined and again each
-     time the reading moves, whoever moved it. Leaf also sets it again, though the
-     reading stands, where something the element draws beside its `state` has moved
-     (`stateAgain`): setting `state` is how Leaf tells any element to draw;
+     time the reading moves, whoever moved it;
    - with `state`, the property a verb's record names (`record.property`, the
      registry's `$verbs.record`), to that verb's value ("Recorded properties" below);
    - the property each bound input names, and a written data body as its `value`
@@ -141,9 +139,6 @@ const hosted = new WeakSet();
 // The elements that said `lf-connect`.
 /** @type {WeakSet<Element>} */
 const asked = new WeakSet();
-// The request that has each widget's `state` set again (`stateAgain`).
-/** @type {WeakMap<Element, () => void>} */
-const againBy = new WeakMap();
 
 // The `state`s a publication owes, each by its element. Every reading's own effect
 // claims its region and adds to them as the publication notifies it; writing `owed`
@@ -169,8 +164,7 @@ function host(element) {
   const verbs = Object.keys(descriptor?.declaration.verbs ?? {});
   // Made here, ahead of this element's own watch below, so the controller hears each
   // return first: it presents the preparation the widget still has under way before
-  // the return's sets are drawn, and a draw that asks whether that preparation is in
-  // (reports.js) finds it.
+  // the return's sets are drawn.
   const controller = verbs.length ? controllerOf(element) : null;
   if (controller) hearRecords(element);
   // The verbs whose value the element keeps in a property ("Recorded properties").
@@ -250,35 +244,16 @@ function host(element) {
       });
     attempt(failures, () => data.deliver());
   };
-  // How many times `state` was asked for again though the reading stands
-  // (`stateAgain`), and how many of those the last set that returned had heard: a
-  // request made from inside a set is owed another, and so is a set that threw. The
-  // signal has the element's effect make the pass at once. An element out of the page
-  // is set as it returns. Its effect may outlive its leaving by a moment and is told
-  // nothing meanwhile: a set made on an element out of the page asks again from
-  // inside the set, so each telling would make another set, without end.
-  let asks = 0;
-  let answered = 0;
-  const askedAgain = signal(0);
-  if (controller)
-    againBy.set(element, () => {
-      asks += 1;
-      if (element.isConnected) tick(askedAgain);
-    });
-  // Whether a pass owes `state`: a reading that moved or is asked for again, or, on an
-  // element with none that said `lf-connect`, the empty state that says its first
-  // inputs are set.
+  // Whether a pass owes `state`: a reading that moved, or, on an element with none
+  // that said `lf-connect`, the empty state that says its first inputs are set.
   /** @param {import("./widget-controller.js").WidgetReading | null} reading */
   const owesState = (reading) =>
-    reading
-      ? reading !== shown || asks !== answered
-      : !passed && asked.has(element) && !records;
+    reading ? reading !== shown : !passed && asked.has(element) && !records;
   /** @param {import("./widget-controller.js").WidgetReading | null} reading
    * @param {unknown[]} failures */
   const setState = (reading, failures) =>
     attempt(failures, () => {
       const state = reading ? widgetState(reading) : NO_VERBS;
-      const heard = asks;
       untracked(() => {
         Object.assign(element, { state });
         for (const { verb, property } of properties) {
@@ -289,7 +264,6 @@ function host(element) {
         }
       });
       shown = reading;
-      answered = heard;
     });
   // Whether Leaf is setting a recorded property, when an event the element dispatches
   // is its answer to that set. The element may dispatch no `change` for the set, so
@@ -354,7 +328,6 @@ function host(element) {
     return drawing;
   };
   const draw = () => {
-    askedAgain.value;
     claim();
     const reading = controller?.read() ?? null;
     // A hold the element has on its drawing now leaves this pass's sets undrawn until
@@ -439,15 +412,6 @@ document.addEventListener(CONNECT, (event) => {
     if (!entry.verbs || widgetDescriptor(element)) event.preventDefault();
   });
 });
-
-/** The request that has `element`'s `state` set again though its reading stands, or
- * undefined where Leaf sets no `state` on the element. It is how Leaf tells an element
- * to draw again when something it draws beside its `state` has moved, as its reports
- * turning ready does (reports.js). Leaf makes the set before any microtask runs, in
- * its place among the sets a publication owes, and on an element that is away, as it
- * returns.
- * @param {Element} element */
-export const stateAgain = (element) => againBy.get(element);
 
 /** Drive each element whose tag declares `verbs` or `inputs` from outside while it
  * stands. An element is driven only once its class is defined: a property set on an

@@ -46,6 +46,8 @@ customElements.define(
       const status = this.state.status.value;
       keeps(this, "status", status);
       keepsText(this.statusLine, status);
+      // The plan counts this task's status again.
+      this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
       this.comment?.toggleAttribute(
         "hidden",
         this.writing || !threadSurface(this).open,

@@ -12,8 +12,3 @@
   display: block;
   color: var(--lf-muted);
 }
-
-.work-progress {
-  font-variant-numeric: tabular-nums;
-  display: inline-block;
-}

@@ -88,8 +88,7 @@ In [module-reading.md](module-reading.md):
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues` and
   `answerWords`.
-- "Work hierarchies": `readWork`.
-- "Page history and reports": `readHistory` and `readReports`.
+- "Page history and reports": `readHistory`.
 - "Reading version changes": `comparisonChanges`.
 
 In [module-input.md](module-input.md):

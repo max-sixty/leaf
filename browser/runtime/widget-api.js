@@ -41,7 +41,6 @@ export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
 export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-export { readWork } from "./work.js";
 export { readQueues } from "./queue-api.js";
 export {
   go,
@@ -69,7 +68,7 @@ export { whenNear } from "./presentation.js";
 // the address where the widget's views are the page's, and keeps the user's place in
 // each view of the page's flow (views.js).
 export { keepView, openingView, viewMembers } from "./views.js";
-export { readHistory, readReports } from "./reports.js";
+export { readHistory } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.

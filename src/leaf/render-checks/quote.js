@@ -27,19 +27,16 @@ export function drawnAnchor(quote, section) {
   if (section && held?.kind !== "element") return null;
   const within = held?.kind === "element" ? held.element : null;
   const wanted = letters(quote);
-  /** @type {import("../../../browser/runtime/passages.js").Segment[][]} */
-  const found = [];
-  for (const match of pageMatches(quote)) {
-    if (
-      match &&
+  const found = [...pageMatches(quote)].filter(
+    (match) =>
+      match !== null &&
       letters(quoteFrom(match)) === wanted &&
-      (!within || match.every(({ node }) => under(node, within)))
-    )
-      found.push(match);
-  }
-  const [only] = found;
-  if (found.length !== 1 || !only?.[0]) return null;
-  const anchor = anchorForPassage(only, only[0].node);
+      (!within || match.every(({ node }) => under(node, within))),
+  );
+  const only = found.length === 1 ? found[0] : null;
+  const first = only?.[0];
+  if (!only || !first) return null;
+  const anchor = anchorForPassage(only, first.node);
   // A passage the browser could capture only as detached is one it can't find again.
   if (!anchor?.quote || anchor.detached) return null;
   return resolveAnchor(anchor)?.kind === "passage" ? anchor : null;

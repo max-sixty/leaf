@@ -5,7 +5,11 @@
    control. The opener is reactive across registration and retirement.
    A plain host has no Leaf placement owner to register a surface.
    Releasing a node is synchronous: a widget must return the host's composer before
-   removing the DOM that holds it. Composed containment includes shadow stages. */
+   removing the DOM that holds it. Composed containment includes shadow stages.
+   `threadSurface` stays in the package interface because only Leaf holds the page's
+   one composer, which it carries from outlet to outlet; without `release`, a comment
+   being written on a diff line loses its words' focus when a new patch drops the line
+   (SOUL.md: "Typed words and the editing position survive changes around them"). */
 import { under } from "../lib/shadow-tree.js";
 import { signal } from "/vendor/signals-core.js";
 import { tick } from "../version-signal.js";

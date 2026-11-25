@@ -68,6 +68,9 @@ const MEDIA_SUFFIX = new RegExp(
 /** @param {string} href */
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
 
+// The address a canonical `/media/...` path loads at on this page. It stays in the
+// package interface because only Leaf holds the page's root and an export's resource
+// map, without which a widget's media from data fails on a published or exported page.
 /** @param {string} href */
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;

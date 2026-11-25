@@ -14,7 +14,11 @@
    `threads` also writes the threads it reads, through Leaf's own path
    (thread/actions.js): `create`, `reply`, `resolve`, `reopen` and `setReaction`.
    Only widget-api.js reaches the application, so it adds those writes there. Taking
-   the user to any reading's row is `go` (application.js). */
+   the user to any reading's row is `go` (application.js).
+
+   The readings stay in the package interface because only Leaf holds the
+   application state they select: the server's reading of the log and this tab's
+   unsent gestures. */
 import { effect } from "/runtime/framework.js";
 import { readObligations } from "./obligations/place.js";
 import { readQueues } from "./queue-api.js";

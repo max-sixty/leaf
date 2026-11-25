@@ -562,6 +562,10 @@ function createApplication(dependencies) {
     return registerPageConsumer(owner, render, threadSurfaceCommands);
   };
 
+  // `placePageThreads` and `registerThreadPresentation` stay in the package interface
+  // because only Leaf holds the threads' placement and the page's primary reader, which
+  // a package takes over through them in place of Leaf's margin and floating panel.
+  //
   // One reader is the page's primary at a time (thread/destination.js). Leaf's own
   // chrome registers one that yields (`registerChromeThreadPresentation`, which the
   // runtime alone is handed): a reader the page's package registers
@@ -694,7 +698,10 @@ function createApplication(dependencies) {
     }
     return dependencies.goToObligation(item);
   };
-  // A package's one travel (widget-api.js, `go`), told apart by what it is handed: an
+  // A package's one travel (widget-api.js, `go`). It stays in the package interface
+  // because only Leaf holds the arrival it shares with its own keys: the history entry
+  // Back returns along, the reveal of what holds the place, the On Me walk's position
+  // and the thread's destination. It is told apart by what it is handed: an
   // element, or the part a key names in it, as a link to `#<id>:<key>` reaches it; a
   // step of the On Me walk within a region, from where the user is, as an `lf-tally`
   // steps; a thread by its `key`, as `threads.read()` gives it, opened where a margin

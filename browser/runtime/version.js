@@ -1758,7 +1758,8 @@ export const gapHolder = ({ at, gap }) =>
   gap === "in" ? at : (at.parentElement ?? at);
 /** The changes the comparison marks (`changeRuns`), in page order; under `owner`, each
  * change with blocks inside it, holding only those, and each one that only took blocks
- * out whose gap stands inside it.
+ * out whose gap stands inside it. It stays in the package interface because only Leaf
+ * holds the comparison, and a removal stands at no element a widget could read.
  * @param {Element | null} [owner]
  * @returns {readonly Change[]} */
 export function comparisonChanges(owner = null) {

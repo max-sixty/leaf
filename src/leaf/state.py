@@ -534,8 +534,8 @@ class Record(Generic[_RecordValue]):
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
     none. A reader of a record another Leaf may have written takes from it only keys
-    every shape of its kind keeps, as `named_pages` and `Record.since_of` do; every
-    other reader goes through `Record.read`."""
+    every shape of its kind keeps, as `named_pages`, `session_lifecycle` and
+    `Record.since_of` do; every other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -678,6 +678,24 @@ def session_lock_path(session_id: str) -> Path:
 def session_record(session_id: str) -> dict | None:
     """The session's lifecycle, or None for a session this Leaf has no record of."""
     return SESSION.read(session_file(session_id, SESSION_SUFFIX))
+
+
+def session_lifecycle(session_id: str) -> dict | None:
+    """Whether and by what the session lives, whichever Leaf wrote its record: the
+    record's `generation`, `ended`, `lifetime` and `transcript_path`, or None where
+    no Leaf has recorded the session.
+
+    Every shape of the session record keeps these keys with the meanings `SESSION`
+    gives them, as records keep `page` (`named_pages`), so a Leaf can tell whether
+    a session another Leaf recorded still holds its pages (`service.held_elsewhere`).
+    A change to the record's shape keeps them."""
+    stored = stored_record(session_file(session_id, SESSION_SUFFIX))
+    if stored is None or SESSION.since_of(stored) is None:
+        return None
+    return {
+        key: stored.get(key)
+        for key in ("generation", "ended", "lifetime", "transcript_path")
+    }
 
 
 def write_session(record: dict) -> dict:

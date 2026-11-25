@@ -180,7 +180,9 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     """Re-vendoring a served page restarts its server under the recorded lifetime
     and URL, onto the new layer, and preserves the active revision contract."""
     publish(page_dir)
-    old_plugin = install_payload(page_dir.parent / "old-plugin")
+    old_plugin = install_payload(
+        page_dir.parent / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
+    )
 
     if lifetime == "persistent":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")

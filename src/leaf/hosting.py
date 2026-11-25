@@ -842,18 +842,7 @@ def claim_and_start(
     if claim is None and not persistent and harness is not None:
         claim = prepare_claim(harness, page_dir)
         delivery = harness.preparing_delivery()
-    elif harness is None and (session := unserved_session()):
-        # The agent would read this start as its session's.
-        note(
-            Finding(
-                "serves-for-no-session",
-                values={
-                    "page": str(page_dir),
-                    "session": session,
-                    "leaf": str(PLUGIN_ROOT),
-                },
-            )
-        )
+    note_serving_for_no_session(page_dir, harness)
     with delivery:
         try:
             with _starting_server(
@@ -870,6 +859,23 @@ def claim_and_start(
             if claim is not None:
                 cmd_stop(page_dir, owner=claim)
             raise
+
+
+def note_serving_for_no_session(page_dir: Path, harness: Harness | None) -> None:
+    """Say so where a serve for no session runs in a session this Leaf doesn't act
+    for (`harness.unserved_session`), since the agent would read the serve as its
+    session's."""
+    if harness is None and (session := unserved_session()):
+        note(
+            Finding(
+                "serves-for-no-session",
+                values={
+                    "page": str(page_dir),
+                    "session": session,
+                    "leaf": str(PLUGIN_ROOT),
+                },
+            )
+        )
 
 
 def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
@@ -1052,12 +1058,13 @@ def restarting_server(
 
     Only an enabled service comes back, under its recorded lifetime and address; a
     stopped one stays stopped, and a page never served has nothing to hold down. A
-    session service comes back only for the session holding its claim, and claims
-    nothing to do it: the claim is still that session's, and taking it again would
-    reopen a turn the Stop hook closed. Another live session's service is refused
-    before anything stops, since only that session could start it again. One whose
-    session has ended has no owner to come back for, so it is stopped and stays
-    stopped for the next `server start` to claim.
+    service on a page another session holds is refused before anything stops,
+    whatever its lifetime, since only that session's Leaf serves the page
+    (`service.refuse_held`). A session service comes back only for the session
+    holding its claim, and claims nothing to do it: the claim is still that
+    session's, and taking it again would reopen a turn the Stop hook closed. One
+    whose session has ended has no owner to come back for, so it is stopped and
+    stays stopped for the next `server start` to claim.
 
     The service comes back only after a block that completed. The caller decides
     whatever can refuse before it enters, while the page is still served; a block
@@ -1076,10 +1083,14 @@ def restarting_server(
     next start or stop writes a record without it.
     """
     service = read_service(page_dir)
-    if service is None and lock_is_held(page_dir / SERVER_LOCK):
-        # A server runs over a record this version cannot read, as one an older Leaf
-        # started does. It has no lifetime this version could bring back, so it
-        # stops and stays stopped.
+    # A server runs over a record this version cannot read, as one an older Leaf
+    # started does.
+    unread = service is None and lock_is_held(page_dir / SERVER_LOCK)
+    if unread or (service and service["enabled"]):
+        refuse_held(page_dir, harness)
+    if unread:
+        # It has no lifetime this version could bring back, so it stops and stays
+        # stopped.
         cmd_stop(page_dir)
         note(Finding("server-stays-stopped", values={"page": str(page_dir)}))
         yield
@@ -1089,7 +1100,7 @@ def restarting_server(
         return
     persistent = service["lifetime"] == "persistent"
     held = page_claim(page_dir)
-    comes_back = persistent or _restarts_for_session(page_dir, harness)
+    comes_back = persistent or claim_is_active(held)
     mark = secrets.token_hex(8) if comes_back else None
     # The stop is the claim's this read decided for: a session that takes the page
     # meanwhile keeps its service, and the block does not run.
@@ -1127,11 +1138,3 @@ def restarting_server(
         )
     except StartRefused as error:
         raise Refused(f"the page's server did not start again: {error}") from error
-
-
-def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
-    """Whether `harness`'s session may restart a session service: its claim is that
-    session's. A refusal where another session may hold it (`service.refuse_held`),
-    and False where no live session does any more."""
-    refuse_held(page_dir, harness)
-    return claim_is_active(page_claim(page_dir))

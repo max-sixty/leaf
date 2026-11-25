@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from conftest import hooks_run_this_tree
+from conftest import hooks_run_leaf, hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -2311,7 +2311,7 @@ def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
     kernel = json.loads(cleanup_model.KERNEL_REGISTRY.read_text())
     kernel["$events"]["protocol"] = protocol
     registry.write_text(json.dumps(kernel))
-    leases_model.mark_skill("s1", f"{root}\nits skill")
+    hooks_run_leaf("s1", root)
     return root
 
 
@@ -2347,19 +2347,29 @@ def test_a_checkout_acts_only_for_a_session_whose_hooks_run_it(
     assert harness is not None and harness.session == "s1"
 
 
-def test_a_page_whose_records_another_leaf_wrote_stays_held(claimed, monkeypatch):
-    """A Leaf that can't read the lifecycle record another Leaf wrote for the page's
-    session counts the page held, as automatic renewal does, since nothing it reads
-    proves that session ended: it neither initializes nor serves the page for anyone
-    else, nor renews it. Another session takes the page over by claiming it."""
+@pytest.mark.parametrize("ended", [False, True], ids=["live", "ended"])
+def test_a_page_whose_session_another_leaf_recorded_is_held_while_it_lives(
+    claimed, monkeypatch, ended
+):
+    """A Leaf reads whether the page's session lives from the lifecycle record
+    another Leaf wrote in another shape, through the keys every shape keeps. While
+    that session lives, the page is held, as automatic renewal also counts it: this
+    Leaf neither initializes it for anyone else nor renews it, and another session
+    takes the page over by claiming it. Once the session ended under the other Leaf,
+    a terminal initializes the page."""
     lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
     stored = json.loads(lifecycle.read_text())
     stored["format"] = "leaf-session/13"
+    if ended:
+        stored["ended"] = cleanup_model.now_iso()
     lifecycle.write_text(json.dumps(stored))
     assert cleanup_model.session_record("s1") is None
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
 
-    assert service_model.held_elsewhere(claimed, None)
+    assert service_model.held_elsewhere(claimed, None) is not ended
+    if ended:
+        assert vendoring_model.cmd_init(claimed, ())["packages"] == []
+        return
     with pytest.raises(Refused, match="is held by session s1"):
         vendoring_model.cmd_init(claimed, ())
     vendored_at_another_protocol(claimed)

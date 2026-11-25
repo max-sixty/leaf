@@ -2386,6 +2386,10 @@ _TEXT = {
         f"stopped watching {', '.join(v['pages'])}: this session no longer owns"
         + (" it" if len(v["pages"]) == 1 else " them")
     ),
+    "held-for-a-session": lambda at, v: (
+        f"stopped watching {v['page']}: session {v['session']} holds it, and this "
+        "Leaf acts for no session"
+    ),
     "nothing-to-watch": lambda at, v: (
         "nothing to watch: "
         + (

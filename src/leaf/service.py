@@ -44,7 +44,6 @@ from leaf.refusals import Refused
 from leaf.schema import STREAM_FILE
 from leaf.state import (
     EVENTS_FILE,
-    SESSION_SUFFIX,
     STRING,
     TIME,
     Record,
@@ -63,7 +62,7 @@ from leaf.state import (
     page_stands,
     remove_claim,
     session_claims,
-    session_file,
+    session_lifecycle,
     session_live,
     session_lock_path,
     session_record,
@@ -185,14 +184,17 @@ def page_claim(page_dir: Path) -> dict | None:
 
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: its session's generation, not
-    ended, with a lifetime that still lives (`lifetime_is_live`). Cold hooks and
-    the CLI both call it."""
-    if not claim:
+    ended, with a lifetime that still lives (`lifetime_is_live`), by a lifecycle
+    record of this Leaf's shape. Cold hooks and the CLI both call it."""
+    return bool(claim) and _lives(claim, session_record(claim["id"]))
+
+
+def _lives(claim: dict, lifecycle: dict | None) -> bool:
+    """Whether `lifecycle`, the claim's session's, still lives in the generation
+    the claim names."""
+    if not session_live(lifecycle) or lifecycle["generation"] != claim["generation"]:
         return False
-    record = session_record(claim["id"])
-    if not session_live(record) or record["generation"] != claim["generation"]:
-        return False
-    return lifetime_is_live(claim, record)
+    return lifetime_is_live({**claim, **lifecycle["lifetime"]}, lifecycle)
 
 
 def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
@@ -267,25 +269,25 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
 
 
 def held_elsewhere(page_dir: Path, harness: Harness | None) -> bool:
-    """Whether a session other than `harness`'s may hold `page_dir`: a live claim
-    another session holds, or a claim or session lifecycle record another Leaf wrote
-    in a shape this Leaf can't read (`state.Record`). The claim carries no lifetime
-    of its own, which comes from that record (`claim_reading`), so such a page names
-    an owner this Leaf can't prove ended. It stays held until a session takes it over
-    by claiming it (`leaf server start`), which needs no reading of the claim before,
-    or until the Leaf that wrote the records, which reads them, finds their session
-    ended."""
+    """Whether a session other than `harness`'s may hold `page_dir`: its claim names
+    another session that still lives in that claim's generation, by the session's
+    lifecycle whichever Leaf wrote it (`state.session_lifecycle`), or it is a claim
+    another Leaf wrote in a shape this Leaf can't read (`state.Record`). Such a
+    claim's owner this Leaf can't prove ended, so its page stays held until a
+    session takes it over by claiming it (`leaf server start`), which needs no
+    reading of the claim before.
+
+    `claim_is_active` reads only a lifecycle of this Leaf's shape, since the
+    session's own hooks begin a new generation where they find none they can read
+    (`state.ensure_session`), which ends the claim for them and has their prompt
+    serve the page again (`reconnect`). Another Leaf's session goes on in the
+    generation its own Leaf records."""
     claim = page_claim(page_dir)
     if claim is None:
         return claim_path(page_dir).is_file()
     if claimant_matches(claim, harness):
         return False
-    if (
-        session_record(claim["id"]) is None
-        and session_file(claim["id"], SESSION_SUFFIX).is_file()
-    ):
-        return True
-    return claim_is_active(claim)
+    return _lives(claim, session_lifecycle(claim["id"]))
 
 
 def refuse_held(page_dir: Path, harness: Harness | None) -> None:

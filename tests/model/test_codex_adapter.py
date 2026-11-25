@@ -19,7 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND, hooks_run_leaf
 from interact_support import (
     EVERY_TURN_DEPENDENCIES,
     PAGE,
@@ -806,7 +806,7 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     monkeypatch.setattr(cleanup_model, "PLUGIN_ROOT", root)
     if not installed:
         # A checkout acts for the task only where the task's hooks run it.
-        leases_model.mark_skill("codex-thread", f"{root}\nits skill")
+        hooks_run_leaf("codex-thread", root)
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
     monkeypatch.setattr(
         codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     PAGE,
@@ -675,10 +675,13 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
     )
     stored = interact_files.read_json(record)
-    stored["format"] = "leaf-" + unreadable + "/999"
+    stored["format"] = {"claim": "leaf-claim", "lifecycle": "leaf-session"}[
+        unreadable
+    ] + "/999"
     cleanup_model.write_json(record, stored)
     revisions = interact_files.list_revisions(claimed)
     recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
+    hooks_run_this_tree("s2")
     for command in (
         ["page", "state", str(claimed)],
         ["page", "events", str(claimed)],

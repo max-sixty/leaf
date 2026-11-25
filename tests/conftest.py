@@ -628,6 +628,13 @@ def hooks_run_this_tree(session_id: str) -> None:
     leases_model.mark_skill(session_id, SKILL_MARK)
 
 
+def hooks_run_leaf(session_id: str, root: Path) -> None:
+    """Record that `session_id`'s hooks run the Leaf at `root`, a copy other than
+    this tree, such as a preview's runtime, so that copy acts for the session and
+    this tree acts for none (`state.runs_session`)."""
+    leases_model.mark_skill(session_id, f"{root.resolve()}\nits skill")
+
+
 # The tests this worker has isolated so far (`isolated_session`).
 _SESSIONS = itertools.count()
 

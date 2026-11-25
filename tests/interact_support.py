@@ -2374,6 +2374,7 @@ def managed_server(spawn):
     nothing to the watcher that reads the claim."""
 
     def start(page_dir, session_id, session_pid):
+        hooks_run_this_tree(session_id)
         record_claim(page_dir, id=session_id, pid=session_pid)
         process = spawn(
             [

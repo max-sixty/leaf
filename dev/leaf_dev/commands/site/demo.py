@@ -31,8 +31,10 @@ from leaf import inference, thread_titles
 from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
+from leaf.hooks import skill_mark
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.interaction_log import read_interactions
+from leaf.leases import mark_skill
 from leaf.projection import AuthoredOrders, folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
@@ -486,16 +488,21 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 
 @contextmanager
 def demo_session(scratch: Path):
-    """Own the recorder's state and delivery loop, independently of its invoking agent."""
+    """Own the recorder's state and delivery loop, independently of its invoking agent.
+
+    The recorder's session is one whose hooks run this checkout, as its first hook
+    would record (`leases.mark_skill`), so this Leaf acts for it."""
     previous = os.environ.copy()
+    session = f"leaf-demo-{uuid4()}"
     recording_environment = detached_environment(None) | {
         "XDG_STATE_HOME": str(scratch / "state"),
-        "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
+        "CLAUDE_CODE_SESSION_ID": session,
         "CLAUDE_PID": str(os.getpid()),
         "LEAF_AGENT": "Claude",
     }
     os.environ.clear()
     os.environ.update(recording_environment)
+    mark_skill(session, skill_mark())
     try:
         yield
     finally:

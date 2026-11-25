@@ -1237,7 +1237,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
     uses `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.harness import session_harness
-    from leaf.hosting import cmd_serve, cmd_serve_temporary
+    from leaf.hosting import cmd_serve, cmd_serve_temporary, note_serving_for_no_session
     from leaf.leases import release_on_termination
 
     # As for `_serve`, except that a temporary server, which holds no lease,
@@ -1246,13 +1246,9 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
     if lifetime == "temporary":
         cmd_serve_temporary(page_dir, host)
         return
-    cmd_serve(
-        page_dir,
-        host,
-        lifetime == "persistent",
-        harness=session_harness(),
-        acquire=True,
-    )
+    harness = session_harness()
+    note_serving_for_no_session(page_dir, harness)
+    cmd_serve(page_dir, host, lifetime == "persistent", harness=harness, acquire=True)
 
 
 @server.command("_serve", cls=PrintsItself, hidden=True)

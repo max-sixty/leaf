@@ -366,6 +366,67 @@ def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
     ) in hook(capsys, "PostToolBatch")
 
 
+def test_a_choice_the_user_answered_with_a_question_stays_asked(claimed, capsys):
+    """The user answers a choice with a question of their own, which hands the
+    choice to the agent until it answers them, so On Me lists nothing. The next fork
+    sees the choice as still open, which keeps it from asking the choice again when
+    the agent restates it in chat. An ask that names the choice anyway posts nothing:
+    the agent hears that the thread waits on its reply. The user's question is
+    theirs, not one the page asked them, so the fork never sees it among the
+    questions it may ask again."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    [first] = clerk_model.take_answer(
+        "s1", reply(page, "LRU or TTL", choice=caches()), asked()["basis"]
+    )["wrote"]
+    asked_back = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": first["id"],
+            "text": "How stale can a result get?",
+        },
+    )
+    hook(capsys, "PostToolBatch")
+    prompt = asked()["prompt"]
+    assert "On Me, what the page lists as waiting on the user:\n(none)" in prompt
+    assert (
+        "ask none of these again:\n- decision in the agent's message in \"LRU or "
+        'TTL": LRU or TTL: which would you like?' in prompt
+    )
+    answer = reply(
+        page, "LRU or TTL", again=f"message:{first['id']}", choice=caches("again")
+    )
+    assert clerk_model.take_answer("s1", answer, asked()["basis"])["wrote"] == []
+    context = hook(capsys, "PostToolBatch")
+    assert (
+        f"in the thread of message:{first['id']} on {page}, but that thread waits on "
+        "your reply" in context
+    )
+    assert "leaf thread reply" in context
+
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
+            "parent": first["id"],
+            "responds": asked_back["id"],
+            "text": "Up to 41 minutes with LRU, five with TTL.",
+        },
+    )
+    prompt = asked()["prompt"]
+    assert (
+        "On Me, what the page lists as waiting on the user:\n- decision in the "
+        'agent\'s message in "LRU or TTL"' in prompt
+    )
+    assert "ask none of these again" not in prompt
+    assert asked_back["id"] not in prompt
+
+
 @pytest.mark.parametrize("words", [False, True], ids=["choice", "words"])
 def test_a_choice_the_user_closed_is_asked_again_in_its_thread(claimed, capsys, words):
     """The user closed a choice's thread without picking, and the agent asks it

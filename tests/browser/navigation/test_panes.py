@@ -316,7 +316,7 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     for where a walk starts. Focus on the body read as standing in the page would have
     `j` scroll a page a workspace keeps still and `m` walk from the page's top.
 
-    Each body holds a control, so neither is a tab stop a click would focus (reach.js),
+    Each body holds a control, so neither is a tab stop a click would focus (dom/reach.js),
     which would answer through focus and leave the body's route unread. The rail holds
     the most to scroll, so a pane chosen for the user would be the rail and not the
     detail pane the wheel names."""
@@ -673,7 +673,7 @@ def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
-    """A pane body with nothing in it to Tab to is a stop of its own (reach.js), and the
+    """A pane body with nothing in it to Tab to is a stop of its own (dom/reach.js), and the
     layer's ring stands outside the box it names. Panes stand flush with the scrollport
     of the workspace body that holds them, so that ring lost its right and bottom sides
     to the scrollport's edge and ran over the pane's header rule at the top."""
@@ -834,7 +834,7 @@ def test_a_split_drag_keeps_a_panes_reading(engine, request, serve):
       }
     }""")
     page_at_rest(page)
-    # Within the pixel the engine rounds a scroll offset to (scrolling.js,
+    # Within the pixel the engine rounds a scroll offset to (dom/scrolling.js,
     # `moveScrollerBy`); a lost reading leaves it lines away.
     assert page.evaluate(landmark) == pytest.approx(before, abs=1)
 

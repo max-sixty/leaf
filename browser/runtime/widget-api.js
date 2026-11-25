@@ -19,36 +19,40 @@
 
    Each export is a name every package author learns, so one joins this file only
    after the questions in packages/AGENTS.md, "A widget's need of Leaf". */
-import "./element-integration.js";
-import { deferredArrival } from "./presentation.js";
-import { growthIsSeen } from "./geometry.js";
+import "./host/element-integration.js";
+import { deferredArrival } from "./readings/presentation.js";
+import { growthIsSeen } from "./dom/geometry.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
-import { threadsReading } from "./readings.js";
-import { threadActions } from "./application.js";
+import { threadsReading } from "./host/readings.js";
+import { threadActions } from "./host/application.js";
 export * from "./portable-api.js";
 
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
-export { nameOf } from "./names.js";
+export { nameOf } from "./panel/names.js";
 // The page readings, each a value to `read()` and a `change` to hear: the obligations,
 // or those a region holds, the On lists, the threads, which it also writes, and the
-// page's history (readings.js).
-export { history, obligations, queues } from "./readings.js";
+// page's history (host/readings.js).
+export { history, obligations, queues } from "./host/readings.js";
 export const threads = Object.assign(threadsReading, threadActions);
-export { comparisonChanges } from "./version.js";
-export { go, placePageThreads, registerThreadPresentation } from "./application.js";
-export { registerContribution } from "./contributions.js";
-export { pageLinks } from "./page-markdown.js";
-export { scopedMediaUrl } from "./media.js";
-export { boundFile } from "./file-api.js";
-export { generate } from "./llm-api.js";
-export { connection } from "./http-api.js";
-export { draft } from "./drafts.js";
-export { layerFact } from "./registry.js";
+export { comparisonChanges } from "./features/version.js";
+export {
+  go,
+  placePageThreads,
+  registerThreadPresentation,
+} from "./host/application.js";
+export { registerContribution } from "./features/contributions.js";
+export { pageLinks } from "./records/page-markdown.js";
+export { scopedMediaUrl } from "./records/media.js";
+export { boundFile } from "./host/file-api.js";
+export { generate } from "./host/llm-api.js";
+export { connection } from "./host/http-api.js";
+export { draft } from "./records/drafts.js";
+export { layerFact } from "./state/registry.js";
 // `whenNear` waits for the reader to near a node and declares the wait as an arrival,
 // so a widget cannot defer without the page knowing.
-export { whenNear } from "./presentation.js";
-export { aimedAt } from "./widget-elements.js";
+export { whenNear } from "./readings/presentation.js";
+export { aimedAt } from "./dom/widget-elements.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page,
 // which only Leaf's server can allocate (SOUL.md, "Make the work concrete and
@@ -56,10 +60,10 @@ export { aimedAt } from "./widget-elements.js";
 // (live-samples.md). A block's frame the reader sees as it mounts is drawing under way
 // (lib/pending-task.js), read here in the caller's stack: the page's presentation
 // waits for it, or the gesture whose rendering showed the frame owns its fit. The host
-// says when that drawing is in (sample.js, `landed`).
-/** @param {Parameters<typeof import("./sample.js").mountSample>[0]} frame
- * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
- * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
+// says when that drawing is in (host/sample.js, `landed`).
+/** @param {Parameters<typeof import("./host/sample.js").mountSample>[0]} frame
+ * @param {Parameters<typeof import("./host/sample.js").mountSample>[1]} options
+ * @returns {Promise<ReturnType<typeof import("./host/sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
   /** @type {PromiseWithResolvers<void> | null} */
   const landing =
@@ -67,11 +71,11 @@ export async function mountSample(frame, options) {
   if (landing) frame.dispatchEvent(new PendingTaskEvent(landing.promise));
   try {
     // The page counts the sample's arrival from here; the host counts it once it starts.
-    const owner = await deferredArrival(import("./sample.js"));
+    const owner = await deferredArrival(import("./host/sample.js"));
     return owner.mountSample(frame, options, landing && landing.resolve);
   } catch (error) {
     landing?.resolve();
     throw error;
   }
 }
-export { wear } from "./dress.js";
+export { wear } from "./dom/dress.js";

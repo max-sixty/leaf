@@ -1,24 +1,23 @@
-/* The default face of a native control: Leaf's ui font (tokens.css, `--lf-font-ui`) and
- * ink, rather than the document's serif or the browser's 13.33px Arial. `offer()` writes
- * `lf-ui-face` on each native control it builds; an `lf-btn` takes its ink from the
- * press's face (controls.css) instead. A native control the page writes takes the font
- * too, and keeps the browser's ink, which goes with the browser's ground for it, until
- * its theme gives it a face of Leaf's (controls.css, "The faces of Leaf's control
- * roles").
+/* The default face of a native control Leaf builds: Leaf's ui font (tokens.css,
+ * `--lf-font-ui`) and ink, rather than the document's serif or the browser's 13.33px
+ * Arial. `offer()` writes `lf-ui-face` on each native control it builds; an `lf-btn`
+ * takes its ink from the press's face (controls.css) instead. Inside a declared tree
+ * every native control is the widget's, so each takes the font. A native control the
+ * page writes takes the font from page-control-face.css.
  * Apparatus marked only `lf-ui`, such as lf-diff's line numbers and a custom element's
  * host, keeps its component's face.
  *
  * It is a default, so it weighs nothing: any other rule that names one of these
- * properties outranks it, a component's, a package's or the page's own. Both trees read
- * it, each in the tier where that holds (layer.py, `composed_sheets`). In the document it
- * stands at the head of `lf-base`, and markup's reading face stands in a layer of that
- * tier below it (reading.css), so a control standing in prose takes this face rather
- * than the prose's. In a declared tree it stands in `lf-reset`, since a widget adopts
- * its own rules into `lf-base` there, and a library it wraps, such as Trees in
- * lf-file-tree, into layers inside `lf-base`, which rank below every rule standing in
- * the tier itself: at the head of `lf-base` this face would set Trees' rows, which are
- * buttons, in the sans. Stated in runtime/chrome.css, which is adopted after every
- * component sheet, it would outrank them all.
+ * properties outranks it, a component's, a package's or the page's own unlayered one.
+ * Both trees read it, each in the tier where that holds (layer.py, `composed_sheets`).
+ * In the document it stands at the head of `lf-base`, which ranks above the page's own
+ * cascade layers, so a framework's reset there leaves Leaf's controls this face. In a
+ * declared tree it stands in `lf-reset`, since a widget adopts its own rules into
+ * `lf-base` there, and a library it wraps, such as Trees in lf-file-tree, into layers
+ * inside `lf-base`, which rank below every rule standing in the tier itself: at the head
+ * of `lf-base` this face would set Trees' rows, which are buttons, in the sans. Stated
+ * in runtime/chrome.css, which is adopted after every component sheet, it would outrank
+ * them all.
  *
  * The `font` shorthand states every font property, weight, slant, variants and stretch
  * among them, and the properties it leaves out are stated beside it, since any declared
@@ -26,10 +25,6 @@
  * spaced or in capitals leaves its controls in that font. */
 :where(:is(:root, :host) .lf-ui-face),
 :where(:is(:root, :host) .lf-btn),
-:where(:root body button:not(.lf-chrome *)),
-:where(:root body input:not(.lf-chrome *)),
-:where(:root body select:not(.lf-chrome *)),
-:where(:root body textarea:not(.lf-chrome *)),
 :where(:host button),
 :where(:host input),
 :where(:host select),
@@ -46,12 +41,8 @@
 }
 /* On a touch screen, a field the user types in takes the entry floor (tokens.css,
    `--lf-entry-floor`) as its default size, since iOS Safari zooms the page onto a
-   smaller field as it takes focus. It weighs nothing, as the face above does, so a size
-   the page gives its own field outranks it. */
+   smaller field as it takes focus. It weighs nothing, as the face above does. */
 @media (pointer: coarse) {
-  :where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"])),
-  :where(:root body select:not(.lf-chrome *)),
-  :where(:root body textarea:not(.lf-chrome *)),
   :where(:host input:not([type="checkbox"], [type="radio"])),
   :where(:host select),
   :where(:host textarea) {

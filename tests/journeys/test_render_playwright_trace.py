@@ -39,7 +39,7 @@ from leaf_dev.page_fixtures import example_media
 
 def said_by_marks(scope):
     """Write what each mark under `scope` says when pointed at (its `lfPreview()`,
-    preview.js) into its `data-test-tip`, its name and each line of detail on a line of
+    annotations/preview.js) into its `data-test-tip`, its name and each line of detail on a line of
     its own, so a locator can find a mark by its words. An element whose declaration
     adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
@@ -2114,7 +2114,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     shared, solo = pins.nth(0), pins.nth(1)
     docs_time = (stop_time(record, clicks[0]["phases"]["after"]) - origin) / 1000
     api_time = (stop_time(record, clicks[1]["phases"]["after"]) - origin) / 1000
-    # What a flag says to a resting pointer is its preview (preview.js).
+    # What a flag says to a resting pointer is its preview (annotations/preview.js).
     tip = user.locator("#lf-preview")
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
@@ -2122,7 +2122,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         expect(tip).to_be_visible()
         # The flag names its count and each moment's words on a line of its own. The
         # lanes around it leave room above for its first line, so the rest is cut
-        # there, as any preview held to a room is (preview.js, `fit`), and says
+        # there, as any preview held to a room is (annotations/preview.js, `fit`), and says
         # itself whole where the room allows.
         expect(tip.locator(".lf-preview-word")).to_be_visible()
         expect(tip.locator(".lf-preview-word, .lf-preview-detail")).to_have_text(
@@ -2132,7 +2132,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
                 f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
             ]
         )
-        # Its face is what is drawn, ink on its ground (preview.js).
+        # Its face is what is drawn, ink on its ground (annotations/preview.js).
         reading = tip.locator(".lf-preview-face").evaluate(
             """node => {
               const canvas = document.createElement('canvas');

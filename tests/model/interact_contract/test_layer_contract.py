@@ -13,6 +13,7 @@ from typing import cast
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     ROOT,
     SHIPPED_PACKAGES,
@@ -901,6 +902,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     assert session_model.cmd_wait(page_dir) == 0
     waited = capsys.readouterr().out
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session)
+    hooks_run_this_tree(session)
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # The adapter's queue route: collect the batch, then offer its pointer.

@@ -47,7 +47,7 @@ Each live sample's frame loads a Leaf runtime of its own, and the page's readine
 waits for every sample that has started. Until November 2026 every sample started as
 it mounted, and the gallery's 17, 16 of them in shut tabs, took it from presenting at
 about 2.1 s to settling at about 8.2 s on an M-series Mac. A sample now starts only
-as it nears the window (`whenNear`, `browser/runtime/presentation.js`), so one
+as it nears the window (`whenNear`, `browser/runtime/readings/presentation.js`), so one
 starts and the gallery settles at about 1.8 s; the probe below reports both.
 
 ```sh

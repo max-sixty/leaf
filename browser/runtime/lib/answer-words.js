@@ -7,7 +7,7 @@
    id; Leaf's own callers pass the one a thread message holds too. */
 import { labelWords } from "./words.js";
 
-/** @param {import("../framework/application.js").ObligationRecord} item
+/** @param {import("../state/semantic-application.js").ObligationRecord} item
  * @param {Element | null} [element] */
 export function answerWords(item, element = document.getElementById(item.source.id)) {
   if (item.answer === null) return "";

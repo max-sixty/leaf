@@ -192,7 +192,7 @@ export function coveredWords({
 
 // Two boxes share more than the two pixels a line's leading or a rounding can account
 // for, across and down (`coveredWords`'s header).
-/** @param {import("/runtime/rect.js").Box} a @param {import("/runtime/rect.js").Box} b */
+/** @param {import("/runtime/dom/rect.js").Box} a @param {import("/runtime/dom/rect.js").Box} b */
 const overlaps = (a, b) =>
   Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 &&
   Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
@@ -443,7 +443,7 @@ export function unreadSyntax() {
 }
 
 // The page's own code blocks that declare a language Leaf colours and go uncoloured,
-// since no reading face reaches them (syntax.js), as on a page that selects no theme.
+// since no reading face reaches them (readings/syntax.js), as on a page that selects no theme.
 // Nothing else says so: the block reads as text, and its author learns only from the
 // render, while a reader can take the plain block for a broken one. It is advice,
 // since a page of its own design may leave its code the colour of its ink. A widget's

@@ -464,7 +464,7 @@ def cmd_package_init(package: Path, widgets: tuple[str, ...] = ()) -> dict:
             protected,
         )
 
-        # A theme's rules and a CSS-only widget's both go in defaults.css, beside the
+        # A CSS-only widget's rules go in defaults.css, beside the
         # registry that declares the widget; anything else a package holds, the
         # author adds when there is something to put in it.
         files = {

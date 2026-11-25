@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { covered, declareCover, shownWindow } = await import("/runtime/geometry.js");
+const { covered, declareCover, shownWindow } = await import("/runtime/dom/geometry.js");
 
 test("a layout reading takes a cover's side from the layout viewport", (t) => {
   const surface = document.createElement("div");

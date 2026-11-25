@@ -294,9 +294,9 @@ def read_plans(session_id: str) -> list[PagePlan]:
         try:
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim
-                if claim is None or claim["id"] != session_id:
-                    continue
                 harness = claim_harness(claim)
+                if claim is None or claim["id"] != session_id or harness is None:
+                    continue
                 # The lifecycle is independently published. Its revision makes
                 # a concurrent prompt/ending visible without holding a session
                 # lock over a page projection or taking locks in reverse order.

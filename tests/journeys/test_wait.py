@@ -187,7 +187,7 @@ import urllib.parse
 import urllib.request
 
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     acknowledged_through,
     append_carried_log_record,
@@ -291,6 +291,7 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     wait_for(selected.exists, bool, failure="the waiter never selected its page")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    hooks_run_this_tree("replacement")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page)
     declare_idle(page)
@@ -405,6 +406,7 @@ def test_a_harness_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spa
         "CLAUDE_PID": str(os.getpid()),
     }
     leases_model.mark_hooks("harness-owner")  # its harness runs Leaf's hooks
+    hooks_run_this_tree("harness-owner")
     subprocess.run(
         [*LEAF_COMMAND, "page", "claim", str(page_dir)], env=harness_env, check=True
     )
@@ -435,7 +437,7 @@ def test_a_harness_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spa
     harness_out, harness_err = harness.communicate(timeout=STATED_TIMEOUT)
 
     assert bare.returncode == 2, bare_out + bare_err
-    assert "no longer owns it" in bare_out
+    assert "session harness-owner holds it, and this Leaf acts for no" in bare_out
     assert harness.returncode == 0, harness_err
     _, _, shown = woken(harness_out, "harness-owner")
     assert [event["id"] for event in shown] == ["once"]
@@ -599,6 +601,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     assert claim_record["id"] == "leaf-watcher-1"
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    hooks_run_this_tree("replacement")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})

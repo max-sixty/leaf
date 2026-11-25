@@ -113,7 +113,7 @@ def widget_groups(content: list, registry: dict):
     the innermost named group round it (`group_tags`), or None. The group's `label`
     (`gesture_words.element_name`) is the widget's prompt, and the group is where the
     obligation stands and going to it starts while it holds no other
-    (`obligations/place.js` in the browser); the registry requires both its id and its
+    (`records/obligations/place.js` in the browser); the registry requires both its id and its
     label. Python reads only the authored source, so a group the runtime draws holds no
     question. A widget set among words (`inline`), such as a suggestion, has none: its
     sentence and its own words name it.

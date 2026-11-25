@@ -38,6 +38,7 @@ from leaf.leases import (
 from leaf.machine import ancestry, pid_alive, process_argv
 from leaf.page_memory import Slot
 from leaf.refusals import Refused
+from leaf.state import runs_session
 
 
 @dataclass(frozen=True)
@@ -141,11 +142,10 @@ class Harness:
     def escape_sandbox(self) -> None:
         """Open the road out of this harness's sandbox that this session's `leaf`
         commands take, for as long as the session lives (`lifetime`). The hook
-        before a command naming `leaf` calls it, outside the sandbox, in the Leaf
-        the harness ran and in any it hands itself to (`hooks.main`). A harness
-        whose sandbox leaves no road out, as Codex's does, opens none; Codex's
-        agent runs a confined command through Leaf's MCP server instead
-        (`codex_tool.py`)."""
+        before a command naming `leaf` calls it, outside the sandbox
+        (`hooks.main`). A harness whose sandbox leaves no road out, as Codex's
+        does, opens none; Codex's agent runs a confined command through Leaf's MCP
+        server instead (`codex_tool.py`)."""
 
     def watcher_live(self, *, listening: bool) -> bool:
         """Whether this session's watcher can still take the page's input into a
@@ -448,7 +448,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         from its `main.log`). The session the user sees is the app's record of
         it, which CLAUDE_CODE_HOST_SESSION_ID names (`desktop_session_record`),
         so its lifetime is `app`, that record's path, for as long as the record
-        names this session (`service.lifetime_is_live`). The variable is
+        names this session (`service.session_lives`). The variable is
         inherited too, so the record's `cliSessionId` has to be this session's.
         Where the app keeps no such record, the session lives as its process."""
         if job := os.environ.get("CLAUDE_JOB_DIR"):
@@ -466,7 +466,13 @@ class ClaudeCodeHarness(EnvironmentHarness):
             and read_json(path)["cliSessionId"] == self.session
         ):
             return {"app": str(path)}
-        return {"pid": int(os.environ["CLAUDE_PID"])}
+        if (pid := self.process_pid()) is None:
+            raise Refused(
+                "CLAUDE_CODE_SESSION_ID names a Claude Code session but CLAUDE_PID is "
+                "unset, and leaf takes the session's lifetime from it; run the command "
+                "from the session's shell, or unset CLAUDE_CODE_SESSION_ID"
+            )
+        return {"pid": pid}
 
     @classmethod
     def process_pid(cls) -> int | None:
@@ -1008,7 +1014,34 @@ def session_harness() -> Harness | None:
     Code shell, or Claude Code from Pi's, states both sessions. The harness running
     the command is the nearest one, so where more than one is implied they are
     ranked by how far above this process each one's `process_pid` runs, and the
-    order below breaks a tie."""
+    order below breaks a tie.
+
+    A Leaf that doesn't act for that session (`state.runs_session`), such as a
+    checkout's `bin/leaf` run from the session's shell, finds no harness, and so acts
+    as a command from a bare shell does: it claims nothing, writes none of the
+    session's records, and serves a page unclaimed. The user chose that developing
+    Leaf works as developing any project does, so a checkout's version, page
+    protocol included, never reaches the session. A command whose result the agent
+    would read as the session's says so (`unserved_session`)."""
+    named = _named_session()
+    if named is None or not runs_session(named[1]):
+        return None
+    harness, session = named
+    return harness(
+        session=session,
+        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
+    )
+
+
+def unserved_session() -> str | None:
+    """The session the environment names where this Leaf doesn't act for it
+    (`session_harness`), or None."""
+    named = _named_session()
+    return named[1] if named is not None and not runs_session(named[1]) else None
+
+
+def _named_session() -> tuple[type[EnvironmentHarness], str] | None:
+    """The nearest harness the environment names, with its session id."""
     implied = [
         (harness, session)
         for harness in _ENVIRONMENT_HARNESSES
@@ -1021,13 +1054,7 @@ def session_harness() -> Harness | None:
     if len(implied) > 1:
         depth = {pid: index for index, (pid, _) in enumerate(ancestry())}
         implied.sort(key=lambda pair: depth.get(pair[0].process_pid(), len(depth)))
-    if not implied:
-        return None
-    harness, session = implied[0]
-    return harness(
-        session=session,
-        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
-    )
+    return implied[0] if implied else None
 
 
 def hook_harness(name: str, session: str) -> EnvironmentHarness:
@@ -1079,13 +1106,18 @@ def harness_from_argument(argument: str) -> Harness | None:
     return None if record is None else HARNESSES[record.pop("name")](**record)
 
 
-def claim_harness(claim: dict) -> Harness:
-    """The claimant's harness, rebuilt from the claim record.
+def claim_harness(claim: dict | None) -> Harness | None:
+    """The claimant's harness, rebuilt from the claim record, or None for no claim or
+    one naming a harness this Leaf doesn't know, as a later Leaf's may. Such a claim
+    still holds its page (`service.claim_reading`); this Leaf only can't act through
+    its harness.
 
     A page server, the append door and the Stop hook all run in processes that
     need not be the claimant's, so they read the harness the claim names instead
     of the one their own environment implies."""
-    return HARNESSES[claim["harness"]].from_claim(claim)
+    if claim is None or (harness := HARNESSES.get(claim["harness"])) is None:
+        return None
+    return harness.from_claim(claim)
 
 
 def message_identity() -> dict:

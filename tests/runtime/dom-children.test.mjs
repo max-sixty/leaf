@@ -11,7 +11,7 @@ import {
 } from "/runtime/lib/dom-children.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { placesFailure, showFailure } from "/runtime/lib/failure.js";
-import { createRef, html, ref, render } from "/runtime/framework.js";
+import { createRef, html, ref, render } from "/vendor/lit.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");

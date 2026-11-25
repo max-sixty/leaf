@@ -1,6 +1,6 @@
 /* What `architecture/spelled-keys` refuses (eslint.config.mjs): the form a notice's
    or an error's words took to name a key for their step, which a press the panel's
-   field offers says now (field-readings.js, `press`). */
+   field offers says now (panel/field-readings.js, `press`). */
 
 import assert from "node:assert/strict";
 import test from "node:test";

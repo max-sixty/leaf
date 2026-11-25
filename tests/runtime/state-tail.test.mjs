@@ -18,7 +18,8 @@ canonical.href = "https://leaf.test/";
 document.head.append(canonical);
 // Nothing here is sent; the page's background requests are answered and dropped.
 globalThis.fetch = async () => new Response(null, { status: 204 });
-const { completeState, heldHeaders } = await import("/runtime/layer-client.js");
+const { completeState, heldHeaders } =
+  await import("/runtime/transport/layer-client.js");
 
 // Every object of `done` equal to the one at its place in `held` is that object, and
 // every item of a list equal to an item the held list had is that item, down into an

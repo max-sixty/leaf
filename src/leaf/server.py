@@ -328,11 +328,8 @@ def _follow_copy(page_dir: Path, server_id: str, root: Path) -> None:
     one that can't build the environment does, is tried again on the retry ladder
     (`codex.retry_delay`) for as long as this server serves.
 
-    The child's environment names no session, as a server a hook starts runs: a
-    command whose environment names a session hands itself to the checkout that
-    session selected (`session_runtime.hand_off_command`), and only the copy this
-    server follows may restart it. The child reads the session from the page's
-    claim.
+    The child's environment names no session, as a server a hook starts runs; it
+    reads the session from the page's claim.
 
     It loads no module the server has not: the server loads `leaf.codex` before it
     serves, as `exit_serving` relies on too, and every hook loads this module, so

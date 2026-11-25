@@ -383,6 +383,64 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
+# A custom element the page's own script fills with words no file holds.
+DRAWN_WORDS_PAGE = leaf_page(
+    "drawn words",
+    """
+<h1 id="title">Lanterns</h1>
+<p id="authored">The authored words stand in the file.</p>
+<lantern-note id="drawn"></lantern-note>
+""",
+    head="""<script>
+customElements.define("lantern-note", class extends HTMLElement {
+  connectedCallback() { this.textContent ||= "Lantern words a script draws."; }
+});
+</script>""",
+)
+
+
+def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
+    browser, serve
+):
+    """`leaf thread create --quote` finds words the page's own script draws, which no
+    file holds, on the page as the browser draws it, and stores the anchor the user's
+    selection of them makes, so the thread marks those words. Words the drawn page
+    doesn't show are refused as before."""
+    url = serve(DRAWN_WORDS_PAGE)
+
+    def create(quote: str):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "create",
+                str(serve.page_dir),
+                "--quote",
+                quote,
+                "--text",
+                "Why lanterns?",
+            ],
+        )
+
+    created = create("Lantern words")
+    assert created.exit_code == 0, created.output
+    root = json.loads(created.output)
+    assert root["anchor"] == {
+        "section": "drawn",
+        "quote": "Lantern words",
+        "prefix": "words stand in the file.",
+        "suffix": "a script draws.",
+    }
+    page = open_page(browser, url)
+    expect(thread_head(page, root["id"]).locator(".lf-thread-quote")).to_have_text(
+        "Lantern words"
+    )
+
+    refused = create("Words no script draws")
+    assert refused.exit_code != 0
+    assert "doesn't say 'Words no script draws'" in refused.output
+
+
 # One sentence two quoted threads discuss, which the agent's next revision rewrites.
 REVISED_QUOTES_PAGE = leaf_page(
     "revised quotes",
@@ -1207,7 +1265,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
 def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     # The clipped source sits beyond the near observer's 600px scroll margin
-    # (geometry.js, `nearObserver`), so the synchronous first reading and the
+    # (dom/geometry.js, `nearObserver`), so the synchronous first reading and the
     # observer's first record agree it stays out of layout. A nearer source enters
     # layout on that record, before or after presentation as load decides.
     url = live_url(
@@ -2597,7 +2655,7 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_locat
     browser, serve
 ):
     """A component that makes its own shadow root, as a Web Awesome control does, moves
-    focus between its own controls with no event reaching any root focus.js listens on.
+    focus between its own controls with no event reaching any root dom/focus.js listens on.
     The current location is still read once the key's task ends, so every reader of it
     hears the move as the Tab it was."""
     page = open_page(browser, serve(DIFF_PAGE))
@@ -3783,7 +3841,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-page-thread leaf-text")).to_be_focused()
     # A trip waits on the thread refresh before it decides to move, and that same
-    # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
+    # refresh is what writes this card's placement (`scrollToThread`, features/anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
     # long enough to have covered the wait.
@@ -5247,7 +5305,7 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
 def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
     """The anchor paint builds a thread's marks, the index the pointer is found in and
     the highlight painting them only for a presentation that changes a mark: ten that
-    change none build nothing (anchor-paint.js, `paint`)."""
+    change none build nothing (annotations/anchor-paint.js, `paint`)."""
     url = serve(leaf_page("Kept", '<p id="kept">Words a thread is about.</p>'))
     append_carried_log_record(
         serve.page_dir,
@@ -5335,7 +5393,7 @@ def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
     old = page.evaluate(words, stood)
     page.mouse.move(old["left"] - 30, old["top"] - 30)
     page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
-    # The hover frame the move queued (anchor-paint.js, `refreshHover`) has painted
+    # The hover frame the move queued (annotations/anchor-paint.js, `refreshHover`) has painted
     # the hand where it found a mark.
     rendered(page)
     expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
@@ -5541,7 +5599,7 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
 
 
 # What the page hears as it starts that its input clock counts as the user's
-# (document-inputs.js), and where focus lands: startup reopens a saved draft only while
+# (base/document-inputs.js), and where focus lands: startup reopens a saved draft only while
 # neither has moved (`recoverComposer` in leaf.js). Registered before the reload, so its
 # listeners come before the clock's.
 HEARD_AS_IT_STARTS = """(() => {
@@ -5591,9 +5649,9 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
         """async () => {
           const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
           const load = (path) => import(new URL(path, new URL(boot, location.href)).href);
-          const {saveDraft} = await load('runtime/drafts.js');
-          const {DRAFT_FORMAT} = await load('runtime/kernel-facts.js');
-          const {anchorKey} = await load('runtime/anchor-coordinate.js');
+          const {saveDraft} = await load('runtime/records/drafts.js');
+          const {DRAFT_FORMAT} = await load('runtime/state/kernel-facts.js');
+          const {anchorKey} = await load('runtime/base/anchor-coordinate.js');
           const anchor = {section: 'both', quote: 'match starts here and ends inside'};
           saveDraft('composer:' + anchorKey(anchor), 'My draft words', {
             format: DRAFT_FORMAT, anchor, revision: 1, suggest: false, about: null,
@@ -5673,7 +5731,7 @@ def _changed_page(request, engine, serve):
 
 def _rest_on(page, box):
     """Rest the pointer on a box, from away, and read the hand once the hover frame
-    each move queued (anchor-paint.js, `refreshHover`) has run: once, since a later
+    each move queued (annotations/anchor-paint.js, `refreshHover`) has run: once, since a later
     presentation would find the marks again and hide a fault."""
     page.mouse.move(2, 2)
     rendered(page)

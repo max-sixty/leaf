@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import tinycss2
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, PagePool, _retire
+from conftest import LEAF_COMMAND, PagePool, _retire, hooks_run_this_tree
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
@@ -426,6 +426,7 @@ def test_page_state_refuses_a_layer_this_leaf_cannot_serve(claimed):
     source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>"))
     revisions = interact_files.list_revisions(page_dir)
 
+    hooks_run_this_tree("s2")
     result = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(page_dir)],
         capture_output=True,
@@ -1810,7 +1811,8 @@ def test_layout_style_and_widgets_never_read_each_other():
             and not (
                 home == layouts
                 and source
-                == schema_model.ASSETS / "runtime/annotation-overlay/margin-layout.js"
+                == schema_model.ASSETS
+                / "runtime/annotations/annotation-overlay/margin-layout.js"
             )
         ]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
@@ -2004,7 +2006,7 @@ def test_no_has_reads_where_focus_is():
     """No `:has()` in Leaf's sheets reads where focus is: a focus mark, a box's
     `data-lf-control-focus` marks, or a focus pseudo-class. A box that shows the focus of
     a control inside it is named by the control (`--lf-focus-box`, base.css), and
-    focus.js marks the box. In Chromium, a `:has()` reading a focus mark makes each focus
+    dom/focus.js marks the box. In Chromium, a `:has()` reading a focus mark makes each focus
     move restyle what lies under every element whose `:has()` the move might change, and
     the whole page wherever any rule, an author's included, puts a `:has()` before a
     subject naming no element, as an authored `.zz:has(> .yy) > *` does. Without such
@@ -2788,83 +2790,93 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
 
 
-# The page-side order `composed_sheets` reads a composed example's layer in: each
-# root's own sheets, root by root in layer order.
-_LAYER_SHEET_ORDER = [
-    sheet
-    for root in SHIPPED_PACKAGES
-    for sheet in (
-        root / name
-        for name in (
-            ("styles/control-face.css", "shadow.css", "base.css")
-            if root == schema_model.ASSETS
-            else schema_model.PACKAGE_STYLES
+# The page-side order `composed_sheets` reads a composed example's layer in, one list
+# for each of the document's two halves: the theme's tiers below the page's `base`
+# layer and Leaf's above it, each root's own sheets root by root in layer order.
+def _layer_sheet_order(kernel_names, package_names):
+    return [
+        sheet
+        for root in SHIPPED_PACKAGES
+        for sheet in (
+            root / name
+            for name in (kernel_names if root == schema_model.ASSETS else package_names)
         )
-    )
-    if sheet.is_file()
-]
+        if sheet.is_file()
+    ]
+
+
+_THEME_SHEET_ORDER = _layer_sheet_order(
+    ("styles/page-control-face.css", "styles/markup.css", "base.css"), ("theme.css",)
+)
+_PARTS_SHEET_ORDER = _layer_sheet_order(
+    ("styles/control-face.css", "styles/parts.css", "elements.css"),
+    ("widget-shadow.css", "defaults.css", "overrides.css"),
+)
 
 
 def test_the_injected_control_face_is_one_default_in_both_trees():
-    """Document and declared-shadow controls share one default before component rules.
+    """Document and declared-shadow controls share one default before component rules,
+    and the page's own controls a default of their own before the theme's rules.
 
-    It weighs nothing and comes first in the document, so every component rule
-    outranks it, and markup's reading face, a layer below, loses to it. A shadow tree
-    places the same sheet below what a widget adopts, which
+    Each weighs nothing and comes first in its half of the document, so every component
+    rule outranks it, and markup's reading face, a layer below, loses to it. A control
+    Leaf builds takes its default above the page's `base` layer, and one the page writes
+    takes its own below it, so a framework's rule for the page's controls outranks it. A
+    shadow tree places Leaf's sheet below what a widget adopts, which
     `test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules`
     holds. Only native controls and those carrying a face class receive it: a widget's
     apparatus marked `lf-ui`, such as diff line numbers, retains the component's own
-    typography. The default ends with the floor a typed field takes on a touch screen.
+    typography. Each default ends with the floor a typed field takes on a touch screen.
     """
-    faces = [
-        (sheet, selector)
-        for sheet in _LAYER_SHEET_ORDER
-        for _conditions, _enclosing, selector, declarations in _style_rules(
-            sheet, whole=True
-        )
-        if any(name in _FACE for name, _value in declarations)
-    ]
-    assert faces, "no face was read from the layer's sheets — the reading is broken"
-    # One sheet gives both delivery trees the default.
-    face_sheet = schema_model.ASSETS / "styles/control-face.css"
     controls = ("button", "input", "select", "textarea")
-    control_face = [
-        ":where(:is(:root, :host) .lf-ui-face)",
-        ":where(:is(:root, :host) .lf-btn)",
-        *(f":where(:root body {tag}:not(.lf-chrome *))" for tag in controls),
-        *(f":where(:host {tag})" for tag in controls),
+    halves = [
+        (
+            _PARTS_SHEET_ORDER,
+            "styles/control-face.css",
+            [
+                ":where(:is(:root, :host) .lf-ui-face)",
+                ":where(:is(:root, :host) .lf-btn)",
+                *(f":where(:host {tag})" for tag in controls),
+                ":where(.lf-ui-face)",
+                ':where(:host input:not([type="checkbox"], [type="radio"]))',
+                ":where(:host select)",
+                ":where(:host textarea)",
+            ],
+        ),
+        (
+            _THEME_SHEET_ORDER,
+            "styles/page-control-face.css",
+            [
+                *(f":where(:root body {tag}:not(.lf-chrome *))" for tag in controls),
+                ':where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"]))',
+                ":where(:root body select:not(.lf-chrome *))",
+                ":where(:root body textarea:not(.lf-chrome *))",
+            ],
+        ),
     ]
-    control_ink = [":where(.lf-ui-face)"]
-    control_floor = [
-        ':where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"]))',
-        ":where(:root body select:not(.lf-chrome *))",
-        ":where(:root body textarea:not(.lf-chrome *))",
-        ':where(:host input:not([type="checkbox"], [type="radio"]))',
-        ":where(:host select)",
-        ":where(:host textarea)",
-    ]
-    default = [
-        (face_sheet, each) for each in (*control_face, *control_ink, *control_floor)
-    ]
-    assert faces[: len(default)] == default, faces[: len(default)]
-    defaults = [
-        face
-        for face in faces
-        if face[1]
-        in {
-            ".lf-ui-face",
-            ":where(:root) .lf-ui-face",
-            *control_face,
-            *control_ink,
-            *control_floor,
-        }
-    ]
-    assert defaults == default, defaults
+    for order, name, selectors in halves:
+        faces = [
+            (sheet, selector)
+            for sheet in order
+            for _conditions, _enclosing, selector, declarations in _style_rules(
+                sheet, whole=True
+            )
+            if any(name in _FACE for name, _value in declarations)
+        ]
+        assert faces, "no face was read from the layer's sheets — the reading is broken"
+        default = [(schema_model.ASSETS / name, each) for each in selectors]
+        assert faces[: len(default)] == default, faces[: len(default)]
+        defaults = [
+            face
+            for face in faces
+            if face[1] in {".lf-ui-face", ":where(:root) .lf-ui-face", *selectors}
+        ]
+        assert defaults == default, defaults
 
 
 def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names."""
-    page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
+    page_paint = schema_model.ASSETS / "runtime" / "base" / "page-paint.js"
     read = json.loads(js_facts("literals", [page_paint]))
     assets = schema_model.ASSETS
     sheet = (assets / "base.css").read_text() + (
@@ -3321,7 +3333,7 @@ def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
         ("defaults.css", ".note { broken; }\n", "defaults.css syntax error"),
         (
             "widgets/helper.js",
-            'export { x } from "/runtime/semantic-state.js";\n',
+            'export { x } from "/runtime/state/semantic-state.js";\n',
             "imports private kernel module",
         ),
         (
@@ -3422,7 +3434,7 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     roots = [tmp_path / name for name in ("first", "second")]
     for root, sheet, css in zip(
         roots,
-        ("base.css", "overrides.css"),
+        ("base.css", "theme.css"),
         (first, ".y { color: red; }"),
         strict=True,
     ):
@@ -3434,7 +3446,7 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
         composed, skip_whitespace=True, skip_comments=True
     )
     assert [rule.lower_at_keyword for rule in rules] == ["layer", "layer", "layer"]
-    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-overrides"
+    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-theme"
     later = tinycss2.parse_rule_list(
         rules[-1].content, skip_whitespace=True, skip_comments=True
     )
@@ -3613,7 +3625,7 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
         json.dumps({"lf-contribution": element_declaration("lf-contribution")})
     )
     assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
-    for name in ("defaults.css", "widget-shadow.css", "chrome.css"):
+    for name in ("theme.css", "defaults.css", "widget-shadow.css", "chrome.css"):
         (package / name).write_text("lf-contribution { color: green; }")
     staged = tmp_path / "installed"
     staged.mkdir()
@@ -4185,7 +4197,7 @@ def test_a_page_wears_the_themes_it_lists_in_that_order(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     dense = tmp_path / "dense"
     dense.mkdir()
-    (dense / "defaults.css").write_text(":root { --lf-accent: #814b07; }\n")
+    (dense / "theme.css").write_text(":root { --lf-accent: #814b07; }\n")
     # The reading theme's ground, which no other sheet of the layer states.
     paper, accent = "--lf-paper: light-dark(", "--lf-accent: #814b07"
 
@@ -5306,16 +5318,16 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
     page presents and hands them to the dispatcher's owner. The sample bootstrap's
     other listener enters its browsing context on trusted input without answering a
-    key; the same listener handles pointer input. document-inputs.js records inputs
-    from the document's first script. focus.js reads keys as the end of a label press
+    key; the same listener handles pointer input. base/document-inputs.js records inputs
+    from the document's first script. dom/focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. Any key but Escape puts away the
     preview a pointer reads and goes on to its command, and off a served page, where the
     register holds no page scopes, the listener takes the preview's Escape step
-    (preview.js). The
+    (annotations/preview.js). The
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
     a button takes a button's Enter and Space as their default action
     (role-button-press.js), on any page; the register names that press as native
-    activation (keyboard/text-entry.js), as it does a <button>'s, so no surface promises
+    activation (dom/keyboard/text-entry.js), as it does a <button>'s, so no surface promises
     a key it misses. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
@@ -5900,7 +5912,7 @@ def test_portable_css_carries_the_widgets_look_and_no_theme():
     layer = layer_model.compose_layer(layer_model.layer_inputs(("reading", "timeline")))
     sheet = layer.top_files["portable.css"].decode()
     assert layer_model.stylesheet(timeline / "defaults.css", timeline) in sheet
-    assert layer_model.stylesheet(reading / "defaults.css", reading) in (
+    assert layer_model.stylesheet(reading / "theme.css", reading) in (
         layer.top_files["theme.css"].decode()
     )
-    assert layer_model.stylesheet(reading / "defaults.css", reading) not in sheet
+    assert layer_model.stylesheet(reading / "theme.css", reading) not in sheet

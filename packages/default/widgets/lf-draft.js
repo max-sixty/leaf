@@ -36,7 +36,7 @@
  * The editor opens where the prose stood and in its faces: its field takes each
  * block's type and the gaps between blocks from the draft's place on the page, and
  * draws a picture as the picture, under its source once the caret reaches it
- * (`facesOf`, composing/text-field.js), so no word moves as it opens. It draws each
+ * (`facesOf`, annotations/composing/text-field.js), so no word moves as it opens. It draws each
  * blank line typed between blocks, and saving writes each run of them as the one gap
  * the prose draws (`valueToSave`). Rejected:
  * drawing drafts in a sent message's face, which the editor already wore, since drafts

@@ -2,11 +2,13 @@
 
 Read with [packages.md](packages.md), which holds the package contract and how styles
 compose. A theme is a page's look: a package whose rules style the page as a whole,
-whether or not it also declares widgets. Defaults that Layouts and the page's sheet
-should outrank, such as element rules and the tokens a theme sets on `:root`, belong in
-`defaults.css`, in the layer with Leaf's own defaults; rules meant to win over widget
-defaults and Layouts belong in `overrides.css`. Idioms belong in either, declared in
-the package's registry.
+whether or not it also declares widgets. Its rules for the page's own content, such
+as element rules and the tokens it sets on `:root`, belong in `theme.css`, below
+Layouts, Leaf's rules for what it draws and the page's `base` layer, so a page's CSS
+framework outranks them as it would any site's theme. Its rules for what
+Leaf draws, such as an idiom's or a widget's look, belong in `defaults.css`, and rules
+meant to win over widget defaults and Layouts in `overrides.css`. Idioms are declared
+in the package's registry.
 
 ## A page's theme
 
@@ -23,7 +25,7 @@ scrolling inside itself, a code block's long lines wrapping, and a `language-…
 block coloured by its tokens) by setting `--lf-reading-face: 1` on the root. The face
 also gives the page's own buttons, fields and labelled choices the faces of Leaf's own
 controls (the vocabulary's `button` and `input, select` entries), while a control Leaf
-builds keeps its own. The face's rules rank below every other rule of `lf-base`, so a
+builds keeps its own. The face's rules rank below every other rule of `lf-theme`, so a
 theme's or package's rule for one of those elements outranks them whatever its weight,
 and another theme restyles the page's controls through the tokens they read or with
 rules of its own. A page or a theme may still set
@@ -33,7 +35,7 @@ content with its own design inside a themed page; comments still anchor there. E
 the face's rules reads the element's parent, so the box itself still wears the face: set
 the input on a wrapper around the table or code block, not on it.
 
-A theme of your own is an ordinary package, often a single `defaults.css`. How the
+A theme of your own is an ordinary package, often a single `theme.css`. How the
 page selects it decides what the theme has to state:
 
 - To build on `reading`, the page selects `reading` and then the theme: `leaf page init
@@ -44,9 +46,11 @@ page selects it decides what the theme has to state:
   --package editorial`. The theme then states the whole look.
 
 Either way its pages keep Leaf's idioms, such as `.lf-callout` and `.lf-tag`, which
-Leaf draws on every page. Leaf's rules for them rank above the reading face's and below
-every other rule of `lf-base`, so a theme's rule for an idiom's element, such as
-`.lf-tag` or a bare `dt`, outranks Leaf's whatever its weight.
+Leaf draws on every page. Leaf's rules for them stand in `lf-base`, above the page's
+`base` layer and every rule of a theme's `theme.css`, and below every other rule of
+`lf-base`, so a theme restyles an idiom from its `defaults.css`, where a rule for the
+idiom's element, such as `.lf-tag` or `dl.lf-facts dt`, outranks Leaf's whatever its
+weight.
 
 Select a page's theme ahead of its other packages, so that a package's rule wins a tie
 with the theme's and a project package can restate what the theme declares.

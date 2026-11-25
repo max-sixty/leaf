@@ -159,7 +159,7 @@ class Timeline extends HTMLElement {
         ? drawing.rows[drawing.current]
         : null;
     // Previous and Next are the widget's own buttons: each row names the press its
-    // button makes and has no run (keyboard/bindings.js), and the drawing marks a
+    // button makes and has no run (dom/keyboard/bindings.js), and the drawing marks a
     // button `aria-disabled` at its end, which is the availability Leaf reads.
     this.lfCommands = {
       title: "On a timeline",

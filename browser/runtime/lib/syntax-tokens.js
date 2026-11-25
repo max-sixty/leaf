@@ -16,7 +16,7 @@ import { syntaxLanguageNames, syntaxLanguages } from "./syntax-languages.js";
 // block stays the colour of its ink, as it would on a page that colours nothing, where
 // a block naming no language (undefined) may take a default, such as a Markdown
 // preview's source; `page check` names such a class (`markup_checks/markup.py`,
-// `language_advice`), unless it is `math`, a formula's LaTeX, which formulas.js
+// `language_advice`), unless it is `math`, a formula's LaTeX, which readings/formulas.js
 // typesets.
 const LANGUAGE_CLASS = /(?:^|\s)language-(\S+)/;
 /** @param {Element | null} element @returns {string | null | undefined} */

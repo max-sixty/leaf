@@ -19,7 +19,7 @@ import {
   registry,
   sameRecord,
   stateSpecs,
-} from "/runtime/registry.js";
+} from "/runtime/state/registry.js";
 
 const load = (generation, declarations) => {
   for (const tag of Object.keys(registry)) delete registry[tag];

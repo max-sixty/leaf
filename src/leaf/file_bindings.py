@@ -64,6 +64,7 @@ BINDINGS = Record(
         ),
     ),
     since=50,
+    kept=("bindings",),
 )
 
 MAX_FILE_BYTES = 256 * 1024
@@ -92,8 +93,9 @@ def _access(page_dir: Path):
 
 
 def _grants(page_dir: Path) -> dict[str, str]:
-    """The grants as `files.json` records them."""
-    record = BINDINGS.read(page_dir / FILE_BINDINGS_FILE)
+    """The grants as `files.json` records them, whichever Leaf wrote it, so the
+    next grant keeps those another Leaf recorded."""
+    record = BINDINGS.read_any(page_dir / FILE_BINDINGS_FILE)
     return record["bindings"] if record else {}
 
 

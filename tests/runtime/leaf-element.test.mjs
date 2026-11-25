@@ -3,23 +3,23 @@
    These drive elements the registry does not declare as widgets, so each owns a region
    of its own; a declared widget's controller path, its startup gate and its gesture
    holds, are the browser suite's. Leaf's answer to `lf-connect` is element-integration.js's. */
-import "/runtime/element-integration.js";
+import "/runtime/host/element-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/runtime/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { html, nothing } from "/vendor/lit.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
-import { focused, focusDestination } from "/runtime/focus.js";
+import { focused, focusDestination } from "/runtime/dom/focus.js";
 import { showFailure } from "/runtime/lib/failure.js";
-import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
+import { keys, reflectFirstScopes, reflectKeys } from "/runtime/dom/keyboard/scopes.js";
 import {
   applicationState,
   readApplicationPresentation,
   readPart,
-} from "/runtime/semantic-state.js";
-import { clockValue, tickClock } from "/runtime/presence.js";
-import { adoptRegistry } from "/runtime/registry.js";
-import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+} from "/runtime/state/semantic-state.js";
+import { clockValue, tickClock } from "/runtime/state/presence.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";
 
 const phase = readPart((root) => root.phase);
 const host = readPart((root) => root.hostAvailable);

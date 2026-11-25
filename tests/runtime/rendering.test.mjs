@@ -46,7 +46,7 @@ const {
   renderingState,
   holdRendering,
   observePreparations,
-} = await import("/runtime/rendering.js");
+} = await import("/runtime/base/rendering.js");
 const { nextRender, nextFrame, cancelRender, sizeObserver } =
   await import("/runtime/lib/frame-pass.js");
 

@@ -151,7 +151,7 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     Which control they were holding is not a thing the obligation can answer: the controls are
     the widget's, most carry no id, and the first one that answers the obligation is the
     walk's landing rule rather than a restore. Handing that back is the failure
-    version.js names — a user holding the second option would be given the first, and
+    features/version.js names — a user holding the second option would be given the first, and
     their next press would choose it. The obligation's opening holds a lent tab stop rather
     than a decision, so the digits still reach the option they meant and Space decides
     nothing. Where the revision withdraws the question there is nothing to come back to,
@@ -571,7 +571,7 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     browser, serve
 ):
     """A choosing lf-options that stands at its own source, as each does in a named
-    group holding two questions (`obligations/place.js`), gives its location ring up to
+    group holding two questions (`records/obligations/place.js`), gives its location ring up to
     the row as a group's question does. If the choice kept its ring, a Tab in would
     draw the choice's ring on its frame and the row's just inside it, two accent lines
     for one fact."""
@@ -605,7 +605,7 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
 
     page.keyboard.press("Tab")
     expect(page.locator("#ship-monday .lf-pick")).to_be_focused()
-    # The ring is painted in the frame the focus move asks for (repaint.js).
+    # The ring is painted in the frame the focus move asks for (dom/repaint.js).
     rendered(page)
     assert choice.evaluate(LOCATION_RING)[0] == "none", (
         "the choice kept its ring round the row"

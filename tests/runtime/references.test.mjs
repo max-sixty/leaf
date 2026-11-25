@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { referencedProjection } from "/runtime/references.js";
-import { registry } from "/runtime/registry.js";
+import { referencedProjection } from "/runtime/readings/references.js";
+import { registry } from "/runtime/state/registry.js";
 
 beforeEach(() => {
   for (const tag of Object.keys(registry)) delete registry[tag];

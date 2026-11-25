@@ -264,7 +264,7 @@ export class TabSet extends LeafElement {
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
       // the window after the switch (`#showTab`). Left out of sight, the tab would lose
-      // focus to the next key (page-keys/controller.js).
+      // focus to the next key (panel/page-keys/controller.js).
       next.focus({ preventScroll: true });
       next.click();
       queueMicrotask(() => this.#showTab(next, null));

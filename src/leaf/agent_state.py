@@ -46,7 +46,7 @@ from .refusals import Refused
 from .registry.contract import state_specs
 from .registry.storage import layer_metadata
 from .render_reading import drawn_visuals
-from .revision_artifact import active_enclosing, read_artifact
+from .revision_artifact import active_enclosing, read_revision
 from .revisioning import activate_source
 from .schema import DATA_DIR
 from .served_state.context import read_page
@@ -489,7 +489,7 @@ def page_state(
             facts,
             drawn_visuals(
                 page_dir,
-                read_artifact(page_dir, active["revision"]).digest,
+                read_revision(page_dir, active["revision"]).digest,
                 stored_data["version"],
             ),
         )

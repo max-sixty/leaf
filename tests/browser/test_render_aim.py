@@ -3420,7 +3420,7 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
             )
         ),
     )
-    ring_ink = token_colour(page, "--lf-here")
+    ring_ink = token_colour(page, "--lf-ok")
     fill = "(text) => getComputedStyle(text).fill"
     outline = "(part) => [getComputedStyle(part).outlineStyle, getComputedStyle(part).outlineColor]"
     drawer = page.locator("#fig-drawer rect")
@@ -3481,7 +3481,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
-    ring_ink = token_colour(page, "--lf-here")
+    ring_ink = token_colour(page, "--lf-ok")
     assert_drawn_in(page.locator("#outer-surface"), ring_ink, 2)
     assert (
         page.locator("#outer-decoration").evaluate(
@@ -3726,7 +3726,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     page.keyboard.down("Alt")
     aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
-    assert_drawn_in(aimed, token_colour(page, "--lf-here"), 2)
+    assert_drawn_in(aimed, token_colour(page, "--lf-ok"), 2)
     assert (
         rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
         == "none"
@@ -5574,7 +5574,7 @@ def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
         after = beside(target)
         page.keyboard.up("Alt")
         # The marker is the text's near-black before the aim. The band is the
-        # user's green the aim adds (`--lf-here`), so the coloured edges of text that a
+        # user's green the aim adds (`--lf-ok`), so the coloured edges of text that a
         # subpixel-smoothed font draws, green before as after, aren't band.
         marker = [x for x, r, g, b in before if max(r, g, b) < 110]
         band = [

@@ -966,7 +966,7 @@ def _ring_round(page, selector):
         and mark["style"] == "solid"
         and not mark["brackets"]
         and mark["offset"] > 0
-        and mark["color"] == token_colour(page, "--lf-here")
+        and mark["color"] == token_colour(page, "--lf-ok")
     )
 
 

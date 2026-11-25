@@ -126,7 +126,8 @@ Usage: leaf thread create [OPTIONS] PAGE
   takes a widget that asks in the text instead, such as an `lf-options` choice,
   which waits on the user until they pick. Refuses a quote the active revision
   does not show, or shows more than once; words a page's script draws are found
-  on the page as the browser draws it. The comment's id is the thread's.
+  on the page as the browser draws it. Refuses a --part the page would show
+  nowhere. The comment's id is the thread's.
 
 Options:
   --quote TEXT  passage text from the active revision

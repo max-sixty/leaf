@@ -67,7 +67,7 @@
   padding: var(--lf-chip-pad);
   white-space: nowrap;
   border: 1px solid transparent;
-  border-radius: var(--lf-chip-r);
+  border-radius: var(--lf-r-s);
   font: var(--lf-font-chip);
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
@@ -100,19 +100,19 @@
   background: var(--lf-chip);
 }
 /* A reaction the user added is an answer they gave, so it wears the settled colour, as
-   a chosen answer does (tokens.css, `--lf-settled`), and its border reads as given even
+   a chosen answer does (tokens.css, `--lf-ink-2`), and its border reads as given even
    alone in the closed strip. Its ground deepens under the pointer as a neighbour's chip
    rises. */
 :is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"] {
-  color: var(--lf-settled-ink);
-  border-color: var(--lf-settled);
-  background: var(--lf-settled-tint);
+  color: var(--lf-ink);
+  border-color: var(--lf-ink-2);
+  background: var(--lf-chip);
 }
 :is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"]:is(
     :hover,
     [data-lf-focus]
   ) {
-  background: color-mix(in srgb, var(--lf-settled) 20%, var(--lf-card));
+  background: color-mix(in srgb, var(--lf-ink-2) 20%, var(--lf-card));
 }
 /* A reaction says its word through its preview (runtime/annotations/preview.js), which a finger
    reads by holding the choice, so the press owns the gesture: it neither scrolls nor
@@ -420,7 +420,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--lf-news);
+  background: var(--lf-accent);
 }
 /* Where nothing has news, the leaf wears it in a faint grey for
    a draft the user put away (panel/floating-panel.js, `keptDrafts`; tokens.css,
@@ -996,9 +996,9 @@ wa-copy-button.lf-icon-action {
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked settled, as a chosen answer is (below). */
 .lf-btn.lf-commit[aria-pressed="true"] {
-  color: var(--lf-settled-ink);
-  border-color: var(--lf-settled);
-  background: var(--lf-settled-tint);
+  color: var(--lf-ink);
+  border-color: var(--lf-ink-2);
+  background: var(--lf-chip);
 }
 /* #endregion */
 /* The disc, a variant of the symbol (`data-lf-disc`): a glyph drawn in its action's
@@ -1079,17 +1079,17 @@ wa-copy-button.lf-icon-action {
   background: var(--lf-chip);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"] {
-  color: var(--lf-settled-ink);
+  color: var(--lf-ink);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"]::before {
-  background: var(--lf-settled-tint);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lf-settled) 45%, transparent);
+  background: var(--lf-chip);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lf-ink-2) 45%, transparent);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"]:not(
     :disabled,
     [aria-disabled="true"]
   ):is(:hover, [data-lf-focus-visible])::before {
-  background: color-mix(in srgb, var(--lf-settled-ink) 18%, var(--lf-settled-tint));
+  background: color-mix(in srgb, var(--lf-ink) 18%, var(--lf-chip));
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="negative"] {
   color: var(--lf-danger-ink);
@@ -1136,9 +1136,9 @@ wa-copy-button.lf-icon-action {
   }
 }
 .lf-answer[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--lf-settled) 45%, transparent);
-  background: var(--lf-settled-tint);
-  color: var(--lf-settled-ink);
+  border-color: color-mix(in srgb, var(--lf-ink-2) 45%, transparent);
+  background: var(--lf-chip);
+  color: var(--lf-ink);
 }
 .lf-answer[aria-pressed="true"]::before {
   content: "✓";
@@ -1389,11 +1389,11 @@ wa-copy-button.lf-icon-action {
   color: var(--lf-entry-ink, var(--lf-ink));
 }
 /* The entry of the reading the user stands in and its compact Page Map projection
-   share the user's ink (`--lf-here`), as the location ring round that reading does.
+   share the user's ink (`--lf-ok`), as the location ring round that reading does.
    Reuse the entry's existing contour: category still owns its weight, and focus can
    add the one outer ring that says where input will land. */
 .lf-margin-face[data-lf-target-selected] {
-  border-color: var(--lf-here);
+  border-color: var(--lf-ok);
 }
 .lf-margin-face[aria-disabled="true"] {
   cursor: default;
@@ -1432,7 +1432,7 @@ wa-copy-button.lf-icon-action {
   justify-self: stretch;
 }
 /* Margin and Page Map share the same attention reading, in the colours of what each
-   says (tokens.css, at `--lf-turn`): the agent's work on an entry that holds no thread, a
+   says (tokens.css, "Leaf's own marks"): the agent's work on an entry that holds no thread, a
    thread's own colour over it on one that does, and the user's turn over both, even
    when another thread on the same carrier has active agent work. Progress stays in the
    status words and the one arrival pulse rather than competing for the attention
@@ -1441,27 +1441,27 @@ wa-copy-button.lf-icon-action {
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
 :where(.lf-page-map-action[data-lf-agent-workflow])
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--lf-work);
+  color: var(--lf-accent);
 }
 :where(.lf-margin-face[data-lf-kinds~="comment"])
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
 :where(.lf-page-map-action[data-lf-map-item^="comment:"])
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--lf-thread);
+  color: var(--lf-accent);
 }
 .lf-margin-face[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
 .lf-page-map-action[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--lf-turn-ink);
+  color: var(--lf-ok-ink);
 }
 /* A row that says the thread's word at its end, in Threads and the Page Map, says the
    user's turn in the same colour. */
 :is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
-  color: var(--lf-turn-ink);
+  color: var(--lf-ok-ink);
 }
 .lf-margin-face[data-lf-turn="user"] {
-  --lf-entry-tint: var(--lf-turn-wash);
+  --lf-entry-tint: var(--lf-ok-wash);
 }
 :is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival var(--lf-motion-agent-arrival)
@@ -1471,12 +1471,12 @@ wa-copy-button.lf-icon-action {
   0% {
     box-shadow:
       var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 0 color-mix(in srgb, var(--lf-work) 42%, transparent);
+      0 0 0 0 color-mix(in srgb, var(--lf-accent) 42%, transparent);
   }
   58% {
     box-shadow:
       var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 7px color-mix(in srgb, var(--lf-work) 16%, transparent);
+      0 0 0 7px color-mix(in srgb, var(--lf-accent) 16%, transparent);
   }
   100% {
     box-shadow:
@@ -1988,8 +1988,8 @@ wa-copy-button.lf-icon-action {
   /* A row that is where the user is (`aria-current="location"`), as the version the
      page shows is in Versions, wears the user's ink. */
   &[aria-current="location"] {
-    border-inline-start-color: var(--lf-here);
-    background-color: color-mix(in srgb, var(--lf-here) 12%, transparent);
+    border-inline-start-color: var(--lf-ok);
+    background-color: color-mix(in srgb, var(--lf-ok) 12%, transparent);
   }
 }
 /* The row of the thread whose passage the pointer is on (`.lf-mark-hover`,

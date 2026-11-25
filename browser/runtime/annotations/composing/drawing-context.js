@@ -47,7 +47,7 @@ export function drawingThumbnail(drawing, target) {
   canvas.setAttribute("aria-hidden", "true");
   canvas.dataset.lfDrawingContext = "pending";
   // The draft's ink is unsent, so it takes the user's ink, as it does on the page.
-  canvas.style.color = "var(--lf-here)";
+  canvas.style.color = "var(--lf-ok)";
   let picture = readPicture(drawing, target);
   const sizeCanvas = () => {
     const width = Math.ceil(picture.width * picture.scale);

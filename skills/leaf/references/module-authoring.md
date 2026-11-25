@@ -60,40 +60,31 @@ In this file:
 
 - "Startup and presentation": `whenNear` defers heavy work until the reader comes
   near.
-- "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
-  styles.
 - "Contained examples and scoped appearance": `mountSample` mounts a contained Leaf
   page, and `wear` gives an element a scoped appearance.
 
 In [module-state.md](module-state.md):
 
-- "State only this tab keeps": `tabStore` keeps a string for this tab.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
 
 In [module-reading.md](module-reading.md):
 
-- "Reading the page": `says` and `named` read an element's words, and
-  `elementById` finds the element an address names.
+- "Reading the page": `says` and `named` read an element's words.
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
-- "Reading obligations and the On lists": `readObligations`, `readQueues` and
-  `answerWords`.
-- "Page history and reports": `readHistory`.
+- "Reading obligations and the On lists": `obligations` and `queues`.
+- "Page history and reports": `history`.
 - "Reading version changes": `comparisonChanges`.
 
 In [module-input.md](module-input.md):
 
-- "Focus and layers": `onPress` and `onPressAway` follow a pointer's press.
-- "Pointer presses": `aimedAt` says what a click on a container was for, and
-  `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
-  draft.
+- "Pointer presses": `aimedAt` says what a click on a container was for.
+- "Text entry and drafts": `draft` keeps a text box's draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
@@ -102,7 +93,7 @@ In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
-- "Reading and opening Threads from a widget": `readThreads` and `threadActions`.
+- "Reading and opening Threads from a widget": `threads`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.
@@ -153,11 +144,11 @@ says nothing aloud. Off Leaf:
   (`module-input.md`, "Command rows").
 - Leaf finds a block's Copy control (`module-reading.md`, "Code") and a quiet word
   (`module-scroll-and-motion.md`, "Notices and spoken words") in the page and in the
-  shadow stages it builds (`shadowStage`), not in a shadow root a page script attaches
-  itself.
-- `tabStore` keeps nothing: a read answers null. Focus, scrolling and controls use the
-  document's native behavior, and `langForPath` reads shipped defaults in place of the
-  page's composed language map.
+  open shadow roots of elements that say `lf-connect`, not in a shadow root a page
+  script attaches itself.
+- Focus, scrolling and controls use the document's native behavior, and the
+  library's `langForPath` reads shipped defaults in place of the page's composed
+  language map.
 - Leaf stops no motion there for a user who asked for less, so the widget's sheet
   declares its motion under `@media (prefers-reduced-motion: no-preference)`.
 
@@ -186,7 +177,7 @@ script", lists.
   nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
   puts it: record what the user makes with `lf-action`, and keep how they look at the
-  widget in `tabStore`.
+  widget in the tab's memory.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
 - Animate with `motion` or in a stylesheet, never with `element.animate`
@@ -383,13 +374,13 @@ Attaching the root says where the widget draws, and the tag's `shadow` says the 
 may quote what it draws, so a widget that wants both does both. Use native slots for
 authored children, and read presentation inputs from the host and those children.
 
-An imperative renderer uses `shadowStage(host, nodes)`, never `attachShadow`; it applies
-the same styles and returns the root. Stage a retained container and render into that
-container. This API clears authored light children and supplies no slots, so read what
-the renderer needs before staging.
-
-On a plain host `shadowStage` stages only the renderer's content; a Leaf page supplies
-its theme, annotation support and page watches from outside the widget.
+Attach the root before the element first says `lf-connect`, as a field of its class
+does, so Leaf dresses it as the element connects: Leaf puts the theme's style node
+first in the root and adds its shared sheets to the root's adopted ones. An imperative
+renderer draws beside that style node, into a retained container of its own, rather
+than replacing the root's children. Where a library it embeds replaces the root's
+adopted sheets, the widget adds back the ones it found there. Off Leaf, nobody answers
+`lf-connect`, and the root holds only what the widget draws.
 
 Wrap stylesheet text the module writes itself in `@layer lf-base { … }`, so its rules
 sit in the theme's `lf-base` cascade layer, below Layouts, theme packages and the

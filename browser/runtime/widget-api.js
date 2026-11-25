@@ -23,31 +23,20 @@ import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 import { growthIsSeen } from "./geometry.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
+import { threadsReading } from "./readings.js";
+import { threadActions } from "./application.js";
 export * from "./portable-api.js";
 
-// `elementById(address, from)`: the element an id, a widget's `id:key` or a fragment
-// names, in the message `from` was written in first, then on the page.
-export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-// Following the primary pointer's press (`onPress`), and hearing a press that lands
-// away from a surface (`onPressAway`).
-export { onPress, onPressAway } from "./focus.js";
-// The page's obligations, or those a region of it holds by the rule every count and walk
-// of them reads, with whether the region's markup asks the user something.
-export { readObligations } from "./obligations/place.js";
+// The page readings, each a value to `read()` and a `change` to hear: the obligations,
+// or those a region holds, the On lists, the threads, which it also writes, and the
+// page's history (readings.js).
+export { history, obligations, queues } from "./readings.js";
+export const threads = Object.assign(threadsReading, threadActions);
 export { comparisonChanges } from "./version.js";
-export { answerWords } from "./obligations/answer.js";
-export { readQueues } from "./queue-api.js";
-export {
-  go,
-  placePageThreads,
-  registerThreadPresentation,
-  threadActions,
-} from "./application.js";
-export { readThreads } from "./thread/state.js";
-export { wireInput } from "./application.js";
+export { go, placePageThreads, registerThreadPresentation } from "./application.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
@@ -61,11 +50,11 @@ export { backgroundFlash, motion } from "./motion.js";
 // `whenNear` waits for the reader to near a node and declares the wait as an arrival,
 // so a widget cannot defer without the page knowing.
 export { whenNear } from "./presentation.js";
-export { readHistory } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
 
-// Render a declared template or a generated document as an isolated live Leaf page.
-// The returned host owns readiness, the frame's height, Reset and disposal
+// Render a declared template or a generated document as an isolated live Leaf page,
+// which only Leaf's server can allocate (SOUL.md, "Make the work concrete and
+// playable"). The returned host owns readiness, the frame's height, Reset and disposal
 // (live-samples.md). A block's frame the reader sees as it mounts is drawing under way
 // (lib/pending-task.js), read here in the caller's stack: the page's presentation
 // waits for it, or the gesture whose rendering showed the frame owns its fit. The host

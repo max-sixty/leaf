@@ -74,11 +74,8 @@
  * history and in-flight receipt.
  */
 import { html, nothing, render } from "/vendor/lit.js";
-import {
-  boundFile,
-  shadowStage,
-  tabStore,
-} from "/runtime/widget-api.js";
+import { boundFile } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { rove } from "/runtime/lib/roving.js";
 import { el } from "/runtime/lib/elements.js";
@@ -113,6 +110,8 @@ customElements.define(
   class extends LeafElement {
     /** @type {(() => void) | null} */
     #placeSelection = null;
+    // The open root, attached before the first `lf-connect`, so Leaf dresses it then.
+    #root = this.attachShadow({ mode: "open" });
     #view = el("div", "lf-file-editor-view lf-ui");
     /** @type {(() => import("lit").TemplateResult) | null} */
     #template = null;
@@ -226,15 +225,15 @@ customElements.define(
       this.#label = (binding) => (files.has(binding) ? label(fileFor(binding)) : null);
       // The host's grid gives the comparison half the editing room while it is open.
       const internals = this.attachInternals();
-      // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
-      // mounts are persistent node values within the template.
+      // One retained owner in the root: Lit's markers belong inside it, and
+      // CodeMirror's mounts are persistent node values within the template.
       // The stage, the mounts and the comparison hold the file, which prints, so they are
       // plain elements and only the editor's controls are offers. `lf-ui` keeps the
       // file's words out of the page's passages.
       const view = this.#view;
       const mount = el("div", "lf-file-editor-edit");
       const comparisonMount = el("div", "lf-file-editor-comparison");
-      shadowStage(this, [view]);
+      this.#root.append(view);
       const useFile = () => {
         const of = file;
         if (of.busy || !of.latest) return;
@@ -354,7 +353,7 @@ customElements.define(
       }
       /** @param {OpenFile} of */
       function remember(of) {
-        tabStore.set(
+        tabMemory.set(
           of.recoveryKey,
           of.base && unsettled(of)
             ? JSON.stringify({ base: of.base, text: text(of), sent: of.sent })
@@ -581,7 +580,7 @@ customElements.define(
       // as the file it shows rather than switching within the same task.
       /** @param {OpenFile} of */
       const recover = (of) => {
-        const pending = tabStore.get(of.recoveryKey);
+        const pending = tabMemory.get(of.recoveryKey);
         if (!pending || !of.api.writable) return;
         /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
         const recovered = JSON.parse(pending);

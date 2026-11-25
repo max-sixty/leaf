@@ -73,7 +73,7 @@
  * the wrap and notes keys as the element's `lfCommands`, the Copy control from the
  * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
  * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
-import { onUserInput, tabStore } from "/runtime/portable-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { bodyText } from "/runtime/lib/data-body.js";
@@ -92,19 +92,23 @@ import { scrollMoves } from "/runtime/lib/scroll-range.js";
 // from the first. A block follows in its box unless their hand was in the box after it
 // was last on the widget the block follows (see the header), so a hand in the box holds
 // it from the page's load, before any block there has followed a line. The hand is read
-// from the document's one reading of the reader's inputs (`onUserInput`), which binds
-// no key, and is one of its gestures: an `input` follows a gesture already counted, and
-// a script that moves the followed widget dispatches one with no reader behind it.
+// from the window's own inputs, heard as they start down from it, so a handler that
+// stops one doesn't hide it, and is one of its gestures: an `input` follows a gesture
+// already counted, and a script that moves the followed widget dispatches one with no
+// reader behind it.
 /** @type {WeakMap<Element, number>} */
 const hands = new WeakMap();
 let gestures = 0;
-const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
-onUserInput((event) => {
-  if (!HAND.has(event.type)) return;
-  gestures += 1;
-  for (const node of event.composedPath())
-    if (node instanceof Element) hands.set(node, gestures);
-});
+for (const type of ["pointerdown", "wheel", "touchstart", "keydown"])
+  addEventListener(
+    type,
+    (event) => {
+      gestures += 1;
+      for (const node of event.composedPath())
+        if (node instanceof Element) hands.set(node, gestures);
+    },
+    { capture: true, passive: true },
+  );
 
 // "3-5,8" → [[3, 5], [8, 8]].
 /** @param {string | null} spec @returns {[number, number][]} */
@@ -333,7 +337,7 @@ customElements.define(
         pre.dataset.lfCopy = "code";
         pre.lfCopy = () => source;
         const notesKey = `code-notes:${this.id}`;
-        let notesShown = tabStore.get(notesKey) !== "hidden";
+        let notesShown = tabMemory.get(notesKey) !== "hidden";
         const notesToggle =
           notes.length && document.documentElement.hasAttribute("data-lf-interactive")
             ? offerAction("mark", "lf-code-notes-toggle", "Hide notes", {
@@ -362,7 +366,7 @@ customElements.define(
         this.replaceChildren(pre, ...(bar ? [bar] : []));
         this.classList.add("lf-rendered");
         const key = `code-wrap:${this.id}`;
-        const saved = tabStore.get(key);
+        const saved = tabMemory.get(key);
         let wrapped = getComputedStyle(firstLine).whiteSpace !== "pre";
         let horizontal = 0;
         const paintWrap = (/** @type {boolean} */ value) => {
@@ -373,7 +377,7 @@ customElements.define(
         const toggleWrap = () => {
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
-          tabStore.set(key, String(wrapped));
+          tabMemory.set(key, String(wrapped));
           // Wrapped, the block stood at its start, so only an offset it had is put back.
           if (!wrapped && horizontal)
             pre.scrollTo({ left: horizontal, behavior: "instant" });
@@ -400,7 +404,7 @@ customElements.define(
                     touch: /** @type {false} */ (false),
                     run: () => {
                       notesShown = !notesShown;
-                      tabStore.set(notesKey, notesShown ? "shown" : "hidden");
+                      tabMemory.set(notesKey, notesShown ? "shown" : "hidden");
                       paintNotes();
                       this.dispatchEvent(
                         new CustomEvent("lf-layout", { bubbles: true, composed: true }),

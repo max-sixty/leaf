@@ -84,8 +84,7 @@ not bubble, or, inside a shadow root, one that is not composed. It reports that 
 failure of the element that dispatched the event, as it reports an `error` (below),
 and the event has no other effect. It does not notice a `pending-task` or an `error`
 dispatched without `bubbles` and `composed`. Nor does it notice anything inside a
-shadow root other than one `shadowStage` builds or the open root of an element that
-dispatches `lf-connect` (`module-authoring.md`, "Shadow stages and styles"): there, an
+shadow root other than the open root of an element that dispatches `lf-connect` (`module-authoring.md`, "Shadow stages and styles"): there, an
 event that is not composed goes unheard and unreported.
 
 Where an entry says an event carries a promise, the promise is the event's `complete`

@@ -8,7 +8,6 @@
     },
     "visual": {
       "prefixes": ["v:", "lane:", "stack:", "check:", "moment:"]
-    },
-    "space": "wide"
+    }
   }
 }

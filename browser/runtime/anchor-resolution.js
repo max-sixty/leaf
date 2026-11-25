@@ -1106,8 +1106,8 @@ export function fragmentTarget(fragment) {
   return address ? (address.place ?? address.element) : null;
 }
 
-// The element an address a package module holds names (widget-api.js, `elementById`):
-// an id, or a widget's id and key, spelled as a fragment (`#…`, encoded as a URL holds
+// The element an address names, as views.js reads a view's address: an id, or a
+// widget's id and key, spelled as a fragment (`#…`, encoded as a URL holds
 // it) or bare, as `fragmentTarget` reads it. Each id is looked up as `from` gives it
 // (references.js, `authoredElement`), in `from`'s own message first and then the page,
 // so a copy of a page id that Leaf draws in a reply never answers for the page's own.

@@ -17,7 +17,7 @@
    * rules key on the root's `data-lf-layout` (revision_delivery.py), since the body is
    * styled before the parser reaches `main`. The column and sidebar page are
    * documents: they set the text measure (`--lf-measure`, read by base.css) and
-   * allocate each block's declared room (`data-lf-space`), whose rules name the
+   * allocate the room each block's author asks for (`data-lf-space`), whose rules name the
    * document Layouts in one list (Breakouts, below). A workspace does neither: its grid
    * sizes its regions.
    */
@@ -292,7 +292,7 @@
    * margin entries moved up with it. Restoring them would take a rule for each kind of
    * block that can open a section.
    *
-   * The room past the gutter on each side of the column is what a block declaring a
+   * The room past the gutter on each side of the column is what a block asking for a
    * wider space breaks into (Breakouts, below). Only the Layout's box
    * (`--lf-layout-box`, above) has room: it stands in a size container as wide as its
    * shell, so it resolves the shell's width (`--lf-shell-width`) and states each side's
@@ -663,7 +663,7 @@
      * could not start shows each undrawn widget's source. Either is prose, so its host
      * keeps the prose's measure, without the margin a breakout reaches the room by,
      * and the source scrolls inside it. */
-    > [data-lf-space]:is(:has(> .lf-error), [data-lf-failed]),
+    > [data-lf-space]:has(> .lf-error),
     html[data-lf-startup-error]:not([data-lf-interactive]) & > [data-lf-space] {
       position: static;
       inline-size: 100%;

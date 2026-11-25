@@ -11,7 +11,7 @@ code of its own. Choose by what the state is:
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `verbs` ([package-data.md, "User state"](package-data.md#user-state)), recorded with `lf-action` | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | Leaf sets `state` again, whether this tab, another one, Undo or a new version changed it |
 | Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                   | every tab and device showing the page, until sent                                                                   | the draft's `watch`                                                                      |
-| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                      | this tab                                                                                                            | only this tab writes it; read it as the widget builds                                    |
+| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | the tab's memory ("State only this tab keeps")                                                                | this tab                                                                                                            | only this tab writes it; read it as the widget builds                                    |
 | Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                               | everyone                                                                                                            | Leaf sets the property                                                                   |
 | What the widget shows or derives now, for another widget to follow: a step, a selection    | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                               | the widgets on this page that name it, in this tab                                                                  | the widget sets it, and Leaf sets a reader's bound property                              |
 | A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                        | whoever reads the file                                                                                              | `watch(callback)`                                                                        |
@@ -59,12 +59,11 @@ A widget says its own drawing under way, such as a renderer loading, with a
 
 ### State only this tab keeps
 
-`tabStore.get(key)` and `tabStore.set(key, value)` keep a string for this page in this
-tab, such as which groups the user collapsed; set `null` to remove it. Read it as the
-widget builds, so the first visible state reflects it (`module-authoring.md`, "First
-paint"). `tabStore.keys()` lists the keys set, and `tabStore.read(key)` answers
-`{available, value}`, which tells a key never set from a store the browser has switched
-off; `tabStore.where(key)` names the browser's storage entry behind a key.
+The library's [`tab-memory.js`](../../../browser/runtime/lib/tab-memory.js) keeps a
+string for this page in this tab, such as which groups the user collapsed: `get` and
+`set` over `sessionStorage`, under the page's scope, with `null` to forget a key. A
+document that refuses storage, as a live sample's frame does, keeps nothing there. Read
+it as the widget builds, so the first visible state reflects it.
 
 A widget that shows one member at a time, as a tab set does, writes
 `hidden="until-found"` on the members it doesn't show, so find-in-page, a fragment and

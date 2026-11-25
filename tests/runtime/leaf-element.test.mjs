@@ -2,12 +2,12 @@
 
    These drive elements the registry does not declare as widgets, so each owns a region
    of its own; a declared widget's controller path, its startup gate and its gesture
-   holds, are the browser suite's. */
+   holds, are the browser suite's. Leaf's answer to `lf-connect` is element-integration.js's. */
+import "/runtime/element-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { signal } from "/runtime/framework.js";
 import { html, nothing } from "/vendor/lit.js";
-import { shadowStage } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { showFailure } from "/runtime/lib/failure.js";
@@ -565,7 +565,7 @@ test("a setup that throws inside its own shadow root shows its failure there", a
     tag,
     class extends LeafElement {
       setup() {
-        shadowStage(this, [document.createElement("p")]);
+        this.attachShadow({ mode: "open" }).append(document.createElement("p"));
         throw new Error("cannot stage");
       }
       render() {

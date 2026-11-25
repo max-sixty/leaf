@@ -6510,7 +6510,7 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
     # publishes immediately while this answer's widget is still preparing.
     page.evaluate("""async () => {
       const api = await window.__lfWidgetApi();
-      api.threadActions.create({attempt: crypto.randomUUID(), text: 'Another question.'});
+      api.threads.create({attempt: crypto.randomUUID(), text: 'Another question.'});
     }""")
     page.evaluate("releaseAnswer()")
     told(page)

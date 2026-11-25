@@ -34,7 +34,7 @@ import { render as motionTemplate } from "./motion-view.js";
  * touch or text inside the study but outside its transport, or the window losing
  * focus), read from the window as Leaf's prepaint counts input. */
 import { render } from "/vendor/lit.js";
-import { tabStore } from "/runtime/portable-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { once } from "/runtime/lib/once.js";
 
@@ -128,7 +128,7 @@ class MotionStudy extends HTMLElement {
     this.#transport.setAttribute("data-lf-gen", "1");
     this.prepend(this.#transport);
     const saved = JSON.parse(
-      tabStore.get(`motion:${this.id}`) || '{"time":0,"rate":1}',
+      tabMemory.get(`motion:${this.id}`) || '{"time":0,"rate":1}',
     );
     this.#time = Math.min(this.duration, saved.time);
     this.#rate = saved.rate;
@@ -271,7 +271,7 @@ class MotionStudy extends HTMLElement {
   }
 
   #save() {
-    tabStore.set(
+    tabMemory.set(
       `motion:${this.id}`,
       JSON.stringify({ time: this.#time, rate: this.#rate }),
     );

@@ -23,19 +23,10 @@ the author wrote, less a popover's, such as a gloss's explanation. Read a widget
 property instead, which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
-`elementById(address, from)` returns the element an address names, or null. An
-address is an element's id, or a widget's id and a key (`id:key`), which names the part
-the widget has drawn for that key, else the widget. A link's fragment (`#…`) holds
-either form URL-encoded, and `elementById` decodes it; any other address is read as
-written.
-
-Pass the element that holds the address as `from`, as in
-`elementById(this.getAttribute("for"), this)`. An agent's message can repeat ids the
-page holds, so an address written in a message names that message's element first and
-the page's after it. An id neither holds can still name an element Leaf draws, such as
-a widget in a reply a Thread shows. The lookup reaches into widgets' shadow trees,
-which `getElementById` misses, and names nothing inside a member a decision has
-retired (`retired-when`, `package-data.md`).
+Find the element an attribute names by its id with the platform's `getElementById`, on
+the root the widget stands in: `this.getRootNode().getElementById(id)`. That finds the
+first element in the tree with the id, the page's before a reply's where an agent's
+message repeats an id the page holds, and none inside another widget's shadow tree.
 
 Leaf's floating panel, its dialogs and the margin's rows stand inside an element of
 class `lf-chrome`, and so does a widget in a reply the panel shows. The library's
@@ -49,7 +40,7 @@ document around it, as a contents list does, reads it with
 
 To name something elsewhere, such as in a feed row, use `nameOf(thing)`, the name Leaf
 gives it in words. It names an element, the page (`document`), a thread from
-`readThreads()` and a row from `readQueues()`, and returns "" where Leaf gives no name.
+`threads.read()` and a row from `queues.read()`, and returns "" where Leaf gives no name.
 An element's name is its title, caption or label; failing those, a paragraph or list
 item is named by its first words, and another element by the nearest named element
 around it. A registered widget with no name gets an empty name: say the
@@ -138,7 +129,8 @@ source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into i
 
 ### Code
 
-`langForPath(path)` names the registry `$languages` language a file name means, or
+The library's [`language-paths.js`](../../../browser/runtime/lib/language-paths.js)
+names, by its `langForPath`, the registry `$languages` language a file name means, or
 undefined where the page's table has none. Leaf colours each `pre > code` a widget
 draws as it arrives, whose `language-…` class names a language and that wears the
 reading face, and typesets each formula, a `<code class="language-math">`
@@ -185,21 +177,25 @@ symbol and the words its press says.
 
 ## Page readings
 
-Each function here returns a page reading. A `LeafElement`'s `render()` that reads one
-synchronously runs again when the reading changes (`module-plain-elements.md`,
-"`LeafElement`"); a read after an `await` is not followed.
+`obligations`, `queues`, `threads` and `history` are the page's readings. Each one's
+`read()` returns its current value, which a `LeafElement`'s `render()` that reads it
+synchronously follows, drawing again as it moves (`module-plain-elements.md`,
+"`LeafElement`"); a read after an `await` is not followed. Each also dispatches `change`
+after its value moves, so any element follows it with
+`obligations.addEventListener("change", draw)`. `comparisonChanges` below is followed
+the first way only.
 
 ### Reading obligations and the On lists
 
 An obligation is what a widget waits on the user for, what an update the user
 handed over is owed, or a to-do the agent opened; the On lists show each one under its
-next actor. `readObligations()` returns `{phase, all, user, unanswered, byId}`: `all`
+next actor. `obligations.read()` returns `{phase, all, user, unanswered, byId}`: `all`
 holds every obligation whose source is still there, answered and withdrawn ones
 included, `user` the open obligations waiting on the user, `unanswered` every open
 obligation, including those with the agent, and `byId` a `Map` from each one's `id` to
 its record.
 
-`readObligations(region)` returns the three lists holding only what a region of the
+`obligations.read(region)` returns the three lists holding only what a region of the
 page holds, by the rule `lf-tabs` and `lf-tally` count with: the obligations whose
 widget is `region` or stands inside it, shadow trees included, less those withdrawn.
 It adds `asks`, whether the region's markup holds a widget declaring `awaits`, even one
@@ -255,15 +251,16 @@ arrives. Each `source.kind` adds its own facts:
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. No region holds an update.
 
-`answerWords(obligation)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state").
+To show an answer in the words On Me gives it, the library's `answer-words.js` reads
+a reply's words or a widget's `static answerWords` (`module-state.md`, "Declared widget
+state").
 
 A module that counts items per heading as the reader moves through them, as `lf-toc`
 does, gives each heading the stretch of the page from the element it opens, such as
 its `section`, to the next heading's, and counts each item in the stretch holding its
 first word, comparing positions with `compareDocumentPosition`.
 
-`readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
+`queues.read()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has its obligation's `id`, which names the row as
 it moves between lists; a `kind`, which is its obligation's `source.kind`, `todo` for a
 to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `user` or
@@ -278,14 +275,14 @@ is `ready`.
 ### Page history and reports
 
 A widget that shows the page's history declares `history` and reads
-`readHistory()`: `{phase, events}`, the server's rows, newest first, each carrying its
+`history.read()`: `{phase, events}`, the server's rows, newest first, each carrying its
 thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
-widget restoring something from `tabStore` compares it with the history once `phase` is
+widget restoring something from the tab's memory compares it with the history once `phase` is
 `ready`.
 
 The report in force on a widget an agent reports on is its own `state`: the
 agent-written verb's `value`, with the words a `text` verb carries in its `detail`.
-When it last reported, and what it said before, are `readHistory()` rows of `kind`
+When it last reported, and what it said before, are `history.read()` rows of `kind`
 `report`, naming the `widget`, with its words as `excerpt` and the time as `ts`. The
 history holds the newest rows only, so a report older than them is not there.
 

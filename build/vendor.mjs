@@ -983,7 +983,7 @@ async function syntaxLoaders() {
         .join("") +
       "};\n" +
       `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n` +
-      "/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s, in the package API.\n" +
+      "/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s (language-paths.js).\n" +
       ` * @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
   );
 }

@@ -218,8 +218,9 @@ without `list` it says every step. The place goes sooner if focus leaves the sto
 the stop or something inside it has held focus. It also goes if the element it was said
 on leaves the page, as when a redraw replaces it, so a widget whose stops are not
 elements of their own dispatches on the part of its drawing that holds the stop. Leaf
-hears an element leave the page or a shadow stage it builds (`shadowStage`), not a
-shadow root the widget attaches itself, where the place stays its few seconds. A widget
+hears an element leave the page or the open root of an element that said
+`lf-connect`, not a shadow root a page script attaches itself, where the place stays
+its few seconds. A widget
 whose stops take no focus, as a chart's points take none, tells Leaf when its user
 leaves a stop without stepping, as when the chart's pointer takes its reader to another
 point. It dispatches `lf-walk` with no `detail` on the element the place was said on,
@@ -265,20 +266,14 @@ keeps naming the element while the window is in the background, as when a revisi
 arrives, where `:focus` and `:focus-within` stop matching. A command row may read it:
 Leaf reads a scope's rows again whenever focus moves into, out of or within the scope.
 
-`onPressAway(away, dismiss)` hears each primary press that begins and
-ends where `away(path)` is true of its composed path, as an open editor that a tap
-elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
-ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
-of controls the user moves through with arrow keys offers one Tab stop, which the
-library's [`roving.js`](../../../browser/runtime/lib/roving.js) sets.
-
-`onPress(begin)` follows the primary pointer's press through its native compatibility
-events. `begin(pointerdown, path)`, a passive listener, may return
-`end(event, completed)`: release calls it with `completed: true`; cancellation, a
-native context menu, or leaving the document calls it with `false`. The function `end`
-returns runs when that press is over, after any compatibility mouseup and click it
-owes. Register as the widget connects, and call the returned unsubscribe as it leaves,
-which stops new presses.
+A surface that a press elsewhere should put away, as an open editor that a tap
+elsewhere saves, follows the press with the platform's pointer events on the window,
+in the capture phase: a primary `pointerdown` whose composed path is outside it, then
+a `pointerup` outside it, which completes the press, or a `pointercancel`, as a
+finger's scroll ends one, which doesn't. A press is over once the click its release
+owes is past, which the browser dispatches in the release's task. A set of controls
+the user moves through with arrow keys offers one Tab stop, which the library's
+[`roving.js`](../../../browser/runtime/lib/roving.js) sets.
 
 Hear where focus goes in the widget's own tree with the browser's `focusin` and
 `focusout`, on the widget or its shadow root, and `focus` on the widget itself for an
@@ -361,10 +356,10 @@ moves its own nodes also holds its drawing with `lf-defer` (`module-plain-elemen
 "`lf-defer`").
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
-animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each
-press, key, input, wheel or touch on the page, or the window losing focus. Act only on
-events whose target is in the surface; the callback doesn't consume the event. Call the
-returned function when the surface disconnects.
+animation, listens on the window in the capture phase, passively, for the presses,
+keys, wheels and touches that stop it, so it hears each before any handler in the page.
+Act only on events whose path holds the surface, and end the listeners as the surface
+leaves.
 
 Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on the
 element drawn on; a moving visual listens for it and freezes what it shows.
@@ -380,28 +375,9 @@ type no smaller than `--lf-entry-floor`, so a widget that shows words and then o
 field on them sets those words' `font-size` to `max(var(--lf-entry-floor), 1em)`, and
 the two sizes agree.
 
-Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
-Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
-visible control sends. A box for one line, such as a name, carries
-`aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
-phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space.
-The options are `sendClass`, placement classes for the generated send control (default
-empty); `sends`, its action in words; `hint`, the placeholder, after which a focused box on a physical keyboard names its send key and, where Enter sends a box that holds lines, the key for a new line; `save(value)`, called with the whole draft on each
-edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
-and `hasContent(raw)`, which hold sending back. Write `.value` only to seed the box
-before wiring it.
-
-`wireInput` returns `sync`, which reads or sets the whole draft, a pasted image
-included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
-after the box's state changes. `sync.button` is the generated send control.
-
-`wireInput` stands the box in a frame, `.lf-compose-field`, with its send control and,
-while a send is refused, the reason, `.lf-compose-error`. The box's hint is
-`.lf-compose-placeholder`. A widget that seats the box in a row of its own places
-those parts from its sheet, and sets the frame's padding on `.lf-compose-field` as
-`--lf-compose-pad-block` and `--lf-compose-pad-inline-start`. Leaf sets
-`--lf-field-end-room` on the box, the room its words leave at their end for the send
-control, and a widget that moves the control sets it again.
+The widget wires its box's keys itself. A box for one line, such as an option's words,
+can be a native `<textarea>` in a `<form>` whose Return submits the form, as
+`lf-options`' box for adding an option is.
 
 Drafts survive a reload, a new version and a closed tab, and every tab and device
 showing the page shares them, since the page's server keeps them. `draft(ctx)` returns
@@ -409,13 +385,15 @@ the draft kept under `ctx`, a string unique on the page such as `option:` and it
 
 - `read()` returns the stored draft record, or `null`. Seed the box with
   `read()?.text ?? ""`; its `payload` holds the saved send data.
-- `save(text, payload)` records an edit, from `wireInput`'s `save`, with any `payload`
-  the send needs.
+- `save(text, payload)` records an edit, on each `input`, with any `payload` the send
+  needs.
 - `watch(callback, {input: box})` calls `callback(text, payload)` when the draft
   changes other than by typing in this box: another tab or device, a send emptying it,
-  or a refusal returning the words. Put them in the box with `sync.load(text ?? "")`,
-  and register the watch as the widget connects, ending it as the widget leaves.
-- `send(owns, deliver)`, called from `wireInput`'s `send`, calls
+  or a refusal returning the words. Put them in the box, writing its `value` only where
+  it differs, since a write moves the caret to the end, and register the watch as the
+  widget connects, ending it as the widget leaves. Its `box` names the element a
+  refused send stands its notice over.
+- `send(owns, deliver)`, called as the user sends, calls
   `deliver(attempt, payload)` if the box still shows the stored draft and `owns()` is
   true, and resolves to what `deliver` returns. One `attempt` stands for one version of
   the words, so a resend after a reload reuses it.

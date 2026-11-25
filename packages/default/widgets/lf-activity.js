@@ -3,7 +3,7 @@ import { createActivity } from "./activity-view.js";
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
- * reading of `readHistory` restates the whole feed. A row says who acted (Me for the
+ * reading of `history` restates the whole feed. A row says who acted (Me for the
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
  *
@@ -35,15 +35,8 @@ import { createActivity } from "./activity-view.js";
  * destination leaves historical text in the same node, without an active link. Tab
  * memory retains the drawn presentation through a fresh document. This never folds
  * events or records a decision. */
-import {
-  tabStore,
-  elementById,
-  layerFact,
-  nameOf,
-  go,
-  readThreads,
-  readHistory,
-} from "/runtime/widget-api.js";
+import { layerFact, nameOf, go, threads, history } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdown.js";
@@ -55,7 +48,7 @@ const PAPER = matchMedia("print");
 // Where something happened, as the chrome names it, else its word.
 /** @param {string | null | undefined} id */
 function nameById(id) {
-  const element = id ? elementById(id) : null;
+  const element = id ? document.getElementById(id) : null;
   if (!element) return id || "the page";
   return excerptWords(nameOf(element), NAME) || `the ${addressableWord(element)}`;
 }
@@ -89,7 +82,7 @@ const named = (words) => quoted(excerptWords(words, NAME));
 // reaction, has no name there and no way to it, so it goes as a thread.
 /** @param {import("../../../browser/types/contract.js").ServedHistoryRow["thread"]} served */
 const topicOf = (served) => {
-  const thread = served && readThreads().threads.find(({ id }) => id === served.id);
+  const thread = served && threads.read().threads.find(({ id }) => id === served.id);
   return thread ? excerptWords(nameOf(thread), 48) : "a thread";
 };
 
@@ -166,9 +159,8 @@ customElements.define(
     #template(reading = undefined) {
       return this.#drawing.render(reading, {
         printing: this.#printing,
-        names: elementById,
         openThread: (id) => {
-          const thread = readThreads().threads.find((thread) => thread.id === id);
+          const thread = threads.read().threads.find((thread) => thread.id === id);
           if (thread) void go(thread, { part: "thread" });
         },
       });
@@ -216,9 +208,9 @@ customElements.define(
     }
 
     render() {
-      const history = readHistory();
-      this.#ready = history.phase === "ready";
-      const view = this.#render(history.events);
+      const reading = history.read();
+      this.#ready = reading.phase === "ready";
+      const view = this.#render(reading.events);
       // A failed parser import can retry on the next reading, including a return.
       if (!markdownReady())
         loadMarkdown().then((loaded) => {
@@ -258,7 +250,7 @@ customElements.define(
         : "Hide activity";
       if (this.#opened && !this.#printing) this.#closedReading = shown;
       const reading = { open: this.#opened, shown, label, news };
-      if (!this.#printing) tabStore.set(this.#storageKey, JSON.stringify(reading));
+      if (!this.#printing) tabMemory.set(this.#storageKey, JSON.stringify(reading));
       return this.#template(reading);
     }
   },

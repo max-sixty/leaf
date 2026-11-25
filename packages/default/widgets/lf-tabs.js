@@ -28,7 +28,7 @@
  * screen. A page's part always opens at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (base.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's address. Its column sticks in the window beside the
+ * the root set. Its column sticks in the window beside the
  * item the page scrolls, and scrolls on its own past the window's height, so its list
  * is pinned as a box's strip is, and a switch made while it is opens the new item at
  * its start. Where a side list fills a height it is given, as a full-height
@@ -72,7 +72,7 @@
  * Once every one is answered it shows a check, with the answer's own words where the panel
  * holds one obligation. So a queue shows each obligation's state and how far the user has
  * worked through it, and an undo that reopens an obligation puts On Me's symbol back. Which
- * obligations a panel holds is `readObligations(panel)`, read from the admitted obligation
+ * obligations a panel holds is `obligations.read(panel)`, read from the admitted obligation
  * inventory, so a tally of the queue counts the same obligations. A row whose panel's
  * markup asks the user something keeps the line's room either way (`asks`), so an answer
  * moves no row. While the version diff is on, each tab
@@ -82,11 +82,11 @@
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   nameOf,
-  answerWords,
   backgroundFlash,
   comparisonChanges,
-  readObligations,
+  obligations,
 } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -442,7 +442,7 @@ export class TabSet extends LeafElement {
     const changed = comparisonChanges(panel).length;
     // A side list's row keeps the answer's room where its panel's markup asks the user
     // something.
-    const held = this.#down ? readObligations(panel) : null;
+    const held = this.#down ? obligations.read(panel) : null;
     const hasAnswer = Boolean(held?.asks);
     const items = held?.asks ? held.all : [];
     // Counted as an `lf-tally` of the panel would count them (`tally`). Withdrawn items

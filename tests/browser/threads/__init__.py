@@ -52,8 +52,8 @@ def thread_row(page, key):
     tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
     key, resolved = page.evaluate(
         """async (id) => {
-          const {readThreads} = await window.__lfWidgetApi();
-          const thread = readThreads().threads.find((t) => t.id === id || t.key === id);
+          const {threads} = await window.__lfWidgetApi();
+          const thread = threads.read().threads.find((t) => t.id === id || t.key === id);
           return [thread?.key ?? id, Boolean(thread?.resolved)];
         }""",
         key,
@@ -82,13 +82,13 @@ def open_panel_thread(page, thread_id):
     # the trip being over doesn't mean the page holds it yet.
     page.evaluate(
         """async () => {
-          window.__lfReadThreads = (await window.__lfWidgetApi()).readThreads;
+          window.__lfThreads = (await window.__lfWidgetApi()).threads;
         }"""
     )
     try:
         found = page.wait_for_function(
             """(id) => {
-              const thread = window.__lfReadThreads().threads.find((t) => t.id === id);
+              const thread = window.__lfThreads.read().threads.find((t) => t.id === id);
               return thread
                 ? [thread.key, Boolean(thread.resolved), Boolean(thread.anchor)]
                 : null;
@@ -266,13 +266,13 @@ def _shadow_tree_widget(tag):
         "example": f'<{tag} id="example"></{tag}>',
     }
     module = f"""
-import {{shadowStage}} from '/runtime/widget-api.js';
 customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (this.shadowRoot) return;
     const word = document.createElement('span');
     word.textContent = '{tag}';
-    shadowStage(this, [word]);
+    this.attachShadow({{mode: 'open'}}).append(word);
+    this.dispatchEvent(new Event('lf-connect', {{bubbles: true, composed: true}}));
   }}
 }});
 """
@@ -655,7 +655,6 @@ def capture_page(browser, serve, *, touch=False):
     """A scrolled passage with real SVG paint inside a declared shadow widget."""
     declaration, _ = _shadow_tree_widget("lf-capture-art")
     module = """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-capture-art', class extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -667,7 +666,8 @@ customElements.define('lf-capture-art', class extends HTMLElement {
     rect.setAttribute('height', '100');
     rect.setAttribute('fill', 'rgb(30,80,240)');
     svg.append(rect);
-    shadowStage(this, [svg]);
+    this.attachShadow({mode: 'open'}).append(svg);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """

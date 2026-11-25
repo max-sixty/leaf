@@ -48,8 +48,7 @@ def test_a_press_survives_a_frame_return_but_ends_when_its_document_loses_input(
   </template>
 </lf-sample>
 <script type="module">
-  import {onPressAway, onUserInput} from '/runtime/widget-api.js';
-  import {focusDestination} from '/runtime/focus.js';
+  import {focusDestination, onPressAway, onUserInput} from '/runtime/focus.js';
   window.completed = 0;
   window.inputBlurs = [];
   window.nativeBlurs = [];
@@ -82,7 +81,7 @@ def test_a_press_survives_a_frame_return_but_ends_when_its_document_loses_input(
     # Losing the child document's input is a real departure, even while the parent
     # document stays active. Its held press must not complete when release arrives.
     child.evaluate("""async () => {
-      const {onPressAway, onUserInput} = await import('/runtime/widget-api.js');
+      const {onPressAway, onUserInput} = await import('/runtime/focus.js');
       window.completed = 0;
       window.inputBlurs = [];
       onPressAway(() => true, () => completed++);

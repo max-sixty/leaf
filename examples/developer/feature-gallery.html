@@ -176,7 +176,7 @@
       ]
     </script>
     <script type="module">
-      import { connection, generate, readObligations } from "/runtime/widget-api.js";
+      import { connection, generate, obligations } from "/runtime/widget-api.js";
       import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
       import { presented } from "/runtime/lib/presented.js";
@@ -233,7 +233,7 @@
       });
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
+        const item = obligations.read().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
@@ -1071,7 +1071,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <lf-option id="bg-board-flask-drop" value="drop">Drop</lf-option>
               </lf-options>
             </lf-group>
-            <lf-board id="bg-board-plan">
+            <lf-board id="bg-board-plan" data-width="available">
               <lf-column id="bg-board-open" label="Undecided">
                 <lf-card
                   id="bg-board-flask-card"
@@ -3544,7 +3544,7 @@ flag or command it touches, such as `--config`.
               nothing until something scrolls it. The code block and the diagram above
               hold everything they have and show no fade.
             </p>
-            <lf-board id="bg-work-board">
+            <lf-board id="bg-work-board" data-width="available">
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work" label="Check the sample route">
                   <strong>Check the sample route</strong> An open to-do on this card

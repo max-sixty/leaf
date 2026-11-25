@@ -79,7 +79,7 @@
  * of its items. */
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
-import { elementById, motion, layerFact } from "/runtime/widget-api.js";
+import { motion, layerFact } from "/runtime/widget-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -115,6 +115,10 @@ const namedValue = (answer, valueOf) => {
 /** @param {Element} card */
 const showsId = (card) => card.getAttribute("shows") || null;
 
+// The member a widget's answer names by its id, among the widget's own children.
+/** @param {Element} owner @param {string} id */
+const memberOf = (owner, id) => [...owner.children].find((child) => child.id === id);
+
 /** The widget whose answer a card shows, with the verb that writes the answer and
  * that verb's record; `{fault}`, telling the author what to write instead, where the
  * card's `shows` names no answer a board can show; or null for a card that shows none.
@@ -124,7 +128,9 @@ const showsId = (card) => card.getAttribute("shows") || null;
 function shownWidget(card) {
   const id = showsId(card);
   if (id === null) return null;
-  const owner = elementById(id, card);
+  const owner = /** @type {Document | ShadowRoot} */ (
+    card.getRootNode()
+  ).getElementById(id);
   if (!owner)
     return {
       fault:
@@ -182,7 +188,7 @@ function shownAnswer(card, fallback = false) {
   const valueOf =
     record.kind === "attribute"
       ? (/** @type {string} */ member) =>
-          elementById(member, owner)?.getAttribute(VALUE) ?? null
+          memberOf(owner, member)?.getAttribute(VALUE) ?? null
       : null;
   const answer =
     record.kind === "attribute"

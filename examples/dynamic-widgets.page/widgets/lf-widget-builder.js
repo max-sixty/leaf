@@ -1,7 +1,8 @@
 // The two arms share one request and host inference settings. Only the output
 // contract changes: component configuration or complete HTML/CSS/JavaScript.
 import { nothing } from "/vendor/lit.js";
-import { generate, tabStore } from "/runtime/widget-api.js";
+import { generate } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keepsText } from "/runtime/lib/keeps.js";
 import { stagePreview, stageLeafPreview } from "../preview.js";
@@ -54,7 +55,7 @@ customElements.define(
     #connection = new AbortController();
     setup() {
       const field = this.querySelector("#widget-request");
-      field.value = tabStore.get("dynamic-widgets:request") ?? field.value;
+      field.value = tabMemory.get("dynamic-widgets:request") ?? field.value;
     }
     disconnectedCallback() {
       super.disconnectedCallback();
@@ -200,7 +201,7 @@ customElements.define(
       });
       field.addEventListener(
         "input",
-        () => tabStore.set("dynamic-widgets:request", field.value),
+        () => tabMemory.set("dynamic-widgets:request", field.value),
         { signal },
       );
       host.querySelector("form").addEventListener(

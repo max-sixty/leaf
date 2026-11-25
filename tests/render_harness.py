@@ -2238,10 +2238,10 @@ def show_done(page):
 # thread; null until the saved inventory has arrived. It leaves the reading as
 # `window.__lfOpenThreads` for a wait to poll.
 OPEN_THREAD_COUNT = """async () => {
-  const { readThreads } = await window.__lfWidgetApi();
+  const { threads } = await window.__lfWidgetApi();
   const { threadCounts } = await window.__lfCheckApi();
   window.__lfOpenThreads = () => {
-    const reading = readThreads();
+    const reading = threads.read();
     return reading.phase === "ready" ? threadCounts(reading.threads).open : null;
   };
   return window.__lfOpenThreads();

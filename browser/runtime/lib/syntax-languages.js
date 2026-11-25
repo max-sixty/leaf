@@ -21,7 +21,7 @@ export const syntaxLanguages = {
 /** @type {Record<string, string>} */
 // prettier-ignore
 export const syntaxLanguageNames = {"shellscript":"bash","bash":"bash","sh":"bash","shell":"bash","zsh":"bash","css":"css","diff":"diff","go":"go","html":"html","java":"java","javascript":"javascript","js":"javascript","cjs":"javascript","mjs":"javascript","json":"json","markdown":"markdown","md":"markdown","python":"python","py":"python","rust":"rust","rs":"rust","sql":"sql","toml":"toml","typescript":"typescript","ts":"typescript","cts":"typescript","mts":"typescript","yaml":"yaml","yml":"yaml"};
-/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s, in the package API.
+/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s (language-paths.js).
  * @type {Record<string, string>} */
 // prettier-ignore
 export const syntaxLanguagePaths = {"bash":"bash","cjs":"javascript","css":"css","go":"go","htm":"html","html":"html","java":"java","js":"javascript","json":"json","jsx":"javascript","markdown":"markdown","md":"markdown","mjs":"javascript","py":"python","rs":"rust","sh":"bash","sql":"sql","toml":"toml","ts":"typescript","tsx":"typescript","yaml":"yaml","yml":"yaml"};

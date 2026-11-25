@@ -20,11 +20,5 @@
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
    tests/smoke/test_plain_page.py holds the portable widgets to that. A portable widget
    also imports the library's modules (lib/), each of which loads in any document. */
-export { tabStore } from "./tab-store.js";
-
-export { shadowStage } from "./shadow-stage.js";
 
 export { threadSurface } from "./thread/surface-handles.js";
-
-export { onUserInput } from "./focus.js";
-export { langForPath } from "./language-paths.js";

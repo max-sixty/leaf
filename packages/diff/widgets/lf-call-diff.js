@@ -15,7 +15,7 @@
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user on it. */
 import { html, render, nothing } from "/vendor/lit.js";
-import { elementById, go } from "/runtime/widget-api.js";
+import { go } from "/runtime/widget-api.js";
 import { setChildLists, setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { el } from "/runtime/lib/elements.js";
@@ -185,7 +185,10 @@ async function travelToLine(owner, record) {
     record.status === "removed" ? "old" : "new",
     location.line,
   );
-  const diff = elementById(owner.getAttribute("diff"), owner);
+  const id = owner.getAttribute("diff");
+  const diff = id
+    ? /** @type {Document | ShadowRoot} */ (owner.getRootNode()).getElementById(id)
+    : null;
   if (!diff) return false;
   return go(diff, {
     key,

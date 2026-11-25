@@ -258,7 +258,7 @@ so a widget needs no prompt of its own.
 The module reads this state as `this.state` and records it with `record()`
 ([module-state.md, "Recorded state"](module-state.md#recorded-state)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
-state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
+state"](module-state.md#declared-widget-state)), and reads obligations with `obligations.read()`
 ([module-reading.md, "Reading obligations and the
 On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 

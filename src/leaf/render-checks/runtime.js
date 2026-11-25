@@ -1,7 +1,7 @@
 import { USER_VIEW_RESTORE_CASES, scrolling } from "/runtime/check-api.js";
 import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { exceptionText } from "/runtime/lib/exception.js";
-import { go, readThreads } from "/runtime/widget-api.js";
+import { go, threads } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -125,7 +125,8 @@ export function sendsAcked() {
 // thread is drawn: in its margin card, or in the floating panel's thread view where
 // nothing on the page shows it. The gate opens each in turn to read them.
 export const threadsHoldingMarkup = () =>
-  readThreads()
+  threads
+    .read()
     .threads.filter((thread) =>
       thread.msgs.some((message) => message.body.kind === "authored"),
     )

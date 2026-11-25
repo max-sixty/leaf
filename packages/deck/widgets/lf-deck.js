@@ -1,7 +1,7 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
  * through unread conversations. Each authored child is a card, the named group of a
  * question or a decision widget the user answers there with its own controls. A card waits while it
- * holds an obligation open on the user (`readObligations(card)`, read from the server's
+ * holds an obligation open on the user (`obligations.read(card)`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
  * for it, such as a suggestion's margin entry, the card flies right and the next waiting
@@ -34,7 +34,7 @@
  * saying how many still wait, with the same step back in as words, since a symbol
  * alone at the end of the pass went unnoticed. Under that line it lists each card that
  * asks something: its question, linked to the card, beside what became of it, the
- * answer in the runtime's words (`answerWords`) or who it still waits on. The cards are
+ * answer in the words On Me gives it (lib/answer-words.js) or who it still waits on. The cards are
  * put away by then, and without the list the record of the pass hid behind Back, one
  * card at a time. A row links to where its question is answered, so it opens the card
  * holding it as any fragment link does (`beforematch`), by pointer, finger or Enter,
@@ -63,14 +63,8 @@
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
  * around the questions it is waiting on, chosen by the user. */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
-import {
-  answerWords,
-  go,
-  motion,
-  nameOf,
-  readObligations,
-  readQueues,
-} from "/runtime/widget-api.js";
+import { go, motion, nameOf, obligations, queues } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { openingMember, showMember } from "/runtime/lib/one-shown.js";
@@ -106,7 +100,7 @@ const focusedElement = () => {
   return at;
 };
 
-/** @typedef {ReturnType<typeof readObligations>["all"]} DeckHeld */
+/** @typedef {ReturnType<typeof obligations.read>["all"]} DeckHeld */
 /** @typedef {(card: HTMLElement) => DeckHeld} DeckReadings */
 
 customElements.define(
@@ -217,8 +211,8 @@ customElements.define(
     // card holds by the one rule every count of a region reads.
     /** @returns {DeckReadings | null} */
     #readings() {
-      if (readObligations().phase !== "ready") return null;
-      return (/** @type {HTMLElement} */ card) => readObligations(card).all;
+      if (obligations.read().phase !== "ready") return null;
+      return (/** @type {HTMLElement} */ card) => obligations.read(card).all;
     }
 
     // Show one card, or none once the pass is over, without motion.
@@ -498,7 +492,7 @@ customElements.define(
         this.#end.toggleAttribute("hidden", false);
         return void this.#again.focus({ preventScroll: true });
       }
-      const items = readObligations(card);
+      const items = obligations.read(card);
       const waiting = items.phase === "ready" ? items.user[0] : undefined;
       if (waiting) go(waiting);
       else focusOn(card);
@@ -610,7 +604,7 @@ customElements.define(
       const readings = this.#readings();
       const card = this.#open;
       const count = readings
-        ? tallyWords(tally(readObligations(this).all), "the agent")
+        ? tallyWords(tally(obligations.read(this).all), "the agent")
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {
@@ -644,10 +638,10 @@ customElements.define(
         ? this.#cards.filter((each) => waitsOn(readings(each))).length
         : 0;
       const asked = readings ? this.#cards.filter((each) => readings(each).length) : [];
-      const queues = readQueues();
+      const lists = queues.read();
       const listed = new Map(
-        queues.phase === "ready"
-          ? [...queues.on_user, ...queues.on_agent, ...queues.done].map((item) => [
+        lists.phase === "ready"
+          ? [...lists.on_user, ...lists.on_agent, ...lists.done].map((item) => [
               item.id,
               item,
             ])
@@ -694,7 +688,10 @@ customElements.define(
       if (waitsOn(held)) return ["Still waiting", "leaf"];
       if (held.some((item) => item.state !== "done"))
         return ["Waiting on the agent", "leaf"];
-      const words = held.map(answerWords).filter(Boolean).join("; ");
+      const words = held
+        .map((item) => answerWords(item))
+        .filter(Boolean)
+        .join("; ");
       return words ? [words, null] : ["Answered", "leaf"];
     }
 

@@ -1310,4 +1310,4 @@ def heard(session_id: str, lines: list[str]) -> None:
         if rest:
             QUEUED.write(path, {"lines": rest})
         else:
-            path.unlink(missing_ok=True)
+            QUEUED.remove(path)

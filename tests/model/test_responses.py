@@ -1012,14 +1012,25 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     prepared = _codex_delivery(page_dir)
     identity = prepared.payload["id"]
     path = codex_model.record_path("codex-thread", identity)
-    record = files_model.read_json(path)
-    if obsolete == "record":
-        record["format"] = "leaf-codex-delivery-v2"
-    else:
-        payload = dict(prepared.payload, format="leaf-delivery-v4")
-        cleanup_model.write_json(delivery_model.delivery_path(identity), payload)
+    record = files_model.read_json(codex_model.RECORD.file(path))
     record.update(state="queued", pending=[0])
-    cleanup_model.write_json(path, record)
+    if obsolete == "record":
+        # The record is one a Leaf of another shape wrote.
+        file = path.with_name(f"{path.stem}@999{path.suffix}")
+        codex_model.RECORD.remove(path)
+        record["format"] = "leaf-codex-delivery/999"
+    else:
+        # The envelope this Leaf's record addresses is one a Leaf of another shape
+        # froze.
+        envelope = delivery_model.delivery_path(identity)
+        delivery_model.DELIVERY.remove(envelope)
+        cleanup_model.write_json(
+            envelope.with_name(f"{envelope.stem}@999{envelope.suffix}"),
+            dict(prepared.payload, format="leaf-delivery/999"),
+        )
+        file = codex_model.RECORD.file(path)
+    cleanup_model.write_json(file, record)
+    held = file.read_bytes()
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
     assert acknowledged_through(page_dir) == 0
@@ -1031,7 +1042,8 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     assert fresh.payload["batches"][0]["events"][0]["answer"]["ref"].startswith(
         fresh.payload["id"]
     )
-    assert path.exists()  # another checkout's record is not ours to retire
+    # Another checkout's record is not ours to retire.
+    assert file.read_bytes() == held
 
 
 def test_explicit_rich_reply_is_committed_before_later_invalid_source(page_dir):

@@ -41,7 +41,7 @@ from .findings import Finding
 from .harness import Harness
 from .refusals import Refused
 from .schema import PREVIEW_FILE
-from .service import claim_is_active, claim_records, prepare_claim
+from .service import PREVIEW, claim_is_active, claim_records, prepare_claim
 
 
 def serve_again(harness: Harness, started: float) -> list[Finding]:
@@ -103,7 +103,7 @@ def to_serve(harness: Harness) -> list[Path]:
         page_dir = Path(claim["page"])
         if (
             claim["harness"] != harness.name
-            or (page_dir / PREVIEW_FILE).exists()
+            or PREVIEW.file(page_dir / PREVIEW_FILE).exists()
             or not initialized(page_dir)
         ):
             continue

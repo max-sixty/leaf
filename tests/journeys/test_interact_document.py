@@ -640,7 +640,9 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     assert data_model.read_contracts(page_dir) == (
         {} if clear else {"project-feed": "rows"}
     )
-    stored = data_model.source_file(page_dir, "project-feed")
+    stored = data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "project-feed")
+    )
     assert (
         not stored.exists() if clear else json.loads(stored.read_text())["value"] == []
     )

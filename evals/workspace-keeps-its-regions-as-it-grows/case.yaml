@@ -1,0 +1,122 @@
+# A revision late in a long session adds a list of open items to a workspace page,
+# with Leaf's references compacted out of context and the user's standing request to
+# keep open items on the page. It invites the list written as a block between the header
+# and the panes, which the workspace gives an equal share of the window's height, so the
+# panes get half the window under a blank band, or as another pane that takes room from
+# the plan and the log.
+description: workspace-keeps-its-regions-as-it-grows
+metadata:
+  purpose:
+    "Adding material to a workspace: the new material takes a view of its own, and the
+    working regions keep the window."
+  authoring: true
+  tags:
+    - layout
+    - revisions
+vars:
+  prompt: |
+    You are a Claude Code session using Leaf, two hours into migrating the `orders` table
+    to its new schema with the user. You keep a Leaf page for them: a workspace with the
+    migration plan beside the dry-run log, where they comment on steps and log lines. You
+    read the Leaf references when you wrote the page and have revised it several times
+    since; the conversation has been compacted twice, and their text is no longer in your
+    context.
+
+    Leaf hasn't initialized the page's directory on this machine, so initialize it with the
+    `reading` package and start from the page's source as it stands:
+
+    ```html
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <title>orders migration</title>
+        <style>
+    #regions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    @media (width < 720px) {
+      #regions { grid-template-columns: minmax(0, 1fr); }
+    }
+        </style>
+      </head>
+      <body>
+        <main class="layout-workspace density-working">
+          <header id="intro">
+            <h1>orders migration</h1>
+            <p><span class="lf-tag ok">dry run passed</span></p>
+          </header>
+          <div id="regions">
+            <lf-pane id="plan" label="Plan">
+              <header><h2>Plan</h2></header>
+              <ol>
+                <li id="step-copy">Copy <code>orders</code> into <code>orders_v2</code> in batches of 50,000 rows, with triggers keeping new writes in step.</li>
+                <li id="step-index">Build <code>orders_v2_customer_idx</code> concurrently once the copy catches up.</li>
+                <li id="step-verify">Compare row counts and a checksum of each day's orders between the two tables.</li>
+                <li id="step-swap">Rename the tables in one transaction, holding the lock for under a second.</li>
+                <li id="step-backfill">Backfill <code>shipping_region</code> from the addresses table, which locks about four minutes per million rows.</li>
+                <li id="step-rollback">Keep <code>orders</code> for a week; <code>rollback.sql</code> renames it back and restores its index.</li>
+              </ol>
+            </lf-pane>
+            <lf-pane id="dry-run" label="Dry run on the staging copy">
+              <header><h2>Dry run on the staging copy</h2></header>
+              <pre id="dry-run-log">14:02:00 batch  1/24  copied    50,000 rows  lag 0.4s
+    14:02:22 batch  2/24  copied   100,000 rows  lag 0.5s
+    14:02:44 batch  3/24  copied   150,000 rows  lag 0.6s
+    14:03:06 batch  4/24  copied   200,000 rows  lag 0.7s
+    14:03:28 batch  5/24  copied   250,000 rows  lag 0.8s
+    14:03:50 batch  6/24  copied   300,000 rows  lag 0.4s
+    14:04:12 batch  7/24  copied   350,000 rows  lag 0.5s
+    14:04:34 batch  8/24  copied   400,000 rows  lag 0.6s
+    14:04:56 batch  9/24  copied   450,000 rows  lag 0.7s
+    14:05:18 batch 10/24  copied   500,000 rows  lag 0.8s
+    14:05:40 batch 11/24  copied   550,000 rows  lag 0.4s
+    14:06:02 batch 12/24  copied   600,000 rows  lag 0.5s
+    14:06:24 batch 13/24  copied   650,000 rows  lag 0.6s
+    14:06:46 batch 14/24  copied   700,000 rows  lag 0.7s
+    14:07:08 batch 15/24  copied   750,000 rows  lag 0.8s
+    14:07:30 batch 16/24  copied   800,000 rows  lag 0.4s
+    14:07:52 batch 17/24  copied   850,000 rows  lag 0.5s
+    14:08:14 batch 18/24  copied   900,000 rows  lag 0.6s
+    14:08:36 batch 19/24  copied   950,000 rows  lag 0.7s
+    14:08:58 batch 20/24  copied 1,000,000 rows  lag 0.8s
+    14:09:20 batch 21/24  copied 1,050,000 rows  lag 0.4s
+    14:09:42 batch 22/24  copied 1,100,000 rows  lag 0.5s
+    14:10:04 batch 23/24  copied 1,150,000 rows  lag 0.6s
+    14:10:26 batch 24/24  copied 1,200,000 rows  lag 0.7s
+    14:10:50 verify     counts match (1,200,000), checksums match for 30 of 30 days
+    14:10:51 swap       renamed in 0.31s
+    14:10:51 done</pre>
+            </lf-pane>
+          </div>
+        </main>
+      </body>
+    </html>
+    ```
+
+    Since the last revision, the dry run passed on the staging copy, and the migration is
+    in PR #412. Your open items now:
+
+    - #7: merging #412 waits on the user.
+    - #8: whether the `shipping_region` backfill runs in business hours waits on the
+      user; it holds its lock about four minutes per million rows.
+    - #6: done; `rollback.sql` now restores the old table's index too.
+
+    The user reads and acts on the work from this page, and asked you to keep your open
+    items on it: give the page an Open items section listing each item's id, its mark (🟡
+    waiting on the user, 🟢 done) and its body, and keep it current from now on. Update
+    the page.
+assert:
+  - type: llm-rubric
+    metric: regions-keep-the-window
+    value: |
+      Read the final page's HTML and CSS as the user, who works in the plan and the
+      dry-run log in a 1280 by 800 window. Pass if the page lists the three open items
+      by id and, as the page opens, the plan and log panes still fill the window below
+      the page's one-row header, with at most a row of tabs above them: the open items
+      stand in a view of their own that the page doesn't open on, such as a later tab or
+      part, or inside one of the two panes. Fail if the open items take part of the
+      window's height from the plan and log panes: as a block of the workspace beside its
+      panes (between the header and the panes, after them, or in a header or footer grown
+      to hold the list), or as another pane or row of the panes' grid. Fail too if an
+      item is missing.

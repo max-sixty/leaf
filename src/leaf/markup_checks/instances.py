@@ -3,6 +3,8 @@
 import re
 from collections.abc import Callable, Iterable
 
+import turbohtml
+
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import element_name
 from leaf.obligations import group_tags, shown_in, widget_groups
@@ -18,7 +20,13 @@ from leaf.registry.contract import (
 from leaf.registry.kernel import kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.schema import INPUT_BINDINGS
-from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
+from leaf.structure import (
+    AUTHORED_ALLOCATIONS,
+    SourceDocument,
+    element_attrs,
+    layout_boxes,
+    layout_names,
+)
 
 from .markup import (
     document_declaration_errors,
@@ -427,6 +435,49 @@ def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     return findings
 
 
+def _takes_room(element) -> bool:
+    """Whether `element` takes room in its parent's flow by HTML's own rules: not a
+    script, a style or a template, which draw nothing; not a dialog or a popover, which
+    stand above the page or nowhere; and not an element hidden other than until found,
+    which keeps its box."""
+    attrs = element_attrs(element)
+    hidden = "hidden" in attrs and attrs["hidden"] != "until-found"
+    return (
+        element.tag not in {"script", "style", "template", "dialog"}
+        and "popover" not in attrs
+        and not hidden
+    )
+
+
+def workspace_advice(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each workspace (`layout-workspace`) holding more than one body that takes room
+    beside its header and footer. While it fills the window, its header and footer take
+    their own height and its bodies share the rest evenly (layouts.css), so a block
+    written beside the regions, such as a list of what waits on the user, takes half the
+    window from them and leaves blank space under its own lines. Nothing is out of
+    reach, so the render check passes it. Advice, since the page works as written."""
+    findings = []
+    for box in layout_boxes(document, registry):
+        if "workspace" not in layout_names(box):
+            continue
+        bodies = [
+            element_at(child.tag, element_attrs(child).get("id", ""))
+            for child in box.children
+            if isinstance(child, turbohtml.Element)
+            and child.tag not in {"header", "footer"}
+            and _takes_room(child)
+        ]
+        if len(bodies) > 1:
+            findings.append(
+                Finding(
+                    "workspace-bodies",
+                    element_at(box.tag, element_attrs(box).get("id", "")),
+                    {"line": SourceDocument._position(box)[0], "bodies": bodies},
+                )
+            )
+    return findings
+
+
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """A page's allocations that mean nothing where they stand
     (`registry.contract.authored_inert`), which delivery leaves unpainted, so nothing on
@@ -503,6 +554,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
         + pane_advice(document, registry)
+        + workspace_advice(document, registry)
         + unnamed_card_advice(document, registry)
     )
 

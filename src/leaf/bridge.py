@@ -200,7 +200,7 @@ def ensure(session: str, lifetime: dict) -> None:
         # after a crash or a reboot, so a client waits for the new one's (`run`).
         # It goes before the lock does, so a hook that then finds the lease held
         # hands its client no address but the new bridge's.
-        bridge_path("json").unlink(missing_ok=True)
+        ADDRESS.remove(bridge_path("json"))
     # Closing this copy leaves the lease held by the bridge's.
     with lease, open(bridge_path("log"), "ab") as log:
         subprocess.Popen(
@@ -217,7 +217,7 @@ def registrations() -> list[Path]:
     """The sessions registered with this file's bridge (`ensure`): one file for each
     lifetime a session registered, among the session's own files
     (`state.session_file`)."""
-    return list(sessions_home().glob(f"*.{KEY}-*.bridge"))
+    return REGISTRATION.glob(sessions_home(), f"*.{KEY}-*.bridge")
 
 
 def live_sessions() -> bool:
@@ -232,7 +232,7 @@ def live_sessions() -> bool:
         ):
             alive = True
         else:
-            entry.unlink(missing_ok=True)
+            REGISTRATION.remove(entry)
     return alive
 
 

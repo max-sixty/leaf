@@ -342,7 +342,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             assert delivery.tag == "leaf-delivery"
             assert delivery.attrib["operation"] == "delivery read"
             assert set(delivery.attrib) == {"operation", "id"}
-            payload_path = delivery_model.delivery_path(delivery.attrib["id"])
+            payload_path = delivery_model.DELIVERY.file(
+                delivery_model.delivery_path(delivery.attrib["id"])
+            )
             assert payload_path.exists()
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY.format
@@ -351,10 +353,10 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 == {"page", "claim", "through_seq", "threads", "handling", "events"}
                 for batch in payload["batches"]
             )
-            queue_history = (
+            queue_history = codex_model.RECORD.file(
                 codex_state_model.delivery_dir("codex-thread")
                 / "history"
-                / payload_path.name
+                / f"{delivery.attrib['id']}.json"
             )
             # The page cursor is durable before the adapter records that receipt and
             # archives its queue. Wait for that second boundary instead of treating the
@@ -897,7 +899,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     )
 
     assert observer.turns == {}
-    history = path.parent / "history" / path.name
+    history = codex_model.RECORD.file(path.parent / "history" / path.name)
     recovered = files_model.read_json(history)
     assert recovered["state"] == "opened"
     assert recovered["pending"] == []
@@ -1172,6 +1174,7 @@ from leaf import codex_adapter as adapter
 from leaf.activity import declaration
 from leaf.event_log import read_events
 from leaf.files import read_json
+from leaf.server import SERVICE
 from leaf.state import write_json
 native_read = adapter.read_watch_pass
 passes = 0
@@ -1179,7 +1182,7 @@ def completed_read(*args, **kwargs):
     global passes
     page = Path(os.environ["PAGE"])
     state = declaration(read_events(page))["state"]
-    enabled = read_json(page / "service.json")["enabled"]
+    enabled = read_json(SERVICE.file(page / "service.json"))["enabled"]
     result = native_read(*args, **kwargs)
     passes += 1
     write_json(Path(os.environ["CHECKS"]), {
@@ -1422,7 +1425,9 @@ start_server(live, harness=session_harness())
         prompt = queued[queued.index("--message") + 1]
         delivery = ElementTree.fromstring(prompt.splitlines()[1])
         payload = files_model.read_json(
-            delivery_model.delivery_path(delivery.attrib["id"])
+            delivery_model.DELIVERY.file(
+                delivery_model.delivery_path(delivery.attrib["id"])
+            )
         )
         [delivered_comment] = payload["batches"][0]["events"]
         assert (delivered_comment["id"], delivered_comment["text"]) == (
@@ -1643,7 +1648,10 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     assert queue_started.wait(timeout=STATED_TIMEOUT), (
         "the offer never reached the Codex queue"
     )
-    assert files_model.read_json(first_path)["state"] == "offering"
+    assert (
+        files_model.read_json(codex_model.RECORD.file(first_path))["state"]
+        == "offering"
+    )
 
     # A parallel step hook leaves the in-flight queue offer to its owner and
     # cannot capture its still-unacknowledged events into a second record.
@@ -1663,10 +1671,12 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     offering.join(timeout=STATED_TIMEOUT)
     assert not offering.is_alive()
     first_delivery = files_model.read_json(
-        first_path.parent / "history" / first_path.name
+        codex_model.RECORD.file(first_path.parent / "history" / first_path.name)
     )
     assert first_delivery["state"] == "queued"
-    payload = files_model.read_json(delivery_model.delivery_path(first_path.stem))
+    payload = files_model.read_json(
+        delivery_model.DELIVERY.file(delivery_model.delivery_path(first_path.stem))
+    )
     assert [
         event["id"] for batch in payload["batches"] for event in batch["events"]
     ] == ["first"]
@@ -1689,7 +1699,9 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     assert second_delivery["state"] == "collecting"
     assert [
         event["id"]
-        for batch in files_model.read_json(second_path)["batches"]
+        for batch in files_model.read_json(codex_model.RECORD.file(second_path))[
+            "batches"
+        ]
         for event in batch["events"]
     ] == ["second"]
 
@@ -1764,7 +1776,7 @@ def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
     first = codex_claimed_page
     second = tmp_path / "sibling"
     shutil.copytree(first, second)
-    (second / "service.json").unlink()
+    server_model.SERVICE.remove(second / "service.json")
     ready, done = tmp_path / "ready.json", tmp_path / "done"
     program = """
 import json, subprocess, sys, time

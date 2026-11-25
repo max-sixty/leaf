@@ -112,11 +112,11 @@ def neighbor_candidates() -> tuple:
             return _candidates[1]
         # Atomic producer publications move the directory stamp. Scan only when
         # it changes; the parsed rows retain their per-file stamps between scans.
-        current = set(rows.glob("*.json")) if rows.is_dir() else set()
+        current = set(ROW.glob(rows)) if rows.is_dir() else set()
         for path in _row_files.keys() - current:
             del _row_files[path]
         for path in current:
-            key = file_stamp(path)
+            key = file_stamp(ROW.file(path))
             if key is None:
                 _row_files.pop(path, None)
             elif path not in _row_files or _row_files[path][0] != key:
@@ -179,7 +179,7 @@ def live_servers(among: set[Path] | None = None):
         try:
             info = running_server(candidate)
             if info is None and not lock_is_held(candidate / SERVER_LOCK):
-                row_path(candidate).unlink(missing_ok=True)
+                ROW.remove(row_path(candidate))
         except Exception:
             continue
         if info is not None:

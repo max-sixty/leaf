@@ -173,8 +173,9 @@ summary from before a compaction, doesn't carry its rules.
 
 - `references/page-authoring.md`: all of it, before writing or revising any version.
 - `references/page-layout.md`: before giving a page a Layout other than the reading
-  column, widening or bounding a block, placing contents or notes in the margin,
-  styling Leaf's controls, or showing several contributors' activity.
+  column or adding a block to a page that has one, widening or bounding a block,
+  placing contents or notes in the margin, styling Leaf's controls, or showing several
+  contributors' activity.
 - `references/page-behavior.md`: before giving a page a script, a file under `page/`,
   a `page/registry.json`, or anything loaded from another server.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a

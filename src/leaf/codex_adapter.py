@@ -158,8 +158,8 @@ QUEUE_TIMEOUT = 20
 ADAPTER = Record(
     "codex-adapter",
     described(
-        "A Codex task's running delivery adapter, written into the lease it holds "
-        "at the state home's `sessions/<digest>.adapter` (`running_adapter`).",
+        "A Codex task's running delivery adapter, beside the lease it holds at "
+        "the state home's `sessions/<digest>.adapter` (`running_adapter`).",
         object_schema(
             {
                 "app_server": described(
@@ -171,7 +171,6 @@ ADAPTER = Record(
         ),
     ),
     since=56,
-    kept=("app_server",),
 )
 
 
@@ -496,8 +495,8 @@ class TaskConnection:
         unresolved = set()
         directory = codex.delivery_dir(self.thread_id)
         for path in (
-            *directory.glob("*.json"),
-            *(directory / "history").glob("*.json"),
+            *codex.RECORD.glob(directory),
+            *codex.RECORD.glob(directory / "history"),
         ):
             record = codex.read_record(path)
             if not isinstance(record, codex.ReceiptOutcome):
@@ -974,12 +973,10 @@ def run_adapter(
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
             raise Refused("a Codex delivery adapter is already active")
-        # The lease record names this adapter's transport, so a later `leaf page claim`
-        # in the task verifies any requested endpoint against the one it joins.
+        # The lease's record names this adapter's transport, so a later `leaf page
+        # claim` in the task verifies any requested endpoint against the one it joins.
         resources.callback(release_lease, lease)
-        lease.truncate(0)
-        lease.write(ADAPTER.encode({"app_server": app_server}))
-        lease.flush()
+        ADAPTER.write(adapter_lease_path(harness.session), {"app_server": app_server})
         watch = Watch(harness)
         if not watch.acquire():
             raise Refused(
@@ -1093,6 +1090,17 @@ def preparing_adapter(harness: Harness):
         app_server_socket_path(app_server)
     with flocked(adapter_start_lock_path(session_id)):
         record = running_adapter(session_id)
+        if record is not None and "other" in record:
+            if app_server is not None:
+                raise Refused(
+                    f"a Codex delivery adapter another Leaf version started is "
+                    f"active for task {session_id}, through a transport this Leaf "
+                    "can't read; it hands the task to this Leaf's adapter once the "
+                    "task's hooks run this Leaf, so claim the page again after the "
+                    "task's next prompt"
+                )
+            yield
+            return
         if record is not None:
             running = record["app_server"]
             if app_server is not None and app_server != running:
@@ -1182,10 +1190,18 @@ def running_adapter(session_id: str) -> dict | None:
     """The live adapter's lease record, naming its transport, or None when no
     adapter holds the lease. An adapter can let go between the question and the
     read, since only its retirement takes the start lock, and its record goes with
-    it; that reads as no adapter."""
+    it; that reads as no adapter. One a Leaf of another `ADAPTER` shape started
+    keeps its record where this Leaf reads none, so it reads as running with its
+    transport unknown, `{"other": <its record>}`, and delivers the task's input
+    until it hands the task to this Leaf's adapter (`state.Record`)."""
     if not adapter_is_live(session_id):
         return None
-    return ADAPTER.read_any(adapter_lease_path(session_id))
+    path = adapter_lease_path(session_id)
+    if (record := ADAPTER.read(path)) is not None:
+        return record
+    if others := ADAPTER.others(path):
+        return {"other": others[0]}
+    return None
 
 
 def later_turn_takes_input(session_id: str) -> bool:
@@ -1205,7 +1221,11 @@ def later_turn_takes_input(session_id: str) -> bool:
         return False
     with flocked(adapter_start_lock_path(session_id)):
         adapter = running_adapter(session_id)
-    return adapter is not None and adapter["app_server"] is not None
+    # One another Leaf version started reads its own delivery records, not this
+    # Leaf's, so input it will deliver is left to it, as to an App Server's.
+    return adapter is not None and (
+        "other" in adapter or adapter["app_server"] is not None
+    )
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

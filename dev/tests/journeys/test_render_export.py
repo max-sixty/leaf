@@ -342,7 +342,7 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
     process.wait(timeout=STATED_TIMEOUT)
     wait_for(serving_child, lambda pids: not pids, failure="the service outlived it")
     assert server_model.running_server(page) is None
-    service = files_model.read_json(page / "service.json")
+    service = files_model.read_json(server_model.SERVICE.file(page / "service.json"))
     assert service is None or not service["enabled"], service
 
 
@@ -471,7 +471,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     ]
     assert preview_model.WATCHER_NOTE in driven_log.read_text()
     assert service_model.page_claim(page_dir) is None
-    assert not (page_dir / "service.json").exists()
+    assert not server_model.SERVICE.file(page_dir / "service.json").exists()
     assert page_dir not in transaction_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
@@ -502,7 +502,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
-    assert not (page_dir / "service.json").exists()
+    assert not server_model.SERVICE.file(page_dir / "service.json").exists()
     driven.close()
     end_preview(driven_process)
 
@@ -839,7 +839,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
             failure="the preview did not prepare a replacement server",
         )
         assert server_model.running_server(directory) is None
-        assert files_model.read_json(directory / "service.json")["enabled"]
+        assert files_model.read_json(
+            server_model.SERVICE.file(directory / "service.json")
+        )["enabled"]
 
     restored = wait_for(
         lambda: server_model.running_server(directory),

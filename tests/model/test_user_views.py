@@ -154,13 +154,20 @@ def test_obsolete_records_are_absent_and_inactive_documents_are_pruned_on_write(
     instant = datetime(2026, 10, 2, tzinfo=UTC)
     monkeypatch.setattr(user_views, "_now", lambda: instant)
     path = tmp_path / user_views.USER_VIEWS_FILE
-    write_json(path, {"format": "earlier", "sessions": {"obsolete": {}}})
+    # A record a Leaf of another shape wrote, which this Leaf reads none of and
+    # leaves as it was.
+    obsolete = path.with_name(f"{path.stem}@999{path.suffix}")
+    write_json(
+        obsolete, {"format": "leaf-user-views/999", "sessions": {"obsolete": {}}}
+    )
+    held = obsolete.read_bytes()
     assert user_views.read_user_views(tmp_path, 1)["sessions"] == []
     user_views.observe_user_view(tmp_path, report())
     instant += timedelta(days=1, seconds=1)
     assert user_views.read_user_views(tmp_path, 1)["sessions"] == []
     user_views.observe_user_view(tmp_path, report(session="b" * 32))
-    assert list(read_json(path)["sessions"]) == ["b" * 32]
+    assert list(read_json(user_views.USER_VIEWS.file(path))["sessions"]) == ["b" * 32]
+    assert obsolete.read_bytes() == held
 
 
 def test_viewed_records_the_last_visible_report_and_outlives_pruning(

@@ -65,6 +65,7 @@ from leaf import packages as packages_model
 from leaf import page_memory
 from leaf import revision_artifact as artifact_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
@@ -1231,7 +1232,8 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "layer.json").unlink()
     (first / "layer.json").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    (first / "stream.json").write_text("{}")
+    stream = service_model.STREAM.file(Path("stream.json"))
+    (first / stream).write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1241,7 +1243,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     for name in ("layer.json", "events.jsonl"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     # A stream the test wrote is a file it added, so the reset takes it away.
-    assert not (second / "stream.json").exists()
+    assert not (second / stream).exists()
 
 
 def _css_parse_errors(nodes):

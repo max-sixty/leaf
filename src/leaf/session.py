@@ -39,6 +39,8 @@ from .registry.kernel import kinds_declaring
 from .schema import ANSWER_INSTRUCTION
 from .server import read_service, running_server
 from .state import (
+    CLAIM,
+    SESSION,
     SESSION_SUFFIX,
     CopyReplaced,
     LoadedCopy,
@@ -118,11 +120,16 @@ def cmd_idle(page_dir: Path) -> dict:
         harness = claim_harness(claim)
         pending = len(unacknowledged(events, page.cursor))
         if pending:
-            remedy = (
-                harness.input_unpicked(page_dir, listening=state["listening"])
-                if harness
-                else "`leaf wait` prints them."
-            )
+            holder = page.holder(None)
+            if harness:
+                remedy = harness.input_unpicked(page_dir, listening=state["listening"])
+            elif isinstance(holder, str):
+                remedy = (
+                    f"{holder} holds the page; `leaf server start {page_dir}` in an "
+                    "agent session takes it over."
+                )
+            else:
+                remedy = "`leaf wait` prints them."
             raise Refused(
                 f"{pending} event{'s' if pending != 1 else ''} nobody has picked up, "
                 f"so the page cannot close yet. {remedy}"
@@ -210,7 +217,7 @@ class Watch:
         # The lines Leaf queued for the session's next step, some of which wake it
         # (`clerk.waking`); no page's reading stamps them.
         self.told = (
-            session_file(self.session_id, QUEUED.kind).resolve()
+            QUEUED.file(session_file(self.session_id, QUEUED.kind)).resolve()
             if self.session_id
             else None
         )
@@ -253,7 +260,8 @@ class Watch:
         if not self.session_id:
             return set()
         return {
-            self.claims.parent / locator.name for locator in self.claims.glob("*.json")
+            CLAIM.file(self.claims.parent / locator.name)
+            for locator in CLAIM.glob(self.claims)
         }
 
     def reading(self, discovery: set[Path] | None = None) -> tuple:
@@ -279,7 +287,11 @@ class Watch:
                 target for page in pages for target in outside_inputs(page)
             }
             if self.session_id:
-                targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+                targets.add(
+                    SESSION.file(
+                        session_file(self.session_id, SESSION_SUFFIX)
+                    ).resolve()
+                )
             if self.told:
                 targets.add(self.told)
             targets.update(path.resolve() for path in self.lease_paths)
@@ -577,9 +589,11 @@ def _lost(readings: list[PageTick], harness: Harness | None) -> Finding:
     no longer does, or, for a wait acting for no session, which names one page,
     a session does."""
     pages = [str(reading.page_dir) for reading in readings]
-    if harness is None and (claim := readings[0].transaction.claim):
+    if harness is None and (holder := readings[0].transaction.holder(None)):
+        if isinstance(holder, dict):
+            holder = f"session {holder['id']}"
         return Finding(
-            "held-for-a-session", values={"page": pages[0], "session": claim["id"]}
+            "held-for-a-session", values={"page": pages[0], "holder": holder}
         )
     return Finding("not-owned", values={"pages": pages})
 

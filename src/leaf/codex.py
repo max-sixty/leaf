@@ -147,7 +147,12 @@ from .state import (
     start_session_turn,
     turn_open,
 )
-from .transaction import PageTransaction, owned_pages, restore_page_claim
+from .transaction import (
+    ClaimTransition,
+    PageTransaction,
+    owned_pages,
+    restore_page_claim,
+)
 
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
@@ -1675,7 +1680,7 @@ def prepare_reply_correction(
                 delivery_dir(session_id),
                 delivery_dir(session_id) / "history",
             ):
-                for path in directory.glob("*.json"):
+                for path in RECORD.glob(directory):
                     if read_record(path) is not None:
                         candidate = read_delivery(path.stem)
                         if (
@@ -1929,7 +1934,7 @@ RECORD_SCHEMA = {
         ),
     ],
 }
-RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14, kept=("batches/*/page",))
+RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
 
 
 def read_record(path: Path) -> DeliveryRecord | None:
@@ -1961,9 +1966,9 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
         return False
     history = path.parent / "history"
     history.mkdir(parents=True, exist_ok=True)
-    for archived in history.glob("*.json"):
+    for archived in RECORD.glob(history):
         retire_if_gone(RECORD, archived)
-    path.replace(history / path.name)
+    RECORD.file(path).replace(RECORD.file(history / path.name))
     return True
 
 
@@ -1987,7 +1992,7 @@ def retire_gone_task_records() -> None:
     for directory in sessions_home().glob("*.deliveries"):
         with flocked(directory.with_suffix(".delivery.lock")):
             history = directory / "history"
-            for path in (*directory.glob("*.json"), *history.glob("*.json")):
+            for path in (*RECORD.glob(directory), *RECORD.glob(history)):
                 retire_if_gone(RECORD, path)
             for emptied in (history, directory):
                 if emptied.is_dir() and not any(emptied.iterdir()):
@@ -2002,7 +2007,7 @@ def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
     if not directory.is_dir():
         return []
     records = []
-    for path in directory.glob("*.json"):
+    for path in RECORD.glob(directory):
         if retire_if_gone(RECORD, path):
             continue
         record = read_record(path)
@@ -2034,7 +2039,7 @@ class PreparedDelivery:
 
     prompt: str
     payload: dict
-    claim_transition: tuple[dict | None, dict] | None = field(
+    claim_transition: ClaimTransition | None = field(
         default=None, compare=False, repr=False
     )
 
@@ -2043,7 +2048,7 @@ def _readdress_record(path: Path) -> Path:
     """Give a collecting record a fresh identity where its id's envelope already
     holds other input."""
     replacement = path.with_name(f"{new_delivery_id()}.json")
-    path.replace(replacement)
+    RECORD.file(path).replace(RECORD.file(replacement))
     return replacement
 
 
@@ -2616,4 +2621,4 @@ def abandon_codex_delivery(session_id: str, event_id: str) -> None:
         if len(matching) > 1:
             raise RuntimeError("the Codex task has duplicate offered deliveries")
         if matching:
-            matching[0].unlink()
+            RECORD.remove(matching[0])

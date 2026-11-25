@@ -65,6 +65,7 @@ from interact_support import (
     running_http_server,
     served_state_error,
     spawn_probe,
+    stored_file,
     wait_for,
     write_record,
     write_row,
@@ -298,7 +299,7 @@ def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, n
         raise AssertionError(f"writing {name} re-validated the source")
 
     monkeypatch.setattr(revisioning_model, "check_source", revalidated)
-    (page_dir / name).write_text("{}")
+    stored_file(page_dir / name).write_text("{}")
     assert revisioning_model.activate_source(page_dir).error is None
 
 
@@ -805,7 +806,7 @@ def test_a_write_from_another_runtime_is_not_interpreted_or_appended(server, pag
         headers={"Leaf-Runtime": "0123456789abcdef"},
     )
     assert (status, json.loads(body)) == (200, {"layer": current})
-    assert not (page_dir / USER_VIEWS_FILE).exists()
+    assert not stored_file(page_dir / USER_VIEWS_FILE).exists()
 
     status, body = fetch(
         f"{server}/api/event", data=comment, headers={"Leaf-Runtime": identity}
@@ -2887,11 +2888,18 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert reads == [neighbor / "service.json"]
     declare(neighbor, "idle")
     assert presence_model.other_leaves(page_dir) == [row]
-    # Another record format stays absent while the current producer's row stands.
-    record = files_model.read_json(publisher.path)
-    cleanup_model.write_json(publisher.path, {**record, "format": "leaf-row/0"})
+    # A row of another shape in place of the producer's reads as none, and stays
+    # as its Leaf left it.
+    row = rows_model.ROW.file(publisher.path)
+    record = files_model.read_json(row)
+    other = publisher.path.with_name(f"{publisher.path.stem}@0{publisher.path.suffix}")
+    row.unlink()
+    cleanup_model.write_json(other, {**record, "format": "leaf-row/0"})
+    held = other.read_bytes()
     assert presence_model.other_leaves(page_dir) == []
-    cleanup_model.write_json(publisher.path, record)
+    assert other.read_bytes() == held
+    other.unlink()
+    cleanup_model.write_json(row, record)
     service = read_record(neighbor / "service.json")
     write_record(neighbor / "service.json", {**service, "server_id": "replacement"})
     assert presence_model.other_leaves(page_dir) == []
@@ -2925,14 +2933,15 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     for n in range(20):
         declare(page_dir, "waiting")
         own.refresh()
-        record = files_model.read_json(own.path)
+        row = rows_model.ROW.file(own.path)
+        record = files_model.read_json(row)
         # Give every pass a concrete changed canonical producer publication.
         cleanup_model.write_json(
-            own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
+            row, {**record, "row": {**record["row"], "title": f"Own {n}"}}
         )
         presence_model.neighbor_reading(page_dir)
     assert len(calls) == 1
-    changed = rows_model.row_path(neighbor)
+    changed = rows_model.ROW.file(rows_model.row_path(neighbor))
     record = files_model.read_json(changed)
     cleanup_model.write_json(
         changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
@@ -2986,15 +2995,16 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
         SimpleNamespace(monotonic=time.monotonic, time=lambda: now.timestamp()),
     )
     monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
+    row = rows_model.ROW.file(publisher.path)
     try:
         publisher.refresh()
-        first = json.loads(publisher.path.read_text())["row"]
+        first = json.loads(row.read_text())["row"]
         assert first["activity"]["state"] == "running"
         assert (
             first["activity"]["next_transition_at"]
             == (now + timedelta(seconds=1)).isoformat()
         )
-        stamp_before = publisher.path.stat().st_mtime_ns
+        stamp_before = row.stat().st_mtime_ns
         original_read = publisher.service.activity_row
         monkeypatch.setattr(
             publisher.service,
@@ -3002,20 +3012,20 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
             lambda: pytest.fail("a quiet look refolded the page"),
         )
         publisher.refresh()
-        assert publisher.path.stat().st_mtime_ns == stamp_before
+        assert row.stat().st_mtime_ns == stamp_before
         monkeypatch.setattr(publisher.service, "activity_row", original_read)
         now += timedelta(seconds=2)
         publisher.refresh()
-        aged = json.loads(publisher.path.read_text())["row"]
+        aged = json.loads(row.read_text())["row"]
         assert (
             aged["activity"]["presence"],
             aged["activity"]["state"],
             aged["activity"]["reason"],
         ) == ("here", "blocked", "quiet")
         assert aged["activity"]["next_transition_at"] is None
-        publisher.path.unlink()
+        row.unlink()
         publisher.refresh()
-        assert json.loads(publisher.path.read_text())["row"] == aged
+        assert json.loads(row.read_text())["row"] == aged
     finally:
         leases_model.release_lease(waiter)
 
@@ -4277,7 +4287,7 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
     the child announced, but before it acknowledged, gives the claim back — and the
     server it started withdraws rather than staying up unclaimed behind a start
     its caller reported as failed."""
-    claim_file = service_model.claim_path(page_dir)
+    claim_file = service_model.CLAIM.file(service_model.claim_path(page_dir))
     assert not claim_file.exists()
 
     def interrupted(_socket, _data):
@@ -4332,7 +4342,7 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
         with pytest.raises(Refused):
             server_model.page_access(page_dir, host=junk)
-    assert not (page_dir / "service.json").exists()
+    assert not stored_file(page_dir / "service.json").exists()
 
     assert server_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
 
@@ -4572,22 +4582,25 @@ def test_the_state_home_and_its_key_stay_owner_only():
     assert stat.S_IMODE(home.stat().st_mode) == 0o700
 
     home.chmod(0o755)
-    key = home / "access.json"
-    server_model.ACCESS.write(key, {"token": "minted-elsewhere"})
+    key = server_model.ACCESS.file(home / "access.json")
+    server_model.ACCESS.write(home / "access.json", {"token": "minted-elsewhere"})
     key.chmod(0o644)
     assert server_model.host_key() == "minted-elsewhere"
     assert stat.S_IMODE(home.stat().st_mode) == 0o700
     assert stat.S_IMODE(key.stat().st_mode) == 0o600
 
 
-def test_a_key_this_leaf_cannot_read_is_replaced_once():
-    """A key file at another `ACCESS` format, such as one an earlier Leaf wrote,
-    gives way to a fresh key, which every later serve then reuses."""
-    key = cleanup_model.state_home() / "access.json"
-    key.write_text(json.dumps({"token": "unformatted"}))
+def test_a_key_another_shape_wrote_leaves_this_leaf_minting_its_own_once():
+    """A key a Leaf of another `ACCESS` shape wrote is none of this Leaf's: it
+    mints a fresh key, which every later serve then reuses, and leaves the other
+    Leaf's as it was."""
+    other = cleanup_model.state_home() / "access@999.json"
+    other.write_text(json.dumps({"format": "leaf-access/999", "token": "older"}))
+    held = other.read_bytes()
     minted = server_model.host_key()
-    assert minted != "unformatted"
+    assert minted != "older"
     assert server_model.host_key() == minted
+    assert other.read_bytes() == held
 
 
 def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):
@@ -4634,15 +4647,15 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
 HOLDER = """
 import fcntl, json, sys, time
 from pathlib import Path
-page = Path(sys.argv[1])
+page, service = Path(sys.argv[1]), Path(sys.argv[2])
 lease = open(page / "server.lock", "a+b")
 fcntl.flock(lease, fcntl.LOCK_EX)
 lease.truncate(0)
-lease.write(json.loads((page / "service.json").read_text())["server_id"].encode())
+lease.write(json.loads(service.read_text())["server_id"].encode())
 lease.flush()
 print("held", flush=True)
 deadline = time.monotonic() + 60
-while json.loads((page / "service.json").read_text())["enabled"]:
+while json.loads(service.read_text())["enabled"]:
     if time.monotonic() > deadline:
         sys.exit("no sweep came")
     time.sleep(0.05)
@@ -4664,7 +4677,15 @@ def hold_persistent(page: Path, start) -> subprocess.Popen:
         },
     )
     holder = start(
-        [sys.executable, "-c", HOLDER, str(page)], stdout=subprocess.PIPE, text=True
+        [
+            sys.executable,
+            "-c",
+            HOLDER,
+            str(page),
+            str(stored_file(page / "service.json")),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
     )
     assert holder.stdout.readline() == "held\n"
     return holder
@@ -4720,7 +4741,9 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     assert read_record(review / "service.json")["enabled"]
     assert holder.poll() is None
     assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
-    (left,) = nested.rglob("left/service.json")
+    (left,) = nested.rglob(
+        stored_file(Path("left") / schema_model.SERVICE_FILE).as_posix()
+    )
     assert not files_model.read_json(left)["enabled"]
     assert not leases_model.lock_is_held(left.parent / "server.lock")
 

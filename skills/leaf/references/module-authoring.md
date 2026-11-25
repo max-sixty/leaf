@@ -86,7 +86,7 @@ In [module-reading.md](module-reading.md):
 
 - "Reading the page": `says` and `named` read an element's words, and
   `elementById` finds the element an address names.
-- "Naming": `nameOf` and `anchorLabel`.
+- "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
@@ -123,7 +123,7 @@ In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution` and `presentContributionEntry`.
 - "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
-  `threadInput`, `landInThread` and `agentName`.
+  `threadInput` and `landInThread`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.

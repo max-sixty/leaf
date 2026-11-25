@@ -68,8 +68,6 @@ that takes it (the registry's `$attributes`), whether or not the widget draws it
 The page's name is its own `<title>`, which `document.title` doesn't give while the
 tab's title counts what waits on the user in front of it.
 
-`anchorLabel(anchor, about)` names a comment's anchor as Threads does.
-
 ### Reading declarations
 
 Read the registry rather than repeating it. `layerFact(name)` returns the registry's

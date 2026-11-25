@@ -34,8 +34,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 export { nameOf } from "./names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
-// The name Threads, the margin, and reactions give a comment's anchor.
-export { anchorLabel } from "./thread/messages.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
@@ -134,8 +132,6 @@ export async function mountSample(frame, options) {
 export { wear } from "./dress.js";
 export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
-// What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
-export { agentName } from "./semantic-state.js";
 // The page node the user's current location stands for, through a margin entry or a
 // thread card, as `lf-deck` asks whether the user is on its open card.
 export { placeOf } from "./current-target.js";

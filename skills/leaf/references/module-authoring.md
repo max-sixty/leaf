@@ -76,7 +76,6 @@ In [module-reading.md](module-reading.md):
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `obligations` and `queues`.
 - "Page history and reports": `history`.
@@ -84,9 +83,7 @@ In [module-reading.md](module-reading.md):
 
 In [module-input.md](module-input.md):
 
-- "Focus and layers": `onPress` and `onPressAway` follow a pointer's press.
-- "Pointer presses": `aimedAt` says what a click on a container was for, and
-  `onUserInput` hears each input before Leaf handles it.
+- "Pointer presses": `aimedAt` says what a click on a container was for.
 - "Text entry and drafts": `draft` keeps a text box's draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
@@ -149,9 +146,9 @@ says nothing aloud. Off Leaf:
   (`module-scroll-and-motion.md`, "Notices and spoken words") in the page and in the
   open shadow roots of elements that say `lf-connect`, not in a shadow root a page
   script attaches itself.
-- Focus, scrolling and controls use the
-  document's native behavior, and `langForPath` reads shipped defaults in place of the
-  page's composed language map.
+- Focus, scrolling and controls use the document's native behavior, and the
+  library's `langForPath` reads shipped defaults in place of the page's composed
+  language map.
 - Leaf stops no motion there for a user who asked for less, so the widget's sheet
   declares its motion under `@media (prefers-reduced-motion: no-preference)`.
 

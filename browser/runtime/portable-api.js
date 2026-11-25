@@ -22,6 +22,3 @@
    also imports the library's modules (lib/), each of which loads in any document. */
 
 export { threadSurface } from "./thread/surface-handles.js";
-
-export { onUserInput } from "./focus.js";
-export { langForPath } from "./language-paths.js";

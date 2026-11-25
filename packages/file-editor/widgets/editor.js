@@ -1,7 +1,7 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { langForPath } from "/runtime/widget-api.js";
+import { langForPath } from "/runtime/lib/language-paths.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { syntaxNow } from "/runtime/lib/syntax-tokens.js";
 import {

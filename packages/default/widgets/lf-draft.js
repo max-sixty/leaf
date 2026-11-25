@@ -56,7 +56,7 @@
  * offers, puts them back and opens the editor on them (the draft's `discard`), so a
  * stray press on Discard loses nothing for good; every other way out saves them as Save
  * does, which submits one absolute edit through the shared send generation. A
- * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
+ * press away from the draft saves (`#pressAway`), so a tap elsewhere on a
  * phone keeps what was typed without finding Save first, and Android's back
  * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
  * sends the agent a turn, as a stray tap does (the user's decision). Rejected: back closing the editor with its
@@ -78,14 +78,7 @@
  * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import { html, render, nothing } from "/vendor/lit.js";
-import {
-  aimedAt,
-  nameOf,
-  motion,
-  draft,
-  onPressAway,
-  pageLinks,
-} from "/runtime/widget-api.js";
+import { aimedAt, nameOf, motion, draft, pageLinks } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -171,7 +164,7 @@ customElements.define(
     #returnMotion = null;
     /** @type {number | null} */
     #cancelSize = null;
-    /** @type {ReturnType<typeof onPressAway> | null} */
+    /** @type {(() => void) | null} */
     #stopPressAway = null;
     #states = this.attachInternals().states;
     // The toolbar shows again, after typing put it away, while the pointer is on it, and
@@ -481,10 +474,7 @@ customElements.define(
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
-      this.#stopPressAway = onPressAway(
-        (/** @type {EventTarget[]} */ path) => !path.includes(this),
-        () => void this.#commit(),
-      );
+      this.#stopPressAway = this.#pressAway();
       this.#paintTools();
       // A pointer is already on visible words. Opening their editor preserves that
       // place before handing the clicked caret across; the Edit control instead reveals
@@ -498,6 +488,40 @@ customElements.define(
         editor.focus({ preventScroll: true });
         if (at === undefined) editor.scrollIntoView({ block: "nearest" });
       }
+    }
+
+    // A primary press that begins and completes outside the draft saves it, so a drag
+    // into or out of the box, a finger's scroll the browser cancels and a secondary
+    // press save nothing. Returns what stops hearing presses.
+    #pressAway() {
+      const listening = new AbortController();
+      addEventListener(
+        "pointerdown",
+        (down) => {
+          if (
+            !down.isPrimary ||
+            down.button !== 0 ||
+            down.composedPath().includes(this)
+          )
+            return;
+          const press = new AbortController();
+          const options = {
+            capture: true,
+            signal: AbortSignal.any([listening.signal, press.signal]),
+          };
+          addEventListener(
+            "pointerup",
+            (up) => {
+              press.abort();
+              if (!up.composedPath().includes(this)) void this.#commit();
+            },
+            options,
+          );
+          addEventListener("pointercancel", () => press.abort(), options);
+        },
+        { capture: true, passive: true, signal: listening.signal },
+      );
+      return () => listening.abort();
     }
 
     /** @param {boolean} discard */

@@ -266,20 +266,14 @@ keeps naming the element while the window is in the background, as when a revisi
 arrives, where `:focus` and `:focus-within` stop matching. A command row may read it:
 Leaf reads a scope's rows again whenever focus moves into, out of or within the scope.
 
-`onPressAway(away, dismiss)` hears each primary press that begins and
-ends where `away(path)` is true of its composed path, as an open editor that a tap
-elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
-ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
-of controls the user moves through with arrow keys offers one Tab stop, which the
-library's [`roving.js`](../../../browser/runtime/lib/roving.js) sets.
-
-`onPress(begin)` follows the primary pointer's press through its native compatibility
-events. `begin(pointerdown, path)`, a passive listener, may return
-`end(event, completed)`: release calls it with `completed: true`; cancellation, a
-native context menu, or leaving the document calls it with `false`. The function `end`
-returns runs when that press is over, after any compatibility mouseup and click it
-owes. Register as the widget connects, and call the returned unsubscribe as it leaves,
-which stops new presses.
+A surface that a press elsewhere should put away, as an open editor that a tap
+elsewhere saves, follows the press with the platform's pointer events on the window,
+in the capture phase: a primary `pointerdown` whose composed path is outside it, then
+a `pointerup` outside it, which completes the press, or a `pointercancel`, as a
+finger's scroll ends one, which doesn't. A press is over once the click its release
+owes is past, which the browser dispatches in the release's task. A set of controls
+the user moves through with arrow keys offers one Tab stop, which the library's
+[`roving.js`](../../../browser/runtime/lib/roving.js) sets.
 
 Hear where focus goes in the widget's own tree with the browser's `focusin` and
 `focusout`, on the widget or its shadow root, and `focus` on the widget itself for an
@@ -362,10 +356,10 @@ moves its own nodes also holds its drawing with `lf-defer` (`module-plain-elemen
 "`lf-defer`").
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
-animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each
-press, key, input, wheel or touch on the page, or the window losing focus. Act only on
-events whose target is in the surface; the callback doesn't consume the event. Call the
-returned function when the surface disconnects.
+animation, listens on the window in the capture phase, passively, for the presses,
+keys, wheels and touches that stop it, so it hears each before any handler in the page.
+Act only on events whose path holds the surface, and end the listeners as the surface
+leaves.
 
 Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on the
 element drawn on; a moving visual listens for it and freezes what it shows.

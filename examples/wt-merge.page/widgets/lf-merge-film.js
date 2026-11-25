@@ -24,6 +24,7 @@ import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { keepFocus } from "/runtime/lib/focus-on.js";
+import { glide } from "/runtime/lib/motion-timing.js";
 import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
@@ -224,7 +225,7 @@ customElements.define(
     #reveal() {
       if (!this.hasAttribute("data-phone")) return;
       if (this.settings.open) this.settings.open = false;
-      this.scrollIntoView({ block: "start", behavior: "smooth" });
+      this.scrollIntoView({ block: "start", behavior: glide() });
     }
 
     // The last moment before the first step: every commit, ref and worktree drawn.

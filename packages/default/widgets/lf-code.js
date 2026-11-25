@@ -73,7 +73,6 @@
  * the wrap and notes keys as the element's `lfCommands`, the Copy control from the
  * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
  * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
-import { onUserInput } from "/runtime/portable-api.js";
 import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -93,19 +92,23 @@ import { scrollMoves } from "/runtime/lib/scroll-range.js";
 // from the first. A block follows in its box unless their hand was in the box after it
 // was last on the widget the block follows (see the header), so a hand in the box holds
 // it from the page's load, before any block there has followed a line. The hand is read
-// from the document's one reading of the reader's inputs (`onUserInput`), which binds
-// no key, and is one of its gestures: an `input` follows a gesture already counted, and
-// a script that moves the followed widget dispatches one with no reader behind it.
+// from the window's own inputs, heard as they start down from it, so a handler that
+// stops one doesn't hide it, and is one of its gestures: an `input` follows a gesture
+// already counted, and a script that moves the followed widget dispatches one with no
+// reader behind it.
 /** @type {WeakMap<Element, number>} */
 const hands = new WeakMap();
 let gestures = 0;
-const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
-onUserInput((event) => {
-  if (!HAND.has(event.type)) return;
-  gestures += 1;
-  for (const node of event.composedPath())
-    if (node instanceof Element) hands.set(node, gestures);
-});
+for (const type of ["pointerdown", "wheel", "touchstart", "keydown"])
+  addEventListener(
+    type,
+    (event) => {
+      gestures += 1;
+      for (const node of event.composedPath())
+        if (node instanceof Element) hands.set(node, gestures);
+    },
+    { capture: true, passive: true },
+  );
 
 // "3-5,8" → [[3, 5], [8, 8]].
 /** @param {string | null} spec @returns {[number, number][]} */

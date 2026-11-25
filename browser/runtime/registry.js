@@ -5,7 +5,7 @@
    that loops over tag names or repeats that traversal is a closed list in another form. CSS selectors
    follow the same rule: a list of framed widget tags is still a closed consumer. */
 
-import { installLanguagePaths } from "./language-paths.js";
+import { installLanguagePaths } from "./lib/language-paths.js";
 import { runtime } from "./context.js";
 import { isElementName } from "./registry-contract.js";
 import { kept, version } from "./kept.js";

@@ -1357,8 +1357,9 @@ def test_a_page_hidden_after_its_own_prompt_kept_it_hands_on_the_newer_value(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Again."},
         )
-    page.unroute("**/api/**")
-    page.unroute("**/registry.json")
+    # An answer still in flight here would outlast the test, and teardown, cutting it
+    # off, would fail its handler.
+    page.unroute_all(behavior="wait")
     page.evaluate(SHOW_AS, "hidden")
     assert carried_values(page).get("who") == "Grace"
 

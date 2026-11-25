@@ -26,9 +26,6 @@ import { PendingTaskEvent } from "./lib/pending-task.js";
 export * from "./portable-api.js";
 export { widgetController } from "./widget-controller.js";
 
-// `elementById(address, from)`: the element an id, a widget's `id:key` or a fragment
-// names, in the message `from` was written in first, then on the page.
-export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
@@ -54,7 +51,6 @@ export { readThreads } from "./thread/state.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading } from "./thread/held-news.js";
-export { wireInput } from "./application.js";
 export { rowWalk } from "./walk-position.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";

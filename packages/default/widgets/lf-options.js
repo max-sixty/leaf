@@ -115,7 +115,6 @@ import { nothing } from "/vendor/lit.js";
 import {
   aimedAt,
   nameOf,
-  elementById,
   rowWalk,
   named,
   focusDestination,
@@ -414,7 +413,6 @@ customElements.define(
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
-      this.#addition?.refresh();
       this.#syncDone();
     }
 
@@ -535,7 +533,9 @@ customElements.define(
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const block = elementById(target, this);
+      const block = /** @type {Document | ShadowRoot} */ (
+        this.getRootNode()
+      ).getElementById(target);
       const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;

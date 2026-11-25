@@ -82,8 +82,7 @@ In [module-state.md](module-state.md):
 
 In [module-reading.md](module-reading.md):
 
-- "Reading the page": `says` and `named` read an element's words, and
-  `elementById` finds the element an address names.
+- "Reading the page": `says` and `named` read an element's words.
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
@@ -106,8 +105,7 @@ In [module-input.md](module-input.md):
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
-  draft.
+- "Text entry and drafts": `draft` keeps a text box's draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 

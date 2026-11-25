@@ -1,6 +1,6 @@
 /* Resolve an id an element gives in that element's authored scope: a registry-declared
-   relation, which navigation and typed widget inputs share, and any address a package
-   module looks up (anchor-resolution.js, `elementNamed`). */
+   relation, which navigation and typed widget inputs share, and an address a view
+   names (anchor-resolution.js, `elementNamed`). */
 import { registry } from "./registry.js";
 import { authoredScope, elementById, pageDocument } from "./passages.js";
 

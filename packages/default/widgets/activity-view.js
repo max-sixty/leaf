@@ -1,4 +1,4 @@
-import { elementById, tabStore } from "/runtime/widget-api.js";
+import { tabStore } from "/runtime/widget-api.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
@@ -25,6 +25,11 @@ function refreshTarget(link, widget, write, names) {
   write(link, "href", href);
   if (href) write(link, "tabindex", null);
 }
+
+// The page's element a fragment names, by the id it encodes.
+/** @param {string} fragment */
+const byFragment = (fragment) =>
+  document.getElementById(decodeURIComponent(fragment.slice(1)));
 
 // What a row's target previews: when its row happened, as the age at the row's end
 // previews it to a pointer, since the keyboard reaches the target and not the age.
@@ -85,7 +90,7 @@ export function createActivity(host) {
       .lfPreview=${rowTime}
       ${ref(
         (node) =>
-          node && refreshTarget(node, widget, keeps, capabilities.names ?? elementById),
+          node && refreshTarget(node, widget, keeps, capabilities.names ?? byFragment),
       )}
       >${row.label}</a
     >`;

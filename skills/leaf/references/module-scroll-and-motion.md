@@ -223,8 +223,8 @@ covering the page and opens whatever holds the element. A fragment can also name
 part of a widget by the widget's id and a key
 ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
 A widget that opens the part a
-fragment names reads it with `elementById(hash)`
-([module-reading.md, "Reading the page"](module-reading.md#reading-the-page)).
+fragment names reads the id the fragment encodes from `location.hash` and finds it with
+`getElementById`.
 
 Before Leaf travels to a target, such as a comment's anchor, it reveals the target as
 the browser's find-in-page does: it opens each closed `<details>` holding it, and fires

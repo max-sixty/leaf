@@ -1,7 +1,7 @@
 /* Atlas owns this dashboard's composition. Shared work readings keep counts,
  * stopped tasks and assignments consistent with the recorded decisions. */
 import { html, noChange, render, repeat } from "/vendor/lit.js";
-import { elementById, HeldReading, readWork } from "/runtime/widget-api.js";
+import { HeldReading, readWork } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
@@ -10,7 +10,7 @@ customElements.define(
     setup() {
       keeps(this, "role", "group");
       keeps(this, "aria-label", this.getAttribute("label") ?? "Plan");
-      this.overview = elementById(this.getAttribute("overview"), this);
+      this.overview = document.getElementById(this.getAttribute("overview"));
       if (!this.overview) return;
       // The counts are this plan's words; the stopped list repeats task titles the
       // page says in the tree.

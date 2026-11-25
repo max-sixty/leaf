@@ -735,7 +735,6 @@ function createApplication(dependencies) {
       options,
     ) => dependencies.nextObligationWithin(options),
     startFeed: feed.startFeed,
-    wireInput: dependencies.wireInput,
   };
   return mounted;
 }
@@ -790,5 +789,3 @@ export const obligationActions = Object.freeze({
     ...args
   ) => app().nextObligation(...args),
 });
-/** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
-export const wireInput = (...args) => app().wireInput(...args);

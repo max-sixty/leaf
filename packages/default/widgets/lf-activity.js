@@ -39,7 +39,6 @@ import { createActivity } from "./activity-view.js";
 import {
   HeldReading,
   tabStore,
-  elementById,
   layerFact,
   nameOf,
   threadActions,
@@ -57,7 +56,7 @@ const NAME = 60;
 // Where something happened, as the chrome names it, else its word.
 /** @param {string | null | undefined} id */
 function nameById(id) {
-  const element = id ? elementById(id) : null;
+  const element = id ? document.getElementById(id) : null;
   if (!element) return id || "the page";
   return excerptWords(nameOf(element), NAME) || `the ${addressableWord(element)}`;
 }
@@ -168,7 +167,6 @@ customElements.define(
     #template(reading = undefined) {
       return this.#drawing.render(reading, {
         printing: this.#printing,
-        names: elementById,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);
           if (thread) void threadActions.open(thread.key, { part: "thread" });

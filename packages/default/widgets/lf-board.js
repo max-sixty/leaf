@@ -78,7 +78,6 @@
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  elementById,
   move,
   motion,
   focusDestination,
@@ -120,6 +119,10 @@ const namedValue = (answer, valueOf) => {
 /** @param {Element} card */
 const showsId = (card) => card.getAttribute("shows") || null;
 
+// The member a widget's answer names by its id, among the widget's own children.
+/** @param {Element} owner @param {string} id */
+const memberOf = (owner, id) => [...owner.children].find((child) => child.id === id);
+
 /** The widget whose answer a card shows, with the verb that writes the answer and
  * that verb's record; `{fault}`, telling the author what to write instead, where the
  * card's `shows` names no answer a board can show; or null for a card that shows none.
@@ -129,7 +132,9 @@ const showsId = (card) => card.getAttribute("shows") || null;
 function shownWidget(card) {
   const id = showsId(card);
   if (id === null) return null;
-  const owner = elementById(id, card);
+  const owner = /** @type {Document | ShadowRoot} */ (
+    card.getRootNode()
+  ).getElementById(id);
   if (!owner)
     return {
       fault:
@@ -156,7 +161,7 @@ function valuelessFault(card, { owner, record }) {
   if (record.kind !== "attribute") return null;
   const members = widgetController(owner).read().memberships?.[record.attr];
   if (!members?.length) return null;
-  return members.some((member) => elementById(member, owner)?.hasAttribute(VALUE))
+  return members.some((member) => memberOf(owner, member)?.hasAttribute(VALUE))
     ? null
     : `shows="${showsId(card)}" names <${owner.localName}>, none of whose members ` +
         `carries a \`${VALUE}\`, so no pick puts the card in a column; give each ` +
@@ -186,7 +191,7 @@ function shownAnswer(card) {
   const valueOf =
     record.kind === "attribute"
       ? (/** @type {string} */ member) =>
-          elementById(member, owner)?.getAttribute(VALUE) ?? null
+          memberOf(owner, member)?.getAttribute(VALUE) ?? null
       : null;
   const detailFor = (/** @type {string | null} */ value) => {
     if (!valueOf) return value === null ? null : { value };

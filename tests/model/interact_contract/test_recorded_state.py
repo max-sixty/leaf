@@ -18,10 +18,10 @@ from interact_support import (
 
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf.authored_checks.declarations import declaration_advice
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import validation as registry_validation
-from leaf.validation import composition as composition_model
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,
@@ -632,9 +632,7 @@ def test_a_position_container_the_declarations_never_place_is_advice(
     if change:
         change(registry)
     registry_validation.validate_registry(registry, "test registry")
-    [said] = composition_model.declaration_advice(
-        {tag: registry[tag]}, registry, "test"
-    )
+    [said] = declaration_advice({tag: registry[tag]}, registry, "test")
     verb = next(iter(registry[tag]["verbs"]))
     assert (said.code, said.at, said.severity, said.values) == (
         "position-container",
@@ -786,7 +784,7 @@ def test_nested_member_records_refuse_foreign_selection_and_position():
 
 
 def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
-    from leaf.validation.instances import widget_errors
+    from leaf.markup_checks.instances import widget_errors
 
     page = _independent_member_records()
     registry = page.registry(1)

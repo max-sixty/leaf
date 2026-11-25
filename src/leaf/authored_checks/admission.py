@@ -13,7 +13,14 @@ from leaf.data_contracts import data_binding_errors
 from leaf.event_log import logged_ids
 from leaf.events import build_threads
 from leaf.findings import Finding, Rejected, note
-from leaf.passages import JOINS_WORDS_TAGS, SourceReading
+from leaf.markup_checks.instances import (
+    invoker_errors,
+    markup_findings,
+    message_settlement_advice,
+    reference_errors,
+)
+from leaf.markup_checks.markup import fragment_style_errors
+from leaf.passages import JOINS_WORDS_TAGS, SourceReading, markdown_dialect
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
@@ -21,22 +28,14 @@ from leaf.revision_artifact import (
     document_drops,
     read_revision,
     revision_history,
+    unanswered_media,
     uncaptured_errors,
 )
+from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
-from .instances import (
-    invoker_errors,
-    markup_findings,
-    message_settlement_advice,
-    reference_errors,
-)
-from .markup import (
-    fragment_style_errors,
-    text_media_errors,
-)
 
 
 def checked_text(
@@ -58,6 +57,33 @@ def checked_text(
     if errs := text_media_errors(text, page_dir, html=html):
         raise Rejected(errs, "text names media the page won't show")
     return text
+
+
+def text_media_errors(
+    text: str, page_dir: Path, *, html: bool = False
+) -> list[Finding]:
+    """Each `/media/` reference in a message's Markdown that the page won't answer
+    (`revision_artifact.unanswered_media`).
+
+    Markup names a picture in an attribute or a stylesheet, where the parsed reading
+    finds it (`revision_artifact.uncaptured_errors`); a message names one as a
+    Markdown destination, which that reading cannot see — so a screenshot an agent
+    sends that way would come through the one door that never asks. `check_markup`
+    runs only on a message holding HTML, and text without it would reach the log
+    unread.
+
+    A reference is a rendered link or image destination, never a scan of the words.
+    Parsing the Markdown resolves referenced definitions and leaves fenced examples
+    and unused definitions as text, so neither asks for a file the page will not load."""
+    refs = {
+        url
+        for token in markdown_dialect(True, html=html).parse(text)
+        for child in token.children or ()
+        if child.type in {"link_open", "image"}
+        if (url := child.attrGet("href" if child.type == "link_open" else "src"))
+        and url.startswith(f"/{MEDIA_DIR}/")
+    }
+    return unanswered_media(refs, page_dir)
 
 
 def thread_obligation(events: list, responses: dict, message: str) -> dict | None:

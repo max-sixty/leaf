@@ -94,12 +94,12 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.findings import Finding
 from leaf.registry.contract import is_element_name
+from leaf.registry.validation import incoming_registry
 from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
-from leaf.validation import composition as validation_model
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import read_event_lines
 
@@ -2593,7 +2593,7 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     Every key is put to the engine, so a key that is not a selector fails here too.
     `pre > code.language-*` would be one: readable, matching nothing, and with no
     other way to be checked."""
-    registry = validation_model.incoming_registry(
+    registry = incoming_registry(
         [
             schema_model.ASSETS,
             schema_model.DEFAULT_PACKAGE,

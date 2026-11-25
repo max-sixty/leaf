@@ -27,6 +27,7 @@ from leaf.events import (
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
+from leaf.markup_checks.instances import attribute_slot_errors
 from leaf.obligations import questions_in_words, quoted_in
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
@@ -59,7 +60,6 @@ from leaf.registry.storage import IncompatibleLayer, layer_record
 from leaf.state import now_iso
 from leaf.thread_context import thread_names
 from leaf.todos import todo_error
-from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
 from leaf.workflows import agent_inputs, attention_reading
 

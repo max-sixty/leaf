@@ -27,13 +27,13 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
+from leaf.authored_checks.declarations import declaration_advice
 from leaf.findings import Rejected
 from leaf.page import page_instructions
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
-from leaf.validation import composition as composition_model
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -169,7 +169,7 @@ def test_a_data_source_attribute_not_declared_a_string_is_advice(page_dir, chang
     change(registry["lf-test-data"])
 
     registry_validation.validate_registry(registry, "test registry")
-    said = composition_model.declaration_advice(
+    said = declaration_advice(
         {"lf-test-data": registry["lf-test-data"]}, registry, "test registry"
     )
     assert [(f.code, f.at, f.severity) for f in said] == [
@@ -221,9 +221,7 @@ def test_a_measured_input_joins_its_source_to_one_run_receipt(
     change(registry["lf-num"])
 
     registry_validation.validate_registry(registry, "test registry")
-    said = composition_model.declaration_advice(
-        {"lf-num": registry["lf-num"]}, registry, "test registry"
-    )
+    said = declaration_advice({"lf-num": registry["lf-num"]}, registry, "test registry")
     [advice] = found(said, code, "<lf-num>", **values)
     assert advice.severity == "advice"
 
@@ -536,7 +534,7 @@ def test_page_owned_data_contract_can_change_without_changing_source_meaning(
 
 
 def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings():
-    from leaf.validation.instances import reference_errors, widget_errors
+    from leaf.markup_checks.instances import reference_errors, widget_errors
 
     registry = {
         "lf-producer": {

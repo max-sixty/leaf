@@ -197,7 +197,7 @@ def logged_fragment(event: dict) -> SourceDocument | None:
     function of the text alone, so it is held by that text, which names it exactly
     whichever page and log it came from. Text a writer hands in has not been admitted
     yet and is another fact: its gate parses it afresh
-    (`validation.admission.check_markup`)."""
+    (`authored_checks.admission.check_markup`)."""
     if (
         event["kind"] in ("comment", "reply", "edit")
         and event.get("author") == "agent"
@@ -221,8 +221,8 @@ def thread_structure(events: list) -> ThreadStructure:
 
     `holders` keeps every id any of a message's wordings held, a withdrawn edit's
     included, so no other message or revision takes it (`check_markup`,
-    `validation.source`): a gesture the user made on that id would otherwise land on
-    another element. The message itself may take it back in a later edit, which is
+    `authored_checks.source`): a gesture the user made on that id would otherwise land
+    on another element. The message itself may take it back in a later edit, which is
     how an answered widget keeps its answer."""
     withdrawn = taken_back(events)
     wordings, holders, latest = {}, {}, {}

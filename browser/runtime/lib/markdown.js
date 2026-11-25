@@ -377,8 +377,13 @@ export function markdownSourceOffset(body, node, offset) {
         characters,
         Infinity,
       )) {
-        if (run.kind === "delete") sourceAt += run.text.length;
-        else {
+        // A caret before an escaped first character stands before its backslash, which
+        // a key there would split from the character.
+        if (run.kind === "delete") {
+          if (aim === tokenAt && placed.spelled?.some(([a]) => a === sourceAt))
+            return sourceAt;
+          sourceAt += run.text.length;
+        } else {
           if (aim <= tokenAt + run.text.length)
             return sourceAt + (run.kind === "same" ? aim - tokenAt : 0);
           tokenAt += run.text.length;

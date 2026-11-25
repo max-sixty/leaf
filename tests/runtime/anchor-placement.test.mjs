@@ -22,6 +22,8 @@ import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 
+import { random } from "./seeded.mjs";
+
 const STAGED = '<p id="s4">Mu nu shared phrase xi.</p>';
 const PAGE =
   '<main id="all"><section id="s1"><p>First alpha beta gamma. <span>The shared ' +
@@ -31,13 +33,6 @@ const PAGE =
   "</lf-staged></main>";
 const WORDS = ["alpha", "beta", "shared", "phrase", "zeta", "x", " ", "."];
 const IDS = ["s1", "s2", "s3", "s4", "all", "x"];
-
-// A seeded generator, so a failure names its run.
-/** @param {number} seed */
-function random(seed) {
-  let s = seed >>> 0;
-  return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32;
-}
 
 /** @param {{section: string, quote?: string, prefix?: string, suffix?: string}} anchor */
 const fresh = (anchor) =>

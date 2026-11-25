@@ -36,11 +36,13 @@ registered with it lives (`service.session_lives`), by the lifetime its claims w
 record (`Harness.lifetime`), until its record says it ended. A registration is one of
 its session's files, so the session's end removes it with them (`state.end_session`),
 whether or not a record of the session stays. A background job outlives the worker
-hosting its current
-sitting, and its next sitting may run `leaf` from a script, before which no hook
-runs. That script reaches this bridge where the later sitting's copy ships the
-same file. Each process of a session that lives as its own pid keeps its own
-registration. A hook registers the session from the copy Claude Code loaded
+hosting its current sitting, and its next sitting may run `leaf` from a script,
+before which no hook runs. That script reaches this bridge where the later sitting's
+copy ships the same file. Each process of a session that lives as its own pid keeps
+its own registration, so the bridge serves while any of them lives; but the first to
+end the session ends it for all of them (`state.end_harness_instance`), which
+removes every registration along with their claims. A hook registers the session from
+the copy Claude Code loaded
 (`hooks.main`), whose client a sandboxed bare `leaf` runs, so a checkout's sandboxed
 `bin/leaf` reaches a bridge only where it ships this file as that copy does. The
 running bridge holds its lease

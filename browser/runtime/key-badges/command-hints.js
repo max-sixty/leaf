@@ -1,10 +1,10 @@
 /* Inline command hints are a projection of the dispatcher's exact reachable bindings,
- * the one reading every control's keys come from (control-keys.js, `reachingNow`).
+ * the one reading every control's keys come from (keyboard/control-keys.js, `reachingNow`).
  *
  * A row or route opts in through `bindingBadge`: an Element lends a widget-positioned
  * face; null requests a runtime corner chip. The widget owns placement, while this
  * presenter owns words and visibility; a control's accessible shortcuts are
- * control-keys.js's, from the same reading. A lent face keeps its out-of-flow seat even
+ * keyboard/control-keys.js's, from the same reading. A lent face keeps its out-of-flow seat even
  * when empty or its command leaves reach. A face labels a key and takes no pointer, as
  * a chip takes none, so a press where one stands lands on what the widget drew it over,
  * whether the face shows, has just arrived or has just gone. Neither Decision metadata
@@ -22,8 +22,8 @@ import {
   routedCommand,
   spell,
   word,
-} from "./bindings.js";
-import { reachingNow } from "./control-keys.js";
+} from "../keyboard/bindings.js";
+import { reachingNow } from "../keyboard/control-keys.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
 import { renderedUnder } from "../lib/shadow-tree.js";
@@ -43,7 +43,7 @@ const seats = chipSeats(commandHintLayer);
 /** @typedef {Element} BindingBadge
  * @typedef {{text: string, display: [string, string], opacity: [string, string]}} LentFace
  */
-/** @param {import("./bindings.js").CommandRoute} route @returns {route is import("./bindings.js").CommandRoute & {binding: string}} */
+/** @param {import("../keyboard/bindings.js").CommandRoute} route @returns {route is import("../keyboard/bindings.js").CommandRoute & {binding: string}} */
 const boundRoute = (route) => route.binding !== undefined;
 
 // Expand the reachable bindings that ask for a face, retaining the original command
@@ -51,7 +51,7 @@ const boundRoute = (route) => route.binding !== undefined;
 // routes both reach it.
 /** @param {ReturnType<typeof reachingNow>["available"]} available */
 function hintRoutes(available) {
-  /** @type {{original: import("./bindings.js").Command, id: string, control: Element, bindingBadge: BindingBadge | null, contextual: boolean, binding: string}[]} */
+  /** @type {{original: import("../keyboard/bindings.js").Command, id: string, control: Element, bindingBadge: BindingBadge | null, contextual: boolean, binding: string}[]} */
   const gathered = [];
   for (const [row, reachable] of available) {
     const routes = commandRoutes(row);
@@ -199,7 +199,7 @@ export function createCommandHints({ presentedControl }) {
   // stands in the document plane, where the scroll carries it.
   function paint() {
     // Read afresh, since the painters before this one may have moved what is live, and
-    // the frame's accessible shortcuts read the same (control-keys.js).
+    // the frame's accessible shortcuts read the same (keyboard/control-keys.js).
     const { available } = reachingNow({ fresh: true });
     // A touch screen gets the accessible shortcuts and no faces: a digit drawn where the
     // user has no keyboard names a press they cannot make (`advertisesKeys`).

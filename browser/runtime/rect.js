@@ -1,7 +1,7 @@
 // @ts-check
 /* The rectangle arithmetic placements share. It reads no document, so the pure placement
    folds (`margin-placement.js`, `comment-placement.js`, the hint seating in
-   `keyboard/hints.js`) take it as readily as the passes that measure. */
+   `key-badges/hints.js`) take it as readily as the passes that measure. */
 
 /** @typedef {{left: number, right: number, top: number, bottom: number}} Box */
 

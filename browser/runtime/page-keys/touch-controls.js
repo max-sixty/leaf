@@ -1,7 +1,7 @@
 /* The page's commands a finger reaches, as rows of the page's controls (page-controls.js).
  * `touch` names a page command a finger needs a row for; the same row serves a mouse, and
  * stands in the floating panel's menu. A scope with a row marked `exit` is a stance, such
- * as page search or Draw mode: while the innermost one stands (dispatch.js,
+ * as page search or Draw mode: while the innermost one stands (keyboard/dispatch.js,
  * `innermostStance`), the panel's row offers that row as its one way out, drawn as
  * Close's ✕, and the panel names it beside the ✕ by the scope's `says`, else its title
  * (status-context.js). Words, availability and activation all come from the same row
@@ -19,14 +19,14 @@ import {
   registerPageControl,
 } from "../page-controls.js";
 import { returnPlace } from "../history.js";
-import { bindings, live, spell, titleOf, word } from "./bindings.js";
-import { innermostStance, invokePress } from "./dispatch.js";
-import { touchPresses } from "./register.js";
+import { bindings, live, spell, titleOf, word } from "../keyboard/bindings.js";
+import { innermostStance, invokePress } from "../keyboard/dispatch.js";
+import { touchPresses } from "../keyboard/register.js";
 
 // Each press's latest reading, by the command it invokes, and how its row reads now.
 /** @typedef {ReturnType<typeof touchPresses>[number]} TouchPress
  * @typedef {{label: string, shortcut: string[], disabled: boolean}} Face
- * @typedef {{label: string, disabled: boolean, press: {id: string, row: import("./bindings.js").Command, binding: undefined}}} StanceFace
+ * @typedef {{label: string, disabled: boolean, press: {id: string, row: import("../keyboard/bindings.js").Command, binding: undefined}}} StanceFace
  */
 /** @type {Map<string, {press: TouchPress, face: Face | undefined}>} */
 const presses = new Map();

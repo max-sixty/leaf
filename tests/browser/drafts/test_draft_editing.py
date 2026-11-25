@@ -30,6 +30,7 @@ from render_harness import (
     scroll_settled,
     sending,
     undo,
+    word_point,
     write,
 )
 
@@ -499,6 +500,76 @@ def test_arrow_keys_visit_every_blank_line_of_a_draft(engine, request, serve):
             )
         )
     assert visited == list(range(last - 1, -1, -1))
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_keys_at_the_edge_of_a_draft_s_words_act_on_what_it_shows(
+    engine, request, serve
+):
+    """Home on a heading went before its hidden `# `, so typed words made the heading a
+    paragraph; a double press on a bold first word selected the `**` the first press
+    revealed beside it; two pasted paragraphs left the quote they were pasted into;
+    and words typed in the gap between two paragraphs joined both. Each of these keys
+    and gestures acts on the blocks the draft shows instead."""
+    url = serve(
+        leaf_page(
+            "Keys at the edge",
+            "<h1>Keys at the edge</h1>"
+            '<lf-draft id="heading"><pre># Title here\n\nBody.</pre></lf-draft>'
+            '<lf-draft id="bold"><pre>Some **bold words** here.</pre></lf-draft>'
+            '<lf-draft id="quote"><pre>Before.\n\n&gt; Quoted here.\n\nAfter.</pre></lf-draft>'
+            '<lf-draft id="gap"><pre>Alpha one two.\n\nBravo three four.</pre></lf-draft>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 900, "height": 1000})
+
+    draft_control(page, "edit", "heading").click()
+    editor = page.locator("#heading leaf-text")
+    expect(editor).to_be_focused()
+    editor.evaluate("field => field.setSelectionRange(6, 6)")
+    page.keyboard.press("Home")
+    page.keyboard.insert_text("My ")
+    expect(editor).to_have_js_property("value", "# My Title here\n\nBody.")
+    page.keyboard.press("Escape")
+
+    spot = word_point(page.locator("#bold .lf-draft-body"), "bold")
+    page.mouse.dblclick(spot["x"], spot["y"])
+    editor = page.locator("#bold leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.insert_text("Big")
+    expect(editor).to_have_js_property("value", "Some **Big words** here.")
+    page.keyboard.press("Escape")
+
+    page.evaluate(
+        """text => { const scratch = document.createElement('textarea');
+        scratch.id = 'scratch'; scratch.value = text; document.body.append(scratch);
+        scratch.focus(); scratch.select(); }""",
+        "First.\n\nSecond.",
+    )
+    page.keyboard.press("ControlOrMeta+c")
+    page.evaluate("() => document.getElementById('scratch').remove()")
+    draft_control(page, "edit", "quote").click()
+    editor = page.locator("#quote leaf-text")
+    expect(editor).to_be_focused()
+    editor.evaluate("field => field.setSelectionRange(23, 23)")
+    page.keyboard.press("ControlOrMeta+v")
+    expect(editor).to_have_js_property(
+        "value", "Before.\n\n> Quoted here.First.\n> \n> Second.\n\nAfter."
+    )
+    page.keyboard.press("Escape")
+
+    paragraphs = page.locator("#gap .lf-draft-body p")
+    above, below = paragraphs.nth(0).bounding_box(), paragraphs.nth(1).bounding_box()
+    draft_control(page, "edit", "gap").click()
+    editor = page.locator("#gap leaf-text")
+    expect(editor).to_be_focused()
+    rendered(page)
+    page.mouse.click(above["x"] + 60, (above["y"] + above["height"] + below["y"]) / 2)
+    page.keyboard.type("Zed")
+    expect(editor).to_have_js_property(
+        "value", "Alpha one two.\n\nZed\n\nBravo three four."
+    )
 
 
 def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, serve):
@@ -1118,18 +1189,18 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     editor.press("Enter")
     expect(editor).to_have_js_property("value", "First **paragraph**.\n\n")
     page.keyboard.insert_text("Second `paragraph`.")
-    # Between its words, Return writes a hard break in place of the space, which the
-    # draft shows as a line.
+    # Between its words, Return writes a hard break, which the draft shows as a line,
+    # and keeps the space, so Backspace on the new line gives the words back.
     editor.evaluate("field => field.setSelectionRange(29, 29)")
     editor.press("Enter")
     expect(editor).to_have_js_property(
-        "value", "First **paragraph**.\n\nSecond\\\n`paragraph`."
+        "value", "First **paragraph**.\n\nSecond \\\n`paragraph`."
     )
     # At a hard break, between its backslash and its line's end, Return begins the
     # line after it.
-    editor.evaluate("field => field.setSelectionRange(29, 29)")
+    editor.evaluate("field => field.setSelectionRange(30, 30)")
     editor.press("Enter")
-    exact = "First **paragraph**.\n\nSecond\\\n\\\n`paragraph`."
+    exact = "First **paragraph**.\n\nSecond \\\n\\\n`paragraph`."
     expect(editor).to_have_js_property("value", exact)
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"

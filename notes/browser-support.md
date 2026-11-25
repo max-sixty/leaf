@@ -805,7 +805,7 @@ types, so nothing marks the card the thread keys act on. Playwright Chromium
 included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
 (`visibleFocus`) follows the browser's answer, and the open card is the only thread
 keys reach; a key pressed after scrolling it away lets go of it
-(`keyboard/controller.js`).
+(`page-keys/controller.js`).
 Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
@@ -814,7 +814,7 @@ card's `.lf-page-thread` matches `:focus-visible`.
 
 Safari has no caret browsing, so a keyboard user there can't put the caret on words
 that take no focus. `K` (`preview.js`, `here`) can't read at a caret there, and the
-keyboard can't select words to comment on (`browser.caret` in `keyboard/page.js`).
+keyboard can't select words to comment on (`browser.caret` in `page-keys/page.js`).
 Safari's Tab, as Playwright WebKit runs it, stops only at text fields and elements with
 their own `tabindex`, so Leaf's own keys move a keyboard user there: walks, Go-to and
 arrows in the panel's lists. A pointer and a finger's hold read every preview.
@@ -847,7 +847,7 @@ in a paragraph's text, press F7 and then ArrowRight, and read whether
 ### A control's own arrows after focus leaves it in Chromium and WebKit
 
 A key pressed at a control the user has scrolled away from lets go of it first
-(`keyboard/controller.js`), and Chromium and WebKit still apply a radio's, slider's
+(`page-keys/controller.js`), and Chromium and WebKit still apply a radio's, slider's
 or select's own arrows at the control the key was aimed at: a radio's ArrowDown
 checked the next radio and scrolled the page back to it, a slider's ArrowRight
 stepped its value, and a closed select's ArrowDown kept focus and scrolled the page

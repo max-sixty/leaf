@@ -320,7 +320,7 @@ import {
   showNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
-import { drawnKeys } from "./keyboard/command-hints.js";
+import { drawnKeys } from "./key-badges/command-hints.js";
 import { advertisesKeys, spell } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { userCaret } from "./native-selection.js";
@@ -2117,7 +2117,7 @@ function changed(node, aim) {
 // Where `K` reads: the element the caret stands in (`userCaret`), where that lies inside
 // what focus is on and the user sees the caret's letter, else what focus is on; the
 // body with no caret in it is nowhere. A caret scrolled out of sight is nowhere too, as
-// a key lets go of focus scrolled out of sight (keyboard/controller.js), though the
+// a key lets go of focus scrolled out of sight (page-keys/controller.js), though the
 // element it stands in, as a long paragraph, still shows.
 function here() {
   const on = focused() ?? document.body;

@@ -702,7 +702,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
-    # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
+    # Completing `g T` again closes the view (page-keys/go-to-sequence.js).
     if within.locator(PANEL).get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own

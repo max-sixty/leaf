@@ -139,7 +139,7 @@ export function createPageMapDialog({
   /** @type {Set<import("./contributions.js").ContributionSource>} */
   let trackedOffers = new Set();
   // The Map is a row of the page's controls while it has entries, which a keyboard
-  // reaches by `g P` (keyboard/go-to-sequence.js). Beside the rail, whose markers show
+  // reaches by `g P` (page-keys/go-to-sequence.js). Beside the rail, whose markers show
   // the page's annotations where they stand, it is a keyboard's convenience; where the
   // window has no room for the rail, the markers are pins over the content, and the
   // map is where a reader surveys them, so Navigate offers it to a mouse too.

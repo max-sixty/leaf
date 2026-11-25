@@ -570,7 +570,7 @@ function unheardWrite(box, options) {
 // the card a walk is bringing over its margin entry still stands where the walk left
 // it, so the Go-to map `g` armed as the walk lands would name the entry the card covers,
 // and read again at the scroll's end, which comes before that update, would name it
-// again (keyboard/hints.js). Two frame callbacks enclose the update. A reader waits for the
+// again (key-badges/hints.js). Two frame callbacks enclose the update. A reader waits for the
 // writes made before it asks, not for later ones, so a log a stream keeps at its end
 // holds no reading back for as long as it streams.
 /** @type {PromiseWithResolvers<void> | null} */

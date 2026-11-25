@@ -511,3 +511,36 @@ test("a table cell's words stand in its own row, inside quotes and items", async
     );
   }
 });
+
+test("a table cell's words and a caret in them stand in its own cell, past the pipes it escapes", async () => {
+  const { loadMarkdown, paintMarkdown, markdownSourceOffset, placedMarkdownTokens } =
+    await import("/runtime/lib/markdown.js");
+  await loadMarkdown();
+  for (const cells of [
+    ["\\|", "\\|"],
+    ["a\\|b\\|c", "d\\*e", "`f\\|g`", "\\`", "\\|"],
+  ]) {
+    let source = "|";
+    const spans = cells.map((cell) => {
+      const from = source.length + 1;
+      source += ` ${cell} |`;
+      return [from, from + cell.length];
+    });
+    source += `\n|${" - |".repeat(cells.length)}`;
+    assert.deepEqual(
+      placedMarkdownTokens(source, false)
+        .filter(({ token }) => !token.nesting)
+        .map(({ from, to }) => [from, to]),
+      spans,
+      source,
+    );
+    const body = document.createElement("div");
+    paintMarkdown(body, source, {});
+    for (const [index, cell] of body.querySelectorAll("th").entries()) {
+      const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT).nextNode();
+      const offset = markdownSourceOffset(body, words, words.data.length);
+      const [from, to] = spans[index];
+      assert.ok(from < offset && offset <= to, `${source}: cell ${index} at ${offset}`);
+    }
+  }
+});

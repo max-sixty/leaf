@@ -1427,10 +1427,10 @@ def thread_create(
     can list takes a widget that asks in the text instead, such as an
     `lf-options` choice, which waits on the user until they pick. Refuses a
     quote the active revision does not show, or shows more than once; words a
-    page's script draws are found on the page as the browser draws it. The
-    comment's id is the thread's.
+    page's script draws are found on the page as the browser draws it. Refuses
+    a --part the page would show nowhere. The comment's id is the thread's.
     """
-    from leaf.thread import UnsaidQuote, cmd_comment
+    from leaf.thread import Drawn, UndrawnPart, UnsaidQuote, cmd_comment
 
     body = read_body(text, body_file)
     try:
@@ -1442,10 +1442,18 @@ def thread_create(
         # them, outside the page's lease, since a browser takes a second or more.
         from leaf.render_gate.drawn_anchor import drawn_anchor
 
-        revision = unsaid.revision
-        anchor = drawn_anchor(page_dir, revision, quote, section)
+        anchor = drawn_anchor(page_dir, unsaid.revision, quote, section)
         if anchor is None:
             raise
+        drawn = Drawn(unsaid.revision, anchor=anchor)
+    except UndrawnPart as undrawn:
+        # No render check has read what the visual draws in this version, so the
+        # page is drawn for it, as for a quote.
+        from leaf.render_gate.drawn_anchor import drawn_visuals
+
+        drawn = Drawn(
+            undrawn.revision, drawing=drawn_visuals(page_dir, undrawn.revision)
+        )
     return cmd_comment(
         page_dir,
         quote,
@@ -1454,7 +1462,7 @@ def thread_create(
         body,
         title=title,
         obligation=obligation,
-        drawn=(revision, anchor),
+        drawn=drawn,
     )
 
 

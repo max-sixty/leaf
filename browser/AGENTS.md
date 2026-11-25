@@ -354,7 +354,7 @@ directly as in a terminal").
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
 - **A mark's colour says one thing, the same on every surface.** A mark reads the
-  token for what it tells the user (`styles/tokens.css`, at `--lf-turn`), never a hue, so
+  role for whose mark it is (`styles/tokens.css`, "Leaf's own marks"), never a hue, so
   the user's turn, a thread, the agent's work, what is unread, what changed and what
   is settled each look alike in the margin, the contents and the panel. Every surface
   paints a thread's `unread` and `attention` from one value, so the leaf's dot,

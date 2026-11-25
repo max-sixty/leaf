@@ -941,7 +941,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
                  const context = document.createElement('canvas')
                    .getContext('2d', {willReadFrequently: true});
                  const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--lf-settled)';
+                 probe.style.color = 'var(--lf-ink-2)';
                  const paints = [
                    getComputedStyle(probe).color,
                    getComputedStyle(document.querySelector('#c-redis')).backgroundColor,
@@ -2133,9 +2133,7 @@ def test_the_row_the_keyboard_is_on_wears_its_ring_on_every_side(
         "data-lf-control-focus-visible", ""
     )
     rendered(page)
-    ring_ink = tuple(
-        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-here"))
-    )
+    ring_ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-ok")))
     edges = mark_edges(page, "wh-day", ring_ink)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 

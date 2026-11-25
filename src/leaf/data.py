@@ -32,8 +32,8 @@ from .data_contracts import (
     working_data_bindings,
 )
 from .files import file_stamp, replace_files
+from .json_block import json_value
 from .page_memory import memo
-from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_DIR, DATA_SOURCE_NAME
 from .state import (

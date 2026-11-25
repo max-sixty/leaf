@@ -506,11 +506,10 @@ erDiagram
     )
     reading = render_gate_model.render_version(browser, serve(page))
     assert reading.failures == []
-    assert reading.parts is not None
     # The parts each diagram drew, as the reading keeps them for `page state`.
     drawn = {
-        visual: {part["id"]: part["label"] for part in parts}
-        for visual, parts in reading.parts.items()
+        name: {part["id"]: part["label"] for part in visual["parts"]}
+        for name, visual in reading.visuals.items()
     }
     assert drawn["namespaced"]["node:Jobs"] == "Jobs"
     assert drawn["quoted-name"]["node:Line%20Item"] == "Line Item"

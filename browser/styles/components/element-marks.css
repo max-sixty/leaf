@@ -72,7 +72,7 @@
 :where([data-lf-mark]),
 :where([data-lf-projected-location]) {
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
-    var(--lf-band-ink, var(--lf-here));
+    var(--lf-band-ink, var(--lf-ok));
   outline-offset: var(--lf-band-gap);
 }
 :where([data-lf-aimed]),
@@ -81,7 +81,7 @@
 :where([data-lf-mark]:not([data-lf-mark="focus"])),
 :where([data-lf-projected-location]) {
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
-    var(--lf-band-ink, var(--lf-here)) !important;
+    var(--lf-band-ink, var(--lf-ok)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
 /* A box beside a list marker (`[data-lf-beside-marker]`, dom/geometry.js, `markerReach`)
@@ -112,8 +112,8 @@
   );
   outline-style: none !important;
   border-image: linear-gradient(
-      var(--lf-band-ink, var(--lf-here)),
-      var(--lf-band-ink, var(--lf-here))
+      var(--lf-band-ink, var(--lf-ok)),
+      var(--lf-band-ink, var(--lf-ok))
     )
     1 / var(--lf-band-w, var(--lf-focus-ring-w)) / var(--lf-band-room)
     calc(var(--lf-band-room) + var(--lf-band-reach-right)) var(--lf-band-room)
@@ -127,7 +127,7 @@
   --lf-band-ink: var(--lf-mark-contour-ink);
   --lf-band-w: 1px;
 }
-/* Any other mark on the box keeps the user's ink (`--lf-here`) over those two: the
+/* Any other mark on the box keeps the user's ink (`--lf-ok`) over those two: the
    aim, a comment's mark, the proxy or location ring, or the focus ring the box wears,
    its own or a control's in it. */
 :where(
@@ -150,7 +150,7 @@
     [data-lf-control-focus-visible]
   )
 ) {
-  --lf-band-ink: var(--lf-here);
+  --lf-band-ink: var(--lf-ok);
   --lf-band-w: var(--lf-focus-ring-w);
 }
 /* A forced palette draws marks in its highlight, as it does the focus ring
@@ -170,7 +170,7 @@
    the marker and spreads half the reach wider, and the brackets' clip cuts what the
    wider spread adds above and below (`--lf-band-over`). */
 :where([data-lf-aimed]) {
-  --lf-aim-veil: color-mix(in srgb, var(--lf-here) 4%, transparent);
+  --lf-aim-veil: color-mix(in srgb, var(--lf-ok) 4%, transparent);
   box-shadow:
     inset 0 0 0 100vmax var(--lf-aim-veil),
     var(--lf-aim-veil-shift) 0 0
@@ -297,7 +297,7 @@
     [data-lf-mark],
     [data-lf-projected-location]
   ) {
-  --lf-shape-ink: var(--lf-band-ink, var(--lf-here));
+  --lf-shape-ink: var(--lf-band-ink, var(--lf-ok));
   --lf-shape-w: var(--lf-band-w, var(--lf-focus-ring-w));
   outline-style: none !important;
   clip-path: none;

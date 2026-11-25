@@ -624,8 +624,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
-        "background": token_colour(page, "--lf-turn-wash"),
-        "icon": token_colour(page, "--lf-turn-ink"),
+        "background": token_colour(page, "--lf-ok-wash"),
+        "icon": token_colour(page, "--lf-ok-ink"),
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
 
@@ -1038,8 +1038,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_ink = resolved_color("--lf-ink-2")
     expected_paper = resolved_color("--lf-paper")
     expected_rule = resolved_color("--lf-rule")
-    expected_label_ink = resolved_color("--lf-tip-ink")
-    expected_label_background = resolved_color("--lf-tip-bg")
+    expected_label_ink = resolved_color("--lf-ink")
+    expected_label_background = resolved_color("--lf-card")
 
     def words_still():
         """The preview fades in over 90ms, so the frame it opens on is a box drawn at

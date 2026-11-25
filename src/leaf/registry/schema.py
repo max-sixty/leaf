@@ -28,6 +28,8 @@ import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from leaf.json_block import json_value
+
 if TYPE_CHECKING:
     import regress
     from jsonschema import FormatChecker
@@ -278,11 +280,6 @@ def schema_complaint(schema: dict, instance) -> dict | None:
         "rule": error.validator if error.schema is not False else "false",
         "error": error.message,
     }
-
-
-def json_value(value) -> str:
-    """One reader-facing rendering of a structured JSON value."""
-    return json.dumps(value, ensure_ascii=False)
 
 
 def schema_reading(error) -> dict:

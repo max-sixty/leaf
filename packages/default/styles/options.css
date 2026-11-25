@@ -62,7 +62,7 @@ lf-options {
    * stands no deeper than the aim's wash and differs from it only in chroma, so over a
    * whole card it reads as khaki on the reading theme's paper, and it hides the card's
    * own chips. */
-  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 85%, var(--lf-settled));
+  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 85%, var(--lf-ink-2));
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -212,7 +212,7 @@ lf-options:has(> lf-option:where([label])) {
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option:where([label])) > lf-option[selected] {
     --lf-ground: var(--lf-picked-ground);
-    border-color: var(--lf-settled);
+    border-color: var(--lf-ink-2);
     background: var(--lf-ground);
   }
 }
@@ -425,14 +425,14 @@ lf-option .lf-pick:not([data-lf-said]) {
 }
 /* Child combinators, so an inner group's marks do not take the outer option's state. */
 lf-option[selected] > .lf-pick {
-  color: var(--lf-settled-ink);
+  color: var(--lf-ink);
 }
 /* The pick fills the box and cuts the layer's check out of it (`check`,
  * runtime/lib/icon-paths.js), so the option's ground shows through the check. A ✓
  * glyph needed a type size of its own, 8px, to stand clear of the ring. */
 lf-option[selected] > .lf-pick::before {
-  border-color: var(--lf-settled);
-  background: var(--lf-settled);
+  border-color: var(--lf-ink-2);
+  background: var(--lf-ink-2);
   mask:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 8.25 3.15 3.15L13 4.75'/%3E%3C/svg%3E")
       center / 9px no-repeat,
@@ -452,7 +452,7 @@ lf-option[selected] > .lf-pick::before {
 @media print {
   lf-option[selected]::after {
     content: "✓";
-    color: var(--lf-settled-ink);
+    color: var(--lf-ink);
     font-weight: 600;
   }
 }
@@ -599,7 +599,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * (above). */
     & > lf-option[selected] {
       --lf-fill: var(--lf-picked-ground);
-      box-shadow: inset 0 0 0 2px var(--lf-settled);
+      box-shadow: inset 0 0 0 2px var(--lf-ink-2);
     }
     /* The control owns focus at row scale: the mark's ring stays off and the row draws
      * an inset ring (below). */
@@ -976,7 +976,7 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another:not([hidden]) {
   lf-options:not(:has(> lf-option:where([label]))) > lf-option[selected] {
     --lf-ground: var(--lf-picked-ground);
     background: var(--lf-ground);
-    box-shadow: inset 0 0 0 2px var(--lf-settled);
+    box-shadow: inset 0 0 0 2px var(--lf-ink-2);
   }
 }
 /* An opened settled group's option answers the pointer with the aim's wash a live cell

@@ -45,7 +45,7 @@ from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.contract import state_specs
 from .registry.storage import layer_metadata
-from .render_reading import drawn_parts
+from .render_reading import drawn_visuals
 from .revision_artifact import active_enclosing, read_artifact
 from .revisioning import activate_source
 from .schema import DATA_DIR
@@ -249,11 +249,11 @@ def _apply_document_state(
     stored_data: dict,
     registry: dict,
     facts: EventFacts,
-    drawn: dict[str, list[dict]],
+    drawn: dict[str, dict],
 ) -> None:
     """The version's elements, each visual among them with the `parts` it drew where
     the page's render reading read this version with the data the page holds now
-    (`render_reading.drawn_parts`), and the state in force on them."""
+    (`render_reading.drawn_visuals`), and the state in force on them."""
     parser = document.document
     projection = document.projection
     state["title"] = parser.authoring.title.strip()
@@ -263,7 +263,9 @@ def _apply_document_state(
             record,
             None,
             _orders(record, orders, projection, registry),
-            parts=drawn.get(record["attrs"].get("id", "")),
+            parts=visual["parts"]
+            if (visual := drawn.get(record["attrs"].get("id", "")))
+            else None,
         )
         for record in parser.lf_elements
     ]
@@ -390,7 +392,7 @@ def page_state(
     the same reading; doing it in-head over `leaf page events` is how a decision
     in force gets missed. So this holds the active revision's elements, each visual
     with the parts it drew where the page's render reading read that revision with
-    the page's current data (`render_reading.drawn_parts`), the projection of the
+    the page's current data (`render_reading.drawn_visuals`), the projection of the
     user's current state and the reports in force on the agent channel, authored
     measurements whose live
     source has run again
@@ -485,7 +487,7 @@ def page_state(
             stored_data,
             registry,
             facts,
-            drawn_parts(
+            drawn_visuals(
                 page_dir,
                 read_artifact(page_dir, active["revision"]).digest,
                 stored_data["version"],

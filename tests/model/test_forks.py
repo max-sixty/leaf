@@ -105,9 +105,7 @@ def on_it(page_dir) -> list[str]:
 class _Untitled:
     """A harness that names no thread, so admission starts no title request."""
 
-    @staticmethod
-    def title_generator():
-        return None
+    inference = None
 
 
 def test_a_thread_message_reaches_the_session_at_once_and_its_line_goes_in_beside_it(

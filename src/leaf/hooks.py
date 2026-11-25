@@ -96,6 +96,9 @@ from .transaction import owned_pages
 if TYPE_CHECKING:
     from .harness import Harness
 
+if TYPE_CHECKING:
+    from .harness import Harness
+
 
 def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""

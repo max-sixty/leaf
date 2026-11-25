@@ -61,9 +61,10 @@ refuse at one door and advise at another.
 
 import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 
+from leaf.json_block import json_value
 from leaf.refusals import Refused
 
 
@@ -165,15 +166,6 @@ class Finding:
         if values is not None:
             changes["values"] = {**self.values, **values}
         return replace(self, **changes)
-
-
-def _json(value) -> str:
-    """`registry.schema.json_value`, imported when words are written: the event log
-    raises findings, and a hook that reads a quiet page imports the log but never
-    the schema validator behind that module."""
-    from leaf.registry.schema import json_value
-
-    return json_value(value)
 
 
 # What the running command has noted for the record it prints (`hold`), or None
@@ -341,8 +333,8 @@ def _verbatim(at: str, v: dict) -> str:
         where = f" at {provenance[0]} {provenance[1]} occurrence {provenance[2] + 1}"
     return (
         f"{at}{where} declares `verbatim` but shows {v['says'][:80]!r} with owned "
-        f"structure {_json(v['shown'])} where the file reads "
-        f"{_json(v['expected'])}"
+        f"structure {json_value(v['shown'])} where the file reads "
+        f"{json_value(v['expected'])}"
     )
 
 
@@ -499,11 +491,15 @@ def _invalid_record(v: dict) -> str:
     return f"<{v['tag']}> {v['kind']} {v['verb']!r} is invalid: "
 
 
-def _visual_parts(declared: dict) -> str:
-    """The part ids a section admits, as `registry.contract.VisualParts` says them."""
-    from leaf.registry.contract import VisualParts
-
-    return str(VisualParts(tuple(declared["prefixes"]), declared["all"]))
+def admitted_parts(prefixes: Sequence[str], every: bool) -> str:
+    """The part ids a visual admits as `anchor.visual`, in words: every part it
+    draws, or ids starting with one of `prefixes` (`registry.contract.VisualParts`).
+    """
+    if every:
+        return "the parts the visual draws"
+    if prefixes:
+        return f"ids starting with {' or '.join(map(repr, prefixes))}"
+    return "no visual parts"
 
 
 def _size(box: dict) -> str:
@@ -534,7 +530,7 @@ def _json_path(path: list) -> str:
 
 def _plain(value) -> str:
     """A declared value as the registry's words quote it: a word bare, else JSON."""
-    return value if isinstance(value, str) else _json(value)
+    return value if isinstance(value, str) else json_value(value)
 
 
 def _predicate(v: dict, says: str) -> str:
@@ -798,7 +794,7 @@ _TEXT = {
     ),
     "tiny-boxes": _fails(
         _WORKS,
-        lambda at, v: f"widgets rendered with no usable size: {_json(v['boxes'])}",
+        lambda at, v: f"widgets rendered with no usable size: {json_value(v['boxes'])}",
     ),
     "unread-commands": _fails(
         _WORKS,
@@ -820,7 +816,7 @@ _TEXT = {
         f"DevTools issue {v['issue']}"
         + (f" at {at}" if at else "")
         + (
-            f" ({', '.join(f'{k}={_json(x)}' for k, x in v['details'])})"
+            f" ({', '.join(f'{k}={json_value(x)}' for k, x in v['details'])})"
             if v["details"]
             else ""
         )
@@ -834,7 +830,7 @@ _TEXT = {
     "settlement-mark": _fails(
         _STATE,
         lambda at, v: (
-            f"{at} has data-lf-state={_json(v['mark'])} where the log records "
+            f"{at} has data-lf-state={json_value(v['mark'])} where the log records "
             + (f"`{v['outcome']}`" if v["outcome"] else "no decision")
             + "; leave data-lf-state to Leaf, which sets it from the decision in the"
             " log"
@@ -844,7 +840,7 @@ _TEXT = {
         _STATE,
         lambda at, v: (
             f"{at} is settled `{v['outcome']}`, but its <{v['slot']}> still shows"
-            f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
+            f" {json_value(v['words'])}. Leaf hides a retired slot by default, so this"
             " widget's own styles or module must be showing it"
         ),
     ),
@@ -922,11 +918,11 @@ _TEXT = {
     "chrome-words": _fails(
         _COMMENTS,
         lambda at, v: (
-            f"{at} puts {_json(v['words'])} under .lf-ui, where no comment can reach it"
+            f"{at} puts {json_value(v['words'])} under .lf-ui, where no comment can reach it"
         ),
     ),
     "form-control-words": lambda at, v: (
-        f"{at} says {_json(v['words'])} inside a form control, where no selection"
+        f"{at} says {json_value(v['words'])} inside a form control, where no selection"
         " can reach it"
     ),
     "apparatus-among-authored": lambda at, v: (
@@ -935,14 +931,14 @@ _TEXT = {
         " :first-child or h2 + p, match differently"
     ),
     "unread-syntax": lambda at, v: (
-        f"code styled {_json(v['style'])} reads at {v['ratio']:.1f}:1 against the"
+        f"code styled {json_value(v['style'])} reads at {v['ratio']:.1f}:1 against the"
         " block it is set on"
     ),
     "covered-words": _fails(
         _REACHES,
         lambda at, v: (
-            f"{at} draws {_json(v['words'])} in the same place as {v['under']}'s"
-            f" {_json(v['covered'])}"
+            f"{at} draws {json_value(v['words'])} in the same place as {v['under']}'s"
+            f" {json_value(v['covered'])}"
         ),
     ),
     # What the author decides.
@@ -1028,7 +1024,7 @@ _TEXT = {
         lambda v: f"{v['kind']} markup doesn't validate:\n{_listed(v['findings'])}"
     ),
     "fixture-ids-taken": _fixture(
-        lambda v: f"message widget ids already taken by events: {_json(v['ids'])}"
+        lambda v: f"message widget ids already taken by events: {json_value(v['ids'])}"
     ),
     "fixture-event": _fixture(
         lambda v: "; ".join(Finding.loads(found).said for found in v["findings"])
@@ -1094,7 +1090,7 @@ _TEXT = {
     "allocation-value": _refuses(
         _LAYS_OUT,
         lambda at, v: (
-            f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
+            f"{_bearing(at, v, json_value(v['value']))} has an invalid value; expected "
             + (
                 "a whole number of CSS pixels"
                 if v["allowed"] is None
@@ -1108,7 +1104,7 @@ _TEXT = {
         " the page shows"
     ),
     "inert-allocation": lambda at, v: (
-        f"{_bearing(at, v, _json(v['value']))} has no effect: "
+        f"{_bearing(at, v, json_value(v['value']))} has no effect: "
         + {
             "flow": "the element takes no width of its own, so put it on the block"
             " inside that needs the room",
@@ -1149,15 +1145,15 @@ _TEXT = {
     ),
     # Ids and the runtime's own names.
     "duplicate-ids": _refuses(
-        _ONE_ID, lambda at, v: f"duplicate ids: {_json(v['ids'])}"
+        _ONE_ID, lambda at, v: f"duplicate ids: {json_value(v['ids'])}"
     ),
     "spaced-ids": lambda at, v: (
-        f"ids containing whitespace, which HTML forbids in an id: {_json(v['ids'])};"
+        f"ids containing whitespace, which HTML forbids in an id: {json_value(v['ids'])};"
         " a comment anchors on the whole id, so rename it before a thread holds it"
     ),
     "reserved-ids": _refuses(
         _RUNTIME_NAMES,
-        lambda at, v: f"ids in the runtime's own lf- namespace: {_json(v['ids'])}",
+        lambda at, v: f"ids in the runtime's own lf- namespace: {json_value(v['ids'])}",
     ),
     "reserved-markers": _refuses(
         _RUNTIME_NAMES,
@@ -1171,16 +1167,17 @@ _TEXT = {
         _ONE_ID,
         lambda at, v: (
             "ids the page's log already gives its events, which a command's ID could"
-            f" name instead: {_json(v['ids'])}"
+            f" name instead: {json_value(v['ids'])}"
         ),
     ),
     "ids-taken-by-messages": _refuses(
-        _ONE_ID, lambda at, v: f"ids already taken by message markup: {_json(v['ids'])}"
+        _ONE_ID,
+        lambda at, v: f"ids already taken by message markup: {json_value(v['ids'])}",
     ),
     "ids-taken": _refuses(
         _ONE_ID,
         lambda at, v: (
-            f"ids already taken by the page or an earlier message: {_json(v['ids'])}"
+            f"ids already taken by the page or an earlier message: {json_value(v['ids'])}"
         ),
     ),
     # Widgets, against the registry that declares them.
@@ -1234,8 +1231,8 @@ _TEXT = {
     "stray-members": _refuses(
         _SHOWS,
         lambda at, v: (
-            f"{_line(at, v)}: admits only {_json(v['admits'])} members, found"
-            f" {_json(v['found'])}"
+            f"{_line(at, v)}: admits only {json_value(v['admits'])} members, found"
+            f" {json_value(v['found'])}"
         ),
     ),
     "loose-text": _refuses(
@@ -1269,7 +1266,7 @@ _TEXT = {
             "holds loose text as its body, which stands without the body's padding"
             " and doesn't scroll as the pane's body; wrap it in a <p> or <div>"
             if v["body"] == ["#text"]
-            else f"holds {len(v['body'])} body blocks ({_json(v['body'])}); its grid"
+            else f"holds {len(v['body'])} body blocks ({json_value(v['body'])}); its grid"
             " places them all in its one body cell, where they overlap, and only the"
             " first element among them scrolls as the pane's body, so wrap them in one"
             " <div> or <section>"
@@ -1386,7 +1383,7 @@ _TEXT = {
     "sample-loop": _refuses(
         _SERVES,
         lambda at, v: (
-            f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
+            f"sample {json_value(v['samples'])} selects thread {v['thread']!r}, which"
             " holds this message, so its child would hold the same sample again; select"
             " other threads"
         ),
@@ -1443,7 +1440,7 @@ _TEXT = {
     "registry-not-utf8": _declared(lambda v: "must be UTF-8", sep=" "),
     "registry-not-object": _declared(lambda v: "registry must be a JSON object"),
     "declaration-not-object": _declared(
-        lambda v: f"registry declarations must be objects: {_json(v['names'])}"
+        lambda v: f"registry declarations must be objects: {json_value(v['names'])}"
     ),
     "page-layer": _declared(
         lambda v: "$layer belongs to the selected layer", keeps=_SELECTED
@@ -1496,7 +1493,7 @@ _TEXT = {
     ),
     "undeclared-language": _declared(
         lambda v: (
-            f"$languages.paths maps {_json(v['extensions'])} to languages"
+            f"$languages.paths maps {json_value(v['extensions'])} to languages"
             " $languages.names does not declare"
         )
     ),
@@ -1534,7 +1531,7 @@ _TEXT = {
     ),
     "work-value": _declared(
         lambda v: (
-            f"$work {v['key']} lists {_json(v['values'])}, which state attribute"
+            f"$work {v['key']} lists {json_value(v['values'])}, which state attribute"
             f" `{v['attr']}` does not admit"
         )
     ),
@@ -1583,10 +1580,12 @@ _TEXT = {
         )
     ),
     "unknown-declarations": _declared(
-        lambda v: f"`{v['key']}` names unknown element declarations {_json(v['names'])}"
+        lambda v: (
+            f"`{v['key']}` names unknown element declarations {json_value(v['names'])}"
+        )
     ),
     "undeclared-attributes": _declared(
-        lambda v: f"`{v['key']}` names undeclared attributes {_json(v['names'])}"
+        lambda v: f"`{v['key']}` names undeclared attributes {json_value(v['names'])}"
     ),
     "reading-role-attr": _declared(
         lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
@@ -1637,14 +1636,14 @@ _TEXT = {
     "predicate-schema": _declared(
         lambda v: _predicate(
             v,
-            f"at {_json(v['value'])}, which its own schema does not admit:"
+            f"at {json_value(v['value'])}, which its own schema does not admit:"
             f" {v['reason']}",
         )
     ),
     "binding-written": _declared(
         lambda v: (
             "`inputs` binding attributes are authored, but"
-            f" {_json(v['attrs'])} are written by value records"
+            f" {json_value(v['attrs'])} are written by value records"
         )
     ),
     "run-written": _declared(
@@ -1661,7 +1660,7 @@ _TEXT = {
     ),
     "awaits-verbs": _declared(
         lambda v: (
-            f"`awaits` answers with verbs {_json(v['verbs'])}, which are"
+            f"`awaits` answers with verbs {json_value(v['verbs'])}, which are"
             " not `verbs` the user writes"
         )
     ),
@@ -1773,7 +1772,7 @@ _TEXT = {
     "body-nested": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records its body but admits nested"
-            f" widgets {_json(v['widgets'])}; a text statement cannot reconstruct"
+            f" widgets {json_value(v['widgets'])}; a text statement cannot reconstruct"
             " their state"
         )
     ),
@@ -1790,7 +1789,7 @@ _TEXT = {
     ),
     "deciding-verbs": _declared(
         lambda v: (
-            f"`verbs` {_json(v['verbs'])} all declare `decides: true`;"
+            f"`verbs` {json_value(v['verbs'])} all declare `decides: true`;"
             " only one verb may decide which members retire"
         )
     ),
@@ -1865,7 +1864,7 @@ _TEXT = {
     "answering-schema": _declared(
         lambda v: _answering(
             v,
-            f"tests <{v['within']}> `{v['attr']}` at {_json(v['value'])}, which"
+            f"tests <{v['within']}> `{v['attr']}` at {json_value(v['value'])}, which"
             f" its schema does not admit: {v['reason']}",
         )
     ),
@@ -1992,14 +1991,16 @@ _TEXT = {
         _ADMITS, lambda at, v: "the page has no layer.json; run `leaf page init` on it"
     ),
     "unknown-kind": _refuses(
-        _ADMITS, lambda at, v: f"kind must be one of {_json(v['kinds'])}"
+        _ADMITS, lambda at, v: f"kind must be one of {json_value(v['kinds'])}"
     ),
     "invalid-event": _refuses(
         _ADMITS, lambda at, v: f"{v['kind']} event is invalid: {v['error']}"
     ),
     "unknown-revision": _refuses(
         _ADMITS,
-        lambda at, v: f"{v['kind']} revision must be one of {_json(v['revisions'])}",
+        lambda at, v: (
+            f"{v['kind']} revision must be one of {json_value(v['revisions'])}"
+        ),
     ),
     "publication-owner": _refuses(
         _PUBLISHED, lambda at, v: "publication is owned by the checked source publisher"
@@ -2034,7 +2035,7 @@ _TEXT = {
         lambda at, v: (
             f"<{v['tag']}> does not declare {v['kind']} verb {v['verb']!r}"
             + (
-                f"; it declares {_json(v['declared'])}"
+                f"; it declares {json_value(v['declared'])}"
                 if v["kind"] == "report" and v["declared"]
                 else ""
             )
@@ -2125,7 +2126,7 @@ _TEXT = {
         _ADMITS,
         lambda at, v: (
             f"unknown reaction token {v['token']!r}; this layer declares"
-            f" {_json(v['tokens'])}"
+            f" {json_value(v['tokens'])}"
         ),
     ),
     # A comment's anchor and hold.
@@ -2162,7 +2163,7 @@ _TEXT = {
         _ADMITS,
         lambda at, v: (
             f"visual anchor {v['visual']!r} is not declared on section {v['section']!r};"
-            f" {_visual_parts(v['declared'])}"
+            f" {admitted_parts(v['declared']['prefixes'], v['declared']['all'])}"
         ),
     ),
     # A message, an edit, and a thread's presentation.
@@ -2421,7 +2422,7 @@ _TEXT = {
         lambda at, v: (
             f"unknown message id {v['name']!r}"
             + (f"; {v['held']}" if v.get("held") else "")
-            + f"; known: {_json(v['known'])}"
+            + f"; known: {json_value(v['known'])}"
         ),
     ),
     "widget-not-thread": _refuses(
@@ -2451,6 +2452,18 @@ _TEXT = {
                 else ""
             )
         ),
+    ),
+    # What `thread create --part` notes beside a thread on a part its visual didn't
+    # draw (`anchor_capture.drawn_part`): one the page shows on the whole visual, and
+    # one no drawing of the page could check.
+    "part-on-whole": lambda at, v: (
+        f"§ {v['section']} drew no part {v['part']!r} {v['when']}, so the thread"
+        " stands on the whole visual until the visual draws that part; it drew"
+        f" {', '.join(v['drew'])}"
+    ),
+    "unchecked-part": lambda at, v: (
+        f"Leaf couldn't read what § {v['section']} draws, so it didn't check part"
+        f" {v['part']!r}"
     ),
     "superseded-reply": _refuses(
         _NEWER,

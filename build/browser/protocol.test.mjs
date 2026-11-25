@@ -3,7 +3,7 @@
  * (`protocol.mjs`). */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { protocolBreaks } from "./protocol.mjs";
+import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 
 // One event kind and one record.
 const baseline = {
@@ -149,14 +149,14 @@ test("a key once kept stays kept, with its schema", () => {
       moved((claim) => (claim.schema.properties.page = { type: "integer" })),
       kept,
     ),
-    refused("record claim: kept page changed its schema"),
+    refused("record claim: kept page changed its schema from its shape at since 3"),
   );
   assert.deepEqual(
     changed(
       moved((claim) => (claim.schema.required = [])),
       kept,
     ),
-    refused("record claim: kept page changed its schema"),
+    refused("record claim: kept page changed its schema from its shape at since 3"),
   );
   assert.deepEqual(
     changed((s) => (s.records.claim.kept = ["page", "batches/*/page"]), kept),
@@ -190,14 +190,14 @@ test("a kept key's anyOf may gain variants, but keeps each", () => {
       moved((variants) => (variants[0] = variant("process"))),
       kept,
     ),
-    refused("record claim: kept lifetime changed its schema"),
+    refused("record claim: kept lifetime changed its schema from its shape at since 3"),
   );
   assert.deepEqual(
     changed(
       moved((variants) => variants.pop()),
       kept,
     ),
-    refused("record claim: kept lifetime changed its schema"),
+    refused("record claim: kept lifetime changed its schema from its shape at since 3"),
   );
 });
 
@@ -207,20 +207,23 @@ test("along a kept path, a shape holds each step its last shape holds", () => {
     properties: { page: { type: "string" }, note: { type: "string" } },
     required: ["page"],
   });
+  const schema = (at) => ({
+    type: "object",
+    properties: {
+      batches: { type: "array", items: entry() },
+      drafts: { type: "object", additionalProperties: entry() },
+      listed: { type: "array", items: entry() },
+      nullable: { type: ["array", "null"], items: entry() },
+      opened: { type: "object", properties: { at } },
+    },
+    required: ["batches", "drafts", "listed", "nullable"],
+  });
+  // Its shape at since 3, and an earlier one in which `opened/at` was a string.
   const walked = structuredClone(baseline);
   Object.assign(walked.records.claim, {
-    schema: {
-      type: "object",
-      properties: {
-        batches: { type: "array", items: entry() },
-        drafts: { type: "object", additionalProperties: entry() },
-        listed: { type: "array", items: entry() },
-        reply: { ...entry(), type: ["object", "null"] },
-        size: { type: "integer" },
-      },
-      required: ["batches", "drafts", "listed", "reply", "size"],
-    },
+    schema: schema({ type: "number" }),
     kept: ["batches/*/page", "drafts/*/page"],
+    earlier: [{ since: 2, schema: schema({ type: "string" }) }],
   });
   // Each case moves the shape on and keeps `adds` beside what it kept.
   const moved =
@@ -230,8 +233,10 @@ test("along a kept path, a shape holds each step its last shape holds", () => {
       edit(s.records.claim.schema.properties, s.records.claim.schema);
       s.records.claim.kept.push(...adds);
     };
-  const changedSchema = (path) =>
-    refused(`record claim: kept ${path} changed its schema`);
+  const changedSchema = (path, since = 3) =>
+    refused(
+      `record claim: kept ${path} changed its schema from its shape at since ${since}`,
+    );
   // What no kept path reaches may change.
   assert.deepEqual(
     changed(
@@ -305,29 +310,44 @@ test("along a kept path, a shape holds each step its last shape holds", () => {
     changed(moved(meta(true), "meta/created"), walked),
     changedSchema("meta/created"),
   );
-  // A parent a shape allows to be null holds its path, which reads a null as stored;
-  // one that was a scalar doesn't.
+  // A type list reads as a set: a `*` takes the items of a list a shape allows to be
+  // null, whose null reads as stored, in whatever order its types are listed.
   assert.deepEqual(
     changed(
-      moved(() => {}, "reply/page"),
+      moved((fields) => (fields.nullable.type = ["null", "array"]), "nullable/*/page"),
       walked,
     ),
     none,
   );
+  // Every shape a reader may meet holds the path, not only the last one: a key whose
+  // type changed in an earlier shape, before any shape kept it, can't be kept.
   assert.deepEqual(
     changed(
-      moved(
-        (fields) =>
-          (fields.size = {
-            type: "object",
-            properties: { count: { type: "integer" } },
-          }),
-        "size/count",
-      ),
+      moved(() => {}, "opened/at"),
       walked,
     ),
-    changedSchema("size/count"),
+    changedSchema("opened/at", 2),
   );
+});
+
+test("the baseline keeps every earlier shape of a record, adding one as since moves", () => {
+  const schemas = (since) => ({
+    ...structuredClone(baseline),
+    records: { claim: { ...structuredClone(baseline.records.claim), since } },
+    served: {},
+    verb: {},
+    widget: {},
+  });
+  const held = structuredClone(baseline);
+  held.records.claim.earlier = [{ since: 2, schema: { type: "object" } }];
+  assert.deepEqual(
+    baselineSchemas(schemas(3), held).records.claim.earlier,
+    held.records.claim.earlier,
+  );
+  assert.deepEqual(baselineSchemas(schemas(4), held).records.claim.earlier, [
+    ...held.records.claim.earlier,
+    { since: 3, schema: baseline.records.claim.schema },
+  ]);
 });
 
 test("an annotation changes nothing, at any depth", () => {

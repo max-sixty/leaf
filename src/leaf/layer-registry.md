@@ -96,8 +96,8 @@ event over as logged, with no handling clause. So a new kind declares `skippable
 that leaves an older Leaf's reading right, and bumps otherwise.
 
 `build/browser/protocol-baseline.json` keeps `$events`, each `state.Record` schema with
-the keys it keeps, and the composer's draft as they stood at the current number, and
-the build
+the keys it keeps and its earlier shapes, and the composer's draft as they stood at the
+current number, and the build
 (`build/browser/protocol.mjs`) refuses any change to an event record beyond its
 annotations, or a new kind not declared `skippable`, until the number moves.
 
@@ -111,11 +111,12 @@ protocol first where `since` already names it, and the build refuses a shape cha
 the same `since` or a `since` moved anywhere else. Each kind declares the keys every
 shape keeps (`state.Record.kept`), and any Leaf reads those keys whichever Leaf wrote
 the record (`state.Record.read_any`); it treats the rest of a record at another format
-as absent. The build refuses a shape that drops one of those keys, or changes along
-its path what a reader of the last shape relied on: a value's type, whether a `*`
-takes a list's items or a map's values, whether a key is required, or the kept key's
-schema. So a key the last shape lacked is optional, and a kept key's `anyOf` may still
-gain variants, as a new kind of session lifetime does. Every write replaces a
+as absent. A reader may meet a record of any shape its kind has had, which the
+baseline keeps, so the build refuses a shape that drops one of those keys, or changes
+along its path what a reader of any earlier shape relied on: a value's types, whether
+a `*` takes a list's items or a map's values, whether a key is required, or the kept
+key's schema. So a key an earlier shape lacked is optional, and a kept key's `anyOf`
+may still gain variants, as a new kind of session lifetime does. Every write replaces a
 record whole, so an older Leaf's write drops the fields a newer shape added, and a new
 shape adds no field whose loss would change what the record grants or means. A value
 a Leaf doesn't know in a kept key, such as a later Leaf's harness or lifetime kind,

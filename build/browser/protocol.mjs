@@ -1,19 +1,20 @@
 /** Which schema changes move the page protocol, or a record's `since`
  * (`layer-registry.md`, "Page protocol").
  *
- * `protocol-baseline.json` holds each schema as it last stood (`baselineSchemas`), and
- * `build.mjs` moves it forward after each build `protocolBreaks` finds nothing in. At
- * the same protocol, every event record and `$events.ownership` stays as it was, apart
- * from its annotations, and every kind stays; a new kind may join only where it
- * declares `skippable`, since a Leaf that skips it still reads the rest of the log
- * rightly. A `state.Record` changes its schema, apart from its annotations, only by
- * setting its `since` to the current protocol. Every Leaf reads a record's kept keys
- * whichever Leaf wrote it (`state.Record.kept`), so a key once kept stays kept, and
- * along each kept path a new shape holds what a reader of its last shape relied on
- * (`projection`): each step the last shape holds keeps its type, its key and whether
- * that key is required, so a key the last shape lacked is optional, and the kept key
- * keeps its schema, though its `anyOf` may gain variants, which an older Leaf reads
- * as it reads any value it doesn't know (`layer-registry.md`, "Page protocol").
+ * `protocol-baseline.json` holds each schema as it last stood, and each record's
+ * earlier shapes (`baselineSchemas`), and `build.mjs` moves it forward after each
+ * build `protocolBreaks` finds nothing in. At the same protocol, every event record
+ * and `$events.ownership` stays as it was, apart from its annotations, and every kind
+ * stays; a new kind may join only where it declares `skippable`, since a Leaf that
+ * skips it still reads the rest of the log rightly. A `state.Record` changes its
+ * schema, apart from its annotations, only by setting its `since` to the current
+ * protocol. Every Leaf reads a record's kept keys whichever Leaf wrote it, in any shape
+ * the kind has had (`state.Record.kept`), so a key once kept stays kept, and along
+ * each kept path a shape holds what a reader of every shape it may meet relied on
+ * (`projection`): each step that shape holds keeps its types, its key and whether that
+ * key is required, so a key it lacked is optional, and the kept key keeps its schema,
+ * though its `anyOf` may gain variants, which an older Leaf reads as it reads any value
+ * it doesn't know (`layer-registry.md`, "Page protocol").
  *
  * Equality, rather than a field-by-field comparison of what each side accepts, costs
  * a bump or a `since` move for an added optional field; Leaf spends no code on
@@ -64,17 +65,18 @@ function widens(was, now) {
 
 // What a reader of the kept path `path` (`a/*/b`, `*` for each item of a list or value
 // of a map) relies on in a record's schema, as far as the schema holds the path: at
-// each step, the type it leaves, the key it takes (`items` or `additionalProperties`
-// for a `*`) and whether that key is required; and the kept key's schema (`leaf`)
-// where the schema holds the whole path. A path ending at a `*` has none, since `a/*`
-// would keep what `a` keeps.
+// each step, the types it leaves as a set, the key it takes (`items` where those types
+// include a list, else `additionalProperties`, for a `*`) and whether that key is
+// required; and the kept key's schema (`leaf`) where the schema holds the whole path.
+// A path ending at a `*` has none, since `a/*` would keep what `a` keeps.
 function projection(schema, path) {
   const steps = [];
   let node = schema;
   for (const step of path.split("/")) {
+    const type = [node.type ?? []].flat().sort();
     const takes =
-      step !== "*" ? step : node.type === "array" ? "items" : "additionalProperties";
-    steps.push({ type: node.type, takes, required: !!node.required?.includes(step) });
+      step !== "*" ? step : type.includes("array") ? "items" : "additionalProperties";
+    steps.push({ type, takes, required: !!node.required?.includes(step) });
     node = step === "*" ? node[takes] : node.properties?.[step];
     if (node === undefined) return { steps };
   }
@@ -91,13 +93,24 @@ const holds = (was, now) =>
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
  * served state, the verb (`verbs`) and the widget declaration schema, which only the
- * generated types read. */
-export const baselineSchemas = ({
-  served: _served,
-  verb: _verb,
-  widget: _widget,
-  ...held
-}) => held;
+ * generated types read; and of each record, beside its shape, every earlier shape a
+ * reader may meet (`earlier`), which takes `baseline`'s shape where `since` moved. */
+export function baselineSchemas(
+  { served: _s, verb: _v, widget: _w, ...held },
+  baseline,
+) {
+  for (const [kind, record] of Object.entries(held.records)) {
+    const last = baseline.records[kind];
+    const earlier = [
+      ...(last?.earlier ?? []),
+      ...(last && last.since !== record.since
+        ? [{ since: last.since, schema: last.schema }]
+        : []),
+    ];
+    if (earlier.length) held.records[kind] = { ...record, earlier };
+  }
+  return held;
+}
 
 /** Each change from `baseline` to `current` that needs the protocol or a record's
  * `since` to move, as lines naming what changed; none where nothing does. `baseline`
@@ -123,12 +136,20 @@ export function protocolBreaks(baseline, current) {
     current.records,
   )) {
     const before = baseline.records[kind];
+    const shapes = before ? [before, ...(before.earlier ?? [])] : [];
     for (const path of keeps) {
       const now = projection(schema, path);
-      if (now.leaf === undefined)
+      if (now.leaf === undefined) {
         refused.push(`record ${kind}: kept ${path} is not in its schema`);
-      else if (before && !holds(projection(before.schema, path), now))
-        refused.push(`record ${kind}: kept ${path} changed its schema`);
+        continue;
+      }
+      const broken = shapes.find(
+        (shape) => !holds(projection(shape.schema, path), now),
+      );
+      if (broken)
+        refused.push(
+          `record ${kind}: kept ${path} changed its schema from its shape at since ${broken.since}`,
+        );
     }
     for (const path of before?.kept ?? [])
       if (!keeps.includes(path))

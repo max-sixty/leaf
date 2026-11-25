@@ -162,7 +162,7 @@ async function litModule() {
 }
 
 // Every schema a page's log at the current protocol relies on, and every record's,
-// as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
+// as it last stood and in each earlier shape (`protocol.mjs`). It is an output, so a build that passes moves it
 // forward. A build refuses a change to it at the same protocol.
 const baselineName = "build/browser/protocol-baseline.json";
 
@@ -182,7 +182,7 @@ function layout(value, depth, indent = "") {
 async function protocolOutputs() {
   const schemas = await protocolSchemas(new URL("../../", import.meta.url));
   const baseline = JSON.parse(await readFile(path.join(root, baselineName), "utf8"));
-  const held = baselineSchemas(schemas);
+  const held = baselineSchemas(schemas, baseline);
   const refused = protocolBreaks(baseline, held);
   if (refused.length)
     throw new Error(

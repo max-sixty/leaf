@@ -13,17 +13,6 @@
   {
     "type": "dependency",
     "from": "browser/runtime/current-target.js",
-    "to": "browser/runtime/keyboard/bindings.js",
-    "unresolvedTo": "./keyboard/bindings.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/current-target.js",
     "to": "browser/runtime/thread/model.js",
     "unresolvedTo": "./thread/model.js",
     "dependencyTypes": ["local", "import"],
@@ -78,39 +67,6 @@
   },
   {
     "type": "dependency",
-    "from": "browser/runtime/framework/application.js",
-    "to": "browser/runtime/thread/identity.js",
-    "unresolvedTo": "../thread/identity.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/framework/application.js",
-    "to": "browser/runtime/thread/model.js",
-    "unresolvedTo": "../thread/model.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/geometry.js",
-    "to": "browser/runtime/keyboard/layer-stack.js",
-    "unresolvedTo": "./keyboard/layer-stack.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "browser/runtime/history.js",
     "to": "browser/runtime/thread/reply-landing.js",
     "unresolvedTo": "./thread/reply-landing.js",
@@ -125,94 +81,6 @@
     "from": "browser/runtime/history.js",
     "to": "browser/runtime/thread/selectors.js",
     "unresolvedTo": "./thread/selectors.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/keyboard/command-reference.js",
-    "to": "browser/runtime/composing/capture.js",
-    "unresolvedTo": "../composing/capture.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/keyboard/go-to-sequence.js",
-    "to": "browser/runtime/thread/focus.js",
-    "unresolvedTo": "../thread/focus.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/keyboard/page.js",
-    "to": "browser/runtime/composing/capture.js",
-    "unresolvedTo": "../composing/capture.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/keyboard/page.js",
-    "to": "browser/runtime/thread/focus.js",
-    "unresolvedTo": "../thread/focus.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/keyboard/page.js",
-    "to": "browser/runtime/thread/landing.js",
-    "unresolvedTo": "../thread/landing.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/media.js",
-    "to": "browser/runtime/keyboard/layer-stack.js",
-    "unresolvedTo": "./keyboard/layer-stack.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/media.js",
-    "to": "browser/runtime/keyboard/scopes.js",
-    "unresolvedTo": "./keyboard/scopes.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/notifications.js",
-    "to": "browser/runtime/keyboard/control-keys.js",
-    "unresolvedTo": "./keyboard/control-keys.js",
     "dependencyTypes": ["local", "import"],
     "rule": {
       "severity": "error",
@@ -244,52 +112,8 @@
   {
     "type": "dependency",
     "from": "browser/runtime/obligations/view.js",
-    "to": "browser/runtime/keyboard/bindings.js",
-    "unresolvedTo": "../keyboard/bindings.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/obligations/view.js",
-    "to": "browser/runtime/keyboard/scopes.js",
-    "unresolvedTo": "../keyboard/scopes.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/obligations/view.js",
     "to": "browser/runtime/thread/held-news.js",
     "unresolvedTo": "../thread/held-news.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/pending/dispatch.js",
-    "to": "browser/runtime/thread/messages.js",
-    "unresolvedTo": "../thread/messages.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/pending/model.js",
-    "to": "browser/runtime/thread/identity.js",
-    "unresolvedTo": "../thread/identity.js",
     "dependencyTypes": ["local", "import"],
     "rule": {
       "severity": "error",
@@ -301,6 +125,17 @@
     "from": "browser/runtime/projection/presentation.js",
     "to": "browser/runtime/thread/messages.js",
     "unresolvedTo": "../thread/messages.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "layering"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "browser/runtime/reactions.js",
+    "to": "browser/runtime/annotation-inventory.js",
+    "unresolvedTo": "./annotation-inventory.js",
     "dependencyTypes": ["local", "import"],
     "rule": {
       "severity": "error",
@@ -323,50 +158,6 @@
     "from": "browser/runtime/reactions.js",
     "to": "browser/runtime/composing/selection.js",
     "unresolvedTo": "./composing/selection.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/sample-child.js",
-    "to": "browser/runtime/composing/page-image.js",
-    "unresolvedTo": "./composing/page-image.js",
-    "dependencyTypes": ["local", "dynamic-import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/walk-position.js",
-    "to": "browser/runtime/keyboard/bindings.js",
-    "unresolvedTo": "./keyboard/bindings.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/widget-elements.js",
-    "to": "browser/runtime/keyboard/layer-stack.js",
-    "unresolvedTo": "./keyboard/layer-stack.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/widget-elements.js",
-    "to": "browser/runtime/keyboard/scopes.js",
-    "unresolvedTo": "./keyboard/scopes.js",
     "dependencyTypes": ["local", "import"],
     "rule": {
       "severity": "error",

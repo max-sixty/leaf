@@ -73,10 +73,10 @@ from pathlib import Path
 from leaf.event_log import read_events
 from leaf.findings import Finding
 from leaf.harness import detached_environment
+from leaf.page_inputs import source_readings
 from leaf.presence import claimant_reading
-from leaf.revision_artifact import read_artifact
+from leaf.revision_artifact import read_artifact, version_written
 from leaf.revisioning import activate_source
-from leaf.served_state.reading import source_readings, version_written
 from leaf.service import PageTransaction, requires_agent_attention
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
 

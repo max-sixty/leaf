@@ -482,7 +482,7 @@ def _lines(sid: str, page_dir, looked: dict) -> list[dict]:
     """The line forks to list for the page (`forks.look`), read again only once the
     page's reading has moved, from the seq the follower's first look took."""
     from .forks import look
-    from .served_state.reading import page_reading
+    from .page_inputs import page_reading
 
     try:
         stamp = page_reading(page_dir)

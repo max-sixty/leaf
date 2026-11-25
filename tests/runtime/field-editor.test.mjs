@@ -638,6 +638,15 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
     ["Delete before a new item", "- A\n- \n- C", 3, "⌦", "- A\n- C"],
     ["Delete on a first, empty item", "- \n- B", 2, "⌦", "- B"],
     ["Delete on an empty item above a space", "- \n ", 2, "⌦", " "],
+    ["not where two lists would join", "1. a\n> \n1. b", 7, "⌦", "1. a\n> \n1. b"],
+    [
+      "Delete joins a paragraph's first line to a heading",
+      "# A\nB\nC",
+      3,
+      "⌦",
+      "# AB\nC",
+    ],
+    ["Backspace at a quoted item below an item", "- A\n> - B", 8, "⌫", "- A\n> B"],
     // Code, its fence and a rule stay whole.
     ["Backspace at code's first line", CODE, CODE.indexOf("x = 1"), "⌫", CODE],
     [
@@ -746,6 +755,7 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
     ],
     ["Return inside an entity", "Fish &amp; chips", 7, "⏎", "Fish &amp;\\\n chips"],
     ["Return among a task's markers", "- [ ] task", 3, "⏎", "- \n- [ ] task"],
+    ["Return before a heading's closing marks", "# Hello #", 7, "⏎", "# Hello #\n"],
     ["Return before marks the words show", "foo_bar_", 3, "⏎", "foo\\\n\\_bar_"],
     [
       "not where the heading's words would read as a table's header",
@@ -792,6 +802,7 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
     ["typing after a hard break at the draft's end", "A\\\n", 3, "x", "A\\\nx"],
     ["typing a heading's mark after it", "A\\\n", 3, "=", "A\\\n\\="],
     ["typing an item's marker after it", "A\\\n", 3, "1. hi", "A\\\n1\\. hi"],
+    ["typing a link after it", "A\\\n", 3, "[a](u)", "A\\\n[a](u)"],
   ]) {
     const field = await draftField(source, caret, false);
     assert.equal(field.type(keys), expected, name);
@@ -803,21 +814,31 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
   assert.equal((await draftField("a\n\nb", 2, true)).type("Z"), "a\nZ\nb");
   assert.equal((await draftField("a\n\nb", 3, true)).type("⌫"), "a\nb");
   assert.equal((await draftField("a\n\nb", 1, true)).type("⌦"), "a\nb");
-  // Pasted paragraphs stand apart from those beside the gap, and a pasted item after a
-  // hard break stays its list's.
+  assert.equal((await draftField("a\n    \n# H", 6, true)).type("⌦"), "a\n# H");
+  // Pasted paragraphs stand apart from those beside the gap, as does a pasted heading
+  // from a paragraph a hard break ends, and a pasted item after a hard break stays its
+  // list's.
   assert.equal(
     (await draftField("A\n\nB", 2, false)).paste("one\n\ntwo"),
     "A\n\none\n\ntwo\n\nB",
+  );
+  assert.equal(
+    (await draftField("A  \n", 4, false)).paste("word\n---"),
+    "A  \n\nword\n---",
   );
   assert.equal(
     (await draftField("- first\\\n  Next", 8, false)).paste("one\n- two"),
     "- firstone\n- two\\\n  Next",
   );
   // Return with a task's first words selected takes them, and its box stays with the
-  // words after.
+  // words after,
   const task = await draftField("- [x] Foo Bar", 6, false);
   task.view.dispatch({ selection: { anchor: 6, head: 9 } });
   assert.equal(task.type("⏎"), "- \n- [x]  Bar");
+  // and with an entity selected takes the character it shows.
+  const entity = await draftField("A&copy;B", 1, false);
+  entity.view.dispatch({ selection: { anchor: 1, head: 7 } });
+  assert.equal(entity.type("⏎"), "A\\\nB");
   // A list after a paragraph takes a blank line before the empty item opened above.
   const under = await draftField("Para\n- [x] Foo", 11, false);
   assert.equal(under.type("⏎"), "Para\n\n- \n- [x] Foo");

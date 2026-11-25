@@ -1539,20 +1539,14 @@ function fieldEditor(
       return true;
     // Inside a heading's words the words after the break leave it, a paragraph below it,
     // past a setext heading's underline, which stays with the words before; after them,
-    // Return acts below the underline.
-    const underline =
-      block && isBlockPlacement(block, "heading_open")
-        ? block.markers.find(([a]) => a > line.to)
-        : undefined;
-    if (underline && from === to && from >= parts.end)
-      return actAt(state.doc.lineAt(underline[0]).to);
+    // Return acts below the underline, or past a heading's closing `#`s.
+    const heading =
+      block && isBlockPlacement(block, "heading_open") ? block : undefined;
+    const underline = heading?.markers.find(([a]) => a > line.to);
+    if (heading && from === to && from >= parts.end && (underline || from < line.to))
+      return actAt(underline ? state.doc.lineAt(underline[0]).to : line.to);
     const prefix = containers.map(carried).join("");
-    if (
-      block &&
-      isBlockPlacement(block, "heading_open") &&
-      from === to &&
-      from > parts.words
-    ) {
+    if (heading && from === to && from > parts.words) {
       const close = underline ? state.doc.lineAt(underline[0]) : line;
       const end = underline ? close.from - 1 : line.to;
       const rest = state.sliceDoc(from, end);
@@ -1941,16 +1935,23 @@ function fieldEditor(
   // Whether the draft `changes` leave reads as before, apart from what the edit means to
   // change: the check every edit a key makes at the edge of a line's shown words passes
   // (`deleteAtEdge`, `escapedWhere`). A key proposes its candidate edits in order, and
-  // the first that passes is made. The draft passes where it shows each character it
-  // showed, whitespace aside, except those the changes take from the source and don't
-  // put back; where it shows no character it didn't, except those the user put,
-  // `typed`; and where the leaf blocks ending above the first line the changes touch,
-  // and those starting below the last, keep their kinds, depths and lines. So an edit
-  // never turns markup into words, as a hard break left at a paragraph's end shows as
-  // `\`, never takes a word, and never changes a block beyond the lines it edits, as
-  // words that a paragraph above would take in, or a `---` that the words above would
-  // make a heading's underline. A block's end past the draft's, where it takes in the
-  // word a bare last line is read as holding (`read`), counts as the draft's end.
+  // the first that passes is made.
+  // - The blocks beside the lines the changes touch read as they did: each block ending
+  //   above the first of them, a list, quote or item as much as a paragraph, keeps its
+  //   kind, depth and lines, and each ending below the last still ends there, of the
+  //   same kind and depth. One starting below them keeps its start too, unless it is
+  //   what is left of a block that held part of those lines, as the paragraph's lines
+  //   after one that Delete joins to a heading above.
+  // - The draft shows no character it didn't, except those the user put, `typed`.
+  // - It shows each character it showed, except those the changes take from the source
+  //   and don't put back, and except those typing hides, as a `)` typed after
+  //   `[link](url` makes a link of them.
+  // So an edit never turns markup into words, as a hard break left at a paragraph's end
+  // shows as `\`, never takes a word, and never changes a block beyond the lines it
+  // edits, as words that a paragraph above would take in, a `---` that the words above
+  // would make a heading's underline, or two lists that a line between them kept apart.
+  // A block's end past the draft's, where it takes in the word a bare last line is read
+  // as holding (`read`), counts as the draft's end.
   /** @param {EditorState} state @param {Changes} changes @param {string} [typed] */
   function keeps(state, changes, typed = "") {
     const doc = changes.apply(state.doc);
@@ -1965,38 +1966,65 @@ function fieldEditor(
       put += inserted.toString();
     });
     if (endA < 0) return true;
+    // Each block beside the lines from `from` to `to`, as its kind, depth and end, and
+    // its start where it starts outside them: those ending above, those starting below,
+    // and those starting among them or above and ending below.
     /** @param {Placement[]} placed @param {import("@codemirror/state").Text} text
      * @param {number} from @param {number} to @param {(at: number) => number} place */
     const beside = (placed, text, from, to, place) => {
       const [first, last] = [text.lineAt(from).from, text.lineAt(to).to];
-      return placed
-        .filter(
-          ({ token, from: a, to: b }) =>
-            LEAF.test(token.type) && a < text.length && (b <= first || a > last),
-        )
-        .map(
-          ({ token, from: a, to: b }) =>
-            `${token.type} ${token.level} ${place(a)} ${place(Math.min(b, text.length))}`,
-        )
-        .join();
+      /** @type {string[]} */
+      const above = [];
+      /** @type {string[]} */
+      const below = [];
+      /** @type {string[]} */
+      const ends = [];
+      for (const { token, from: a, to: b } of placed) {
+        if (!(LEAF.test(token.type) || CONTAINER.test(token.type)) || a >= text.length)
+          continue;
+        const kind = `${token.type} ${token.level} ${place(Math.min(b, text.length))}`;
+        if (b <= first) above.push(`${kind} ${a}`);
+        else if (b > last + 1 && a > last) below.push(`${kind} ${place(a)}`);
+        else if (b > last + 1) ends.push(kind);
+      }
+      return { above: above.join(), below, ends };
     };
-    if (
-      beside(state.field(reading).placed, state.doc, startA, endA, (at) =>
-        at > endA ? changes.mapPos(at) : at,
-      ) !== beside(readSource(source, inMessage), doc, startB, endB, (at) => at)
-    )
-      return false;
+    const was = beside(state.field(reading).placed, state.doc, startA, endA, (at) =>
+      at > endA ? changes.mapPos(at) : at,
+    );
+    const is = beside(readSource(source, inMessage), doc, startB, endB, (at) => at);
+    if (was.above !== is.above) return false;
+    /** @param {string[]} list @param {string} entry */
+    const take = (list, entry) => {
+      const at = list.indexOf(entry);
+      return at >= 0 && list.splice(at, 1).length > 0;
+    };
+    // A block starting below that didn't is what is left of one that ended there.
+    for (const entry of is.below)
+      if (
+        !take(was.below, entry) &&
+        !take(was.ends, entry.slice(0, entry.lastIndexOf(" ")))
+      )
+        return false;
+    for (const entry of is.ends) if (!take(was.ends, entry)) return false;
+    if (was.below.length || was.ends.length) return false;
     const before = shownCharacters(state.doc.toString(), inMessage);
     const after = shownCharacters(source, inMessage);
-    const [gone, added, own] = [counted(taken), counted(put), counted(typed)];
+    const own = counted(typed);
+    for (const [ch, n] of after)
+      if (n - (before.get(ch) ?? 0) > (own.get(ch) ?? 0)) return false;
+    if (typed) return true;
+    // What the source taken shows, as `©` for `&copy;`, goes with it.
+    const gone = counted(taken);
+    for (const [ch, n] of counted(markdownWords(taken, inMessage)))
+      gone.set(ch, Math.max(n, gone.get(ch) ?? 0));
+    const added = counted(put);
     for (const [ch, n] of before)
       if (
         n - (after.get(ch) ?? 0) >
         Math.max(0, (gone.get(ch) ?? 0) - (added.get(ch) ?? 0))
       )
         return false;
-    for (const [ch, n] of after)
-      if (n - (before.get(ch) ?? 0) > (own.get(ch) ?? 0)) return false;
     return true;
   }
 
@@ -2194,9 +2222,10 @@ function fieldEditor(
   // what stays quoted. A setext heading's underline goes with its line. A line the
   // paragraph above would then take in as its own words (`keeps`) stands apart from it:
   // an item's after a hard break, on a line of its own in the item above, as a rich
-  // editor keeps a line whose bullet goes in its list; any other after a blank line.
-  // Where no break the whole draft reads as one fits, as before a rule's marks, the
-  // marker stays.
+  // editor keeps a line whose bullet goes in its list; any other, and an item's where
+  // no break the whole draft reads as one fits, after a blank line. Where none of these
+  // keeps the draft, as for an item's words that would read as a rule, the marker
+  // stays.
   /** @param {EditorState} state @param {LineParts & {own: [number, number]}} parts
    * @returns {Edit[][]} */
   function unwrap(state, parts) {
@@ -2224,31 +2253,31 @@ function fieldEditor(
         changes.push({ from: mark[0], to: mark[1] });
       }
     }
-    const above =
-      line.number > 1 ? lineParts(state, state.doc.line(line.number - 1)) : null;
-    if (
-      owner !== undefined &&
-      item(owner) &&
-      above?.block?.token.type === "paragraph_open" &&
-      !hardBreakBefore(state, line) &&
-      above.containers.some((c) => item(c) && c !== owner && c.from !== owner.from)
-    ) {
-      const broken = BREAKS.map((mark) => [
-        ...changes,
-        { from: above.end, to: above.line.to, insert: mark },
-      ]).find((edits) => {
-        const made = state.changes(edits);
-        const read = readSource(made.apply(state.doc).toString(), state.facet(message));
-        return breaksAt(read, made.mapPos(above.line.to, 1)) && keeps(state, made);
-      });
-      return broken ? [broken] : [];
-    }
     const carry = containers
       .filter((c) => c !== owner)
       .map(carried)
       .join("")
       .trimEnd();
-    return [changes, [...changes, { from: line.from, insert: `${carry}\n` }]];
+    const apart = [changes, [...changes, { from: line.from, insert: `${carry}\n` }]];
+    const above =
+      line.number > 1 ? lineParts(state, state.doc.line(line.number - 1)) : null;
+    if (
+      !owner ||
+      !item(owner) ||
+      above?.block?.token.type !== "paragraph_open" ||
+      hardBreakBefore(state, line) ||
+      !above.containers.some((c) => item(c) && c !== owner && c.from !== owner.from)
+    )
+      return apart;
+    const broken = BREAKS.map((mark) => [
+      ...changes,
+      { from: above.end, to: above.line.to, insert: mark },
+    ]).find((edits) => {
+      const made = state.changes(edits);
+      const read = readSource(made.apply(state.doc).toString(), state.facet(message));
+      return breaksAt(read, made.mapPos(above.line.to, 1)) && keeps(state, made);
+    });
+    return broken ? [broken, ...apart] : apart;
   }
 
   // Where taking `line` away starts: at the line break before it, and where that break
@@ -2412,10 +2441,25 @@ function fieldEditor(
     if (parts.bare)
       return below !== null && lineGone(line, { from: line.from, to: below.from });
     const { block, end } = parts;
-    // A blank line of a file goes whole, as Backspace takes it, so the line below keeps
-    // its start rather than taking the blank line's spaces, which can make it code.
-    if (!block && below && !line.text.trim())
-      return !state.facet(message) && [[{ from: line.from, to: below.from }]];
+    // A blank line goes whole, as Backspace takes it, so the line below keeps its start
+    // rather than taking the blank line's spaces, which can make it code, or keep a `#`
+    // from opening a heading. A message shows each line, so there it goes even where the
+    // blocks beside it then join, and the edit runs from the end of the block above, so
+    // the check sees the blocks it joins.
+    if (!block && below && !line.text.trim()) {
+      const { held } = nextHolding(state, line, false);
+      return [
+        [
+          state.facet(message) && held
+            ? {
+                from: held.to,
+                to: below.from,
+                insert: state.sliceDoc(held.to, line.from),
+              }
+            : { from: line.from, to: below.from },
+        ],
+      ];
+    }
     if (!block) return false;
     const hard = hardBreakBefore(state, line);
     if (
@@ -2518,17 +2562,25 @@ function fieldEditor(
       .trim();
     // Words on a line a hard break opens continue its paragraph, the first mark of the
     // line's words escaped where it would open a block there, as a space after `1.`
-    // would; words starting with no mark open none.
+    // would; a line of words starting with no mark opens none.
     if (hardBreakBefore(state, line)) {
       const { words } = lineParts(state, line);
       const start = Math.min(words, at);
-      if (firstMark(doc.sliceString(start, doc.lineAt(start).to)) === null)
+      if (
+        !put.includes("\n") &&
+        firstMark(doc.sliceString(start, doc.lineAt(start).to)) === null
+      )
         return { before: "", after: "", escape: null };
       const made = escapedWhere(
         state,
         state.changes({ from: at, insert: put }),
         start,
         put,
+        (read) =>
+          read.some(
+            ({ token, from: p, to: q }) =>
+              token.type === "paragraph_open" && p < line.from && at < q,
+          ),
       );
       if (made) return { before: "", after: "", escape: made.escape };
     }

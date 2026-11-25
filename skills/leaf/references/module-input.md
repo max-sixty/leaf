@@ -347,8 +347,7 @@ focus or scroll after the wait only where the user has done nothing since the ge
 that started it. The library's
 [`input-since.js`](../../../browser/runtime/lib/input-since.js) says so:
 `const intended = noInputSince()` in that gesture, and `intended()` after each wait.
-`threadActions.open` keeps the same rule itself (`module-annotations.md`, "Reading and
-opening Threads from a widget").
+`go` keeps the same rule itself (`module-reading.md`, "Taking the user somewhere").
 
 ### Pointer presses
 

@@ -18,7 +18,7 @@
  *
  * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
- * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
+ * navigator beside it lists them. A reveal of a binding (`go` with its key, a link to
  * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
  * the files, not a change to them, so it enters no log; a reload opens the one its
  * address names, else the first. Each file keeps its own text, selection, history and

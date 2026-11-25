@@ -32,7 +32,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-export { navigateToDatum } from "./application.js";
 // Hearing each move of the user's current location with its cause
 // (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
 // a press that lands away from a surface (`onPressAway`).
@@ -43,9 +42,9 @@ export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 export { readWork } from "./work.js";
-export { obligationActions } from "./application.js";
 export { readQueues } from "./queue-api.js";
 export {
+  go,
   placePageThreads,
   registerThreadPresentation,
   threadActions,
@@ -97,4 +96,3 @@ export async function mountSample(frame, options) {
   }
 }
 export { wear } from "./dress.js";
-export { landInThread } from "./application.js";

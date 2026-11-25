@@ -135,38 +135,17 @@ inside a datum. `prefix` and `suffix`, where the anchor has them, are the text b
 and after the quote, which tell two copies of the same words apart.
 [events.md](../../../src/leaf/events.md), "Anchors", defines every field.
 
-`landInThread(editor, {target, line})` enters an existing reply
-editor and records where Escape returns when the Thread has no own focus destination:
-`target` is the package's return element and `line` is its accessible return label.
-It returns whether it could land. Use `threadActions.open` below when starting from a
-Thread key rather than an editor already present.
+To take the user to a Thread, hand it to `go`
+([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)).
 
 `threadActions` acts on Threads through Leaf's own path, showing the result at once:
 
 ```js
 threadActions.create({ text, anchor, attempt });
-threadActions.open(thread.key, { part: "thread" });
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
 threadActions.setReaction(thread.key, agentMessage.key, token, true);
-```
-
-`open(key, {part, focus, travel, message})` takes the user to the Thread wherever a
-margin mark would: the page's primary reader ("Owning the primary conversation
-presentation"), which is the Leaf panel unless a package registers one. `part` is
-`"thread"` for the card, `"reply"` for the reply editor, or `"message"` with
-`message: message.key` for one message; with none it lands as opening a thread does, in
-the reply after a press and on the thread after a key. `travel: false` keeps the page where it is, and
-`focus: false` leaves focus alone. It resolves to the element it landed on, or `null` if
-the Thread is gone or the user has done something else. To act on that element
-afterwards, such as selecting the reply text, check it still has focus:
-
-```js
-const editor = await threadActions.open(thread.key, { part: "reply" });
-if (editor?.matches(":focus") && editor.setSelectionRange) {
-  editor.setSelectionRange(0, editor.value.length);
-}
 ```
 
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the Thread doesn't

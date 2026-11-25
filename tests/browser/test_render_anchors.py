@@ -108,7 +108,7 @@ def thread_head(page, thread_id):
     """Open the thread in the panel, once the page reads it, and return the head of
     its view, which names what the thread is about: the quoted words and a label of
     where they stand. The tab chooses the panel for threads, and the thread opens by
-    its route without travel (`threadActions.open`), so reading its head moves and
+    its route without travel (`go`), so reading its head moves and
     reveals nothing on the page, as a row of Threads, which travels to the passage,
     would."""
     page.evaluate(
@@ -123,7 +123,7 @@ def thread_head(page, thread_id):
         """async (id) => {
           const api = window.__lfThreadsApi;
           const thread = api.readThreads().threads.find((t) => t.id === id);
-          await api.threadActions.open(thread.key, { part: "thread", travel: false });
+          await api.go(thread, { part: "thread", travel: false });
         }""",
         thread_id,
     )

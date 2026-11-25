@@ -82,13 +82,12 @@ In [module-reading.md](module-reading.md):
   `elementById` finds the element an address names.
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
-- "Following a reference": `navigateToDatum` takes the user to a part of another
-  widget.
+- "Taking the user somewhere": `go`.
 - "Markdown": `pageLinks`.
 - "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
-- "Reading obligations and the On lists": `readObligations`, `readQueues`,
-  `answerWords` and `obligationActions`.
+- "Reading obligations and the On lists": `readObligations`, `readQueues` and
+  `answerWords`.
 - "Work hierarchies": `readWork`.
 - "Page history and reports": `readHistory` and `readReports`.
 - "Reading version changes": `comparisonChanges`.
@@ -112,8 +111,7 @@ In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
-- "Reading and opening Threads from a widget": `readThreads`, `threadActions` and
-  `landInThread`.
+- "Reading and opening Threads from a widget": `readThreads` and `threadActions`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.

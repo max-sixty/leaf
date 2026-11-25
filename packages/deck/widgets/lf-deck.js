@@ -22,7 +22,7 @@
  * carries it. Where neither the address nor the tab names a card, the deck opens on the
  * first that waits once the first reading is in. Inactive cards are
  * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
- * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
+ * `go({within})`) open the card holding what they reach (`beforematch`); `m`
  * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
  * for the end of the pass. Leaf's Undo travels to the answer it takes back before
  * taking it, which opens its card the same way, so the deck has no Undo of its own.
@@ -66,8 +66,8 @@ import {
   answerWords,
   focusDestination,
   keepView,
+  go,
   motion,
-  obligationActions,
   openingView,
   viewMembers,
   nameOf,
@@ -496,7 +496,7 @@ customElements.define(
       }
       const items = readObligations(card);
       const waiting = items.phase === "ready" ? items.user[0] : undefined;
-      if (waiting) obligationActions.open(waiting.id);
+      if (waiting) go(waiting);
       else focusDestination(card, "move");
     }
 

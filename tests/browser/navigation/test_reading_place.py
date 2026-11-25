@@ -524,7 +524,7 @@ def test_history_returns_a_widgets_named_control_across_a_revision(
 # does, so a part of another item is in no element until its item is drawn, and every
 # item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,
 # through the hooks every route reads (anchor-resolution.js, `revealAddressed` and
-# `addressedElements`); a referrer travels to one with `navigateToDatum`.
+# `addressedElements`); a referrer travels to one with `go`.
 ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
@@ -580,7 +580,7 @@ customElements.define('lf-items', class extends HTMLElement {
 });
 """,
     "lf-item-link.js": """
-import {navigateToDatum} from '/runtime/widget-api.js';
+import {go} from '/runtime/widget-api.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-item-link', class extends HTMLElement {
   connectedCallback() {
@@ -588,7 +588,7 @@ customElements.define('lf-item-link', class extends HTMLElement {
     const button = document.createElement('button');
     button.textContent = `Open ${this.getAttribute('key')}`;
     button.addEventListener('click', () =>
-      navigateToDatum(this, 'for', this.getAttribute('key')));
+      go(document.getElementById(this.getAttribute('for')), {key: this.getAttribute('key')}));
     this.append(button);
   }
 });
@@ -600,7 +600,7 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     """A URL fragment names a part of a widget by the widget's id and a key, which the
     widget draws however the URL is reached. A fresh load, a followed link, and Back and
     Forward to an entry whose item the user has since left land on the part; a reload of
-    the URL `navigateToDatum` writes draws its item under the restored offset."""
+    the URL `go` writes draws its item under the restored offset."""
     url = live_url(
         serve(
             leaf_page(

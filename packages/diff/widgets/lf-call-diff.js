@@ -15,7 +15,7 @@
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user on it. */
 import { html, render, nothing } from "/vendor/lit.js";
-import { navigateToDatum } from "/runtime/widget-api.js";
+import { elementById, go } from "/runtime/widget-api.js";
 import { setChildLists, setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { el } from "/runtime/lib/elements.js";
@@ -185,7 +185,10 @@ async function travelToLine(owner, record) {
     record.status === "removed" ? "old" : "new",
     location.line,
   );
-  return navigateToDatum(owner, "diff", key, {
+  const diff = elementById(owner.getAttribute("diff"), owner);
+  if (!diff) return false;
+  return go(diff, {
+    key,
     success: `Opened ${location.text} in the exact patch`,
     missing: `${location.text} is not present in the exact patch`,
   });

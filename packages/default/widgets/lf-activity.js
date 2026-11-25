@@ -21,7 +21,7 @@ import { createActivity } from "./activity-view.js";
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
  * so the browser owns that travel as it does for lf-toc, and a thread is a button
- * onto `threadActions.open`, which chooses the thread's inline destination or Threads the same
+ * onto `go`, which chooses the thread's inline destination or Threads the same
  * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
  * and a go-to target.
  *
@@ -40,7 +40,7 @@ import {
   elementById,
   layerFact,
   nameOf,
-  threadActions,
+  go,
   readThreads,
   readHistory,
 } from "/runtime/widget-api.js";
@@ -169,7 +169,7 @@ customElements.define(
         names: elementById,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);
-          if (thread) void threadActions.open(thread.key, { part: "thread" });
+          if (thread) void go(thread, { part: "thread" });
         },
       });
     }

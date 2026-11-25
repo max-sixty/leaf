@@ -1486,12 +1486,13 @@ PILOT_PURGE = """<lf-pilot id="pilot-purge">
 </lf-pilot>"""
 
 
-def deciding_verb(outcomes):
-    """The one verb whose `outcome` settles which of a holder's slots retire."""
+def deciding_verb(decides):
+    """The one verb whose `outcome` settles which of a holder's slots retire: each
+    outcome with the slot tags it takes off the page."""
     return {
-        "decides": True,
+        "decides": decides,
         "detail": {
-            "properties": {"outcome": {"enum": outcomes}},
+            "properties": {"outcome": {"enum": list(decides)}},
             "required": ["outcome"],
         },
         "unit": "widget",
@@ -1520,25 +1521,26 @@ def trial_family(root: Path) -> None:
         add_test_widget(package, tag, upgrade=upgrade)
     source = package / "registry.json"
     declarations = json.loads(source.read_text())
-    for tag, outcomes, example in (
-        ("lf-trial", ["adopt", "shelve", "pause"], TRIAL_CACHE),
-        ("lf-pilot", ["run", "shelve"], PILOT_PURGE),
+    for tag, decides, example in (
+        (
+            "lf-trial",
+            {"adopt": ["lf-current"], "shelve": ["lf-proposed"], "pause": []},
+            TRIAL_CACHE,
+        ),
+        ("lf-pilot", {"run": [], "shelve": ["lf-proposed"]}, PILOT_PURGE),
     ):
         declarations[tag] |= {
             "content": "members",
-            "verbs": {"decide": deciding_verb(outcomes)},
+            "verbs": {"decide": deciding_verb(decides)},
             "example": example,
         }
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
-    for tag, owners, outcome in (
-        ("lf-current", ["lf-trial"], "adopt"),
-        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
+    for tag, owners in (
+        ("lf-current", ["lf-trial"]),
+        ("lf-proposed", ["lf-trial", "lf-pilot"]),
     ):
-        declarations[tag] |= {
-            "owners": owners,
-            "retired-when": outcome,
-        }
+        declarations[tag] |= {"owners": owners}
         del declarations[tag]["example"]  # a slot does not stand alone
         del declarations[tag]["attributes"]["required"]  # nor an id it must carry
     source.write_text(json.dumps(declarations))

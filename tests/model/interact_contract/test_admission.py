@@ -130,7 +130,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     assert action["meaning"]["state"]["decides"] is False
 
     # Reusing the verb as a whole-widget decision does not reinterpret that answer.
-    entry["verbs"]["review"] |= {"unit": "widget", "decides": True}
+    entry["verbs"]["review"] |= {"unit": "widget", "decides": {"pass": [], "fail": []}}
     validate_registry(registry, "revised review package")
     assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
 

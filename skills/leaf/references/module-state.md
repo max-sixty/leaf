@@ -35,7 +35,7 @@ runs off Leaf") or on an element with no `id`, Leaf sets no `state` and an `lf-a
 records nothing, so a widget that also runs there draws its markup. A member the user adds through a `creates` verb, such as a new option, has
 none either; its parent draws it from its own state. Leaf itself draws what the
 declaration alone decides, such as hiding a suggestion's `lf-old` once it is accepted
-(`retired-when`).
+(`decides`).
 
 A widget that shows another widget's answer, as a board card stands in the column
 of a pick, reads what that widget draws of its state: the attribute its verb's

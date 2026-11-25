@@ -24,7 +24,7 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     instance of it read as a retired slot however the log stood, its words silenced from
     the anchor pass, while the pair that was meant matched nothing at all.
 
-    Unreachable until this layer's licensing opened `retired-when` past the
+    Unreachable until this layer's licensing opened retirement past the
     suggestion family, which is why the shipped vocabulary — every slot of it naming
     one holder — could never have said so. The page holds an undecided trial, so
     nothing here is retired and a quote inside it must anchor like any other."""

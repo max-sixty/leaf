@@ -2,7 +2,8 @@
    `lf-tally` shows and `lf-deck`'s bar repeats, so no two widgets count one queue
    differently. `tally` takes the obligation records Leaf serves, the page's or a
    region's (`readObligations`), and reads each one's `state` and `next_actor`; `tallyWords` words
-   its count, naming the agent in the words its caller passes.
+   its count, naming the agent in the words its caller passes, the On lists' name for it
+   (the `queues` reading's `agent`).
 
    The open ones split by the server's next actor. Those waiting on the user, which Next
    On Me walks (`readObligations().user`), are "left to answer". Those whose next actor is

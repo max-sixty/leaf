@@ -19,11 +19,14 @@ import { render as tallyTemplate } from "./tally-view.js";
  * the walk counts from the obligation the user last went to there, else the first in sight,
  * else the region's start (queue-walk.js says how). With none waiting it is disabled.
  *
+ * The agent is called what the On lists call it (`queues.read().agent`), "On Claude"
+ * where the panel says so.
+ *
  * One retained Lit drawing follows the server's
  * reading in the same nodes. Its room holds the widest words, both sides two digits
- * wide, so the words change without moving the control beside them or what follows. A
- * longer count widens the room once. */
-import { go, obligations } from "/runtime/widget-api.js";
+ * wide and the agent called "the agent", so the words change without moving the control
+ * beside them or what follows. A longer count or agent name widens the room once. */
+import { go, obligations, queues } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
@@ -50,16 +53,19 @@ customElements.define(
       const ready = obligations.read().phase === "ready" && Boolean(region);
       const held = ready && region ? obligations.read(region).all : [];
       const count = tally(held);
-      // The drawing's room holds the widest words; a longer count widens it once.
+      // The drawing's two rooms hold the widest words, one calling the agent "the
+      // agent" and one by its name; a longer count widens them once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
       const widest = { onUser: digits, onAgent: digits, open: digits, total: digits };
+      const { agent } = queues.read();
       return tallyTemplate(
         this,
         {
           ready,
           done: Boolean(held.length && !count.open),
-          widest: tallyWords(widest, "the agent"),
-          words: ready ? tallyWords(count, "the agent") : "",
+          generic: tallyWords(widest, "the agent"),
+          named: tallyWords(widest, agent),
+          words: ready ? tallyWords(count, agent) : "",
           onUser: count.onUser,
         },
         this.#next,

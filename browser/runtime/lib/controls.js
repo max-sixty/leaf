@@ -7,8 +7,8 @@
  *
  * A press the user activates, such as a button, is built by its role (`offerAction`,
  * `offeredAction`, `selectableOffer` with a face), so it wears the face Leaf draws for
- * that kind of press. `offer`, `offered` and `offerElement` mark a field, a box of
- * controls, or a press whose look the module draws itself.
+ * that kind of press. `offer` and `offered` mark a field, a box of controls, or a
+ * press whose look the module draws itself.
  *
  * The marks are attributes and classes Leaf reads off the element. A module that marks
  * its own words writes the same attributes itself (module-plain-elements.md, "Words it
@@ -48,7 +48,7 @@ const titlesName = () => !document.documentElement.hasAttribute("data-lf-interac
 // their host exposes the complete activation method that the go-to sequence can call,
 // `focus()` and `click()`.
 /** @template {Element} T @param {T} node @param {string} [cls] @param {boolean} [pressable] @returns {T} */
-export const offerElement = (node, cls, pressable = false) => {
+const offerElement = (node, cls, pressable = false) => {
   if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
     keeps(node, "type", "button");
   const face = node.localName.includes("-") ? "" : " lf-ui-face";

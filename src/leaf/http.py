@@ -370,8 +370,8 @@ class PageEndpoint:
         self.layer_revision: int | None = None
         # Set by `authorized` when the key arrived in the query.
         self.set_cookie = False
-        # A declared body this request never drained. Those bytes would be read as the
-        # next request line on a reused connection, so the answer has to end it.
+        # A declared body no route will read. The answer closes the connection, so the
+        # transport doesn't drain a body the peer may never finish sending.
         self.body_unread = False
         # Set by a route whose successful answer is housekeeping rather than
         # interaction history, which `respond` leaves out of the trace: an attention
@@ -769,7 +769,7 @@ class PageEndpoint:
         return None
 
     def _not_found(self) -> Response:
-        # An unread body makes the connection unsafe to reuse.
+        # No route reads this body, so the answer closes the connection (`body_unread`).
         if self.headers.get("Content-Length") or self.headers.get("Transfer-Encoding"):
             self.body_unread = True
         return self._json({"error": "not found"}, 404)

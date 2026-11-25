@@ -202,11 +202,23 @@
      front of them, so a preview there would only cover what they came to read and take
      their next Escape. `K` (`preview.show`) reads the preview where focus stands
      on demand, whatever put it there and in whatever layer, as an editor's hover key
-     does, so a landing's preview stays one key away. A declaration
-     that stops being true, as a grip's once its card is grabbed, says so
-     (`lf-preview`), which redraws a preview standing on focus and opens none.
-   - A screen reader hears every preview shown on focus, whatever supplied it, as the
-     focused element's description (`ariaDescribedByElements`) while it stands, except a
+     does, so a landing's preview stays one key away.
+   - `K` reads at the caret instead where the caret stands in what focus is on, or
+     anywhere while focus rests on the body, and the user can see it (`here`); for a
+     selection, the caret is the end that Shift and an arrow move (native-selection.js,
+     `userCaret`). Caret browsing (F7), which Chromium and Firefox offer and
+     Safari doesn't, walks the caret through words that take no focus, such as an age's
+     (age.js), so an element that previews to a resting pointer previews to the keyboard
+     there with no Tab stop of its own. A Tab stop for each age was the alternative, and
+     a list of forty ages would have taken forty stops. Where the caret stands on
+     something inside what focus is on, as on an age in a focused row, the next key puts
+     that reading away, as it puts a pointer's away, since the keys after `K` walk the
+     caret on. A declaration that stops being true, as a grip's once its card is
+     grabbed, says so (`lf-preview`), which redraws a preview standing on focus and
+     opens none.
+   - A screen reader hears every preview of what focus is on, whatever supplied it, as
+     the focused element's description (`ariaDescribedByElements`) while it stands,
+     except a
      control's own, which says what its accessible name and `aria-keyshortcuts` already
      do, and a proxy's, which describes what it stands for with its own markup, as a
      gloss's does.
@@ -311,6 +323,7 @@ import { controlKeys } from "./keyboard/control-keys.js";
 import { drawnKeys } from "./keyboard/command-hints.js";
 import { advertisesKeys, spell } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
+import { userCaret } from "./native-selection.js";
 import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
 import { offlineInteractive } from "./context.js";
@@ -338,6 +351,7 @@ import {
   clippedRect,
   drawsText,
   lined,
+  seenRect,
   shownBox,
   shownParts,
   shownWindow,
@@ -1175,11 +1189,11 @@ function show(from, route, read = null, at, again = false, aim = false) {
     keeps(holder, "data-lf-touch-held", "");
   if (standing) record.described = standing.described;
   else {
-    // A screen reader hears a preview shown on focus as what focus is on describes,
-    // unless it says only what the control's own name and keys already do, or focus is
-    // on a proxy, whose own markup describes what it stands for.
+    // A screen reader hears a preview of what focus is on (`readsFocus`) as what focus
+    // is on describes, unless it says only what the control's own name and keys already
+    // do, or focus is on a proxy, whose own markup describes what it stands for.
     const on = focused();
-    if (route === "focus" && on && !reading.restates && !on.matches(PROXY)) {
+    if (on && readsFocus(record) && !reading.restates && !on.matches(PROXY)) {
       record.described = {
         el: on,
         attribute: on.getAttribute("aria-describedby"),
@@ -2101,6 +2115,28 @@ function changed(node, aim) {
   }
 }
 
+// Where `K` reads: the element the caret stands in (`userCaret`), where that lies inside
+// what focus is on and the user sees it, else what focus is on; the body with no caret
+// in it is nowhere. A caret scrolled out of sight is nowhere too, as a key lets go of
+// focus scrolled out of sight (keyboard/controller.js). What is seen is the caret's
+// element, not its letter: a letter in an age's drawn words stands in a shadow root,
+// where `seenRect` finds no element holding it.
+function here() {
+  const on = focused() ?? document.body;
+  const caret = userCaret()?.element;
+  if (caret && renderedUnder(caret, on) && seenRect(caret, new Map())) return caret;
+  return on === document.body ? null : on;
+}
+// Whether a keyboard reading is of what focus is on: its target is the focused element
+// or one the focus is drawn inside, as Tab's and `K`'s at focus are, and as `K`'s at a
+// caret in a focused message's words is. A reading at the caret of something inside
+// what focus is on, as of an age in a focused row, isn't.
+/** @param {Shown} record */
+const readsFocus = (record) =>
+  record.route === "focus" &&
+  isElement(record.target) &&
+  renderedUnder(focused(), record.target);
+
 // Focus the user moved to `node` shows its preview once the task that moved it has
 // done, which may be opening a popover the platform lets no other open inside, where
 // the browser shows that focus, and not where they put this preview away.
@@ -2240,8 +2276,9 @@ export function mountPreviews(chrome) {
     if (node && cause === "step") showFocus(node);
   });
   // Escape is the preview's own step while one shows, ahead of every other, which does
-  // nothing else; any other key but a modifier alone puts a pointer's away and goes on
-  // to its work. A
+  // nothing else; any other key but a modifier alone puts a pointer's away, and a
+  // keyboard reading of something that doesn't hold focus (`readsFocus`), as `K`'s at
+  // the caret on an age, and goes on to its work. A
   // suspended focus reading shows nothing to put away, so Escape goes on to its work
   // and leaves the reading to come back with its subject. The step is rooted where the
   // preview shows, so inside a modal dialog, which makes every scope rooted outside it
@@ -2264,9 +2301,10 @@ export function mountPreviews(chrome) {
   // A command's landing shows no preview, so the keyboard reads the one where it stands
   // on demand, as an editor's hover key does (Neovim's `K`, VS Code's Show Hover):
   // whatever put focus there, it reads as Tab's would, and again after Escape put it
-  // away, since asking is aiming again. The scope is rooted at focus, so a modal dialog
-  // whose rows an arrow key walks keeps it, and it has no title, so the reference lists
-  // it with the page's own keys.
+  // away, since asking is aiming again; at the caret where it stands inside focus
+  // (`here`). The scope is rooted at focus, so a modal dialog whose rows an arrow key
+  // walks keeps it, and it has no title, so the reference lists it with the page's own
+  // keys.
   pageScope("preview here", {
     root: focused,
     rows: [
@@ -2276,10 +2314,9 @@ export function mountPreviews(chrome) {
         title: "Preview here",
         touch: false,
         run: () => {
-          const on = focused();
+          const on = here();
           quiet = null;
-          if (!on || on === document.body || !show(on, "focus"))
-            notice("Nothing here has a preview");
+          if (!on || !show(on, "focus")) notice("Nothing here has a preview");
         },
       },
     ],
@@ -2296,7 +2333,9 @@ export function mountPreviews(chrome) {
           quieten();
         }
       } else if (
-        (shown?.route === "pointer" || !shown) &&
+        (!shown ||
+          shown.route === "pointer" ||
+          (shown.route === "focus" && !readsFocus(shown))) &&
         !MODIFIER_KEYS.includes(event.key)
       )
         quieten();

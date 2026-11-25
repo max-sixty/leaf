@@ -92,8 +92,9 @@ import {
   scrollersOf,
   seenAhead,
 } from "./scroll-containers.js";
-import { hostIn, renderedParent, under, upFrom } from "./lib/shadow-tree.js";
+import { hostIn, isText, renderedParent, under, upFrom } from "./lib/shadow-tree.js";
 import { inChrome } from "./ui-marks.js";
+import { userCaret } from "./native-selection.js";
 import {
   declareFocusPlace,
   focused,
@@ -400,18 +401,22 @@ const placeOf = (node) => {
   const [scroller] = scrollersOf(place);
   return scroller && !stuckBox(place, scroller) ? place : null;
 };
-// The words a click on a focused container left the caret in, outside the box it
-// stands at. A message the user clicked in a thread is where they stand, though the
-// thread waits at its reply box. A caret in the box, or in a field the user types in,
-// is the box's or field's, since typing and a send rewrite the words there.
+// The caret a click on a focused container's words left (`userCaret`), where it
+// stands in their text outside the box the container stands at, else null. A message
+// the user clicked in a thread is where they stand, though the thread waits at its reply
+// box, and so is an age or a formula in the message, whose words a shadow root draws. A
+// caret in the box, or in a field the user types in, is the box's or field's, since
+// typing and a send rewrite the words there.
 /** @param {Element} node */
 const caretWords = (node) => {
-  const text = getSelection()?.focusNode;
-  return text instanceof Text &&
-    text.length &&
-    node.contains(text) &&
-    !boxStoodAt(node)?.contains(text)
-    ? text
+  const at = userCaret();
+  const box = boxStoodAt(node);
+  return at &&
+    isText(at.node) &&
+    at.node.length &&
+    under(at.node, node) &&
+    !(box && under(at.node, box))
+    ? at
     : null;
 };
 // Where the user on `node` stands: on the words a click there left the caret in, else at
@@ -419,17 +424,20 @@ const caretWords = (node) => {
 // reply box, else on `node` itself.
 /** @param {Element} node @returns {Element} */
 export const standingAt = (node) =>
-  caretWords(node)?.parentElement ?? boxStoodAt(node) ?? node;
+  caretWords(node)?.element ?? boxStoodAt(node) ?? node;
 // The caret a click on a focused container's words leaves (`caretWords`), where it lies
 // in what the container shows: the letter after it, which the keep holds as it holds
 // words at the reading line, so the message stays as a message above it grows or an
-// answer joins below it, and the box moves.
+// answer joins below it, and the box moves. A letter a shadow root holds directly, as
+// an age's is, has no element holding it for `holderOf` and `seenRect`, so a click on
+// an age keeps what `placeOf` names: the box the container stands at, its reply box
+// where that shows.
 /** @param {Element} node @returns {Range | null} */
 const caretPlace = (node) => {
-  const text = caretWords(node);
-  const selection = getSelection();
-  if (!text || !selection) return null;
-  const at = Math.min(selection.focusOffset, text.length - 1);
+  const words = caretWords(node);
+  if (!words) return null;
+  const text = /** @type {Text} */ (words.node);
+  const at = Math.min(words.offset, text.length - 1);
   const caret = document.createRange();
   caret.setStart(text, at);
   caret.setEnd(text, at + 1);

@@ -21,11 +21,10 @@
     "content": "empty",
     "verbs": {
       "decide": {
-        "unit": "widget",
-        "record": { "kind": "value", "attr": "verdict" }
+        "record": { "attr": "verdict" }
       }
     },
-    "awaits": { "value": "decide", "answered": { "decide": {} } },
+    "awaits": { "value": "decide" },
     "visual": { "prefixes": ["choice:"] },
     "inputs": {
       "notes": {

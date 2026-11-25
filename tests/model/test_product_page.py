@@ -152,6 +152,21 @@ def code_block(page: SourceDocument, block_id: str) -> str:
     return select_one_result_2.text.lstrip("\n")
 
 
+def test_how_it_works_shows_the_example_widget_as_the_page_runs_it():
+    """How it works' "Package interface" tab reads a whole widget line by line and runs
+    that widget beside the reading, from the package `docs/verdict`. Each file the tab
+    shows is the file that runs, so its notes, which name lines, describe that file."""
+    page = SourceDocument(named_source("how-it-works").read_text())
+    package = ROOT / "docs" / "verdict"
+    for block_id, file in {
+        "verdict-declaration": "registry.json",
+        "verdict-module": "widgets/lf-verdict.js",
+        "verdict-stylesheet": "defaults.css",
+    }.items():
+        shown = code_block(page, block_id).rstrip("\n")
+        assert shown == (package / file).read_text().rstrip("\n"), file
+
+
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
     """Review evidence quotes the captured revision at its shown coordinates.
 
@@ -370,7 +385,6 @@ def test_the_event_log_page_quotes_the_registry():
         noted.append(lines[int(position) - 1].strip())
     explained = [
         '"choose": ',
-        '"unit": "widget"',
         '"record": ',
         '"unit": "option"',
         '"creates": ',

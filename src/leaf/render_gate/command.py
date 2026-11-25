@@ -295,7 +295,11 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     that run reports, as plain `page check` fails a page. Takes the page's current
     layer, the one the thread will draw the message with. Where the host has no
     browser, or the browser fails before it reads the message, the message posts
-    unrun, and reports any failure when its thread draws."""
+    unrun, and reports any failure when its thread draws.
+
+    A caller runs it before it takes the page lease to admit the message, since a
+    browser run takes about a second. The run's capture holds the lease only while
+    it reads the log (`page_snapshot.capture_page_snapshot`)."""
     from leaf.files import latest_revision
     from leaf.findings import Rejected, note
     from leaf.registry.storage import read_page_registry

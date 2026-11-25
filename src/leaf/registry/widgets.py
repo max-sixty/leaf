@@ -339,11 +339,13 @@ def _validate_widget_interactions(
 ) -> None:
     answered = awaits.get("answered", {})
     # The user answers their own obligation, so only a verb the user writes can answer it.
+    # `value` is asked first: composition writes it into an `answered` the declaration
+    # left out, and a refusal should name what the author wrote.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
-    if unknown := sorted(set(answered) - user_verbs):
-        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     if awaits and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
+    if unknown := sorted(set(answered) - user_verbs):
+        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")

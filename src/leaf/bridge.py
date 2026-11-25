@@ -209,12 +209,12 @@ def ensure(session: str, lifetime: dict) -> None:
 
 def live_sessions() -> bool:
     """Whether a registered session still lives; forgets the rest."""
-    from .service import lifetime_is_live
+    from .service import session_lives
     from .state import session_record
 
     alive = False
     for entry in bridge_path("sessions").glob("*.json"):
-        if (record := REGISTRATION.read(entry)) and lifetime_is_live(
+        if (record := REGISTRATION.read(entry)) and session_lives(
             record, session_record(record["id"])
         ):
             alive = True

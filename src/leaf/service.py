@@ -145,31 +145,34 @@ def page_claim(page_dir: Path) -> dict | None:
 
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: its session's generation, not
-    ended, with a lifetime that still lives (`lifetime_is_live`), whichever Leaf
+    ended, with a lifetime that still lives (`session_lives`), whichever Leaf
     recorded the session (`state.session_record`). Cold hooks and the CLI both call
     it."""
     if not claim:
         return False
     record = session_record(claim["id"])
-    if not session_live(record) or record["generation"] != claim["generation"]:
+    if record is None or record["generation"] != claim["generation"]:
         return False
-    return lifetime_is_live({"id": claim["id"], **record["lifetime"]}, record)
+    return session_lives({"id": claim["id"], **record["lifetime"]}, record)
 
 
-def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
-    """Whether the owner a `Harness.lifetime` names still lives: the job record a
-    background job's lifetime points at, the Claude desktop app's record an `app`
-    lifetime points at while it is unarchived and still names the session, the
-    native source a persisted `chat` stands on (`record`, the session's), or the
-    process every other lifetime's pid names. The only reading of that rule: a claim
-    and the sandbox bridge's registrations both carry a lifetime beside the session's
-    `id`.
+def session_lives(lifetime: dict, record: dict | None) -> bool:
+    """Whether a session lives: its lifecycle `record`, where it has one, hasn't
+    recorded its end, and the owner its `lifetime` (`Harness.lifetime`) names still
+    lives: the job record a background job's lifetime points at, the Claude desktop
+    app's record an `app` lifetime points at while it is unarchived and still names
+    the session, the native source a persisted `chat` stands on (`record`'s), or the
+    process every other lifetime's pid names. The only reading of whether a session
+    lives: a claim and the sandbox bridge's registrations both carry a lifetime
+    beside the session's `id`.
 
     A lifetime that names nothing yet has no owner, so nothing lives by it. A kind
-    this Leaf doesn't know, as a later Leaf's may, reads as live, since this Leaf
-    can't check it and the session's record says when it ends (`layer-registry.md`,
+    this Leaf doesn't know, as a later Leaf's may, reads as live until the record
+    says the session ended, since this Leaf can't check it (`layer-registry.md`,
     "Page protocol"). So a harness that states its lifetime a new way adds its form
     to the session record's `lifetime` and its reading here."""
+    if record is not None and record["ended"] is not None:
+        return False
     if "job" in lifetime:
         return (Path(lifetime["job"]) / "state.json").is_file()
     if "app" in lifetime:

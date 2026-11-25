@@ -448,7 +448,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         from its `main.log`). The session the user sees is the app's record of
         it, which CLAUDE_CODE_HOST_SESSION_ID names (`desktop_session_record`),
         so its lifetime is `app`, that record's path, for as long as the record
-        names this session (`service.lifetime_is_live`). The variable is
+        names this session (`service.session_lives`). The variable is
         inherited too, so the record's `cliSessionId` has to be this session's.
         Where the app keeps no such record, the session lives as its process."""
         if job := os.environ.get("CLAUDE_JOB_DIR"):

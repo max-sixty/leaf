@@ -49,7 +49,7 @@ def thread_row(page, key):
     not the view standing open, and unfolding Resolved for a resolved thread folded
     there; a row the standing list holds in its place is drawn already. Its
     `.lf-row-end` says the thread's state. `key` may be the thread's id: a thread this
-    tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
+    tab started is keyed by the attempt that sent it (records/thread/model.js, `threadKey`)."""
     key, resolved = page.evaluate(
         """async (id) => {
           const {readThreads} = await window.__lfWidgetApi();
@@ -72,7 +72,7 @@ def open_panel_thread(page, thread_id):
     for threads (`choose_threads_in_panel`), so the tab makes that choice for one; a
     thread about the whole page opens there by itself. A thread already open there is left
     as it stands. A row is keyed by the thread's key, which for a thread this tab
-    started is the attempt that sent it (thread/model.js, `threadKey`), so the page's
+    started is the attempt that sent it (records/thread/model.js, `threadKey`), so the page's
     own reading finds it."""
     view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
     if view.count():

@@ -72,7 +72,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
         if arrivals == 2:
             break
     assert arrivals == 2, "Tab never came back round to the reference's first stop"
-    # Tab reads Close's preview, which the first Escape puts away (keyboard/AGENTS.md,
+    # Tab reads Close's preview, which the first Escape puts away (dom/keyboard/AGENTS.md,
     # "Escape"); the next closes the reference.
     put_preview_away(page)
     page.keyboard.press("Escape")

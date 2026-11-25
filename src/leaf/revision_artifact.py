@@ -1068,7 +1068,7 @@ def _capture_artifact(
     # instead: a change to its runtime or a bundled package reaches the tab as a
     # server that refuses it (`runtime_selection`), and a new selection or a
     # changed package copy as a new generation (`vendoring`), which a tab speaks
-    # to the server (`runtime/layer-client.js`).
+    # to the server (`runtime/transport/layer-client.js`).
     declarations = resources.get(PAGE_DECLARATIONS)
     executable = _digest(
         _canonical_json(

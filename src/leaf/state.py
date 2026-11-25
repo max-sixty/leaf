@@ -425,7 +425,7 @@ def write_json(path: Path, obj) -> None:
 
 # The running Leaf's kernel registry, the facts no layer changes, whose `$events`
 # state its page protocol (`registry.kernel`). It sits in the runtime, which the
-# browser reads it from too (`runtime/kernel-facts.js`), and composition lays each
+# browser reads it from too (`runtime/state/kernel-facts.js`), and composition lays each
 # layer over it (`registry.layer.merged_registry`).
 KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
 

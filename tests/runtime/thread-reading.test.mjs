@@ -3,12 +3,13 @@ import test from "node:test";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 const { foldThreads, moved, readThreadRecords } =
-  await import("/runtime/thread/model.js");
-const { threadAttention } = await import("/runtime/thread/workflow.js");
+  await import("/runtime/records/thread/model.js");
+const { threadAttention } = await import("/runtime/records/thread/workflow.js");
 const { threadName, prepareAuthoredMessage, messageReading } =
-  await import("/runtime/thread/messages.js");
+  await import("/runtime/records/thread/messages.js");
 const { loadMarkdown } = await import("/runtime/lib/markdown.js");
-const { createThreadDestinations } = await import("/runtime/thread/destination.js");
+const { createThreadDestinations } =
+  await import("/runtime/records/thread/destination.js");
 
 test("Thread destinations without a page preview retain canonical targets and shadow-held identity", async () => {
   const owner = document.createElement("div");
@@ -320,8 +321,8 @@ test("attention names the outstanding question rather than the latest message", 
 });
 
 test("superseding a blocked primary destination completes its prior navigation", async () => {
-  const { applicationState } = await import("/runtime/semantic-state.js");
-  const { readThreads } = await import("/runtime/thread/state.js");
+  const { applicationState } = await import("/runtime/state/semantic-state.js");
+  const { readThreads } = await import("/runtime/records/thread/state.js");
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
@@ -362,7 +363,7 @@ test("superseding a blocked primary destination completes its prior navigation",
 
 test("a thread the primary declines and nothing on the page shows is asked of it again, last", async () => {
   // The page the test before admitted, whose reading holds one thread.
-  const { readThreads } = await import("/runtime/thread/state.js");
+  const { readThreads } = await import("/runtime/records/thread/state.js");
   const id = readThreads().threads[0].id;
   const workspace = document.createElement("section");
   const view = document.createElement("div");
@@ -396,7 +397,7 @@ test("a thread the primary declines and nothing on the page shows is asked of it
 });
 
 test("prepared thread readings consume only their own held-news release", async () => {
-  const { HeldNews } = await import("/runtime/thread/held-news.js");
+  const { HeldNews } = await import("/runtime/records/thread/held-news.js");
   for (const earlier of [false, true])
     assert.equal(
       await (async (earlier) => {
@@ -460,7 +461,7 @@ test("prepared thread readings consume only their own held-news release", async 
 });
 
 test("held news keeps a reaction taken back elsewhere as it was drawn", async () => {
-  const { HeldNews } = await import("/runtime/thread/held-news.js");
+  const { HeldNews } = await import("/runtime/records/thread/held-news.js");
   /** @param {boolean} taken */
   const reading = (taken) => {
     const said = (id, seq, author, parent, text) => ({
@@ -520,8 +521,9 @@ test("held news keeps a reaction taken back elsewhere as it was drawn", async ()
 });
 
 test("a thread commits when drawn, and abandoned renders call nothing", async (t) => {
-  const { createPrimaryReader } = await import("/runtime/thread/primary-reader.js");
-  const { applicationState } = await import("/runtime/semantic-state.js");
+  const { createPrimaryReader } =
+    await import("/runtime/records/thread/primary-reader.js");
+  const { applicationState } = await import("/runtime/state/semantic-state.js");
   applicationState.identify(1);
   applicationState.adopt(servedReading("suggestion closes a thread"));
   await loadMarkdown();
@@ -614,7 +616,7 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
 });
 
 test("news answers only a user turn that still stands", async () => {
-  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const { threadChange } = await import("/runtime/records/thread/held-news.js");
   const root = { id: "question", key: "question", author: "user", body: "Question" };
   const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
   const reading = (messages, words) => ({
@@ -633,7 +635,7 @@ test("news answers only a user turn that still stands", async () => {
 });
 
 test("a step its turn ended above the user's message is news a seat can hold", async () => {
-  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const { threadChange } = await import("/runtime/records/thread/held-news.js");
   const root = { id: "question", key: "question", author: "user", body: "Question" };
   const step = { id: "step", key: "step", author: "agent", progress: true };
   const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
@@ -657,7 +659,7 @@ test("a step its turn ended above the user's message is news a seat can hold", a
 });
 
 test("Copy gives an authored message's Markdown, its HTML included, after the public thread reading", async () => {
-  const { adoptRegistry } = await import("/runtime/registry.js");
+  const { adoptRegistry } = await import("/runtime/state/registry.js");
   const { loadMarkdown } = await import("/runtime/lib/markdown.js");
   adoptRegistry({ $layer: { generation: "authored-copy" } });
   assert.equal(await loadMarkdown(), true);

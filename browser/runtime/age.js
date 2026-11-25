@@ -1,5 +1,5 @@
 /* `lf-age`: how long ago a moment was, in the wording every age on the page has
-   (presence.js, `ago`), kept current as the page's clock ticks, and previewing the
+   (state/presence.js, `ago`), kept current as the page's clock ticks, and previewing the
    clock time behind it as every age does (`agePreview`).
 
      <lf-age datetime="2026-11-24T18:05:00Z">24 Nov, 18:05 UTC</lf-age>
@@ -13,11 +13,11 @@
    - It is Leaf's own element, defined on every page, so it upgrades wherever it
      appears, in a shadow tree too, with no import. A package's widget could not be
      drawn from every template: its module loads only where its tag stands in markup
-     the loader reads (widget-loader.js), and a page's own widget may not import a
+     the loader reads (records/widget-loader.js), and a page's own widget may not import a
      package's module. It would also need Leaf's wording (`ago`) kept public.
    - The words the author wrote in it stay in the document, undrawn: the age stands
      in a shadow root that has no slot, as a typeset formula stands over its LaTeX
-     (formulas.js). They are the page's words to every reader of its text, the file
+     (readings/formulas.js). They are the page's words to every reader of its text, the file
      Python reads and a comment's quote among them, so a quote across an age holds
      the time the author wrote and still finds its passage after the age has ticked,
      where a quote of the age would lose it at the next tick. An age pays what a
@@ -29,7 +29,7 @@
      (src/leaf/static-export.js).
    - It follows the clock with one effect of its own and writes one text node. A
      `LeafElement` would make each age a stage Leaf dresses and watches
-     (shadow-stage.js), which a list of ages pays once for each.
+     (dom/shadow-stage.js), which a list of ages pays once for each.
    - That text stands straight in the shadow root. Leaf finds the element holding a
      letter there through the root's host (lib/shadow-tree.js, `holdingElement`), as
      it does for any widget's top-level text, so a span round the words would add an
@@ -40,7 +40,7 @@
      host's start, and a comment made from that has no passage. A span round the
      words doesn't cure that. The character stands in the words' own text, so a caret
      either side of it stands before the age's first figure, the letter a measure of
-     the caret reads (native-selection.js, `userCaret`); the character has no width to
+     the caret reads (dom/native-selection.js, `userCaret`); the character has no width to
      measure. JavaScript counts that character as white space, so a reading of the
      age's text that trims it, as a test's text match does, reads the words alone; a
      copy that takes in an age carries the character. Three other cures fail: a word
@@ -49,8 +49,8 @@
      an inline block takes no underline or strike from a link or an `<s>` round it,
      parts from an opening bracket before it, lets a comma after it start the next
      line, and is undone by a page that restyles the element. */
-import { effect, signal } from "/runtime/framework.js";
-import { agePreview, ago } from "./presence.js";
+import { effect, signal } from "/runtime/records/framework.js";
+import { agePreview, ago } from "./state/presence.js";
 
 const unbroken = new CSSStyleSheet();
 unbroken.replaceSync(":host { white-space: nowrap; }");

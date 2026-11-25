@@ -1478,7 +1478,7 @@ def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(
         for anchor, text in (("p30", held), ("p40", long))
     }
     page = open_page(browser, url)
-    # Where the card stands once it has moved, not its motion (box-motion.js).
+    # Where the card stands once it has moved, not its motion (dom/box-motion.js).
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1512, 860)
     card = page.locator(".lf-margin-preview")

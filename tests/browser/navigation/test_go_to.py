@@ -199,7 +199,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     """Every opaque route's chip fits at viewport edges, including one cut by the
     window's top. A link showing one pixel at the foot, where the panel's band leaves
     its chip no seat beside it, has its chip withheld rather than stood above the
-    panel, and its code still takes it (key-badges/hints.js, `seatHints`)."""
+    panel, and its code still takes it (readings/key-badges/hints.js, `seatHints`)."""
     page = open_page(
         browser,
         serve(
@@ -373,7 +373,7 @@ def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve, dr
     """Chromium resolves no anchor to an element inside a foreignObject, so the chip
     anchored to a link there stood off the window while its code still followed it. A
     drawing scaled by its viewBox draws its HTML at that scale, and the foreignObject
-    shows all of it there (geometry.js, `drawnViewport`), so a link in the far half of
+    shows all of it there (dom/geometry.js, `drawnViewport`), so a link in the far half of
     one still has its chip."""
     page = open_page(
         browser,
@@ -533,7 +533,7 @@ def test_a_map_armed_as_a_walk_lands_names_what_the_landed_page_shows(browser, s
     task that landed the glide, the card still stood where the glide had carried it, a
     frame behind the scroll, and the map named the entry, which Tab then walked to first;
     read again as that scroll ended, before the frame that moved the card, it named it
-    again (arrivals.js, `scrollDrawn`)."""
+    again (dom/arrivals.js, `scrollDrawn`)."""
     source = LONG_PAGE.replace(
         "<p id='p20'>Paragraph 20.", "<p id='p20'>Paragraph 20. <a href='#p20'>Mid</a>"
     ).replace(
@@ -902,7 +902,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, serve):
     """A revision moves the page under an armed Go-to map with no scroll. Each chip rides
     its target, and every letter the user has read and the target the walk stands on
-    stay, so the letter they just read takes what they read it on (key-badges/hints.js)."""
+    stay, so the letter they just read takes what they read it on (readings/key-badges/hints.js)."""
     links = "".join(
         f'<p><a id="l{n}" href="#top">Destination {n}</a></p>' for n in range(1, 6)
     )

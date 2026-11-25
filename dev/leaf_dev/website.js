@@ -13,7 +13,7 @@
  * reply. The notice's change and the reply's arrival are both on the page's clock.
  *
  * The runtime records agent words coming into view itself (`reply_visible`,
- * runtime/thread/read.js), which `leaf-dev logs response-times` reads from the page's
+ * runtime/records/thread/read.js), which `leaf-dev logs response-times` reads from the page's
  * diagnostics, but it cannot stand in for this reading: it records nothing while a
  * thread holds the reply behind its notice, and a website's diagnostics stay in its
  * page's container, out of the journey's reach.
@@ -56,7 +56,7 @@
     let dirty = false;
     const inView = new Set();
     const observed = new WeakSet();
-    // A message names its event by `data-lf-event` (thread/messages.js).
+    // A message names its event by `data-lf-event` (records/thread/messages.js).
     const message = ".lf-msg[data-lf-author=agent][data-lf-event]";
     const selector = `${message}, .lf-thread-news`;
     const note = (table, key, now) => {
@@ -144,7 +144,7 @@
   }
 
   // The thread a node is drawn in: a card's, or the one the panel's view stands for
-  // (thread/selectors.js, `THREAD`).
+  // (records/thread/selectors.js, `THREAD`).
   const THREAD = ".lf-page-thread, [data-lf-thread-view]";
   const drawnThread = (node) => node.closest(THREAD)?.dataset.lfThread ?? null;
 
@@ -190,7 +190,7 @@
     },
     async scopedMedia() {
       const script = serverScript();
-      const media = await runtimeModule("media");
+      const media = await runtimeModule("records/media");
       return {
         path: media.scopedMediaUrl("/media/0123456789abcdef.png"),
         root: script.dataset.lfPageRoot,
@@ -201,7 +201,7 @@
       document.addEventListener("lf-session-active", () => activationCount++);
     },
     async activateSession(activation) {
-      const client = await runtimeModule("layer-client");
+      const client = await runtimeModule("transport/layer-client");
       const response = await fetch(activation, {
         headers: client.layerHeaders(),
         signal: window.AbortSignal.timeout(30_000),

@@ -169,7 +169,7 @@ function eventTypes(registry) {
       ].filter((key) => !owned.has(key));
       return `${JSON.stringify(kind)}: ${typeOf({ ...record, properties, required })};`;
     });
-  // The kinds each `$events.kinds` classification names (`runtime/kernel-facts.js`
+  // The kinds each `$events.kinds` classification names (`runtime/state/kernel-facts.js`
   // carries the same classifications as values).
   const classified = Object.entries({
     MessageKind: "message",

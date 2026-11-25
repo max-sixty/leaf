@@ -1,10 +1,10 @@
-/* How long a notice stands (runtime/notifications.js, `showNotice`): every notice its
+/* How long a notice stands (runtime/transport/notifications.js, `showNotice`): every notice its
    time; one answering the user's own gesture with a press then until the user's next
    input, which an input within its time doesn't end; news passes with its press. */
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { NOTICE_MS, notice, noticeReading } from "/runtime/notifications.js";
+import { NOTICE_MS, notice, noticeReading } from "/runtime/transport/notifications.js";
 
 const press = {
   action: "show-changes",

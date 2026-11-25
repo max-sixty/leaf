@@ -13,15 +13,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { recentPlaceInput } from "/runtime/focus.js";
-import { pointerAt } from "/runtime/pointer.js";
-import { glideTo, startScroll, stopGlide } from "/runtime/scrolling.js";
+import { recentPlaceInput } from "/runtime/dom/focus.js";
+import { pointerAt } from "/runtime/base/pointer.js";
+import { glideTo, startScroll, stopGlide } from "/runtime/dom/scrolling.js";
 import {
   focusPlace,
   holdPlace,
   holdPlaceOf,
   holdUserPlace,
-} from "/runtime/user-place.js";
+} from "/runtime/readings/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.

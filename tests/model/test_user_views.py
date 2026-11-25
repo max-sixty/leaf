@@ -9,7 +9,7 @@ from leaf import user_views
 from leaf.files import read_json
 from leaf.state import write_json
 
-# A Chrome's user agent, as `runtime/page-identity.js` reports it.
+# A Chrome's user agent, as `runtime/state/page-identity.js` reports it.
 CHROME = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
     " (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"

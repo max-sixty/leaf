@@ -477,6 +477,10 @@ classDiagram
   }
   Runner --&gt; Job
 </pre></lf-diagram>
+<lf-diagram id="quoted-name" parts="all"><pre>
+erDiagram
+  "Line Item" ||--o{ ORDER : in
+</pre></lf-diagram>
 """
         + "\n".join(
             f'<lf-diagram id="namespace-{mode}" parts="all"><pre>\n'
@@ -500,33 +504,20 @@ classDiagram
         )
         .replace('<lf-diagram id="trend">', extra, 1)
     )
-    url = serve(page)
-    assert render_gate_model.render_version(browser, url).failures == []
-    drawn = open_page(browser, url)
-    assert (
-        drawn.locator("#namespaced").evaluate(
-            "e => e.visualParts.get('node:Jobs').label"
-        )
-        == "Jobs"
-    )
-    assert (
-        drawn.locator("#er-quoted-name").evaluate(
-            "e => e.visualParts.get('node:Line%20Item').label"
-        )
-        == "Line Item"
-    )
-    for mode, expected in (
-        ("true", {"node:Job", "node:Org", "node:Org.Unit"}),
-        ("false", {"node:Job", "node:Org.Unit"}),
-    ):
-        assert (
-            set(
-                drawn.locator(f"#namespace-{mode}").evaluate(
-                    "e => [...e.visualParts.keys()]"
-                )
-            )
-            == expected
-        )
+    reading = render_gate_model.render_version(browser, serve(page))
+    assert reading.failures == []
+    assert reading.parts is not None
+    # The parts each diagram drew, as the reading keeps them for `page state`.
+    drawn = {
+        visual: {part["id"]: part["label"] for part in parts}
+        for visual, parts in reading.parts.items()
+    }
+    assert drawn["namespaced"]["node:Jobs"] == "Jobs"
+    assert drawn["quoted-name"]["node:Line%20Item"] == "Line Item"
+    # A diagram that admits no part lists none, as `thread create --part` takes none.
+    assert drawn["er-quoted-name"] == {}
+    assert set(drawn["namespace-true"]) == {"node:Job", "node:Org", "node:Org.Unit"}
+    assert set(drawn["namespace-false"]) == {"node:Job", "node:Org.Unit"}
 
 
 def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):

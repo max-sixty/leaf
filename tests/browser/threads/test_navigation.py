@@ -279,6 +279,10 @@ def test_a_rewrite_written_in_a_card_back_returned_to_reopens_there(
     page.wait_for_function("navigation.transition === null")
     page.go_back()
     expect(card).to_have_attribute("data-lf-thread", first)
+    # The card Back reopens is still moving into its seat when it names the thread;
+    # a double-click issued mid-glide can land on the page beside it.
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
     card.locator(".lf-msg .lf-msg-text").first.dblclick()
     editor = card.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()

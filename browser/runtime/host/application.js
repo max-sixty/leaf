@@ -24,7 +24,7 @@ import { createCommandDispatch } from "../records/pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { keepRefusedWords } from "../records/drafts.js";
 import { createProjectionPresentation } from "../records/projection/presentation.js";
-import { createUndo } from "../annotations/undo.js";
+import { createUndo } from "../records/undo.js";
 import { createDataProjection } from "../records/projection/data.js";
 import { createThreadPresentation } from "../records/thread/presentation.js";
 import {

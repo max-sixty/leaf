@@ -114,7 +114,7 @@ const applicationOwners = [
   "panel/page-keys/go-to-sequence.js",
   "panel/page-keys/controller.js",
   "records/pending/state.js",
-  "annotations/undo.js",
+  "records/undo.js",
   "host/state-application.js",
   "host/state-feed.js",
 ];
@@ -163,10 +163,7 @@ const forbiddenClosures = Object.fromEntries([
 //
 // When a `layering` rule fails, make the import point down, by passing the value or
 // callback in or by moving what it needs to a layer below both. Where the module itself
-// stands in the wrong layer, move the module instead. `dependency-cruiser-known.json`
-// holds the imports that still point up, which the hook passes over. It only shrinks:
-// delete an entry once its import goes, and fix a new upward import rather than adding
-// one.
+// stands in the wrong layer, move the module instead.
 const layers = [
   {
     name: "Entry points and diagnostics",
@@ -182,13 +179,13 @@ const layers = [
     ],
   },
   { name: "Floating panel, page dialogs and page keys", paths: ["panel/"] },
-  { name: "Annotation presentation, composing and undo", paths: ["annotations/"] },
+  { name: "Annotation presentation and composing", paths: ["annotations/"] },
   { name: "Application and widget host", paths: ["host/"] },
   {
     name: "Page features: annotation inventory, contributions, version travel",
     paths: ["features/"],
   },
-  { name: "Records and history", paths: ["records/"] },
+  { name: "Records, history and undo", paths: ["records/"] },
   { name: "Page readings, places and paint", paths: ["readings/"] },
   { name: "Transport, errors and notices", paths: ["transport/"] },
   { name: "DOM, geometry, focus and the key register", paths: ["dom/"] },

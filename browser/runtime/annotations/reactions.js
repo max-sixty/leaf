@@ -77,7 +77,6 @@ import {
   nativePress,
   savedReadingSettled,
 } from "../dom/keyboard/bindings.js";
-import { anchorLabel } from "../records/thread/messages.js";
 import { reactionsAt, tokenChoices } from "../state/thread/model.js";
 import { allThreads, readThreads } from "../records/thread/state.js";
 import { effect, untracked } from "/vendor/signals-core.js";
@@ -90,7 +89,7 @@ import { PRESS, rowArrows } from "../lib/keys.js";
  * @typedef {ReturnType<typeof import("./composing/surface.js").createResponseSurface>} ResponseSurface
  * @typedef {ReturnType<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>} Margin
  * @typedef {ReturnType<typeof import("../records/pending/dispatch.js").createCommandDispatch>["post"]} Post
- * @typedef {{withdrawReaction: ReturnType<typeof import("./undo.js").createUndo>["withdraw"], postReaction: Post}} ReactionCommands
+ * @typedef {{withdrawReaction: ReturnType<typeof import("../records/undo.js").createUndo>["withdraw"], postReaction: Post}} ReactionCommands
  */
 
 const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
@@ -672,11 +671,4 @@ export async function sendReaction(event, where, postReaction) {
   const sent = await postReaction(event);
   if (sent) announce(`${event.token} on ${where}`);
   return sent;
-}
-// Where a reaction stands, as Threads names its anchor.
-/** @param {{kind: string, anchor?: Anchor | null | undefined, about?: import("../../types/contract.js").EventMap["comment"]["about"]}} event */
-export function reactionPlace(event) {
-  if (event.kind === "reply") return "the reply";
-  if (!event.anchor) return "the page";
-  return anchorLabel(event.anchor, event.about);
 }

@@ -129,7 +129,7 @@
    resolved thread in the card's count ("1/3"), else the one before, and stands the user
    on it, so the page never moves; at a passage with no other thread the card closes
    and leaves the user on its target (`landing`). Undo opens the thread again in the
-   card where it was resolved (annotations/undo.js, the page's reader). The user chose this
+   card where it was resolved (records/undo.js, the page's reader). The user chose this
    over closing the card onto its passage whatever else stands there, which
    leaves the card and the floating panel doing different things, and over moving on to
    the next open thread on the page, as the panel does, which scrolls the page under the

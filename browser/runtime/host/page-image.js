@@ -35,10 +35,10 @@
  * a shadow host and never descends into SVG or an element with no content of its own,
  * such as an image or a frame.
  */
-import { canvas2D } from "../../lib/canvas.js";
-import { carriedBox, elementBorderFrame } from "../../dom/element-axes.js";
-import { hasArea, intersect, overlaps } from "../../dom/rect.js";
-import { describeFailure } from "../../lib/exception.js";
+import { canvas2D } from "../lib/canvas.js";
+import { carriedBox, elementBorderFrame } from "../dom/element-axes.js";
+import { hasArea, intersect, overlaps } from "../dom/rect.js";
+import { describeFailure } from "../lib/exception.js";
 /** @param {Blob} blob */
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
@@ -51,7 +51,7 @@ const asDataUrl = async (blob) =>
 export const pageRenderer = async () => {
   const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([
     import("/vendor/snapdom.esm.js"),
-    import("../../host/sample.js"),
+    import("./sample.js"),
   ]);
   return { snapdom, isSampleFrame, sampleFrameImage };
 };

@@ -12,7 +12,7 @@ import {
 } from "/runtime/records/drafts.js";
 import { applicationState } from "/runtime/state/semantic-state.js";
 import { noticeReading } from "/runtime/transport/notifications.js";
-import { createUndo } from "/runtime/annotations/undo.js";
+import { createUndo } from "/runtime/records/undo.js";
 import { servedState } from "../served.mjs";
 import "/runtime/records/thread/landing.js";
 

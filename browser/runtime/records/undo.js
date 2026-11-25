@@ -129,21 +129,21 @@ import {
 import { runtime } from "../state/context.js";
 import { pageCommand } from "../dom/keyboard/register.js";
 import { savedReadingSettled } from "../dom/keyboard/bindings.js";
-import { reactionPlace } from "./reactions.js";
 import { PENDING } from "../state/thread/identity.js";
-import { threadIdNamed, threadNamed } from "../records/thread/state.js";
+import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel } from "../readings/addressable-names.js";
 import { addressableWord } from "../lib/element-word.js";
 import { elementById } from "../readings/passages.js";
 import { placeBox, placeHolder } from "../dom/geometry.js";
 import { seenLanded } from "../readings/scroll-containers.js";
 import {
+  anchorLabel,
   messageHolding,
   messageWords,
   threadName,
-} from "../records/thread/messages.js";
-import { surfaceFocusTarget } from "../records/thread/surfaces.js";
-import { drawnThreadId, THREAD } from "../records/thread/selectors.js";
+} from "./thread/messages.js";
+import { surfaceFocusTarget } from "./thread/surfaces.js";
+import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { ago, saidNow } from "../state/presence.js";
 import { quotedWords as quoted } from "../lib/words.js";
 import { retainUserIntent } from "../dom/user-intent.js";
@@ -151,15 +151,15 @@ import { raiseError } from "../transport/errors.js";
 import { dragHeld } from "../dom/widget-elements.js";
 import { backgroundFlash } from "../dom/motion.js";
 import {
+  commentDraft,
   giveBackWords,
   keepDiscardsWith,
   PAGE_DRAFT,
   replyContext,
   rewriteContext,
   threadDraft,
-} from "../records/drafts.js";
+} from "./drafts.js";
 import { aimTargetAt } from "../readings/anchor-resolution.js";
-import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "../state/thread/model.js";
 import { inChrome } from "../base/ui-marks.js";
 import { randomId } from "../base/ids.js";
@@ -170,13 +170,13 @@ import { signal } from "/vendor/signals-core.js";
  * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
- * @typedef {import("../../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("../records/thread/state.js").allThreads>[number]["root"] | import("../records/pending/dispatch.js").UndoCandidate | import("../base/snapshot.js").Immutable<import("../../types/domain.js").Event | import("../../types/domain.js").Message>>>} UndoEvent
+ * @typedef {import("../../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("../base/snapshot.js").Immutable<import("../../types/domain.js").Event | import("../../types/domain.js").Message>>>} UndoEvent
  * @typedef {typeof runtime.undo[number]} UndoEntry
- * @typedef {Omit<import("../records/drafts.js").Discarded, "at"> & {kind: "discard", attempt: string, ts: string,
+ * @typedef {Omit<import("./drafts.js").Discarded, "at"> & {kind: "discard", attempt: string, ts: string,
  * before: {seq: number, attempts: ReadonlySet<string>}, message: string | null, widget: string | null}} Discard
  * @typedef {import("../../types/contract.js").ServedGesture} Gesture
  * @typedef {ReturnType<typeof retainUserIntent>} UserIntent
- * @typedef {ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"]} OpenThread
+ * @typedef {ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"]} OpenThread
  * @typedef {{thread: string | null, message?: string, nodes: (Element | null)[], fragment?: never}
  * | {fragment: string, nodes: (Element | null)[], thread?: never, message?: never}} UndoPlace
  */
@@ -212,6 +212,14 @@ function actionWords(event, gesture) {
     default:
       return `updated ${widget}`;
   }
+}
+
+// Where a reaction stands, as Threads names its anchor.
+/** @param {{kind: string, anchor?: import("../../types/domain.js").Anchor | null | undefined, about?: import("../../types/contract.js").EventMap["comment"]["about"]}} event */
+function reactionPlace(event) {
+  if (event.kind === "reply") return "the reply";
+  if (!event.anchor) return "the page";
+  return anchorLabel(event.anchor, event.about);
 }
 
 // What a gesture did, in the words the page holds for it now.
@@ -320,11 +328,11 @@ const seen = (where) => {
 
 const UNDO_KEYS = ["Mod+z"];
 
-/** @param {{post: ReturnType<typeof import("../records/pending/dispatch.js").createCommandDispatch>["post"],
+/** @param {{post: ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["post"],
  * stateApplying: () => boolean, unaccountedGesture: () => boolean,
- * openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"],
+ * openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"],
  * threadPlace: (id: string) => Element | Range | null,
- * resumeDraft: (context: string, route?: import("../records/drafts.js").DraftRoute) => Promise<void>}} dependencies */
+ * resumeDraft: (context: string, route?: import("./drafts.js").DraftRoute) => Promise<void>}} dependencies */
 export function createUndo({
   post,
   stateApplying,
@@ -633,7 +641,7 @@ export function createUndo({
 
   // A box's Discard or Escape is a gesture of the user's (the header), kept until
   // another takes its place or the document reloads.
-  /** @param {import("../records/drafts.js").Discarded} discarded */
+  /** @param {import("./drafts.js").Discarded} discarded */
   function keepDiscard({ at, ...discarded }) {
     const attempt = randomId();
     // What it was an edit of, read while its box stands: a rewrite's message, else the

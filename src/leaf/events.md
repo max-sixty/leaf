@@ -127,7 +127,7 @@ and how long ago, in every tab and after a reload. A press withdraws the gesture
 once, unless a message or settlement of the user's is still being sent, which it waits
 for, and leaves the user at the gesture's thread, message, passage or element,
 travelling there where it was out of view, so the user sees what the press took back
-however old it was (`runtime/annotations/undo.js`). `runtime/annotations/undo.js` names each gesture, and the served list words an
+however old it was (`runtime/records/undo.js`). `runtime/records/undo.js` names each gesture, and the served list words an
 action at its head (`GestureWords.gesture`). An exact control, such as a widget's Undo,
 may withdraw an older gesture it names. It and the undo key may withdraw an action whose
 POST has not returned: the browser keeps both gestures in its ordered ledger and sends

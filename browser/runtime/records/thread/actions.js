@@ -17,7 +17,7 @@ import { threadNamed } from "./state.js";
 /** @typedef {CommentInput<Extract<PendingCommand, {kind: "comment"}>>} CreateComment */
 /** @param {{
  * post: Post,
- * withdraw: ReturnType<typeof import("../../annotations/undo.js").createUndo>["withdraw"],
+ * withdraw: ReturnType<typeof import("../undo.js").createUndo>["withdraw"],
  * sendReaction: typeof import("../../annotations/reactions.js").sendReaction,
  * currentRevision: () => number | null,
  * open: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],

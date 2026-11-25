@@ -13,7 +13,7 @@ import { canvas2D } from "../../lib/canvas.js";
 import { LEAF_SURFACE } from "../../readings/passages.js";
 import { nextRender } from "../../lib/frame-pass.js";
 import { drawingGeometry } from "./drawing-geometry.js";
-import { pageImage, pageRenderer } from "./page-image.js";
+import { pageImage, pageRenderer } from "../../host/page-image.js";
 
 const CONTEXT_PAD = 24;
 const PREVIEW_WIDTH = 2048;

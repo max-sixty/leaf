@@ -47,7 +47,7 @@ page selects it decides what the theme has to state:
 
 Either way its pages keep Leaf's idioms, such as `.lf-callout` and `.lf-tag`, which
 Leaf draws on every page. Leaf's rules for them stand in `lf-base`, above the page's
-cascade layers and every rule of a theme's `theme.css`, and below every other rule of
+`base` layer and every rule of a theme's `theme.css`, and below every other rule of
 `lf-base`, so a theme restyles an idiom from its `defaults.css`, where a rule for the
 idiom's element, such as `.lf-tag` or `dl.lf-facts dt`, outranks Leaf's whatever its
 weight.

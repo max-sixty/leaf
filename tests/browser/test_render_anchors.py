@@ -108,7 +108,7 @@ def thread_head(page, thread_id):
     """Open the thread in the panel, once the page reads it, and return the head of
     its view, which names what the thread is about: the quoted words and a label of
     where they stand. The tab chooses the panel for threads, and the thread opens by
-    its route without travel (`threadActions.open`), so reading its head moves and
+    its route without travel (`go`), so reading its head moves and
     reveals nothing on the page, as a row of Threads, which travels to the passage,
     would."""
     page.evaluate(
@@ -123,7 +123,7 @@ def thread_head(page, thread_id):
         """async (id) => {
           const api = window.__lfThreadsApi;
           const thread = api.readThreads().threads.find((t) => t.id === id);
-          await api.threadActions.open(thread.key, { part: "thread", travel: false });
+          await api.go(thread, { part: "thread", travel: false });
         }""",
         thread_id,
     )
@@ -1649,15 +1649,16 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
-          const {dressCode} = await window.__lfWidgetApi();
+          const frame = () => new Promise(requestAnimationFrame);
           const code = document.querySelector('#marked code');
           const mark = code.querySelector('mark');
           const target = code.querySelector('#target');
           const previous = [...code.querySelectorAll('[data-lf-syn]')];
           code.className = 'language-javascript';
-          await dressCode(code);
+          while (code.dataset.lfSyntax !== 'javascript') await frame();
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          await dressCode(code);
+          await frame();
+          await frame();
           return code.querySelector('mark') === mark
             && code.querySelector('#target') === target
             && mark.textContent === 'f load(path):\\n    return "rea'
@@ -1672,16 +1673,17 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
         text = page.evaluate(
             """async () => {
-              const {dressCode} = await window.__lfWidgetApi();
               const code = document.createElement('code');
               code.className = 'language-python';
               code.textContent = 'old = 1';
               document.querySelector('#later').after(
                 Object.assign(document.createElement('pre'), {id: 'rewritten'}));
               document.querySelector('#rewritten').append(code);
-              const first = dressCode(code);
+              await new Promise(requestAnimationFrame);
               code.textContent = 'new = 2';
-              await Promise.all([first, dressCode(code)]);
+              delete code.dataset.lfSyntax;
+              while (code.dataset.lfSyntax !== 'python')
+                await new Promise(requestAnimationFrame);
               return code.textContent;
             }"""
         )

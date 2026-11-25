@@ -146,8 +146,7 @@
     },
     "shadow": true,
     "space": "wide",
-    "height": true,
-    "instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. The package's author instructions describe supplying a complete patch or files manifest. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a `source` diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
+    "instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. The package's author instructions describe supplying a complete patch or files manifest. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. Add lf-diff-note children beside pre for remarks on particular source lines.",
     "example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre><lf-diff-note file=\"feeders/mount.py\" side=\"new\" at=\"2\">Steel carries the load.</lf-diff-note></lf-diff>"
   },
   "lf-call-diff": {
@@ -169,9 +168,8 @@
     "refers": {
       "diff": {}
     },
-    "height": true,
     "instructions": "Set `diff` to the id of the `lf-diff` holding the exact patch. Keep the unchanged items in the tree as landmarks. In a large repository, give each widget one file or entry point. Don't copy the output into markup, add attribute reads as calls, or draw separate before and after diagrams.",
-    "example": "<lf-call-diff id=\"request-calls\" data-height=\"480\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
+    "example": "<lf-call-diff id=\"request-calls\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
   },
   "lf-worktree-diffs": {
     "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",

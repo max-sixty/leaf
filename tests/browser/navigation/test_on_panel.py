@@ -819,8 +819,8 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {
-          const {obligationActions} = await window.__lfWidgetApi();
-          return obligationActions.open('widget:only');
+          const {go} = await window.__lfWidgetApi();
+          return go({id: 'widget:only'});
         }"""
     )
     expect(page.locator("#only-decision")).to_be_focused()
@@ -854,7 +854,7 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
 
     def open_obligation(id_):
         assert page.evaluate(
-            """async id => (await window.__lfWidgetApi()).obligationActions.open(id)""",
+            """async id => (await window.__lfWidgetApi()).go({id})""",
             id_,
         )
 

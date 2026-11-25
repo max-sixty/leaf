@@ -16,7 +16,7 @@
  * adding a second mark to the prose, and its description is the card, which a screen
  * reader hears on focus. An auto popover owns the card's top-layer lifecycle and light
  * dismissal; CSS anchors keep the card with its phrase. */
-import { aimedAt, says, whileConnected } from "/runtime/widget-api.js";
+import { aimedAt, says } from "/runtime/widget-api.js";
 import { offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -37,17 +37,21 @@ customElements.define(
         : { name: this.#phrase(), detail: [says(this.#bubble)] };
 
     connectedCallback() {
-      if (!once(this)) return;
-      this.#bubble = this.querySelector(":scope > [popover]");
-      if (!this.#bubble) return;
-      this.#build(this.#bubble);
-      whileConnected(this, (/** @type {AbortSignal} */ signal) => {
-        this.addEventListener("click", (event) => this.#click(event), { signal });
-        this.#sync();
-        return () => {
-          this.#pinned = false;
-        };
-      });
+      if (once(this)) {
+        this.#bubble = this.querySelector(":scope > [popover]");
+        if (!this.#bubble) return;
+        this.#build(this.#bubble);
+        this.addEventListener("click", (event) => this.#click(event));
+      }
+      this.#sync();
+    }
+
+    // A move keeps a pinned card open.
+    connectedMoveCallback() {}
+
+    // A card leaving the page with its gloss closes, so a return finds it unpinned.
+    disconnectedCallback() {
+      this.#pinned = false;
     }
 
     // The authored phrase, which names the gloss, without the words of its card.

@@ -34,7 +34,7 @@ import { render as motionTemplate } from "./motion-view.js";
  * touch or text inside the study but outside its transport, or the window losing
  * focus), read from the window as Leaf's prepaint counts input. */
 import { render } from "/vendor/lit.js";
-import { tabStore, whileConnected } from "/runtime/portable-api.js";
+import { tabStore } from "/runtime/portable-api.js";
 import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { once } from "/runtime/lib/once.js";
 
@@ -46,6 +46,8 @@ class MotionStudy extends HTMLElement {
   static lfPatch = "members";
   /** @type {{controls: HTMLDivElement, play: HTMLButtonElement, time: HTMLInputElement, speed: HTMLSelectElement} | undefined} */
   #ui;
+  // What the study listens to while it stands in the page.
+  #connection = new AbortController();
   #transport = document.createElement("div");
   /** @type {((time: number) => void) | undefined} */
   #draw;
@@ -100,8 +102,7 @@ class MotionStudy extends HTMLElement {
     );
   }
 
-  connectedCallback() {
-    if (!once(this)) return;
+  #build() {
     // The box stands beside the transport, or first where there is none yet, so the
     // author's study under it stays readable. One failure said again keeps its box.
     placesFailure(this, (/** @type {HTMLElement} */ box) => {
@@ -156,78 +157,78 @@ class MotionStudy extends HTMLElement {
     ui.play.addEventListener("click", () => {
       if (this.#playable) this.#toggle();
     });
-    whileConnected(this, (signal) => {
-      ui.time.addEventListener(
-        "input",
-        () => {
-          this.currentTime = Number(ui.time.value);
-        },
-        { signal },
-      );
-      ui.speed.addEventListener(
-        "change",
-        () => {
-          this.#rate = Number(ui.speed.value);
-          for (const video of this.#videos) video.playbackRate = this.#rate;
-          this.#save();
-        },
-        { signal },
-      );
-      this.addEventListener("lf-inspect", () => this.#pause(), { signal });
-      document.addEventListener(
-        "visibilitychange",
-        () => {
-          if (document.hidden) this.#pause();
-        },
-        { signal },
-      );
-      const input = (/** @type {Event} */ event) => {
-        // Firefox can hand an arriving sandboxed window a foreign wheel object, which
-        // is no Event of this realm (prepaint.js reads input the same way).
-        if (!(event instanceof Event)) return;
-        const { target } = event;
-        if (
-          event.type === "blur"
-            ? target === window
-            : target instanceof Node &&
-              event.composedPath().includes(this) &&
-              !event.composedPath().includes(ui.controls)
-        )
-          this.#pause();
-      };
-      for (const type of INPUTS)
-        addEventListener(type, input, { capture: true, passive: true, signal });
-      reducedMotion.addEventListener(
-        "change",
-        () => {
-          if (reducedMotion.matches && this.#playing) this.currentTime = this.duration;
-          else {
-            this.#paintControls();
-            this.dispatchEvent(
-              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-            );
-          }
-        },
-        { signal },
-      );
-      // Media events don't bubble but do pass the study on capture, so a recording a
-      // revision adds joins the clock, and gives Play something to play, as one the
-      // study started with does.
-      this.addEventListener(
-        "loadedmetadata",
-        () => {
-          this.#seekVideos();
+    ui.time.addEventListener("input", () => {
+      this.currentTime = Number(ui.time.value);
+    });
+    ui.speed.addEventListener("change", () => {
+      this.#rate = Number(ui.speed.value);
+      for (const video of this.#videos) video.playbackRate = this.#rate;
+      this.#save();
+    });
+    this.addEventListener("lf-inspect", () => this.#pause());
+    // Media events don't bubble but do pass the study on capture, so a recording a
+    // revision adds joins the clock, and gives Play something to play, as one the
+    // study started with does.
+    this.addEventListener(
+      "loadedmetadata",
+      () => {
+        this.#seekVideos();
+        this.#paintControls();
+        this.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
+      },
+      { capture: true },
+    );
+  }
+
+  connectedCallback() {
+    if (once(this)) this.#build();
+    if (!this.#ui) return;
+    const { signal } = (this.#connection = new AbortController());
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.hidden) this.#pause();
+      },
+      { signal },
+    );
+    const input = (/** @type {Event} */ event) => {
+      // Firefox can hand an arriving sandboxed window a foreign wheel object, which
+      // is no Event of this realm (prepaint.js reads input the same way).
+      if (!(event instanceof Event)) return;
+      const { target } = event;
+      if (
+        event.type === "blur"
+          ? target === window
+          : target instanceof Node &&
+            event.composedPath().includes(this) &&
+            !event.composedPath().some((node) => node === this.#ui?.controls)
+      )
+        this.#pause();
+    };
+    for (const type of INPUTS)
+      addEventListener(type, input, { capture: true, passive: true, signal });
+    reducedMotion.addEventListener(
+      "change",
+      () => {
+        if (reducedMotion.matches && this.#playing) this.currentTime = this.duration;
+        else {
           this.#paintControls();
           this.dispatchEvent(
             new CustomEvent("lf-commands", { bubbles: true, composed: true }),
           );
-        },
-        { capture: true, signal },
-      );
-      this.#seekVideos();
-      this.#paint();
-      return () => this.#pause();
-    });
+        }
+      },
+      { signal },
+    );
+    this.#seekVideos();
+    this.#paint();
+  }
+
+  disconnectedCallback() {
+    this.#connection.abort();
+    this.#pause();
   }
 
   #playLabel() {

@@ -63,7 +63,7 @@ in its place, so put words the user should quote in the light DOM and slot them,
 write the element as a widget declaring `shadow` (`module-authoring.md`, "Shadow
 stages and styles").
 
-Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
+Reach a widget's methods from the first `lf-page-interface` (`module-authoring.md`,
 "Startup and presentation"). The rest of `/runtime/widget-api.js` is there where its
 helpers save work; `module-authoring.md` is for writing widgets. For text that changes
 during an interaction, read `page-layout.md`, "Space for changing text".

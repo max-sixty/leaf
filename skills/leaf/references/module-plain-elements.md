@@ -262,7 +262,7 @@ this.dispatchEvent(hold);
   `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
 - **Its name, the parts a link reaches, its threads and its revisions.** `lfWord()` and
   `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()`, `lfElementsFor()`,
-  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Following a reference"),
+  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Taking the user somewhere"),
   `threadOutlets()` and an outlet's `lfHold` (`module-annotations.md`, "Widget-local
   Thread placement") and `static lfPatch` (`module-authoring.md`, "Revisions").
 - **Words it writes.** Words the element writes into the page are the page's: the user

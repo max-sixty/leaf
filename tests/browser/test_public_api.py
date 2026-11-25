@@ -523,7 +523,7 @@ def test_a_package_s_own_views_get_the_address_back_and_their_places(
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
-          const {retainUserIntent} = await window.__lfWidgetApi();
+          const {retainUserIntent} = await window.__lfCheckApi();
           reveal(document.querySelector('#two'), retainUserIntent());
         }"""
     )

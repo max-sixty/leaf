@@ -5,7 +5,7 @@
  * waits on the user; a worker is quiet while it claims work it hasn't reported on
  * for a quarter of an hour (lf-atlas-worker.js). */
 import { html, noChange, render, repeat } from "/vendor/lit.js";
-import { elementById, HeldReading, readObligations } from "/runtime/widget-api.js";
+import { elementById, readObligations } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
@@ -43,18 +43,6 @@ customElements.define(
       const list = this.overview.querySelector(".atlas-stopped > ul");
       keeps(list, "data-lf-gen", "1");
       list.toggleAttribute("data-lf-echo", true);
-      this.hold = new HeldReading(
-        this,
-        () => [this.overview.querySelector(".atlas-stopped")],
-        () => this.requestUpdate(),
-      );
-      this.button = this.overview.querySelector(".atlas-refresh");
-      this.button.addEventListener("click", () => {
-        this.hold.release();
-        for (const child of this.querySelectorAll("lf-atlas-worker, lf-atlas-tree"))
-          child.showLatest();
-        this.requestUpdate();
-      });
       this.addEventListener("atlas-reading", () => this.requestUpdate());
     }
     render() {
@@ -80,21 +68,14 @@ customElements.define(
           this.overview.querySelector(`[data-atlas-count="${name}"]`),
           String(value),
         );
-      const next = JSON.stringify(
-        halted.map((task) => [task.id, task.getAttribute("label") || task.id]),
-      );
-      const shown = this.hold.hold(next);
-      const pending =
-        next !== shown ||
-        [...this.querySelectorAll("lf-atlas-worker, lf-atlas-tree")].some(
-          (child) => child.pending,
-        );
-      this.button.toggleAttribute("disabled", !pending);
       render(
         repeat(
-          JSON.parse(shown),
-          ([id]) => id,
-          ([id, title]) => html`<li><a href=${`#${id}`}>${title}</a></li>`,
+          halted,
+          (task) => task.id,
+          (task) =>
+            html`<li>
+              <a href=${`#${task.id}`}>${task.getAttribute("label") || task.id}</a>
+            </li>`,
         ),
         this.overview.querySelector(".atlas-stopped > ul"),
       );

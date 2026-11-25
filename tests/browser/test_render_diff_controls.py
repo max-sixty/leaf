@@ -164,10 +164,10 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     page.locator("h1").click()
     before_landing_frame(
         page,
-        """window.__lfWidgetApi().then(({navigateToDatum}) => () => {
+        """window.__lfWidgetApi().then(({go}) => () => {
           queueMicrotask(async () => {
-            window.datumArrived = await navigateToDatum(document.querySelector('#files'),
-              'for', '["app.py","new",1]');
+            window.datumArrived = await go(document.querySelector('#patch'),
+              {key: '["app.py","new",1]'});
           });
         })""",
     )
@@ -850,8 +850,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
             "Explore project files",
             "<h1>Project files</h1>"
             '<a href="#project-files">Back to files</a>'
-            '<lf-file-tree id="project-files" source="project" '
-            'data-height="280"></lf-file-tree>',
+            '<lf-file-tree id="project-files" source="project"></lf-file-tree>',
             head="<style>#project-files { --lf-file-tree-height:280px; }</style>",
         ),
         packages=("file-tree",),

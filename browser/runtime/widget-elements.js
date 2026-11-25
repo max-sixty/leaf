@@ -31,7 +31,14 @@ export { generatedElement } from "./element-markers.js";
    finds the container's own module put there — an option's pick mark, a gloss's own
    mark — so the caller names that apparatus, which is the container's to press. The
    answer otherwise fails closed: declining one ambiguous container gesture is safer
-   than recording a choice while the user operates nested evidence. */
+   than recording a choice while the user operates nested evidence.
+
+   `aimedAt` stays in the package interface because its answer rests on what only Leaf
+   holds: the composed registry's `owners`, which say which nested widgets are a
+   container's own parts, and Leaf's own controls and marks inside the container. A
+   widget answering for itself records picks the user never made when they work the
+   evidence inside an option, which breaks `SOUL.md`'s "Controls mean what they say, and
+   the record preserves what the user decided". */
 import { pageRange, selectionBackward, selectionEnds } from "./native-selection.js";
 import { overCharacter } from "./geometry.js";
 import { pageShadowRoots } from "./shadow.js";

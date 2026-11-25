@@ -32,9 +32,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-// What a place on the page previews: its name, first parts, state and conversations.
-export { placePreview } from "./place-preview.js";
-export { navigateToDatum } from "./application.js";
 // Hearing each move of the user's current location with its cause
 // (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
 // a press that lands away from a surface (`onPressAway`).
@@ -44,17 +41,14 @@ export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
 export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-export { obligationActions } from "./application.js";
 export { readQueues } from "./queue-api.js";
 export {
+  go,
   placePageThreads,
   registerThreadPresentation,
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
-// Holding a region's rows the log or the clock decides while their growth would be seen
-// (browser/AGENTS.md, "The page holds still under the user's aim").
-export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { rowWalk } from "./walk-position.js";
 export { registerContribution } from "./contributions.js";
@@ -67,21 +61,13 @@ export { connection } from "./http-api.js";
 export { draft } from "./drafts.js";
 export { layerFact } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
-// A package's routes past presentation all declare the arrival, so a widget cannot
-// defer without the page knowing: `afterPresentation` waits for presentation and
-// `whenNear` for the reader to near a node, then each runs its callback.
-// `afterPresentation`'s callback may return work the widget has already started, which
-// it counts from its call.
-export {
-  afterPresentation,
-  whenNear,
-  whileInterfaceConnected,
-} from "./presentation.js";
+// `whenNear` waits for the reader to near a node and declares the wait as an arrival,
+// so a widget cannot defer without the page knowing.
+export { whenNear } from "./presentation.js";
 // The members a widget shows one at a time: Leaf remembers the one shown, names it in
 // the address where the widget's views are the page's, and keeps the user's place in
 // each view of the page's flow (views.js).
 export { keepView, openingView, viewMembers } from "./views.js";
-export { dressCode } from "./code-dressing.js";
 export { readHistory } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
 
@@ -109,5 +95,3 @@ export async function mountSample(frame, options) {
   }
 }
 export { wear } from "./dress.js";
-export { landInThread } from "./application.js";
-export { threadInput } from "./thread/landing.js";

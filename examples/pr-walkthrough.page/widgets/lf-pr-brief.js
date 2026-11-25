@@ -1,7 +1,7 @@
 /* This review packet owns its forge facts and composition. Leaf supplies typed
  * source delivery, safe Markdown, the shared clock and identity-aware comments. */
 import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
-import { dressCode, pageLinks } from "/runtime/widget-api.js";
+import { pageLinks } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -120,8 +120,8 @@ customElements.define(
       );
     }
 
-    // The drawn brief's datum mark and code highlighting follow each draw; the draw's
-    // `updateComplete` waits for the highlighting.
+    // The drawn brief's datum mark follows each draw; Leaf colours its code as it
+    // arrives.
     updated(changed) {
       super.updated(changed);
       const record = this.#drawn;
@@ -132,7 +132,6 @@ customElements.define(
       keeps(node, "data-lf-datum", identity);
       keeps(node, "data-lf-identity", record ? identity : null);
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: record } }));
-      if (record) this.#work = dressCode(this);
     }
   },
 );

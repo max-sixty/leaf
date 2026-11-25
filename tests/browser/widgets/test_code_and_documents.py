@@ -1570,7 +1570,7 @@ only
     )
     assert caption[0] > code_x and caption[1] < 2 * gutter[1], (gutter, caption)
 
-    # The rows a key addresses, as `navigateToDatum` reads them through lfElementsFor.
+    # The rows a key addresses, as `go` with a key reads them through lfElementsFor.
     addressed = """key => [...document.querySelector('#walk').lfElementsFor(key)]
         .map(l => l.dataset.lfLine ?? `${l.dataset.lfFrom}-${l.dataset.lfTo}`)"""
     assert page.evaluate(addressed, "1507-1550") == ["1507", "1508-1549", "1550"]

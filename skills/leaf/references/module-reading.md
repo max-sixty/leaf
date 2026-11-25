@@ -77,22 +77,37 @@ reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
 `$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
 guidance, so read the fact you need rather than whether an entry exists.
 
-### Following a reference
+### Taking the user somewhere
 
-Reach another widget through an attribute declared in `refers`
-([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
-not by looking up the id yourself.
+`go(place, options)` takes the user where Leaf's own travel would, and resolves to
+whether they arrived. Where it moves focus or the page, Back returns the user to where
+they were, as after a followed link. `place` is one of:
 
-`navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to
-the first element `key` names in the referenced widget: a visual part's id, a projected
-datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
-line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, sets the URL's fragment to the widget's id and the key, and announces
-`success`. Where it moves focus or the page, Back returns the user to where they were,
-as after a followed link. An absent destination keeps the reader's place and history
-and shows `missing` in Leaf's notice seat. Pass
-`focus: false` when the source stays the user's input surface, as a file navigator does
-beside the evidence it selects. A lazy target can implement
+- an element, or with `{key}` the first element `key` names in it: a visual part's id,
+  a projected datum's key, or whatever the element's `lfElementsFor(key)` maps it to
+  (`lf-code` takes line ranges such as `"3-5,8"`). Leaf loads the datum, opens what
+  holds it, reveals and focuses it, sets the URL's fragment to the element's id and the
+  key, and announces `success`. An absent destination keeps the reader's place and
+  history and shows `missing` in Leaf's notice seat. Pass `focus: false` when the
+  source stays the user's input surface, as a file navigator does beside the evidence
+  it selects. Find another widget through an attribute declared in `refers`
+  ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
+  so `page check` holds the id;
+- a thread, or anything with its `key` ("Reading and opening Threads from a widget" in
+  [module-annotations.md](module-annotations.md)), opened where a margin mark would
+  open it: the page's primary reader, which is the Leaf panel unless a package
+  registers one. `part` is `"thread"` for the card, `"reply"` for the reply editor, or
+  `"message"` with `message: message.key` for one message; with none it lands as
+  opening a thread does. `travel: false` keeps the page where it is, and `focus: false`
+  leaves focus alone;
+- an obligation or a row of the On lists, or anything with its `id` ("Reading
+  obligations and the On lists"), where On Me's arrival would land;
+- `{within, dir}`: the next obligation waiting on the user inside the element
+  `within`, or the previous with `dir: -1`, from where the user is, as `m` steps in
+  On Me. A control that does this prevents `mousedown`'s default, so focus stays put
+  and a second press steps on.
+
+A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
 name a datum not yet drawn. Leaf also asks `lfRevealDatum` for the key of a thread on
@@ -104,7 +119,7 @@ rather than selecting or redrawing it again.
 
 A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
-key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
+key names nothing. A widget that answers `go` with a key needs nothing more for links
 to its parts.
 
 ## Content helpers
@@ -125,15 +140,16 @@ source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into i
 ### Code
 
 `langForPath(path)` names the registry `$languages` language a file name means, or
-undefined where the page's table has none. `dressCode(root)` colours
-each `pre > code` in `root` whose `language-…` class names a language and that wears
-the reading face, and typesets each formula, a `<code class="language-math">`
+undefined where the page's table has none. Leaf colours each `pre > code` a widget
+draws as it arrives, whose `language-…` class names a language and that wears the
+reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
 (`package-themes.md`, "A page's theme"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
-`<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
-reading face as other content with its own design does.
+`<br>`, whose blocks remain uncoloured. A block keeps its colouring while its language
+stands, so draw a new `<code>` to show other words. A block with its own colouring
+turns off the reading face as other content with its own design does.
 
 A widget that draws each line of source in a box of its own, as an editor does, marks
 the box `data-lf-pre-line`. Leaf then indents the rows a long line wraps onto two
@@ -247,14 +263,6 @@ A module that counts items per heading as the reader moves through them, as `lf-
 does, gives each heading the stretch of the page from the element it opens, such as
 its `section`, to the next heading's, and counts each item in the stretch holding its
 first word, comparing positions with `compareDocumentPosition`.
-
-`obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
-it is gone; a row of the On lists opens by its `id`.
-`obligationActions.next({within, dir})` steps to the next obligation waiting on the
-user inside `within`, or the previous with `dir: -1`, as `m` does in On Me, and
-resolves to whether it arrived. A control that calls it prevents `mousedown`'s
-default, so focus stays put and a second press steps on. The user answers an obligation
-through the widget's own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has its obligation's `id`, which names the row as

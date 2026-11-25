@@ -1279,14 +1279,6 @@ _TEXT = {
             f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
         ),
     ),
-    "work-assignment": _refuses(
-        _REFERS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a goal, but '
-            + (f"<{v['target_tag']}>" if v["target_tag"] else "the element it names")
-            + " has no role goal in $work.widgets"
-        ),
-    ),
     "ambiguous-data-binding": _refuses(
         _DATA,
         lambda at, v: (
@@ -1492,25 +1484,6 @@ _TEXT = {
             f"$data contract {v['contract']!r} schema reference"
             f" {v['reference']!r} does not resolve within the package; data contracts"
             " must be self-contained"
-        )
-    ),
-    # Its work role, which `$work.widgets` maps the declaration onto.
-    "work-reference": _declared(
-        lambda v: (
-            f"$work worker assignment `{v['attr']}` must be declared in `refers`"
-            ", as {}"
-        )
-    ),
-    "work-state": _declared(
-        lambda v: (
-            f"$work state `{v['attr']}` must be recorded by a verb with unit widget"
-            " and a value record on it"
-        )
-    ),
-    "work-value": _declared(
-        lambda v: (
-            f"$work {v['key']} lists {_json(v['values'])}, which state attribute"
-            f" `{v['attr']}` does not admit"
         )
     ),
     # An element declaration, on its own.

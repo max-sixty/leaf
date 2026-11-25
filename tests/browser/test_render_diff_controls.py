@@ -164,10 +164,10 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     page.locator("h1").click()
     before_landing_frame(
         page,
-        """window.__lfWidgetApi().then(({navigateToDatum}) => () => {
+        """window.__lfWidgetApi().then(({go}) => () => {
           queueMicrotask(async () => {
-            window.datumArrived = await navigateToDatum(document.querySelector('#files'),
-              'for', '["app.py","new",1]');
+            window.datumArrived = await go(document.querySelector('#patch'),
+              {key: '["app.py","new",1]'});
           });
         })""",
     )

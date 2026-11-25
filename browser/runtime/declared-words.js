@@ -34,12 +34,11 @@
    user content. */
 import { isElement } from "./lib/shadow-tree.js";
 
-import { markViews } from "./views.js";
 import { holdsFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";
 import { keeps } from "./lib/keeps.js";
-import { move } from "./dom-move.js";
+import { move } from "./lib/dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
@@ -209,10 +208,6 @@ export function markDeclared(root) {
       const declared = registry[tag]?.[fact];
       for (const el of elementsIn(root, tag)) {
         const value = holdsFor(el, declared);
-        if (key === "views") {
-          markViews(el);
-          continue;
-        }
         keeps(
           el,
           attribute,

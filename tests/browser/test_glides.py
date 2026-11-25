@@ -33,7 +33,7 @@ PAGE = leaf_page(
 # The press lands a destination smoothly, as a widget brings what it shows into view,
 # and changes boxes' heights in the same task, as a list the press redraws changes.
 PRESS = """async ([to, block, changes]) => {
-  const { scrollIntoView } = await window.__lfWidgetApi();
+  const { scrollIntoView } = await window.__lfCheckApi();
   document.getElementById('press').addEventListener('click', () => {
     scrollIntoView(document.getElementById(to), { block, behavior: 'smooth' });
     for (const [id, height] of changes)
@@ -79,7 +79,7 @@ def test_a_landing_s_glide_lands_its_destination_where_layout_moves_it(
     scroll_settled(page)
     landed = page.evaluate(
         """async ([to, block]) => {
-          const { scrollIntoView } = await window.__lfWidgetApi();
+          const { scrollIntoView } = await window.__lfCheckApi();
           const at = scrollY;
           scrollIntoView(document.getElementById(to), { block, behavior: 'instant' });
           return { at, still: scrollY };
@@ -126,7 +126,7 @@ def test_a_second_landing_takes_the_glide_the_first_set_off(request, serve, engi
     page.set_viewport_size({"width": 1000, "height": 700})
     page.evaluate(
         """async () => {
-          const { scrollIntoView } = await window.__lfWidgetApi();
+          const { scrollIntoView } = await window.__lfCheckApi();
           const first = document.getElementById('first');
           scrollTo(0, first.getBoundingClientRect().top + scrollY - 300);
           document.getElementById('press').addEventListener('click', () => {
@@ -145,7 +145,7 @@ def test_a_second_landing_takes_the_glide_the_first_set_off(request, serve, engi
     scroll_settled(page)
     landed = page.evaluate(
         """async () => {
-          const { scrollIntoView } = await window.__lfWidgetApi();
+          const { scrollIntoView } = await window.__lfCheckApi();
           const at = scrollY;
           scrollIntoView(document.getElementById('second'),
             { block: 'nearest', behavior: 'instant' });
@@ -177,7 +177,7 @@ def test_a_card_s_room_made_past_a_landing_holds_as_layout_moves_its_subject(
     page.set_viewport_size({"width": 1000, "height": 700})
     page.evaluate(
         """async ([grown, style]) => {
-          const { scrollIntoView } = await window.__lfWidgetApi();
+          const { scrollIntoView } = await window.__lfCheckApi();
           const { makeRoom, subjectGap } = await window.__lfOverlayApi();
           const subject = document.getElementById('down');
           const room = { left: 8, top: 8, right: 8, bottom: 8 };

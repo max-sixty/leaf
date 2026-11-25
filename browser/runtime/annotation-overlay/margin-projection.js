@@ -112,7 +112,7 @@ import {
   clusterProjection,
 } from "../margin-model.js";
 
-import { move } from "../dom-move.js";
+import { move } from "../lib/dom-move.js";
 
 import {
   declareRelease,

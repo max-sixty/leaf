@@ -1,39 +1,18 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
 import { html } from "/vendor/lit.js";
-import { HeldReading } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-tree",
   class extends LeafElement {
     static properties = { value: { attribute: false } };
-    pending = false;
-    // The worktrees value drawn, which a held reading keeps while newer ones arrive.
-    #view = null;
     constructor() {
       super();
       this.value = null;
     }
-    setup() {
-      this.held = new HeldReading(
-        this,
-        () => [...this.children],
-        () => this.requestUpdate(),
-      );
-    }
-    showLatest() {
-      this.held.show();
-    }
     render() {
-      const next = JSON.stringify(this.value);
-      const shown = this.held.hold(next);
-      if (shown === next) this.#view = this.value;
-      const view = this.#view;
-      if (this.pending !== (next !== shown)) {
-        this.pending = next !== shown;
-        this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
-      }
+      const view = this.value;
       const record = this.#record(view);
       return html`<details class="atlas-tree">
         <summary>Worktree evidence</summary>
@@ -70,7 +49,7 @@ customElements.define(
     }
     updated(changed) {
       super.updated(changed);
-      const view = this.#view;
+      const view = this.value;
       const present = this.#holds(view);
       const node = this.firstElementChild;
       keeps(node, "data-lf-datum", this.id);

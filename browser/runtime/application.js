@@ -679,12 +679,47 @@ function createApplication(dependencies) {
     });
   };
 
+  // Goes to an obligation by its id, which is also its row's on an On list: an
+  // update's or a to-do's at its row's arrival, a question asked in words at its
+  // message, and any other where the walk would.
+  /** @param {string} id */
+  const openObligation = (id) => {
+    const item = readObligations().byId.get(id);
+    if (!item) return Promise.resolve(false);
+    if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
+      return queueActions.open(id);
+    if (item.thread !== null && answeredInWords(item)) {
+      showHeld(item.thread);
+      return threadDestinations.openPageThread(item.message, { part: "message" });
+    }
+    return dependencies.goToObligation(item);
+  };
+  // A package's one travel (widget-api.js, `go`), told apart by what it is handed: an
+  // element, or the part a key names in it, as a link to `#<id>:<key>` reaches it; a
+  // step of the On Me walk within a region, from where the user is, as an `lf-tally`
+  // steps; a thread by its `key`, as `readThreads` gives it, opened where a margin
+  // mark would open it; and an obligation by its `id`, as `readObligations` and the
+  // rows of `readQueues` give it, where On Me's arrival would land.
+  /** @typedef {{within: Element, dir?: number}} Step
+   * @typedef {{key: string}} ThreadRow
+   * @typedef {{id: string}} ObligationRow
+   * @typedef {{key?: string | null, success?: string, missing?: string, focus?: boolean}} PartOptions
+   * @typedef {NonNullable<Parameters<typeof threadActions.open>[1]>} ThreadOptions */
+  /** @param {Element | Step | ThreadRow | ObligationRow} place @param {PartOptions & ThreadOptions} [options] @returns {Promise<boolean>} */
+  const go = (place, options = {}) => {
+    if (place instanceof Element)
+      return dependencies.anchorTravel.goToPart(place, options);
+    if ("within" in place)
+      return dependencies.nextObligationWithin(place).then(Boolean);
+    if ("key" in place) return threadActions.open(place.key, options).then(Boolean);
+    return openObligation(place.id).then(Boolean);
+  };
+
   const mounted = {
     withdraw: undo.withdraw,
     midComposition: engagement.midComposition,
     hasPending,
     invalidateDom,
-    landInThread: dependencies.landInThread,
     annotations,
     renderAnnotations,
     mountAnnotations,
@@ -703,7 +738,6 @@ function createApplication(dependencies) {
           yielding = entry;
           if (!authored) entry.attached = attachPresentation(owner, spec);
         }),
-    navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
     readAndApply: feed.readAndApply,
     refreshThread,
@@ -713,27 +747,7 @@ function createApplication(dependencies) {
     threadActions,
     // The panel's On rows' own arrival, where `m` would arrive (queue-api.js).
     queueActions,
-    // Goes to an obligation by its id, which is also its row's on an On list: an
-    // update's or a to-do's at its row's arrival, a question asked in words at its
-    // message, and any other where the walk would.
-    /** @param {string} id */
-    openObligation(id) {
-      const item = readObligations().byId.get(id);
-      if (!item) return Promise.resolve(false);
-      if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
-        return queueActions.open(id);
-      if (item.thread !== null && answeredInWords(item)) {
-        showHeld(item.thread);
-        return threadDestinations.openPageThread(item.message, {
-          part: "message",
-        });
-      }
-      return dependencies.goToObligation(item);
-    },
-    // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
-    nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
-      options,
-    ) => dependencies.nextObligationWithin(options),
+    go,
     startFeed: feed.startFeed,
   };
   return mounted;
@@ -747,10 +761,8 @@ export const dispatchWidget = commandDispatch.dispatchWidget;
 /** @type {ReturnType<typeof createApplication>["invalidateDom"]} */
 export const invalidateDom = () =>
   application ? application.invalidateDom() : Promise.resolve();
-/** @type {ReturnType<typeof createApplication>["landInThread"]} */
-export const landInThread = (...args) => app().landInThread(...args);
-/** @type {ReturnType<typeof createApplication>["navigateToDatum"]} */
-export const navigateToDatum = (...args) => app().navigateToDatum(...args);
+/** @type {ReturnType<typeof createApplication>["go"]} */
+export const go = (...args) => app().go(...args);
 export const post = commandDispatch.post;
 /** @type {ReturnType<typeof createApplication>["placePageThreads"]} */
 export const placePageThreads = (...args) => app().placePageThreads(...args);
@@ -758,9 +770,6 @@ export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
 export const threadActions = Object.freeze({
-  open: /** @type {ReturnType<typeof createApplication>["threadActions"]["open"]} */ (
-    ...args
-  ) => app().threadActions.open(...args),
   create:
     /** @type {ReturnType<typeof createApplication>["threadActions"]["create"]} */ (
       ...args
@@ -780,12 +789,4 @@ export const threadActions = Object.freeze({
     /** @type {ReturnType<typeof createApplication>["threadActions"]["setReaction"]} */ (
       ...args
     ) => app().threadActions.setReaction(...args),
-});
-export const obligationActions = Object.freeze({
-  open: /** @type {ReturnType<typeof createApplication>["openObligation"]} */ (
-    ...args
-  ) => app().openObligation(...args),
-  next: /** @type {ReturnType<typeof createApplication>["nextObligation"]} */ (
-    ...args
-  ) => app().nextObligation(...args),
 });

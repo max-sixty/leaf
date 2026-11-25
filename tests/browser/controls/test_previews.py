@@ -1112,7 +1112,7 @@ def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
 
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           api.focusDestination(document.getElementById('notes-link'), 'move');
         }"""
     )
@@ -2766,7 +2766,7 @@ def test_k_reads_a_landing_s_preview_inside_a_modal_dialog(browser, serve):
     )
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           for (const id of ['one', 'two'])
             document.getElementById(id).lfPreview = () => ({name: `${id} detail`});
           const rows = document.getElementById('rows');
@@ -3220,7 +3220,7 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     )
     page.evaluate(
         """async () => {
-          window.lfApi = await window.__lfWidgetApi();
+          window.lfApi = await window.__lfCheckApi();
           window.label = 'First item detail';
           document.getElementById('host').lfPreview = () => ({name: window.label});
         }"""
@@ -4141,7 +4141,7 @@ def test_a_held_reading_stays_as_a_redraw_gives_focus_back(browser, serve):
     expect(tip.locator(".lf-preview-word")).to_have_text("Value to enter")
     page.evaluate(
         """async () => {
-          const { holdFocus } = await window.__lfWidgetApi();
+          const { holdFocus } = await window.__lfCheckApi();
           const field = document.getElementById('note');
           const restore = holdFocus(document.getElementById('form'));
           const replacement = field.cloneNode(true);
@@ -4258,7 +4258,7 @@ def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
     )
     page.evaluate(
         """async () => {
-          window.lfApi = await window.__lfWidgetApi();
+          window.lfApi = await window.__lfCheckApi();
           document.getElementById('late').lfPreview = () => ({name: 'Late says'});
           // The target stands above the window as focus reaches it.
           scrollTo(0, 1200);

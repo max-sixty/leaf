@@ -83,16 +83,11 @@ import {
   repeat,
 } from "/vendor/lit.js";
 import {
-  focusDestination,
-  holdFocus,
-  move,
   onUserInput,
   scopedMediaUrl,
-  retainUserIntent,
-  scrollIntoView,
-  setChildren,
-  whileConnected,
 } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
@@ -102,6 +97,8 @@ import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { actionTemplate, iconTemplate } from "/runtime/lib/icons.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { seconds } from "/runtime/lib/time-axis.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
+import { keepFocus } from "/runtime/lib/focus-on.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";
@@ -561,6 +558,11 @@ export class Trace extends LeafElement {
     this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   };
 
+  // Whether `setup` built the recording, and what it listens to while it stands in
+  // the page.
+  #built = false;
+  #connection = new AbortController();
+
   setup() {
     this.#build();
     const timeline = this.#nodes.timelineHost;
@@ -646,20 +648,26 @@ export class Trace extends LeafElement {
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
     }
-    whileConnected(this, (signal) => {
-      document.addEventListener("visibilitychange", this.#visibility, { signal });
-      const stopInput = onUserInput(this.#reviewGesture);
-      const resizer = sizeObserver(this.#resize);
-      resizer.observe(this.#nodes.viewport);
-      // A returning recording draws the picture its departure closed.
-      if (this.#trace) this.#draw();
-      return () => {
-        this.pause(false);
-        stopInput();
-        resizer.disconnect();
-        this.#closePicture();
-      };
-    });
+    sizeObserver(this.#resize).observe(this.#nodes.viewport);
+    this.#built = true;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (!this.#built) return;
+    const { signal } = (this.#connection = new AbortController());
+    document.addEventListener("visibilitychange", this.#visibility, { signal });
+    signal.addEventListener("abort", onUserInput(this.#reviewGesture));
+    // A returning recording draws the picture its departure closed.
+    if (this.#trace) this.#draw();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.#connection.abort();
+    if (!this.#built) return;
+    this.pause(false);
+    this.#closePicture();
   }
 
   render() {
@@ -1188,7 +1196,7 @@ export class Trace extends LeafElement {
   /** @param {import("../../../browser/types/contract.js").DataPlaywrightTrace | null} trace */
   #show(trace) {
     this.pause(false);
-    const restore = holdFocus(this);
+    const restore = keepFocus(this);
     const oldArchive = this.#trace?.archive.sha256;
     this.#trace = trace;
     this.#boundsByScope.clear();
@@ -1427,7 +1435,7 @@ export class Trace extends LeafElement {
   // from the timeline, which stands beside the evidence, it moves nothing.
   /** @param {string} id @param {number} bookmark @param {boolean} [travel] */
   async #visitMoment(id, bookmark, travel = true) {
-    const mayArrive = retainUserIntent();
+    const mayArrive = noInputSince();
     this.#reveal(id, bookmark);
     const key = this.#bookmarks[bookmark]?.key;
     if (key)
@@ -1440,13 +1448,13 @@ export class Trace extends LeafElement {
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoView(row, { block: "nearest", behavior: "smooth" });
+      if (row) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
       return;
     }
     // The moment's picture comes in at the nearest edge where the user does not
     // already see it whole, and nothing moves where they do.
     if (this.#pictureId)
-      scrollIntoView(this.#nodes.stage, { block: "nearest", behavior: "smooth" });
+      this.#nodes.stage.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   #stream() {
@@ -1757,7 +1765,7 @@ export class Trace extends LeafElement {
           figure,
           ...this.#overlays(),
         ]);
-        if (hadFocus) focusDestination(canvas, "return");
+        if (hadFocus) canvas.focus({ preventScroll: true });
         retired?.destroy();
         this.#imageZoom();
         this.#draw();
@@ -2421,7 +2429,8 @@ export class Trace extends LeafElement {
                   const selected =
                     options.querySelector('[aria-pressed="true"]') ??
                     options.querySelector("button");
-                  if (selected) focusDestination(selected, "move");
+                  if (selected instanceof HTMLElement)
+                    selected.focus({ preventScroll: true });
                 }
                 this.dispatchEvent(
                   new CustomEvent("lf-commands", { bubbles: true, composed: true }),
@@ -2450,7 +2459,7 @@ export class Trace extends LeafElement {
                     @click=${() => {
                       run();
                       this.#nodes.imageScaleOptions.hidePopover();
-                      focusDestination(this.#nodes.imageScale, "move");
+                      this.#nodes.imageScale.focus({ preventScroll: true });
                     }}
                   >
                     ${text}
@@ -2612,7 +2621,9 @@ export class Trace extends LeafElement {
             ],
           };
         }
-        canvas.addEventListener("pointerdown", () => focusDestination(canvas, "press"));
+        canvas.addEventListener("pointerdown", () =>
+          canvas.focus({ preventScroll: true }),
+        );
         canvas.append(img, status);
         figure.append(canvas);
         this.#images.set(image.id, { figure, canvas, img, status });

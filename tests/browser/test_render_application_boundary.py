@@ -78,7 +78,7 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { nameOf, threadActions, readThreads } from '/runtime/widget-api.js';
+import { go, nameOf, readThreads } from '/runtime/widget-api.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
   static properties = { query: { state: true } };
@@ -93,7 +93,7 @@ customElements.define('lf-thread-filter', class extends LeafElement {
     return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query}
       @input=${event => { this.query = event.target.value; }}>
       <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
-        @click=${() => threadActions.open(thread.key)}>${nameOf(thread)}</button></li>`)}</ul>`;
+        @click=${() => go(thread)}>${nameOf(thread)}</button></li>`)}</ul>`;
   }
 });
 """
@@ -733,7 +733,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
 
     assert page.evaluate(
         """async () => {
-          window.localController = (await window.__lfWidgetApi()).widgetController;
+          window.localController = (await window.__lfCheckApi()).widgetController;
           window.pageLocal = document.querySelector('#page-local');
           return localController(pageLocal)
             .dispatch({kind: 'undo', target: 'not-a-candidate'}) === null;
@@ -1344,7 +1344,7 @@ def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
     expect(reader.locator("#channel")).to_have_count(0)
     assert page.evaluate("""async () => {
       const api = await window.__lfWidgetApi();
-      return await api.obligationActions.open('widget:channel');
+      return await api.go({id: 'widget:channel'});
     }""")
     assert reader.evaluate("node => node.message") == "key-middle"
     expect(reader.locator('.lf-msg[data-lf-event="middle"]')).to_be_visible()
@@ -1452,7 +1452,7 @@ def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
 
     other_thread.click()
     assert page.evaluate(
-        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.obligationActions.open(item.id); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.go(item); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(
@@ -1490,7 +1490,7 @@ def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
         return blocked.promise.then(() => present(...args));
       };
       window.releasePrimaryLayout = blocked.resolve;
-      window.cancelledPrimaryTravel = api.threadActions.open('opening', {part:'reply'});
+      window.cancelledPrimaryTravel = api.go({key: 'opening'}, {part:'reply'});
       await reached.promise;
     }""")
     page.keyboard.press("Tab")
@@ -1501,7 +1501,7 @@ def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
     }""")
     assert page.evaluate("""async () => {
       releasePrimaryLayout();
-      return await cancelledPrimaryTravel === null;
+      return await cancelledPrimaryTravel === false;
     }""")
     assert page.evaluate("history.length") == entries
     assert page.evaluate("""() => {
@@ -1545,72 +1545,6 @@ def test_package_creation_refusal_preserves_the_current_draft(browser, serve, su
             )
             expect(input).to_have_value(kept)
     page.unroute("**/api/event")
-
-
-def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, serve):
-    """A keyed row hands the user's draft to its replacement through a native slot."""
-    url = serve(
-        leaf_page(
-            "Keyed slotted editor",
-            '<h1>Keyed slotted editor</h1><lf-keyed-slot-list id="list"></lf-keyed-slot-list>',
-        ),
-        layer_registry={
-            "lf-keyed-slot-list": {
-                "description": "A keyed shadow row with a native slotted editor.",
-                "attributes": {
-                    "properties": {},
-                    "required": ["id"],
-                },
-                "content": "empty",
-                "shadow": True,
-            }
-        },
-        layer_widgets={
-            "lf-keyed-slot-list.js": """
-            import {holdFocus, shadowStage} from '/runtime/widget-api.js';
-            customElements.define('lf-keyed-slot-list', class extends HTMLElement {
-              connectedCallback() {
-                this.scope = document.createElement('section');
-                this.row = document.createElement('div');
-                this.row.dataset.row = 'draft';
-                const slot = document.createElement('slot');
-                slot.name = 'editor';
-                this.row.append(slot);
-                this.scope.append(this.row);
-                this.editor = document.createElement('input');
-                this.editor.slot = 'editor';
-                this.editor.setAttribute('aria-label', 'Draft');
-                shadowStage(this, [this.scope]);
-                this.append(this.editor);
-              }
-              replaceEditor() {
-                const restore = holdFocus(this.scope, {key: 'data-row'});
-                const row = this.row.cloneNode(true);
-                const editor = this.editor.cloneNode(true);
-                row.dataset.revision = '2';
-                editor.placeholder = 'Updated draft';
-                editor.value = this.editor.value;
-                this.row.replaceWith(row);
-                this.editor.replaceWith(editor);
-                this.row = row;
-                this.editor = editor;
-                return restore();
-              }
-            });
-            """
-        },
-    )
-    page = open_page(browser, url)
-    editor = page.get_by_role("textbox", name="Draft", exact=True)
-    editor.fill("half a thought")
-    editor.evaluate("node => node.setSelectionRange(4, 9, 'backward')")
-    assert editor.evaluate("node => node.assignedSlot !== null")
-    assert page.evaluate("document.querySelector('#list').replaceEditor()")
-    expect(editor).to_be_focused()
-    expect(editor).to_have_value("half a thought")
-    assert editor.evaluate(
-        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
-    ) == [4, 9, "backward"]
 
 
 def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions(
@@ -1871,13 +1805,13 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     ] == [[{"message": "nested-question", "version": "nested-question"}]]
     assert email.evaluate("node => node === nestedOption")
     assert page.evaluate(
-        "async () => await api.threadActions.open('nested-question-key', {message:'nested-question-key'}) !== null"
+        "async () => await api.go({key: 'nested-question-key'}, {message:'nested-question-key'})"
     )
     expect(
         workspace.locator('.lf-msg[data-lf-event="nested-question"]')
     ).to_be_focused()
     assert page.evaluate(
-        "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
+        "async () => typeof (await window.__lfCheckApi()).holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )
     assert email.evaluate(
         "node => node === nestedOption && node.getRootNode() === document"
@@ -1897,10 +1831,10 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
     if mode == "Reply only":
         workspace.evaluate("""async workspace => {
-          const api = await window.__lfWidgetApi();
+          const {setChildren} = await import('/runtime/lib/dom-children.js');
           const outlet = workspace.outlet('reply-only');
           workspace.present = (collection, parts) => {
-            api.setChildren(workspace.reader, [outlet]);
+            setChildren(workspace.reader, [outlet]);
             parts.reply(collection.threads.find(thread => thread.id === 'opening').key, outlet);
           };
           await workspace.presentation.update({release: true});

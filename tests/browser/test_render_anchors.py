@@ -108,7 +108,7 @@ def thread_head(page, thread_id):
     """Open the thread in the panel, once the page reads it, and return the head of
     its view, which names what the thread is about: the quoted words and a label of
     where they stand. The tab chooses the panel for threads, and the thread opens by
-    its route without travel (`threadActions.open`), so reading its head moves and
+    its route without travel (`go`), so reading its head moves and
     reveals nothing on the page, as a row of Threads, which travels to the passage,
     would."""
     page.evaluate(
@@ -123,7 +123,7 @@ def thread_head(page, thread_id):
         """async (id) => {
           const api = window.__lfThreadsApi;
           const thread = api.readThreads().threads.find((t) => t.id === id);
-          await api.threadActions.open(thread.key, { part: "thread", travel: false });
+          await api.go(thread, { part: "thread", travel: false });
         }""",
         thread_id,
     )
@@ -2716,7 +2716,7 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
               const nextHost = document.createElement('div');
               const nextRoot = nextHost.attachShadow({mode: 'open'});
               oldHost.after(nextHost);
-              const {move} = await window.__lfWidgetApi();
+              const {move} = await import('/runtime/lib/dom-move.js');
               const place = removed === 'retained-immediate' ? move : (parent, node) => parent.moveBefore(node, null);
               place(nextRoot, oldRoot.querySelector('dialog'), null);
               place(nextRoot, oldRoot.getElementById('two'), null);
@@ -2791,7 +2791,7 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, subtes
                   const root = host.attachShadow({mode: 'open'});
                   root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
                   document.querySelector('main').append(host);
-                  const {focusDestination} = await window.__lfWidgetApi();
+                  const {focusDestination} = await window.__lfCheckApi();
                   window.heard = [];
                   const one = root.getElementById('one');
                   one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});

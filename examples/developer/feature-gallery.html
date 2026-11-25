@@ -176,12 +176,7 @@
       ]
     </script>
     <script type="module">
-      import {
-        connection,
-        generate,
-        readObligations,
-        whileConnected,
-      } from "/runtime/widget-api.js";
+      import { connection, generate, readObligations } from "/runtime/widget-api.js";
       import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
       import { presented } from "/runtime/lib/presented.js";
@@ -192,26 +187,20 @@
           return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Reading…");
-              try {
-                const response = await connection("example").fetch("/items");
-                keepsText(
-                  output,
-                  `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
-                );
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          keepsText(output, "Reading…");
+          try {
+            const response = await connection("example").fetch("/items");
+            keepsText(
+              output,
+              `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
+            );
+          } catch (error) {
+            keepsText(output, error.message);
+          } finally {
+            button.disabled = false;
+          }
         });
       });
 
@@ -221,31 +210,25 @@
           return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Generating…");
-              try {
-                const result = await generate({
-                  input: "Write a five-word headline: A library now opens on Sundays.",
-                  schema: {
-                    type: "object",
-                    properties: { headline: { type: "string" } },
-                    required: ["headline"],
-                    additionalProperties: false,
-                  },
-                });
-                keepsText(output, `${result.value.headline} (${result.model})`);
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          keepsText(output, "Generating…");
+          try {
+            const result = await generate({
+              input: "Write a five-word headline: A library now opens on Sundays.",
+              schema: {
+                type: "object",
+                properties: { headline: { type: "string" } },
+                required: ["headline"],
+                additionalProperties: false,
+              },
+            });
+            keepsText(output, `${result.value.headline} (${result.model})`);
+          } catch (error) {
+            keepsText(output, error.message);
+          } finally {
+            button.disabled = false;
+          }
         });
       });
 
@@ -2406,10 +2389,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <pre
                 id="bg-javascript-code"
-              ><code class="language-js">const source = referencedElement(card, "for");
-const api = widgetController(source);
+              ><code class="language-js">const source = document.getElementById(card.getAttribute("for"));
 // Read the source widget's current selection.
-const ids = api.read().state.choose.value;</code></pre>
+const ids = source.state.choose.value;</code></pre>
               <p id="bg-annotated-code-guide">
                 The marked return value keeps its annotation while the whole block shows
                 Python syntax colors. Line wrappers and the empty link target stay in

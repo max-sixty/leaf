@@ -187,7 +187,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     }
     module = """
 import { nothing } from '/vendor/lit.js';
-import { setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/lib/dom-children.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-feed', class extends LeafElement {
   static properties = { value: { attribute: false } };
@@ -460,7 +460,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
 import { nothing } from '/vendor/lit.js';
-import { setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/lib/dom-children.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 import { offer } from '/runtime/lib/controls.js';
 customElements.define('lf-derived', class extends LeafElement {
@@ -1156,49 +1156,6 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
         f'leaf: <lf-projection-probe id="failing-{name}"> failed: {name} paint failed'
         for name in ["throwing", "throwing", "rejecting", "rejecting"]
     )
-
-
-def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve):
-    """A widget's held reading waits for its growth to go unseen across a departure
-    and return, though the return draws nothing again."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    result = page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
-          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
-          const {noChange} = await window.__lfVendorImport('lit.js');
-          const settle = () => new Promise((resolve) => setTimeout(resolve));
-          customElements.define('lf-held-probe', class extends LeafElement {
-            render() {
-              shown = held.hold(current);
-              return noChange;
-            }
-          });
-          const owner = document.createElement('lf-held-probe');
-          const region = document.createElement('p');
-          region.textContent = 'Rows';
-          owner.append(region);
-          let current = 'first';
-          let shown = null;
-          const refresh = () => { owner.requestUpdate(); owner.performUpdate(); };
-          const held = new api.HeldReading(owner, () => [region], refresh);
-          document.body.prepend(owner);
-          await settle();
-          current = 'second';
-          refresh();
-          const waiting = shown;
-          owner.remove();
-          await settle();
-          document.body.prepend(owner);
-          await settle();
-          region.hidden = true;
-          for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
-          await settle();
-          owner.remove();
-          return {waiting, shown};
-        }"""
-    )
-    assert result == {"waiting": "first", "shown": "second"}
 
 
 def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):

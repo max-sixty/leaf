@@ -587,7 +587,7 @@ def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, s
             "#tab-word",
             """async () => {
               const {reveal} = await window.__lfCheckApi();
-              const {retainUserIntent} = await window.__lfWidgetApi();
+              const {retainUserIntent} = await window.__lfCheckApi();
               reveal(document.getElementById('other-view'), retainUserIntent());
             }""",
         ),

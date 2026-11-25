@@ -12,7 +12,7 @@ import { render as tallyTemplate } from "./tally-view.js";
  * inventory it has not seen.
  *
  * With `next`, a Next On Me control steps to the next obligation waiting on the user inside
- * the region (`obligationActions.next`), from where the user is, so a press keeps
+ * the region (`go({within})`), from where the user is, so a press keeps
  * them there rather than taking focus onto the control, as the On
  * panel's Next On Me does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
@@ -23,7 +23,7 @@ import { render as tallyTemplate } from "./tally-view.js";
  * reading in the same nodes. Its room holds the widest words, both sides two digits
  * wide, so the words change without moving the control beside them or what follows. A
  * longer count widens the room once. */
-import { obligationActions, readObligations } from "/runtime/widget-api.js";
+import { go, readObligations } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
@@ -33,7 +33,7 @@ customElements.define(
     static shadow = true;
     #next = () => {
       const region = this.#region();
-      if (region) obligationActions.next({ within: region });
+      if (region) go({ within: region });
     };
 
     #region() {

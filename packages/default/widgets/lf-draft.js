@@ -83,11 +83,6 @@ import {
   nameOf,
   motion,
   draft,
-  whileConnected,
-  focusDestination,
-  retainUserIntent,
-  scrollIntoView,
-  onCurrentLocation,
   onPressAway,
   pageLinks,
 } from "/runtime/widget-api.js";
@@ -97,6 +92,8 @@ import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import { restArming } from "/runtime/lib/rest-arming.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import {
   paintMarkdown,
   markdownSourceOffset,
@@ -166,6 +163,10 @@ customElements.define(
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
+    // Whether the draft offers its doors: not as an exhibit.
+    #live = false;
+    /** @type {(() => void) | null} */
+    #disconnect = null;
     /** @type {ReturnType<typeof motion> | null} */
     #returnMotion = null;
     /** @type {number | null} */
@@ -241,30 +242,38 @@ customElements.define(
       // settlement is the case that does move this tab: the words are sent or discarded,
       // so an open box holding them has nothing left to hold, and closing it lets replay
       // paint whatever the log ends up saying.
-      whileConnected(this, () => {
-        const stopDraft = this.#watchDraft();
-        // Typing lasts while the caret does: a box the user has left shows Save and
-        // Discard, so it never reads as saved while it still holds their words.
-        const stopLocation = onCurrentLocation((node) => {
-          if (this.#states.has("typing") && node !== this.#editor) this.#keepTools();
-        });
-        // An editor a refused save reopened while the draft was out of the page says
-        // its keys as the draft returns.
-        this.#editor?.dispatchEvent(
-          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-        );
-        if (this.#editor && !this.#resumeProjection && this.#available())
-          this.#resumeProjection = this.defer();
-        return () => {
-          this.#returnMotion?.cancel();
-          this.#stopPressAway?.();
-          this.#stopPressAway = null;
-          stopDraft?.();
-          stopLocation();
-          this.#resumeProjection?.();
-          this.#resumeProjection = null;
-        };
+      this.#live = true;
+      // Typing lasts while the caret does: a box the user has left shows Save and
+      // Discard, so it never reads as saved while it still holds their words.
+      this.addEventListener("focusout", (event) => {
+        if (this.#states.has("typing") && event.target === this.#editor)
+          this.#keepTools();
       });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      if (!this.#live) return;
+      const stopDraft = this.#watchDraft();
+      this.#disconnect = () => stopDraft?.();
+      // An editor a refused save reopened while the draft was out of the page says
+      // its keys as the draft returns.
+      this.#editor?.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
+      if (this.#editor && !this.#resumeProjection && this.#available())
+        this.#resumeProjection = this.defer();
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#returnMotion?.cancel();
+      this.#stopPressAway?.();
+      this.#stopPressAway = null;
+      this.#disconnect?.();
+      this.#disconnect = null;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
     #recoverEdit() {
@@ -486,8 +495,8 @@ customElements.define(
       // resumed edit opens with different words at those offsets.
       if (at && editor.value === effective) editor.setSelectionRange(at[0], at[1]);
       if (arrive) {
-        focusDestination(editor, "move");
-        if (at === undefined) scrollIntoView(editor, { block: "nearest" });
+        editor.focus({ preventScroll: true });
+        if (at === undefined) editor.scrollIntoView({ block: "nearest" });
       }
     }
 
@@ -516,21 +525,21 @@ customElements.define(
       // another tab's settlement brings takes focus from wherever they actually are.
       const left = document.activeElement;
       const stood = this.contains(left);
-      const mayReturn = retainUserIntent({ source: left });
+      const mayReturn = noInputSince();
       this.#editor.remove();
       this.#editor = null;
       this.#keepTools();
       this.#failed = false;
       this.#paintTools();
       if (stood) {
-        if (this.#sending) focusDestination(this, "return");
+        if (this.#sending) focusOn(this);
         else
           nextRender(() => {
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
             const edit = this.#control("edit");
             if (this.isConnected && !this.#editor && mayReturn() && edit)
-              focusDestination(edit, "return");
+              edit.focus({ preventScroll: true });
           });
       }
       // Replay may have been held by this editor. Its close is the generic projection

@@ -182,7 +182,6 @@
       }
     </style>
     <script type="module">
-      import { whileInterfaceConnected } from "/runtime/widget-api.js";
       import { keepsText } from "/runtime/lib/keeps.js";
 
       const ALERTS = [
@@ -377,10 +376,15 @@
         ),
       };
       const playground = document.getElementById("alert-playground");
-      whileInterfaceConnected(playground, {
-        declare: () => playground.registerInstructionProvider(instruction),
-        connect: () => playground.subscribe((values) => paint(values, today)),
-      });
+      // The playground takes a provider once the page's widgets have upgraded.
+      document.addEventListener(
+        "lf-page-interface",
+        () => {
+          playground.registerInstructionProvider(instruction);
+          playground.subscribe((values) => paint(values, today));
+        },
+        { once: true },
+      );
     </script>
   </head>
   <body>

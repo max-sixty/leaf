@@ -1,12 +1,10 @@
-/* Where a `refers` attribute resolves, for `navigateToDatum` and a widget's data input
-   alike: in the referrer's own message before the page, never in another message. And
-   `navigateToDatum` handed an attribute its entry doesn't declare is the caller's
-   error. */
+/* Where a `refers` attribute resolves for a widget's data input: in the referrer's own
+   message before the page, never in another message. */
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { referencedProjection, requireReference } from "/runtime/references.js";
+import { referencedProjection } from "/runtime/references.js";
 import { registry } from "/runtime/registry.js";
 
 beforeEach(() => {
@@ -80,12 +78,4 @@ test("a reference resolves in its own message before the page, and never in anot
   }
   onPage.setAttribute("for", "elsewhere");
   assert.equal(home(onPage), "nothing");
-});
-
-test("an attribute the referrer's entry does not declare is the caller's error", () => {
-  document.body.innerHTML = "<main></main>";
-  const film = driver("film", "code");
-  document.querySelector("main").append(film);
-  assert.throws(() => requireReference(film, "about"), TypeError);
-  assert.doesNotThrow(() => requireReference(film, "for"));
 });

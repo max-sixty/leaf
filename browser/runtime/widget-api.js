@@ -24,34 +24,25 @@ import { deferredArrival } from "./presentation.js";
 import { growthIsSeen } from "./geometry.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
 export * from "./portable-api.js";
-export { widgetController } from "./widget-controller.js";
 
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-export { navigateToDatum } from "./application.js";
-// Hearing each move of the user's current location with its cause
-// (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
-// a press that lands away from a surface (`onPressAway`).
-export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
+// Following the primary pointer's press (`onPress`), and hearing a press that lands
+// away from a surface (`onPressAway`).
+export { onPress, onPressAway } from "./focus.js";
 // The page's obligations, or those a region of it holds by the rule every count and walk
 // of them reads, with whether the region's markup asks the user something.
 export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
-export { answerWords } from "./obligations/answer.js";
-export { readWork } from "./work.js";
-export { obligationActions } from "./application.js";
 export { readQueues } from "./queue-api.js";
 export {
+  go,
   placePageThreads,
   registerThreadPresentation,
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
-// Holding a region's rows the log or the clock decides while their growth would be seen
-// (browser/AGENTS.md, "The page holds still under the user's aim").
-export { HeldReading } from "./thread/held-news.js";
-export { rowWalk } from "./walk-position.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
@@ -64,12 +55,8 @@ export { layerFact } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // `whenNear` waits for the reader to near a node and declares the wait as an arrival,
 // so a widget cannot defer without the page knowing.
-export { whenNear, whileInterfaceConnected } from "./presentation.js";
-// The members a widget shows one at a time: Leaf remembers the one shown, names it in
-// the address where the widget's views are the page's, and keeps the user's place in
-// each view of the page's flow (views.js).
-export { keepView, openingView, viewMembers } from "./views.js";
-export { readHistory, readReports } from "./reports.js";
+export { whenNear } from "./presentation.js";
+export { readHistory } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
@@ -96,4 +83,3 @@ export async function mountSample(frame, options) {
   }
 }
 export { wear } from "./dress.js";
-export { landInThread } from "./application.js";

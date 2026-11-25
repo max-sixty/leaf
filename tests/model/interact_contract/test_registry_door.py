@@ -876,7 +876,7 @@ def test_check_refuses_a_reference_naming_an_attribute_the_widget_has_not_got(
 @pytest.mark.parametrize(
     "reference",
     [
-        {"via": "$work.widgets", "where": {"role": "goal"}},
+        {"via": "roles", "where": {"role": "goal"}},
         {"owns": True},
         {"tag": "lf-option", "key": "id"},
     ],

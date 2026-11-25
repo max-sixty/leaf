@@ -181,7 +181,7 @@ export const addressedFocus = (source, key) =>
 // anything reads it. A visual part drawn only in another state is drawn now, as
 // a visual's `lfParts.reveal` promises; a lazy datum answers with its hydration promise. Every
 // travel to a part of a widget asks this, for a thread's anchor (`revealAnchor`) and a
-// module's `navigateToDatum` key alike, so neither route reaches a part the other
+// module's `go` with a key alike, so neither route reaches a part the other
 // cannot.
 /** @param {Element} source @param {string} key */
 export function revealAddressed(source, key) {

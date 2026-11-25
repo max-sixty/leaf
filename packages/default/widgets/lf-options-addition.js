@@ -7,7 +7,8 @@
  * is added, on one line. Leaf keeps its words (`draft`), so they
  * outlive a reload, a revision and the tab, and a refused add gives them back. */
 import { guard, html, render, repeat } from "/vendor/lit.js";
-import { draft, move, whileConnected, pageLinks } from "/runtime/widget-api.js";
+import { draft, pageLinks } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { offer } from "/runtime/lib/controls.js";
 import {
   inlineMarkdownFragment,
@@ -30,6 +31,8 @@ export class OptionAddition {
   #inForce = new Set();
   /** @type {Comment | null} */
   #end = null;
+  /** @type {(() => void) | null} */
+  #unwatch = null;
 
   /** @param {import("/runtime/lib/leaf-element.js").LeafElement} host
    * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
@@ -47,24 +50,28 @@ export class OptionAddition {
     return this.#offered;
   }
 
+  // The group's connection: the field follows its draft while the group stands.
   connect() {
     if (!this.#offered) return;
-    if (this.#ui) return;
-    const ui = (this.#ui = this.#buildForm());
-    whileConnected(this.#host, () =>
-      this.#draft.watch(
-        (value) => {
-          // Writing the value a box already holds would move its caret to the end.
-          if (ui.input.value !== (value ?? "")) ui.input.value = value ?? "";
-        },
-        {
-          input: ui.input,
-          box: () => ui.form,
-          // Resume writing (`g i`) comes back to the field, which stands in the group.
-          resume: () => ({ where: ui.input, input: () => ui.input }),
-        },
-      ),
+    const ui = (this.#ui ??= this.#buildForm());
+    this.disconnect();
+    this.#unwatch = this.#draft.watch(
+      (value) => {
+        // Writing the value a box already holds would move its caret to the end.
+        if (ui.input.value !== (value ?? "")) ui.input.value = value ?? "";
+      },
+      {
+        input: ui.input,
+        box: () => ui.form,
+        // Resume writing (`g i`) comes back to the field, which stands in the group.
+        resume: () => ({ where: ui.input, input: () => ui.input }),
+      },
     );
+  }
+
+  disconnect() {
+    this.#unwatch?.();
+    this.#unwatch = null;
   }
 
   get input() {

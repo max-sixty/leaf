@@ -2615,6 +2615,17 @@ def test_a_key_typed_through_the_reload_acts_where_the_user_is_put_back(
         else:
             route.fallback()
 
+    # A key pressed before the replacement document has focus reaches no document of
+    # the page, so nothing of Leaf hears it. Firefox gives that document focus after it
+    # leaves `loading`, and loses a key pressed before its window's `focus` event,
+    # which can come after `document.hasFocus()` already says true. Chromium sends no
+    # such event, and its document takes the key from the start.
+    page.add_init_script(
+        "addEventListener('focus', () => { window.lfTestFocused = true; }, true)"
+    )
+    focused = (
+        "window.lfTestFocused" if engine == "firefox_browser" else "document.hasFocus()"
+    )
     answer_as_another_runtime(page)
     page.on("framenavigated", navigated)
     page.route("**/api/state*", state_answer)
@@ -2623,7 +2634,7 @@ def test_a_key_typed_through_the_reload_acts_where_the_user_is_put_back(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
         )
-    page.wait_for_function("() => document.readyState !== 'loading'")
+    page.wait_for_function(f"() => document.readyState !== 'loading' && {focused}")
     page.keyboard.press("r")
     page.unroute("**/api/state*", state_answer)
     for route in answers:

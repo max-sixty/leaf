@@ -88,7 +88,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.states import OPEN_CARD, State, open_card
+from leaf_dev.states import OPEN_THREAD, State, open_card
 from leaf_dev.visits import said, visits
 
 OUT = ROOT / ".tmp" / "cards"
@@ -508,19 +508,15 @@ def centre(page: Page, case: Case) -> None:
 
 
 # Each route returns the page's scroll just before the input that opens the card,
-# which a finger presses in a touch window and a mouse in any other.
-
-# A card the route opened, or on a phone the floating panel's view of its thread.
-OPENED = (
-    "() => document.querySelector('.lf-margin-preview:not([hidden]), .lf-fp-opened')"
-)
+# which a finger presses in a touch window and a mouse in any other, once the card, or
+# on a phone the floating panel's view of its thread, has opened (`OPEN_THREAD`).
 
 
 def by_walk(page: Page, case: Case, window: Window) -> float:
     page.locator("body").focus()
     before = page.evaluate("scrollY")
     page.keyboard.press("m")
-    page.wait_for_function(OPEN_CARD)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -532,7 +528,7 @@ def by_marker(page: Page, case: Case, window: Window) -> float:
     settle(page)
     before = page.evaluate("scrollY")
     marker.tap()
-    page.wait_for_function(OPENED)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -548,7 +544,7 @@ def by_tap(page: Page, case: Case, window: Window) -> float:
         page.touchscreen.tap(*at)
     else:
         page.mouse.click(*at)
-    page.wait_for_function(OPENED)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -571,7 +567,7 @@ def by_comment(page: Page, case: Case, window: Window) -> float:
     )
     before = page.evaluate("scrollY")
     page.keyboard.press("ControlOrMeta+Enter")
-    page.wait_for_function(OPEN_CARD)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 

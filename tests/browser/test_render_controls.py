@@ -251,9 +251,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     <div id="practice-popover" popover><input></div>
     <iframe title="Authored embedded page" srcdoc="<p>Embedded content is allowed</p>"></iframe>
     <script type="module">
-      import {{ focusDestination }} from '/runtime/focus.js';
-      import {{ scrollIntoView }} from '/runtime/landing-scroll.js';
-      const {{ closeNativeLayer, showNativeLayer }} = await window.__lfCheckApi();
+      const {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }} =
+        await window.__lfCheckApi();
       window.leafNavigation = {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }};
       for (const input of document.querySelectorAll('dialog input, [popover] input'))
         input.autofocus = true;

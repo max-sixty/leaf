@@ -29,7 +29,8 @@
   let entered = 0;
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
-  // waits for is not superseded by it. The hold hears of the other inputs the clock
+  // waits for is not superseded by it; nor is the input a held word makes in a field
+  // as the hold types it in. The hold hears of the other inputs the clock
   // counts (`counted`): an act within the entry, and a step Back or Forward the
   // browser says the user took, which leaves the entry the held keys were typed at
   // (`step`). It hears of no step the page's script takes, nor of leaving the window,
@@ -173,7 +174,7 @@
     // input through that child. Only leaving the document supersedes its gesture.
     if (event.type === "blur" && (event.target !== window || document.hasFocus()))
       return;
-    if (event instanceof KeyboardEvent && hold?.holds(event)) return;
+    if (hold?.holds(event)) return;
     inputs++;
     if (event.type === "blur") away++;
     else hold?.counted(false);

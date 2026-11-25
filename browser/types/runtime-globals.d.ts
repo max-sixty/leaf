@@ -18,7 +18,7 @@ interface DocumentInputs {
   readonly entered: number;
   holdKeys(
     hold: {
-      holds(event: KeyboardEvent): boolean;
+      holds(event: Event): boolean;
       /** `stepped`: the input is a step Back or Forward the browser says the user
        * took; otherwise it is an act within the entry. */
       counted(stepped: boolean): void;
@@ -133,7 +133,18 @@ interface Window {
     tabStore: LeafStore;
     userStore: LeafStore;
     /** The handoff the reload that loaded this document handed it (prepaint.js). */
-    readonly handoff: { readonly typing?: unknown } | null;
+    readonly handoff: {
+      readonly typing?: unknown;
+      readonly draftEditing?: { readonly context: string } | null;
+    } | null;
+    /** The carried record of the control of the page's own the handoff puts focus back
+     * in, which the key hold types the user's words into where it holds a caret
+     * (prepaint.js). */
+    readonly handedFocus: {
+      id: string;
+      value?: string;
+      caret?: [number, number, ...unknown[]];
+    } | null;
     /** Whether the handoff puts the user back where they were, here (prepaint.js). */
     placesUser(): boolean;
     /** What this document hands on as it goes from now on (prepaint.js). */
@@ -273,7 +284,12 @@ interface DocumentEventMap {
       ready(event: KeyboardEvent): boolean;
       keep(): boolean;
     } & (
-      | { keys?: never; pressed?: never; pause?: never; release?: never }
+      | {
+          keys?: never;
+          pressed?: never;
+          pause?: never;
+          release?: never;
+        }
       | {
           keys: readonly KeyboardEvent[];
           /** The first key leaves the run as the controller presses it. */

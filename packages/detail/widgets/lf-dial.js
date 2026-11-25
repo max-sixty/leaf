@@ -107,7 +107,8 @@
  * acts: pressing one only aims at the sheets again. Pointing marks the page only within
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
-import { nameOf, motion } from "/runtime/widget-api.js";
+import { nameOf } from "/runtime/widget-api.js";
+import { playMotion } from "/runtime/lib/motion.js";
 import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -1018,18 +1019,18 @@ customElements.define(
         if (box.bottom < window.top || box.top > window.bottom) continue;
         const was = before.get(node);
         if (was === undefined) {
-          motion(node, [{ opacity: 0 }, { opacity: 1 }], duration);
+          playMotion(node, [{ opacity: 0 }, { opacity: 1 }], { duration: duration });
           continue;
         }
         const by = was - top;
         if (Math.abs(by) >= 1)
-          motion(
+          playMotion(
             node,
             [
               { translate: `0 ${by}px`, overflowAnchor: "none" },
               { translate: "0 0", overflowAnchor: "none" },
             ],
-            duration,
+            { duration: duration },
           );
       }
     }

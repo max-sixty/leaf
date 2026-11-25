@@ -79,7 +79,8 @@
  * of its items. */
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
-import { motion, layerFact } from "/runtime/widget-api.js";
+import { layerFact } from "/runtime/widget-api.js";
+import { playMotion } from "/runtime/lib/motion.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -804,10 +805,10 @@ customElements.define(
       const dx = first.left - last.left;
       const dy = first.top - last.top;
       if (dx || dy)
-        motion(
+        playMotion(
           card,
           [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-          150,
+          { duration: 150 },
         );
     }
 
@@ -1107,10 +1108,10 @@ customElements.define(
         const dx = before.left - last.left;
         const dy = before.top - last.top;
         if (dx || dy) {
-          const played = motion(
+          const played = playMotion(
             card,
             [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-            150,
+            { duration: 150 },
           );
           if (played) movements.push(played.finished);
         }

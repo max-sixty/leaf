@@ -286,7 +286,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
 
     def assert_source_words():
         reading = shot.evaluate("""async node => {
-          const {says} = await import('/runtime/widget-api.js');
+          const {says} = await import('/runtime/passages.js');
           const labels = [...node.querySelectorAll('.lf-shotcap')]
             .filter(label => label.checkVisibility());
           return {whole: says(node), visible: labels.map(label =>

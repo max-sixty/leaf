@@ -259,8 +259,8 @@ this.dispatchEvent(hold);
 - **Words it writes.** Words the element writes into the page are the page's: the user
   can comment on them, and a version comparison, which reads each version's source,
   never shows them as a change. To set apart words it writes, such as a count after an
-  authored sentence, it marks the element holding them `data-lf-gen="1"`. `named()`
-  then leaves them out, and a comment's quote doesn't run across them into the
+  authored sentence, it marks the element holding them `data-lf-gen="1"`. A widget
+  naming a part (`authoredWords`, lib/authored-words.js) then leaves them out, and a comment's quote doesn't run across them into the
   author's words. Words in a generated control, such as its label, or in a generated
   box of controls (`module-controls.md`) are apparatus: they take no comment, and a
   printed page drops the control or box. Marked `data-lf-said`, it keeps words that

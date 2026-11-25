@@ -65,7 +65,7 @@ import { createPlayground, same } from "./playground-view.js";
  * from, which would leave every page to restate when the press withdraws the choice;
  * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
-import { aimedAt, says, wear } from "/runtime/widget-api.js";
+import { aimedAt, wear } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { iconElement } from "/runtime/lib/icon-paths.js";
@@ -652,7 +652,7 @@ customElements.define(
       if ("error" in this.#renderedInstruction) throw this.#renderedInstruction.error;
       if (this.#renderedInstruction.value !== null)
         return this.#renderedInstruction.value;
-      return says(this.#view.output, { format: "lines" }).trim();
+      return this.#view.output.innerText.trim();
     }
 
     #choose() {

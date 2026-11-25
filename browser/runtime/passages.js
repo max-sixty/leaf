@@ -1309,9 +1309,9 @@ function linesFrom(segments) {
   return text;
 }
 
-// What an element says, read the way this file reads the page everywhere else. A widget
-// wanting the words in one of its own slots asks for them here rather than through
-// `textContent`, because the two differ: the paint pass writes a hidden line into any text
+// What an element says, read the way this file reads the page everywhere else. An owner
+// wanting an element's words asks for them here rather than through `textContent`,
+// because the two differ: the paint pass writes a hidden line into any text
 // block that carries a comment, including blocks inside a widget, and `textContent` returns
 // it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
 // The lines format takes block boundaries and preserved whitespace from computed
@@ -1394,13 +1394,6 @@ export function drawsWithin(element, visibility = true) {
   }
   return false;
 }
-// The words that name an element: what the author wrote there, less a popover's, such
-// as a gloss's explanation. A widget asks it to name one of its own parts, where `says`
-// would hand back the widget's own declared labels along with the words — a picked
-// row's mark is the page speaking, so it is in the reading a user points at and out of
-// the row's name.
-/** @param {Node} el */
-export const named = (el) => quoteFrom(textNodesUnder(el, "named"));
 
 // A passage as one Range: what selects it, and what tells two passages' bounds apart.
 // Both ends of a Range stand in one tree, so a passage that runs into a shadow tree, as

@@ -16,7 +16,8 @@
  * adding a second mark to the prose, and its description is the card, which a screen
  * reader hears on focus. An auto popover owns the card's top-layer lifecycle and light
  * dismissal; CSS anchors keep the card with its phrase. */
-import { aimedAt, says } from "/runtime/widget-api.js";
+import { aimedAt } from "/runtime/widget-api.js";
+import { authoredWords } from "/runtime/lib/authored-words.js";
 import { offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -34,7 +35,7 @@ customElements.define(
     lfPreview = () =>
       this.#pinned || !this.#bubble
         ? false
-        : { name: this.#phrase(), detail: [says(this.#bubble)] };
+        : { name: this.#phrase(), detail: [authoredWords(this.#bubble)] };
 
     connectedCallback() {
       if (once(this)) {

@@ -2,7 +2,7 @@
  * Its offset is authoritative; deep stages animated words in a shadow root, and
  * bare deliberately omits their element so the page must refuse presentation. */
 import { nothing } from "/vendor/lit.js";
-import { motion } from "/runtime/widget-api.js";
+import { playMotion } from "/runtime/lib/motion.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define(
@@ -43,14 +43,14 @@ customElements.define(
       // whole way would leave a last fifth of a second in which a reading taken
       // then happened to be clean, and the test would be measuring when the gate
       // looked rather than whether it waited.
-      motion(
+      playMotion(
         this,
         [
           { transform: `translateY(${from}px)` },
           { transform: `translateY(${from}px)`, offset: 0.9 },
           { transform: "none" },
         ],
-        1200,
+        { duration: 1200 },
       );
       return nothing;
     }

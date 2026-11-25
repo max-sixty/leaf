@@ -4,19 +4,15 @@ Read with [module-authoring.md](module-authoring.md).
 
 ## Reading the page
 
-Read an element's words with `says(element)`, which returns them as passages and
-comments read them. `textContent` also returns words passages leave out, among them a
-generated control's words and the words Leaf writes into an element the author wrote,
-such as the quiet word on a part the user changed (`module-scroll-and-motion.md`,
-"Notices and spoken words"). For text to copy or send,
-`says(element, {format: "lines"})` keeps rendered block boundaries, explicit line
-breaks and preformatted whitespace. Read a connected element so its computed styles
-supply these boundaries; a closed popover is supported.
-Inline values stay in their sentence, and ordinary HTML source indentation collapses.
-`{drawn: true}` keeps only the words the page draws now, and `until` names an element
-to stop at.
-To name one of the widget's own parts, use `named(element)`, which returns only the words
-the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
+Read an element's words with the platform's: `innerText` for text to copy or send,
+which keeps rendered block boundaries, explicit line breaks and preformatted
+whitespace, and `textContent` for the words in the source. Both return words the author
+didn't write too: a generated control's, and the words Leaf writes into an element the
+author wrote, such as the quiet word on a part the user changed
+(`module-scroll-and-motion.md`, "Notices and spoken words"), each in an element marked
+`data-lf-gen`. To name one of the widget's own parts, use the `authoredWords` of the
+library's [`authored-words.js`](../../../browser/runtime/lib/authored-words.js), which reads only the
+words the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
 `<pre>` body with the library's
 [`data-body.js`](../../../browser/runtime/lib/data-body.js), never the element's
 `textContent`. A widget that also declares an input (`inputs`) reads that input's

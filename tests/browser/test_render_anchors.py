@@ -2118,8 +2118,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, named } = await window.__lfWidgetApi();
-      const { textNodesUnder } = await window.__lfCheckApi();
+      const { says } = await import('/runtime/passages.js');
+      const { quoteFrom, textNodesUnder } = await window.__lfCheckApi();
+      const named = (node) => quoteFrom(textNodesUnder(node, 'named'));
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)
@@ -5014,7 +5015,9 @@ new file mode 120000
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, named } = await window.__lfWidgetApi();
+      const { says } = await import('/runtime/passages.js');
+      const { quoteFrom, textNodesUnder } = await window.__lfCheckApi();
+      const named = (node) => quoteFrom(textNodesUnder(node, 'named'));
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,

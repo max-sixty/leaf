@@ -80,12 +80,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
-import {
-  nameOf,
-  backgroundFlash,
-  comparisonChanges,
-  obligations,
-} from "/runtime/widget-api.js";
+import { nameOf, comparisonChanges, obligations } from "/runtime/widget-api.js";
 import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
@@ -93,6 +88,8 @@ import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
+import { playMotion } from "/runtime/lib/motion.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
 import { openingMember, showMember } from "/runtime/lib/one-shown.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";
@@ -189,7 +186,7 @@ export class TabSet extends LeafElement {
   #strip = offer("div", "lf-tabstrip");
   #side = false;
   #pageFlow = false;
-  /** @type {(ReturnType<typeof backgroundFlash>) | null} */
+  /** @type {Animation | null} */
   #revealMotion = null;
 
   createRenderRoot() {
@@ -570,10 +567,15 @@ export class TabSet extends LeafElement {
     this.#revealMotion = null;
     // A destination walk can change tabs without touching the strip. Give its
     // selected name one quiet highlight; focus stays on the destination, and
-    // motion's shared gate answers reduced motion and initial presentation.
+    // the library's motion gate answers reduced motion and initial presentation.
     if (previous && reveal) {
       const name = activeButton.querySelector(":scope > .lf-tab-name");
-      if (name) this.#revealMotion = backgroundFlash(name);
+      if (name)
+        this.#revealMotion = playMotion(
+          name,
+          [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }],
+          { duration: motionTime("--lf-motion-flash") },
+        );
     }
     // A box comes in with its strip; a set in the page's flow, whose strip is the
     // page's header, lands its panel under it.

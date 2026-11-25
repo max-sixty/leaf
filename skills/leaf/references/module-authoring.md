@@ -71,7 +71,6 @@ In [module-state.md](module-state.md):
 
 In [module-reading.md](module-reading.md):
 
-- "Reading the page": `says` and `named` read an element's words.
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
@@ -87,8 +86,6 @@ In [module-input.md](module-input.md):
 - "Text entry and drafts": `draft` keeps a text box's draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
-
-- "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
 
@@ -121,17 +118,15 @@ the widget's own module, and gives the element its drawing box. For the widget's
 links the layer's `portable.css`, served beside `/widgets/` (`packages.md`, "Styles and
 composition").
 
-`says()`, `named()` and `motion` are not among the portable functions, so the widget
-does without them, on a Leaf page too:
+On a Leaf page too, the widget:
 
-- In place of `says()` and `named()`, it takes a part's name from an attribute, as
-  `lf-timeline` takes an event's from `label`, and reads a data body with the
+- Takes a part's name from an attribute, as `lf-timeline` takes an event's from
+  `label`, or with the library's `authoredWords`, and reads a data body with the
   library's `data-body.js` or from a bound input (`module-reading.md`, "Reading the
-  page"). It takes no other words from an element the author wrote: on a Leaf page
-  that element can also hold words Leaf wrote, which its `textContent` or a copy of
-  its nodes would carry along.
-- In place of `motion`, it moves a box with a transition in its stylesheet, as
-  `lf-timeline` moves its playhead (`module-scroll-and-motion.md`, "Motion").
+  page").
+- Moves a box with a transition in its stylesheet, as `lf-timeline` moves its
+  playhead, since script motion plays only once a Leaf page has presented
+  (`module-scroll-and-motion.md`, "Motion").
 
 Leaf adds its services through the protocol's properties, events and declarations
 (`module-plain-elements.md`), and a plain host ignores them all: there the widget's
@@ -163,9 +158,9 @@ script", lists.
 - Build once, behind a first-connection guard, and end in `disconnectedCallback` what
   each connection starts beyond the element ("Upgrade", "Connection lifetimes").
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
-- Read the page's words with `says()`, and name a part with `named()`,
-  never with `textContent` (`module-reading.md`, "Reading the page"). A widget that
-  also runs off Leaf imports neither ("A widget that also runs off Leaf").
+- Name a part by the words its author wrote, with the library's `authoredWords`,
+  not with `textContent`, which carries words Leaf and widgets write too
+  (`module-reading.md`, "Reading the page").
 - Build injected controls, and a press that looks like Leaf's controls by its role,
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
@@ -180,8 +175,8 @@ script", lists.
   widget in the tab's memory.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
-- Animate with `motion` or in a stylesheet, never with `element.animate`
-  (`module-scroll-and-motion.md`, "Motion").
+- Animate with the library's `playMotion` or in a stylesheet, never with
+  `element.animate` (`module-scroll-and-motion.md`, "Motion").
 
 ## Upgrade
 

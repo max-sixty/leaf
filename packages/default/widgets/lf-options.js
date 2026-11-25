@@ -112,7 +112,8 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
-import { aimedAt, nameOf, named } from "/runtime/widget-api.js";
+import { aimedAt, nameOf } from "/runtime/widget-api.js";
+import { authoredWords } from "/runtime/lib/authored-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -122,12 +123,11 @@ import { closestAcross } from "/runtime/lib/shadow-tree.js";
 import { rowWalk } from "/runtime/lib/row-walk.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
-// own words, which are all it has. `named` rather than `says`, because a picked option's
-// mark is the page speaking and belongs to what the user can point at — not to the
-// option's name, which is what every caller here wants. A settled title's answer to an
+// own words, which are all it has, less a picked option's mark, which the module writes
+// and which is no part of the option's name (`authoredWords`). A settled title's answer to an
 // option with neither is to say "Settled" rather than name an id nobody wrote.
 /** @param {Element} option */
-const label = (option) => option.getAttribute("label")?.trim() || named(option);
+const label = (option) => option.getAttribute("label")?.trim() || authoredWords(option);
 
 // The option the page advises is `recommended`, and the group says so wherever the
 // option is answered away from its card.

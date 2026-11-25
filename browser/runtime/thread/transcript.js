@@ -81,7 +81,8 @@ import {
   showsContents,
 } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { foldBlock, motionPlays } from "../motion.js";
+import { foldBlock } from "../motion.js";
+import { motionPlays } from "../lib/motion.js";
 import { voiced } from "../voice.js";
 
 // A summary's words, led by the name its agent gave the range as their first

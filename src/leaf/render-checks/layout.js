@@ -12,10 +12,10 @@ import {
   shownRegionBounds,
   TEXT_BOX,
   uiInside,
+  says,
   userScrollport,
 } from "/runtime/check-api.js";
 import { skipped } from "/runtime/lib/shadow-tree.js";
-import { says } from "/runtime/widget-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { drawnPage, openRoots } from "./open-roots.js";

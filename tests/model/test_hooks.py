@@ -2426,6 +2426,35 @@ def test_a_claim_holds_its_page_only_while_its_session_lives(
     assert vendoring_model.cmd_init(claimed, ())["packages"] == []
 
 
+@pytest.mark.parametrize("ended", [False, True], ids=["live", "ended"])
+def test_a_lifetime_kind_this_leaf_doesnt_know_reads_as_live_until_it_ends(
+    claimed, monkeypatch, ended
+):
+    """A session a later Leaf recorded with a kind of lifetime this Leaf can't check
+    holds its page until its record says it ended, so a terminal initializes the
+    page only then."""
+    lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    original = lifecycle.read_text()
+    stored = json.loads(original)
+    stored["format"] = "leaf-session/999"
+    stored["lifetime"] = {"window": "w-1"}
+    if ended:
+        stored["ended"] = cleanup_model.now_iso()
+    lifecycle.write_text(json.dumps(stored))
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+    try:
+        if ended:
+            assert service_model.held_elsewhere(claimed, None) is None
+            assert vendoring_model.cmd_init(claimed, ())["packages"] == []
+        else:
+            with pytest.raises(Refused, match="is held by session s1"):
+                vendoring_model.cmd_init(claimed, ())
+    finally:
+        # Ending the session at teardown would rewrite the record here with a
+        # lifetime this Leaf's schema doesn't allow, which the suite's check refuses.
+        lifecycle.write_text(original)
+
+
 @pytest.mark.parametrize("missing", ["ended", "lifetime"])
 def test_a_session_record_lacking_a_kept_key_reads_as_absent(claimed, missing):
     """Every shape of the session record keeps its kept keys, so a record of another

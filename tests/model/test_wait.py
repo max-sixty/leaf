@@ -1519,6 +1519,29 @@ def test_a_wait_for_no_session_leaves_a_session_another_leaf_recorded_its_input(
     assert acknowledged_through(claimed) == cursor
 
 
+def test_a_wait_for_no_session_leaves_an_unknown_harness_its_input(
+    claimed, monkeypatch, capsys
+):
+    """A claim naming a harness this Leaf doesn't know, as a later Leaf's may, holds
+    its page while its session lives, so a wait acting for no session takes none of
+    the user's input to it."""
+    path = service_model.claim_path(claimed)
+    stored = json.loads(path.read_text())
+    stored["harness"] = "a-harness-a-later-leaf-named"
+    path.write_text(json.dumps(stored))
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "for the session"}
+    )
+    cursor = acknowledged_through(claimed)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+
+    assert session_model.cmd_wait(claimed) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "session s1 holds it, and this Leaf acts for no session" in captured.err
+    assert acknowledged_through(claimed) == cursor
+
+
 def test_a_named_wait_observes_ownership_without_taking_it(claimed, capsys):
     claim_record_3 = service_model.page_claim(claimed)
     assert claim_record_3 is not None

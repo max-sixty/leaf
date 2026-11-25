@@ -1106,13 +1106,18 @@ def harness_from_argument(argument: str) -> Harness | None:
     return None if record is None else HARNESSES[record.pop("name")](**record)
 
 
-def claim_harness(claim: dict) -> Harness:
-    """The claimant's harness, rebuilt from the claim record.
+def claim_harness(claim: dict | None) -> Harness | None:
+    """The claimant's harness, rebuilt from the claim record, or None for no claim or
+    one naming a harness this Leaf doesn't know, as a later Leaf's may. Such a claim
+    still holds its page (`service.claim_reading`); this Leaf only can't act through
+    its harness.
 
     A page server, the append door and the Stop hook all run in processes that
     need not be the claimant's, so they read the harness the claim names instead
     of the one their own environment implies."""
-    return HARNESSES[claim["harness"]].from_claim(claim)
+    if claim is None or (harness := HARNESSES.get(claim["harness"])) is None:
+        return None
+    return harness.from_claim(claim)
 
 
 def message_identity() -> dict:

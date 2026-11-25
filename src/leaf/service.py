@@ -116,21 +116,15 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
             drop_locator(previous["id"], path.name)
 
 
-# The keys a claim's reading takes from its session's lifetime (`claim_reading`).
-CLAIM_LIFETIMES = frozenset({"job", "app", "chat", "pid"})
-
-
 def claim_reading(claim: dict | None) -> dict | None:
     """A claim as its readers take it: the record, with its session's lifetime and
     turn while the session is still in the generation the claim names.
 
-    A claim naming a harness this Leaf does not know, as a later Leaf's may, reads
-    as no claim: the name is a value this Leaf dispatches on
+    It reads a claim whatever harness it names, a later Leaf's included; only code
+    that acts through the claimant's harness asks for one this Leaf knows
     (`harness.claim_harness`). Every reader goes through `page_claim` or
     `claim_records`."""
-    from leaf.harness import HARNESSES
-
-    if claim is None or claim["harness"] not in HARNESSES:
+    if claim is None:
         return None
     record = session_record(claim["id"])
     if record is None or claim["generation"] != record["generation"]:
@@ -167,9 +161,15 @@ def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
     background job's lifetime points at, the Claude desktop app's record an `app`
     lifetime points at while it is unarchived and still names the session, the
     native source a persisted `chat` stands on (`record`, the session's), or the
-    process every other lifetime's pid names. The only reading of that rule: a claim and the sandbox
-    bridge's registrations both carry a lifetime beside the session's `id`, so a
-    harness that states its lifetime a new way joins here alone."""
+    process every other lifetime's pid names. The only reading of that rule: a claim
+    and the sandbox bridge's registrations both carry a lifetime beside the session's
+    `id`.
+
+    A lifetime that names nothing yet has no owner, so nothing lives by it. A kind
+    this Leaf doesn't know, as a later Leaf's may, reads as live, since this Leaf
+    can't check it and the session's record says when it ends (`layer-registry.md`,
+    "Page protocol"). So a harness that states its lifetime a new way adds its form
+    to the session record's `lifetime` and its reading here."""
     if "job" in lifetime:
         return (Path(lifetime["job"]) / "state.json").is_file()
     if "app" in lifetime:
@@ -181,7 +181,9 @@ def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
         )
     if lifetime.get("chat") is True:
         return chat_exists(record)
-    return "pid" in lifetime and pid_alive(lifetime["pid"])
+    if "pid" in lifetime:
+        return pid_alive(lifetime["pid"])
+    return bool(lifetime.keys() - {"id"})
 
 
 def dead_session(claim: dict) -> str:
@@ -411,13 +413,13 @@ class PageTransaction:
         if previous is None:
             remove_claim(path)
         else:
+            # The claim's own keys, less what its reading took from its session.
             publish_claim(
                 self.page_dir,
                 {
                     key: value
                     for key, value in previous.items()
-                    if key
-                    not in {"turn", "turn_opened", "turn_closed", *CLAIM_LIFETIMES}
+                    if key in CLAIM.schema["properties"]
                 },
             )
 

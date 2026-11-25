@@ -111,10 +111,15 @@ protocol first where `since` already names it, and the build refuses a shape cha
 the same `since` or a `since` moved anywhere else. A reader treats a record at another
 format as absent, except for the keys its kind declares every shape keeps, which any
 Leaf reads whichever Leaf wrote the record (`state.Record.read_any`). The build refuses
-a shape that drops one of those keys, changes its schema or stops requiring it. The
-layer record's `since` is always the current protocol, so a layer record at another
-format is another Leaf's page, read as above, and the build lets its shape change only
-with a bump.
+a shape that drops one of those keys, changes its schema or stops requiring it, though
+a kept key's `anyOf` may gain variants, as a new kind of session lifetime does. A
+value a Leaf doesn't know in a kept key, such as a later Leaf's harness or lifetime
+kind, reads as the session still live, until its record says it ended; only code that
+acts on the value itself, as through a harness, passes over one it doesn't know. So a
+newer session that ends without recording it stays held for older Leaves until a
+session claims its page. The layer record's `since` is always the current protocol, so
+a layer record at another format is another Leaf's page, read as above, and the build
+lets its shape change only with a bump.
 
 ## Composition stamps
 

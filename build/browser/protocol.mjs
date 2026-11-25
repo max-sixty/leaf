@@ -9,7 +9,9 @@
  * rightly. A `state.Record` changes its schema, apart from its annotations, only by
  * setting its `since` to the current protocol, and never drops a key it keeps
  * (`state.Record.kept`), loosens one from required, or changes its schema, since
- * every Leaf reads a record's kept keys whichever Leaf wrote it.
+ * every Leaf reads a record's kept keys whichever Leaf wrote it. A kept key's
+ * `anyOf` may gain variants, which an older Leaf reads as it reads any value it
+ * doesn't know (`layer-registry.md`, "Page protocol").
  *
  * Equality, rather than a field-by-field comparison of what each side accepts, costs
  * a bump or a `since` move for an added optional field; Leaf spends no code on
@@ -46,6 +48,17 @@ function bare(schema) {
   );
 }
 const same = (a, b) => isDeepStrictEqual(bare(a), bare(b));
+
+// Whether `now` is `was`, or `was` with variants added to its `anyOf`.
+function widens(was, now) {
+  if (!was.anyOf || !now.anyOf) return same(was, now);
+  const { anyOf: before, ...rest } = was;
+  const { anyOf: after, ...restNow } = now;
+  return (
+    same(rest, restNow) &&
+    before.every((variant) => after.some((other) => same(variant, other)))
+  );
+}
 
 // The schema at `path` (`a/*/b`, `*` for each item of a list) in a record's schema, and
 // whether each key on the way is required; none where the path leaves the schema.
@@ -104,7 +117,7 @@ export function protocolBreaks(baseline, current) {
       const [was, now] = [kept(before.schema, path), kept(schema, path)];
       if (!keeps.includes(path) || !now)
         refused.push(`record ${kind}: ${path} is kept, so every shape keeps it`);
-      else if (!same(was.schema, now.schema))
+      else if (!widens(was.schema, now.schema))
         refused.push(`record ${kind}: kept ${path} changed its schema`);
       else if (was.required.some((required, step) => required && !now.required[step]))
         refused.push(`record ${kind}: kept ${path} is no longer required`);

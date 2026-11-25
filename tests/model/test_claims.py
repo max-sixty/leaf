@@ -790,7 +790,8 @@ def test_a_claim_an_older_leaf_wrote_reads_as_its_claim_without_disrupting_a_wat
     assert service_model.page_claim(stale) == claim
     assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
 
-    # An unknown harness is a dispatch value, independently of record format.
+    # A harness this Leaf doesn't know still names a claim, which its hooks can't
+    # act through.
     cleanup_model.write_json(
         service_model.claim_path(stale),
         service_model.CLAIM.stored(
@@ -799,7 +800,8 @@ def test_a_claim_an_older_leaf_wrote_reads_as_its_claim_without_disrupting_a_wat
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s8"})
     assert str(stale) not in capsys.readouterr().out
-    assert service_model.page_claim(stale) is None
+    stale_claim = service_model.page_claim(stale)
+    assert stale_claim is not None and stale_claim["id"] == "s8"
 
 
 def test_a_claim_is_active_while_the_lifetime_it_names_holds(

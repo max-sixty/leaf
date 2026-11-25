@@ -486,7 +486,11 @@ class Record(Generic[_RecordValue]):
     this one gives them, for a Leaf that must read a record another Leaf wrote in
     another shape (`read_any`). Each is a key, or a path through the record whose `*`
     stands for each item of a list, as `batches/*/page`. The build refuses a shape
-    that drops one or changes its schema (`build/browser/protocol.mjs`)."""
+    that drops one or changes its schema (`build/browser/protocol.mjs`), but lets a
+    kept key's `anyOf` gain variants: a new kind of session lifetime is a variant of
+    `SESSION`'s `lifetime` and a reading in `service.lifetime_is_live`, and an older
+    Leaf reads a value it doesn't know as the session still live
+    (`layer-registry.md`, "Page protocol")."""
 
     def __init__(
         self, kind: str, schema: dict, *, since: int, kept: tuple[str, ...] = ()

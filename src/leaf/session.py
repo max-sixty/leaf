@@ -97,7 +97,7 @@ def cmd_idle(page_dir: Path) -> dict:
         work = read_page(page_dir, events).work
         state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
-        harness = claim_harness(claim) if claim is not None else None
+        harness = claim_harness(claim)
         pending = len(unacknowledged(events, page.cursor))
         if pending:
             remedy = (

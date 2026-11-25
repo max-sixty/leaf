@@ -969,7 +969,7 @@ def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
         return
     if running["lifetime"] == "session" and not live:
         return
-    with restarting_server(page_dir, claim_harness(held) if held and live else None):
+    with restarting_server(page_dir, claim_harness(held) if live else None):
         pass
 
 

@@ -466,7 +466,13 @@ class ClaudeCodeHarness(EnvironmentHarness):
             and read_json(path)["cliSessionId"] == self.session
         ):
             return {"app": str(path)}
-        return {"pid": int(os.environ["CLAUDE_PID"])}
+        if (pid := self.process_pid()) is None:
+            raise Refused(
+                "CLAUDE_CODE_SESSION_ID names a Claude Code session but CLAUDE_PID is "
+                "unset, and leaf takes the session's lifetime from it; run the command "
+                "from the session's shell, or unset CLAUDE_CODE_SESSION_ID"
+            )
+        return {"pid": pid}
 
     @classmethod
     def process_pid(cls) -> int | None:

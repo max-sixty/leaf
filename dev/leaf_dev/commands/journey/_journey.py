@@ -820,7 +820,21 @@ class Terminal:
         steps besides."""
         comments = comments or {}
         self.counted |= comments
-        settled(page, self.session, self.counted)
+
+        def holds() -> bool:
+            try:
+                settled(page, self.session, self.counted)
+            except click.ClickException:
+                return False
+            return True
+
+        # A watch's wake can open a turn just after the session goes idle, so this
+        # holds only through a quiet spell (`settle`), and fails naming what didn't.
+        try:
+            self.settle(holds, f"{name}: the session did not settle")
+        except click.ClickException:
+            settled(page, self.session, self.counted)
+            raise
         # A watch may start a moment after the turn that answered ends, as Claude
         # Code's background Stop hook starts one.
         self.until(self.listening, f"{name}: Leaf does not listen for the session", 60)

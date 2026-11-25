@@ -69,6 +69,29 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
     assert target.read_text() == "external\n"
 
 
+def test_a_grant_another_leaf_recorded_in_another_shape_survives_the_next_grant(
+    page_dir, tmp_path
+):
+    """Every shape of the grants record keeps its bindings (`state.Record.kept`), so
+    a grant a Leaf of another shape recorded stays the page's grant here, and the next
+    grant, which rewrites the record in this Leaf's shape, keeps it."""
+    first, second = tmp_path / "first.md", tmp_path / "second.md"
+    first.write_text("first\n")
+    second.write_text("second\n")
+    bind_file(page_dir, "first", first)
+    record = page_dir / "files.json"
+    stored = json.loads(record.read_text())
+    stored["format"] = "leaf-file-bindings/999"
+    record.write_text(json.dumps(stored))
+
+    granted = read_file(page_dir, "first")
+    assert granted is not None and granted["text"] == "first\n"
+    bind_file(page_dir, "second", second)
+    assert BINDINGS.read(record) == {
+        "bindings": {"first": str(first.resolve()), "second": str(second.resolve())}
+    }
+
+
 def test_each_bound_file_is_named_by_its_path_among_the_pages_files(page_dir, tmp_path):
     """One file reads as its name; several read as one tree below the deepest folder
     holding them all, which a navigator lists, and never as a host path."""

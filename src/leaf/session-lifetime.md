@@ -305,16 +305,15 @@ it treats as another session's.
 
 Only the session holding a page, through its own Leaf, serves the page or changes
 its layer record, its server up or down (`service.refuse_held`); another session
-takes the page over first by claiming it. A claim another Leaf wrote in a shape
-this Leaf can't read counts as held (`service.held_elsewhere`). So no other Leaf
-moves a held page to a protocol its session's hooks can't read, whatever the two
-protocols are.
+takes the page over first by claiming it. A claim naming a harness this Leaf
+doesn't know counts as held (`service.held_elsewhere`). So no other Leaf moves a held
+page to a protocol its session's hooks can't read, whatever the two protocols are.
 
-Every Leaf reads a session's lifecycle record whichever Leaf wrote it, through the
-keys every shape of the record keeps (`state.session_record`). So a session goes on
-in its generation when an update changes the record's shape: its claims stay live,
-the server of its page follows it to the new copy, and its input stays its own. A
-page whose session ended under another Leaf is free.
+Every Leaf reads a session's lifecycle record and its claims whichever Leaf wrote
+them, through the keys every shape of each keeps (`state.Record.read_any`). So a
+session goes on in its generation when an update changes either record's shape: its
+claims stay live, the server of its page follows it to the new copy, and its input
+stays its own. A page whose session ended under another Leaf is free.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):

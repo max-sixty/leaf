@@ -170,6 +170,7 @@ ADAPTER = Record(
         ),
     ),
     since=56,
+    kept=("app_server",),
 )
 
 
@@ -1178,7 +1179,7 @@ def running_adapter(session_id: str) -> dict | None:
     it; that reads as no adapter."""
     if not adapter_is_live(session_id):
         return None
-    return ADAPTER.read(adapter_lease_path(session_id))
+    return ADAPTER.read_any(adapter_lease_path(session_id))
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

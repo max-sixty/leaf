@@ -2382,6 +2382,28 @@ def test_a_page_whose_session_another_leaf_recorded_is_held_while_it_lives(
     assert not service_model.held_elsewhere(claimed, harness_model.session_harness())
 
 
+def test_a_claim_another_leaf_wrote_in_another_shape_reads_as_the_same_claim(
+    claimed,
+):
+    """Every shape of a claim keeps its keys (`state.Record.kept`), so a claim a
+    later Leaf wrote in another shape, as a claim-record bump leaves it, reads here
+    as the same claim: its session still holds the page and owns it, and no other
+    session's Leaf may take it."""
+    path = service_model.claim_path(claimed)
+    before = service_model.page_claim(claimed)
+    stored = json.loads(path.read_text())
+    stored["format"] = "leaf-claim/999"
+    stored["added"] = "a key this Leaf doesn't know"
+    path.write_text(json.dumps(stored))
+
+    claim = service_model.page_claim(claimed)
+    assert claim == before
+    assert service_model.claim_is_active(claim)
+    assert service_model.owned_pages("s1") == [claimed]
+    assert service_model.held_elsewhere(claimed, None)
+    assert not service_model.held_elsewhere(claimed, harness_model.session_harness())
+
+
 def test_a_session_goes_on_in_its_generation_when_its_record_changes_shape(
     claimed, capsys
 ):

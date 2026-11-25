@@ -39,6 +39,7 @@ from leaf import presence as presence_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.refusals import Refused
 
 
 def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
@@ -748,10 +749,12 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     assert not argv.exists()
 
 
-def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
+def test_a_claim_an_older_leaf_wrote_reads_as_its_claim_without_disrupting_a_watch(
     tmp_path, page_dir, monkeypatch, capsys
 ):
-    """A foreign record format cannot disrupt another page's current watcher."""
+    """A claim an older Leaf wrote in another shape reads as the same claim, through
+    the keys every shape keeps (`state.Record.kept`), and a watcher walking every page
+    the session holds delivers what another page holds."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
     hooks_run_this_tree("s8")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
@@ -776,16 +779,16 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
     )
 
-    # The failure this guards: the watcher walks every page the session holds, and
-    # the record it cannot read belongs to a page the user is not on.
+    # The watcher walks every page the session holds, and the record in another
+    # shape belongs to a page the user is not on.
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exception is None, repr(waited.exception)
     assert waited.exit_code == 0, repr(waited.output)
     _, _, [event] = woken(waited.output)
     assert event["text"] == "hi"
 
-    assert service_model.page_claim(stale) is None
-    assert service_model.owned_pages("s8") == [page_dir.resolve()]
+    assert service_model.page_claim(stale) == claim
+    assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
 
     # An unknown harness is a dispatch value, independently of record format.
     cleanup_model.write_json(
@@ -916,3 +919,14 @@ def test_a_claim_outlives_a_protocol_bump_that_leaves_its_shape_alone(
     events = cleanup_model.kernel_registry()["$events"]
     monkeypatch.setitem(events, "protocol", events["protocol"] + 1)
     assert service_model.claim_is_active(service_model.page_claim(page))
+
+
+def test_a_claude_code_session_without_its_process_is_refused_by_name(monkeypatch):
+    """A shell that names a Claude Code session but not its process, as
+    `env -u CLAUDE_PID` leaves one, can't say how long the session lives, so taking
+    its lifetime is refused, naming the variable that is missing."""
+    monkeypatch.delenv("CLAUDE_PID")
+    harness = harness_model.session_harness()
+    assert harness is not None
+    with pytest.raises(Refused, match="CLAUDE_PID is unset"):
+        harness.lifetime()

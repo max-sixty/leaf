@@ -118,6 +118,51 @@ test("a record changes shape only with its since", () => {
   );
 });
 
+test("a record keeps each kept key through every shape", () => {
+  const kept = structuredClone(baseline);
+  kept.records.claim.kept = ["page"];
+  const moved = (edit) => (s) => {
+    s.records.claim.since = 4;
+    edit(s.records.claim);
+  };
+  assert.deepEqual(
+    changed(
+      moved((claim) => (claim.schema.properties.pid.type = "string")),
+      kept,
+    ),
+    none,
+  );
+  assert.deepEqual(
+    changed(
+      moved((claim) => {
+        delete claim.schema.properties.page;
+        claim.schema.required = [];
+        delete claim.kept;
+      }),
+      kept,
+    ),
+    refused("record claim: page is kept, so every shape keeps it"),
+  );
+  assert.deepEqual(
+    changed(
+      moved((claim) => (claim.schema.properties.page = { type: "integer" })),
+      kept,
+    ),
+    refused("record claim: kept page changed its schema"),
+  );
+  assert.deepEqual(
+    changed(
+      moved((claim) => (claim.schema.required = [])),
+      kept,
+    ),
+    refused("record claim: kept page is no longer required"),
+  );
+  assert.deepEqual(
+    changed((s) => (s.records.claim.kept = ["page", "batches/*/page"]), kept),
+    refused("record claim: kept batches/*/page is not in its schema"),
+  );
+});
+
 test("an annotation changes nothing, at any depth", () => {
   const conditional = structuredClone(baseline);
   Object.assign(conditional.records.claim.schema, {

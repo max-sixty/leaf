@@ -43,6 +43,7 @@ from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
 from leaf.schema import STREAM_FILE
 from leaf.state import (
+    CLAIM,
     EVENTS_FILE,
     STRING,
     TIME,
@@ -87,39 +88,6 @@ def claim_path(page_dir: Path) -> Path:
     return claims_home() / f"{page_key(page_dir)}.json"
 
 
-CLAIM = Record(
-    "claim",
-    described(
-        "The session that receives a page's updates, in the state home's "
-        "`claims/<page key>.json` (`claim_path`).",
-        object_schema(
-            {
-                "page": described("The page directory.", STRING),
-                "ts": described("When the claim was published.", TIME),
-                "id": described("The claimant session (`state.SESSION`).", STRING),
-                "generation": described(
-                    "The generation of the session this claim names.", STRING
-                ),
-                "acquisition": described(
-                    "This publication's own identity (`same_claim`).", STRING
-                ),
-                "harness": described("The claimant's `Harness.name`.", STRING),
-                "agent": described("The name the claimant shows.", STRING),
-                "cwd": described("The claimant's working directory.", STRING),
-            },
-            {
-                "messaged_ending": described(
-                    "The turn ending after which input last messaged the session "
-                    "(`note_messaged`).",
-                    STRING,
-                )
-            },
-        ),
-    ),
-    since=13,
-)
-
-
 def publish_claim(page_dir: Path, claim: dict) -> None:
     """Prepare discovery, then commit ownership in the canonical payload: the one
     writer of a claim.
@@ -135,7 +103,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     locator = session_claims(claim["id"]) / path.name
     with flocked(claims_lock()):
         locator.parent.mkdir(parents=True, exist_ok=True)
-        previous = CLAIM.read(path)
+        previous = CLAIM.read_any(path)
         staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
         try:
             staged.symlink_to(Path("..") / path.name)
@@ -178,7 +146,7 @@ def claim_reading(claim: dict | None) -> dict | None:
 
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one whose session or lifetime ended."""
-    return claim_reading(CLAIM.read(claim_path(page_dir)))
+    return claim_reading(CLAIM.read_any(claim_path(page_dir)))
 
 
 def claim_is_active(claim: dict | None) -> bool:
@@ -267,10 +235,10 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
 
 def held_elsewhere(page_dir: Path, harness: Harness | None) -> bool:
     """Whether a session other than `harness`'s may hold `page_dir`: a live claim
-    another session holds (`claim_is_active`), or a claim another Leaf wrote in a
-    shape this Leaf can't read (`state.Record`), whose owner this Leaf can't prove
-    ended. Such a page stays held until a session takes it over by claiming it
-    (`leaf server start`), which needs no reading of the claim before."""
+    another session holds (`claim_is_active`), or a claim naming a harness this
+    Leaf doesn't know, as a later Leaf's may (`claim_reading`), whose owner this
+    Leaf can't prove ended. Such a page stays held until a session takes it over by
+    claiming it (`leaf server start`), which needs no reading of the claim before."""
     claim = page_claim(page_dir)
     if claim is None:
         return claim_path(page_dir).is_file()
@@ -318,7 +286,7 @@ def claim_records(session_id: str | None = None) -> list:
     paths = held_claims(session_id) if session_id else standing_claims()
     claims = []
     for path in paths:
-        claim = claim_reading(CLAIM.read(path))
+        claim = claim_reading(CLAIM.read_any(path))
         if (
             claim is not None
             and claim_path(Path(claim["page"])) == path.resolve()
@@ -470,7 +438,7 @@ class PageTransaction:
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
         went out for."""
-        claim = CLAIM.read(claim_path(self.page_dir))
+        claim = CLAIM.read_any(claim_path(self.page_dir))
         assert claim is not None
         publish_claim(self.page_dir, {**claim, "messaged_ending": ending})
 

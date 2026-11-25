@@ -41,9 +41,9 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
         ],
     }
     unreadable = [
-        {**accepted, "format": "another-format"},
+        {**accepted, "format": "leaf-codex-delivery/999"},
         {**accepted, "state": "a-later-state"},
-        {"format": "another-format"},
+        {"format": "leaf-codex-delivery/999"},
     ]
     collecting: dict = deepcopy(accepted)
     collecting["state"] = "collecting"
@@ -122,7 +122,10 @@ def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
     deliveries.mkdir(parents=True, exist_ok=True)
     envelopes = {name: deliveries / f"{name}.json" for name in ("gone", "standing")}
     for name, on in (("gone", tmp_path / "gone"), ("standing", page)):
-        write_json(envelopes[name], {"format": "x", "batches": [{"page": str(on)}]})
+        write_json(
+            envelopes[name],
+            {"format": "leaf-delivery/999", "batches": [{"page": str(on)}]},
+        )
     retire_gone_deliveries()
     assert not envelopes["gone"].exists()
     assert envelopes["standing"].exists()

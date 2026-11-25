@@ -124,7 +124,7 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   that service live, and the file stays after release (`leases.py`).
 
 - `<state-home>/claims/<page-key>.json` — the page's one canonical claim
-  (`service.CLAIM`). `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
+  (`state.CLAIM`). `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
   locating it for the owning session's discovery, which admits a locator only when the
   claim names that session, so a stale locator cannot take back a transferred page
   (`state.held_claims`, `state.retire_claim`). `page init` on a fresh page clears the

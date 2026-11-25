@@ -43,6 +43,7 @@ LAYER = Record(
         "required": ["packages", "generation"],
     },
     since=kernel_protocol(),
+    kept=("packages",),
 )
 
 
@@ -94,13 +95,10 @@ def layer_record(page_dir: Path) -> dict | None:
 
 
 def layer_packages(page_dir: Path) -> list[str] | None:
-    """The packages the page's layer record selects, read at whichever format a Leaf
-    wrote it (`layer-registry.md`, "Page protocol"), or None where the page holds no
-    layer record."""
-    stored = stored_record(page_dir / LAYER_FILE)
-    if stored is None or LAYER.since_of(stored) is None:
-        return None
-    return list(stored["packages"])
+    """The packages the page's layer record selects, whichever Leaf wrote it
+    (`state.Record.read_any`), or None where the page holds no layer record."""
+    record = LAYER.read_any(page_dir / LAYER_FILE)
+    return None if record is None else list(record["packages"])
 
 
 def selected(record: dict, page_dir: Path):

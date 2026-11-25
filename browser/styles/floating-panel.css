@@ -1494,12 +1494,12 @@
     justify-self: end;
     position: relative;
   }
-  /* Showing says which version the page shows, in the accent the shown version wears;
-     Compare stays a quiet press, a word (controls.css), whose words Showing's end on:
-     its 10px padding and 1px border in. */
+  /* Showing says which version the page shows, in the user's ink its row wears as the
+     user's location (controls.css); Compare stays a quiet press, a word (controls.css),
+     whose words Showing's end on: its 10px padding and 1px border in. */
   .lf-fp-showing {
     padding-inline: 11px;
-    color: var(--lf-accent);
+    color: var(--lf-here);
     font: var(--lf-font-small);
     pointer-events: none;
   }

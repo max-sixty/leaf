@@ -1983,6 +1983,12 @@ wa-copy-button.lf-icon-action {
   border-inline-start-color: var(--lf-accent);
   background-color: var(--lf-accent-tint);
   color: var(--lf-ink);
+  /* A row that is where the user is (`aria-current="location"`), as the version the
+     page shows is in Versions, wears the user's ink. */
+  &[aria-current="location"] {
+    border-inline-start-color: var(--lf-here);
+    background-color: color-mix(in srgb, var(--lf-here) 12%, transparent);
+  }
 }
 /* The row of the thread whose passage the pointer is on (`.lf-mark-hover`,
    annotations/anchor-paint.js, `markRow`) wears that passage's hover wash, so the row and the lit

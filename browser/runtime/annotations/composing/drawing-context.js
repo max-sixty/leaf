@@ -46,7 +46,8 @@ export function drawingThumbnail(drawing, target) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.dataset.lfDrawingContext = "pending";
-  canvas.style.color = "var(--lf-accent)";
+  // The draft's ink is unsent, so it takes the user's ink, as it does on the page.
+  canvas.style.color = "var(--lf-here)";
   let picture = readPicture(drawing, target);
   const sizeCanvas = () => {
     const width = Math.ceil(picture.width * picture.scale);

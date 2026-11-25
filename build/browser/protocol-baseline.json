@@ -43,7 +43,7 @@
     },
     "bridge-session": {
       "since": 13,
-      "schema": {"description":"A session the bridge serves, in the state home's `bridge/<key>.sessions/<digest>.json`, with the fields of the lifetime it lives by (`Harness.lifetime`) beside its id.","type":"object","properties":{"id":{"description":"The harness's session id.","type":"string"}},"required":["id"]}
+      "schema": {"description":"A session the bridge serves, one of the session's own files in the state home's `sessions/` (`registrations`), with the fields of the lifetime it lives by (`Harness.lifetime`) beside its id.","type":"object","properties":{"id":{"description":"The harness's session id.","type":"string"}},"required":["id"]}
     },
     "claim": {
       "since": 13,

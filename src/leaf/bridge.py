@@ -32,8 +32,11 @@ One bridge serves every copy of Leaf that ships this file (`KEY`), and runs each
 command on the interpreter of the copy whose client sent it. Claude Code installs a
 plugin update as a new copy beside the one a running session loaded, and both
 copies reach the same bridge. The bridge serves while any session a hook
-registered with it lives, by the lifetime its claims would record
-(`Harness.lifetime`): a background job outlives the worker hosting its current
+registered with it lives (`service.session_lives`), by the lifetime its claims would
+record (`Harness.lifetime`), until its record says it ended. A registration is one of
+its session's files, so the session's end removes it with them (`state.end_session`),
+whether or not a record of the session stays. A background job outlives the worker
+hosting its current
 sitting, and its next sitting may run `leaf` from a script, before which no hook
 runs. That script reaches this bridge where the later sitting's copy ships the
 same file. Each process of a session that lives as its own pid keeps its own
@@ -85,6 +88,8 @@ from .state import (
     described,
     flocked,
     object_schema,
+    session_file,
+    sessions_home,
     state_home,
     still_named,
 )
@@ -109,8 +114,8 @@ ADDRESS = Record(
 REGISTRATION = Record(
     "bridge-session",
     described(
-        "A session the bridge serves, in the state home's "
-        "`bridge/<key>.sessions/<digest>.json`, with the fields of the lifetime it "
+        "A session the bridge serves, one of the session's own files in the state "
+        "home's `sessions/` (`registrations`), with the fields of the lifetime it "
         "lives by (`Harness.lifetime`) beside its id.",
         object_schema({"id": described("The harness's session id.", STRING)}),
     ),
@@ -178,15 +183,15 @@ def ensure(session: str, lifetime: dict) -> None:
     bridge, and start the bridge if none holds its lease. The started bridge
     inherits the lease."""
     # Only the user reads the bridge's directory, and with it the token.
-    sessions = bridge_path("sessions")
-    sessions.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    sessions.mkdir(exist_ok=True)
+    bridge_path("lock").parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     registration = {"id": session, **lifetime}
     named = json.dumps(registration, sort_keys=True).encode()
     digest = hashlib.sha256(named).hexdigest()[:32]
     # Under the lock a retiring bridge releases its lease under (`retire`).
     with flocked(bridge_path("sessions.lock")):
-        REGISTRATION.write(sessions / f"{digest}.json", registration)
+        REGISTRATION.write(
+            session_file(session, f"{KEY}-{digest}.bridge"), registration
+        )
         lease = take_lease(bridge_path("lock"))
         if lease is None:
             return
@@ -207,13 +212,20 @@ def ensure(session: str, lifetime: dict) -> None:
         )
 
 
+def registrations() -> list[Path]:
+    """The sessions registered with this file's bridge (`ensure`): one file for each
+    lifetime a session registered, among the session's own files
+    (`state.session_file`)."""
+    return list(sessions_home().glob(f"*.{KEY}-*.bridge"))
+
+
 def live_sessions() -> bool:
     """Whether a registered session still lives; forgets the rest."""
     from .service import session_lives
     from .state import session_record
 
     alive = False
-    for entry in bridge_path("sessions").glob("*.json"):
+    for entry in registrations():
         if (record := REGISTRATION.read(entry)) and session_lives(
             record, session_record(record["id"])
         ):

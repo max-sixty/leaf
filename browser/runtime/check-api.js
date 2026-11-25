@@ -21,6 +21,7 @@ export { USER_VIEW_RESTORE_CASES, THREADS_IN_PANEL_KEY } from "./restore-state.j
 export { restoreThreadsInPanel } from "./thread/threads-in-panel.js";
 export {
   ADDRESSABLE,
+  anchorForPassage,
   anchorForRange,
   resolveAnchor,
   aimTargets,
@@ -64,6 +65,7 @@ export {
   layoutBox,
   pageDocument,
   inPage,
+  pageMatches,
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,

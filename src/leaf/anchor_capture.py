@@ -17,6 +17,11 @@ from .structure import SourceDocument
 CONTEXT = kernel_passages()["context"]
 
 
+class Unsaid(ValueError):
+    """The file's reading of the page doesn't hold the quote, which the page may still
+    draw, as a page's script draws words of its own (`render_gate.drawn_anchor`)."""
+
+
 def enclosing_section(owner: list, lo: int, hi: int):
     """The innermost id in this reading that encloses every character of [lo, hi):
     the file's side of the section `selectionAnchor` takes from the nearest id around
@@ -201,7 +206,7 @@ def capture_anchor(
     if section:
         span = passages.spans.get(section)
         if span is None:
-            raise ValueError(
+            raise Unsaid(
                 f"§ {section} holds no quotable text — a widget's data body is its source, "
                 "not its words. Anchor on the element itself, without a quote."
             )
@@ -209,7 +214,7 @@ def capture_anchor(
     where = "the page" if not section else f"§ {section}"
     hits = occurrences(passages, wanted, lo_bound, hi_bound)
     if not hits:
-        raise ValueError(
+        raise Unsaid(
             f"{where} doesn't say {wanted!r}; quote the words this version shows, "
             "or name the section"
         )

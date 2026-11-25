@@ -515,6 +515,28 @@ function eachLine(doc, from, to, each) {
   }
 }
 
+// The one edit that turns `was` into `put`, starting at `at` in the document: the run
+// between their longest common prefix and the longest common suffix that doesn't
+// overlap it.
+/** @param {string} was @param {string} put @param {number} [at]
+ * @returns {{from: number, to: number, insert: string}} */
+function differing(was, put, at = 0) {
+  const most = Math.min(was.length, put.length);
+  let head = 0;
+  while (head < most && was[head] === put[head]) head++;
+  let tail = 0;
+  while (
+    tail < most - head &&
+    was[was.length - 1 - tail] === put[put.length - 1 - tail]
+  )
+    tail++;
+  return {
+    from: at + head,
+    to: at + was.length - tail,
+    insert: put.slice(head, put.length - tail),
+  };
+}
+
 // Each outermost block's lines name its face, and the lines between two blocks the gap
 // the display leaves there: the blank lines that part them in the source, or the
 // second's first line where none do. Only a field that edits in place has rules for the
@@ -2517,19 +2539,9 @@ function fieldEditor(
   function narrowed(state, changes) {
     /** @type {Edit[]} */
     const edits = [];
-    changes.iterChanges((from, to, _fromB, _toB, inserted) => {
-      const [was, put] = [state.sliceDoc(from, to), inserted.toString()];
-      const most = Math.min(was.length, put.length);
-      let head = 0;
-      while (head < most && was[head] === put[head]) head++;
-      let tail = 0;
-      while (tail < most - head && was.at(-1 - tail) === put.at(-1 - tail)) tail++;
-      edits.push({
-        from: from + head,
-        to: to - tail,
-        insert: put.slice(head, put.length - tail),
-      });
-    });
+    changes.iterChanges((from, to, _fromB, _toB, inserted) =>
+      edits.push(differing(state.sliceDoc(from, to), inserted.toString(), from)),
+    );
     return state.changes(edits);
   }
 
@@ -2765,19 +2777,11 @@ function fieldEditor(
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
     const { base, text } = words;
-    let from = 0;
-    while (from < Math.min(base.length, text.length) && base[from] === text[from])
-      from++;
-    let kept = 0;
-    while (
-      kept < Math.min(base.length, text.length) - from &&
-      base[base.length - 1 - kept] === text[text.length - 1 - kept]
-    )
-      kept++;
+    const typed = differing(base, text);
     let state = EditorState.create({
       doc: base,
       // Taking the typing back leaves the caret where it went in.
-      selection: { anchor: from },
+      selection: { anchor: typed.from },
       extensions: [
         // DOM input has already changed the words when CodeMirror reads it, so its
         // bracket started at beforeinput. EditContext leaves rendering to the editor;
@@ -3032,11 +3036,7 @@ function fieldEditor(
     });
     state = state.update({
       ...(text !== base && {
-        changes: {
-          from,
-          to: base.length - kept,
-          insert: text.slice(from, text.length - kept),
-        },
+        changes: typed,
         annotations: isolateHistory.of("full"),
         userEvent: "input.type",
       }),

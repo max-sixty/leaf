@@ -12,7 +12,7 @@ from leaf.file_bindings import BINDINGS, bind_file, bound_paths, unbind_file
 from leaf.revisioning import activate_source
 from leaf.schema import FILE_BINDINGS_FILE
 from leaf.server import ACCESS
-from leaf.state import state_home
+from leaf.state import CLAIM, state_home
 
 
 def another_shapes(record, path, value):
@@ -79,6 +79,13 @@ def test_the_agent_is_told_of_the_records_another_version_left(page_dir, tmp_pat
     )
 
     another_shapes(ACCESS, state_home() / "access.json", {"token": "an older key"})
-    [left] = listed()
-    assert left["files"] == str(state_home() / "access@999.json")
-    assert (left["format"], left["count"]) == ("leaf-access/999", 1)
+    claims = state_home() / "claims"
+    claims.mkdir(exist_ok=True)
+    for key in ("a" * 64, "b" * 64):
+        another_shapes(CLAIM, claims / f"{key}.json", {"page": str(page_dir)})
+    key, held = listed()
+    assert key["files"] == [str(state_home() / "access@999.json")]
+    assert (key["format"], key["count"]) == ("leaf-access/999", 1)
+    # Several files of one shape that one pattern names alone are named by it.
+    assert held["files"] == [str(claims / "*@999.json")]
+    assert (held["format"], held["count"]) == ("leaf-claim/999", 2)

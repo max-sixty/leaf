@@ -43,6 +43,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 if TYPE_CHECKING:
@@ -572,25 +573,34 @@ def record_name(name: str) -> str:
     return name if shaped is None else shaped["stem"] + shaped["suffix"]
 
 
-def leftover_records(directories: list[Path]) -> list[dict]:
-    """The records in `directories` of a kind this Leaf declares, at another shape
-    than this Leaf's, which this Leaf never reads, replaces or removes: one entry for
-    each set of files that differ only in a key, such as the page key in `claims/`,
-    with their files as a pattern, the `format` they carry, how many there are and
-    when the newest was written. Leaf takes each file's `format` and nothing else
-    from it, so the words of another shape's drafts stay unread. A kind this Leaf
-    doesn't declare, as a later Leaf's new one, isn't named, since nothing here can
-    tell its own files from another shape's."""
+def declared_records(*packages: ModuleType) -> dict[str, Record]:
+    """Every `Record` that `leaf` and `packages` declare, by its kind. A kind is
+    declared as its module loads, and a command loads only the modules it uses, so
+    this loads every module of each package first."""
     import importlib
     import pkgutil
 
     import leaf
 
-    # Every kind, declared as its module loads.
-    for module in pkgutil.walk_packages(leaf.__path__, "leaf."):
-        if not module.name.endswith(".__main__"):
-            importlib.import_module(module.name)
-    groups: dict[tuple[Path, str, str], list[Path]] = {}
+    for package in (leaf, *packages):
+        for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
+            if not module.name.endswith(".__main__"):
+                importlib.import_module(module.name)
+    return RECORDS
+
+
+def leftover_records(directories: list[Path]) -> list[dict]:
+    """The records in `directories` of a kind this Leaf declares, at another shape
+    than this Leaf's, which this Leaf never reads, replaces or removes: one entry for
+    each directory and `format`, with its `files`, how many there are and when the
+    newest was written. `files` is one pattern where there are several and the
+    pattern matches them and no other file, as `claims/*@13.json`, and otherwise
+    each file. Leaf takes each
+    file's `format` and nothing else from it, so the words of another shape's drafts
+    stay unread. A kind this Leaf doesn't declare, as a later Leaf's new one, isn't
+    named, since nothing here can tell its own files from another shape's."""
+    records = declared_records()
+    groups: dict[tuple[Path, str], list[Path]] = {}
     for directory in directories:
         for path in directory.glob("*@*"):
             if not SHAPED.fullmatch(path.name) or not path.is_file():
@@ -600,24 +610,26 @@ def leftover_records(directories: list[Path]) -> list[dict]:
             except ValueError:
                 continue
             kind, _, since = form.rpartition("/")
-            record = RECORDS.get(kind.removeprefix("leaf-"))
+            record = records.get(kind.removeprefix("leaf-"))
             if record is None or str(record.since) == since:
                 continue
-            keyless = re.sub(r"[0-9a-f]{16,}", "*", path.name)
-            groups.setdefault((directory, keyless, form), []).append(path)
-    return [
-        {
-            "files": str(directory / keyless),
-            "format": form,
-            "count": len(paths),
-            "written": datetime.fromtimestamp(
-                max(path.stat().st_mtime for path in paths)
-            )
-            .astimezone()
-            .isoformat(timespec="seconds"),
-        }
-        for (directory, keyless, form), paths in sorted(groups.items())
-    ]
+            groups.setdefault((directory, form), []).append(path)
+    found = []
+    for (directory, form), paths in sorted(groups.items()):
+        pattern = directory / f"*@{form.rpartition('/')[2]}{paths[0].suffix}"
+        whole = len(paths) > 1 and set(directory.glob(pattern.name)) == set(paths)
+        newest = max(path.stat().st_mtime for path in paths)
+        found.append(
+            {
+                "files": [str(pattern)] if whole else sorted(map(str, paths)),
+                "format": form,
+                "count": len(paths),
+                "written": datetime.fromtimestamp(newest)
+                .astimezone()
+                .isoformat(timespec="seconds"),
+            }
+        )
+    return found
 
 
 def stored_record(path: Path) -> dict | None:

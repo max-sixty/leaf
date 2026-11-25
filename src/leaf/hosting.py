@@ -575,6 +575,15 @@ def _take_server_lease(page_dir: Path):
     lease = take_lease(page_dir / SERVER_LOCK, prepare=clear_identity)
     if lease is not None:
         return lease
+    if SERVICE.others(page_dir / SERVICE_FILE):
+        # Its record is of a shape this Leaf doesn't read, so no start can reuse
+        # the server or ask it to stop; a stop removes that record (`cmd_stop`).
+        raise Refused(
+            f"a server another Leaf version started is serving {page_dir}, and this "
+            f"Leaf can't read its record, so a start can't reuse or replace it: run "
+            f"`leaf server stop {page_dir}`, then `leaf server start {page_dir}`, "
+            "which serves the page at a new address"
+        )
     raise Refused(f"another server run is serving {page_dir}; re-run")
 
 

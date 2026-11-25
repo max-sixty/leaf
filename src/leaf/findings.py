@@ -2368,8 +2368,8 @@ _TEXT = {
         f"{v['page']} keeps records another Leaf version wrote, which this one"
         " doesn't read: "
         + "; ".join(
-            f"{group['files']} ({group['format']}, {group['count']}, last written"
-            f" {group['written']})"
+            f"{', '.join(group['files'])} ({group['format']}, {group['count']},"
+            f" last written {group['written']})"
             for group in v["records"]
         )
         + ". Remove them once no Leaf of that version serves the page; where one"

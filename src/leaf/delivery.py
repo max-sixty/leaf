@@ -847,11 +847,13 @@ def read_delivery(delivery_id: str) -> dict:
     except ValueError as error:
         raise Refused(str(error)) from error
     payload = stored_delivery(delivery_id)
-    if payload is None and DELIVERY.others(path):
+    if payload is None and (others := DELIVERY.others(path)):
+        since = others[0].stem.rpartition("@")[2]
         raise Refused(
-            f"delivery {delivery_id!r} was written by another Leaf, in a form this "
-            f"one does not read ({DELIVERY.format!r}). The updates it carried that "
-            "still owe an answer come again in the page's next delivery."
+            f"delivery {delivery_id!r} was written by another Leaf version as "
+            f"leaf-{DELIVERY.kind}/{since}, which this Leaf doesn't read. The "
+            "updates it carried that still owe an answer come again in the page's "
+            "next delivery: read and acknowledge that one instead."
         )
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")

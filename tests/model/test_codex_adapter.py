@@ -556,7 +556,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
         envelope.with_name(f"{envelope.stem}@999{envelope.suffix}"),
         {**payload, "format": "leaf-delivery/999"},
     )
-    with pytest.raises(Refused, match="written by another Leaf"):
+    with pytest.raises(Refused, match="another Leaf version as leaf-delivery/999"):
         delivery_model.read_delivery(payload["id"])
     assert codex_model.delivery_records("handling-test") == []
 

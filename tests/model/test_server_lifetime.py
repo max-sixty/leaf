@@ -770,6 +770,13 @@ def test_a_service_record_this_version_cannot_read_is_no_service(page_dir, spawn
     assert server_model.read_service(page_dir) is None
     assert server_model.running_server(page_dir) is None
     assert hosting_model._reuse_server(page_dir, None, persistent=True) is None
+    # A start can reach that server neither to reuse it nor to stop it, so it names
+    # the stop that can.
+    with pytest.raises(Refused) as refused:
+        hosting_model._take_server_lease(page_dir)
+    assert f"run `leaf server stop {page_dir}`, then `leaf server start" in str(
+        refused.value
+    )
 
     assert hosting_model.cmd_stop(page_dir) is True
     assert not older_service(page_dir).exists()

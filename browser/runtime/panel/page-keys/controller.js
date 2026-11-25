@@ -41,7 +41,7 @@ import { landForKey } from "../../dom/scrolling.js";
 import { nextFrame } from "../../lib/frame-pass.js";
 import { pageUpgraded } from "../../base/page-paint.js";
 import { runtime } from "../../state/context.js";
-import { UPGRADE, PRESENTATION } from "../../readings/presentation.js";
+import { UPGRADE, whenPagePresented } from "../../readings/presentation.js";
 import { readLeavingKeys } from "../../base/field-keys.js";
 import { authoredScope } from "../../readings/passages.js";
 // A document the runtime gives up on before it upgrades, because it reloads or waits on
@@ -238,7 +238,7 @@ export function mountKeyboard({
     nextFrame(next);
   };
   document.addEventListener(UPGRADE, takeHeldKeys, { once: true });
-  document.addEventListener(PRESENTATION, takeHeldKeys, { once: true });
+  void whenPagePresented().then(takeHeldKeys);
   // A declared initial input may arrive after presentation. Its owner already
   // repaints availability through paintKeys; that same reading releases held keys.
   watchCommandAvailability(takeHeldKeys);

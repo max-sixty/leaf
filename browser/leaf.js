@@ -36,7 +36,6 @@ import {
   settlePageInterface,
   afterPresentation,
   deferredArrival,
-  PRESENTATION,
 } from "./runtime/readings/presentation.js";
 import { pagePresented } from "./runtime/base/page-paint.js";
 import { renderingState, observePreparations } from "./runtime/base/rendering.js";
@@ -935,20 +934,19 @@ async function boot() {
     void arriving(() => whenArrived().then(landFragment));
     if (offlineInteractive) {
       landFragment();
-      document.dispatchEvent(new Event(PRESENTATION));
       return;
     }
     paintKeys();
     repaint();
     app.overlay?.flushLayout();
     landFragment();
-    // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
-    // interaction, after the landing's synchronous part, rather than after an editor
-    // the landing waits for: awaited first, a margin map presented its authored spans.
+    // The geometry readers waiting on the stamp above (`whenPagePresented`,
+    // lib/presented.js) run as this turn yields, after the landing's synchronous part,
+    // rather than after an editor the landing waits for: awaited first, a margin map
+    // presented its authored spans.
     const arrival = deferredArrival(
       restoration ? arrive(restoration, landArrival) : landArrival(async () => {}),
     );
-    document.dispatchEvent(new Event(PRESENTATION));
     await arrival;
     const currentRevision = runtime.currentRevision;
     if (savedView && currentRevision !== null && savedView.revision < currentRevision)

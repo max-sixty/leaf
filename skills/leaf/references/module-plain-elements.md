@@ -228,7 +228,7 @@ this.dispatchEvent(hold);
   reports it to the agent as a page error naming the widget, which fails `page check`.
 - **Building.** The element builds once, behind a first-connection guard
   (`module-authoring.md`, "Upgrade").
-- **Startup.** `lf-presentation` and `lf-page-interface` on `document`
+- **Startup.** `lf-page-interface` on `document`, and `body[data-lf-presented]`
   (`module-authoring.md`, "Startup and presentation").
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and the element's `lfParts` states its

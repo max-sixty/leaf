@@ -660,8 +660,9 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     against the complete presented page before semantic interaction opens.
 
     The recorded draft makes the first section much taller during replay. The contents
-    map has already painted the short authored form, so the presentation signal must
-    replace that stale map in the same turn that releases durable interaction."""
+    map has already painted the short authored form, so the page's presentation must
+    replace that stale map before the first frame that releases durable interaction
+    paints."""
     source = contents_page(
         "stable generated interface",
         """
@@ -700,14 +701,16 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
         window.__tocFirstPaint = null;
         new MutationObserver((records, observer) => {
           if (document.body?.dataset.lfPresented !== '1') return;
-          const nav = document.querySelector('.lf-toc-nav');
-          window.__tocFirstPaint = {
-            visible: nav.checkVisibility({visibilityProperty: true}),
-            reach: ("""
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            const nav = document.querySelector('.lf-toc-nav');
+            window.__tocFirstPaint = {
+              visible: nav.checkVisibility({visibilityProperty: true}),
+              reach: ("""
         + PREPARE_REACH
         + """)(nav),
-          };
-          observer.disconnect();
+            };
+          });
         }).observe(document, {
           subtree: true,
           attributes: true,

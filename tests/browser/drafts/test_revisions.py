@@ -759,14 +759,14 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")
     revised = editing_revision_source("after").replace(
         "window.__rendererLifetime=",
-        "window.__lfCheckApi().then(({afterPresentation})=>afterPresentation(()=>window.__deferredArrivalRan=true));document.addEventListener('lf-presentation',()=>window.__presentationDispatched=true);\nconst field=customElements.get('leaf-text').prototype;const setRange=field.setSelectionRange;\nfield.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
+        "window.__lfCheckApi().then(({afterPresentation})=>afterPresentation(()=>window.__deferredArrivalRan=true));\nconst field=customElements.get('leaf-text').prototype;const setRange=field.setSelectionRange;\nfield.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
     )
     stamp_page(serve.page_dir, revised, "Fresh executable with mechanical failure")
     told(page)
     open_latest(page)
     wait_for_revision(page, 2)
     errors = reported_browser_errors(page, "fresh mechanical caret fixture failed")
-    assert page.evaluate("Boolean(window.__presentationDispatched)")
+    assert page.evaluate("document.body.hasAttribute('data-lf-presented')")
     page.wait_for_function("window.__deferredArrivalRan===true")
     assert len(errors) == 1, errors
     assert "Revision continuity failed" in errors[0].values["text"], errors

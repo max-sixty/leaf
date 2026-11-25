@@ -1,6 +1,6 @@
 /* The page's readiness: the stamps written on body, the work an owner finishes after
-   presentation (`deferredArrival`), and the events startup dispatches to present the
-   page (`PRESENTATION`, `PAGE_INTERFACE`). The words and marks the runtime paints onto
+   presentation (`deferredArrival`), and the event startup dispatches to present the
+   page (`PAGE_INTERFACE`). The words and marks the runtime paints onto
    page-owned elements live in records/declared-words.js.
 
    The page has three readiness facts, all three written on `body` rather than on the
@@ -45,9 +45,9 @@
    the declaration together, for work started only once the user has the page or
    already running work that presentation need not wait for, which its `work` callback
    returns: the page presents without it, and `arrived` waits for it, counted from the
-   call either way. A widget instead starts such work at `lf-presentation` and says it
-   with `pending-task`, which after presentation holds the page's rendering readiness
-   (lib/presented.js). `whenNear`, which a widget reaches, is the wait and the
+   call either way. A widget instead starts such work once `body[data-lf-presented]` is
+   set (lib/presented.js) and says it with `pending-task`, which after presentation
+   holds the page's rendering readiness. `whenNear`, which a widget reaches, is the wait and the
    declaration for work earned only once the reader comes near the node, such as a
    live sample's child page: the page counts the browser's first reading of the node,
    so a reader of its final boxes waits for whatever that reading starts, and a check
@@ -81,6 +81,10 @@ export function markPagePresented() {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.presented, "1");
   resolvePresented();
 }
+// The page's first presentation, for the runtime's own readers of it. Its reactions run
+// once startup's synchronous turn after the stamp is done, so a geometry reader reads
+// the layout the landing left.
+export const whenPagePresented = () => presented;
 
 // The arrivals their owners placed after presentation and that have not landed yet.
 // Registration is synchronous at the point the owner decides to defer — before
@@ -249,14 +253,6 @@ export function pageReadiness(held = null, through = "rendering") {
     if (stage === through) return null;
   }
 }
-
-// The one initial turn in which box-derived page apparatus can read the complete
-// authoritative layout before semantic interaction opens. Widget upgrade gives
-// components enough geometry to build and paint from authored state, while presentation
-// adds replay, restored chrome, and fragment reveal. Components keep observing later
-// real layout changes through their ordinary ResizeObserver or layout signal; this event
-// exists only to replace a provisional startup reading synchronously.
-export const PRESENTATION = "lf-presentation";
 
 // Interface derived from authored structure joins the same settlement boundary as the
 // widget modules that compose it. Initial startup and an in-place version activation

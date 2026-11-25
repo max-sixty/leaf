@@ -55,7 +55,7 @@ import { scrollBehavior } from "../../dom/motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { ownedObligationControl } from "./answer.js";
 import { obligationIn } from "../current-target.js";
-import { PRESENTATION } from "../../readings/presentation.js";
+import { whenPagePresented } from "../../readings/presentation.js";
 import { retainUserIntent } from "../../dom/user-intent.js";
 import { bindQueuedWork } from "../../lib/queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../../state/semantic-state.js";
@@ -631,14 +631,13 @@ export function createObligationView({
     mounted = true;
     stopContextScopes = contextScopes("While answering", obligationContext);
     void syncObligations();
-    document.addEventListener(PRESENTATION, actionsChanged);
+    void whenPagePresented().then(actionsChanged);
     addEventListener("resize", repaint);
   }
 
   function destroy() {
     if (mounted) {
       mounted = false;
-      document.removeEventListener(PRESENTATION, actionsChanged);
       globalThis.removeEventListener("resize", repaint);
     }
     stopContextScopes?.();

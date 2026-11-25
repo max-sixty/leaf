@@ -429,8 +429,8 @@ On a plain host `shadowStage` stages only the renderer's content; a Leaf page su
 its theme, annotation support and page watches from outside the widget.
 
 Wrap stylesheet text the module writes itself in `@layer lf-base { … }`, so its rules
-sit in the theme's `lf-base` cascade layer, below Layouts, theme packages and the
-page's own stylesheet.
+sit with the widgets' defaults in `lf-base`, above the page's `base` layer and below
+Layouts, package overrides and the page's other layers and unlayered rules.
 
 ### Scheduling paints
 

@@ -671,15 +671,20 @@ LAYER_TOP_FILES = (
 KERNEL_STYLES = (
     "shadow.css",
     "base.css",
+    "elements.css",
     "layouts.css",
     "state.css",
     "styles/control-face.css",
+    "styles/page-control-face.css",
+    "styles/markup.css",
+    "styles/parts.css",
     "styles/shadow-leading.css",
 )
 KERNEL_FILES = (*KERNEL_STYLES, "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
+    "theme.css",
     "widget-shadow.css",
     "defaults.css",
     "overrides.css",

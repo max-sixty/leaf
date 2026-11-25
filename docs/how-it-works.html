@@ -237,6 +237,14 @@ flowchart TD
               <a href="#package-interface">Package interface</a> draws everything a
               package leans on Leaf for and walks through a whole widget.
             </p>
+            <p id="architecture-styles">
+              The layer's styles reach the page as one stylesheet, which Leaf links
+              first in the page's head. The page's own CSS follows it and outranks it,
+              apart from rules in the page's <code>base</code> and <code>reset</code>
+              layers, which Leaf ranks among its own.
+              <a href="/extending/#styles-tiers">The tiers</a> draws where each rule
+              goes.
+            </p>
           </section>
           <section id="architecture-parts">
             <h2>Responsibilities and state</h2>

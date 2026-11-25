@@ -165,7 +165,6 @@ class MotionStudy extends HTMLElement {
       for (const video of this.#videos) video.playbackRate = this.#rate;
       this.#save();
     });
-    this.addEventListener("lf-inspect", () => this.#pause());
     // Media events don't bubble but do pass the study on capture, so a recording a
     // revision adds joins the clock, and gives Play something to play, as one the
     // study started with does.

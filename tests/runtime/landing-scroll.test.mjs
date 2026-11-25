@@ -10,8 +10,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { keepInBand, scrollIntoView } from "/runtime/landing-scroll.js";
-import { glideTo, scrollGoal, stopGlide } from "/runtime/scrolling.js";
+import { keepInBand, scrollIntoView } from "/runtime/readings/landing-scroll.js";
+import { glideTo, scrollGoal, stopGlide } from "/runtime/dom/scrolling.js";
 
 // A scroller 300px wide and 400px tall, with no border or scrollbar, over content
 // 1000px wide and 5000px tall, holding one box at `contentTop` and `contentLeft`, 100px
@@ -127,7 +127,7 @@ test("a reveal in an inner scrollport travels the fraction it asks for", () => {
   // A 200px scrollport that only a script scrolls, at the top of the reading scroller,
   // stands at 100 with its box's foot 1.75px past its own foot. Cut to the whole pixel,
   // the reveal would leave 0.75px clipped, which a retry is too short to move
-  // (arrivals.js, `setScroll`).
+  // (dom/arrivals.js, `setScroll`).
   const { scroller } = laidOut(0);
   const inner = document.createElement("div");
   inner.style.overflow = "hidden";

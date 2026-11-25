@@ -15,7 +15,8 @@ document.documentElement.lfSample = {
   settings: {},
   present() {},
 };
-const { registerSampleCommand } = await import("../../browser/runtime/sample-child.js");
+const { registerSampleCommand } =
+  await import("../../browser/runtime/host/sample-child.js");
 const { describeFailure, exceptionError, exceptionText } =
   await import("../../browser/runtime/lib/exception.js");
 

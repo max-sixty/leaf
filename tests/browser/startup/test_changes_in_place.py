@@ -1,7 +1,7 @@
 """Changes in place: what changed since a version, which a Compare in Versions marks
 with a bar and `h` walks; how much changed since the user last saw the page,
 which coming back to it says; and where the agent is at work while it works
-(version.js, since-seen.js, change-walk.js, margin-bars.js).
+(features/version.js, host/since-seen.js, panel/change-walk.js, features/margin-bars.js).
 
 A revision is seen when it is on the page while the user is there: the tab visible and
 the window holding focus. Headless browsers report every tab visible and focused, so
@@ -758,13 +758,13 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     with the words each then had: not one the agent had answered before, wherever on
     the page it stands, and the change walk says the same to a listener. A comparison
     across several versions says nothing of it, since nothing knows which version made
-    which change (change-provenance.js)."""
+    which change (features/change-provenance.js)."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     # The answered comment stands on the last paragraph. On `c` its entry would stand
     # 65 px under the title's ⇄ and the waiting comment's entry just above it, so no
     # place would hold the preview's lines clear of both, and it would cut the quote
-    # (preview.js, `stand`).
+    # (annotations/preview.js, `stand`).
     asked = _comment_on(
         d, "d", "Delta reads one way.", text="Beta first?\nIt reads one way."
     )

@@ -162,7 +162,7 @@ type Listing = { pages: Leaf[]; do: Instruction[] };
 
 // The color the word Leaf wears for where the agent's side of a page stands
 // (`activity.py`), in Claude Code's theme: the tone the page's Leaf panel paints its
-// leaf (`.lf-dot` in chrome.css, `toneOf` in activity-words.js), muted where no
+// leaf (`.lf-dot` in chrome.css, `toneOf` in state/activity-words.js), muted where no
 // session holds the page or the agent closed it.
 function toneOf({ presence, state, reason }: Leaf["activity"]) {
   if (state === "running" || reason === "terminal") return "suggestion";
@@ -173,7 +173,7 @@ function toneOf({ presence, state, reason }: Leaf["activity"]) {
 /** What a line says of the agent's work, in the band's own few words: the agent's
  * sentence while it works, Quiet or Away when it has gone silent, and nothing while
  * it is ready, the usual case, which the tone already says. An All pages row
- * (`leafRow` in activity-words.js) says more, such as when the agent last checked
+ * (`leafRow` in state/activity-words.js) says more, such as when the agent last checked
  * in; this module can't import it, since its graph reaches the page's framework and
  * Lit by the server's absolute paths, which no module loader here resolves. */
 function statusOf({ presence, state, reason, detail }: Leaf["activity"]) {

@@ -2394,7 +2394,7 @@ def test_c_on_a_chart_takes_the_keys_point_and_hands_focus_back_to_it(
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
     expect(chart).to_be_focused()
-    # A focus handed back previews nothing (preview.js), and the ring stands on the point.
+    # A focus handed back previews nothing (annotations/preview.js), and the ring stands on the point.
     assert chart.evaluate("el => el.lfPreview()?.name") == "week 2"
     expect(chart.locator(".lf-chart-at")).to_be_visible()
 

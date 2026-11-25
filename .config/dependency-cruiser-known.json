@@ -1,9 +1,9 @@
 [
   {
     "type": "dependency",
-    "from": "browser/runtime/carry.js",
-    "to": "browser/runtime/thread/selectors.js",
-    "unresolvedTo": "./thread/selectors.js",
+    "from": "browser/runtime/host/application.js",
+    "to": "browser/runtime/annotations/undo.js",
+    "unresolvedTo": "../annotations/undo.js",
     "dependencyTypes": ["local", "import"],
     "rule": {
       "severity": "error",
@@ -12,153 +12,10 @@
   },
   {
     "type": "dependency",
-    "from": "browser/runtime/current-target.js",
-    "to": "browser/runtime/thread/model.js",
-    "unresolvedTo": "./thread/model.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/current-target.js",
-    "to": "browser/runtime/thread/selectors.js",
-    "unresolvedTo": "./thread/selectors.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/current-target.js",
-    "to": "browser/runtime/thread/state.js",
-    "unresolvedTo": "./thread/state.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/drafts.js",
-    "to": "browser/runtime/framework.js",
-    "unresolvedTo": "./framework.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/drafts.js",
-    "to": "browser/runtime/thread/identity.js",
-    "unresolvedTo": "./thread/identity.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/history.js",
-    "to": "browser/runtime/thread/reply-landing.js",
-    "unresolvedTo": "./thread/reply-landing.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/history.js",
-    "to": "browser/runtime/thread/selectors.js",
-    "unresolvedTo": "./thread/selectors.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/obligations/answer.js",
-    "to": "browser/runtime/thread/messages.js",
-    "unresolvedTo": "../thread/messages.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/obligations/view.js",
-    "to": "browser/runtime/current-target.js",
-    "unresolvedTo": "../current-target.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/obligations/view.js",
-    "to": "browser/runtime/thread/held-news.js",
-    "unresolvedTo": "../thread/held-news.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/projection/presentation.js",
-    "to": "browser/runtime/thread/messages.js",
-    "unresolvedTo": "../thread/messages.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/reactions.js",
-    "to": "browser/runtime/annotation-inventory.js",
-    "unresolvedTo": "./annotation-inventory.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/reactions.js",
-    "to": "browser/runtime/composing/capture.js",
-    "unresolvedTo": "./composing/capture.js",
-    "dependencyTypes": ["local", "import"],
-    "rule": {
-      "severity": "error",
-      "name": "layering"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "browser/runtime/reactions.js",
-    "to": "browser/runtime/composing/selection.js",
-    "unresolvedTo": "./composing/selection.js",
-    "dependencyTypes": ["local", "import"],
+    "from": "browser/runtime/host/sample-child.js",
+    "to": "browser/runtime/annotations/composing/page-image.js",
+    "unresolvedTo": "../annotations/composing/page-image.js",
+    "dependencyTypes": ["local", "dynamic-import"],
     "rule": {
       "severity": "error",
       "name": "layering"

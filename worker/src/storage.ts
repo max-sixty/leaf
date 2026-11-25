@@ -455,7 +455,7 @@ export class PageStore {
     const response = rows[0];
     const headers = new Headers(JSON.parse(response.headers));
     // Served while the container is stopped, so the tab reads that its next write
-    // waits for the container to launch (`writeLaunchesAgent` in `layer-client.js`).
+    // waits for the container to launch (`writeLaunchesAgent` in `transport/layer-client.js`).
     headers.set("Leaf-State-Source", "durable");
     const drafts =
       path === "api/drafts" || path === "api/news" ? this.drafts(root) : null;

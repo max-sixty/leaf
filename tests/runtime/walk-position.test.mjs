@@ -1,4 +1,4 @@
-/* How long the place a widget's step says stands (runtime/walk-position.js): for the
+/* How long the place a widget's step says stands (runtime/records/walk-position.js): for the
    step's moment, no longer than the stop it was said on stays in the page, no longer
    than focus stays on a stop that held it, and no longer than the widget says the user
    stays on that stop. A step that says none ends it too, which takes a laid-out page to
@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers";
 
-import { NOTICE_MS } from "/runtime/notifications.js";
-import { walkPosition } from "/runtime/walk-position.js";
+import { NOTICE_MS } from "/runtime/transport/notifications.js";
+import { walkPosition } from "/runtime/records/walk-position.js";
 
 /** @param {Element} stop @param {number} position */
 const say = (stop, position) =>

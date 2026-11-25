@@ -414,7 +414,7 @@ def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_
     page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
     expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
     # The editor shows the file before the landing starts the page's scroll, which
-    # names the file in the address as it starts (anchor-travel.js, `arrive`).
+    # names the file in the address as it starts (features/anchor-travel.js, `arrive`).
     expect(page).to_have_url(re.compile("#config:alerts$"))
     scroll_settled(page)
     # The open panel's card starts where it covers the page.

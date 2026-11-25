@@ -114,7 +114,7 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     thread = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{thread_id}"]'
     )
-    # A press on its row opens it as a press on its marker does (thread/focus.js).
+    # A press on its row opens it as a press on its marker does (records/thread/focus.js).
     expect(thread.locator("leaf-text")).to_be_focused()
     expect(thread).to_contain_text(COMMENT_ON_SUGGESTION["text"])
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
@@ -169,7 +169,7 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
 
 @pytest.mark.parametrize("how", ["press", "key"])
 def test_a_page_map_row_opens_a_thread_where_every_opening_does(browser, serve, how):
-    """A route that names no part lands where opening a thread does (thread/focus.js,
+    """A route that names no part lands where opening a thread does (records/thread/focus.js,
     `openingPart`): a press on a Page Map row in the thread's reply, and a key on the
     thread, where keys act."""
     comment = {
@@ -696,7 +696,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(reply).to_be_focused()
     page.locator("h1").click()
     expect(preview).to_be_hidden()
-    # A click opens the thread in its reply (thread/focus.js).
+    # A click opens the thread in its reply (records/thread/focus.js).
     marker.click()
     expect(reply).to_be_visible()
     expect(reply).to_be_focused()
@@ -820,7 +820,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     Escape stands the user on the thread, where `c` writes in the reply again, and Send
     answers the thread with Threads left shut. With Threads open in the panel, Enter on
     the marker opens the card on the thread, beside the passage: a key's opening stands
-    the user where keys act (thread/focus.js, `openingPart`), and the panel shows a
+    the user where keys act (records/thread/focus.js, `openingPart`), and the panel shows a
     passage's thread only where the page draws it nowhere.
 
     Where the card stands belongs to the placement tests beside this one; what a send
@@ -875,7 +875,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
 def test_a_finger_opens_a_card_on_its_thread(browser, serve):
     """A finger reads what it opened first, so its tap stands it on the thread, whose box
     raises no keyboard, on a window with room for a card as in the panel's view
-    (thread/focus.js, `openingPart`)."""
+    (records/thread/focus.js, `openingPart`)."""
     context = browser.new_context(
         viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -928,8 +928,20 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     # Each unread reply says New in its head, which a screen reader reads with it.
     expect(transcript.locator(".lf-msg-new")).to_have_count(2)
     expect(first.locator(".lf-msg-head")).to_contain_text("New")
+    # Its dot hangs in the gutter before the name, centred between the card's edge and
+    # the name, so it touches neither.
+    gaps = """msg => {
+      const dot = msg.querySelector('.lf-msg-new').getBoundingClientRect();
+      const card = msg.closest('.lf-margin-preview-card');
+      const edge = card.getBoundingClientRect().left + card.clientLeft;
+      const name = msg.querySelector('.lf-msg-head > b').getBoundingClientRect();
+      return [dot.left - edge, name.left - dot.right];
+    }"""
+    edge_gap, name_gap = first.evaluate(gaps)
+    assert edge_gap > 0 and abs(edge_gap - name_gap) <= 1, (edge_gap, name_gap)
 
-    # Partway down the long reply, its head has stuck with New in it.
+    # Partway down the long reply, its head has stuck with New in it, the dot where
+    # it stood.
     transcript.hover()
     page.mouse.wheel(0, 240)
     page.wait_for_function(
@@ -938,6 +950,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     tag = first.locator(".lf-msg-new").bounding_box()
     top = transcript.evaluate("list => list.getBoundingClientRect().top")
     assert top - 1 <= tag["y"] <= top + 30, (tag, top)
+    assert first.evaluate(gaps) == [edge_gap, name_gap]
 
     for _ in range(40):
         if transcript.evaluate(

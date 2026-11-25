@@ -22,8 +22,8 @@ check: what goes On Me (`conversation-loop.md`, "The On lists"), which action as
 for permission and which is a step, how a question reads in a thread, when it asks
 with a choice, and how the agent keeps a thread current.
 Name each ask that guidance puts On Me which the agent left to the user, in its
-replies or anywhere in the conversation, where no On Me item holds it and the user
-hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
+replies or anywhere in the conversation, where no question the page state below
+lists as On Me or as still open holds it and the user hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
 message in a thread, and the agent takes the user's answer or withdraws the ask. For
 each, give:
 

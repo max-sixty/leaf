@@ -1425,19 +1425,35 @@ def thread_create(
     On Me until their reply or settling reaction. A question whose answers you
     can list takes a widget that asks in the text instead, such as an
     `lf-options` choice, which waits on the user until they pick. Refuses a
-    quote the active revision does not hold, or holds more than once. The
+    quote the active revision does not show, or shows more than once; words a
+    page's script draws are found on the page as the browser draws it. The
     comment's id is the thread's.
     """
-    from leaf.thread import cmd_comment
+    from leaf.thread import UnsaidQuote, cmd_comment
 
+    body = read_body(text, body_file)
+    try:
+        return cmd_comment(
+            page_dir, quote, section, part, body, title=title, obligation=obligation
+        )
+    except UnsaidQuote as unsaid:
+        # Words a page's script draws are in no file, so the drawn page is asked for
+        # them, outside the page's lease, since a browser takes a second or more.
+        from leaf.render_gate.drawn_anchor import drawn_anchor
+
+        revision = unsaid.revision
+        anchor = drawn_anchor(page_dir, revision, quote, section)
+        if anchor is None:
+            raise
     return cmd_comment(
         page_dir,
         quote,
         section,
         part,
-        read_body(text, body_file),
+        body,
         title=title,
         obligation=obligation,
+        drawn=(revision, anchor),
     )
 
 

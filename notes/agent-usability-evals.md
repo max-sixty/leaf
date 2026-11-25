@@ -926,7 +926,7 @@ beside a mostly empty decision column.
 The browser user's passage selection picked the contents outline's copy of a
 heading, which Leaf echoes from the heading and offers no comment route for, and
 the sample failed. `eval_user.py` now selects only words in the page's own reading
-(`pageText`, passages.js), the words a comment can anchor to: tab labels and board
+(`pageText`, readings/passages.js), the words a comment can anchor to: tab labels and board
 column headings stay selectable, and Leaf's chrome and echoed copies don't.
 
 The dashboard comment fell back to a whole-page comment wherever the follow-ups

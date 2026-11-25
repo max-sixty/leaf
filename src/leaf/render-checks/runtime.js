@@ -113,7 +113,7 @@ export function applyRestoreCase(restoreCase) {
 }
 
 // Every post this tab has made to /api/event has ended, the page's error reports
-// among them (`runtime/traffic.js`). A page that has posted nothing paints no ledger.
+// among them (`runtime/transport/traffic.js`). A page that has posted nothing paints no ledger.
 export function sendsAcked() {
   const traffic = document.documentElement.dataset.lfTraffic;
   if (traffic === undefined) return true;

@@ -25,9 +25,9 @@ while a view of it is open, is missing from the list; name such a part as the
 widget's guidance says.
 
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
-words from the page's HTML that the user can see, within one widget part. The
-command refuses a quote that matches more than one place, or is retired, replaced,
-or crosses a boundary, rather than open a thread with no anchor. The thread's id is
+words the user can see, within one widget part, including words a page's script
+draws. The command refuses a quote that matches more than one place, or is retired,
+replaced, or crosses a boundary, rather than open a thread with no anchor. The thread's id is
 the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and
 `reopen` take the id of any message in the thread.

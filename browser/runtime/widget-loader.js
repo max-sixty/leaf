@@ -8,6 +8,7 @@ import {
   watchQuietWords,
 } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
+import { watchCode } from "./code-dressing.js";
 import { watchHeadingLinks } from "./heading-links.js";
 import { watchRootHeaders } from "./root-headers.js";
 import { reachScrollers } from "./reach.js";
@@ -190,6 +191,7 @@ async function installDocument(scope) {
     watchNativeContent();
     watchQuietWords();
     watchCodeBlocks();
+    watchCode();
     watchHeadingLinks();
     watchRootHeaders();
     await importWidgets(scope);

@@ -1,7 +1,7 @@
 // The two arms share one request and host inference settings. Only the output
 // contract changes: component configuration or complete HTML/CSS/JavaScript.
 import { nothing } from "/vendor/lit.js";
-import { generate, dressCode, tabStore } from "/runtime/widget-api.js";
+import { generate, tabStore } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keepsText } from "/runtime/lib/keeps.js";
 import { stagePreview, stageLeafPreview } from "../preview.js";
@@ -161,11 +161,12 @@ customElements.define(
             );
             for (const part of ["css", "js"])
               if (get(part)) keepsText(get(part), result.value[part]);
-            if (get("compiled")) {
+            if (get("compiled"))
               keepsText(get("compiled"), catalog.compile(result.value));
-              delete get("compiled").dataset.lfSyntax;
-            }
-            void dressCode(region);
+            // Leaf colours a listing again as its words change, once the mark of its
+            // last colouring is gone.
+            for (const part of ["code", "css", "js", "compiled"])
+              if (get(part)) delete get(part).dataset.lfSyntax;
             await draw(result.value);
             if (signal.aborted) return;
             record.timing.renderMs = performance.now() - generated;

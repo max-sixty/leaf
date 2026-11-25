@@ -94,11 +94,6 @@ A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it
 changes, rather than asking about the case in front of you.
 
-Where the maintainer agreed a plan that names a result, such as the count of names
-an interface ends with, work that stops short reports the shortfall first, as a
-miss against the plan, with what stopped it, and proposes the change to any rule
-that did. A list of calls the maintainer may reverse is not that report.
-
 ## Responsiveness
 
 When the user acts, the page draws each result that follows from the act alone, such

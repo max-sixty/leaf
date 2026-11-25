@@ -15,8 +15,9 @@ import { createActivity } from "./activity-view.js";
  * thread goes by its name in words (`nameOf`).
  *
  * A place is named on the page the user is reading, since that is where the row leads,
- * and as the rest of the chrome names it (`nameOf`), else by its word. A
- * quoted passage is named as Threads names its anchor (`anchorLabel`).
+ * and as the rest of the chrome names it (`nameOf`), else by its word. A comment is
+ * named by the words it quotes, else by the element it is on, a drawing's part, a datum
+ * and a design comment included.
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
  * so the browser owns that travel as it does for lf-toc, and a thread is a button
@@ -38,7 +39,6 @@ import { createActivity } from "./activity-view.js";
 import {
   HeldReading,
   tabStore,
-  anchorLabel,
   elementById,
   layerFact,
   nameOf,
@@ -62,16 +62,11 @@ function nameById(id) {
   return excerptWords(nameOf(element), NAME) || `the ${addressableWord(element)}`;
 }
 
-// A comment's place: a passage, a drawing's part, a datum, or a design subject as
-// Threads names it; a whole element by where it is.
-/** @param {import("../../../browser/types/contract.js").CompleteUnion<NonNullable<import("../../../browser/types/contract.js").ServedHistoryRow["anchor"]>> | null | undefined} anchor
- * @param {import("../../../browser/types/contract.js").ServedHistoryRow["about"]} about */
-function placeName(anchor, about) {
+// A comment's place: the words it quotes, else the element it is on.
+/** @param {import("../../../browser/types/contract.js").CompleteUnion<NonNullable<import("../../../browser/types/contract.js").ServedHistoryRow["anchor"]>> | null | undefined} anchor */
+function placeName(anchor) {
   // A bare quote is cut inside its marks, so a long one still reads as a quote.
-  if (anchor?.quote && !anchor.datum && about !== "design")
-    return quoted(excerptWords(anchor.quote, NAME));
-  if (anchor?.visual || anchor?.datum || about === "design")
-    return excerptWords(anchorLabel(anchor, about), NAME);
+  if (anchor?.quote) return quoted(excerptWords(anchor.quote, NAME));
   return nameById(anchor?.section ?? null);
 }
 
@@ -134,12 +129,12 @@ function describe(row) {
         return {
           what: `reacted ${reaction(row.token)} on`,
           widget: row.anchor?.section ?? null,
-          label: placeName(row.anchor, row.about),
+          label: placeName(row.anchor),
         };
       if (row.holds) return thread("paused", nameById(row.holds));
       return thread(
         row.drawing && !row.excerpt ? "drew on" : "commented on",
-        placeName(row.anchor, row.about),
+        placeName(row.anchor),
       );
     case "reply":
       return thread(row.token ? `reacted ${reaction(row.token)} in` : "replied in");

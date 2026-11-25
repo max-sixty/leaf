@@ -77,16 +77,15 @@ In [module-state.md](module-state.md):
 - "State only this tab keeps": `tabStore` keeps a string for this tab, and
   `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
   which Leaf remembers, names in the address and returns the user to their place in.
-- "Time readings": `clockValue` reads the server's time.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
 
 In [module-reading.md](module-reading.md):
 
-- "Reading the page": `says`, `named` and `phrasing` read an element's words, and
+- "Reading the page": `says` and `named` read an element's words, and
   `elementById` finds the element an address names.
-- "Naming": `nameOf`, `titledElement` and `anchorLabel`.
+- "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
@@ -103,7 +102,7 @@ In [module-input.md](module-input.md):
 
 - "Walks": `rowWalk` gives a list of rows its arrow keys.
 - "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
-  redraw, `placeOf` and `onCurrentLocation` read where the user is, and `onPress` and
+  redraw, `onCurrentLocation` reads where the user is, and `onPress` and
   `onPressAway` follow a pointer's press.
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
@@ -113,7 +112,7 @@ In [module-input.md](module-input.md):
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`, `preserveReadingRegions` and `showReadingSubject`.
+- "Reading regions": `scrollerFor`.
 - "Holding the reader's place": `holdPlace` and `HeldReading`.
 - "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
   `landingInsets` and `shownWindow`.
@@ -123,7 +122,7 @@ In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
 - "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
-  `threadInput`, `landInThread` and `agentName`.
+  `threadInput` and `landInThread`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.

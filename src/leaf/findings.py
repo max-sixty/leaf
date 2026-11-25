@@ -392,24 +392,6 @@ def _broken_names(at: str, v: dict) -> str:
     )
 
 
-def _drawn_height(at: str, v: dict) -> str:
-    # `box` is the height the element holds now: past `before`, what follows it moved
-    # as it drew; past `drawn`, a stated height larger than the drawing left room.
-    text = (
-        f"{at} was {v['before']}px tall before drawing and its drawing is"
-        f" {v['drawn']}px tall"
-    )
-    if moved := v["box"] - v["before"]:
-        direction = "down" if moved > 0 else "up"
-        text += f", so what follows it moved {direction} {abs(moved)}px as it drew"
-    if (blank := v["box"] - v["drawn"]) > 0:
-        text += f", leaving {blank}px blank under the drawing"
-    return (
-        f'{text}; data-height="{v["drawn"]}" holds the drawing\'s height from'
-        " first paint"
-    )
-
-
 def _scroll_mark(v: dict) -> str:
     """What scrolls a box sideways, for whoever wrote the box: the page's markup names
     its own boxes `class="lf-scroll"`, and a module marks a box it builds
@@ -971,7 +953,6 @@ _TEXT = {
     ),
     "squeezed-table": _squeezed,
     "broken-name": _broken_names,
-    "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
         f" {v['width']}px, the smallest ({v['words']!r}) at {v['drawn']:g}px from"
@@ -1095,11 +1076,7 @@ _TEXT = {
         _LAYS_OUT,
         lambda at, v: (
             f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
-            + (
-                "a whole number of CSS pixels"
-                if v["allowed"] is None
-                else f"one of {', '.join(v['allowed'])}"
-            )
+            f"one of {', '.join(v['allowed'])}"
         ),
     ),
     "unnamed-card": lambda at, v: (
@@ -1114,8 +1091,6 @@ _TEXT = {
             " inside that needs the room",
             "content": "only a block inside body, other than main, takes it, so put"
             " it on the block that needs it",
-            "declared": "only a widget that draws into a box of a stated height"
-            " takes it",
         }[v["holds"]]
     ),
     "css-syntax": _refuses(

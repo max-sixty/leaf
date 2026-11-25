@@ -126,85 +126,6 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-# A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
-# its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
-# diagram package's does.
-SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
-SKETCH_WIDGET = """
-import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
-import {once} from '/runtime/lib/once.js';
-customElements.define('lf-sketch', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    this.dispatchEvent(new PendingTaskEvent(new Promise((drawn) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const drawing = document.createElement('div');
-        drawing.style.blockSize = '240px';
-        this.replaceChildren(drawing);
-        this.classList.add('lf-rendered');
-        drawn();
-      })))));
-  }
-});
-"""
-
-
-def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serve):
-    """Advice gives a drawing's height wherever the box before it drew differed.
-
-    The boxes before drawing: nothing stated, a stated height too small and one too
-    large, beside a stated height that matches and an authored body that already
-    takes the drawing's height, as an inline diff's source text can.
-    """
-    findings = []
-    _, _, completed = render_gate_scheme._render_page(
-        browser,
-        serve(
-            leaf_page(
-                "Drawn heights",
-                """
-<h1>Drawn heights</h1>
-<lf-sketch id="unstated"></lf-sketch>
-<lf-sketch id="short" data-height="100"></lf-sketch>
-<lf-sketch id="tall" data-height="400"></lf-sketch>
-<lf-sketch id="exact" data-height="240"></lf-sketch>
-<lf-sketch id="authored"><div style="block-size: 240px"></div></lf-sketch>
-""",
-                head="<style>lf-sketch { display: block }"
-                " lf-sketch.lf-rendered"
-                " { min-block-size: attr(data-lf-height px, 0px) }</style>",
-            ),
-            layer_registry={"lf-sketch": SKETCH_DECLARATION},
-            layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
-        ),
-        {"width": 1200, "height": 900},
-        3_000,
-        [],
-        then=lambda page, _: findings.extend(
-            render_gate_readings.drawn_height_advice(page)
-        ),
-    )
-    assert completed, findings
-    drawn = {
-        finding.at: (finding.values, finding.severity)
-        for finding in findings
-        if finding.code == "drawn-height"
-    }
-    assert drawn == {
-        "<lf-sketch id=unstated>": ({"before": 0, "drawn": 240, "box": 240}, "advice"),
-        "<lf-sketch id=short>": ({"before": 100, "drawn": 240, "box": 240}, "advice"),
-        "<lf-sketch id=tall>": ({"before": 400, "drawn": 240, "box": 400}, "advice"),
-    }, findings
-    words = {
-        finding.at: str(finding)
-        for finding in findings
-        if finding.code == "drawn-height"
-    }
-    assert "moved down 140px" in words["<lf-sketch id=short>"], words
-    assert "leaving 160px blank" in words["<lf-sketch id=tall>"], words
-    assert 'data-height="240"' in words["<lf-sketch id=tall>"], words
-
-
 EARLY_KEYS_WIDGET = """
 customElements.define('lf-early', class extends HTMLElement {
   connectedCallback() {
@@ -3165,8 +3086,8 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     # The example's chain fits any column it is laid out for; a row of six calls
     # still runs past a 678px viewport and scrolls, which this test needs.
     source, drawn = re.subn(
-        r'(id="security-before-flow") data-height="449"( parts="all">\s*<pre>).*?</pre>',
-        lambda m: f'{m[1]} data-height="240"{m[2]}\n{FAN_OUT}</pre>',
+        r'(id="security-before-flow")( parts="all">\s*<pre>).*?</pre>',
+        lambda m: f"{m[1]}{m[2]}\n{FAN_OUT}</pre>",
         source,
         count=1,
         flags=re.S,

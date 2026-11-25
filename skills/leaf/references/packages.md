@@ -348,7 +348,6 @@ role on the page:
 | `reading-role` | `lf-pane`                                                                            |
 | `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
 | `bound`        | `lf-activity`                                                                        |
-| `height`       | `lf-chart`                                                                           |
 | `history`      | `lf-activity`                                                                        |
 | `views`        | `lf-tabs`                                                                            |
 
@@ -383,10 +382,7 @@ The presentation checks:
   the tag its `display` in `defaults.css`, and reserve there the room of what the module
   adds, from the theme's tokens (`package-themes.md`, "Theme tokens"): an empty `::before` block on
   `lf-rating:not(:defined)` with `block-size: var(--lf-line)` holds one row of
-  controls. A drawing the markup can't size declares `height`: a number where the
-  module draws at any height, or `true` to reserve the `data-height` each occurrence
-  states in CSS pixels, with no entry in `attributes`. Where that height follows the
-  data, the widget's `instructions` say how the author works it out. A widget
+  controls. A widget
   containing others is named only for the change left once its changed children are
   back at their first sizes. The advice may stand where the size follows content no
   rule can know, such as words drawn from bound data.

@@ -10,7 +10,6 @@ export interface RenderDriver {
   requestFrame(): number;
   framePresented(requested: number): boolean;
   renderingState(): ReturnType<NonNullable<HTMLScriptElement["lfRenderingState"]>>;
-  undrawnHeights(): Map<Element, number>;
   captureFirstBoxes(): void;
   firstBoxes(): FirstBox[];
 }

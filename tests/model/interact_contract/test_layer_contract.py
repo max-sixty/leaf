@@ -223,7 +223,7 @@ _WORKER = {
 def test_composition_holds_each_work_role_to_its_tags_declaration(
     page_dir, tag, entry, code, at, values
 ):
-    """`runtime/work.js` reads `$work.widgets` as given, so composition refuses an
+    """`runtime/host/work.js` reads `$work.widgets` as given, so composition refuses an
     entry it would misread, naming the tag and the key: one its role doesn't take or
     needs, a tag the layer doesn't declare, an attribute the tag lacks, an assignment
     that isn't a reference, a state no single widget value verb records, and a value

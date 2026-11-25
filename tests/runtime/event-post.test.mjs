@@ -17,7 +17,7 @@ globalThis.fetch = async (url, init) => {
   if (String(url).endsWith("/api/event")) sent.push(init);
   return new Response(null, { status: 204 });
 };
-const { postEvent, revealLayer } = await import("/runtime/layer-client.js");
+const { postEvent, revealLayer } = await import("/runtime/transport/layer-client.js");
 revealLayer();
 
 test("a gesture's post asks to outlive its page unless it is too long to", async () => {

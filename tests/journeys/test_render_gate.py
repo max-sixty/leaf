@@ -1851,7 +1851,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     was just decided, and a page that replays the decisions on arrival would be showing
     the user furniture instead of what they came back to read. The runtime puts the
     arrangement back before the page is presented (`restoreUserView`,
-    restore-state.js), so it appears without the motion its gesture plays.
+    state/restore-state.js), so it appears without the motion its gesture plays.
 
     What is read is every motion the browser reports, which it does through the
     inspector's animation agent as it reports a request or a response: nothing is

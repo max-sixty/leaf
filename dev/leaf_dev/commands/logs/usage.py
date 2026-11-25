@@ -17,7 +17,7 @@ to put to the maintainer, with what the feature costs beside it.
   record this Leaf reads. A record at another shape, an older Leaf's or a newer
   one's, counts as none, where `page init` would refuse the newer one.
 - **Commands**: each command a person ran, by key or by press, from the `command`
-  observations a tab writes (`browser/runtime/interaction-log.js`), with the sessions
+  observations a tab writes (`browser/runtime/transport/interaction-log.js`), with the sessions
   and pages it ran in. A session whose browser calls itself headless is a check or a
   probe driving the page, not a person, and is left out. Only commands that ran are
   listed: the runtime registers them as each page's widgets load, so no file lists

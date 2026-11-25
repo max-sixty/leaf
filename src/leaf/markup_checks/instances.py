@@ -267,7 +267,7 @@ def reference_errors(
 
     A worker's assignment, the attribute its `$work.widgets` entry names in `on`,
     names an element whose tag has the role goal there, since the work reading
-    (`runtime/work.js`) assigns the worker to nothing else.
+    (`runtime/host/work.js`) assigns the worker to nothing else.
 
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
@@ -336,7 +336,7 @@ def invoker_errors(parser: SourceDocument, ids: set) -> list[Finding]:
 
     The browser finds a `commandfor` target in the button's own tree, the first element
     with that id in tree order, where a `refers` reader looks in its message first and
-    then the page (`runtime/references.js`). A message stands in the page's tree, so a
+    then the page (`runtime/readings/references.js`). A message stands in the page's tree, so a
     button in one reaches the page's widgets, and the two readings agree on every id the
     checks admit, since `ids-taken` and `ids-taken-by-messages` keep an id to one element
     across the page and its messages. A live sample's document is its own tree, checked

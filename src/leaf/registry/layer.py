@@ -29,7 +29,7 @@ from .contract import (
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 # The facts both runtimes read from the kernel registry, each whole and none from a
-# layer (`registry.kernel`): Python and the browser (`runtime/kernel-facts.js`) both
+# layer (`registry.kernel`): Python and the browser (`runtime/state/kernel-facts.js`) both
 # read the running Leaf's own copy, so a layer's change would reach neither.
 KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
 

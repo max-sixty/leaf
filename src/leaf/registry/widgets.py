@@ -50,7 +50,7 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         raise registry_error(
             "attributes-schema", path, tag, **schema_reading(error)
         ) from error
-    # An unbound data widget's <pre> is the text of its `value` input (element-data.js,
+    # An unbound data widget's <pre> is the text of its `value` input (host/element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
     # the element's words or its recorded state. Its other inputs leave the <pre> alone.
     inputs = [

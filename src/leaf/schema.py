@@ -75,7 +75,7 @@ _RECORD_BODY = {
 }
 # A value record may also name the element's `property` that holds the value in the
 # browser, and the `event` the element says a change of it with, `change` unless
-# named (`RECORD_BINDING`, element-integration.js "Recorded properties").
+# named (`RECORD_BINDING`, host/element-integration.js "Recorded properties").
 _RECORD_VALUE = {
     "type": "object",
     "properties": {
@@ -294,7 +294,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 # input's contract the input reads. An input declares at least one of them, and
 # composition writes each attribute it names into the element's attribute schema
 # (`registry.contract.complete_declarations`). The browser's copy is `bindingAttributes`
-# (runtime/registry.js), and the input type the build generates from this schema checks
+# (runtime/state/registry.js), and the input type the build generates from this schema checks
 # the key names it reads.
 INPUT_BINDINGS = ("source", "reference")
 DATA_INPUTS_SCHEMA = {
@@ -310,7 +310,7 @@ DATA_INPUTS_SCHEMA = {
             },
             **dict.fromkeys(INPUT_BINDINGS, _ATTRIBUTE_NAME),
             # The element property the runtime sets to the delivered value
-            # (element-data.js, "Bound values").
+            # (host/element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
             # The widget attribute holding the receipt of the source's run that
             # produced the value written in the element's content.
@@ -414,7 +414,7 @@ FACTS: dict[str, dict] = {
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,
-    # Each output's name is the element property holding it (data.js).
+    # Each output's name is the element property holding it (host/data.js).
     "outputs": {
         "type": "object",
         "minProperties": 1,
@@ -586,7 +586,7 @@ LAYER_FACTS = {
         "required": ["tokens"],
     },
 }
-# The work roles, which Leaf owns and `runtime/work.js` reads: what each role's
+# The work roles, which Leaf owns and `runtime/host/work.js` reads: what each role's
 # `$work.widgets` entry holds beside `role`, then which of those it must hold. A goal
 # or worker names its recorded state attribute and the values of it that mean done or
 # stopped, running or retired, and may name the attribute saying when it stopped or

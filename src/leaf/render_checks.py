@@ -26,7 +26,7 @@ SERVED_TIMEOUT_MS = 120_000
 # `SERVED_TIMEOUT_MS` bounds one request or one probe, and a handover is all of a
 # page's work at once. The bound is on progress rather than on the whole handover,
 # because the whole grows with the page: each live sample a check starts loads a page
-# of its own, three at a time (`MAX_LOADING_SAMPLES` in runtime/sample.js), so a
+# of its own, three at a time (`MAX_LOADING_SAMPLES` in runtime/host/sample.js), so a
 # gallery of them on a starved machine takes minutes while its samples keep landing.
 # A bound on the whole would fail such a page on any machine slow enough, and an agent
 # checking it on a busy machine would read a false failure. A bound on progress need
@@ -317,7 +317,7 @@ def one_frame(page) -> None:
 def rendered(page, *, facts: tuple[str, ...] | None = None) -> None:
     """Wait until the runtime has rendered what the input so far asked for.
 
-    Its renderingState (runtime/rendering.js) says no registered preparation or queued
+    Its renderingState (runtime/base/rendering.js) says no registered preparation or queued
     rendering is waiting and its last update was quiet. By default every fact must be
     settled; an intermediate reader can select facts, such as updatesSettled while
     deliberately holding a preparation. A read after a coalesced repaint, however many
@@ -338,7 +338,7 @@ def rendered(page, *, facts: tuple[str, ...] | None = None) -> None:
 
 
 # Where the page stands on its way to readiness: 'ready', or the first stage it has yet
-# to state (`pageReadiness` in runtime/presentation.js) with how many arrivals it has
+# to state (`pageReadiness` in runtime/readings/presentation.js) with how many arrivals it has
 # yet to land (`arrivalsOutstanding`), read off the entry script so a bundled entry
 # answers too. A page whose entry has not run yet has no reading, and starting is the
 # first stage it owes. `answering` is the one stage read from out here: a page too busy
@@ -560,7 +560,7 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
     page can show, not only those near the window it opened at.
 
     A sample's page may get no rendering while its frame is off screen, so its host
-    stops counting what that page draws there, at once or after a deadline (sample.js),
+    stops counting what that page draws there, at once or after a deadline (host/sample.js),
     and marks the frame `data-lf-unseen`. The page holding a marked frame counts none
     of the work that frame's page does after loading, its own samples included, so
     each frame, at any depth, waits for the page holding it, and each `data-lf-unseen`

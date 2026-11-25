@@ -9,8 +9,8 @@ canonical.dataset.lfRuntime = "";
 canonical.href = "https://leaf.test/pages/feed/";
 document.head.append(canonical);
 globalThis.fetch = async () => new Response(null, { status: 204 });
-const { connection } = await import("/runtime/http-api.js");
-const { applicationState } = await import("/runtime/semantic-state.js");
+const { connection } = await import("/runtime/host/http-api.js");
+const { applicationState } = await import("/runtime/state/semantic-state.js");
 
 test("a connection returns the host response without publishing or retrying", async (t) => {
   applicationState.identify(1, null, true);

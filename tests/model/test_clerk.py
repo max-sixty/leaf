@@ -1021,15 +1021,28 @@ def test_a_finding_needs_no_edit():
     assert clerk_model.read_answer(json.dumps(answer)) == answer
 
 
-def test_a_queue_of_another_shape_reads_as_empty():
-    """A queue an earlier shape wrote, which held each line as a plain string, reads as
-    empty rather than failing the hook that carries it, and the next line queued
-    replaces it."""
+def test_queued_lines_outlive_a_change_to_the_queues_shape():
+    """Every shape of the queue from `QUEUED.kept_since` on keeps each line and whether
+    it wakes the session (`QUEUED.kept`), so lines a Leaf of another shape queued reach
+    the agent beside the one the next Leaf's first hook adds. A queue from an earlier
+    shape, which held each line as a plain string, reads as empty rather than failing
+    the hook that carries it."""
+    clerk_model.queue("s1", ["Leaf asked the user"])
+    clerk_model.queue("s1", ["A finding"], wake=True)
     path = state_model.session_file("s1", clerk_model.QUEUED.kind)
+    path.write_text(
+        json.dumps({**json.loads(path.read_text()), "format": "leaf-clerk/999"})
+    )
+    clerk_model.queue("s1", ["Read the skill again"])
+    assert clerk_model.queued("s1") == [
+        "Leaf asked the user",
+        "A finding",
+        "Read the skill again",
+    ]
+    assert clerk_model.waking("s1") == ["A finding"]
+
     path.write_text(json.dumps({"format": "leaf-clerk/36", "lines": ["An old line"]}))
     assert clerk_model.queued("s1") == []
-    clerk_model.queue("s1", ["Read the skill again"], wake=True)
-    assert clerk_model.waking("s1") == ["Read the skill again"]
 
 
 def test_a_long_title_is_cut_at_a_word_to_fit_a_thread(claimed, capsys):

@@ -109,23 +109,28 @@ leaves it readable. A new kind starts at the current protocol without a bump, si
 earlier Leaf reads it. A shape change sets `since` to the current protocol, bumping the
 protocol first where `since` already names it, and the build refuses a shape change at
 the same `since` or a `since` moved anywhere else. Each kind declares the keys every
-shape keeps (`state.Record.kept`), and any Leaf reads those keys whichever Leaf wrote
-the record (`state.Record.read_any`); it treats the rest of a record at another format
-as absent. A reader may meet a record of any shape its kind has had, which the
-baseline keeps, so the build refuses a shape that drops one of those keys, or changes
-along its path what a reader of any earlier shape relied on: a value's types, whether
-a `*` takes a list's items or a map's values, whether a key is required, or the kept
-key's schema. So a key an earlier shape lacked is optional, and a kept key's `anyOf`
-may still gain variants, as a new kind of session lifetime does. Every write replaces a
-record whole, so an older Leaf's write drops the fields a newer shape added, and a new
-shape adds no field whose loss would change what the record grants or means. A value
-a Leaf doesn't know in a kept key, such as a later Leaf's harness or lifetime kind,
-reads as the session still live, until its record says it ended; only code that acts
-on the value itself, as through a harness, passes over one it doesn't know. So a
-newer session that ends without recording it stays held for older Leaves until a
-session claims its page. The layer record's `since` is always the current protocol,
-so a layer record at another format is another Leaf's page, read as above, and the
-build lets its shape change only with a bump.
+shape keeps (`state.Record.kept`) and the earliest shape whose records it reads
+through them (`kept_since`). Any Leaf reads those keys in a record of a shape from
+`kept_since` on, whichever Leaf wrote it (`state.Record.read_any`), treats the rest
+of the record as absent, and reads a record of an earlier shape as none. The baseline
+keeps every shape of the kind from `kept_since` on, each one the build verified, and
+`kept_since` names one of them, so a window never reaches a shape no check saw, nor
+leaves out the last shape, whose records are the ones on disk; a new kind's starts at
+its own `since`. The build refuses a shape that drops one of those keys, or changes
+along its path what a reader of any shape in the window relied on: a value's types,
+whether a `*` takes a list's items or a map's values, whether a key is required, or
+the kept key's schema. So a key a shape lacked is optional, and a kept key's schema
+says what every reader accepts, as the session record's `lifetime`, any object, does.
+Every write replaces a record whole, so an older Leaf's write drops the fields a newer
+shape added, and a new shape adds no field whose loss would change what the record
+grants or means. A kept key also keeps its meaning across shapes, which no comparison
+of schemas can see. A value a Leaf doesn't know in a kept key, such as a later Leaf's
+harness or lifetime kind, reads as the session still live, until its record says it
+ended; only code that acts on the value itself, as through a harness, passes over one
+it doesn't know. So a newer session that ends without recording it stays held for
+older Leaves until a session claims its page. The layer record's `since` is always
+the current protocol, so a layer record at another format is another Leaf's page,
+read as above, and the build lets its shape change only with a bump.
 
 ## Composition stamps
 

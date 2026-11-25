@@ -65,6 +65,7 @@ BINDINGS = Record(
     ),
     since=50,
     kept=("bindings",),
+    kept_since=13,
 )
 
 MAX_FILE_BYTES = 256 * 1024

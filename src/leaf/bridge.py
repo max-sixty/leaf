@@ -114,6 +114,7 @@ ADDRESS = Record(
     # A new shape is a change to this file, whose bridge keeps its records under a
     # key of its own (`KEY`), so no Leaf meets a record of another shape.
     kept=(),
+    kept_since=13,
 )
 REGISTRATION = Record(
     "bridge-session",
@@ -126,6 +127,7 @@ REGISTRATION = Record(
     since=13,
     # As `ADDRESS`.
     kept=(),
+    kept_since=13,
 )
 
 # Every copy that ships this file shares its bridge (module header). A copy that

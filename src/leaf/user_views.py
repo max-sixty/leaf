@@ -175,6 +175,7 @@ USER_VIEWS = Record(
     ),
     since=47,
     kept=("viewed",),
+    kept_since=13,
 )
 
 

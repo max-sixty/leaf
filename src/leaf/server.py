@@ -88,6 +88,7 @@ SERVICE: Record[ServiceRecord] = Record(
     # The address an open tab polls and the lifetime a restart restores, beside the
     # incarnation serving now, by which another Leaf finds the page served.
     kept=("host", "bind", "port", "enabled", "lifetime", "runtime", "server_id"),
+    kept_since=13,
 )
 ACCESS: Record[AccessRecord] = Record(
     "access",
@@ -98,6 +99,7 @@ ACCESS: Record[AccessRecord] = Record(
     ),
     since=13,
     kept=("token",),
+    kept_since=13,
 )
 # The page receives it whole, so its shape is the served state's `preview`.
 PREVIEW = Record(
@@ -112,6 +114,7 @@ PREVIEW = Record(
     since=13,
     # The next `leaf-dev preview` writes it again.
     kept=(),
+    kept_since=13,
 )
 
 

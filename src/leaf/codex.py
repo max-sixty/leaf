@@ -1933,7 +1933,9 @@ RECORD_SCHEMA = {
         ),
     ],
 }
-RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14, kept=("batches/*/page",))
+RECORD = Record(
+    "codex-delivery", RECORD_SCHEMA, since=14, kept=("batches/*/page",), kept_since=13
+)
 
 
 def read_record(path: Path) -> DeliveryRecord | None:

@@ -70,6 +70,7 @@ CONNECTIONS = Record(
         "connections/*/prefix",
         "connections/*/remaining",
     ),
+    kept_since=19,
 )
 
 

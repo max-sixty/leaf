@@ -2434,53 +2434,32 @@ def test_a_lifetime_kind_this_leaf_doesnt_know_reads_as_live_until_it_ends(
     holds its page until its record says it ended, so a terminal initializes the
     page only then."""
     lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
-    original = lifecycle.read_text()
-    stored = json.loads(original)
+    stored = json.loads(lifecycle.read_text())
     stored["format"] = "leaf-session/999"
     stored["lifetime"] = {"window": "w-1"}
     if ended:
         stored["ended"] = cleanup_model.now_iso()
     lifecycle.write_text(json.dumps(stored))
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
-    try:
-        if ended:
-            assert service_model.held_elsewhere(claimed, None) is None
-            assert vendoring_model.cmd_init(claimed, ())["packages"] == []
-        else:
-            with pytest.raises(Refused, match="is held by session s1"):
-                vendoring_model.cmd_init(claimed, ())
-    finally:
-        # Ending the session at teardown would rewrite the record here with a
-        # lifetime this Leaf's schema doesn't allow, which the suite's check refuses.
-        lifecycle.write_text(original)
+    if ended:
+        assert service_model.held_elsewhere(claimed, None) is None
+        assert vendoring_model.cmd_init(claimed, ())["packages"] == []
+    else:
+        with pytest.raises(Refused, match="is held by session s1"):
+            vendoring_model.cmd_init(claimed, ())
 
 
-@pytest.mark.parametrize("missing", ["ended", "lifetime"])
-def test_a_session_record_lacking_a_kept_key_reads_as_absent(claimed, missing):
-    """Every shape of the session record keeps its kept keys, so a record of another
-    shape lacking one is from before any shape kept them, and reads as no record: its
-    claim holds nothing, rather than a missing `ended` reading as a session alive."""
+def test_a_session_record_older_than_its_kept_since_reads_as_absent(claimed):
+    """The session record's kind reads other shapes' records through its kept keys
+    only from `SESSION.kept_since` on, the shapes the build holds to them, so a record
+    of an earlier shape reads as no record: its claim holds nothing."""
     lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
     stored = json.loads(lifecycle.read_text())
-    stored["format"] = "leaf-session/13"
-    del stored[missing]
+    stored["format"] = f"leaf-session/{cleanup_model.SESSION.kept_since - 1}"
     lifecycle.write_text(json.dumps(stored))
 
     assert cleanup_model.session_record("s1") is None
     assert not service_model.claim_is_active(service_model.page_claim(claimed))
-
-
-def test_a_claim_lacking_a_kept_key_reads_as_absent(claimed):
-    """A claim of another shape lacking a key every shape keeps reads as no claim,
-    rather than as a claim missing what its readers index."""
-    path = service_model.claim_path(claimed)
-    stored = json.loads(path.read_text())
-    stored["format"] = "leaf-claim/999"
-    del stored["harness"]
-    path.write_text(json.dumps(stored))
-
-    assert service_model.page_claim(claimed) is None
-    assert service_model.held_elsewhere(claimed, None) is None
 
 
 def test_a_kept_path_through_a_null_reads_the_null(tmp_path, monkeypatch):
@@ -2500,6 +2479,7 @@ def test_a_kept_path_through_a_null_reads_the_null(tmp_path, monkeypatch):
         ),
         since=60,
         kept=("reply/text", "replies/*/text"),
+        kept_since=51,
     )
     path = tmp_path / "probe.json"
     stored = {"reply": None, "replies": [None, {"text": "Kept", "draft": "Dropped"}]}

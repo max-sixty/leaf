@@ -169,8 +169,8 @@ def session_lives(lifetime: dict, record: dict | None) -> bool:
     A lifetime that names nothing yet has no owner, so nothing lives by it. A kind
     this Leaf doesn't know, as a later Leaf's may, reads as live until the record
     says the session ended, since this Leaf can't check it (`layer-registry.md`,
-    "Page protocol"). So a harness that states its lifetime a new way adds its form
-    to the session record's `lifetime` and its reading here."""
+    "Page protocol"). So a harness that states its lifetime a new way adds its reading
+    here; the session record keeps any object as its `lifetime`."""
     if record is not None and record["ended"] is not None:
         return False
     if "job" in lifetime:
@@ -923,6 +923,7 @@ STREAM = Record(
     # What the harness observes as the task runs, which its next observation writes
     # again.
     kept=(),
+    kept_since=16,
 )
 
 

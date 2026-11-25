@@ -453,6 +453,7 @@ DELIVERY = Record(
     ),
     since=52,
     kept=("batches/*/page",),
+    kept_since=13,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 

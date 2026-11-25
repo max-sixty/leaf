@@ -72,6 +72,7 @@ PUBLICATION = Record(
     ),
     since=16,
     kept=("contract", "run", "updated", "value"),
+    kept_since=16,
 )
 
 

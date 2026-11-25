@@ -171,6 +171,7 @@ ADAPTER = Record(
     ),
     since=56,
     kept=("app_server",),
+    kept_since=13,
 )
 
 

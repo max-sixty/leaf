@@ -487,16 +487,23 @@ class Record(Generic[_RecordValue]):
     stands for each item of a list or each value of a map, as `batches/*/page`.
     Every kind declares them: what the user would lose with the record, such as
     words they typed or the address their tab polls, and none where losing it costs
-    them nothing, as with a cache the next reading rebuilds. A writer that changes a
-    record, rather than replacing what it holds, starts from `read_any`, so its write
-    carries the kept keys into this shape. The build refuses a shape that drops a
-    kept key or changes its schema (`build/browser/protocol.mjs`), but lets a kept
-    key's `anyOf` gain variants: a new kind of session lifetime is a variant of
-    `SESSION`'s `lifetime` and a reading in `service.session_lives`, and an older
-    Leaf reads a value it doesn't know as the session still live
-    (`layer-registry.md`, "Page protocol")."""
+    them nothing, as with a cache the next reading rebuilds. `kept_since` is the
+    earliest `since` whose records `read_any` reads through them; a record of an
+    earlier shape reads as none. A writer that changes a record, rather than
+    replacing what it holds, starts from `read_any`, so its write carries the kept
+    keys into this shape. The build holds every shape from `kept_since` on to the
+    kept keys (`build/browser/protocol.mjs`, `layer-registry.md`, "Page protocol"),
+    so a kept key's schema says what every reader accepts."""
 
-    def __init__(self, kind: str, schema: dict, *, since: int, kept: tuple[str, ...]):
+    def __init__(
+        self,
+        kind: str,
+        schema: dict,
+        *,
+        since: int,
+        kept: tuple[str, ...],
+        kept_since: int,
+    ):
         if kind in RECORDS:
             raise ValueError(f"two records declare the kind {kind}")
         RECORDS[kind] = self
@@ -504,6 +511,7 @@ class Record(Generic[_RecordValue]):
         self.schema = schema
         self.since = since
         self.kept = kept
+        self.kept_since = kept_since
 
     @property
     def format(self) -> str:
@@ -521,18 +529,19 @@ class Record(Generic[_RecordValue]):
     def read_any(self, path: Path) -> dict | None:
         """The record at `path` whichever Leaf wrote it: whole, less its `format`,
         where it is of this Leaf's shape, and otherwise the keys every shape of the
-        kind keeps (`kept`); None where there is no record of this kind, or one that
-        lacks a kept key its kind requires."""
+        kind keeps (`kept`); None where there is no record of this kind, or one of a
+        shape before `kept_since`."""
         stored = stored_record(path)
         if stored is None or (since := self.since_of(stored)) is None:
             return None
         if since == self.since:
             del stored["format"]
             return stored
+        if since < self.kept_since:
+            return None
         kept: dict = {}
         for named in self.kept:
-            if not _keep(stored, named.split("/"), kept, self.schema):
-                return None
+            _keep(stored, named.split("/"), kept)
         return kept
 
     def since_of(self, stored: dict) -> int | None:
@@ -563,22 +572,19 @@ class Record(Generic[_RecordValue]):
         return value
 
 
-def _keep(stored: Any, path: list[str], kept: Any, schema: dict) -> bool:
-    """Copy into `kept` what `path` names in `stored`, a record or a value in one, and
-    say whether `stored` holds every key on the way that `schema`, its kind's,
-    requires. A `*` takes each value of a map or item of a list. A value on the way
-    that isn't an object or a list, such as a null a shape allows there, is copied as
-    it stands. The build holds every shape to the kept keys (`Record.kept`), so a
-    record that lacks one is from before any shape kept it."""
+def _keep(stored: Any, path: list[str], kept: Any) -> None:
+    """Copy into `kept` what `path` names in `stored`, a record or a value in one. A
+    `*` takes each value of a map or item of a list. A value on the way that isn't an
+    object or a list, such as a null a shape allows there, is copied as it stands. The
+    build holds every shape from `Record.kept_since` on to the same keys along the
+    path, required where any is, so a key one record lacks no shape requires."""
     step, *rest = path
     if step == "*":
-        mapped = isinstance(stored, dict)
-        keys = list(stored) if mapped else range(len(stored))
-        field = schema.get("additionalProperties" if mapped else "items", {})
+        keys = list(stored) if isinstance(stored, dict) else range(len(stored))
     elif step in stored:
-        keys, field = [step], schema.get("properties", {}).get(step, {})
+        keys = [step]
     else:
-        return step not in schema.get("required", ())
+        return
     for key in keys:
         value = stored[key]
         if not rest or not isinstance(value, (dict, list)):
@@ -586,9 +592,7 @@ def _keep(stored: Any, path: list[str], kept: Any, schema: dict) -> bool:
             continue
         if (kept.get(key) if isinstance(kept, dict) else kept[key]) is None:
             kept[key] = [None] * len(value) if isinstance(value, list) else {}
-        if not _keep(value, rest, kept[key], field):
-            return False
-    return True
+        _keep(value, rest, kept[key])
 
 
 def stored_record(path: Path) -> dict | None:
@@ -715,21 +719,7 @@ SESSION = Record(
                     "background job's record, the Claude desktop app's record of the "
                     "session, or a desktop Codex chat's native source "
                     "(`transcript_path`).",
-                    {
-                        "anyOf": [
-                            {"type": "object", "additionalProperties": False},
-                            *(
-                                object_schema({key: value})
-                                | {"additionalProperties": False}
-                                for key, value in (
-                                    ("pid", {"type": "integer"}),
-                                    ("job", STRING),
-                                    ("app", STRING),
-                                    ("chat", {"const": True}),
-                                )
-                            ),
-                        ]
-                    },
+                    {"type": "object"},
                 ),
             },
             {
@@ -743,6 +733,7 @@ SESSION = Record(
     ),
     since=56,
     kept=("generation", "ended", "lifetime", "transcript_path"),
+    kept_since=13,
 )
 
 
@@ -1119,6 +1110,7 @@ CLAIM = Record(
         "cwd",
         "messaged_ending",
     ),
+    kept_since=13,
 )
 
 

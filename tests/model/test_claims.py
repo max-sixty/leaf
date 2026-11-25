@@ -749,10 +749,10 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     assert not argv.exists()
 
 
-def test_a_claim_an_older_leaf_wrote_reads_as_its_claim_without_disrupting_a_watch(
+def test_a_claim_another_leaf_wrote_reads_as_its_claim_without_disrupting_a_watch(
     tmp_path, page_dir, monkeypatch, capsys
 ):
-    """A claim an older Leaf wrote in another shape reads as the same claim, through
+    """A claim another Leaf wrote in another shape reads as the same claim, through
     the keys every shape keeps (`state.Record.kept`), and a watcher walking every page
     the session holds delivers what another page holds."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
@@ -776,7 +776,7 @@ def test_a_claim_an_older_leaf_wrote_reads_as_its_claim_without_disrupting_a_wat
     assert claim is not None
     cleanup_model.write_json(
         service_model.claim_path(stale),
-        {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
+        {**service_model.CLAIM.stored(claim), "format": "leaf-claim/999"},
     )
 
     # The watcher walks every page the session holds, and the record in another

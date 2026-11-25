@@ -35,6 +35,7 @@ const baseline = {
         required: ["page"],
       },
       kept: [],
+      kept_since: 3,
     },
   },
 };
@@ -164,43 +165,6 @@ test("a key once kept stays kept, with its schema", () => {
   );
 });
 
-test("a kept key's anyOf may gain variants, but keeps each", () => {
-  const variant = (key) => ({
-    type: "object",
-    properties: { [key]: { type: "string" } },
-    required: [key],
-    additionalProperties: false,
-  });
-  const kept = structuredClone(baseline);
-  kept.records.claim.schema.properties.lifetime = { anyOf: [variant("pid")] };
-  kept.records.claim.kept = ["lifetime"];
-  const moved = (edit) => (s) => {
-    s.records.claim.since = 4;
-    edit(s.records.claim.schema.properties.lifetime.anyOf);
-  };
-  assert.deepEqual(
-    changed(
-      moved((variants) => variants.push(variant("window"))),
-      kept,
-    ),
-    none,
-  );
-  assert.deepEqual(
-    changed(
-      moved((variants) => (variants[0] = variant("process"))),
-      kept,
-    ),
-    refused("record claim: kept lifetime changed its schema from its shape at since 3"),
-  );
-  assert.deepEqual(
-    changed(
-      moved((variants) => variants.pop()),
-      kept,
-    ),
-    refused("record claim: kept lifetime changed its schema from its shape at since 3"),
-  );
-});
-
 test("along a kept path, a shape holds each step its last shape holds", () => {
   const entry = () => ({
     type: "object",
@@ -223,6 +187,7 @@ test("along a kept path, a shape holds each step its last shape holds", () => {
   Object.assign(walked.records.claim, {
     schema: schema({ type: "number" }),
     kept: ["batches/*/page", "drafts/*/page"],
+    kept_since: 2,
     earlier: [{ since: 2, schema: schema({ type: "string" }) }],
   });
   // Each case moves the shape on and keeps `adds` beside what it kept.
@@ -319,35 +284,73 @@ test("along a kept path, a shape holds each step its last shape holds", () => {
     ),
     none,
   );
-  // Every shape a reader may meet holds the path, not only the last one: a key whose
-  // type changed in an earlier shape, before any shape kept it, can't be kept.
+  // Every shape from `kept_since` on holds the path, not only the last one: a key
+  // whose type changed in an earlier shape, before any shape kept it, can be kept
+  // only once `kept_since` leaves that shape out.
   assert.deepEqual(
     changed(
       moved(() => {}, "opened/at"),
       walked,
     ),
-    changedSchema("opened/at", 2),
+    refused(
+      "record claim: kept opened/at changed its schema from its shape at since 2; kept_since 3 would leave that shape out",
+    ),
+  );
+  assert.deepEqual(
+    changed((s) => {
+      Object.assign(s.records.claim, { since: 4, kept_since: 3 });
+      s.records.claim.kept.push("opened/at");
+    }, walked),
+    none,
   );
 });
 
-test("the baseline keeps every earlier shape of a record, adding one as since moves", () => {
-  const schemas = (since) => ({
-    ...structuredClone(baseline),
-    records: { claim: { ...structuredClone(baseline.records.claim), since } },
+test("a record's window of shapes starts at its kept_since and takes each shape since moves past", () => {
+  const held = structuredClone(baseline);
+  Object.assign(held.records.claim, {
+    kept_since: 2,
+    earlier: [{ since: 2, schema: { type: "object" } }],
+  });
+  const schemas = (since, kept_since) => ({
+    ...structuredClone(held),
+    records: {
+      claim: { ...structuredClone(baseline.records.claim), since, kept_since },
+    },
     served: {},
     verb: {},
     widget: {},
   });
-  const held = structuredClone(baseline);
-  held.records.claim.earlier = [{ since: 2, schema: { type: "object" } }];
-  assert.deepEqual(
-    baselineSchemas(schemas(3), held).records.claim.earlier,
-    held.records.claim.earlier,
-  );
-  assert.deepEqual(baselineSchemas(schemas(4), held).records.claim.earlier, [
+  const earlier = (since, kept_since) =>
+    baselineSchemas(schemas(since, kept_since), held).records.claim.earlier;
+  assert.deepEqual(earlier(3, 2), held.records.claim.earlier);
+  assert.deepEqual(earlier(4, 2), [
     ...held.records.claim.earlier,
     { since: 3, schema: baseline.records.claim.schema },
   ]);
+  assert.deepEqual(earlier(4, 3), [
+    { since: 3, schema: baseline.records.claim.schema },
+  ]);
+  // `kept_since` names a shape the history holds, so it never reaches back past the
+  // verified shapes nor leaves out the last, whose records are on disk; a new kind's
+  // is its own since.
+  const window = (kind, since, kept_since) =>
+    changed((s) => (s.records[kind] = { ...s.records.claim, since, kept_since }), held);
+  assert.deepEqual(
+    window("claim", 4, 1),
+    refused(
+      "record claim: kept_since 1 names none of the shapes its history holds, 2, 3",
+    ),
+  );
+  assert.deepEqual(
+    window("claim", 4, 4),
+    refused(
+      "record claim: kept_since 4 names none of the shapes its history holds, 2, 3",
+    ),
+  );
+  assert.deepEqual(
+    window("other", 4, 3),
+    refused("record other: kept_since 3 names none of the shapes its history holds, 4"),
+  );
 });
 
 test("an annotation changes nothing, at any depth", () => {

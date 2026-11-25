@@ -173,9 +173,11 @@ in, so the agent can find the original message after a compaction. A line leaves
 queue once a hook has printed it (`heard`), so a prompt that Escape drops loses its
 lines: the questions stay On Me and `leaf page state` lists them, but the agent isn't
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
-for input, would close that gap. A queue of another shape reads as empty, and the
-next line queued replaces it, since no key of a line is in every shape the queue has
-had: an earlier shape held each line as a plain string (`QUEUED.kept`).
+for input, would close that gap. Every shape of the queue from `QUEUED.kept_since` on
+keeps each line and whether it wakes the session (`QUEUED.kept`), so the lines outlive
+the session's move to a Leaf of another shape, whose first hook adds to them
+(`hooks.skill_changed`). A queue of an earlier shape, which held each line as a plain
+string, reads as empty, and the next line queued replaces it.
 
 A line queued with `wake` tells the session of work it now owes, such as a finding
 Leaf changed nothing for. Until a hook has
@@ -374,7 +376,8 @@ QUEUED = Record(
         ),
     ),
     since=52,
-    kept=(),
+    kept=("lines/*/line", "lines/*/wake"),
+    kept_since=44,
 )
 
 # The words that open the fork's question, which the replay and the transcript carry.
@@ -1140,7 +1143,7 @@ def _append(session_id: str, lines: list[str], *, wake: bool = False) -> None:
     """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
-        held = QUEUED.read(path) or {"lines": []}
+        held = QUEUED.read_any(path) or {"lines": []}
         added = [{"line": line, "wake": wake} for line in lines]
         QUEUED.write(path, {"lines": [*held["lines"], *added]})
 
@@ -1226,7 +1229,7 @@ def _told(
 
 
 def _held(session_id: str) -> list[dict]:
-    held = QUEUED.read(session_file(session_id, QUEUED.kind))
+    held = QUEUED.read_any(session_file(session_id, QUEUED.kind))
     return held["lines"] if held else []
 
 
@@ -1248,7 +1251,7 @@ def heard(session_id: str, lines: list[str]) -> None:
         return
     path = session_file(session_id, QUEUED.kind)
     with flocked(session_lock_path(session_id)):
-        held = QUEUED.read(path) or {"lines": []}
+        held = QUEUED.read_any(path) or {"lines": []}
         rest = list(held["lines"])
         for line in lines:
             at = next(

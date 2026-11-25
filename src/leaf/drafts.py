@@ -131,6 +131,7 @@ DRAFTS = Record(
         "drafts/*/payload",
         "drafts/*/held",
     ),
+    kept_since=51,
 )
 _WRITE = {
     "type": "object",

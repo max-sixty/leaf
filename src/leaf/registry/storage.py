@@ -44,6 +44,7 @@ LAYER = Record(
     },
     since=kernel_protocol(),
     kept=("packages",),
+    kept_since=36,
 )
 
 

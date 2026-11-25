@@ -103,7 +103,7 @@ In [module-input.md](module-input.md):
 
 - "Walks": `rowWalk` gives a list of rows its arrow keys.
 - "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
-  redraw, `placeOf` and `onCurrentLocation` read where the user is, and `onPress` and
+  redraw, `onCurrentLocation` reads where the user is, and `onPress` and
   `onPressAway` follow a pointer's press.
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
@@ -113,7 +113,7 @@ In [module-input.md](module-input.md):
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`, `preserveReadingRegions` and `showReadingSubject`.
+- "Reading regions": `scrollerFor`.
 - "Holding the reader's place": `holdPlace` and `HeldReading`.
 - "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
   `landingInsets` and `shownWindow`.

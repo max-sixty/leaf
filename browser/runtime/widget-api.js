@@ -74,11 +74,7 @@ export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
-export {
-  preserveReadingRegions,
-  scrollerFor,
-  showReadingSubject,
-} from "./reading-regions.js";
+export { scrollerFor } from "./reading-regions.js";
 export { named, phrasing, says } from "./passages.js";
 export { clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
@@ -139,6 +135,3 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
-// The page node the user's current location stands for, through a margin entry or a
-// thread card, as `lf-deck` asks whether the user is on its open card.
-export { placeOf } from "./current-target.js";

@@ -118,7 +118,7 @@ export function widgetDescriptor(owner) {
 }
 
 // Mention, not use: a widget inside one the registry marks `exhibit` is quoted
-// material, whose change a version comparison doesn't mark (version.js). A module asks
+// material, whose change a version comparison doesn't mark (features/version.js). A module asks
 // the same of the exhibit's `data-lf-exhibit` mark before wiring anything that would
 // carry input back (a choose path, a drag grip), so an exhibit never takes the user's
 // edits. The answer is the one its controller's actions read, the descriptor's, or the

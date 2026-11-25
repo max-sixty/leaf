@@ -5,7 +5,7 @@
    versions were observed, not a second account of what the page currently means.
 
    The agent's activity is no news here: the page's status says it in the same seat a
-   notice would take, and page-status.js announces a change of its kind. Rejected:
+   notice would take, and panel/page-status.js announces a change of its kind. Rejected:
    "Claude active on this page", which stands for four seconds in front of
    the status line that names the agent's work.
 
@@ -22,7 +22,7 @@
 
    On Me emptying is news, in the words its empty view says, whoever emptied it: the
    user's last answer, one from another tab, or a revision that took the last
-   obligation away. The list is the one the panel's badge counts (queue-api.js,
+   obligation away. The list is the one the panel's badge counts (state/queue-api.js,
    `onUserCount`). The user asked to be told when they finish
    what waits on them, taking words over a flash of the panel's colour for now. */
 import { announces, moved } from "../records/thread/model.js";
@@ -212,7 +212,7 @@ export function currentSemanticNews(news, reading, observed) {
   );
 }
 
-// The one moment the panel's leaf answers a reading's news with (notifications.js,
+// The one moment the panel's leaf answers a reading's news with (transport/notifications.js,
 // `gesture`), as it arrives: On Me emptying, else something new on it, which may come
 // with the agent's words that ask it, else those words. A failed response moves
 // nothing.
@@ -231,7 +231,7 @@ export function combineSemanticNews(older, newer) {
 }
 
 // One clause per fact, joined by the middle dot the panel's line joins every fact with,
-// as parts each said by the agent or by Leaf (voice.js; notifications.js, `notice`). A
+// as parts each said by the agent or by Leaf (base/voice.js; transport/notifications.js, `notice`). A
 // single new message speaks for itself, its opening words in the agent's voice ("I
 // changed the route."), with whatever it asks of the user, since the question and the
 // message are one piece of news; that it replied, commented or edited its words is its

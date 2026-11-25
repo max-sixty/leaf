@@ -42,7 +42,7 @@ const displaced = (source, at) => {
 // so a reader already using that document owns it even before this call runs. A
 // return to an entry's record counts the user's inputs within the entry alone
 // (`count`; focus.js, `entryInputCount`), so neither a step Back or Forward nor
-// leaving the window supersedes it (history.js, `beginRestoration`).
+// leaving the window supersedes it (records/history.js, `beginRestoration`).
 // The source is held weakly: an intent can be kept long after its gesture, as a reading
 // place keeps one, and a source the document has since dropped can neither hold focus
 // nor be what focus was carried from, so it answers nothing a held node would.

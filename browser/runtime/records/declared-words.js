@@ -171,14 +171,14 @@ export function paintDeclaredWords(root) {
 // (`[data-lf-exhibit] *`), as a stylesheet does, since neither reads a registry.
 //
 // Two more complete the set: `bound`, a block that holds its own height and scrolls
-// inside it (`bounds.js` holds each bounded block that arrives as a reading region, and
+// inside it (`readings/bounds.js` holds each bounded block that arrives as a reading region, and
 // keeps an `end` bound on its newest entry), and `reading-role`, the structure the
 // theme and the workspace Layout lay out, so every package's pane takes the same rules.
 //
 // An attribute, because the theme cannot read the registry. Which declarations are marks, the attribute
 // each is painted as, the attribute an occurrence overrides it with, and whether it
 // holds in a message are one table, the kernel registry's `$marks`, which this runtime
-// imports from `kernel-facts.js`. A page's document arrives painted from it: delivery
+// imports from `state/kernel-facts.js`. A page's document arrives painted from it: delivery
 // writes the marks into the served source (revision_delivery.py, `mark_declared`), so
 // the first paint already gives a board its room and a workspace its panes, before any
 // module or the registry loads, and a revision the page patches in arrives painted the

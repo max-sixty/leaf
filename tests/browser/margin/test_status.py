@@ -1093,7 +1093,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         words_still()
-        # The face is what fades and is drawn (preview.js).
+        # The face is what fades and is drawn (annotations/preview.js).
         drawn = label.locator(".lf-preview-face")
         expect(drawn).to_have_css("opacity", "1")
         hovered = face(control)

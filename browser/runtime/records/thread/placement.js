@@ -83,7 +83,7 @@ export const inPageOrder = (threads, placedAt) =>
 // because both shapes are in the corpus and a heading is the thing a user navigates by in
 // either — a page written as one flow of h2s has an outline just as much as one written
 // as nested sections. It is recorded by the walk that reads the document's words
-// (passages.js, `outlineFold`), so it holds what that reading holds, in its order:
+// (readings/passages.js, `outlineFold`), so it holds what that reading holds, in its order:
 // declared shadow trees as they draw, a slot's assignment and not its fallback, and none
 // of Leaf's chrome. Each stands as long as its document's reading does
 // (`documentOutline`).
@@ -99,12 +99,12 @@ export function headingAfter(heading) {
 
 // What names the part of the page, or of a message's markup, a node stands in: the
 // heading over it, else the nearest element holding it that the authoring contract
-// names (addressable-names.js, `ownNaming`), or null where none does. On Me's bands
+// names (readings/addressable-names.js, `ownNaming`), or null where none does. On Me's bands
 // and a link's preview read it as the header says, and an obligation's arrival
 // (records/obligations/view.js, `arrivalRegion`) lands on it.
 //
 // From the node's innermost container out, the nearest part wins: in each, the last
-// heading the reading met before the node that heads that container (passages.js,
+// heading the reading met before the node that heads that container (readings/passages.js,
 // `headed`), else the container's own name by the contract: its declared name, its
 // leading heading or disclosure's summary, its caption, or the `aria-label` or <label>
 // its author gave it. So a <section> the author wrote names what stands in it before
@@ -193,7 +193,7 @@ export function partTrail(node) {
 // it or anything it holds; under each heading, those about what it heads, as `partOver`
 // reads ownership, its own part and those of the headings below its level; each with
 // the turn one owes the user (`threadAttention`), the first found. A heading heads
-// itself and the element it titles (addressable-names.js, `titledElement`), so a
+// itself and the element it titles (readings/addressable-names.js, `titledElement`), so a
 // conversation about a heading, or about the whole question or section it titles, is
 // its part's, not the part before it.
 //
@@ -201,7 +201,7 @@ export function partTrail(node) {
 // question in the part around it, so a thread about a whole question counts under the
 // heading before the question, and the question's own heading previews none.
 //
-// Kept until something it read changes (kept.js, `kept`): the threads, a new value
+// Kept until something it read changes (state/kept.js, `kept`): the threads, a new value
 // whenever any thread's contents change, its turns included; the agent's name the
 // turns are said in; and the page's reading, since an anchor names an element of the
 // page.

@@ -77,7 +77,7 @@
           "additionalProperties": { "type": "string" }
         },
         "seen": {
-          "description": "The newest revision a tab showed the user while they were there, posted as they left (`read_state.seen_revision`), from which the browser counts what changed since (since-seen.js). Null before any, and on a hosted copy, whose reader is not the page's user.",
+          "description": "The newest revision a tab showed the user while they were there, posted as they left (`read_state.seen_revision`), from which the browser counts what changed since (host/since-seen.js). Null before any, and on a hosted copy, whose reader is not the page's user.",
           "anyOf": [{ "$ref": "#/$defs/Revision" }, { "type": "null" }]
         },
         "source_error": {
@@ -1616,7 +1616,7 @@
       "additionalProperties": false
     },
     "Tail": {
-      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `layer-client.js`).",
+      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `transport/layer-client.js`).",
       "type": "object",
       "properties": {
         "since": {

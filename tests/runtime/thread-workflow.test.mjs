@@ -60,7 +60,7 @@ const workflow = (id, standing, changes = {}) =>
     ...standing,
     ...changes,
   });
-// A send this tab has not delivered (`application.js`, `localWorkflow`), or with
+// A send this tab has not delivered (`host/application.js`, `localWorkflow`), or with
 // `refused` one the server refused.
 const local = (id, { refused = false, ...changes } = {}) => ({
   ...workflow(id, refused ? { ...HANDED_BACK, seen: false } : SENT, changes),
@@ -392,7 +392,7 @@ test("a thread the user is still sending waits on that send", () => {
     ts: "2026-09-22T10:00:00Z",
   };
   const [thread] = foldThreads([], [root]);
-  // The fold names the record the send publishes (`application.js`, `localUpdates`),
+  // The fold names the record the send publishes (`host/application.js`, `localUpdates`),
   // which the thread's reading then stands by.
   assert.equal(thread.attention, sending.obligation);
   const publishes = owed(sending);

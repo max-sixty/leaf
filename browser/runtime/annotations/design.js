@@ -128,7 +128,7 @@ export function createDesignMode({
   // doors; the mode change paints in place, so the class and the legend land together.
   //
   // A scroll is none of these. Each box stands in the frames of the boxes that clip
-  // what it names, anchored to what it names (target-paint-geometry.js, `paintSet`), so
+  // what it names, anchored to what it names (readings/target-paint-geometry.js, `paintSet`), so
   // the browser carries it through every scroll, a pane's or a board's sideways one
   // included, and through a sticky offset, a transform or layout that moves its element
   // as well. Only a box whose element is within a screen of where it would show is in
@@ -152,7 +152,7 @@ export function createDesignMode({
   // The legend's own writes are mutations too, inside the chrome, and so is the runtime's
   // paint on page elements: a mark rewrites its classes, in the runtime's namespace, on
   // every repaint, which a shift starts, and the aim, the trace, the rings and the
-  // cursor's paint stand in attributes of their own (page-paint.js). A repaint that heard
+  // cursor's paint stand in attributes of their own (base/page-paint.js). A repaint that heard
   // either would never stop,
   // and on a page with reactions it didn't, at thousands of mutations a second. Naming
   // the start of a scroller's words (`data-lf-content-start`) or the elements holding

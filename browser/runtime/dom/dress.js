@@ -3,7 +3,7 @@
  * coordinator owns the writer (prepaint.js, `wear`), which a sample child's bootstrap
  * dresses its root with before modules load.
  *
- * An element can also dress the sample children under it (sample.js): each child's
+ * An element can also dress the sample children under it (host/sample.js): each child's
  * root wears its frame's nearest dressed ancestor's set, so a candidate that restyles
  * a whole page keys on that child's root and never on the page holding the frame. A
  * child takes its dress in its bootstrap, before it paints, reset children included,

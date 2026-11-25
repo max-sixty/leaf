@@ -270,7 +270,7 @@ export function createReactionController({
   // the user's previous fold only while this mode still owns it.
   /** @type {(() => void) | null} */
   let releaseMarginOptions = null;
-  // React mode's opener (focus.js, `openLayer`): the control the user was on as the
+  // React mode's opener (dom/focus.js, `openLayer`): the control the user was on as the
   // press armed it, which the close hands them back to.
   const reactLayer = {};
   const reactFrom = () => openerOf(reactLayer);
@@ -357,7 +357,7 @@ export function createReactionController({
     reactDeparture = null;
     const picker = pickerFor(surface);
     // The platform hands focus back to the opener as the list closes, the layer's own
-    // return (focus.js).
+    // return (dom/focus.js).
     if (picker) closeNativeLayer(picker.palette);
   }
 
@@ -460,7 +460,7 @@ export function createReactionController({
     repaint();
   }
 
-  // Putting the reaction choices away is closing a layer (focus.js, `closeLayer`): the
+  // Putting the reaction choices away is closing a layer (dom/focus.js, `closeLayer`): the
   // palette's own hand-back as it hides reaches no reader, and a user who was in the
   // choices, the bar or the margin's raise goes back once, to the bar's field, the
   // control the press stood them on, or the list's trigger, whichever stands as the

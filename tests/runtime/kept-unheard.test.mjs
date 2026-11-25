@@ -1,7 +1,7 @@
 import "/runtime/stage-integration.js";
 /* Some of what a reading of the page reads is not what the page's reading hears: a
    datum's source and identity, or a role that makes a picture's holder a press. A
-   change to one reaches a reading kept from it (kept.js) through its announcement,
+   change to one reaches a reading kept from it (state/kept.js) through its announcement,
    the document presented (`presentDocument`) or a widget's layout changing
    (`lf-layout`), which its reader follows. */
 import assert from "node:assert/strict";

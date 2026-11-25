@@ -11,7 +11,7 @@
 
    Where the glides under way leave a node is read, not modelled: each box a glide
    moves is scrolled to its goal, the node read there, and the box put back, in one
-   task (scrolling.js, `whereGlidesLand`). A sticky box rides a glide until it reaches
+   task (dom/scrolling.js, `whereGlidesLand`). A sticky box rides a glide until it reaches
    its line, comes back off it with its own place, and is pushed on by its holder's
    end, through transforms and nested scrollers, and the browser's layout says where
    each leaves it in Chromium and Firefox alike, where a model needs a stuck box's own
@@ -72,7 +72,7 @@ export function installScrollerLookup(read) {
 // cannot take whole is the next one's to finish: a bounded block not yet full grows in
 // the page rather than scrolling, and a region scrolled to its end moves no further.
 // The walk ends at a box fixed in the window, which no box around it scrolls as
-// content; one a transformed box holds rides with it (geometry.js, `fixedInWindow`).
+// content; one a transformed box holds rides with it (dom/geometry.js, `fixedInWindow`).
 //
 // A fixed box Leaf anchors, such as the thread card, rides the scrolls that carry its
 // anchor (`carriersOf`) and still ends this walk, so a landing or hold on what the box
@@ -98,7 +98,7 @@ export function* scrollersOf(node) {
 }
 
 // Every box whose scroll moves `node`, innermost first: `scrollersOf`'s, then, where
-// that walk ends at a fixed box Leaf anchors (css-anchors.js), as the thread card, the
+// that walk ends at a fixed box Leaf anchors (dom/css-anchors.js), as the thread card, the
 // comment box and the margin's rows are, every box whose scroll moves that anchor. A
 // scroller's own scroll carries the start of its content, but not the scroller's own
 // box, which a box held at a reading region's edge is anchored to. A reading of the
@@ -166,7 +166,7 @@ export const inputScroller = (element, event) => {
     ) ?? innermost
   );
 };
-// An input the browser scrolls for starts the scroll of the box it moves (scrolling.js,
+// An input the browser scrolls for starts the scroll of the box it moves (dom/scrolling.js,
 // `scrollsFor`, `aimScroll`), a frame or more before that box's first scroll event. The
 // input lands on an element: the one under the pointer, or the one holding focus, the
 // body where nothing does.
@@ -178,7 +178,7 @@ inputs.observe((event) => {
 
 // The distance the glides under way have still to carry `node`, through the boxes that
 // carry it (`carriersOf`), read where they leave it, all landed at once
-// (scrolling.js, `whereGlidesLand`): a page's sticky header holding the focused tab
+// (dom/scrolling.js, `whereGlidesLand`): a page's sticky header holding the focused tab
 // rides a glide of the page only until it sticks, and comes back down with a glide
 // that takes its own place back past its line. Each part of the walk (`carrying`) is
 // read by how far its glides move the element its boxes carry, less how far they move
@@ -189,7 +189,7 @@ inputs.observe((event) => {
 // Leaf anchors carry it, `held` names that box and how far the glides inside it carry
 // the node within it. An element's own scroll moves what it holds and not its box:
 // `heldTravel` asks for what it holds, which rides its own glide whole, through its
-// transforms (element-axes.js, `scrollAxes`). A scroll the browser runs, as a wheel's,
+// transforms (dom/element-axes.js, `scrollAxes`). A scroll the browser runs, as a wheel's,
 // has no goal Leaf knows, so it adds nothing. Where a box Leaf anchors will stand also
 // depends on its placement, which solves again after a scroll (floating.js), and this
 // reads only the scrolls.
@@ -243,11 +243,11 @@ function travelFrom(holder, own) {
 }
 
 // How far `node`'s box stands outside the part of the window the page shows
-// (geometry.js, `shownWindow`), now (`now`) and once moved by the glides under way
+// (dom/geometry.js, `shownWindow`), now (`now`) and once moved by the glides under way
 // (`glideTravel`, `after`), summed across the two axes, 0 where it is in it; null where
 // no glide carries it. It reads the window alone, not what the scrollers between will
 // show, and the box as it stands now, which for a box Leaf anchors can trail its
-// placement (css-anchors.js).
+// placement (dom/css-anchors.js).
 /** @param {Element | Range} node */
 export function glideGap(node) {
   const travel = glideTravel(node);
@@ -263,15 +263,15 @@ export function glideGap(node) {
 
 // What the user will see of `box`, a box of `node`, where the glides under way leave
 // it: `box` moved by their travel (`glideTravel`) and cut by every box clipping it, the
-// chrome's covers included, as they stand once the glides land (geometry.js,
-// `seenRect`; scrolling.js, `whereGlidesLand`), or null where none of it is seen
+// chrome's covers included, as they stand once the glides land (dom/geometry.js,
+// `seenRect`; dom/scrolling.js, `whereGlidesLand`), or null where none of it is seen
 // there. So an inner glide that brings a node into its box's view while an outer glide
 // brings that box into the window shows the node, which the box's clip as it stood
 // would hide. A box Leaf anchors takes its anchor's glides only at the next frame
 // (`held`): the node is cut by the clips inside that box where the glides inside it
 // leave it, and the box then rides its anchor's glides, which the window and the
 // chrome's covers alone cut there (`inFront`). `rest` reads the covers where they come
-// to rest too (geometry.js, `seenRect`).
+// to rest too (dom/geometry.js, `seenRect`).
 /** @param {Element | Range} node @param {Box} box @param {{x: number, y: number, held?: {fixed: Element, x: number, y: number} | null}} travel @param {boolean} [rest] */
 export function seenGlided(node, box, travel, rest = false) {
   const holder = placeHolder(node);
@@ -292,7 +292,7 @@ export function seenGlided(node, box, travel, rest = false) {
 }
 
 // Whether any of `node`, or of `box` measured through it, is in front of the user
-// (geometry.js, `seenRect`) where the glides under way leave it (`seenGlided`), since a
+// (dom/geometry.js, `seenRect`) where the glides under way leave it (`seenGlided`), since a
 // key pressed while one runs acts as though it had landed (user-place.js, `focusPlace`);
 // with none, whether it is in front now. `rest` reads the covers where they come to rest
 // too. This is where the reading of the page finds the block the user reads
@@ -323,7 +323,7 @@ export const seenAhead = (node) => {
 };
 
 // Where `node`'s `edge` stands on screen, read as though each box scrolling it stood
-// where Leaf last aimed it (scrolling.js, `aimedTop`): a hold read after a hold then
+// where Leaf last aimed it (dom/scrolling.js, `aimedTop`): a hold read after a hold then
 // carries no rounding of the first.
 /** @param {Element | Range} node @param {"top" | "bottom"} edge */
 export const edgeAt = (node, edge) => {

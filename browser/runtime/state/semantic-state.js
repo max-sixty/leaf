@@ -74,18 +74,18 @@ const documentCommits = new Map();
 // The DOM each document owner reads: projection decorates widget output, threads
 // resolve passages over that decoration, obligations locate controls in threads,
 // and annotations measure those targets. A widget's element draws a `state` Leaf
-// sets before that set returns (element-integration.js), so its nodes are in before
+// sets before that set returns (host/element-integration.js), so its nodes are in before
 // the pass that follows the publication. A draw a widget makes on its own schedule,
 // its first included, is ordered against no pass; the two this file hears of present
 // the document again as they end: the drawing of an arriving widget's first sets
-// (element-integration.js) and an element's hold on its drawing (`lf-defer`,
-// widget-controller.js).
+// (host/element-integration.js) and an element's hold on its drawing (`lf-defer`,
+// host/widget-controller.js).
 // Imperative Lit render commits in its call;
 // what the thread pass decides later, where it places and seats each thread, reaches
-// the margin as readings its paint follows (anchor-placement.js `placedAt`,
+// the margin as readings its paint follows (annotations/anchor-placement.js `placedAt`,
 // records/thread/surfaces.js `claimed`), not as DOM it waits for. An obligation's control is a
 // widget, so one a seat mounts after this commit presents the whole document once
-// its first sets are drawn (widget-controller.js, `widgetMounted`), and obligations
+// its first sets are drawn (host/widget-controller.js, `widgetMounted`), and obligations
 // locate it on the pass that follows. Each entry is transitive: it settles once its region and
 // everything upstream of it have committed.
 export const PRESENTATION_DOM = Object.freeze({
@@ -255,7 +255,7 @@ export const applicationPresenter = ({ region, after, reading, paint, failSoft }
 };
 
 // How many times a caller has said the document changed under every region. A reader
-// of the page's own nodes that the page's reading doesn't hear (passages.js,
+// of the page's own nodes that the page's reading doesn't hear (readings/passages.js,
 // `pageReadingVersion`), as a datum's label is, reads it. It is an outside reading, so
 // a Lit render that reads one follows it and repaints when the nodes it drew from
 // change, as the floating panel's quote does when a datum's label does. The regions

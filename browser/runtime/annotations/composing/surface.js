@@ -249,7 +249,7 @@ export function createResponseSurface({
   let resting = null;
   const standingAnchor = () => fabAnchor.value ?? resting?.anchor ?? null;
   // The row inside the target the gesture that opened this bar pointed at, which the bar
-  // stands level with (pointed-place.js).
+  // stands level with (readings/pointed-place.js).
   /** @type {Element | null} */
   let fabPoint = null;
   /** @type {ReturnType<NonNullable<ResponseOptions["createPlacement"]>> | null} */
@@ -327,7 +327,7 @@ export function createResponseSurface({
   // file's comment below a long hunk: the opening's landing brings it in
   // (`landFabFocus`), and it stays beside its subject. An editor the user already sees
   // stays where it is rather than move to such a seat. The move itself scrolls the page
-  // to the editor, and a resize's restore of the reader's place (version.js,
+  // to the editor, and a resize's restore of the reader's place (features/version.js,
   // `restoreShifted`) can then scroll back to the place read while the editor stood
   // outside the page, which leaves the editor and the draft in it below the window, as
   // when a window widened from a phone's width offers a widget's outlet as the seat of
@@ -337,7 +337,7 @@ export function createResponseSurface({
   // carries the outlet, partly under the panel's row included. Sending the editor
   // home would move the field the user is typing in (browser/AGENTS.md, "The page
   // holds still under the user's aim"), and their next keystroke lands the field
-  // clear of the row (editor-view.js). Judging that outlet again could also loop: the
+  // clear of the row (annotations/editor-view.js). Judging that outlet again could also loop: the
   // outlet grows as it takes the editor, so a cover that crossed none of the empty
   // outlet can cross the outlet holding it. The editor would go home, and the emptied
   // outlet would take it back, at every commit. Only admission, below, refuses the
@@ -503,7 +503,7 @@ export function createResponseSurface({
       drawing && anchor.visual ? addressedFocus(drawing, anchor.visual) : null;
     return [part, anchorTargetAt(anchor), visualActionAnchor(anchor)];
   };
-  // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
+  // Putting the bar away is closing a layer (dom/focus.js, `closeLayer`): `showFab(null)`
   // moves no focus, and the closer names where a user who was in the bar lands, read
   // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets
   // them go onto the page, from the bar or from that subject.
@@ -671,7 +671,7 @@ export function createResponseSurface({
   // Opening Comment is an overlay gesture. Any visible part of its subject is
   // enough to open it: the physical presenter owns its attachment and measure, so
   // this asks only whether any of it is seen, not whether a landing would show more
-  // (landing-scroll.js, `alreadyShown`, which a short subject cut by an edge is not).
+  // (readings/landing-scroll.js, `alreadyShown`, which a short subject cut by an edge is not).
   // Only a stale current location or a resumed draft whose subject is wholly out of view needs
   // travel (including revealing a closed ancestor), before placement measures it.
   /** @param {Element | null} addressable */
@@ -742,7 +742,7 @@ export function createResponseSurface({
   // the current passage, but cannot authorize replacing a composer or its draft.
   // That menu can stand on either side of the words; never compete with it by raising
   // a second adjacent surface. The floating panel's page field offers the current
-  // selection instead (floating-panel.js, `selectedWords`): its placeholder quotes the
+  // selection instead (panel/floating-panel.js, `selectedWords`): its placeholder quotes the
   // words, and a press there comments on them. The press reads the selection again
   // where it still stands, as a source refresh that kept its native endpoints leaves
   // it, and otherwise takes the anchor read when it last settled, since a field taking
@@ -862,13 +862,13 @@ export function createResponseSurface({
     if (selectionUpdate?.intent()) return;
     deferSelectionUpdate(updateFab);
   };
-  // What the press under way began with and has done, kept against the press (focus.js,
+  // What the press under way began with and has done, kept against the press (dom/focus.js,
   // `pressRecords`), so none of it outlasts the press: a release a widget stopped, or one
   // let go off the window, leaves nothing for the next selectionchange to read.
   //
   // - `selecting`: a primary-button press begun in page words owns their selection
   //   until it finishes it, at a finger's or pen's release or a mouse's compatibility
-  //   mouseup. It is the press's retained intent (user-intent.js), since the press
+  //   mouseup. It is the press's retained intent (dom/user-intent.js), since the press
   //   belongs to the content it began on and a newer input supersedes it: a bounded
   //   reading region can take native focus after pointerdown, and the previous focus is
   //   not its owner.
@@ -1048,14 +1048,14 @@ export function createResponseSurface({
     scheduleSelectionUpdate();
   };
   // A press on the response surface's controls holds selectionchange out until it is
-  // over, after the compatibility events its release owes (focus.js, `pressing`), so the
+  // over, after the compatibility events its release owes (dom/focus.js, `pressing`), so the
   // focus collapse it causes is not read as the user's. Native selectionchange may have
   // coalesced that collapse and a later passage meanwhile, so the live selection is read
   // as the press goes, through the same guards as a native notification.
   const rereadAfterAction = () =>
     pagePresses.kept()?.action ? selectionChanged : null;
 
-  // The response surface getting out of the way of a press away from it (focus.js,
+  // The response surface getting out of the way of a press away from it (dom/focus.js,
   // `onPressAway`), which is a fact about the press rather than about who receives it, so
   // a press the aim or a design mode claims from the page puts it away too. A press on
   // the visual the bar stands for keeps it, as does a stroke in a draw mode or a capture's
@@ -1338,7 +1338,7 @@ export function createResponseSurface({
       if (words && words.toString() !== (press?.words ?? "")) return;
       // A plain click comments on the block it landed in. Read where it landed rather than
       // at a widget host, since a Leaf surface the widget seats in its shadow tree answers
-      // for itself (design.js).
+      // for itself (annotations/design.js).
       if (designModeActive()) {
         const design = designTarget(target);
         if (design) openOnDesign(design);
@@ -1351,7 +1351,7 @@ export function createResponseSurface({
       // a press on an option card picks the option and opens no thread on its question.
       if (ev.defaultPrevented || closestAcross(target, WORKS)) return;
       // The record rather than this event's own coordinates, for the reason the record is
-      // kept from a pointer event at all (pointer.js): `click` is a legacy mouse event and
+      // kept from a pointer event at all (base/pointer.js): `click` is a legacy mouse event and
       // carries the pointer's place rounded to a whole pixel, while markAt measures against
       // getClientRects, whose edges are floats. Asked at the rounded point, this can answer
       // a different thread than refreshHover just promised at the true one — a quote lit
@@ -1367,8 +1367,8 @@ export function createResponseSurface({
       if (!threadId) return;
       // The press picked words where they stood, and the thread opens without travel,
       // so a glide under way that carries them stops there, as a spatial command stops
-      // one (scrolling.js, `stopGlide`): the card the thread opens moves no scroller of
-      // its own (scroll-containers.js, `scrollersOf`), so its landing would leave a
+      // one (dom/scrolling.js, `stopGlide`): the card the thread opens moves no scroller of
+      // its own (readings/scroll-containers.js, `scrollersOf`), so its landing would leave a
       // walk's glide carrying the clicked words out of the window.
       const clicked =
         target instanceof Element ? target : (target?.parentElement ?? null);
@@ -1501,7 +1501,7 @@ export function createResponseSurface({
         box: fabInput,
         rest: here,
         // The box's placement measures its target where it stands, so the glides under
-        // way land first (scrolling.js, `landGlides`): `c` pressed as `m` sets off
+        // way land first (dom/scrolling.js, `landGlides`): `c` pressed as `m` sets off
         // opens the box beside the ask where `m` lands it, where a box placed mid-glide
         // took the side with room then and ended off screen with focus in it.
         go: () => {
@@ -1516,7 +1516,7 @@ export function createResponseSurface({
   // The destination's box is the identity chrome uses to place a contextual binding badge,
   // and the label is whichever Comment route dispatch would answer from here. Dispatch
   // still decides whether either row can be reached from the current scope. A repaint
-  // asks for this hint and then rests the box (repaint.js), so the walk answers both.
+  // asks for this hint and then rests the box (dom/repaint.js), so the walk answers both.
   let commentKey = "";
   const commentHint = () => {
     const { box } = commentDestination();
@@ -1549,7 +1549,7 @@ export function createResponseSurface({
     keeps(fabBar, "data-lf-rest", null);
   }
   // Read in each repaint, since where `c` goes follows focus, whether a scroll has taken
-  // it out of sight (user-place.js), and the state.
+  // it out of sight (readings/user-place.js), and the state.
   function restFab() {
     const next = restingTarget();
     const key = next && commentKey;
@@ -1605,7 +1605,7 @@ export function createResponseSurface({
     // surface can see.
     //
     // A box that takes no words now, as the panel's field while a stance stands
-    // (field-readings.js, `still`), is no place for c to write; words selected on the
+    // (panel/field-readings.js, `still`), is no place for c to write; words selected on the
     // page still are, since a comment on them opens a box of its own.
     when: () =>
       (anchoringIsReady() || !pageSelection()) &&

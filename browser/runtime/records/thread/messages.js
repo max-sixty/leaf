@@ -88,7 +88,7 @@ import { agentName, pageClaimed } from "../../state/semantic-state.js";
 import { copyControl } from "../../transport/copy-control.js";
 
 // A message's words, drawn into the element the binding stands on and reconciled as a
-// revision reconciles authored markup (dom-children.js, `setRenderedChildren`): an
+// revision reconciles authored markup (dom/dom-children.js, `setRenderedChildren`): an
 // edit keeps every node it leaves alone and rewrites a changed paragraph's words in
 // place, so the browser's scroll anchoring still holds the paragraph a reader is in
 // when an edit grows one above it. A property binding to `innerHTML` replaced every
@@ -249,7 +249,7 @@ function threadStands(thread, said) {
   };
 }
 
-// When a message or a step's face was said, in its head (presence.js, `saidAt`): its
+// When a message or a step's face was said, in its head (state/presence.js, `saidAt`): its
 // day, then its time. A head too narrow for both keeps the day whole and drops the
 // time onto a line it clips (surfaces.css), so a crowded head still says which day,
 // where an ellipsis cut it to "Nov 1…"; the preview reads the time whole.
@@ -265,7 +265,7 @@ export function saidTime(timestamp) {
     : nothing;
 }
 
-/** What pointing at threads reads (preview.js), on a passage mark and on a margin entry
+/** What pointing at threads reads (annotations/preview.js), on a passage mark and on a margin entry
  * alike, from the reading every surface paints a thread from, as a name and lines of
  * detail. One thread is named as every surface names it (`threadName`), and its lines
  * say who wrote its last message and when, that message's opening line, and where the
@@ -273,7 +273,7 @@ export function saidTime(timestamp) {
  * opening words, so a thread whose last message is its first says them once. A target
  * holding several threads is named by their count, as the card a press opens lists
  * them, and lists each, its name and where it stands, which the preview owner fits to
- * the room its face stands in (preview.js, `fit`), saying how many more past those:
+ * the room its face stands in (annotations/preview.js, `fit`), saying how many more past those:
  * a press still reaches them, as the card it opens steps through every thread, and on
  * a window too narrow for the card, the thread it opens in the panel goes back to the
  * panel's list of them, where each row previews its thread. A line in the user's turn
@@ -319,7 +319,7 @@ export function threadPreview(threads, said = null) {
   };
 }
 
-// A listed draft in words, on one line, as it now stands (drafts.js, the drafts list):
+// A listed draft in words, on one line, as it now stands (records/drafts.js, the drafts list):
 // what its message would say, Drawing for ink alone.
 /** @param {import("../drafts.js").ListedDraft} draft */
 export const draftWords = (draft) => {
@@ -493,7 +493,7 @@ export function prepareAuthoredMessage(message, thread) {
     const template = document.createElement("template");
     template.innerHTML = markup;
     // A page's media at the address the page answers at, as the message's Markdown
-    // images take it (page-markdown.js, `pageLinks`): any attribute naming it.
+    // images take it (records/page-markdown.js, `pageLinks`): any attribute naming it.
     for (const element of template.content.querySelectorAll("*"))
       for (const { name, value } of element.attributes)
         if (isCanonicalMediaUrl(value))
@@ -1050,7 +1050,7 @@ export class MessageView {
   }
 
   // What an answer leaves standing, beside its time. A to-do's word opens On <agent> at
-  // the to-do's row, its card open (floating-panel.js, `showTodo`), since the row says
+  // the to-do's row, its card open (panel/floating-panel.js, `showTodo`), since the row says
   // what the agent is doing about it and where it stands among the rest; its Discuss
   // leads back here. The word is underlined, as a link is (`data-lf-link`), in the
   // head's ink (`data-lf-hint`), and is a Tab stop, since only a promise still open
@@ -1148,7 +1148,7 @@ export class MessageView {
 // the message keeps (`prepareAuthoredMessage`), with the message and its thread. It
 // stands on the page only while a drawing of that message does, as a margin card or the
 // floating panel's view of its thread, so a thread about it is named by its words, and
-// placed in its message (anchor-placement.js), while the message is put away.
+// placed in its message (annotations/anchor-placement.js), while the message is put away.
 /** @param {string} id */
 export function messageHolding(id) {
   const kept = keptElements.get(id);

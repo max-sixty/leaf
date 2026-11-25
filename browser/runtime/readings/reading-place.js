@@ -38,7 +38,7 @@
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
  * while its width changed. A focused destination where the user is (user-place.js,
- * `focusPlace`), and not riding a stuck box (geometry.js, `stuckBox`), is the live place
+ * `focusPlace`), and not riding a stuck box (dom/geometry.js, `stuckBox`), is the live place
  * while that gesture still holds focus in this region. Focus on the reading surface
  * itself keeps its passage as the place, and so
  * does focus on a container holding that passage, as a section a fragment landed on. The
@@ -47,13 +47,13 @@
  * the document that drew it. A restore jumps rather than glides. It keeps the reader's
  * current disclosures and views: a landmark they concealed supplies no geometry. It
  * returns the reader to a place they had rather than choosing one, so it says where it
- * left each box it moved (scrolling.js, `placeKept`).
+ * left each box it moved (dom/scrolling.js, `placeKept`).
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
- * continuity (version.js) across revisions, reading-region shifts and the subjects a
- * region shows in turn, views.js for each view of the page's flow that a widget shows
+ * continuity (features/version.js) across revisions, reading-region shifts and the subjects a
+ * region shows in turn, records/views.js for each view of the page's flow that a widget shows
  * in turn, and history for each entry the user leaves, in the entry's record
- * (history.js).
+ * (records/history.js).
  * `readingBlock` is the block on screen the reader reads in one region or the page,
  * across the column their pointer or focus names, the column a captured place reads its
  * line from; `sectionsInView` names the sections of every block and drawing on screen,
@@ -227,7 +227,7 @@ export const mayShow = (part) => {
 };
 
 // Source blocks include concealed words, since an anchor can reveal them. A reading
-// place instead requires words the browser draws (geometry.js, `drawsText`).
+// place instead requires words the browser draws (dom/geometry.js, `drawsText`).
 // The browser can bound a block's text in one Range read, including positioned
 // children outside its own box. A Range cannot cross shadow roots or read skipped
 // contents without forcing their layout; those blocks keep the per-segment reading.
@@ -251,18 +251,18 @@ const textEnvelope = (block, segments, range) => {
 // as anything scrolls, each laid out in its own coordinates (`originOf`). The box a
 // reading reads is one, and so is every box inside it that moves what it holds against
 // that box, or may hold it unlaid: one that scrolls, one sticky, one a box outside it
-// places (geometry.js, `placedBy`), as the window places a box fixed in it, and one that
+// places (dom/geometry.js, `placedBy`), as the window places a box fixed in it, and one that
 // may skip its contents, a disclosure or a box with `content-visibility`, laid out once
 // it draws them. A run stands where its own box and its words reach (`envelope`). A frame stands
 // in the layout around it as one entry, which a reading descends into where its band
 // reaches it: at its own box, or for a sticky box at the block it moves within
-// (geometry.js, `stickyHolder`). A box placed from outside moves with nothing the box
+// (dom/geometry.js, `stickyHolder`). A box placed from outside moves with nothing the box
 // around it holds, and a sticky box whose block is that box moves anywhere in it, so
 // every reading of that box descends into them.
 //
 // A frame's layout stands while the page's words, the parts drawn, the window, and the
 // frame's size, scroll axes and skipping are as they were, until a widget says its
-// layout changed (visual-parts.js, `layoutsChanged`), and while every entry a reading
+// layout changed (state/visual-parts.js, `layoutsChanged`), and while every entry a reading
 // finds in its band, and the first past it, stands where the layout has it: a change in
 // flow at or above the band's foot moves one of those. A box moved by none of these, such
 // as a paragraph a script transforms or one an anchor places, stays where the layout has
@@ -342,7 +342,7 @@ function envelope({ block, segments }, range) {
 const wordsBox = (segments, range) =>
   union([...drawnSegments(segments, range)].flatMap((one) => one?.[1] ?? []));
 // Each segment with the boxes its words are drawn in, or null for one the browser draws
-// none of: in a parent that draws no text (geometry.js, `drawsText`), and every later one
+// none of: in a parent that draws no text (dom/geometry.js, `drawsText`), and every later one
 // inside the box skipping it, which passes unasked, since asking for a box inside skipped
 // content lays it out. `drawn` keeps each parent's answer across the calls sharing it.
 /** @param {Segment[]} segments @param {Range} range @param {Map<Element | null, boolean>} [drawn] @returns {Generator<[Segment, DOMRect[]] | null>} */
@@ -764,7 +764,7 @@ export function* blocksOnScreen(
 // walk, a let-go and alignment start where the reader's pointer or focus is rather than
 // at the top of the first column. A stuck
 // box, such as a site header fixed over the page, rides along with every scroll, so
-// it is never the block the reader is on (geometry.js, `stuckBox`). Where every block
+// it is never the block the reader is on (dom/geometry.js, `stuckBox`). Where every block
 // on screen reads as stuck, as in an app shell fixed over the window that scrolls its
 // own content, the first stands.
 /** @param {ReadingRegion | null} [region] @param {Element} [within] */
@@ -822,7 +822,7 @@ export const pageReadingBlock = () => pageReading({ bodies: false });
 // `readingBlock` chose the block by, so outside a stuck box unless the block stands in
 // one, as it does where every block on screen rides a fixed shell, and across the
 // reader's column wherever the block stands across it. A walk asks it of its stops,
-// which need hold no words (current-target.js, `stepFrom`). The block's own readings
+// which need hold no words (records/current-target.js, `stepFrom`). The block's own readings
 // are taken once, for every node asked. The block is on screen, so a node a window's
 // height or more above or below it is off screen however the glides under way move the
 // region holding both. Such a node is judged by its box alone, without measuring what
@@ -1052,7 +1052,7 @@ export function capturePlace(region = null) {
   // Places are measured from the top of the box's landing band, below whatever covers
   // its top edge (the window's head room), so a region handed from the page to its own body
   // keeps the landmark at the same distance below what the user can see. A box a move
-  // left off its aim by its rounding is read as if it stood at the aim (scrolling.js,
+  // left off its aim by its rounding is read as if it stood at the aim (dom/scrolling.js,
   // `aimedTop`).
   const band = landingBand(box);
   if (!band) return null;
@@ -1105,7 +1105,7 @@ export function capturePlace(region = null) {
   // order. Where blocks stand side by side at that line, as columns do, the one across
   // the reader's column is theirs; a block lower down that alone reaches their column
   // is not. A stuck box rides along with every scroll, so its words say nothing about
-  // where in the box the reader is (geometry.js, `stuckBox`).
+  // where in the box the reader is (dom/geometry.js, `stuckBox`).
   const range = document.createRange();
   /** @param {Element} block @param {DOMRect} rect @param {Segment[][]} runs */
   const lineOf = (block, rect, runs) => {

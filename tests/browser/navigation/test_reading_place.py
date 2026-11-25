@@ -459,7 +459,7 @@ def test_history_returns_a_selection_in_unnamed_prose_across_a_revision(
     page.wait_for_function("navigation.transition === null")
     page.go_forward()
     expect(page.locator("#ask")).to_be_focused()
-    # A selection the revision would rewrite holds the revision back (version.js).
+    # A selection the revision would rewrite holds the revision back (features/version.js).
     page.evaluate("getSelection().removeAllRanges()")
     _publish(
         serve.page_dir,
@@ -491,7 +491,7 @@ def test_history_returns_a_widgets_named_control_across_a_revision(
     request, serve, engine
 ):
     """Focus on a control a widget generates comes back by the key the widget names it
-    by inside its element (carry.js), though a revision has drawn the widget again."""
+    by inside its element (records/carry.js), though a revision has drawn the widget again."""
     page_html = leaf_page(
         "Named control",
         '<h1>Named control</h1><lf-code id="snippet"><pre><code class="language-python">'
@@ -523,7 +523,7 @@ def test_history_returns_a_widgets_named_control_across_a_revision(
 # A widget that draws one item at a time, as one fetching each item when it is picked
 # does, so a part of another item is in no element until its item is drawn, and every
 # item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,
-# through the hooks every route reads (anchor-resolution.js, `revealAddressed` and
+# through the hooks every route reads (readings/anchor-resolution.js, `revealAddressed` and
 # `addressedElements`); a referrer travels to one with `navigateToDatum`.
 ITEMS_LAYER = {
     "lf-items": {
@@ -1144,7 +1144,7 @@ LINE_AT_TOP = """(line) => {
 def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
     """A reading place in a long text document names the first line drawn at the top of
     the document's box, with runs of lines the browser skips above it. The place passes
-    over each skipped run whole (reading-place.js, `lastHeld`), and passing over lines
+    over each skipped run whole (readings/reading-place.js, `lastHeld`), and passing over lines
     past a run's end named a line further down."""
     url = serve(
         leaf_page(
@@ -2734,7 +2734,7 @@ def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
     even where its destination already stands where it lands: the log the reader set
     moving stops where the landing found it, rather than running on past what they
     chose. Firefox ran the log on to its end, since it stops no smooth scroll for an
-    instant write of the position the page last saw (arrivals.js,
+    instant write of the position the page last saw (dom/arrivals.js,
     `stopWhereItStands`)."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(3))
     rows = "".join(

@@ -1,5 +1,5 @@
 /* What the status and All pages say for each served activity reading
-   (`activity-words.js`).
+   (`state/activity-words.js`).
 
    Every case starts from the activity the server sends for a page a live session holds
    (`served.mjs`), changing only the fields the case is about, and reads it at the moment

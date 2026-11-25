@@ -1,5 +1,5 @@
 /* A custom element that is no `LeafElement` is given its state and data from outside
-   (element-integration.js).
+   (host/element-integration.js).
 
    These hold what the host and `widgetState` decide on their own: the `state` a
    reading becomes, when a plain element's bound data is set on it, what an element

@@ -183,10 +183,10 @@ import { installMoveSelection } from "./runtime/dom/dom-move.js";
 import { holdSelection } from "./runtime/dom/native-selection.js";
 
 // Leaf's selection writer keeps a page selection across `setChildLists`'s moves
-// (dom-move.js), installed before the boot draws anything. It stands here rather than
-// beside `installMoveFocus` (move-focus.js): native-selection.js reaches context.js
-// through shadow.js, and imported from move-focus.js, which framework.js imports
-// first, it ran a module before `readPart` (semantic-state.js) was initialized.
+// (dom/dom-move.js), installed before the boot draws anything. It stands here rather than
+// beside `installMoveFocus` (dom/move-focus.js): dom/native-selection.js reaches state/context.js
+// through dom/shadow.js, and imported from dom/move-focus.js, which records/framework.js imports
+// first, it ran a module before `readPart` (state/semantic-state.js) was initialized.
 installMoveSelection(holdSelection);
 
 // The boot runs in a function, since a compiled module awaits nothing at its top
@@ -286,7 +286,7 @@ async function boot() {
   });
 
   // The fixed furniture every generated-hint map is spread around: the boxes the chrome
-  // covers (geometry.js, `coverBoxes`). Both maps read the same boxes.
+  // covers (dom/geometry.js, `coverBoxes`). Both maps read the same boxes.
   const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
   // Every page marks its commented words, previews their threads under the pointer
@@ -832,7 +832,7 @@ async function boot() {
   });
   // A page declared failed (`lf-startup-failed`) is its readable fallback from then on
   // (prepaint.js) and never presents, though a later state answer asks it to. A page
-  // whose module staged words it cannot read (passages.js, `refusesBareText`) reads past
+  // whose module staged words it cannot read (readings/passages.js, `refusesBareText`) reads past
   // them afterwards, and presented, it would pass for a page whose widgets work.
   let startupFailed = false;
   window.addEventListener("lf-startup-failed", () => (startupFailed = true), {
@@ -870,9 +870,9 @@ async function boot() {
             ...(key.control && { control: key.control }),
           }),
   });
-  // The document's one arrival (history.js, `beginArrival`), whose intent every route
+  // The document's one arrival (records/history.js, `beginArrival`), whose intent every route
   // it starts runs under, and which the handoff of a reload Leaf asked for joins
-  // (version.js, `installArrival`).
+  // (features/version.js, `installArrival`).
   const restoration = offlineInteractive ? null : beginArrival();
   // The address the document arrives at, read with its entry and before widgets add
   // their display fragment. Authored fragments take precedence, so a copied heading
@@ -904,13 +904,13 @@ async function boot() {
   threadAddress.followOpenThread();
   // A reload, Leaf's own among them, or Back or Forward from another document,
   // arrives at the entry's record, which returns the user where they left it
-  // (history.js, `arrive`); the handoff of a reload Leaf asked for adds only what the
-  // record doesn't hold (version.js). Only a visit the entry kept no record of travels
+  // (records/history.js, `arrive`); the handoff of a reload Leaf asked for adds only what the
+  // record doesn't hold (features/version.js). Only a visit the entry kept no record of travels
   // to the thread its address names.
   const threadArrive = restoration?.record
     ? null
     : threadAddress.arrive(arrivalUrl, arrivalIntent, { restored });
-  // The arrival holds its work until it has run (history.js, `run`).
+  // The arrival holds its work until it has run (records/history.js, `run`).
   /** @param {() => PromiseLike<unknown>} work */
   const arriving = (work) => (restoration ? restoration.run(work) : work());
   if (threadArrive) void arriving(() => afterPresentation(threadArrive));

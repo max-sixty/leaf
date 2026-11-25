@@ -44,7 +44,7 @@ const GO_TO = "navigation.go-to.open";
 
 /** @type {readonly (string | typeof ELEMENTS | typeof PAGE | typeof RUNGS)[]} */
 const STACK = [
-  // A preview standing over whatever the user is in (preview.js): Escape's first step.
+  // A preview standing over whatever the user is in (annotations/preview.js): Escape's first step.
   "preview",
   "command reference",
   "page map",
@@ -63,17 +63,17 @@ const STACK = [
   "thread",
   "link",
   "disclosure",
-  // A heading or the section it opens, whose link Enter copies (heading-links.js).
+  // A heading or the section it opens, whose link Enter copies (records/heading-links.js).
   "heading",
   // The modes keep their own letters here and declare their Escape on the ladder,
   // because a mode is the stance the whole page is in and a surface opened while one
   // holds is opened inside it: a view the floating panel opens in Design mode comes off
   // first. A mode entered over a view comes off before it: the panel's rung yields to it
-  // (floating-panel.js, `openedIn`).
+  // (panel/floating-panel.js, `openedIn`).
   "draw mode",
   "design mode",
   PAGE,
-  // The preview where focus stands (preview.js), rooted at focus, so a modal dialog keeps
+  // The preview where focus stands (annotations/preview.js), rooted at focus, so a modal dialog keeps
   // it, and below the page's own commands everywhere else.
   "preview here",
   // Outermost, so a page command still ranks ahead of the way out.
@@ -85,7 +85,7 @@ const STACK = [
 // comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
-  "change card", // what a change replaced, open over the change (margin-bars.js)
+  "change card", // what a change replaced, open over the change (features/margin-bars.js)
   "margin options", // the margin entry cluster the user unfolded
   "floating panel", // the menu or view the floating panel opened above its row
   "draw mode", // the drawing surface over the page

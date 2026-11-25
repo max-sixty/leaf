@@ -36,7 +36,7 @@ export const SAY_BOX = `:scope > ${SAY_ROW} ${TEXT_FIELD}`;
 // whole where its pieces stand apart, as the panel's view does for its head and its
 // field (`wholeThread`), and `controls`, the element holding the controls it draws for
 // the thread as its own, as the panel's head holds Close, which focus's identity finds
-// by their keys (carry.js, `focusedBy`).
+// by their keys (records/carry.js, `focusedBy`).
 /** @typedef {{
  * reply: (thread: Element) => Element | null,
  * settlement: (thread: Element) => HTMLElement | null,

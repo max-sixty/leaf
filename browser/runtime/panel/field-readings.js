@@ -22,7 +22,7 @@
  * which would otherwise be said twice; where the user stands comes back with the status
  * a moment later. The Go-to word and a walk's position take all of where the user
  * stands, which a walk over a list one of those facts is about counts on: it says its
- * place alone after them, "5 changes since v2 · 1 of 5" (walk-position.js, `walkWords`).
+ * place alone after them, "5 changes since v2 · 1 of 5" (records/walk-position.js, `walkWords`).
  *
  * While a stance stands the field takes no words (`still`): the user asked that a mode
  * stop writing in the field, and that its Reply… and microphone go, so the row reads the
@@ -37,8 +37,8 @@
  * The field's end offers one press, the one that matters most at that moment (`end`).
  * Where a reading's words come with a press of their own (`press`), the end offers
  * that one: a notice's, such as a Resolve's Next thread and t, or Show changes and g V v
- * with news of changes (notifications.js, `press`), or an error's, such as Resume
- * writing and g i after a refused send (errors.js). Otherwise it offers, by the
+ * with news of changes (transport/notifications.js, `press`), or an error's, such as Resume
+ * writing and g i after a refused send (transport/errors.js). Otherwise it offers, by the
  * reading's `end`:
  * - "key": the key that enters the field, alone after the words, as after an error;
  * - "comment": Comment… and that key, as the field says at rest;
@@ -70,7 +70,7 @@
  * selected words do or at its end as a thread's Reply does, keeps the room of that
  * press's key while the key stands elsewhere (floating-panel.css); a thread's in a
  * stance offers the stance's Close at its end, so it names no press.
- * Every reading is said by the agent or by Leaf, each in its face (voice.js). The field carries the agent's words, so nothing in it is nobody's: Leaf
+ * Every reading is said by the agent or by Leaf, each in its face (base/voice.js). The field carries the agent's words, so nothing in it is nobody's: Leaf
  * says a stance's name, where the user stands and the words quoted, since the
  * interface's upright face would read as the agent's (the user's choice). A draft hides
  * whatever the field says, and the live region still hears what passes. */
@@ -115,13 +115,13 @@ import { noticeWords } from "../transport/notifications.js";
 /** The readings in the order they claim the field; each names how long it stands.
  * @type {readonly FieldReading[]} */
 export const FIELD_READINGS = Object.freeze([
-  // An error about no particular box, until the user's first edit (errors.js,
+  // An error about no particular box, until the user's first edit (transport/errors.js,
   // `sayable`), in its status's place and the danger's ink: it says why something the
   // user did, or the page, went wrong. One about the field's editor covers the words, as
   // at any box (annotations/composing/input.js). The user chose this over errors riding the
   // passing notice, which would fade after four seconds and go unsaid while the user
   // writes. A notice offering a press after the user's own gesture, rather than news
-  // (notifications.js, `showNotice`), is newer, so while it stands with the caret
+  // (transport/notifications.js, `showNotice`), is newer, so while it stands with the caret
   // elsewhere the error waits in the menu's Errors, as one the field has passed does,
   // and the field says it again once the notice has gone or the caret comes back, since
   // the field says nothing that passes under the caret.
@@ -207,9 +207,9 @@ export const FIELD_READINGS = Object.freeze([
 /** What passes in the panel's one seat for words that pass, which the field says
  * (`notice`) and the folded leaf's peek, where no field shows (floating-panel.js,
  * `peekPresentation`): a notice for its moment, and past it until the user's next input
- * where it stays (notifications.js, `showNotice`); else the Go-to filter's word while its sequence
+ * where it stays (transport/notifications.js, `showNotice`); else the Go-to filter's word while its sequence
  * waits for a key; else on the page a walk's position for a notice's moment from each
- * step (notifications.js, `answerStep`). In a thread the position stands before Reply
+ * step (transport/notifications.js, `answerStep`). In a thread the position stands before Reply
  * instead (floating-panel.js, `turnLead`): the user asked for that, since "Thread 11 of
  * 11" in Reply's place leaves nothing saying how to reply to the thread they are
  * reading.

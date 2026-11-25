@@ -4,7 +4,7 @@ interface DocumentInputs {
   readonly textBox: string;
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
-  /** Which state a reload carries for a control (document-inputs.js). */
+  /** Which state a reload carries for a control (base/document-inputs.js). */
   holdsValue(
     node: Element,
   ): node is
@@ -24,7 +24,7 @@ interface DocumentInputs {
       counted(stepped: boolean): void;
     } | null,
   ): void;
-  /** Whether the user has changed `node` in this document (document-inputs.js). */
+  /** Whether the user has changed `node` in this document (base/document-inputs.js). */
   edited(node: Element): boolean;
   observe(read: (event: Event) => void): () => boolean;
 }
@@ -38,13 +38,13 @@ interface DocumentInputs {
 // Leaf's prepaint installs each required Window capability before module loading.
 // Element metadata remains optional because ordinary elements do not carry it.
 
-/** Attributes and custom properties an element wears as one set (`dress.js`). */
+/** Attributes and custom properties an element wears as one set (`dom/dress.js`). */
 interface LeafDress {
   attributes: Record<string, string | null>;
   properties: Record<string, string>;
 }
 
-/** A tab or user store that never throws on an unavailable backing (`storage.js`). */
+/** A tab or user store that never throws on an unavailable backing (`state/storage.js`). */
 interface LeafStore {
   read(key: string): { available: boolean; value: string | null };
   get(key: string): string | null;
@@ -53,7 +53,7 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a margin element layout or breakout reading changed what it writes (`content-layout.js`). */
+/** Whether a margin element layout or breakout reading changed what it writes (`readings/content-layout.js`). */
 interface LeafReading {
   changed: boolean;
 }
@@ -121,7 +121,7 @@ interface Window {
       selector?: string,
     ): Element | null | undefined;
     keep(holder: Element, member: Element | null, leaving?: Element | null): void;
-    /** The runtime's showing of a member something reveals, once it loads (views.js). */
+    /** The runtime's showing of a member something reveals, once it loads (records/views.js). */
     reveal?: (holder: Element, member: Element) => void;
   };
   lfLinks: {
@@ -179,7 +179,7 @@ interface HTMLElement {
 interface Element {
   readonly updateComplete?: Promise<unknown>;
   cloneNode(deep?: boolean): Element;
-  /** Package-owned address resolution for generated content (anchor-resolution.js). */
+  /** Package-owned address resolution for generated content (readings/anchor-resolution.js). */
   lfDataDatum?(key: string, options?: { outdated?: boolean }): Element | null;
   lfDatumLabel?(key: string): string | null;
   lfElementsFor?(key: string): Iterable<Element> | null;
@@ -194,16 +194,16 @@ interface Element {
       })
     | null
     | undefined;
-  /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
+  /** The text a block marked `data-lf-copy` copies (`records/code-copy.js`). */
   lfCopy?: (() => string) | undefined;
   /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
-   * the block's Copy as the last mark (`code-copy.js`). */
+   * the block's Copy as the last mark (`records/code-copy.js`). */
   lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
-   * (`preview.js`): null adds nothing, false shows nothing here or around it. */
+   * (`annotations/preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/annotations/preview.js").Read;
   /** A visual's parts where its `data-lf-part` marks don't say them, read as each
-   * reading of the visual asks (`visual-parts.js`). */
+   * reading of the visual asks (`state/visual-parts.js`). */
   lfParts?: import("../runtime/state/visual-parts.js").Parts | undefined;
 }
 
@@ -246,7 +246,7 @@ interface WindowEventMap {
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
    * (`lib/widget-events.js`, `ANNOUNCE`): the words, or the words and the command rows
-   * whose keys Leaf names after them (`notifications.js`). */
+   * whose keys Leaf names after them (`transport/notifications.js`). */
   "lf-announce": CustomEvent<
     | import("../runtime/base/voice.js").Words
     | {
@@ -256,12 +256,12 @@ interface WindowEventMap {
   >;
   /** Where a step of a widget's own walk landed, which Leaf's panel says, or null
    * where the user has left that stop (`lib/widget-events.js`, `WALK`;
-   * `walk-position.js`). */
+   * `records/walk-position.js`). */
   "lf-walk": CustomEvent<
     import("../runtime/records/walk-position.js").SaidPlace | null
   >;
   /** A widget's words for something the user did that has not taken, which Leaf keeps
-   * in its Errors list (`errors.js`). */
+   * in its Errors list (`transport/errors.js`). */
   "lf-error": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
@@ -306,12 +306,12 @@ interface DocumentEventMap {
   >;
   /** The floating panel's offer of its field to say the bootstrap's held keys in, null
    * once none are shown, and to take the words written in the served row's field
-   * (`bootstrap.js`, `floating-panel.js`). */
+   * (`bootstrap.js`, `panel/floating-panel.js`). */
   "lf-held-keys-seat": CustomEvent<{
     show(words: HeldWords | null): void;
     write(box: HTMLTextAreaElement): void;
   }>;
-  /** A sample child's request to scroll the page along from its frame (`sample.js`). */
+  /** A sample child's request to scroll the page along from its frame (`host/sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<
       import("../runtime/base/sample-protocol.js").ChildStatus,
@@ -330,7 +330,7 @@ interface DocumentEventMap {
 interface ElementEventMap {
   /** An action a widget asks Leaf to record, and one it asks Leaf to take back, each
    * heard on the widget's own element; Leaf sets `delivery` on each it sends
-   * (`widget-controller.js`, `hearRecords`). */
+   * (`host/widget-controller.js`, `hearRecords`). */
   "lf-action": CustomEvent<{
     verb: string;
     detail?: Record<string, unknown>;
@@ -357,7 +357,7 @@ interface Window {
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
   /** How a revision reaches the widget while it stands in the page: `"members"` has
-   * Leaf edit inside its direct authored children in place (`version.js`,
+   * Leaf edit inside its direct authored children in place (`features/version.js`,
    * `reachesMembers`). A class field's literal is typed `string`, so this is too. */
   lfPatch?: string;
 }

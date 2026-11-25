@@ -296,7 +296,7 @@ export default {
       ],
     },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
-    // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
+    // `./repaint` finds `dom/repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },
   },
 };

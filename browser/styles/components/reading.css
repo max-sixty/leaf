@@ -11,7 +11,7 @@
  * shadow tree starts without it (`:host`), so a widget's own internals keep their
  * sheet's faces and only a transcript there takes it again. A widget's own source or
  * controls keep its own sheet. The runtime colours a code block's tokens only where the
- * block wears the face (syntax.js), since the token palette is drawn for its ground.
+ * block wears the face (readings/syntax.js), since the token palette is drawn for its ground.
  * The face's native controls, a page's own buttons, fields and labelled choices, wear
  * the faces of Leaf's own, under the same input (controls.css, "The faces of Leaf's
  * control roles").
@@ -108,7 +108,7 @@
      * break. Each row a line wraps onto starts two columns past the line's own indent,
      * behind a muted ↪, so it reads as the rest of its line, in code as in prose, and a
      * wrapped command doesn't read as the next one. The runtime boxes each line for
-     * that (code-lines.js, which says why), and the box hangs its rows (marks.css,
+     * that (readings/code-lines.js, which says why), and the box hangs its rows (marks.css,
      * `[data-lf-pre-line]`); a block it leaves as authored, and a page
      * read without the runtime, hang every wrapped row two columns from the block's
      * edge (`text-indent`), unmarked. A block whose

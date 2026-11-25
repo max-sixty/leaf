@@ -50,7 +50,7 @@ test("semantic publisher ownership closes every browser framework import path", 
 });
 
 // The modules behind the facade are its own, so the facade is the only edge into the
-// framework: a deep path is refused whatever it names, semantic-state.js included.
+// framework: a deep path is refused whatever it names, state/semantic-state.js included.
 test("a module behind the browser framework's facade is not an import path", () => {
   const facade =
     "Import browser framework capabilities from its facade, runtime/records/framework.js.";

@@ -27,13 +27,13 @@
    outgrow the room below its top, and the window's foot lifts it, so an answer
    arriving stays in view with the turn it answers, and its top stays where it stood,
    so a shorter thread brings it back down. While the user writes words in its reply
-   box (user-place.js, `focusPlace`), a card beside its subject holds its foot instead,
+   box (readings/user-place.js, `focusPlace`), a card beside its subject holds its foot instead,
    as one above it does: the line being typed stays still as the conversation grows
    above it. A send leaves the box for the thread (records/thread/landing.js, `landSent`), so
    the card holds its top through the send and grows down past the box, keeping still
    the transcript the user was reading; so does the empty box a click's opening leaves
    the caret in (records/thread/focus.js, `openingPart`). A refusal gives back what the send took: its turn goes, and its words
-   return under the refusal's cover (errors.js), which shows no line being typed either,
+   return under the refusal's cover (transport/errors.js), which shows no line being typed either,
    so the card holds its top through the refusal too, and its foot once the user comes
    back to the words. The user chose this over letting the card drop, which moves both
    its edges and slides it out from under the pointer. A user who
@@ -47,7 +47,7 @@
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
    thread-card.js, `newsMoves`). A pointer resting on Resolve or a message's control is
    not where the user is, so that news may carry the control from under it, as the
-   floating panel's growth does (floating-panel.js, the user's choice).
+   floating panel's growth does (panel/floating-panel.js, the user's choice).
 
    The user chose this rule as the platform's: CSS scroll anchoring
    prefers a focused text field or the find match as the node it keeps still, and
@@ -102,7 +102,7 @@
    words stood (`showArrival`).
    A reader at the transcript's end follows it, whatever moves it: a turn drawn or
    growing, as a picture in it loads, or the room the card gives it; a reader read back
-   stays where they are (scrolling.js, `followEnd`). The user asked for that one keeper
+   stays where they are (dom/scrolling.js, `followEnd`). The user asked for that one keeper
    over two partial ones: one keeping the end through a change of
    room, and the fit following the growth a reading of the thread draws; growth after a
    reading, such as a picture loading, reaches neither. An answer to the user's own turn
@@ -121,7 +121,7 @@
    resolved thread in the card's count ("1/3"), else the one before, and stands the user
    on it, so the page never moves; at a passage with no other thread the card closes
    and leaves the user on its target (`landing`). Undo opens the thread again in the
-   card where it was resolved (undo.js, the page's reader). The user chose this
+   card where it was resolved (annotations/undo.js, the page's reader). The user chose this
    over closing the card onto its passage whatever else stands there, which
    leaves the card and the floating panel doing different things, and over moving on to
    the next open thread on the page, as the panel does, which scrolls the page under the
@@ -268,7 +268,7 @@ export function createThreadPreview({
   let previewSession = null;
   // The entry the card hangs from changes as the card opens, closes or moves to another
   // entry, which a row asking whether the user is on that entry reads through this
-  // revision, as it reads where the user is through focus.js's (`onOpener`).
+  // revision, as it reads where the user is through dom/focus.js's (`onOpener`).
   const cardRevision = signal(0);
   const { targetFor, entryPoint, entryPlace } = inventory;
   // The card is the margin's, as the cluster it hangs from is, rather than a layer over
@@ -298,7 +298,7 @@ export function createThreadPreview({
     action: "next",
   });
   previewNav.append(previewPrevious, previewPosition, previewNext);
-  // The card's own controls name themselves to focus's identity (carry.js, `focusKey`),
+  // The card's own controls name themselves to focus's identity (records/carry.js, `focusKey`),
   // so a return to the card, a reload's included, puts the user back on the one they
   // were on. Close dismisses the card, as the panel's Close doesn't, so its key is its
   // own, and a return that opens the thread in the panel lands on the thread.
@@ -307,7 +307,7 @@ export function createThreadPreview({
   previewNext.setAttribute("data-lf-carry", "next");
   // Open in panel moves the card's thread into the floating panel's view of it, which
   // reads a long thread wider than the card's room beside the column, and chooses the
-  // panel for the threads after it (floating-panel.js, `openThread`), which its
+  // panel for the threads after it (panel/floating-panel.js, `openThread`), which its
   // preview says. The card closes, so one thread stands open, and the view's Show on page comes
   // back. It is the card's press that moves its thread (`lf-thread-move`,
   // records/thread/selectors.js), which `p` presses (records/thread/landing.js).
@@ -356,7 +356,7 @@ export function createThreadPreview({
   // tween, whoever made it: a send, typing, an answer arriving, another thread. It reads
   // in the plane its placement stands it in, by the edges that hold it there, so a
   // scroll or a carry that moves it whole moves nothing in it, and a change of its size
-  // asks for its placement first (box-motion.js, `placed`). A card no placement stands
+  // asks for its placement first (dom/box-motion.js, `placed`). A card no placement stands
   // yet, or put away, has nothing to move from, and one being carried stands where the
   // pointer holds it. A card closing stands where its placement left it until its fade
   // ends (`close`), so the card another thread opens meanwhile travels from there.
@@ -500,7 +500,7 @@ export function createThreadPreview({
     if (transcript) keeps(transcript, "data-lf-reflow", "append");
     // A reader at the transcript's end stays there, whatever moves the end: the reply
     // box taking room or giving it back, a fit, a turn drawn or growing. One read back
-    // keeps their offset, as the card hangs from its passage (scrolling.js,
+    // keeps their offset, as the card hangs from its passage (dom/scrolling.js,
     // `followEnd`). The end is another's to place while the card arrives on its opening
     // turn (`showArrival`), and where the thread places an answer to the user's turn
     // (thread-card.js, `placesEnd`).
@@ -669,7 +669,7 @@ export function createThreadPreview({
 
   // The edge a card on `side` holds now (the header's rule): the one it is attached by,
   // but its foot beside its subject while the user writes words in its reply box, where
-  // they are (user-place.js, `focusPlace`), and no error covers them (errors.js). Also
+  // they are (readings/user-place.js, `focusPlace`), and no error covers them (transport/errors.js). Also
   // where they are, if in the card, whether they type there, and whether they write
   // words in its reply box.
   /** @param {import("./comment-placement.js").Side} side */
@@ -694,7 +694,7 @@ export function createThreadPreview({
   // foot, it grows up under the head and transcript, which the user is on unless they
   // stand at the reply row: in it, or on the thread itself, as a send leaves them,
   // which waits at its reply box unless a click left the caret in its words
-  // (user-place.js, `standingAt`).
+  // (readings/user-place.js, `standingAt`).
   /** @param {Session} session */
   function endNewsMoves(session) {
     const { side } = session.side.capture();
@@ -711,7 +711,7 @@ export function createThreadPreview({
   // clipped contents receive newly available room without requiring a complete fit.
   // A placement box-motion's size delivery asked for (`delivered`) lands in that
   // delivery, where resizing the card would be a loop for the card's other observers
-  // (box-motion.js, `placedParts`): it keeps the card's width and cap, and the next
+  // (dom/box-motion.js, `placedParts`): it keeps the card's width and cap, and the next
   // frame fits the card again.
   /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session @param {boolean} delivered */
   function measureThreadCard(room, cap, reading, session, delivered) {
@@ -758,7 +758,7 @@ export function createThreadPreview({
   }
   // The row the card hangs from where its thread has no target to stand by. A row the
   // rail has no room for is withheld and has no box; it stands by the row's target
-  // instead, at the row inside it the cluster would stand level with (pointed-place.js).
+  // instead, at the row inside it the cluster would stand level with (readings/pointed-place.js).
   /** @param {Session} session @param {Element} control */
   function threadCardCluster(session, control) {
     const row = control.closest("[data-lf-margin-for]") ?? control;
@@ -1026,7 +1026,7 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         // The card's first spot is the first reading its motion follows from. The card
         // another thread opens travels there from where the last one stood
-        // (box-motion.js, `placed`). A card Send opened grows out of the field it
+        // (dom/box-motion.js, `placed`). A card Send opened grows out of the field it
         // replaces, as any box's outline travels: the box paints only its field while
         // it is written, and the user preferred a field that opens into
         // its card at Send to a box painted as the card throughout. The card
@@ -1214,7 +1214,7 @@ export function createThreadPreview({
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-      // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
+      // Every other walk says "1 of 3" (records/walk-position.js). This one stands on the card's
       // actions line, which on a card in a narrow room (`--lf-thread-card-min`) already
       // leaves the message heads little room; " of " would widen it enough to push the
       // actions past the start of a narrow card.
@@ -1300,13 +1300,13 @@ export function createThreadPreview({
         return previewHead;
       },
       // A send from the card is the user's change joining the stream the card shows
-      // (box-motion.js, "send"), read before the send draws.
+      // (dom/box-motion.js, "send"), read before the send draws.
       reply: { options: { sending: following.stream } },
       // The card caps its transcript, which scrolls the thread's messages.
       scroller: (transcript) => transcript,
       endNewsMoves: () => endNewsMoves(session),
       // Whether the reader stands at the end the transcript's keeper follows
-      // (scrolling.js, `followEnd`).
+      // (dom/scrolling.js, `followEnd`).
       standsAtEnd: () => Boolean(session.end?.standsAtEnd()),
       // Resolve stands the user on the thread that took the resolved one's place in the
       // card (`buildThreadCard`), or, where the passage held no other, on the target
@@ -1499,7 +1499,7 @@ export function createThreadPreview({
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
     // Focus in the transcript lifts the fade over its top (annotation-chrome.css), so
-    // the fade never lies over a focused message's ring. Like focus paint (focus.js), the
+    // the fade never lies over a focused message's ring. Like focus paint (dom/focus.js), the
     // mark follows where the script leaves the user: a script that moves them out of the
     // transcript and back marks nothing.
     /** @type {Element | null} */

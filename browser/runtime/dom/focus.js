@@ -179,7 +179,7 @@ export const tabStops = (root) =>
 //
 // A destination may be an element its owner settles as the user lands on it,
 // `{element, settle}`, as a chart moves its reading to the point Leaf puts the user on
-// (visual-parts.js, `focus`). `settle` runs here, as focus is placed on an element that
+// (state/visual-parts.js, `focus`). `settle` runs here, as focus is placed on an element that
 // can take it, and nowhere else, so a route that names a destination it never lands
 // on, a hand-back that passes it by, or a placement on an inert or hidden element,
 // changes nothing the owner shows. A destination is told from an element by its node
@@ -871,7 +871,7 @@ function readFocusEvent(event) {
 // it would without the panel's stop: on the nearest other box around the panel that a
 // press focuses, or nowhere, as a press on a plain page's words does. That holds when the
 // keyboard had put them on the panel before the press. The caret stays where they
-// pressed, and walks and the reading keys start from it (reading-regions.js). To comment
+// pressed, and walks and the reading keys start from it (readings/reading-regions.js). To comment
 // on the panel, the user steps onto it with the keyboard.
 // DOM focus stays on the panel until the press is released. Moved inside the press's own
 // focus event, focus ends the drag selection the press starts in Chromium and WebKit; a
@@ -1079,7 +1079,7 @@ addEventListener(
 export const inputCount = () => inputs.count;
 // The user's inputs within the entry they are on: all of them but those that take
 // them away from it, their steps Back and Forward and their leaving the window
-// (document-inputs.js, `away`). A return to an entry's record (history.js) yields to
+// (base/document-inputs.js, `away`). A return to an entry's record (records/history.js) yields to
 // these alone, counted from where it began, or for the document's arrival from the
 // user's latest step (`enteredInputCount`).
 export const entryInputCount = () => inputs.count - inputs.away;
@@ -1120,9 +1120,9 @@ onUserInput((event) => {
 // Which input last named a place to keep in a reflow: a pointer moving, pressing or
 // wheeling over an item, or the keyboard, whose arrivals name the item focus is on. A
 // key pressed with nothing focused, or at focus the user has scrolled away from
-// (user-place.js, `focusPlace`), names nothing, so the column the pointer last named
+// (readings/user-place.js, `focusPlace`), names nothing, so the column the pointer last named
 // stays the reader's for the command it runs and the let-go it starts with
-// (reading-place.js, `readingBlock`). It chooses which visible item holds a reflow, and
+// (readings/reading-place.js, `readingBlock`). It chooses which visible item holds a reflow, and
 // supersedes no delayed move.
 let placeInput = "focus";
 /** @type {() => unknown} */
@@ -1443,7 +1443,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
 // control the focus paint marks, so only that control has one, and a landing made in the
-// focus task finds it only after the paint (`rowWalk`, walk-position.js). Reading the
+// focus task finds it only after the paint (`rowWalk`, records/walk-position.js). Reading the
 // ring must not paint an intermediate focus destination: a return in the same
 // task would otherwise remove and restore the previous focus marks.
 /** @template {Element | Range} T @param {T} node @returns {T | Element} */
@@ -1803,7 +1803,7 @@ export function controlNavigationKeys(node) {
 //
 // Where they land is beside what they let go of, while they see it, since that is what
 // they were reading; otherwise the block they are reading in the page region they last
-// acted in (reading-regions.js, `pageReadingRegion`), which is a reading of that region's
+// acted in (readings/reading-regions.js, `pageReadingRegion`), which is a reading of that region's
 // current scroll rather than a place remembered from before the press: a surface closing
 // moves the page under them, and what they can see when it has gone is the answer. Only
 // the region is remembered, so no revision, repaint or reflow can strand the block.
@@ -1820,7 +1820,7 @@ export function controlNavigationKeys(node) {
 // screen. It is also the fallback here, for a page whose view holds nothing to land on,
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the
-// declared reading lands on its body (reading-place.js, `landingPlace`).
+// declared reading lands on its body (readings/reading-place.js, `landingPlace`).
 /** @type {(from?: Element | null) => HTMLElement | null} */
 let readingBlock = () => null;
 /** @param {typeof readingBlock} read */
@@ -1859,7 +1859,7 @@ export function release() {
 }
 // A landing on the page is the user going on to it, a `move`. It leaves them at nothing,
 // beside what they let go of rather than anywhere else, and each reader `onLetGo` names
-// hears that node once the landing is done (current-target.js, `walkOrigin`). A closer
+// hears that node once the landing is done (records/current-target.js, `walkOrigin`). A closer
 // whose layer stands for a place on the page, as a thread card stands for its target,
 // names that place as `from`, since the node focused in the layer is beside nothing.
 /** @type {Set<(from: Element) => unknown>} */
@@ -1878,7 +1878,7 @@ export function letGo(from = focused()) {
 // The landing alone: the user at nothing, with Tab starting from the block read on
 // screen beside `from`, as a move, so no hold takes the node they left for a place a
 // change dropped them from. A return to a working place lands so where it puts focus
-// nowhere (history.js, `returnPlace`).
+// nowhere (records/history.js, `returnPlace`).
 /** @param {Element | null} [from] */
 export function landAtReading(from = null) {
   const held = /** @type {HTMLElement | null} */ (focused());

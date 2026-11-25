@@ -24,7 +24,7 @@
    page's plane the box is anchored (CSS anchor positioning) to the element it stands
    beside, with its spot written as insets from that anchor, so the browser carries it
    through every scroll that moves the anchor, in step with the words, as every box that
-   follows scrolled content is carried (css-anchors.js). Words standing directly in a box that scrolls
+   follows scrolled content is carried (dom/css-anchors.js). Words standing directly in a box that scrolls
    them anchor to the nearest element beside them in that box, or to the start of what
    it holds, which the same scroll carries (`anchorFor`), and words in a widget's shadow
    tree to their own element, which the document names through a part. The surface is
@@ -44,7 +44,7 @@
    so there a box beside a tall element rode off the window's top.
    The box stays fixed, so native focus never scrolls the page under it.
    Unlike the margin's rows and Copy, the surface stays over the sticky headers a page
-   declares rather than passing under them (css-anchors.js, `headerLevels`): it is where
+   declares rather than passing under them (dom/css-anchors.js, `headerLevels`): it is where
    the user is writing or reading a reply, and words scrolled under a stuck toolbar
    would take the editor with them, out of reach until the user scrolled back.
 
@@ -216,7 +216,7 @@ function readFloatingEditor() {
 }
 onCurrentLocation(readFloatingEditor);
 
-// A surface anchors to `context` (css-anchors.js, `anchorFor`). A presenter can retain
+// A surface anchors to `context` (dom/css-anchors.js, `anchorFor`). A presenter can retain
 // this reading beside its reference rectangle before a module load: the anchor boxes
 // must describe the same geometry as that rectangle.
 /** @param {readonly (Node | null | undefined)[]} contexts */
@@ -480,7 +480,7 @@ export function floatingPlacement({ floating, update }) {
         : null;
       // The box changed size since it last stood: the same placement is solved for it
       // at that size too, which its motion takes as where the box would have stood had
-      // it kept its size (box-motion.js, `placed`). It is solved after the surface has
+      // it kept its size (dom/box-motion.js, `placed`). It is solved after the surface has
       // read its answer (`planeOf`), from the room its middleware keeps from the last
       // solve, and without sizing, which writes the box's size.
       const { width, height } = answer.middlewareData.held;
@@ -597,7 +597,7 @@ export function floatingPlacement({ floating, update }) {
         y: box[edges.top] - (frame.top + point.top),
       };
     },
-    // What holds the box where its last placement stood it, as box-motion.js reads it:
+    // What holds the box where its last placement stood it, as dom/box-motion.js reads it:
     // the edges its spot is written from; null while no placement stands it.
     held: () => holding,
     // Discards any placement in flight, leaving the box where it stands.

@@ -184,7 +184,7 @@ export function createTargetPicker({
   let matchesIn = null; // the page reading `matches` were found in (`pageReadingVersion`)
   let matchesFor = ""; // the query they match
   let active = -1;
-  // A search's matches arrive a slice at a time (passages.js, `pageMatches`): the first
+  // A search's matches arrive a slice at a time (readings/passages.js, `pageMatches`): the first
   // slice in the task the query changed in, each later one in a task of its own, so no
   // search holds the page while it reads documents the page hasn't read or checks a
   // million matches. `matches` holds what has arrived, in reading order. Its signal
@@ -214,7 +214,7 @@ export function createTargetPicker({
   // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
   const hintRenderKey = objectIds();
   // The open search's mark stands over its words in the frames that cut them, carried
-  // by what carries the words (target-paint-geometry.js, `paintSet`), so no scroll
+  // by what carries the words (readings/target-paint-geometry.js, `paintSet`), so no scroll
   // writes it.
   const marks = paintSet(markRoot);
   /** @type {Map<number, HTMLElement>} */
@@ -305,7 +305,7 @@ export function createTargetPicker({
   // work for nobody. It opens straight into search, so the panel is handed the one mode
   // it shows: handed the hints and then search in one task, it would draw the press the
   // hints' field offers and take it away again.
-  // The picker's opener is the control the user was on as it opened (focus.js,
+  // The picker's opener is the control the user was on as it opened (dom/focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
   /** @param {boolean} on @param {boolean} [restore] @param {"hints" | "search"} [mode] */
   function setTargetPicker(on, restore = false, mode = "hints") {
@@ -618,7 +618,7 @@ export function createTargetPicker({
     find(searchQuery(), { was: null, index: 0, show: true });
   }
 
-  // A match out of sight is brought into it where its words start (anchor-travel.js,
+  // A match out of sight is brought into it where its words start (features/anchor-travel.js,
   // `scrollToPassage`).
   function showMatch() {
     const segments = matches.value[active];

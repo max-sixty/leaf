@@ -560,7 +560,7 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
     page can show, not only those near the window it opened at.
 
     A sample's page may get no rendering while its frame is off screen, so its host
-    stops counting what that page draws there, at once or after a deadline (sample.js),
+    stops counting what that page draws there, at once or after a deadline (host/sample.js),
     and marks the frame `data-lf-unseen`. The page holding a marked frame counts none
     of the work that frame's page does after loading, its own samples included, so
     each frame, at any depth, waits for the page holding it, and each `data-lf-unseen`

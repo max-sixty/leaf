@@ -1,4 +1,4 @@
-/* The page's commands a finger reaches, as rows of the page's controls (page-controls.js).
+/* The page's commands a finger reaches, as rows of the page's controls (base/page-controls.js).
  * `touch` names a page command a finger needs a row for; the same row serves a mouse, and
  * stands in the floating panel's menu. A scope with a row marked `exit` is a stance, such
  * as page search or Draw mode: while the innermost one stands (dom/keyboard/dispatch.js,
@@ -47,7 +47,7 @@ function place(press) {
     rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
     // The row's value is read where the menu paints, so one that says how long ago, as
-    // Undo's does, follows the page's clock (presence.js, `clockValue`) rather than
+    // Undo's does, follows the page's clock (state/presence.js, `clockValue`) rather than
     // standing as the repaint frame last read it. The row previews no description: its
     // words say what pressing it does, and the command reference explains the command.
     // The user chose that over the rows for Select mode and Design

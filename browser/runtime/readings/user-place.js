@@ -7,12 +7,12 @@
    far content above that node moved it. Leaf adds no anchoring of its own to a render,
    and turns the browser's off only on a box that must not be its anchor, as the aside
    before a sidebar page's body (layouts.css), or on a box while a motion carries it,
-   since Firefox anchors on where a box is drawn (box-motion.js, lf-dial.js). A render
+   since Firefox anchors on where a box is drawn (dom/box-motion.js, lf-dial.js). A render
    helps it by keeping the nodes it doesn't change, since a
    node it replaces is an anchor lost: neither engine anchors again, so whatever grew
-   above moves the reader by its full height (dom-children.js, `setRenderedChildren`,
+   above moves the reader by its full height (dom/dom-children.js, `setRenderedChildren`,
    for a message's words; a module's `lfPatch` for a widget a revision edits inside). A
-   revision restores the reader's landmark after anchoring as well (version.js), which
+   revision restores the reader's landmark after anchoring as well (features/version.js), which
    also returns them where a patch moved what they read between scrollers or into a
    closed disclosure.
 
@@ -72,7 +72,7 @@
    (reading-place.js, `pageReadingBlock`). A key pressed while focus is not where they
    are lets go of it first (panel/page-keys/controller.js), so every key acts from what they
    see, and a revision reading where they are asks the same (reading-place.js,
-   `capturePlace`; version.js). */
+   `capturePlace`; features/version.js). */
 import {
   clippedPlace,
   inFront,
@@ -114,8 +114,8 @@ import { pointerAt } from "../base/pointer.js";
 import { repaint } from "../dom/repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
-// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On Me
-// card the `m` walk rings for the stop it reached (floating-panel.js). The first rule
+// waits, a hidden stand-in where what it stands for is (features/details-shelf.js), or the On Me
+// card the `m` walk rings for the stop it reached (panel/floating-panel.js). The first rule
 // matching the node that names a box decides.
 /** @type {[string, (node: Element) => Element | null][]} */
 const standing = [];
@@ -138,7 +138,7 @@ const boxStoodAt = (node) => {
 // them to it, as a key a board's card moves on is meant for the card while it slides
 // from where it stood, clipped meanwhile by a board that shrank. A key pressed while a
 // glide runs acts as though the glide had landed, as a step pressed then steps from
-// where the glide is headed (navigation.js). A walk focuses its stop before gliding
+// where the glide is headed (panel/navigation.js). A walk focuses its stop before gliding
 // there, so a key pressed on the way is meant for the stop. `g g` carries a control
 // mid-page away, so `c` or Tab pressed as it sets off lets go of the control though it
 // is still on screen, and acts from where `g g` lands (reading-place.js,
@@ -146,7 +146,7 @@ const boxStoodAt = (node) => {
 // pressed during a glide, which tests/journeys/navigation/test_reading_place.py holds
 // each glide and key to. A key whose work goes to a reader that can't ask where the
 // glides land, the browser's answer to Tab or PageDown or a placement, lands them first
-// (scrolling.js, `landGlides`). Rejected: judging a node still on
+// (dom/scrolling.js, `landGlides`). Rejected: judging a node still on
 // screen as the place, which opened a comment box on the control and let the glide
 // carry it off screen with focus in it, and moved Tab on from the control as though
 // the glide had not run; and counting every glide that carries focus, which took the
@@ -155,7 +155,7 @@ const boxStoodAt = (node) => {
 // it first, and scrolling back to it doesn't make it theirs again until they click or
 // Tab there: the user chose this. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
-// every scroll, a glide's too, and marks no place in what it stands over (geometry.js,
+// every scroll, a glide's too, and marks no place in what it stands over (dom/geometry.js,
 // `stuckBox`). Its box is asked of what clips it out to that stuck box, then of the
 // window and the chrome, since a sticky header reads as under the slot it stands in
 // itself (`seenRect`, `headerInset`). The chrome is read where it comes to rest, as
@@ -192,7 +192,7 @@ declareFocusPlace(focusPlace);
 // trackpad's momentum carries the control back in.
 whenChanges(focusPlace, () => repaint());
 // Whether a finite animation moves a box holding `node`, as the slide a moved card makes
-// from where it stood to where layout put it, or a floating box's part box-motion.js
+// from where it stood to where layout put it, or a floating box's part dom/box-motion.js
 // carries from where it was drawn (`CARRY`), as the thread card's list travels from the
 // passage a walk left to the one it reached, drawn below the window meanwhile. The
 // sheen's endless one, a fade, a cut, one held paused and one on a box's pseudo-element
@@ -213,7 +213,7 @@ const slides = (node) =>
     );
   });
 
-// How far down the window the page shows (geometry.js, `shownWindow`) the reader is
+// How far down the window the page shows (dom/geometry.js, `shownWindow`) the reader is
 // taken to read where nothing they hold marks their place.
 const READING_LINE = 0.25;
 
@@ -223,7 +223,7 @@ const READING_LINE = 0.25;
 // holding them: anchoring holds words inside a tall block that grows above them, and
 // the block's top moves by what grew. Leaf's chrome over the line names nothing, and
 // neither does a box stuck over the page, which rides along with every scroll
-// (geometry.js, `stuckBox`).
+// (dom/geometry.js, `stuckBox`).
 /** @param {Element} column @returns {Range | Element | null} */
 export function readingAt(column) {
   const window = shownWindow();
@@ -268,13 +268,13 @@ function returnPlace(held, top) {
   }));
   returnTo(held, "top", top);
   const moved = boxes.filter(({ box, was }) => box.scrollTop !== was);
-  // A place the reader had, not one they chose (scrolling.js, `placeKept`).
+  // A place the reader had, not one they chose (dom/scrolling.js, `placeKept`).
   placeKept(...moved.map(({ box }) => box));
   return moved.length > 0;
 }
 // Whether a change left `box` in the page and drawn with what it holds. A node folded
 // until found holds nothing, whether it is the folded block or a box inside it
-// (geometry.js, `showsContents`).
+// (dom/geometry.js, `showsContents`).
 /** @param {Element | null | undefined} box */
 const stillDrawn = (box) => Boolean(box?.isConnected && showsContents(box));
 
@@ -348,15 +348,15 @@ export function holdPlace(column, standIn) {
 // The user's place across a change that arrives from outside the tab, a reading the
 // server took with the agent's news in it, taken once where that reading is applied and
 // kept once the page shows it, every renderer and the data its widgets read included
-// (state-application.js), or across a change a surface makes with no reading behind it,
+// (host/state-application.js), or across a change a surface makes with no reading behind it,
 // as a widget's own contribution joining Page Map once its work finishes
-// (page-map-dialog.js). The place is what the user last named: the control under a
-// resting pointer, which rests on nothing once it has left the window (pointer.js), or
-// the control holding focus, whichever input came last, and then the other (focus.js,
+// (panel/page-map-dialog.js). The place is what the user last named: the control under a
+// resting pointer, which rests on nothing once it has left the window (base/pointer.js), or
+// the control holding focus, whichever input came last, and then the other (dom/focus.js,
 // `recentPlaceInput`). A field the user types in comes first wherever the pointer
 // rests, since typing may grow a field but never moves it (browser/AGENTS.md), and the
 // pointer names a control a press acts on, never the page's background
-// (control-selectors.js, `PRESSES`). Either names a place while any of it is shown and
+// (dom/control-selectors.js, `PRESSES`). Either names a place while any of it is shown and
 // it rides in a scroller, not stuck there, as a Page Map row or a message in a margin
 // card's transcript does, and a search field in a dialog's fixed head does not. A
 // container the user is on stands at the box a rule names for it (`standsAt`), as a
@@ -374,14 +374,14 @@ export function holdPlace(column, standIn) {
 //
 // The keep yields to any scroll since the reading in a box whose scroll moves the
 // place, the page included for a place in a box Leaf anchors to its words
-// (`carriersOf`): a scroll the user or a landing chose and ended (scrolling.js,
+// (`carriersOf`): a scroll the user or a landing chose and ended (dom/scrolling.js,
 // `chosenSince`), one the browser is still running, as a smooth scroll or a wheel's
-// glide, or has yet to start for the reader's input (arrivals.js, `browserScrolls`), so
+// glide, or has yet to start for the reader's input (dom/arrivals.js, `browserScrolls`), so
 // it never overrides a scroll under way. A scroll in another box leaves the place to be
 // kept: a landing in another pane made the keep give up a focused control the change
 // then moved. It yields
 // to the user's own act since too, a press or a key anywhere but in the field held
-// (focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
+// (dom/focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
 // opened while a diff waited on its syntax grammar moved 140px when the keep put the
 // line read back. Words typed into the field held
 // grow it where it stands, and leave it kept; focus leaving a place it named leaves

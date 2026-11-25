@@ -62,7 +62,7 @@ export function marginMapGroups(
               icon: face.icon,
               label: `Open ${face.label.toLowerCase()}: ${spokenSubject(visibleLabel)}`,
               visibleLabel,
-              // The name as the row draws it, where someone says part of it (voice.js).
+              // The name as the row draws it, where someone says part of it (base/voice.js).
               visibleWords: item.words ?? visibleLabel,
               // Producers add context only when it carries another fact. Version
               // comparisons do: their pair is provenance, separate from the account.

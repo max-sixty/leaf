@@ -1,14 +1,14 @@
 /* Travel to a place on the page: open what hides it, scroll to it, focus it, and
  * record the departure in history.
  *
- * A place is what an anchor names (anchor-resolution.js): an element with an id, a
+ * A place is what an anchor names (readings/anchor-resolution.js): an element with an id, a
  * passage inside one, or a part of a widget, such as a projected datum or a visual
  * part. A thread travels to its anchor's place, a fragment link to its element or to
  * the part a widget's key names, an obligation to its own arrival region, and a
  * module's `navigateToDatum` to the part its reference names. Every route shares three
  * steps: `revealAddressed` draws the part (`revealAnchor` each part an anchor names),
  * `reveal` opens what holds it and what takes focus, and `clearFor` puts away a surface that would stand
- * over it where it lands (floating-panel.js). Each
+ * over it where it lands (panel/floating-panel.js). Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
  * the reveal, clearing, painting, focus and scrolling, and no route does them itself.
  * When the reveal replaces a visible view, the destination lands at once instead of
@@ -94,7 +94,7 @@ export function scrollToFragment(element) {
   scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
-// Whether the page shows the place a fragment names (anchor-resolution.js,
+// Whether the page shows the place a fragment names (readings/anchor-resolution.js,
 // `fragmentAddress`). A widget's key names no shown place until the widget draws its
 // part and shows it: a file view keeps an unselected file's node hidden until found,
 // so a node existing is not the widget having drawn it. A traversal and a load ask the
@@ -146,7 +146,7 @@ export function createAnchorTravel({
     const initial = resolve();
     if (!initial) return false;
     // Every new navigation step takes over the outgoing native placement, and lands from
-    // where a glide of Leaf's is headed (scrolling.js, `stopBrowserScroll`). Read
+    // where a glide of Leaf's is headed (dom/scrolling.js, `stopBrowserScroll`). Read
     // geometry only after the stopped scroll's last compositor update has passed;
     // another gesture during that wait retains the place it chose.
     if (initial.scroll.length)
@@ -321,7 +321,7 @@ export function createAnchorTravel({
   // Travel's departure transaction, the one rule for whether a route that travels is a
   // Back step: it is where it moves the page, or lands the user on a stop they weren't
   // on, which is where its arrival puts focus on something the user's focus wasn't in
-  // (current-target.js, "on a stop"). So every stop of a walk is a step, as each
+  // (records/current-target.js, "on a stop"). So every stop of a walk is a step, as each
   // followed link is, though the stop already shows: the first `t` to a thread on
   // screen, which once left Back leaving the page from the card it opened, and `m` or
   // `t` between stops the window already shows. An arrival that puts focus nowhere new,
@@ -381,7 +381,7 @@ export function createAnchorTravel({
     return fragmentTarget(url.hash) && fragmentNavigationStep(url, true);
   }
 
-  // Back or Forward restores the offset the entry was left at (history.js), which is
+  // Back or Forward restores the offset the entry was left at (records/history.js), which is
   // where the user was reading while the page still holds the place the entry's
   // fragment names. Once that place is no longer shown, closed since in a tab, a
   // disclosure or a widget's own shut state, the offset was read over a page that has
@@ -391,7 +391,7 @@ export function createAnchorTravel({
   // key whose part the widget no longer draws, since the user has picked another of its
   // items, names such a place too. The browser's own landing on a traversal is that
   // offset, so travel lands the place by the fragment rule itself (`scrollToFragment`).
-  // It runs under the intent of the traversal's restoration (history.js), which a
+  // It runs under the intent of the traversal's restoration (records/history.js), which a
   // later navigation ends.
   /** @param {URL} url @param {ReturnType<typeof retainUserIntent>} intent */
   function returnToFragment(url, intent) {
@@ -577,7 +577,7 @@ export function createAnchorTravel({
     const { replacedView } = reveal(holder, retainUserIntent());
     placeScroll({ at: where, behavior }, replacedView);
   }
-  // A passage is scrolled to where its words start (passages.js, `passageStart`), as a
+  // A passage is scrolled to where its words start (readings/passages.js, `passageStart`), as a
   // thread is travelled to (`threadDestination`): a search's match, the comment box
   // brought back to its passage.
   /** @param {readonly import("../readings/passages.js").Segment[]} segments @param {ScrollBehavior} [behavior] */
@@ -592,7 +592,7 @@ export function createAnchorTravel({
   // Travel reads the first passage segment or semantic element from canonical placement,
   // independently of whether the selected presentation paints a mark.
   // A thread pointed into its target is travelled to at the row its own margin row
-  // stands by (pointed-place.js), which a target taller than the window would otherwise
+  // stands by (readings/pointed-place.js), which a target taller than the window would otherwise
   // leave off screen.
   /** @param {string} id */
   const threadDestination = (id) => {

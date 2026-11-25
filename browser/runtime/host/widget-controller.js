@@ -395,7 +395,7 @@ export const widgetState = ({ state, actions }) =>
 // `detail` is the action's own detail, under the name the verb's declaration and the
 // log give it. It stays a member of its own: its fields are the package's to name, and
 // a field beside `verb`, `says` and `attempt` could take one of their names. `attempt`
-// is the id a draft minted for the words the action sends (`sendDraft`, drafts.js), so
+// is the id a draft minted for the words the action sends (`sendDraft`, records/drafts.js), so
 // a refusal gives them back to that draft.
 //
 // The widget's reading holds the result before `dispatchEvent` returns. Leaf sets

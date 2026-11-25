@@ -196,7 +196,7 @@ export const runtime = {
   },
   /** @type {string | null} */
   sessionReference: null,
-  // Whether the server's latest answer refused this tab's key (`layer-client.js`).
+  // Whether the server's latest answer refused this tab's key (`transport/layer-client.js`).
   keyRefused: false,
   get state() {
     return part.state();
@@ -210,7 +210,7 @@ export const runtime = {
   get versions() {
     return part.versions();
   },
-  // The newest revision any tab showed the page's user (since-seen.js), or null.
+  // The newest revision any tab showed the page's user (host/since-seen.js), or null.
   get seen() {
     return part.seen();
   },

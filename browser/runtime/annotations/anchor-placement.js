@@ -21,7 +21,7 @@
    watcher holds undelivered, so a read in the task that made a change reads after it.
    What a quote's resolution reads, and how a change to each reaches settle:
    - the page's reading, its words, the edges and fences between them, the order its
-     trees are read in, and each word's block: the page's index of quotes (passages.js,
+     trees are read in, and each word's block: the page's index of quotes (readings/passages.js,
      `trackQuotes`) keeps every copy of each quote the threads name, placed or not, and
      the words a resolution read beside a copy to tell copies apart, and compares the
      reading it last read with the page's now, however many changes came between,
@@ -187,7 +187,7 @@ export function createAnchorPlacement() {
   // The version of the page's index of quotes placement last read changes up to.
   let seen = 0;
   // Which placement of the threads and the draft stands, moved as soon as one changes,
-  // which a reading of either reads (kept.js, `version`), so a reading kept from
+  // which a reading of either reads (state/kept.js, `version`), so a reading kept from
   // placement is made again once one moves. Placement settles only when asked, so the
   // version names settling as its catch-up. The version signal, which a view reading
   // placement while drawing hears as one reading `placedAt` does, moves only when those
@@ -349,9 +349,9 @@ export function createAnchorPlacement() {
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   // Bring placement to the page as it is now, the changes the watcher hasn't delivered
-  // yet included (passages.js, `catchUpWords`), placing again the threads they touched:
+  // yet included (readings/passages.js, `catchUpWords`), placing again the threads they touched:
   // those whose quote's copies, or the words beside them its resolution read, changed
-  // (passages.js, `quotesChanged`), placed or not, and those whose section's id came or
+  // (readings/passages.js, `quotesChanged`), placed or not, and those whose section's id came or
   // went, or that stand under an element whose own id changed. Each is placed again,
   // kept where it stands as it stood, or no longer placed, and the draft is resolved
   // again. Those who hear hear which threads changed: at once, where the reader is the

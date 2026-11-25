@@ -1,4 +1,4 @@
-/* The page walks' one step (`stepFrom`, current-target.js) over the page's rendered
+/* The page walks' one step (`stepFrom`, records/current-target.js) over the page's rendered
    order (`renderedOrder`, lib/shadow-tree.js): `t` and `m` step from the same place the same
    way, a place holding the user's is where they already are, and words a widget renders
    in a shadow tree keep their order among the places beside them. The threads `t` walks

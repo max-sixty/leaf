@@ -1,6 +1,6 @@
 /* How a floating box follows a change of its layout, whatever made the change, a line
  * the field gained, more room, a view opening, the box folding to its leaf: the one model
- * of motion for the floating panel (floating-panel.js, `followBox`), the margin thread
+ * of motion for the floating panel (panel/floating-panel.js, `followBox`), the margin thread
  * card (annotations/annotation-overlay/thread-preview.js) and the comment box beside a passage
  * (annotations/annotation-overlay/composing/floating-response.js), whose Send grows the card out of
  * its field (`drawnAt`). The user asked for one canonical animation, over a second
@@ -162,12 +162,12 @@ import { shifted } from "./rect.js";
 
 // The registered property (base.css) a carried part's `translate` reads while it
 // travels, which tells a reader of the motions under way that the part is moving rather
-// than being cut or faded (user-place.js, `slides`).
+// than being cut or faded (readings/user-place.js, `slides`).
 export const CARRY = "--lf-box-carry";
 
 // Whose change it is, one clock for every box, since an input anywhere is the user's:
 // their key, press or typing owns what it sets going until that rendering settles
-// (rendering.js, `afterSettling`), so changes to a box meanwhile are theirs, and what
+// (base/rendering.js, `afterSettling`), so changes to a box meanwhile are theirs, and what
 // changes it after, such as an answer arriving, is news. News landing before the
 // gesture's rendering settles, a reading back within a frame or two, is taken as
 // theirs. Typing is told apart, since the field it types in must not move under it.

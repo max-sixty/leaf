@@ -18,7 +18,7 @@
  * container captured it, which the store serves only to that release. A session's
  * containers run the deployed image from the deploy's first request on (`LeafSession`),
  * so a tab reloads onto the deployed release at its first answer after the deploy
- * (`layer-client.js`).
+ * (`transport/layer-client.js`).
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -379,7 +379,7 @@ export class LeafSession extends DurableObject<Env> {
       await this.running();
     } catch (error) {
       // One the platform couldn't place is a wait the tab sits out; one that ran and
-      // exited is a fault the tab shows (`state-feed.js`).
+      // exited is a fault the tab shows (`host/state-feed.js`).
       const status = exitCode(error) === undefined ? 503 : 500;
       return lostAttempt("start", "Failed to start container", error, status);
     }

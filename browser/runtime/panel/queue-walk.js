@@ -3,7 +3,7 @@
    with `g M`, as Threads opens with `g T` and `t` walks the threads.
 
    On Me groups its items one of three ways, which the user picks at the view's foot
-   and the browser keeps for every page (storage.js, `userChoice`): By place, under what
+   and the browser keeps for every page (state/storage.js, `userChoice`): By place, under what
    names the part of the page each stands in (records/thread/placement.js, `partOver`); By kind,
    under a word for what each is (`queueStop`); and By <agent>, under the goals of the
    agent's plan whose steps name them, those no goal names last. Until the user picks, a
@@ -33,17 +33,17 @@
    offers itself where that arrival goes anywhere (`arrivesAt`).
 
    A walk starts from the user's place, and steps off a stop only where the user is on
-   it, by the rule every walk shares (current-target.js, `walkOrigin` and `stepFrom`).
+   it, by the rule every walk shares (records/current-target.js, `walkOrigin` and `stepFrom`).
    The chrome is a binding badge, not a page position, so its controls do not become
    the walk's origin. The user is on an obligation when their current location is in
-   its place (`obligationHolding`, current-target.js) or on its On Me card
+   its place (`obligationHolding`, records/current-target.js) or on its On Me card
    (`ON_CARD`), on a thread stop when they are in its thread (`threadIn`), and on an
    action handed back when they are in its widget.
 
    With nothing waiting on the user, a press of `m` or Shift+`m` says so in the panel's
-   seat (notifications.js, `notice`), as every walk with nothing to step through does
+   seat (transport/notifications.js, `notice`), as every walk with nothing to step through does
    (dom/keyboard/AGENTS.md, "Page grammar"); the reading that empties the list says it
-   unasked (semantic-news.js). The user asked for both, taking the
+   unasked (host/semantic-news.js). The user asked for both, taking the
    words over a flash of the panel's colour for now.
 
    The walk opens what answers each item it reaches: a thread opens, and a widget's
@@ -66,8 +66,8 @@
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
-   counts from what they see of the region, the block they read there (reading-place.js,
-   `readingBlock`) or a stop in view ahead of it (current-target.js, `stepFrom`), as a
+   counts from what they see of the region, the block they read there (readings/reading-place.js,
+   `readingBlock`) or a stop in view ahead of it (records/current-target.js, `stepFrom`), as a
    place they are at without being on it, and with none in sight it counts from where
    they are. That obligation, kept by identity
    so a revision replacing its node keeps it, is the one place this walk keeps, and only
@@ -255,7 +255,7 @@ export function createQueueWalk({
   };
   // On Me's reading of the page: each item's seat, made when the item is first asked
   // about (`seats`), and the walk's stops in On Me's order and in page order (`stops`,
-  // `pageStops`). Each is kept until something it read changes (kept.js), the lists, the
+  // `pageStops`). Each is kept until something it read changes (state/kept.js), the lists, the
   // obligations and the plan the server read, the user's grouping, the page's reading
   // and the threads' placement among them, so a press of `m`, the position it announces
   // and the On Me view look items up rather than reading the page for each item
@@ -429,7 +429,7 @@ export function createQueueWalk({
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 
   // The item the user is on, if any: the thread holding them, else the question that
-  // thread asks them (`questionAsked`, current-target.js), else the innermost of the
+  // thread asks them (`questionAsked`, records/current-target.js), else the innermost of the
   // list's obligations holding their place, as `obligationHolding` reads obligations,
   // or the innermost widget an action was handed back on, in page order the last that holds
   // them. A thread drawn beside their place, such as the card a thread about an
@@ -462,7 +462,7 @@ export function createQueueWalk({
     return readQueues().on_user.find((item) => item.id === card) ?? null;
   }
 
-  // A list's obligation stops and their records, read once for each list (kept.js), so
+  // A list's obligation stops and their records, read once for each list (state/kept.js), so
   // that asking which holds a place costs the place's depth for a list the walk keeps
   // (`obligationHolding`).
   const obligationStops = keptEach((/** @type {readonly PlacedStop[]} */ list) => {
@@ -488,7 +488,7 @@ export function createQueueWalk({
 
   // The stop `dir` steps to: off the one
   // the user is on, else from their place by the page walks' rule (`stepFrom`,
-  // current-target.js). Within a region, a place outside it enters at the end the step
+  // records/current-target.js). Within a region, a place outside it enters at the end the step
   // faces. `enter` starts inside a selected tab's panel; `at` starts at a visible obligation
   // without stepping off it.
   /** @param {readonly PlacedStop[]} list @param {Step} dir @param {Element | null} region @param {Origin} origin */

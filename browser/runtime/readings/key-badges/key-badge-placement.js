@@ -13,7 +13,7 @@
    until the press ends, so a chip chosen afresh on each pass would cross its control
    and back with every press. Rejected: reading the control's box without its
    transforms, which a table translated into place or a deck's scaled slide needs
-   (css-anchors.js, `anchorBox`), and which would still flip on any other pixel's
+   (dom/css-anchors.js, `anchorBox`), and which would still flip on any other pixel's
    change, such as a reflow.
 
    One pass constructs this reading once and asks it for every member, so the clips over
@@ -29,13 +29,13 @@
    promise the user the same thing by "visible". `clearPart` answers for a box with no
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible:
-   it reads what the user sees of it as every reading of what is seen does (geometry.js,
+   it reads what the user sees of it as every reading of what is seen does (dom/geometry.js,
    `inFront`, the rule `seenRect` cuts with), so a search match in the band an open panel
    view covers is out of sight there, its part beside the view included. Where a chip may
    stand is a different question, answered by the boxes it keeps clear of whole
    (`reserve`, `paint`): a chip can move somewhere legible, so it keeps off every pixel of
    the chrome, the side of a view included, but for the surface holding its control,
-   whose own controls' chips stand on it (geometry.js, `coverBoxes`). */
+   whose own controls' chips stand on it (dom/geometry.js, `coverBoxes`). */
 import { elementFromPointAcross } from "../passages.js";
 import { PRESSES } from "../../dom/control-selectors.js";
 import {

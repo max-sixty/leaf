@@ -170,7 +170,7 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         left_by = page.locator(".lf-fp-head .lf-fp-on-page")
         left_by.click()
         # A press lands on the card's thread, its reply holding no words
-        # (floating-panel.js, `movedPart`).
+        # (panel/floating-panel.js, `movedPart`).
         destination = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         )
@@ -192,7 +192,7 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
     ).to_be_hidden()
     # Forward to a card's reply box returns to the thread's passage instead, with the
     # panel's view still open: a reply's editing continuity carries it across a
-    # revision (version.js), and a return carries no reply.
+    # revision (features/version.js), and a return carries no reply.
     if left != "Show on page":
         page.go_forward()
         expect(destination).to_be_focused()

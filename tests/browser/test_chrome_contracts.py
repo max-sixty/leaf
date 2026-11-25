@@ -139,7 +139,7 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
     """The thread and its reply row paint no ground of their own as focus enters and
     leaves the thread, so the card's opaque face shows behind them: no band above the
     field, no focus tint, and nothing over the field's ring while the card's surface
-    draws it (box-motion.js).
+    draws it (dom/box-motion.js).
     """
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
@@ -190,7 +190,7 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
 
     def resting_box():
         # Layout already has its final width while Send still rides the box's
-        # growth (box-motion.js). Compare their geometry only once it rests.
+        # growth (dom/box-motion.js). Compare their geometry only once it rests.
         rendered(page)
         wait_for_probe(page, "restingIn", ".lf-fab-bar")
         return field.bounding_box()
@@ -233,7 +233,7 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
         return max(counts)
 
     # The control: a custom property changing on the root restyles every element
-    # (root-state.js).
+    # (state/root-state.js).
     whole = restyled(
         lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
     )
@@ -255,7 +255,7 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
     """Opening search runs the target picker's arm writer (aim.js, `armChanged`),
     which hides the Design legend's tags while the picker stands. It wrote that as a
     custom property on the root, so the first open, which wrote its first value,
-    restyled every element (root-state.js): 6 to 11 s in Firefox on a page of thirty
+    restyled every element (state/root-state.js): 6 to 11 s in Firefox on a page of thirty
     4 MB text documents, where a second open took 80 to 120 ms. Counted in the
     browser's own restyled elements, against a restyle of the whole page."""
     paragraphs = "".join(
@@ -284,7 +284,7 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
 
 
 def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
-    """`g H` hides the annotation layer (annotation-layer.js). A custom property it set on
+    """`g H` hides the annotation layer (annotations/annotation-layer.js). A custom property it set on
     `html` to hide the margin's change bars was inherited by every element and restyled
     the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
     and 65 ms in Chromium. This counts, in the browser's own restyled elements, what

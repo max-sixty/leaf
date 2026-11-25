@@ -7,7 +7,7 @@
  * commits it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
  * Only a route the user's gesture began on the entry being left adds an entry: a
- * followed link, a walk's step, a list's row, Undo's trip (anchor-travel.js,
+ * followed link, a walk's step, a list's row, Undo's trip (features/anchor-travel.js,
  * `prepareNavigationStep`). A return, an arrival, a revision or news never adds one,
  * nor does a view opened, put away or handed to another reader where the user stands,
  * which renames the entry at most (thread views, thread/address.js): each opens its
@@ -25,7 +25,7 @@
  * the user was on it is the entry's record (`readRecord`), which history keeps in the
  * entry's own state, the Navigation API's, which outlives a reload of the document.
  *
- * The record holds the page, by what stood on screen (reading-place.js,
+ * The record holds the page, by what stood on screen (readings/reading-place.js,
  * `capturePlace`); the reply or summary at the top of the open thread's view and how far
  * into it (thread/reply-landing.js, `readingIn`), since the view a return opens is a
  * new drawing of the thread; focus, where it is in a draft's own box, as a new
@@ -39,7 +39,7 @@
  * the open view names that view's thread as `null`. Until the reader a thread opens in
  * is the tab's setting, it also holds which reader the open view was, which the URL's
  * claim passes on. Where what focus was on is gone, the user comes back to the reading
- * place beside the page's landmark (focus.js, `landAtReading`); a draft's box opens
+ * place beside the page's landmark (dom/focus.js, `landAtReading`); a draft's box opens
  * again by its owner's Resume writing route, its words coming from the drafts store,
  * which history never copies.
  *
@@ -64,7 +64,7 @@
  * named content a revision had moved.
  *
  * A revision's reload is a reload, so it returns to this record too; its handoff
- * (version.js) adds only what history never puts back: each reading region's place,
+ * (features/version.js) adds only what history never puts back: each reading region's place,
  * the values typed, the words being written with their native editing session, the
  * comparison and the pointer. Both hold where the user was writing, and the handoff's
  * is the newer, since words typed through the reload move its caret (bootstrap.js,
@@ -72,7 +72,7 @@
  * its caret where the control has one; the record's return leaves focus there and
  * returns only the selection (`returnTo`). A draft's box stays the record's: its return
  * reopens the box and puts the user in it, and the handoff's restore, which runs after,
- * moves the caret to where the handoff has it (version.js, `restoreEditingContinuity`).
+ * moves the caret to where the handoff has it (features/version.js, `restoreEditingContinuity`).
  * The two aren't one rule because that restore declines once another tab has rewritten
  * the draft, while the record's return, which doesn't check the draft, still puts the
  * user in the box, with the caret where the record had it. The record's thread opens where the user stands, moving
@@ -119,7 +119,7 @@
  * Where the entry's fragment names a place in another of the page's views, such as a
  * root tab set's, that view is revealed first (`mountHistory`'s `view`, views.js), and
  * the entry's record then returns the user to where they were in it. Travel takes the
- * traversal after that (`mountHistory`'s `returnToFragment`, anchor-travel.js)
+ * traversal after that (`mountHistory`'s `returnToFragment`, features/anchor-travel.js)
  * where the entry's fragment still names a place the page doesn't show, such as a
  * widget's key whose part the widget no longer draws inside the view just
  * opened: the record was read over a page that has changed, so travel reveals
@@ -355,10 +355,10 @@ const unnamed = (part, open) =>
     : part;
 
 // The page's selection: the passage a comment on its words would quote, or on its
-// block's words for a caret or a run of spaces (anchor-resolution.js, `anchorForRange`),
+// block's words for a caret or a run of spaces (readings/anchor-resolution.js, `anchorForRange`),
 // found again by its words in whatever revision draws them; and each of its ends, anchor
 // end first, as how far it stands from that passage's start in the reading of the page
-// that holds it (passages.js, `spanIn`, `pointAt`). The quote alone can't hold the ends:
+// that holds it (readings/passages.js, `spanIn`, `pointAt`). The quote alone can't hold the ends:
 // it trims the spaces at its edges and holds no caret, so a caret before a space came
 // back after it. Words selected in Leaf's own interface are no passage of the page.
 /** @returns {EntryRecord["selection"]} */
@@ -386,7 +386,7 @@ function readSelection() {
 }
 // A selection inside one message of a thread, which the page's reading doesn't hold:
 // the message, by its thread and its id, and the passage the selection is, in the
-// reading of the message's body (passages.js, `messageReading`, `passageIn`), with each
+// reading of the message's body (readings/passages.js, `messageReading`, `passageIn`), with each
 // end as how far it stands from that passage's start, as a page selection keeps its
 // ends. The message's head, whose age changes as time passes, is no part of that
 // reading, and a rewrite of the message finds the words again by the quote rules,
@@ -455,7 +455,7 @@ function readingIndex(reading, node, offset) {
 // handoff puts focus back on a control of the page's own itself (`returnsFocus`
 // false), focus and its caret are the handoff's, so the return leaves focus where the
 // handoff put it and returns the selection only where no caret is the selection
-// (version.js, `installArrival`).
+// (features/version.js, `installArrival`).
 /** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
 async function returnTo(record, intent, returnsFocus = true) {
   const open = threadParts?.open() ?? null;
@@ -534,7 +534,7 @@ function endsFrom(reading, segments, ends) {
 
 // The ends a message selection names in the drawing of its thread: from the start of
 // its passage, found in the message's body by the quote rules a comment is found by, a
-// unique match in its context or its sole copy (passages.js, `findQuote`); none where
+// unique match in its context or its sole copy (readings/passages.js, `findQuote`); none where
 // the message is gone or shut, or a rewrite took the words out or leaves no one copy.
 /** @param {Extract<RecordSelection, {message: string}>} selection @param {string | null} thread
  * @returns {[import("../dom/native-selection.js").SelectionEnd, import("../dom/native-selection.js").SelectionEnd] | null} */
@@ -550,7 +550,7 @@ function messageEnds({ message, quote, ends, ...context }, thread) {
 
 // The reading a passage of the page is read in, the one its anchor is captured and
 // found again in: its part's, or the run of words from the datum it starts in to the one
-// it ends in, for a passage across data (passages.js, `runReading`).
+// it ends in, for a passage across data (readings/passages.js, `runReading`).
 /** @param {readonly import("../readings/passages.js").Segment[]} segments */
 function passageReading([head, ...rest]) {
   const first = head && closestAcross(head.node, DATUM);
@@ -561,7 +561,7 @@ function passageReading([head, ...rest]) {
 }
 
 // Whether a record can place the page itself: a landmark it can find again, its start,
-// or a raw offset read in this scroller at this width and revision (reading-place.js).
+// or a raw offset read in this scroller at this width and revision (readings/reading-place.js).
 /** @param {import("../readings/reading-place.js").ReadingPlace} page */
 const placesPage = (page) =>
   Boolean(page.start) || hasLandmark(page) || rawOffsetFits(page, pageScroller);
@@ -627,7 +627,7 @@ export function replaceEntry(url, state) {
 }
 
 /** Rename the entry the user is on to `url` and reload it as Leaf's own reload
- * (layer-client.js, `reloadDocument`), without waiting for a navigation under way.
+ * (transport/layer-client.js, `reloadDocument`), without waiting for a navigation under way.
  * @param {URL} url */
 export function reloadAt(url) {
   write("replaceState", history.state, named(url));
@@ -690,7 +690,7 @@ let draftReturn = null;
 // starts runs under: a newer restoration, or any navigation but this document's own
 // rename, aborts it, as the platform aborts a traversal's own (`NavigateEvent.signal`),
 // and the user's own input within the entry ends it, for a route that moves no focus
-// as for one that does (`stands`; focus.js, `entryInputCount`), and the intent it runs
+// as for one that does (`stands`; dom/focus.js, `entryInputCount`), and the intent it runs
 // under counts that input alone. A step Back or Forward is no such input: every
 // restoration begins once the document handles its traversals (`mountHistory`), so a
 // later step is a navigation, which aborts it, and an earlier one brought the user to
@@ -699,10 +699,10 @@ let draftReturn = null;
 // handoff of a reload Leaf asked for writes the record it owes, rather than a reading
 // of the page it is still putting back (`owes`, `readRecord`), the step that leaves the
 // entry among them, and the document hands on the handoff such a reload brought as it
-// came (version.js, `installArrival`). It settles once every piece of work it runs has
+// came (features/version.js, `installArrival`). It settles once every piece of work it runs has
 // (`run`), its fresh thread arrival and last fragment landing among them (leaf.js), so
 // a navigation finds it to abort until the last has run, and keys held for it wait
-// until then (`settled`, version.js `installArrival`).
+// until then (`settled`, features/version.js `installArrival`).
 /** @typedef {{record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>,
  * abort: () => void, run: (work: () => PromiseLike<unknown>) => Promise<void>,
  * owes: () => boolean, settled: Promise<void>}} Restoration */
@@ -755,7 +755,7 @@ function beginRestoration(record, intent, ended = null, since = entryInputCount(
 // none for a fresh visit, whose address alone says where to go, under the arrival's
 // intent still. Its intent counts the user's inputs within that entry from the latest
 // step to it, or from the document's start, as a document arrival's does
-// (user-intent.js; focus.js, `enteredInputCount`).
+// (dom/user-intent.js; dom/focus.js, `enteredInputCount`).
 export function beginArrival() {
   const entry = window.navigation.currentEntry;
   const type = window.navigation.activation?.navigationType;
@@ -771,7 +771,7 @@ export function beginArrival() {
 export const pendingRestoration = () => restoring;
 
 // The document's arrival run as one operation: `land`, the handoff's own landing
-// (version.js, `installArrival`), returning to the record where it calls for it
+// (features/version.js, `installArrival`), returning to the record where it calls for it
 // (`returnToRecord`), then settled.
 /** @param {Restoration} restoration
  * @param {(returnToRecord: (returnsFocus?: boolean) => Promise<void>) => Promise<void>} land */

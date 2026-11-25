@@ -39,7 +39,7 @@ import { counted, quotedWords } from "../lib/words.js";
 /** One of the user's messages a version was saved after, as the server names it.
  * @typedef {NonNullable<import("../../types/contract.js").ServedViewAnswer["saved_after"]>[number]} WaitedMessage */
 /** What a version was saved after: its name and `lines`, what it says, each line a run
- * of words in their speakers' faces (voice.js).
+ * of words in their speakers' faces (base/voice.js).
  * @typedef {Readonly<{version: string, lines: readonly (readonly (string | import("../base/voice.js").Said)[])[]}>} VersionProvenance */
 
 // The quoted lines a version's provenance shows at most before saying how many more.

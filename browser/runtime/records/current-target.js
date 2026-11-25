@@ -27,7 +27,7 @@
    excludes those presentations. Chrome is appended after the page, so measuring its
    DOM position would incorrectly place the user after every obligation and thread.
 
-   `currentLocationOrigin` reads focus, then the caret (native-selection.js,
+   `currentLocationOrigin` reads focus, then the caret (dom/native-selection.js,
    `userCaret`), then the page place the floating panel holds while the user stands in it
    (`holdPagePlace`), returning null when none identifies a page location. A selected
    tab starts a walk inside its controlled panel without changing comment targets.
@@ -41,10 +41,10 @@
    and the press arrives at the stop at their place (`stepFrom`), else at the nearest
    one in the press's direction. A thread's target, with the thread's card open beside
    it, is at the thread and not on it. With no current location, a walk starts at what
-   the user let go of (focus.js, `onLetGo`) while they still see it, since letting go
+   the user let go of (dom/focus.js, `onLetGo`) while they still see it, since letting go
    leaves them beside it rather than anywhere else, until they go on from there by
    standing on another page place or by pressing, wheeling or touching the page; failing
-   that, at what they see, from the block they read (reading-place.js,
+   that, at what they see, from the block they read (readings/reading-place.js,
    `pageReadingBlock`), or a stop on screen ahead of it (`stepFrom`). Only what they saw as
    they let go leaves them beside it: a key pressed after scrolling away lets go of focus
    they no longer see (panel/page-keys/controller.js), and scrolling back to it doesn't put
@@ -135,7 +135,7 @@ export function obligationHolding(items, node, inventory = items) {
 
 // The obligations of a list that could stand at an element, by the ids that name their
 // places (`obligationPlace`): the id of a widget's source and of its context. Each id
-// keeps the list's order. Read from the records alone, once per list (kept.js), so it
+// keeps the list's order. Read from the records alone, once per list (state/kept.js), so it
 // holds however the document changes; an id finds candidates, and placing each says
 // whether it stands there.
 const placeNames = keptEach(
@@ -311,7 +311,7 @@ onUserInput((event) => {
 
 // Where a walk starts: the user's current location, else what they let go of while
 // they still see it, else what the viewport shows, each read where the glides under way
-// leave it (scroll-containers.js, `seenAhead`; reading-place.js, `readingBlock`). Only a
+// leave it (readings/scroll-containers.js, `seenAhead`; readings/reading-place.js, `readingBlock`). Only a
 // current location can be on a stop; the others are `at` one, and the viewport's is a
 // `view`.
 /** @returns {WalkOrigin} */
@@ -342,7 +342,7 @@ export function walkOrigin() {
 // A `view` origin is the block the user reads, the first of the window's words in their
 // column, but a stop is something the user sees whatever its words: a question of
 // options alone, a figure, a widget drawing its own. So the first stop ahead of that
-// block that they see where they read it (reading-place.js, `seenWhereRead`) is where they
+// block that they see where they read it (readings/reading-place.js, `seenWhereRead`) is where they
 // are, and either press arrives there rather than passing a question in view for the
 // paragraph below it. Only the stops ahead of the block are measured.
 /** @template T @param {readonly T[]} list @param {WalkOrigin} origin

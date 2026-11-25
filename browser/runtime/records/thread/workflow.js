@@ -15,8 +15,8 @@
    order. A workflow's word is `workflowWord`, its last step's line `workflowStep`, and
    its face on a control `progressFace`, on every surface; a thread's word is
    `threadAttention`'s, which Threads states as its status and the margin and Page Map
-   as its line (`margin-model.js`, `threadMarks`). Each word is said by the agent or by
-   Leaf (voice.js), and each word function takes `agent`, what the page calls its agent
+   as its line (`features/margin-model.js`, `threadMarks`). Each word is said by the agent or by
+   Leaf (base/voice.js), and each word function takes `agent`, what the page calls its agent
    (`semantic-state.agentName`), from its application-facing caller, so this model
    stays free of application state. */
 import { agentSays, leafSays } from "../../base/voice.js";
@@ -34,7 +34,7 @@ const widgetWorkflow = (workflow) => workflow.subject.kind === "widget";
 export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 
 // Each standing's word, said by whoever says it (glossary.md, "Reader-facing words";
-// voice.js). Leaf speaks in the agent's voice where what the agent would say is
+// base/voice.js). Leaf speaks in the agent's voice where what the agent would say is
 // reliable: it started the update, or a progress message of its own stands after it,
 // such as a line fork's working line (On it), its reply is streaming in (Replying), or
 // it answered. Everything else is

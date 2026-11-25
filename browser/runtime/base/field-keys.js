@@ -1,6 +1,6 @@
 /* Keys typed into a field Leaf builds stay with Leaf: the comment box and every other
  * `leaf-text` (annotations/composing/text-field.js), and the search boxes, `searchField`'s and the
- * panel's own (control-labels.js, floating-panel.js).
+ * panel's own (dom/control-labels.js, panel/floating-panel.js).
  *
  * Page shortcut code skips a key typed into a text field by asking whether the focused
  * element, or the event's target, is an input, a textarea or editable. A `leaf-text`

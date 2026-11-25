@@ -6,7 +6,7 @@
  *
  * `pageScrolled` runs on every scroll event, so each capability it calls writes only
  * what changed (lib/keeps.js). Target paint and the design legend stand in the planes of
- * what carries their targets (target-paint-geometry.js, `paintStand`), where the browser
+ * what carries their targets (readings/target-paint-geometry.js, `paintStand`), where the browser
  * moves them with every scroll, so a scroll finds nothing to write unless it changed
  * what the paint stands over. `pageShifted` answers layout, which moves the legend's
  * targets too.
@@ -64,7 +64,7 @@ export function createPageGeometry({
   // Aim paint is synchronous: the keydown that arms the page and the press that follows
   // may be one gesture, so a scheduled frame could leave the visible promise behind it.
   // The hand where an armed press takes an item stands on the element under the pointer
-  // (chrome.css), as a mark's does (anchor-paint.js), so a crossing restyles what that
+  // (chrome.css), as a mark's does (annotations/anchor-paint.js), so a crossing restyles what that
   // element holds rather than all `body` does; a control keeps its own cursor.
   const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
   // The crosshair of a mode that takes presses on the whole plane, Draw mode or Capture
@@ -95,7 +95,7 @@ export function createPageGeometry({
     paintInspect(designMode.active() ? target : null);
   }
 
-  // The design name stands at the aim box's corner, in its planes (target-paint.js,
+  // The design name stands at the aim box's corner, in its planes (readings/target-paint.js,
   // `labelAim`).
   /** @param {ReturnType<typeof aimTarget>} target */
   function paintInspect(target) {

@@ -15,7 +15,7 @@
    shape, nor the target's first line, where the target's own margin row already stands,
    nor a press on the target's own box or a gesture with no pointer (`c`): those stand
    at the target's top. A selection points at the words it quotes, which stand a row of
-   their own (annotation-inventory.js, `groupFor`). Which line a point is comes from the document, and
+   their own (features/annotation-inventory.js, `groupFor`). Which line a point is comes from the document, and
    only its box is read afresh at every placement, so a reflow carries the place with the
    row and never moves a comment from one margin row to another.
 
@@ -25,7 +25,7 @@
    (`anchorForRange`), the identity the page already resolves quotes by. Comments pointed at
    one row share that row's key, the first one's, so they stand as one margin row.
 
-   Anchor placement's read is the one writer of the points (anchor-placement.js,
+   Anchor placement's read is the one writer of the points (annotations/anchor-placement.js,
    `placePoints`, beside its resolution of every thread's anchor): it takes in what sends handed over, keeps a row
    still present, finds one a re-render or a revision replaced again by its words, once
    per page reading, and forgets the points of threads the log does not hold. A settled

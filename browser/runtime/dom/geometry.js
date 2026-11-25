@@ -727,7 +727,7 @@ export const landingBand = (scroller, across = null) => {
 //
 // The first stop is what a move needs: scrolling a region further than it carries the
 // destination scrolls the text beside it and leaves the destination where it was
-// (landing-scroll.js, `readingBandMoves`), and a stop is read exactly from where the
+// (readings/landing-scroll.js, `readingBandMoves`), and a stop is read exactly from where the
 // box is drawn, in Chromium and Firefox alike. Where a scroll goes on past it, a box's
 // own place coming back to its line or its holder's end reaching it carries the box on,
 // which only a view timeline would let a reading compute (`stuckShift`) and Firefox
@@ -780,7 +780,7 @@ function insetBand(scroller, inset) {
   };
 }
 // The root's band at the window's foot, in pixels, which the floating panel states as
-// its box changes height (floating-panel.js, `followBox`), or null where no panel
+// its box changes height (panel/floating-panel.js, `followBox`), or null where no panel
 // stands, as on an export. Returns whether the band changed.
 /** @type {number | null} */
 let footBand = null;
@@ -1127,7 +1127,7 @@ function uncovered({ left, top, right, bottom }, item, rest = false) {
 }
 // Whether the boxes the chrome covers will stand over any of `box` for `item`, by the
 // rule `seenRect` cuts with, read where each comes to rest: a surface asks it before
-// giving way to a place a landing is about to show (floating-panel.js, `clearFor`), and
+// giving way to a place a landing is about to show (panel/floating-panel.js, `clearFor`), and
 // a view still opening will cover what its drawn box doesn't reach yet. A cover's cut
 // answers, not whether anything is left, so an empty box, such as a seat with nothing
 // in it yet, is covered only where a cover stands over it.
@@ -1423,9 +1423,9 @@ const pagePlaneRect = (box, item, clips) => clipped(box, item, clips, false, fal
 // it, so ordinary scrolling brings the box into layout before it carries the target on
 // screen. A box out of layout costs no layout pass, where boxes hidden beside the shown
 // ones made every pass revisit them all. `nearObserver` maintains the reading for the
-// anchored controls (css-anchors.js, `anchorView`) and paint sets (target-paint-geometry.js,
+// anchored controls (css-anchors.js, `anchorView`) and paint sets (readings/target-paint-geometry.js,
 // `paintSet`), and starts work a widget holds until the reader nears it
-// (presentation.js, `whenNear`); `nearWindow` reads it at once for a first
+// (readings/presentation.js, `whenNear`); `nearWindow` reads it at once for a first
 // presentation, which cannot wait for the observer's first task. It clips at each
 // scroller exactly, so it calls near only what the observer will, and the observer's
 // first record adds the rest. A percentage scroll margin misreads in Chromium

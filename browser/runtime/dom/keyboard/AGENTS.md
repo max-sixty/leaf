@@ -4,8 +4,8 @@ The keyboard's modules are in three directories of the runtime. Each directory i
 only the ones listed before it:
 
 - `dom/keyboard/`, this one: the register, its dispatch, the layer stack and the keys a
-  control names. DOM, geometry and notice owners read it, such as `geometry.js`,
-  `widget-elements.js` and `notifications.js`, so it imports none of them and nothing
+  control names. DOM, geometry and notice owners read it, such as `dom/geometry.js`,
+  `dom/widget-elements.js` and `transport/notifications.js`, so it imports none of them and nothing
   that imports them.
 - `readings/key-badges/`: the hint codes and binding badges painted on the page, and where they
   stand. The composer's target picker reads them, so they import nothing of the
@@ -61,7 +61,7 @@ of sight, lets go of it first, without closing what stands beside it, and then a
 what they see, so no Leaf command, listener on the control or browser default acts on
 what they can't see (`panel/page-keys/controller.js`). A key typed into one of Leaf's fields, a
 `leaf-text` or a search box, stops at the field once the field and the dispatcher have
-read it there (`field-keys.js`), so the page never hears it bubble, and any other Leaf
+read it there (`base/field-keys.js`), so the page never hears it bubble, and any other Leaf
 listener that needs keys typed into a field listens in capture. While Go-to or reactions
 are armed, Leaf reads every key they answer in capture, before the page's listeners. It
 also reads in capture a key aimed at `body` itself, with nothing focused: no element of
@@ -95,7 +95,7 @@ same step, through its row's `keep` where `run` would throw away unsent words
   containing page.
 - A preview standing over the page is the first step, by pointer or by focus: Escape
   puts it away and does nothing else, and the next Escape takes the step it stood in
-  front of (`preview.js`). Any other key puts a pointer's preview away and does its own
+  front of (`annotations/preview.js`). Any other key puts a pointer's preview away and does its own
   work. A focus preview stands only where focus was moved by Tab or a placement
   standing in for one (`step`), the cause its mover gives `focusDestination`, so a
   command's landing, as a walk's (`move`), focus a surface places as it opens, and
@@ -116,11 +116,11 @@ same step, through its row's `keep` where `run` would throw away unsent words
   the box and never the page (`records/thread/landing.js`, `landSent`). `c` or Enter on the
   thread opens the box again.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
-  through `letGo` (`focus.js`), landing beside it while it is in view, else on the
+  through `letGo` (`dom/focus.js`), landing beside it while it is in view, else on the
   visible block, rather than on the control that opened it, so Tab carries on from it.
   Page Map returns focus to whatever opened it. Leaving a walk's stop leaves the user
   at it rather than on it, so the walk's next press returns there
-  (`current-target.js`).
+  (`records/current-target.js`).
 
 Go-to, target hints, page search, reactions and the command reference own the keyboard
 while active and handle their own exit. Escape closes a surface even if it was open
@@ -144,12 +144,12 @@ may reuse a page key for the same intent with a nearer destination. While the us
 on an obligation, or its margin or thread representative, core forwards only the
 widget's declared `contextKeys`, and widgets assign their own `1`–`9`. A thread's
 view represents the question still open that the agent's latest message in it asks,
-before the one the thread is about (`current-target.js`, `questionAsked`).
+before the one the thread is about (`records/current-target.js`, `questionAsked`).
 
 ## Touch routes
 
 Every page capability available through a key but not a direct gesture has a row among
-the page's controls (`page-controls.js`). It supports both touch and mouse input and
+the page's controls (`base/page-controls.js`). It supports both touch and mouse input and
 comes from the same command row as the key (`panel/page-keys/touch-controls.js`). Actions within a
 scope have controls beside the content they act on: a search box has arrows to move
 between matches, a drawing's composer can undo a stroke, and the page's field can
@@ -172,7 +172,7 @@ row's cut words stand whole where no pointer can hover (`floating-panel.css`), a
 whatever previews, a control's word and keys among it, shows its preview to a finger
 holding it. The hold reads and its release presses nothing, while a tap still presses,
 so a finger reads without acting and without sliding off, which on touch often scrolls
-instead (`preview.js`).
+instead (`annotations/preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

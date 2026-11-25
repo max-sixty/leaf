@@ -6,12 +6,12 @@
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
-   - Every message and step's face says when it was said (presence.js, `saidAt`),
+   - Every message and step's face says when it was said (state/presence.js, `saidAt`),
      since each reply says what was true when it was sent ("I'm building it now"):
      how long ago within the hour ("just now", "12m ago") and its time of day after
      that, as the user asked. Rejected: a time of day from the first minute, which
      makes a reply seconds old read like any other ("15:24"); a fixed 24-hour clock,
-     which a reader whose own clock reads "3:24 PM" doesn't use (presence.js,
+     which a reader whose own clock reads "3:24 PM" doesn't use (state/presence.js,
      `timeOfDay`); an age said only where it changes from the message above, which
      rounds replies hours apart into one "1d ago" a day later and leaves the replies
      under it bare; and an age after every author name, which repeats one age down a
@@ -46,7 +46,7 @@
      place while the fold is closed. They are hidden until found, so the browser's
      find-in-page reaches their words and opens the fold, as Leaf's travel does; a
      folded message keeps an empty box, so a reader asking whether a message shows asks
-     `showsContents` (geometry.js) rather than `checkVisibility`. Rejected: plain
+     `showsContents` (dom/geometry.js) rather than `checkVisibility`. Rejected: plain
      `hidden`, which find-in-page skips. A summary arriving, opening, closing or being
      retracted moves no message, so a frame in one keeps its document and a selection
      in one stays. The checkpoint groups its messages for assistive technology by
@@ -60,7 +60,7 @@
    - An explicit summary that arrives over a message the user is on or reads stays
      open.
    - A message that leaves the thread while drawn, as a reply the log refuses does,
-     folds away where it stood (motion.js, `foldBlock`). It leaves the transcript's
+     folds away where it stood (dom/motion.js, `foldBlock`). It leaves the transcript's
      messages at once: the fold keeps only its pixels, inert and without the names a
      reader finds a message by, until they have collapsed. Where no fold plays, under
      reduced motion, before presentation or in an engine without intrinsic-size
@@ -207,7 +207,7 @@ export class Transcript {
   }
 
   // Whatever reveals a message a closed fold holds, the browser's find-in-page or
-  // Leaf's travel (widget-elements.js, `reveal`), opens the fold: each fires
+  // Leaf's travel (dom/widget-elements.js, `reveal`), opens the fold: each fires
   // `beforematch` at the message before showing it.
   /** @param {HTMLElement} node */
   #unfold(node) {

@@ -132,7 +132,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
             "node => node.getBoundingClientRect().height + 0.5 >= node.naturalBlockSize"
         )
 
-    # A margin card follows the send with its own motion (box-motion.js), which ends
+    # A margin card follows the send with its own motion (dom/box-motion.js), which ends
     # before the card is read where it stands.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
     route = held.pop()

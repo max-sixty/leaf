@@ -52,7 +52,7 @@
    It is read, so assistive technology reaches it as the entry's disclosure, where the
    bars and the outline are empty boxes it passes over.
 
-   A change with blocks puts the keys on its first block (change-walk.js), but a gap
+   A change with blocks puts the keys on its first block (panel/change-walk.js), but a gap
    holds no element to stand on, and the block beside it is unchanged, so each gap has a
    stand-in (control-faces.js, `proxy`) on the details shelf, named by what the change
    did, whose press opens the change's card as its entry's does. The walk lands on it
@@ -61,7 +61,7 @@
    and rings it, as a block's focus rings the block, rather than that element, which
    didn't change and may be a `details` the gap stands outside.
 
-   Each box is paint over the page (target-paint-geometry.js, `paintSet`), standing in
+   Each box is paint over the page (readings/target-paint-geometry.js, `paintSet`), standing in
    the planes that carry its target, so a scroll moves it without a write and the
    target's own borders, shadows and display are left as authored. A widget drawn
    through `display: contents` stands where its parts do, a list item's paint stands
@@ -133,13 +133,13 @@ export function outlineChange(change) {
   outlined.value = change;
 }
 
-// What a block draws (geometry.js, `inkedBox`), reaching over a list marker beside it,
+// What a block draws (dom/geometry.js, `inkedBox`), reaching over a list marker beside it,
 // as the marks it draws round itself do, so the paint beside an item stands clear of
 // its marker; or `rect`, its placement's reading, where no part of it shows.
 /** @param {Element} target @param {Box} rect @returns {Box} */
 const inked = (target, rect) => inkedBox(target) ?? rect;
 // Where a bar stands: `CLEAR` outside the marks round what the target draws and round
-// each box about it whose marks reach the lane (mark-room.js, `markRoom`), on its start
+// each box about it whose marks reach the lane (readings/mark-room.js, `markRoom`), on its start
 // edge, which is its right in right-to-left text, and outside its table's marks for a
 // cell, so the bar stands in the margin rather than in the cell before it. A target
 // with no room before it, such as a site header standing at the window's edge beside
@@ -236,7 +236,7 @@ function extentOf(change, rect) {
 }
 
 // Where a change's trace stands: on the marks its blocks draw round themselves
-// (geometry.js, `markedBox`), as each block's own trace would, or round its gap.
+// (dom/geometry.js, `markedBox`), as each block's own trace would, or round its gap.
 /** @param {Change} change @param {Box} rect @returns {Box} */
 const tracedExtent = (change, rect) =>
   (change.blocks.length && union(change.blocks.flatMap((b) => markedBox(b) ?? []))) ||

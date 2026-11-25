@@ -677,7 +677,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A message whose reply failed is the user's to send again, an obligation of its
     own on On Me. A question the agent then leaves in its thread is a second
     obligation there, listed ahead of it, and the thread reads as that question: `m`
-    stops at a thread once (queue-walk.js)."""
+    stops at a thread once (panel/queue-walk.js)."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,

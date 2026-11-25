@@ -3,7 +3,7 @@
 
    A comment box floating over the page, a thread card's reply or the anchored comment
    box, rides away with what it is about when the page scrolls, and keeps the caret: a
-   letter typed there types into the box and brings it back (off-flow.js), where on the
+   letter typed there types into the box and brings it back (readings/off-flow.js), where on the
    page a letter is a command. Focus on any other control the user has scrolled away
    from lets go at the next key (panel/page-keys/controller.js), so a box holding the caret is
    the one place out of sight that a key acts on. The user asked for a mark there, so
@@ -16,22 +16,22 @@
    thread and `r` resolving it.
    The floating panel's comment field never leaves the window and needs none.
 
-   The beacon stands while the user sees none of the box (geometry.js, `seenRect`), as
-   the surface holding it draws it (off-flow.js, `floatingBox`), at the edge toward it,
+   The beacon stands while the user sees none of the box (dom/geometry.js, `seenRect`), as
+   the surface holding it draws it (readings/off-flow.js, `floatingBox`), at the edge toward it,
    in the box's column, inside what the page shows of the window
    there: below a sticky strip at the head, and above the panel where it covers the
    column at the foot. It wears a thread entry's face at the aim floor, with an
    arrowhead toward the box, and previews its word. A press stands for a press in the
-   box (focus.js, `standsFor`), so it puts nothing away and leaves the caret where it
+   box (dom/focus.js, `standsFor`), so it puts nothing away and leaves the caret where it
    was, and brings the box back as typing would, so the user goes on typing there. It
    holds no keyboard stop, since typing is the keyboard's route to the box and Escape
    leaves it, and the accessibility tree leaves it out, since what it says is where the
    box stands on screen.
 
    It is fixed at the window's edge rather than following content, so a script stands
-   it: each rendering pass that a change in what the window shows (geometry.js,
+   it: each rendering pass that a change in what the window shows (dom/geometry.js,
    `watchRoom`, a scroll included) or the box crossing the window asks for reads where
-   the box stands and then writes the beacon, as `whenNone` (geometry.js) reads its
+   the box stands and then writes the beacon, as `whenNone` (dom/geometry.js) reads its
    watches. Rejected: a sticky
    box, which the browser stands with no script but which needs the box's place in the
    document, which a card's news and the reply's own lines move; and a box anchored to

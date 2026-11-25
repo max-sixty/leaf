@@ -1,5 +1,5 @@
 /* The page's controls as the lines of a menu, which the floating panel's menu draws
- * (floating-panel.js) without naming any of them.
+ * (panel/floating-panel.js) without naming any of them.
  *
  * A module registers each control it offers once, as one row: its `label` (for a row
  * that copies, the text it copies named as it reads mid-sentence, such as "link", which a
@@ -11,7 +11,7 @@
  * it copies where it copies one (`copies`), whether
  * it is `offered` now, whether its news is `urgent` (the words that say so, or null),
  * whether it is `disabled`, and the `press` that runs it, given the place the
- * presentation held when the user opened it (history.js, `readPlace`). A row that is a
+ * presentation held when the user opened it (records/history.js, `readPlace`). A row that is a
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * An `exit` row is the way out of the stance the user is in, such as page search or
@@ -56,7 +56,7 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // Navigate only where no keyboard is there to reach it, so the menu a keyboard user
 // reads stays short and a finger keeps a way to each. A row that says which session,
 // preview or Leaf the page runs (`about`) stands in About this page alone, which lists
-// every row that copies (page-inspection.js); the user chose that over
+// every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
 /** @typedef {"page" | "navigate" | "annotate" | "keys" | "about"} PageControlGroup */
 

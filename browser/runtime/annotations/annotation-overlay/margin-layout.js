@@ -32,7 +32,7 @@
    deferring that pass to the next frame would show a row at its stale seat after its
    target changed.
 
-   Rows follow scrolled content as every such box does (css-anchors.js): the root lane is
+   Rows follow scrolled content as every such box does (dom/css-anchors.js): the root lane is
    a zero-size box at the document origin, so the root scroll carries its rows; a row
    whose target scrolls inside a box short of the document, or stands under a sticky,
    fixed or absolute box, stands in a carrier anchored to what that box's scroll carries
@@ -41,7 +41,7 @@
    anchored to the region's scroller and cut at its edge, inside one such frame for each
    scroller around it. A row passes under the sticky headers and footers a page declares
    over its target, as the target's words do: its carrier stands in frames cut where
-   they stand (css-anchors.js, `headerLevels`), one run of them for each run of rows
+   they stand (dom/css-anchors.js, `headerLevels`), one run of them for each run of rows
    the same headers cut, so a pin whose target scrolls under a stuck toolbar takes none
    of the toolbar's presses. A row that quotes a passage follows its words, which a box
    inside the target can scroll, and is withheld as they leave its view (`wordsShown`).
@@ -299,7 +299,7 @@ const onSurface = (node) => Boolean(closestAcross(node, SURFACES));
 // The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRow`): one under
-// the pointer, with focus in it, with an entry a finger holds to read (preview.js),
+// the pointer, with focus in it, with an entry a finger holds to read (annotations/preview.js),
 // with its options open, or whose entry has the thread
 // card open, as that entry's disclosure relation says (margin-projection.js,
 // `syncReadingRelation`). Opening options can move focus before the next layout pass;
@@ -617,7 +617,7 @@ function restingRail(layer) {
 }
 
 // Where across the page the margin row for a comment on `target` stands, at `point`
-// inside it if a pointing gesture named one (pointed-place.js), or by the `passage` it
+// inside it if a pointing gesture named one (readings/pointed-place.js), or by the `passage` it
 // quotes (a range), each of which stands a row of its own: the row standing there
 // now where one is shown, else where a rail row would stand at rest, `--lf-rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
@@ -753,7 +753,7 @@ export function mountMarginLayer(root, projection) {
 }
 
 // A scroll inside a scaled box carried the rows whose carriers it moves away from their
-// words in some engines (css-anchors.js, `scrollMisplacesAnchors`), so the pass places
+// words in some engines (dom/css-anchors.js, `scrollMisplacesAnchors`), so the pass places
 // them again once it ends.
 /** @param {Element} box */
 function placeCarriedRows(box) {
@@ -769,7 +769,7 @@ function placeCarriedRows(box) {
 // no longer measures the size the last pass seated it at (`seatedFaces`). Either is a
 // change to that row alone, which drops its record (`seatings`). A face can be redrawn
 // and laid out in one task, as an immediate contribution update flushes the layout
-// (application.js), before these records are delivered, so a pass first hears the ones
+// (host/application.js), before these records are delivered, so a pass first hears the ones
 // still waiting (`takeFaceRecords`). The pass's own writes to its rows are taken back at its
 // end, so they bring no pass of their own.
 /** @type {WeakMap<Element, {width: number, height: number}>} */
@@ -833,7 +833,7 @@ function takeFaceRecords() {
 
 // What changed in the page, on the document or a shadow tree holding a target. A change on
 // Leaf's own surfaces moves no seat. The marks the runtime draws on page boxes stand in
-// attributes this does not hear (page-paint.js); an anchor name it writes inline into a
+// attributes this does not hear (base/page-paint.js); an anchor name it writes inline into a
 // box's style is heard as any other restyle.
 //
 // TODO(#5194): any attribute write heard here places every pin again, 59 ms at 256
@@ -1015,11 +1015,11 @@ function partsOf(target) {
 // so a long page costs each pin what lies near its target.
 //
 // Anything the keyboard can reach is a control, so a package need declare nothing, but
-// for the stop reach.js lends a box so the keyboard can reach and scroll what it holds,
-// which makes nothing there a press (control-selectors.js, `LENT_REACH_STOP`): a pin on
+// for the stop dom/reach.js lends a box so the keyboard can reach and scroll what it holds,
+// which makes nothing there a press (dom/control-selectors.js, `LENT_REACH_STOP`): a pin on
 // a code block's line stands by that line. A control the runtime stands over a block
 // from chrome, out of the walk's reach, is one too, at rest as when it shows
-// (block-controls.js, `blockControlBoxes`), so no pin stands on Copy.
+// (records/block-controls.js, `blockControlBoxes`), so no pin stands on Copy.
 // Every covered box counts as the part its own scrollers show, short of the one that
 // scrolls the pin (`stop`): a pin can take no press from a control nobody can see, as a
 // pane body's options scrolled behind the pane's footer, but a control scrolled with the
@@ -1646,7 +1646,7 @@ function drawnAgain(event) {
 }
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
-// (`point`, pointed-place.js), and its place among the others in the layer (`order`).
+// (`point`, readings/pointed-place.js), and its place among the others in the layer (`order`).
 // The projection registers every row each time it renders, so a pass is asked for only
 // where a row is new or names another target, point, passage or place in the order, and
 // it reads again only a row that is new or names another target, point or passage.
@@ -1773,7 +1773,7 @@ let came = new Map();
 // A scroll inside anything but the document moves its rows in the frame that scrolls
 // them. What it can change is which of them still have somewhere to stand, and whether
 // each still stands by its subject where the engine carries an anchor another distance
-// than the words move, as Firefox does inside a scaled box (css-anchors.js). So only
+// than the words move, as Firefox does inside a scaled box (dom/css-anchors.js). So only
 // rows under a box that scrolled are read again, once a frame, and a row that changes
 // answer, or whose subject has left it (`subjectMoved`), brings the whole pass, which
 // places it, scrollers inside shadow trees included. A transition or animation ending is
@@ -2025,7 +2025,7 @@ function layoutMountedRows(layer) {
   const geometry = new Set(seatings.size ? wantedGeometry : []);
   const parents = new Set();
   // What a picture draws (a tag declaring `visual`) is the picture's to report as it
-  // moves (visual-parts.js, `update`), and the picture may draw it afresh inside a size
+  // moves (state/visual-parts.js, `update`), and the picture may draw it afresh inside a size
   // delivery (lf-chart.js), where a box the layer watched leaving the page is a
   // ResizeObserver loop error. So a row standing by a part of a picture has the
   // picture's box watched, and those around it, never a box the picture draws.
@@ -2104,7 +2104,7 @@ function layoutMountedRows(layer) {
     const anchor = targetBox(target);
     anchors.set(row, anchor);
     // Level with the row a gesture pointed into, where the row's comment has one
-    // (pointed-place.js), or with the first line of the passage its comments quote;
+    // (readings/pointed-place.js), or with the first line of the passage its comments quote;
     // otherwise level with the target's top. A closed box draws neither.
     const point = face ? null : options.point();
     const words = face ? [] : quotedBoxes(options);

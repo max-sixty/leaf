@@ -11,7 +11,7 @@
 
    The preview is a short rendering of the place, in the face's excerpt room:
 
-   - its name, the way the authoring contract names an element (addressable-names.js,
+   - its name, the way the authoring contract names an element (readings/addressable-names.js,
      `ownNaming`): a heading's words, the heading a section opens with, a tab's label, a
      table's or figure's caption, an `aria-label`; and for a place with no name of its
      own, or one the page draws nothing of, the name of the part it stands in, by the
@@ -37,7 +37,7 @@
    widgets and carry controls, and the preview holds no control. Every word it shows,
    a name's, a part's or a code block's, is read by one reader: the page's reading of
    the element (`says`), so Leaf's own controls in it say nothing, keeping only what the
-   browser computes as drawn now, word by word as the walk meets it (passages.js,
+   browser computes as drawn now, word by word as the walk meets it (readings/passages.js,
    `drawsWithin`), so `display: none`, `hidden`, `visibility: hidden`, a script, a
    closed disclosure's body and what `content-visibility: hidden` skips, such as a tab
    not chosen, say nothing, while a drawn word inside a hidden element still shows. A
@@ -46,7 +46,7 @@
 
    A heading's section is walked from the heading out to the part it heads, each run of
    siblings, a slot's assignment included, enumerated once in the page's reading order
-   (passages.js, `readingParent`, `readingChildren`), and no further than the parts the
+   (readings/passages.js, `readingParent`, `readingChildren`), and no further than the parts the
    preview shows, so its work follows the excerpt, not the section or the page (root
    AGENTS.md, "Responsiveness"). Which heading heads what is one reading, the
    document's outline (records/thread/placement.js): `partOver` names a place, `headingAfter`
@@ -132,9 +132,9 @@ let reading = { whole: false, stop: null, ended: false };
 /** @param {readonly Part[]} parts */
 const full = (parts) => reading.ended || parts.length >= PARTS;
 // The words an element shows, as the page draws them now, up to the heading that ends
-// the excerpt (passages.js, `says`): the one reader of every word the preview says.
+// the excerpt (readings/passages.js, `says`): the one reader of every word the preview says.
 // `whole` reads them drawn or not, as a widget's members are named (`membersPart`).
-// Each reading reads no more than the preview shows (passages.js, `excerpt`), and words
+// Each reading reads no more than the preview shows (readings/passages.js, `excerpt`), and words
 // cut short end in an ellipsis.
 /** @param {Element} element @param {"prose" | "lines"} [format] @param {boolean} [whole]
  * @param {{upTo?: number, lines?: number}} [bound] */
@@ -227,7 +227,7 @@ const namedBy = (naming, whole = reading.whole) =>
   !naming ? "" : "words" in naming ? naming.words : words(naming.by, whole);
 
 // The blocks after a heading in the page's reading, from the heading out to the part it
-// heads (passages.js, `headed`), as the reader asks for them: the next heading of the
+// heads (readings/passages.js, `headed`), as the reader asks for them: the next heading of the
 // outline ends the reading (`read`), and the reader stops asking once it holds what the
 // preview shows.
 /** @param {Element} heading @returns {Generator<Element>} */

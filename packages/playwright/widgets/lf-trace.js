@@ -70,7 +70,7 @@
  * stable disclosure, a reading region whose subject is the checkpoint whose tree it
  * shows: the runtime keeps the reader's place in each checkpoint's tree, and returns
  * them to it as the tree opens or the checkpoint returns
- * (reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
+ * (readings/reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
  * the disclosure and lands on its destination instead.
  */
 import {
@@ -1502,7 +1502,7 @@ export class Trace extends LeafElement {
     const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
     const fitted = !this.#scopeView().image;
     keepsText(this.#nodes.zoomLabel, fitted ? "Fit" : percent);
-    // What the scale stands at, which its preview says beside its name (preview.js).
+    // What the scale stands at, which its preview says beside its name (annotations/preview.js).
     keeps(
       this.#nodes.imageScale,
       "aria-description",

@@ -7,22 +7,22 @@
   if (Reflect.has(window, key)) return;
   // Inputs belong to this document from its first script, even while the module
   // graph is still loading. Delayed arrival work must not take focus or scroll
-  // back from someone already using the authored page. focus.js exposes this
+  // back from someone already using the authored page. dom/focus.js exposes this
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
   // The inputs among them that take the user away from the entry they are on rather
   // than acting in it (`away`): a step Back or Forward, which moves them to another
   // entry, and leaving the window, as for another application, after which they come
-  // back to the same place. Either supersedes a gesture under way (user-intent.js), but
+  // back to the same place. Either supersedes a gesture under way (dom/user-intent.js), but
   // a return to an entry's record yields only to the user's acts within the entry
-  // (history.js). A search with find-in-page leaves the window too, so a return still
+  // (records/history.js). A search with find-in-page leaves the window too, so a return still
   // under way can move the page from the match the search reached; the user leaving
   // for another application while a slow reload arrives is the commoner case, and
   // counting it would lose their place for good.
   let away = 0;
   // The user's inputs, `away` aside, as they last stepped Back or Forward, or none
   // before any step (`entered`). The arrival counts their acts within the entry it
-  // arrives at from there (history.js, `beginArrival`), so what they did at the entry
+  // arrives at from there (records/history.js, `beginArrival`), so what they did at the entry
   // they left doesn't keep them from the record of the one they reached, though the
   // step came before Leaf handled steps. The count itself only grows, so a return an
   // act of theirs superseded stays superseded.
@@ -41,7 +41,7 @@
   /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
   // The controls the user has changed in this document (`edited`), whose state a
-  // reload's arrival leaves as they left it (version.js, `installArrival`): a field or
+  // reload's arrival leaves as they left it (features/version.js, `installArrival`): a field or
   // box a trusted `input` came from, and a disclosure whose summary took a trusted
   // `click`, which the browser fires for a press, a tap or a key that activates it, and
   // for no right-click or cancelled press. A control in an exclusive group counts as
@@ -118,7 +118,7 @@
     typesText(node) ||
     (node instanceof Element &&
       (node.localName === "select" || node.getAttribute("role") === "option"));
-  // The state a reload carries for a control and puts back (carry.js; prepaint.js,
+  // The state a reload carries for a control and puts back (records/carry.js; prepaint.js,
   // `handingOn`), each where the control holds it: the words in a text box or in an
   // input other than a file input, whose value only the browser sets; the tick of a
   // checkbox or radio; and whether a disclosure is open.
@@ -186,7 +186,7 @@
     window.addEventListener(type, change, { capture: true, passive: true });
   // Going Back or Forward is the user's word too, though the browser's own buttons send
   // the page no input. Where the Navigation API runs, the step counts as it begins,
-  // before Leaf's own handler for it (history.js) retains its intent; elsewhere Leaf has
+  // before Leaf's own handler for it (records/history.js) retains its intent; elsewhere Leaf has
   // no such handler, and the `popstate` that follows the step counts. An opaque frame,
   // as a live sample is, has the API with no entries and fires only `popstate`. Every
   // step moves the clock and the arrival's baseline (`entered`), but only one the

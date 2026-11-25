@@ -1,5 +1,5 @@
 import "/runtime/stage-integration.js";
-/* The page's reading kept in pieces (passages.js, `Piece`): the frame, which is the
+/* The page's reading kept in pieces (readings/passages.js, `Piece`): the frame, which is the
    page's words outside its parts with a fence where each part stands, and each datum
    that is a part, read alone. Each kept piece must say what a fresh walk of the page says
    of its words, so each kind of change drops every piece whose words or context it moved,

@@ -5,8 +5,8 @@
    (go-to-sequence.js, target-picker.js) does: `read` names the links in view that
    nothing covers, each with its code and its box, and `layout` puts a chip on each. A
    paint is called where a frame would run one, and a scroll is the `scroll` and
-   `scrollend` events the page's scroll tracking hears (arrivals.js), so no case waits
-   on a clock. The live region speaks after its own delay (notifications.js), which the
+   `scrollend` events the page's scroll tracking hears (dom/arrivals.js), so no case waits
+   on a clock. The live region speaks after its own delay (transport/notifications.js), which the
    mocked timers run. */
 
 import assert from "node:assert/strict";

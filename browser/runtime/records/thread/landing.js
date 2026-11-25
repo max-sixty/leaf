@@ -135,8 +135,8 @@ pageScope("text entry", {
 });
 
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
-// arrival but a `return`, which previews nothing (preview.js). A thread too tall to show
-// whole, some of which is in front of the user (geometry.js, `seenRect`), stands around
+// arrival but a `return`, which previews nothing (annotations/preview.js). A thread too tall to show
+// whole, some of which is in front of the user (dom/geometry.js, `seenRect`), stands around
 // the box, and landing its title would take the user away from the turn they were
 // answering, so it is left where it is. One that fits, or one the user has scrolled out
 // of view since, is brought into view where it is not already shown. While the box the user left still
@@ -201,7 +201,7 @@ export function landIn({ held = null, box, route = null }) {
   }
   // Entering a reply is a focus move, not a navigation step to its thread or passage.
   // Reveal only the writing area: a nearest landing leaves a box already shown where
-  // the reader put it (landing-scroll.js, `alreadyShown`), the transcript inside a
+  // the reader put it (readings/landing-scroll.js, `alreadyShown`), the transcript inside a
   // margin card included.
   bringBackSurfaceOf(box);
   focusDestination(box, "move");

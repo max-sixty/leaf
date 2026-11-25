@@ -21,7 +21,7 @@
    says why the user chose that over keeping the caret in the box): `c` or Enter on
    the thread opens the box again for the next message. A refusal gives the words back
    to the box, and the user with them while they have done nothing since the send
-   (drafts.js, `sendMessage`). A saved draft preserves words independently of the
+   (records/drafts.js, `sendMessage`). A saved draft preserves words independently of the
    editor. External settlement retains a reply the user is
    editing; deliberate Resolve leaves that editing place and closes the editor. Native
    Tab preserves the row's session independently of focus. The complete presentation
@@ -507,7 +507,7 @@ function attach(composition, binding) {
   views.add(attached);
   const begin = () => beginIn(composition);
   // A row taken again catches up with words another view or tab wrote meanwhile. The
-  // same words are left alone, with their caret and undo history (drafts.js, `sync.load`).
+  // same words are left alone, with their caret and undo history (records/drafts.js, `sync.load`).
   sync.load(loadDraft(context)?.text ?? "");
   // Attaching supplies a mirror, not ownership: a hidden panel mirror cannot take the
   // session from the current route while that route is being replaced. Nor does it
@@ -560,7 +560,7 @@ export const replyIsEditing = (key) => {
 // retires. Ordinary reload carries no editing capability and never enters this path.
 // A session that no longer stands, as one whose words another tab sent or cleared,
 // keeps nothing open, and `land` runs all the same, since it carries more of the
-// arrival than the session (version.js, `keepReplySession`).
+// arrival than the session (features/version.js, `keepReplySession`).
 /** @param {ReturnType<typeof captureDraftEditing>} editing
  * @param {() => Promise<Element | null>} land */
 export async function restoreReplyEditing(editing, land) {
@@ -661,7 +661,7 @@ export function createReplyView(
     sync: () => composition.sync(),
     // A view drawing the thread takes its session's row where no view holds it: one
     // released to the park, or one whose view went. It does so once it stands in the
-    // document, `shown`, so the move keeps the user in the row (dom-move.js).
+    // document, `shown`, so the move keeps the user in the row (dom/dom-move.js).
     /** @param {() => boolean} shown */
     claim(shown) {
       const owner = compositions.get(composition.context)?.owner;

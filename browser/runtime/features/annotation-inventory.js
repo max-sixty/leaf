@@ -182,7 +182,7 @@ export function createAnnotationInventory({
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
 
-  // Where a group stands in the page's reading order (resolved-target.js,
+  // Where a group stands in the page's reading order (readings/resolved-target.js,
   // `readingOrder`): the row it points into, else its passage, else its target.
   /** @param {Group} group */
   const placeIn = (group) => {
@@ -223,7 +223,7 @@ export function createAnnotationInventory({
     return element && surface ? { element, surface } : null;
   };
   // The passage a quoting entry stands by (groupFor), as anchor-placement last resolved
-  // it (resolved-target.js).
+  // it (readings/resolved-target.js).
   /** @type {Map<string, Placement>} */
   const passages = new Map();
   /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
@@ -291,8 +291,8 @@ export function createAnnotationInventory({
     );
   };
   // One group per target, one more for each row inside it that pointing gestures stood
-  // threads at (pointed-place.js), one more for each passage threads quote, and one more
-  // for each part of a picture threads are about (visual-parts.js): those threads stand
+  // threads at (readings/pointed-place.js), one more for each passage threads quote, and one more
+  // for each part of a picture threads are about (state/visual-parts.js): those threads stand
   // there together, by what they are about, and everything else about the target (its
   // other threads, an obligation's marker, a widget's actions) keeps the target's own
   // row. `pointed` is `{ key, element, passage, name, surface }`: the row's key (a pointed
@@ -338,7 +338,7 @@ export function createAnnotationInventory({
   // holding many quoted passages costs its words and its passages, not their product.
   //
   // A passage's key is kept, under where it starts and what it says, for as long as the
-  // target's words are unchanged (passages.js, `readsElement`). So a collection reads a
+  // target's words are unchanged (readings/passages.js, `readsElement`). So a collection reads a
   // target again only where its words changed or a passage in it is new. Every change to
   // the page starts a collection, a closed tab's document drawing included, and a change
   // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
@@ -562,7 +562,7 @@ export function createAnnotationInventory({
   // them all, though a gesture changes few of them, a cost that grows with the page
   // (`leaf-dev bench` measures it), and sending a comment runs two. Not
   // yet built: keep each group between collections while its records are the same
-  // objects and the page's reading stands (kept.js, `kept`), build
+  // objects and the page's reading stands (state/kept.js, `kept`), build
   // again only the groups that changed, and sort again only when that reading moves,
   // placing a new group into the kept order. A collection would then cost what the
   // gesture changed.
@@ -577,7 +577,7 @@ export function createAnnotationInventory({
       const coordinate = receipt.coordinate;
       receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
     }
-    // Each draft the user wrote and hasn't sent (drafts.js, the drafts list) stands as
+    // Each draft the user wrote and hasn't sent (records/drafts.js, the drafts list) stands as
     // an entry where it is about: a reply or a rewrite in its thread's row, and a
     // comment at its passage or element. A press takes the user back to writing it
     // (`resumeDraft`), and its preview reads its words as they now stand.

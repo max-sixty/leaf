@@ -99,7 +99,7 @@ export function createAim({
     return pointedTarget(designMode.active() ? at : onPage(at));
   }
   // The target a press names, with the row inside it the press landed on: a comment on a
-  // target taller than the window stands where the user pointed (pointed-place.js).
+  // target taller than the window stands where the user pointed (readings/pointed-place.js).
   /** @param {Element | null} at */
   function pointedTarget(at) {
     const target =
@@ -113,7 +113,7 @@ export function createAim({
     // Picker keys name the Design legend's corners while the picker owns the choice, so
     // the legend's tags step aside (chrome.css). The mark stands on the legend, which
     // holds every box and tag, since a custom property changing on the root restyles
-    // every element of the page (root-state.js).
+    // every element of the page (state/root-state.js).
     legendRoot.classList.toggle("lf-picking", targetPicker.active());
     refreshAim();
   }
@@ -142,7 +142,7 @@ export function createAim({
   };
   // A mouse that leaves the window stands over nothing a press could take, so the hand and
   // the box come off while the page stays armed. The shared recorder hears the same
-  // event first and forgets the position (pointer.js).
+  // event first and forgets the position (base/pointer.js).
   /** @param {PointerEvent} ev */
   const pointerOut = (ev) => {
     if (ev.pointerType === "mouse" && !ev.relatedTarget) refreshAim();
@@ -231,7 +231,7 @@ export function createAim({
       //
       // Under the picker the press chooses, which closes the picker, rather than comments.
       // Either way the press commits its target, so it captures it here, once for the
-      // press and any continuation (anchor-resolution.js, `captured`).
+      // press and any continuation (readings/anchor-resolution.js, `captured`).
       claimedPress = designTarget
         ? { designMode: captured(designMode.target(pressed)) }
         : armed
@@ -242,7 +242,7 @@ export function createAim({
       claimedPress = { continuing: previousPress.continuing ?? previousPress };
     if (!claimedPress) return;
     // Keyboard activation belongs to the control it is on, whatever the last pointer
-    // did, and every captured press mode reads that the one way (pointer.js).
+    // did, and every captured press mode reads that the one way (base/pointer.js).
     if (pressIsKeyboardActivation(ev)) return;
     // Not on pointerdown, whose cancellation takes the mouse events with it — the click this
     // aim ends on included. On mousedown, which is where the selection, the focus and a
@@ -260,7 +260,7 @@ export function createAim({
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }
   function mount() {
-    // In capture, since ⌥ pressed while writing stops at the field (field-keys.js).
+    // In capture, since ⌥ pressed while writing stops at the field (base/field-keys.js).
     addEventListener("keydown", keyDown, true);
     addEventListener("keyup", keyUp, true);
     addEventListener("blur", blur);

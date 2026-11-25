@@ -113,7 +113,7 @@ export function reveal(el, mayReveal) {
 // everything that has to wait for the hand asks here: `dragHeld` is whether any stands.
 // The hand holds back what would replace or take back the nodes under it, a new
 // revision and an undo (`unaccountedGesture`, annotations/composing/engagement.js, and the undo of
-// an action still in the ledger, undo.js's `travelling`). What the element draws
+// an action still in the ledger, annotations/undo.js's `travelling`). What the element draws
 // meanwhile is its own to hold (`lf-defer`, which `LeafElement.defer()` says), and
 // every other widget goes on drawing. An element that holds only its own drawing, as
 // while an editor stands in place of its words, says no `lf-hold`: what a revision
@@ -244,7 +244,7 @@ export function aimedAt(event, container) {
  * suggestion's old and new words or a playground's preview: the verbs a widget
  * declares (`verbs`) say what it records, not that a press on its content acts.
  * A thread's words preview the thread only where nothing does, on every route that
- * reads a point (preview.js, `readingAt`); presses don't ask, so a press on a
+ * reads a point (annotations/preview.js, `readingAt`); presses don't ask, so a press on a
  * thread's words acts as it always has.
  * @param {Node | null} node @returns {Element | null} */
 export function aimableAt(node) {
@@ -392,7 +392,7 @@ document.addEventListener(
   "click",
   (ev) => {
     // A drag is a pointer's; the keyboard's own activation of the control is not one and
-    // is read the one way every press claim reads it (pointer.js).
+    // is read the one way every press claim reads it (base/pointer.js).
     if (pressIsKeyboardActivation(ev)) return;
     // The question goes to the innermost control the press landed on. A native control
     // inside chrome a widget made, such as a fold's toggle in a thread card that wears

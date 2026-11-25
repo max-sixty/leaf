@@ -335,7 +335,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
 
 
 def test_every_message_says_when_it_was_said(browser, serve):
-    """Every message in a thread says when it was said (presence.js, `saidAt`): replies
+    """Every message in a thread says when it was said (state/presence.js, `saidAt`): replies
     hours apart three days ago each read their own time of day and day, as the reader's
     locale writes them, where an age would read "3d ago" over all of them, and a reply
     written now reads "just now", where its time of day would read like any other."""
@@ -1453,7 +1453,7 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
 @pytest.mark.parametrize("turned", ["root", "card"])
 def test_a_carried_card_travels_with_the_pointer_when_turned(browser, serve, turned):
     """The carry's translate moves the card along the axes of the box it stands in, at
-    the card's own zoom (element-axes.js, `translateAxes`): a transform on the root
+    the card's own zoom (dom/element-axes.js, `translateAxes`): a transform on the root
     turns those axes, and the card's own turn, which applies inside its translate,
     leaves them alone. So on a page turned half round, and as a card turned half round
     and zoomed, the card travels the way the pointer does, standing under it from the

@@ -16,14 +16,14 @@
    and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the
    current item at the top; these are excluded from the generated alphabet. `g g` and
    `g G` glide what `u` and `d` move, a workspace's pane as well as the page, to its
-   edges (navigation.js, `stepReading`); from a focused thread, `g k` and `g j` place
+   edges (panel/navigation.js, `stepReading`); from a focused thread, `g k` and `g j` place
    its card at an edge of the list; `g p` returns focus to the page while leaving open
    surfaces in place. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g M` On Me, `g A` On <agent>, `g L` All pages,
    `g P` the searchable Page Map and `g V` Versions, and one named view, `g H`, which
-   hides or shows the annotation layer (annotation-layer.js). `g T`, `g M`, `g A` and
+   hides or shows the annotation layer (annotations/annotation-layer.js). `g T`, `g M`, `g A` and
    `g L` open the floating panel's view of that name, and `g V` its Versions, through
-   the panel's own doors (`doors`, floating-panel.js), as its leaf, tabs and menu rows
+   the panel's own doors (`doors`, panel/floating-panel.js), as its leaf, tabs and menu rows
    open them.
    Completing one that opens a surface leaves the user in that surface, whose own Escape
    step is the way out of it — the same step for a surface the user already had, and
@@ -168,10 +168,10 @@ export function createGoToSequence({
   // The ages an author wrote in the page's own content: the `lf-age` elements in the
   // page outside what a widget wrote, which is words a module marks as its own
   // (`GENERATED`) and the body of a widget that draws all its content
-  // (widget-elements.js, `drawnByWidget`). An age takes no focus, so in Safari, which
+  // (dom/widget-elements.js, `drawnByWidget`). An age takes no focus, so in Safari, which
   // has no caret browsing, this is the keyboard's way to when it was. A row the panel
   // or an activity list draws says its age's time in its own preview instead
-  // (floating-panel.js, `ageLine`), so a list of rows adds no hints, and so does a
+  // (panel/floating-panel.js, `ageLine`), so a list of rows adds no hints, and so does a
   // message's head. Arriving stands in for Tab (`step`), so the age previews its clock
   // time at once, which is what the user went there for.
   /** @returns {Element[]} */
@@ -495,7 +495,7 @@ export function createGoToSequence({
     // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
     if (on && !goToActive && claimsEsc(focused())) return;
     // The map waits for a still scene, so the glides under way land at once, where the
-    // map typed after them would read the page (scrolling.js, `landGlides`); stopped
+    // map typed after them would read the page (dom/scrolling.js, `landGlides`); stopped
     // where they stood, `g` pressed as `t` set off left the page short of the thread.
     if (on) landGlides();
     goToActive = on;

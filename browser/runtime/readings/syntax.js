@@ -1,5 +1,5 @@
 /* The page's own code blocks, coloured by syntax-tokens.js, with failures reported
-   to the page. Portable language-paths.js owns a filename's language reading. */
+   to the page. Portable base/language-paths.js owns a filename's language reading. */
 import { reportPageError } from "../transport/layer-client.js";
 import { marks } from "../state/kernel-facts.js";
 import { DATA_CONTENT } from "../state/registry.js";
@@ -9,7 +9,7 @@ import { codeLanguage, synNodes, syntax } from "../lib/syntax-tokens.js";
 // syntax-tokens.js reads off the class (`codeLanguage`). A widget whose body is data,
 // such as a code walkthrough, reads its `<pre>` the same way and draws it itself, so
 // that body (`DATA_BODY`, read off the widget's painted declaration) is no block of
-// the page's, nor is a Markdown body, which Leaf draws (registry.js, `DATA_CONTENT`).
+// the page's, nor is a Markdown body, which Leaf draws (state/registry.js, `DATA_CONTENT`).
 //
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document

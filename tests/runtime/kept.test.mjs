@@ -1,7 +1,7 @@
 /* A reading kept by `kept` or `keptEach` is made again exactly when an argument it
    was read with differs, a signal it read changes, a version it read moves, or a
    reading made inside it is made again; a version that catches up does so before a
-   reading that read it is checked; and a make that threw keeps nothing (kept.js). */
+   reading that read it is checked; and a make that threw keeps nothing (state/kept.js). */
 import assert from "node:assert/strict";
 import test from "node:test";
 

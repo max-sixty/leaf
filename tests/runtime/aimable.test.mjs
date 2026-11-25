@@ -1,4 +1,4 @@
-/* What else the user could aim at, at any point of the page (widget-elements.js,
+/* What else the user could aim at, at any point of the page (dom/widget-elements.js,
  * `aimableAt`): the answer the preview's rule for a thread's words reads, at any point,
  * marked words or not. */
 import assert from "node:assert/strict";

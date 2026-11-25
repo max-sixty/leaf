@@ -186,7 +186,7 @@
  * user can actually see — so a settled option would keep a paragraph's margin under its
  * last paragraph and a block change over its first, in exactly the widgets that build
  * the most chrome.
- * The generated markers are the same pair the anchor pass reads (`GENERATED`, passages.js),
+ * The generated markers are the same pair the anchor pass reads (`GENERATED`, readings/passages.js),
  * because it is the same question: which of these words are the page's. That also
  * dissolves the sample's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
@@ -243,7 +243,7 @@
 /* A box that wears the focus ring for a control inside it, as its face, says so in the
  * rule that rings it: a playground's choice rings its radio and words together, a
  * joined option group's row rings its pick. A landing then shows that box with the
- * control's ring room (focus.js, `ringBox`): measuring the radio left the face's ring
+ * control's ring room (dom/focus.js, `ringBox`): measuring the radio left the face's ring
  * cut at its pane's foot. It does not inherit, so the control inside answers for
  * itself. */
 @property --lf-wears-ring {
@@ -252,7 +252,7 @@
   initial-value: 0;
 }
 /* A control whose focus a box around it shows, as a choice rings its radio, names that
- * box with a selector, and focus.js marks the nearest box around it that matches:
+ * box with a selector, and dom/focus.js marks the nearest box around it that matches:
  * `data-lf-control-focus` while the control holds focus, and
  * `data-lf-control-focus-visible` while that focus is visible. The box's rules read
  * those marks rather than asking with `:has()` where focus is, which made every focus
@@ -279,7 +279,7 @@
  * time ⌥ aimed at it. The gap is a length, so a box's edge stated as `0` reaches the
  * brackets' `calc` as `0px`: untyped, a unitless 0 there is a number, the clip is
  * invalid and the mark draws whole. The room is a length too, so a script reads it in
- * pixels (geometry.js, `markedBox`). */
+ * pixels (dom/geometry.js, `markedBox`). */
 @property --lf-band-gap {
   syntax: "<length>";
   inherits: false;
@@ -335,7 +335,7 @@
  * not become a containing block, and the head's room pads it, which the live body's
  * minimum (below) fills the window with only at border-box. It is the shell, the
  * inline-size container a narrow column and a widget's `100cqi` ask (`lf-shell`,
- * page-layout.js). */
+ * panel/page-layout.js). */
 body {
   position: static !important;
   box-sizing: border-box !important;
@@ -355,7 +355,7 @@ body {
   overflow-wrap: break-word;
 }
 /* The two lengths the root's landing band at the window's foot is made of, which the
- * floating panel reads resolved as it states the band (floating-panel.js,
+ * floating panel reads resolved as it states the band (panel/floating-panel.js,
  * `followBox`): the foot's room with the landing room past it, and the gap a landing
  * keeps above the panel's box with the landing room past that. They change only with
  * the theme's tokens, never as the panel moves. Read on the root alone. */
@@ -364,7 +364,7 @@ body {
   inherits: false;
   initial-value: 0px 0px;
 }
-/* The top edge of the root's landing band, which Leaf's landings read (geometry.js,
+/* The top edge of the root's landing band, which Leaf's landings read (dom/geometry.js,
  * `landingInsets`) and the root's `scroll-padding-top` hands to the browser. Stated
  * apart from that padding so a floating editor can take it from the browser's own caret
  * reveal alone (html[data-lf-live], below) while every landing still clears the chrome,
@@ -393,15 +393,15 @@ body {
     height: 100%;
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
-     * `--lf-root-headers` (root-headers.js). The root's band is Leaf's alone, so a
+     * `--lf-root-headers` (dom/root-headers.js). The root's band is Leaf's alone, so a
      * page's own `scroll-padding-top`, written for its header, adds nothing: a page
      * clears its own header with its targets' `scroll-margin-top`, which replaces the
      * margin every box reads from the slot (surfaces.css). */
     --lf-landing-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-top: var(--lf-landing-top) !important;
     /* The floating panel states the root's landing band at the window's foot as its box
-     * changes height (floating-panel.js, `followBox`), from these. It states it to
-     * Leaf's landings alone (geometry.js, `landingBand`): as the root's
+     * changes height (panel/floating-panel.js, `followBox`), from these. It states it to
+     * Leaf's landings alone (dom/geometry.js, `landingBand`): as the root's
      * `scroll-padding-bottom` it would hold every reveal the browser makes above a band
      * across the whole window, and scroll the page under a box stuck beside the panel to
      * bring the box out of it. */
@@ -417,7 +417,7 @@ body {
      * to a caret's reveal and reveals typing the page takes in `beforeinput` too, so the
      * root's padding is the one thing both engines read that keeps it still. Only
      * the browser reads it: Leaf's landings read the band stated above and the one the
-     * panel states (geometry.js, `landingInsets`), so one made while such an editor
+     * panel states (dom/geometry.js, `landingInsets`), so one made while such an editor
      * holds focus, as Resume writing's is, still clears the chrome.
      *
      * The zero still reads `--lf-landing-top`: on Leaf's pages in Chromium 156, the root
@@ -586,7 +586,7 @@ main {
  * padding, layouts.css). The runtime marks each declared scroll surface it finds
  * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
  * runtime's and modules' `data-lf-scroll`, which every reading region's body wears
- * (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
+ * (dom/reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
  * state.css). Each value it changes is one everything in the box inherits, so a box
  * that holds thousands of elements states the whole restart beside its overflow and
  * the mark changes nothing there (a text document's listing). The runtime reads no
@@ -612,14 +612,14 @@ main {
  * headers over a whole scroller through its `scroll-padding` and one over part of it
  * through the `scroll-margin` every box reads from the slot (surfaces.css), and the
  * runtime's reading of what is on
- * screen takes the value at each element (geometry.js, `headerInset`). Registered so
+ * screen takes the value at each element (dom/geometry.js, `headerInset`). Registered so
  * that reading is a length. */
 @property --lf-top {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-/* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
+/* Lengths a script reads (dom/box-motion.js reads a floating box's lift to cut its
  * surface; margin-layout.js reads the rail's hang), registered so it gets resolved
  * pixels whatever units the theme writes them in. */
 @property --lf-raise-1-drop {
@@ -673,7 +673,7 @@ main {
 }
 /* The same for a box sticking at its scroller's foot: what it stands over takes its
  * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
- * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
+ * leaves that band out too (dom/geometry.js, `footerInset`). A long open thread's reply
  * row is one (chrome.css). No box restarts it. Nothing inside what a footer stands
  * over carries a footer of its own, and the slot's other reader, the landing margin of
  * every box in that thread's content (chrome.css), is read on a box that scrolls too:
@@ -1045,7 +1045,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * nothing and the row takes what the header and footer leave, while a body that doesn't
  * holds the row at its full height. Whether a body scrolls is the stylesheet's: the
  * workspace Layout scrolls pane bodies where it fills the window (layouts.css), and
- * `reading-regions.js` reads which box scrolls from the result.
+ * `readings/reading-regions.js` reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
  * controls beside its preview, marks them with the same role and takes these same
@@ -1061,7 +1061,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * header's font) is a default inside :where(), so a package that draws its generated
  * pane another way does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
- * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
+ * Tab to (dom/reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
  * its right and bottom sides to the scrollport's edge and ran over the header's rule.
  * The pane is the body's ring frame instead (surfaces.css, `.lf-ring-frame`), drawing

@@ -236,7 +236,7 @@
       return false;
     };
     const focused = deepFocus();
-    // The box the runtime rings in the focused control's place (`ringBox`, focus.js), as
+    // The box the runtime rings in the focused control's place (`ringBox`, dom/focus.js), as
     // a choice's label rings its checkbox: it wears the focused control's ring.
     const wearer = focused && ringBox(focused);
     const { ringInk } = ringSwatch();
@@ -714,7 +714,7 @@
         );
         const end = radius + grow + w + 1;
         // A focus preview stands clear of its control and of what the user could work
-        // next, and may cover the rest of the page (preview.js), such as the
+        // next, and may cover the rest of the page (annotations/preview.js), such as the
         // question around the control, so only the focused control's own ring is read
         // under it. One that lets the pointer through (`data-lf-covers`) may stand over
         // its control too, as a chart's point's words do past the chart's edge, so no

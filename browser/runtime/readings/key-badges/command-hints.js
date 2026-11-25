@@ -112,7 +112,7 @@ function hintRoutes(available) {
  * spells it: a face lent beside or inside it, as an option's digit, or a corner chip. A
  * touch screen gets none (`advertisesKeys`). Read from the dispatcher's reading rather
  * than the paint, which lands a frame after the focus move that reaches them, so a
- * preview shown on that move already counts them as its target's chips (preview.js).
+ * preview shown on that move already counts them as its target's chips (annotations/preview.js).
  * A chip the paint withholds, for want of a free corner or while a scroll settles, is
  * still counted, so a preview leaves its key unsaid there too.
  * @param {Element} control @returns {string[]} */

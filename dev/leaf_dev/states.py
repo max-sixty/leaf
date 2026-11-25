@@ -61,7 +61,7 @@ THREAD_REGION = ".lf-margin-preview:visible, .lf-fp-opened:visible"
 def keyboard_modality(page: Page) -> None:
     """Press Tab, so focus placed next draws as the keyboard's, and wait until the Tab's
     step has ended. Focus arriving before then is the step's own, which opens the
-    focused control's preview (focus.js, `stepping`). The step ends in a timer the
+    focused control's preview (dom/focus.js, `stepping`). The step ends in a timer the
     Tab's keydown queued, and a timer queued now runs after it."""
     page.keyboard.press("Tab")
     page.evaluate("() => new Promise((done) => setTimeout(done))")
@@ -445,7 +445,7 @@ def panel_status_hover(page: Page) -> None:
 
 def panel_status_cut(page: Page) -> None:
     """The panel's field cutting the agent's long status short under a resting pointer,
-    which reads the status whole (floating-panel.js, `pageEditor`). A runtime that
+    which reads the status whole (panel/floating-panel.js, `pageEditor`). A runtime that
     reads nothing there shows the row as it stands."""
     client = PageClient(served_page.get().address)
     asked = client.post(
@@ -721,7 +721,7 @@ def card_by_pointer(page: Page) -> None:
 
 def control_preview(page: Page) -> None:
     """The first margin card's Resolve under a resting pointer, whose preview names its
-    word and the key that presses it (preview.js). A runtime without previews shows
+    word and the key that presses it (annotations/preview.js). A runtime without previews shows
     the card alone."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview .lf-resolve").hover()
@@ -731,7 +731,7 @@ def control_preview(page: Page) -> None:
 
 def preview_shown(page: Page) -> None:
     """Wait until the preview of what the pointer rests on has opened, which it does
-    after its dwell (preview.js, `DWELL`), where the runtime draws previews at all. A
+    after its dwell (annotations/preview.js, `DWELL`), where the runtime draws previews at all. A
     state ending on such a hover waits here, or its still catches the preview in one
     capture and not the next.
 
@@ -752,7 +752,7 @@ def preview_shown(page: Page) -> None:
     )
 
 
-# Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
+# Longer than a preview's dwell (annotations/preview.js, `DWELL`), so a runtime that previews what
 # the pointer rests on has shown it, and one that doesn't shows the page as it stands.
 PREVIEW_DWELL_MS = 400
 
@@ -807,7 +807,7 @@ def passage_reaction(page: Page) -> None:
 
 def age_preview(page: Page) -> None:
     """The first margin card's first age under a resting pointer, which previews the clock
-    time behind it in the reader's zone (presence.js, `agePreview`)."""
+    time behind it in the reader's zone (state/presence.js, `agePreview`)."""
     card_by_pointer(page)
     age = page.locator(".lf-margin-preview .lf-msg-head time").first
     box = age.bounding_box()
@@ -823,7 +823,7 @@ def age_preview(page: Page) -> None:
 def link_preview(page: Page) -> None:
     """The gallery's link to its session table under a resting pointer, whose preview
     shows the table's caption, its first rows and the thread about it
-    (place-preview.js). A runtime without link previews shows the link alone, once a
+    (annotations/place-preview.js). A runtime without link previews shows the link alone, once a
     second has passed without one."""
     page.locator("#bg-link-previews").evaluate(
         "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
@@ -2730,7 +2730,7 @@ def plan_marks(page: Page) -> None:
     a paragraph the user aims at with Alt, which holds their comment; the changes since
     the earlier version barred in the margin; and the keyboard on the changed status
     line's Change entry, which traces that line. The agent's bars stand in one lane
-    clear of the user's marks (margin-bars.js)."""
+    clear of the user's marks (features/margin-bars.js)."""
     agent_at_work(page)
     versions_menu(page)
     page.keyboard.press("v")

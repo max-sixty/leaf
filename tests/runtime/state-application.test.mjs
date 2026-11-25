@@ -53,7 +53,7 @@ const settle = async () => {
 
 // After a long gesture task the browser may run an arriving reading before the frame
 // that paints what the gesture drew; the reading waits for that frame instead
-// (rendering.js, `afterOwedFrame`).
+// (base/rendering.js, `afterOwedFrame`).
 test("a reading arriving while a gesture's frame is owed is adopted after that frame", async () => {
   applicationState.enqueue(
     { kind: "comment", attempt: "sent", text: "Keep my words", revision: 1 },

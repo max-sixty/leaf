@@ -29,11 +29,11 @@
  * The place. Where the members stand in the page's flow, since the holder draws no box
  * of its own (`flow`) or is the page's parts, each member with an id is a view with a
  * place of its own. As the element switches from one that the user has read past its
- * start, Leaf keeps that place as a landmark in the page's words (reading-place.js),
+ * start, Leaf keeps that place as a landmark in the page's words (readings/reading-place.js),
  * per tab, as the open member is kept, so it survives a resize, a revision and a
  * reload. The member opened returns to its place. One without a place leaves the page
  * where it stands, unless the page is scrolled past the member's start, and then it
- * opens at its start: flush under the headers stuck over it (geometry.js,
+ * opens at its start: flush under the headers stuck over it (dom/geometry.js,
  * `visibleBand`), so a strip stuck over the views stays stuck. A reveal places nothing,
  * since whoever revealed the member lands the user in it, as the entry's record does
  * on Back and Forward. A member of any other holder is a box in the page, and a switch

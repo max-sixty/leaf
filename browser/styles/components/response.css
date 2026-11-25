@@ -431,7 +431,7 @@ leaf-composition-field {
   justify-content: flex-end;
   min-inline-size: var(--lf-media-mark-reach);
 }
-/* A picture that opens in the media viewer (media.js) wears the picture face
+/* A picture that opens in the media viewer (records/media.js) wears the picture face
    (controls.css, `.lf-picture`) and stands as wide as itself, up to its place's. */
 .lf-media-open {
   display: block;
@@ -986,7 +986,7 @@ leaf-text.lf-fab-input {
   max-height: 50vh;
   margin: 0;
 }
-/* The floating box's surface (box-motion.js) stays in the bar when it seats, and the
+/* The floating box's surface (dom/box-motion.js) stays in the bar when it seats, and the
    rule hiding it (annotation-chrome.css) doesn't reach a widget's tree. In flow, it
    would take a gap before the field and stand the words off the card's. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-fab-ground {

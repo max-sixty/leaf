@@ -6,8 +6,8 @@ import { keepFieldKeys } from "../base/field-keys.js";
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
 // own their query and results; an auxiliary reading, such as a match count, belongs
 // in the control's `end` slot so it stays inside that same frame. Keys typed into it
-// stop at it (field-keys.js). Its prompt is Leaf's words, as an empty comment box's
-// are, so it wears Leaf's face (voice.js).
+// stop at it (base/field-keys.js). Its prompt is Leaf's words, as an empty comment box's
+// are, so it wears Leaf's face (base/voice.js).
 /** @param {string} cls @param {{name: string, label: string, placeholder?: string}} options */
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
@@ -40,7 +40,7 @@ export function searchField(cls, { name, label, placeholder = label }) {
 // permission the user has no category for — and paper reads it beside data-lf-offer
 // to keep a control whose label is one of the page's own words. data-lf-gen goes on
 // either way, because no label is words the author wrote, which is what the `wrote`
-// reading keeps (passages.js).
+// reading keeps (readings/passages.js).
 //
 // Those are two questions with one answer until a label is a copy of words the page
 // says somewhere else — a roster row naming a worker, a generated index entry, any
@@ -62,10 +62,10 @@ export function searchField(cls, { name, label, placeholder = label }) {
 //
 // A module writes these markers on its own nodes (module-plain-elements.md, "Words it
 // writes"), and the runtime marks a box whose contents it writes with
-// `generatedElement` (element-markers.js). Words a module writes unmarked are the
-// page's: the version comparison reads sources (`version.js`), so they never read as
+// `generatedElement` (base/element-markers.js). Words a module writes unmarked are the
+// page's: the version comparison reads sources (`features/version.js`), so they never read as
 // a change, but `wrote` keeps them and a quote can run across them. Three of the
 // runtime's writers write the attributes themselves: the datum projection
 // (records/projection/data.js) marks and unmarks authored nodes as their data comes and goes,
-// page-markdown.js serializes its media button as HTML, and revision_delivery.py writes
+// records/page-markdown.js serializes its media button as HTML, and revision_delivery.py writes
 // prepaint faces on the server.

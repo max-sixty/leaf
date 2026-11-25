@@ -1,5 +1,5 @@
 /* What `architecture/current-location-reads` refuses: a raw reading of focus outside
-   focus.js (eslint.config.mjs). */
+   dom/focus.js (eslint.config.mjs). */
 
 import assert from "node:assert/strict";
 import test from "node:test";

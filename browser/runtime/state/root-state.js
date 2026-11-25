@@ -10,9 +10,9 @@
    every element inherits it, unless it is registered as non-inheriting. So a value only
    the root reads, or one that changes with the user's input, is written as the plain
    property it sets, as the floating panel's band is
-   (floating-panel.js, `followBox`), and a custom property only for a token the page's
+   (panel/floating-panel.js, `followBox`), and a custom property only for a token the page's
    CSS inherits that changes as rarely as its source, such as a page tab strip's
-   height (root-headers.js). */
+   height (dom/root-headers.js). */
 
 // Bootstrap dresses sample roots before the module graph. Share those writers and
 // ownership registries with later runtime changes.

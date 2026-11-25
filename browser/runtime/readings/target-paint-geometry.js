@@ -55,7 +55,7 @@ import { keeps, layoutPx } from "../lib/keeps.js";
 
 // A stand holds paint boxes over their targets in the planes of what carries the
 // targets, through the anchored cut frames every box that follows scrolled content
-// stands in (css-anchors.js). Each box that clips a target (`paintClips`) gets a frame
+// stands in (dom/css-anchors.js). Each box that clips a target (`paintClips`) gets a frame
 // cut to its band, inside the frame of the box holding it; the boxes stand in a carrier
 // in the innermost. The window's cuts, a header stuck over the page's top and, for paint
 // stacked above them, the chrome's views, stand in the window's plane, as a frame
@@ -86,7 +86,7 @@ export function paintStand(box = null) {
 }
 
 // The box an anchor carries `el` by for a stand at `root`: its anchor box
-// (css-anchors.js), where every scroll that moves `el` moves that box with it
+// (dom/css-anchors.js), where every scroll that moves `el` moves that box with it
 // (`scrollsWith`), or that box's own parts where `el` draws none. Null where the anchor
 // cannot position a box at `root` (`anchorReaches`).
 /** @param {Element} el @param {Element} root */
@@ -210,10 +210,10 @@ export function standAt(stand, placed) {
 // still being drawn past its target's edge, is cut by no scroller's edge where it is
 // anchored, and hides once its target is scrolled out of sight (`position-visibility:
 // var(--lf-anchor-visible)`, tokens.css); it still passes under the sticky headers declared over its target
-// (geometry.js, `headerCuts`), as every box following scrolled content does. A box
+// (dom/geometry.js, `headerCuts`), as every box following scrolled content does. A box
 // with no target stands where the window holds it.
 //
-// Only a box whose target is near (geometry.js, `nearWindow`) is in the document.
+// Only a box whose target is near (dom/geometry.js, `nearWindow`) is in the document.
 // `onNear` hears where that changed, once the boxes come near are seated.
 //
 // `place` takes every box of the set, in paint order, each `{ node, target, rect }`:

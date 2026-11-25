@@ -15,7 +15,7 @@ import { holdingElement, isElement, isText } from "../lib/shadow-tree.js";
 // for the roots it is handed, which is why the declaration (`shadow`) and not a
 // sweep decides what is passed. An end in any other root moves out to its host's edge,
 // past the host where the selection ends, as the page's reading reads that host by its
-// light children: a drag from prose into a typeset formula (formulas.js) takes the
+// light children: a drag from prose into a typeset formula (readings/formulas.js) takes the
 // whole formula. Firefox's legacy Range is wrong there: a drag across a formula came
 // back holding only the words after it. A caret in such a root moves out as a range
 // round its host, so it is collapsed again: as a range it read as words the user had

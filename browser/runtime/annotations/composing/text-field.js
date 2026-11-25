@@ -8,7 +8,7 @@
  * message's disabled checkbox, a rule as the rule, an entity as the character it
  * names, a picture as the picture, drawn after its source while the caret is in it,
  * and a link that leaves the page with the mark the page draws after one
- * (declared-words.js). The syntax that produces each (backticks, asterisks, brackets,
+ * (records/declared-words.js). The syntax that produces each (backticks, asterisks, brackets,
  * hashes, list markers, a rule's dashes, an escape's or a break's backslash, an
  * entity's name, a picture's source) is hidden unless the selection touches the
  * construct; the spaces that lead a line, which the message drops, stay hidden. A
@@ -169,7 +169,7 @@
  * taken back or redone in the order it was made.
  *
  * A key typed in the field stops at the host once the editor and Leaf's key dispatcher
- * have handled it, so the page's listeners never hear it bubble (field-keys.js).
+ * have handled it, so the page's listeners never hear it bubble (base/field-keys.js).
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. The field reveals the caret's whole

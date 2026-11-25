@@ -16,7 +16,7 @@
    changes `h` walks, as `g T` and `g M` open the lists `t` and `m` walk. Hiding it is
    no mode, though it lasts until the user shows it again: it changes what the page
    shows, not what a key or the panel's field does. So the field keeps taking words, and
-   its standing words say the layer is hidden ("Annotations hidden", floating-panel.js,
+   its standing words say the layer is hidden ("Annotations hidden", panel/floating-panel.js,
    `STANDING_PARTS`); a mode's chip would take the field's place.
 
    `setAnnotationsHidden` is the one writer. It states the fact on the chrome's root
@@ -57,7 +57,7 @@ export const ANNOTATIONS_TOGGLE = {
   title: () => (hidden.value ? "show annotations" : "hide annotations"),
   touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
   menu: "annotate",
-  // A notice while the press's result stands, about the annotations (notifications.js,
+  // A notice while the press's result stands, about the annotations (transport/notifications.js,
   // `about`); hiding them offers Show annotations as its press.
   run: () => {
     const on = !hidden.value;

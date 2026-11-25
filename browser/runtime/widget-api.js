@@ -100,7 +100,7 @@ export {
 export { copyControl } from "./transport/copy-control.js";
 // The members a widget shows one at a time: Leaf remembers the one shown, names it in
 // the address where the widget's views are the page's, and keeps the user's place in
-// each view of the page's flow (views.js).
+// each view of the page's flow (records/views.js).
 export { keepView, openingView, viewMembers } from "./records/views.js";
 export { dressCode } from "./readings/code-dressing.js";
 export { readHistory, readReports } from "./host/reports.js";
@@ -116,7 +116,7 @@ export { leafEditorView } from "./annotations/editor-view.js";
 // (live-samples.md). A block's frame the reader sees as it mounts is drawing under way
 // (lib/pending-task.js), read here in the caller's stack: the page's presentation
 // waits for it, or the gesture whose rendering showed the frame owns its fit. The host
-// says when that drawing is in (sample.js, `landed`).
+// says when that drawing is in (host/sample.js, `landed`).
 /** @param {Parameters<typeof import("./host/sample.js").mountSample>[0]} frame
  * @param {Parameters<typeof import("./host/sample.js").mountSample>[1]} options
  * @returns {Promise<ReturnType<typeof import("./host/sample.js").mountSample>>} */

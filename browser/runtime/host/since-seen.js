@@ -2,7 +2,7 @@
 /* What changed since the user last saw the page, and the version Versions names for it.
 
    A revision counts as seen when it is on the page while the user is there: the
-   document visible, holding focus, and its reading continuous (reading-continuity.js).
+   document visible, holding focus, and its reading continuous (base/reading-continuity.js).
    Focus is the same evidence a message's read waits for (records/thread/read.js): a browser
    standing beside the terminal the user types into is visible but not being read, so
    revisions landing then are not seen. When the user leaves, the tab going hidden or
@@ -25,22 +25,22 @@
    When the user comes back, by a load, a return to a hidden tab once its first
    refreshed reading is in, or focus returning to the window, to a revision newer than
    any they saw, a notice says how much changed since the version they last saw ("3
-   changes since v12") and offers Show changes as its press (notifications.js,
+   changes since v12") and offers Show changes as its press (transport/notifications.js,
    `press`), which marks those changes. A return to a draft they watched land says
    nothing, though it differs from that version, since nothing in it is news. The
    notice is news, as a version's arrival is: it waits behind the user's own commands
-   and passes with its press after a notice's time (notifications.js), and Versions
+   and passes with its press after a notice's time (transport/notifications.js), and Versions
    keeps the lasting route. A revision landing while the notice is counted starts the
    count again. The page arrives unmarked: the user chose to call the marks
    up with a key rather than have them waiting, and to be told on return that there is
    something to call up, in a notice that passes like the others. Rejected: holding the
    notice and its press until the user's next input, as an Undo's is held, which held
    the panel's seat for the agent's status until the user acted. The count waits until
-   the document is presented, so the comparison it runs (version.js, `changesSince`)
+   the document is presented, so the comparison it runs (features/version.js, `changesSince`)
    stays off the path to first showing the page.
 
    Versions names the version the user last saw "last seen" while the page holds
-   changes since then, and opens on it, else on the newest older version (version.js,
+   changes since then, and opens on it, else on the newest older version (features/version.js,
    `sawLast`). `v` there presses the Compare of the version the user stands on, so
    `g V v` marks what Show changes does, and the same keys take the marks off again,
    since Versions opens on the version compared with. Show changes names Versions'
@@ -54,7 +54,7 @@
 
    Only the page itself takes part: a sample or other framed page is part of the page
    around it, and a reader of a hosted copy, who has no private page until they act
-   (layer-client.js), neither records nor is told. */
+   (transport/layer-client.js), neither records nor is told. */
 import { LIVE_ROOT, runtime } from "../state/context.js";
 import { effect, signal } from "/runtime/records/framework.js";
 import {
@@ -97,7 +97,7 @@ export function createSinceSeen({ markSeen }) {
   // The newest revision this tab has posted, so a blur and the hide after it send once.
   let posted = 0;
   // Counts arrivals, so a count in flight answers only the arrival that started it, and
-  // its notice stands only until the next (notifications.js, `stands`).
+  // its notice stands only until the next (transport/notifications.js, `stands`).
   const arrival = signal(0);
 
   const takesPart = () =>

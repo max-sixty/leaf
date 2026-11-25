@@ -1,5 +1,5 @@
 /* A leaf.page document reloads on the first answer from another release
-   (`admitResponse`, layer-client.js), whatever layer that answer names: only the edge
+   (`admitResponse`, transport/layer-client.js), whatever layer that answer names: only the edge
    names a release, so the edge has moved on and has a newer document to give. A
    revision asset the browser cached under the previous release is no such answer. */
 import assert from "node:assert/strict";

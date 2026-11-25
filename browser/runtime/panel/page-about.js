@@ -2,7 +2,7 @@
  * the page's access link, the agent session its comments reach, a developer preview's
  * diagnostics, the Leaf version the page runs, and the website's session reference.
  * Each is one row of the page's controls
- * (page-controls.js) whose press copies its text, derived from the state reading where
+ * (base/page-controls.js) whose press copies its text, derived from the state reading where
  * it is read, so a presentation follows the reading. */
 import { pageIdentity } from "../state/page-identity.js";
 import { SHARE_ROOT, runtime, shareUrl } from "../state/context.js";

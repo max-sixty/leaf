@@ -8,7 +8,7 @@
 
    A widget whose tag declares `inputs` names the items it drew from its bound value
    with plain attributes, and Leaf stamps them (`projectMarked`) once the widget
-   reports the value it drew (element-data.js, "Bound values"):
+   reports the value it drew (host/element-data.js, "Bound values"):
 
    - `data-lf-datum`, the key: a non-empty string unique within the seat, which core
      never interprets;
@@ -58,7 +58,7 @@
 
    `data-lf-projection`, `data-lf-origin`, `data-lf-source`, `data-lf-source-revision`
    and `data-lf-gen` are written here alone, never authored in a version, and a datum is
-   a node carrying both `data-lf-projection` and `data-lf-datum` (`DATUM`, passages.js).
+   a node carrying both `data-lf-projection` and `data-lf-datum` (`DATUM`, readings/passages.js).
    No consumer names a widget's tag. Export preserves the rendered elements and their
    labels as a snapshot, while dropping the scripts that could refresh them. Print
    preserves the same readable words. Neither medium claims that the snapshot remains
@@ -67,7 +67,7 @@
    The application constructs this owner with its semantic invalidation command.
    Each instance batches changed roots until the next microtask; the renderer never
    imports application coordination to discover how a changed datum is presented.
-   element-data.js, which may not import the application, stamps a widget's marks
+   host/element-data.js, which may not import the application, stamps a widget's marks
    through the module's `projectMarked`, which reaches the owner the application
    constructed. */
 
@@ -167,7 +167,7 @@ export function createDataProjection({ invalidateDom }) {
   }
 
   /** Stamp the items a widget marked under `root` with the snapshot that supplied the
-   *  value it drew, or null for words no bound value supplied; element-data.js has
+   *  value it drew, or null for words no bound value supplied; host/element-data.js has
    *  matched the value to the snapshot.
    *  @param {Element} root @param {import("../../host/data.js").DataSnapshot | null} snapshot */
   function projectMarked(root, snapshot) {

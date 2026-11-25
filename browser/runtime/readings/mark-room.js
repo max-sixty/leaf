@@ -1,7 +1,7 @@
 /* The room the marks round a subject take beside it, which every surface that stands
  * beside the subject keeps clear of: a thread's card, the comment box and a preview.
  *
- * The marks are the subject's own (geometry.js, `markedBox`), and those of each box
+ * The marks are the subject's own (dom/geometry.js, `markedBox`), and those of each box
  * round it that Leaf marks, one a comment or the aim can name (anchor-resolution.js,
  * `isAddressable`), whose edge on a side stands within the surface's gap past the room
  * so far. So a card or a preview beside a widget stands past the ring round the

@@ -1,4 +1,4 @@
-/* What a place on the page previews (place-preview.js): its name over its first parts,
+/* What a place on the page previews (annotations/place-preview.js): its name over its first parts,
    each read from the place's words rather than copied from its nodes, a heading's
    section as the page's reading walks it, and which links preview one at all. What the
    platform draws, a code block's lines as its whitespace draws them, the state a
@@ -300,7 +300,7 @@ test("a heading's section is walked through declared shadow trees and their slot
 });
 
 // A slot nothing is assigned to draws its own children, and the page's reading reads
-// them there (passages.js, `walk`), so a preview of what holds it shows the same words.
+// them there (readings/passages.js, `walk`), so a preview of what holds it shows the same words.
 test("a preview reads an empty slot's fallback as the page's reading does", () => {
   Object.assign(registry, {
     "lf-staged": {

@@ -18,7 +18,7 @@
    Who reads depends on the boundary between the two documents:
 
    - A sample's host reads its frame and adds admission: tab visibility, inertness,
-     modal reach and `aria-hidden` (sample.js, `admitted`). It posts the answer across
+     modal reach and `aria-hidden` (host/sample.js, `admitted`). It posts the answer across
      the sample's port, and the child publishes it here. Exact message exposure asks
      each containing geometry owner for a fresh band (`readSampleVisibility`).
    - Any other framed Leaf document watches its own `frameElement` and every frame

@@ -856,7 +856,7 @@ const bundles = {
         edit: patchTransitions,
       },
       // A radio group's arrow moves focus to the next radio in its row, which the user
-      // already sees. Leaf places focus without scrolling (focus.js, `focusDestination`),
+      // already sees. Leaf places focus without scrolling (dom/focus.js, `focusDestination`),
       // and the focused-control landing margin made the native scroll move the chooser
       // under the arrow wherever a landing had left it at the window's top edge.
       {
@@ -960,7 +960,7 @@ async function bundle(spec) {
  * which a page's grammars need anyway, so the browser doesn't read `$languages.names`
  * itself. `page check` reads the names too, as the one line of JSON
  * `syntaxLanguageNames` is written on (`leaf.markup_checks.markup.COLOURED_LANGUAGES`).
- * Beside them stands the shipped extension table, which `language-paths.js` starts
+ * Beside them stands the shipped extension table, which `base/language-paths.js` starts
  * from until a page installs its composed one.
  */
 async function syntaxLoaders() {

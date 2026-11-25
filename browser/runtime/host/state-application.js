@@ -41,7 +41,7 @@ import {
 } from "./semantic-news.js";
 
 /** @typedef {import("../records/thread/model.js").CapturedBody} CapturedBody */
-// Each message's captured words, kept while they read the same (kept.js): an authored
+// Each message's captured words, kept while they read the same (state/kept.js): an authored
 // message's are its island's, and any other's its words as a label reads them. A
 // thread's are kept together while its messages' are, so its record stands while its
 // messages do (records/thread/model.js, `readThreadRecords`).
@@ -180,7 +180,7 @@ export function createStateApplication({
     return runSerialized(async () => {
       // A reading that arrives while a gesture of the user's is unresolved, before the
       // frame painting what the gesture drew, waits for that frame, so the gesture's own
-      // result paints before the reading's work (rendering.js, `afterOwedFrame`). With no
+      // result paints before the reading's work (base/rendering.js, `afterOwedFrame`). With no
       // gesture in flight, as while the page loads, nothing on screen is owed first.
       if (readApplication().unresolved.length) await afterOwedFrame();
       // Pending deferral is rechecked by activates. An installation edits the user's
@@ -232,8 +232,8 @@ export function createStateApplication({
         messageBodies: bodies,
       };
       // The user's place across the change this reading brings, kept once the page
-      // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
-      // own landing instead (version.js).
+      // shows it (readings/user-place.js, `holdUserPlace`). A revision places the reader with its
+      // own landing instead (features/version.js).
       const keepPlace = installed ? null : holdUserPlace();
       if (!applicationState.adopt(state, documentCapture)) {
         await notifyChangedData();

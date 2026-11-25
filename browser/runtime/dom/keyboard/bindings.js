@@ -73,7 +73,7 @@
      that is not its stance's `exit`: a scope row takes no words. `touchValue` is a
      terse reading that row shows at its end, past words the row may cut, such as how
      long ago the gesture Undo would take back was made; the row's hover reads words it
-     cuts whole (preview.js), and never its description.
+     cuts whole (annotations/preview.js), and never its description.
    - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
      a Go-to destination does, so its result may move what they pressed it on. Every
      other command leaves the control it was pressed on where it stood on screen
@@ -454,7 +454,7 @@ const scopeReadiness = new WeakMap();
 // `when` (widget actions require a complete reading); only unfinished input queues.
 export const savedReadingSettled = () => runtime.statePhase !== "waiting";
 // Whether the page has finished restoring the place a reload Leaf asked for handed it
-// (version.js, `installArrival`). Until then no key is ready, so a printed key waits
+// (features/version.js, `installArrival`). Until then no key is ready, so a printed key waits
 // in the early hold (panel/page-keys/controller.js, `takeHeldKeys`): a user typing through the reload
 // meant it for the box they were writing in, which the restore brings back, not as one
 // of the page's commands.

@@ -172,7 +172,7 @@ test("a surface releases the composer from its own outlet under the node named",
 });
 
 test("a paint follows a surface's opener lifetime and the threads its seat claims", async () => {
-  // The margin lists a thread no seat draws (annotation-inventory.js), so its paint
+  // The margin lists a thread no seat draws (features/annotation-inventory.js), so its paint
   // reads `claimed`. Nothing else tells it a commit seated or released a thread: the
   // thread pass paints no region but its own, and the margin's presenter repaints
   // when a reading its paint followed moves.

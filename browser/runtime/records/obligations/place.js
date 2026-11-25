@@ -33,7 +33,7 @@
    members: a tab row and `lf-tally` count every member, how many are answered, and whose
    turn the open ones are by next actor, so an obligation the user discussed and left
    with the agent counts as unanswered and on the agent; and a goal's interventions
-   (work.js) are the members whose next actor is the user, since only those stop work on
+   (host/work.js) are the members whose next actor is the user, since only those stop work on
    the user.
    A region's reading also says whether its markup asks the user something (`asks`): it
    holds a widget declaring `awaits`, in the page or in a message's markup, whatever the
@@ -42,17 +42,17 @@
    answer through both.
    Every obligation and every asking widget of the page's markup is filed under each node
    above it once for the inventory, the captured widgets and the page's reading
-   (kept.js), so a widget that reads every panel or card of its own pays one climb per
+   (state/kept.js), so a widget that reads every panel or card of its own pays one climb per
    obligation for the page, a region's reading costs a lookup, and no region's elements
    are searched: a panel holding a 96,000-line text document has about 97,000. A
    message's markup is a document of its own, drawn and moved by Leaf's surfaces and
-   package readers, and nothing versions where it stands (passages.js,
+   package readers, and nothing versions where it stands (readings/passages.js,
    `pageReadingVersion`, versions only the page's), so each widget in a message's
    markup is looked up and climbs on every read: reading every panel of a side list
    costs the panels times those widgets. Keeping that too would take a version every
    drawing of a message moves.
    Which obligation holds a node the user is in is the converse question, current location rather
-   than membership (`obligationHolding`, current-target.js). It reads every placed
+   than membership (`obligationHolding`, records/current-target.js). It reads every placed
    obligation, and also falls back to an obligation's unique context. */
 import { elementById } from "../../readings/passages.js";
 import { readPart } from "../../state/semantic-state.js";
@@ -108,7 +108,7 @@ export function obligationPlace(item, items = readObligations().all) {
 }
 
 // The ids of the widget obligations each context holds, read once per inventory
-// (kept.js), so placing every obligation of an inventory costs one pass over it rather
+// (state/kept.js), so placing every obligation of an inventory costs one pass over it rather
 // than one per obligation.
 const contextsOf = keptEach(
   /** @param {readonly ObligationRecord[]} items */
@@ -196,7 +196,7 @@ function heldBy(region, all) {
 }
 
 // The ids of the captured widgets declaring `awaits`, of the page's markup and of
-// messages' (widget-descriptors.js), which change with each revision and each message
+// messages' (records/widget-descriptors.js), which change with each revision and each message
 // whose markup is captured.
 const captured = readPart((root) => root.document.descriptors);
 const asking = keptEach(

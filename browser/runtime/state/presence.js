@@ -15,7 +15,7 @@ const serverNow = () => pinned ?? Date.now() + clockSkew;
 // The calibrated server time now, as a reading made now answers for it.
 export const clockNow = () => serverNow();
 // `read` again at the moment `at`, as a standing preview reads its target again with the
-// clock it first read (preview.js), so a presentation whose only change is the clock
+// clock it first read (annotations/preview.js), so a presentation whose only change is the clock
 // changes nothing it says: every clock reading inside answers for `at`.
 /** @template T @param {number} at @param {() => T} read @returns {T} */
 export function atClock(at, read) {
@@ -153,7 +153,7 @@ export function saidAt(ts) {
   });
   return { day, time: timeOfDay(at) };
 }
-// What an age or a time previews (preview.js): the clock time, day and zone of the
+// What an age or a time previews (annotations/preview.js): the clock time, day and zone of the
 // instant its element holds, a `<time>` or an `lf-age`, so every one the page draws
 // declares one function and holds its instant once, in `datetime`, where the platform
 // keeps it.
@@ -185,7 +185,7 @@ export const quietSince = (ts) =>
 // `activityTransitionAt` is when, on the server's clock, the page's activity in an
 // answer can next change without any file moving, or Infinity when none is timed. A
 // neighbour's needs no clock here: its own server republishes its row at its
-// transition, which moves the pages reading the news names (live-leaves.js).
+// transition, which moves the pages reading the news names (host/live-leaves.js).
 /** @param {import("../../types/contract.js").ServedState | null} state */
 export const activityTransitionAt = (state) => {
   const at = state?.activity.next_transition_at;

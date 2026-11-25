@@ -26,7 +26,7 @@
    outward while the full reference groups the same scopes for reading.
 
    Scopes stand wherever their element does, but this module follows only the trees
-   arrivals.js observes: the document, open shadow trees, and stages (`shadow`,
+   dom/arrivals.js observes: the document, open shadow trees, and stages (`shadow`,
    `shadowStage`). In a closed tree that isn't a stage, a scope still answers its keys,
    but `commandsWithin` doesn't find it, and once the tree's host leaves the page a
    button outside it that the scope names keeps showing that command's availability
@@ -1115,7 +1115,7 @@ export function reflectFirstScopes() {
 // What it reads from the semantic root or from a signal is tracked: each reflection runs
 // as a signals effect, and a publication or signal that moves something it read marks
 // that element alone for the next frame. Where the user is counts as such a signal for
-// a reflection whose rows asked `focused` (focus.js, `followingFocus`), so a move reads
+// a reflection whose rows asked `focused` (dom/focus.js, `followingFocus`), so a move reads
 // again only those, not every element on the page. So a module's own state that a row
 // reads is a signal, a focus listener's included: a plain variable is read once, and a
 // change to it reaches the element only when something else marks it. What it reads
@@ -1304,7 +1304,7 @@ export const paintKeysWithin = (root) => {
 // elements inside them by a walk of each outermost root, so a frame costs what was
 // painted however many renderers painted, where a scan per paint cost every widget's
 // update the whole page's scoped elements. A placed node about to move out of a painted
-// root takes the marks of the scoped elements it holds with it (dom-move.js), so the
+// root takes the marks of the scoped elements it holds with it (dom/dom-move.js), so the
 // frame finds them wherever they land.
 /** @type {Set<Node>} */
 const paintedRoots = new Set();

@@ -25,7 +25,7 @@
    which decides one element at once rather than at the next mutation delivery. It
    first reads the mutations already made as a batch, so a decision made now never
    runs ahead of a departure made before it. Called with no element it only reads
-   them, for an owner whose readers ask what stands now (reading-regions.js).
+   them, for an owner whose readers ask what stands now (readings/reading-regions.js).
 
    An element's connection lifetime is one such watch over the elements a subscription
    stands on, which can be any element: `watchOwner(owner, {connect, disconnect})`
@@ -37,7 +37,7 @@
    one element may hold passes from one to the other. A connection also ends the
    batch, so an element removed before it and put back after it leaves and returns.
    The runtime's own subscriptions (data, projections, widget controllers) and the
-   host of declared elements (element-integration.js) hold it directly.
+   host of declared elements (host/element-integration.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
@@ -458,7 +458,7 @@ function wrote(box, top, left, places = true) {
 //   (`browserScrolls`), as it was while such a write went unheard. CodeMirror's measure
 //   corrects its scroller's offset as the reader scrolls it; read as the script's, that
 //   box would be one a hold on the reader's place could move back under their wheel
-//   (user-place.js, `holdUserPlace`).
+//   (readings/user-place.js, `holdUserPlace`).
 // - The runtime's own writers record their own writes, each its own way, so theirs go
 //   unheard (`unheardWrite`), and a write made inside another, as a DOM written in
 //   script makes (`scrollTo` there sets `scrollTop`), is part of that one.
@@ -615,7 +615,7 @@ export function stopWhereItStands(box) {
 // `stuckShift`). A box Leaf anchors (css-anchors.js) takes a write only at the next
 // frame (notes/browser-support.md, "A reveal of an anchored fixed box before the next
 // frame in Chromium"), so past one its anchor's holder is what to read
-// (scroll-containers.js, `carrying`). `read` only reads: a write of its own would be
+// (readings/scroll-containers.js, `carrying`). `read` only reads: a write of its own would be
 // undone.
 //
 // Each box costs a write and a write back, a few hundredths of a millisecond with the
@@ -693,7 +693,7 @@ export function watchScrolls(listener) {
 // rather than on each frame, which would trail the scroll a frame behind and cost a
 // frame's work. Readers hear an end in the order they subscribed, and scrolling.js
 // subscribes as it loads, so who chose the position is decided before any later reader
-// asks (version.js reads it).
+// asks (features/version.js reads it).
 const SETTLE_MS = 80;
 /** @type {Set<(box: Element) => void>} */
 const endListeners = new Set();

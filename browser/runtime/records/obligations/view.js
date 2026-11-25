@@ -11,7 +11,7 @@
    itself. The source owns the answer and the explicit context bindings. The group
    changes neither the obligation nor its answer.
 
-   Focus, through current-target.js, determines which obligation wears the location
+   Focus, through records/current-target.js, determines which obligation wears the location
    ring. The m/M work walk visits the user's current queue; an answered obligation can
    still receive an explicit review arrival and the same contextual editing routes.
    The selected destination has a lent tab stop at its opening, preserving document
@@ -172,7 +172,7 @@ export function createObligationView({
     }
   }
   let mounted = false;
-  // The page's current location paint (repaint.js) reads the asks: which one the user is at,
+  // The page's current location paint (dom/repaint.js) reads the asks: which one the user is at,
   // and which keys each answers. A publication that changes them repaints it.
   const presenter = applicationPresenter({
     region: "obligations",
@@ -351,7 +351,7 @@ export function createObligationView({
   // after a click, and the obligation it brought the user to must show where they are.
   //
   // The obligation and every box it shows through wear its stamp and its ring
-  // (target-paint.js, `paintLocation`): the obligation is what carries the id
+  // (readings/target-paint.js, `paintLocation`): the obligation is what carries the id
   // captureView writes down and the place the queue walk measures from, while a landing
   // keeps the ring's room at a scroller's edge round each box it lands on (chrome.css).
   function markHere() {
@@ -383,7 +383,7 @@ export function createObligationView({
   }
 
   // The user's current location on an obligation, said in terms a replaced document can still answer.
-  // Focus on an unnamed control does not cross a document replacement (carry.js), but an
+  // Focus on an unnamed control does not cross a document replacement (records/carry.js), but an
   // obligation is not unnamed. Its id is a declared identity that the inventory, the On
   // panel's rows, and the walk already resolve against whichever document is current,
   // so a user working an obligation when a revision lands is put back on the same obligation rather
@@ -440,9 +440,9 @@ export function createObligationView({
     // A region has to be somewhere the user can be taken, beginning at or above the
     // obligation: an element generating no box measures (0,0) at the document's origin,
     // which is not a degenerate answer but a wrong one naming the top of the page
-    // (geometry.js says so at shownBox). The screen the user can use is the room a
+    // (dom/geometry.js says so at shownBox). The screen the user can use is the room a
     // landing at the region's start leaves for the run down to the obligation's foot
-    // (landing-scroll.js, `landingRoom`): clear of the window's head over its top and the
+    // (readings/landing-scroll.js, `landingRoom`): clear of the window's head over its top and the
     // floating panel's room over its bottom, so an obligation's foot that fits is one the
     // user can read rather than one under the panel.
     /** @param {Element | null | undefined} region */
@@ -471,7 +471,7 @@ export function createObligationView({
   // This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
   // clear of the window's head too, read like the obligation where the glides under way
-  // will leave it (scrolling.js, `whereGlidesLand`).
+  // will leave it (dom/scrolling.js, `whereGlidesLand`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
    * @param {Element} source @param {Element} box @param {(node: Element) => boolean} readable */
   function alreadyArrived(record, region, item, source, box, readable) {
@@ -487,7 +487,7 @@ export function createObligationView({
   }
 
   // Being on one obligation: what m and Shift+m do once the queue walk has decided on an obligation
-  // (queue-walk.js), what an On Me row does, and what a Page Map entry does having
+  // (panel/queue-walk.js), what an On Me row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an obligation", and the two would drift the first time either the reveal or the
@@ -519,11 +519,11 @@ export function createObligationView({
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
     // A thread obligation in the floating panel arrives centred in that region, a step
-    // as every arrival at a stop the user wasn't on is (anchor-travel.js,
+    // as every arrival at a stop the user wasn't on is (features/anchor-travel.js,
     // `prepareNavigationStep`). One in a thread's
     // card, which stands fixed over the page by the thread's words where no scroll of
     // the boxes around the obligation moves it, lands as an arrival at the thread
-    // does (anchor-travel.js, `threadLanding`). Which box either travel moves is the
+    // does (features/anchor-travel.js, `threadLanding`). Which box either travel moves is the
     // travel's own question (scrollerFor) rather than a second one asked here.
     // A context other than the widget itself is the group the author declared round it.
     const inGroup = next.source.id !== next.prompt.target;

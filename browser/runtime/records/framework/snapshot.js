@@ -11,7 +11,7 @@
  *
  * Sharing is what makes identity mean "unchanged": a subtree whose contents did not
  * move comes back as the object the last reading held. A fold hands back what it made
- * last time for a step whose inputs held still (kept.js), and sharing a fold's result
+ * last time for a step whose inputs held still (state/kept.js), and sharing a fold's result
  * (`shareFold`) answers such a subtree from the last time it shared it, so a
  * publication costs what it changed rather than what the page holds. So a selection is a `computed` compared by
  * identity, and a reader subscribed to one part of the reading hears only that part
@@ -140,7 +140,7 @@ const foldShared = new WeakMap();
 
 /**
  * `share` for a fold's result, which hands back unchanged the subtrees it made before
- * from inputs that held still (kept.js). A subtree met again against the value it was
+ * from inputs that held still (state/kept.js). A subtree met again against the value it was
  * shared as is answered at once, without its contents being read: the fold owns the
  * subtree and never changes it, and the value it was shared as is frozen once
  * published. Only the application's fold may pass a value here.

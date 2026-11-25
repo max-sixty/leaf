@@ -322,7 +322,7 @@ export function threadMarks(thread, agent) {
 
 // A reading of one item says that item's own line, as a thread's says its word or its
 // unread count (`threadMarks`); an aggregate says the turn it owes the user, else what
-// its threads hold unread. Each line is said by whoever says it (voice.js).
+// its threads hold unread. Each line is said by whoever says it (base/voice.js).
 /** @param {ReadingChoice | null | undefined} choice */
 export function readingContext(choice) {
   const items = choice?.items ?? [];

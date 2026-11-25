@@ -14,7 +14,7 @@
      another, as sequential navigation reveals the control it reaches. Left unrevealed,
      the next key would let go of a control the user can't see (panel/page-keys/controller.js)
      and land them where Tab reaches it again. Focus otherwise arriving from outside is
-     a landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
+     a landing, and a return (dom/focus.js, `onCurrentLocation`), such as a node the runtime
      replaced handing focus to its successor, is no move of the user's. Nor is a press:
      the pointer found the control where it stands, so a click into a card's reply
      leaves the page, and the box under the pointer, still. The first word typed
@@ -26,7 +26,7 @@
    surface itself otherwise.
 
    Each asks what the browser asks of an ordinary control: whether the user sees all of
-   it (geometry.js, `seenRect`), clear of the room the floating panel takes. A surface
+   it (dom/geometry.js, `seenRect`), clear of the room the floating panel takes. A surface
    waiting hidden for room to stand says so (`away`), since its hidden box measures
    wherever it was left. A surface half under the panel is as unseen there as one
    scrolled off altogether. What a scroller inside the surface hides is the browser's

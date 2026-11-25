@@ -301,7 +301,7 @@ RING_CASES = (
                 (".lf-draft-edit", "lf-draft[data-lf-control-focus-visible]"),
             ),
             # A picture's response proxy, which a screen reader reaches from the
-            # picture, rings the picture (details-shelf.js).
+            # picture, rings the picture (features/details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # The rail's working density, where a choice's gap is narrowest beside the
             # next face, and a candidate's radio in its card: each is the page's own
@@ -1543,11 +1543,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     # A key press makes the focus that follows keyboard focus. Shift
                     # moves nothing: a Tab could stand in the panel's field, whose
-                    # caret starts writing there (floating-panel.js, `writing`).
+                    # caret starts writing there (panel/floating-panel.js, `writing`).
                     page.keyboard.press("Shift")
                     target.focus()
                     # A note on the details shelf is reached from the element that
-                    # names it (details-shelf.js), never by Tab, and is focused here as
+                    # names it (features/details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
                     assert target.evaluate(
                         "node => node.tabIndex >= 0"
@@ -1736,7 +1736,7 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     opens it, up and down step between its links and clamp at the ends, Home and End
     reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
     back — the user is returned to the reading place they pressed `g L` from. The walk
-    shows the row's preview, which the first Escape puts away (preview.js)."""
+    shows the row's preview, which the first Escape puts away (annotations/preview.js)."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)

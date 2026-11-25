@@ -36,7 +36,7 @@ export function updateSurface(registration) {
 // it: before the runtime has registered it, or after it left, there is nothing it can
 // open and nothing to release. A widget whose seats changed says so as it says any
 // change in what it holds, with `lf-layout`, which asks for a thread pass
-// (anchor-controls.js).
+// (annotations/anchor-controls.js).
 /** @param {Element} owner */
 export const threadSurface = (owner) =>
   Object.freeze({

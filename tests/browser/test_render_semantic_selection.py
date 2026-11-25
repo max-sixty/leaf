@@ -142,7 +142,7 @@ def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
     """The picker's map names what the window shows, and a closed tab's panel shows
     nothing, so the map reads none of the boxes in it: the browser lays the panel out
     to answer each read, and on a page of thirty 4 MB text documents in tabs the first
-    map took 7 to 15 s in Firefox, about 270 ms a closed tab (geometry.js,
+    map took 7 to 15 s in Firefox, about 270 ms a closed tab (dom/geometry.js,
     `shownParts`). Its words take a hint once their tab opens."""
     page = open_page(
         browser,
@@ -1606,7 +1606,7 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
 
 def test_page_search_counts_the_words_an_off_screen_box_skips(browser, serve):
     """A word the browser skips in an off-screen `content-visibility: auto` box, as a
-    long text document's runs are, counts by that box (passages.js,
+    long text document's runs are, counts by that box (readings/passages.js,
     `searchableWords`): every line of the document, and the author's far box's words,
     less those under a `hidden` element in it. A box that is `visibility: hidden`
     still counts a word that restores `visibility: visible`. `leaf-dev bench document

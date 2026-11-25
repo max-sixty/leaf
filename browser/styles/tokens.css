@@ -61,7 +61,7 @@
   initial-value: 8px;
 }
 /* Registered as a length so it computes to one, which the reach of a mark over a list
-   marker reads back (geometry.js, `markerReach`). */
+   marker reads back (dom/geometry.js, `markerReach`). */
 @property --lf-list-inset {
   syntax: "<length>";
   inherits: true;
@@ -122,7 +122,7 @@
      through the top layer: a modal dialog, a popover, or fullscreen. Letting page
      z-indexes compete with the ladder was rejected: whether a page's header or overlay
      covered the floating panel, a highlight or a pin depended on numbers neither side
-     chose against the other. `stackLevel` (geometry.js) reads a chrome box above every
+     chose against the other. `stackLevel` (dom/geometry.js) reads a chrome box above every
      page box for the same reason. */
   --lf-z-page-paint: 8890; /* paint on a page element */
   --lf-z-margin-raised: 8895; /* the margin item under pointer or focus, or at the user's location */
@@ -303,7 +303,7 @@
      It is authored rather than measured, so the page's geometry is settled before
      anything lands in the margin and never moves because of what does. It seats the
      resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
-     margin-model.js): two entries and the cluster's gap (`--lf-margin-gap`), hung
+     features/margin-model.js): two entries and the cluster's gap (`--lf-margin-gap`), hung
      `--lf-rail-hang` from the prose, including its gutter, with the focus ring's
      room at the outer edge. A
      finger's larger entries spend the room the hang would, so it shrinks with them. A
@@ -351,7 +351,7 @@
   --lf-col-pad: 24px;
   /* The window width that holds the column with a rail on either side, the width at
      which a column page's rail stands; narrower, a thread opens in the floating panel
-     rather than a margin card (content-layout.js, `windowHoldsRail`). */
+     rather than a margin card (readings/content-layout.js, `windowHoldsRail`). */
   --lf-rail-room: calc(var(--lf-col) + 2 * var(--lf-rail));
   /* The room a page Layout leaves above its first block and below its last, the latter
      past the window's safe area at its foot, where a phone draws its home indicator. A
@@ -636,7 +636,7 @@
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
      - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
-       (target-paint.js, `paintLocation`), and the decision's focus ring too. It stands
+       (readings/target-paint.js, `paintLocation`), and the decision's focus ring too. It stands
        down while visible focus is inside the decision, whose own ring says where the
        user is.
      - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,

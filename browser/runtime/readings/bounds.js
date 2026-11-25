@@ -18,7 +18,7 @@
    stays where they stopped, since a log that pulls them down while they are reading an
    earlier line is a log they cannot read; returning to the end resumes following. The
    end keeper every box that follows its end shares does the following
-   (scrolling.js, `followEnd`); this module opens the box at its end once it is drawn. The
+   (dom/scrolling.js, `followEnd`); this module opens the box at its end once it is drawn. The
    place continuity records for a following block is its end (`followingItsEnd`), so a
    revision that restores places leaves it following rather than on the line that was
    at its top.
@@ -31,7 +31,7 @@
    A block is held while it stands in the page, whoever painted its bound: delivery
    paints a page's, and a revision patched in arrives painted the same way, while
    `markDeclared` paints a message's markup as the thread renders it. So one watch
-   (`holdArrivingBounds` on arrivals.js, started at boot) holds what the page opens
+   (`holdArrivingBounds` on dom/arrivals.js, started at boot) holds what the page opens
    with, every block added since in the document or a declared shadow root, and any
    element whose bound is painted or taken away in place, and lets go of a block that
    leaves. Each held block is then watched on its own, for what it holds, its size,
@@ -131,7 +131,7 @@ function holdBlock(bounded) {
     registered.add(hold);
   };
   // `observed` when the block's own size observer asks, which cannot take a fresh
-  // observation of the block: the same delivery would never reach it (reach.js).
+  // observation of the block: the same delivery would never reach it (dom/reach.js).
   /** @param {boolean} observed */
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
@@ -174,7 +174,7 @@ function holdBlock(bounded) {
   return hold;
 }
 
-// Hold every bounded block while it stands in the page (arrivals.js); `sync` answers
+// Hold every bounded block while it stands in the page (dom/arrivals.js); `sync` answers
 // both ways, registering a block that stands and letting go of one that has left or lost
 // its bound. What a registered block holds is its own observer's to follow, so a block
 // offered again with its bound unchanged (its children or siblings moved) costs nothing.

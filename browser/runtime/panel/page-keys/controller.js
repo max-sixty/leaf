@@ -3,11 +3,11 @@
    releases bootstrap's ordered keys as their declared input becomes available.
 
    Focus stays on a control the user has scrolled out of sight, but they are reading
-   something else (user-place.js, `focusPlace`), so a key they press there lets go of it
-   first (focus.js, `letGo`) and then acts from what they see: no Leaf command settles,
+   something else (readings/user-place.js, `focusPlace`), so a key they press there lets go of it
+   first (dom/focus.js, `letGo`) and then acts from what they see: no Leaf command settles,
    chooses or toggles what they can't see, Space pages on from what they read and Tab
    moves on from it. The let-go lands on what they see, so it moves nothing, and they
-   are not beside what they let go of, so no walk comes back to it (current-target.js,
+   are not beside what they let go of, so no walk comes back to it (records/current-target.js,
    `walkOrigin`). It is not Escape's release: a card open beside what they left stays
    open where it rides. Chromium and WebKit still apply a radio's, slider's or select's
    own arrows at the control the key was aimed at, wherever focus has gone
@@ -17,7 +17,7 @@
    in capture. Leaf's own command for the key still runs, and the browser's default runs
    from where focus landed unless that command prevents it. Escape takes its own
    step, a key typed into a text field keeps the field, since typing brings its box back
-   (off-flow.js), and a modifier alone is half a press. Tab types nothing, so it goes on
+   (readings/off-flow.js), and a modifier alone is half a press. Tab types nothing, so it goes on
    from what they read. A select's letters let go, since
    they choose an option the user can't see. */
 import { dispatchKey, keyReady } from "../../dom/keyboard/dispatch.js";
@@ -123,7 +123,7 @@ export function mountKeyboard({
         ev.stopPropagation();
       }
       // Tab and the paging keys go on to the browser, which moves focus or scrolls from
-      // where the page stands, so the glides under way land first (scrolling.js,
+      // where the page stands, so the glides under way land first (dom/scrolling.js,
       // `landForKey`), once the let-go has read where they were headed.
       landForKey(ev);
       if (away || ev.target === document.body) press(ev);
@@ -180,7 +180,7 @@ export function mountKeyboard({
     },
     { capture: true },
   );
-  // A key typed in a Leaf field stops at the field (field-keys.js), so this pass reads
+  // A key typed in a Leaf field stops at the field (base/field-keys.js), so this pass reads
   // it there, a waiting row included: no listener past the field is left to take the key.
   readLeavingKeys((ev) => {
     if (ev.type !== "keydown") return;
@@ -198,7 +198,7 @@ export function mountKeyboard({
   // Until a reload's place is handed back, the run waits wherever focus is, even in a
   // box the page opened before the hand-back put the user back in theirs, and the hold
   // lets it go at any other input (bootstrap.js, `holdEarlyKeys`); the hand-back begins
-  // before the page upgrades (version.js, `installArrival`).
+  // before the page upgrades (features/version.js, `installArrival`).
   const takeHeldKeys = () => {
     if (!pageUpgraded() || pressingHeld || !placeHandedBack()) return;
     /** @type {DocumentEventMap["lf-held-keys"]} */
@@ -244,9 +244,9 @@ export function mountKeyboard({
   watchCommandAvailability(takeHeldKeys);
   // Focus entering a box, or a control that claims Escape, disarms the sequence — a
   // digit typed in a box is text, and a chip left blooming would promise a cancel the
-  // control would consume. The paint that answers the move is repaint.js's. A chrome
+  // control would consume. The paint that answers the move is dom/repaint.js's. A chrome
   // placement handing the user straight back to the node it moved moves no one, so it
-  // publishes nothing to disarm (focus.js, `onCurrentLocation`).
+  // publishes nothing to disarm (dom/focus.js, `onCurrentLocation`).
   onCurrentLocation(() => {
     // The same question `setGoToSequence` asks before arming, so it takes the same answer: two
     // readings of where the user is would refuse to arm somewhere they then

@@ -296,9 +296,9 @@ const outermostAcross = (element, selector) => {
 // A picture inside a press is that control's rendering, so the control keeps the
 // gesture and no visual reading is offered for it. A region that holds content — a tab
 // panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
-// pictures (widget-elements.js, PRESSES). What makes a press, such as a role, is not
+// pictures (dom/widget-elements.js, PRESSES). What makes a press, such as a role, is not
 // what the page's reading hears, so it follows the document changing
-// (`documentChanged`) and a widget's layout (visual-parts.js, `layoutsChanged`).
+// (`documentChanged`) and a widget's layout (state/visual-parts.js, `layoutsChanged`).
 /** @param {Element} element */
 const claimsVisualGesture = (element) => {
   documentChanged();
@@ -1073,7 +1073,7 @@ export function resolveAnchor(anchor) {
 /** @param {string} id */
 const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
 
-// What a fragment names (anchor-coordinate.js, `fragmentKey`): the element whose id it
+// What a fragment names (base/anchor-coordinate.js, `fragmentKey`): the element whose id it
 // spells, as `named` finds one, which by default reads the id as the anchor `{section}`
 // is, so content a revision settled away names nothing. Failing that, a widget and a
 // key, whose `place` is the element the key addresses under the widget

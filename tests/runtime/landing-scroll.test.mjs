@@ -127,7 +127,7 @@ test("a reveal in an inner scrollport travels the fraction it asks for", () => {
   // A 200px scrollport that only a script scrolls, at the top of the reading scroller,
   // stands at 100 with its box's foot 1.75px past its own foot. Cut to the whole pixel,
   // the reveal would leave 0.75px clipped, which a retry is too short to move
-  // (arrivals.js, `setScroll`).
+  // (dom/arrivals.js, `setScroll`).
   const { scroller } = laidOut(0);
   const inner = document.createElement("div");
   inner.style.overflow = "hidden";

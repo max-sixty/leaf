@@ -12,10 +12,10 @@
    string is said by no one: a name, such as a thread's title or a mode's, or where the
    user stands in a walk, which the interface states in its own face, but for a seat
    that also carries the agent's words, where Leaf says them (glossary.md,
-   "Reader-facing words"; field-readings.js). An empty box's
+   "Reader-facing words"; panel/field-readings.js). An empty box's
    words are Leaf's, each ending in an ellipsis: a comment box's Reply… or Comment…
    (`REPLY_HINT`, `COMMENT_HINT`), and a search's prompt, such as Find text…, which
-   every search box marks as Leaf's (control-labels.js, `searchField`).
+   every search box marks as Leaf's (dom/control-labels.js, `searchField`).
    So a seat never decides a voice: each word reaches it with its speaker, or as the
    interface's own. */
 import { html } from "/vendor/lit.js";
@@ -68,7 +68,7 @@ export function voiceOf(words) {
 }
 
 /** The run's lines, split where a part is a line break ("\n"), as a change's account
- * stands over what its version was saved after (change-provenance.js), for a seat that
+ * stands over what its version was saved after (features/change-provenance.js), for a seat that
  * draws each line as its own.
  * @param {Words} words @returns {(string | Said)[][]} */
 export function linesOf(words) {

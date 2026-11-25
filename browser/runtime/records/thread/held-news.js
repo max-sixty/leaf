@@ -13,13 +13,13 @@
    there. A turn of the user's that this page did not just send, such as one from
    another tab, grows it the same way. Where that growth starts above the screen, the
    browser's scroll anchoring takes it into what the user has scrolled past; where it
-   starts below, it moves nothing they see (geometry.js, `motionBand`, says where that
+   starts below, it moves nothing they see (dom/geometry.js, `motionBand`, says where that
    is). Where it starts on screen:
 
    - the thread the user is in, by focus or by a gesture of theirs still in flight
      (`gesturedOn`), draws what its news adds at once, as a chat does, and the seat
      keeps the control they are on still by scrolling what stands above it up by the
-     growth (user-place.js, `holdUserPlace`). That control is where the user
+     growth (readings/user-place.js, `holdUserPlace`). That control is where the user
      is: a message they stand on stays and the reply box below it moves down by the
      turn; on the thread itself, as a send leaves them, its reply box stays. Where the
      page can't scroll by all of the growth, as when it is shorter than its window, the
@@ -91,7 +91,7 @@
    - changing the panel's view, which moves its cards anyway.
 
    Held news also shows once growth anywhere in the seat would move nothing the user
-   sees: none of it stands where a change of size moves what is seen (geometry.js,
+   sees: none of it stands where a change of size moves what is seen (dom/geometry.js,
    `growthIsSeen`), as when it is scrolled under the chrome. Where a route's destination
    is itself held, a message or an obligation in a held turn, the route shows it first
    (`showHeld`), since nothing undrawn can take focus. Anything held in a seat is not
@@ -117,7 +117,7 @@
    box and scrolling the transcript, which scrolls Resolve away; and holding all news while it is open, which stops
    progress showing live where the user watches it. A presentation that makes room for
    the agent's answer to the user's last turn itself shows that answer at once, as the
-   floating panel's thread view does (the user's decision, floating-panel.js):
+   floating panel's thread view does (the user's decision, panel/floating-panel.js):
    held, the reply the user waits for stands unseen behind a small notice in their own
    message's head row.
 
@@ -468,7 +468,7 @@ const said = (news) => {
  *  that waits, "2 new", in every placement, which is its accessible name too, so a
  *  voice user saying the words they see reaches it; its preview says each fact, "1 new
  *  reply · 1 new message", and a screen reader hears that as its description while it
- *  stands on focus (preview.js). A name of the facts
+ *  stands on focus (annotations/preview.js). A name of the facts
  *  alone matches nothing the user sees. The user chose this over a line
  *  of facts that drops those past its room and counts them at its end ("1 new reply
  *  +1"), and says "2 new" only where even the first fact doesn't fit, so one piece of
@@ -480,12 +480,12 @@ export function newsNotice() {
   keeps(node, "data-lf-news", "");
   const words = document.createElement("span");
   // The news is Leaf's, so the words wear Leaf's voice, as the panel's field does a
-  // reading all Leaf says (voice.js).
+  // reading all Leaf says (base/voice.js).
   words.dataset.lfVoice = "leaf";
   node.append(words);
   /** @type {() => Element | null} */
   let open = () => null;
-  // Its whole label, under the count it shows, is what the preview reads (preview.js).
+  // Its whole label, under the count it shows, is what the preview reads (annotations/preview.js).
   let label = "";
   node.lfPreview = () => (label ? { detail: [label] } : null);
   // A key on the notice, which stands the user on it, lands them on the thread, since
@@ -540,7 +540,7 @@ export function showHeld(id) {
 // and the seat's rule for a user in it decides (inline.js). No reading brings either
 // draw, so an arrival on a control in the thread, as a press into its reply box or a Tab
 // into its reply row, takes the hold a reading takes, which keeps that control where it
-// stood (user-place.js, `holdUserPlace`). An arrival on the thread itself, by a walk or
+// stood (readings/user-place.js, `holdUserPlace`). An arrival on the thread itself, by a walk or
 // a press on one of its messages, takes none: the hold would keep its reply box still,
 // as it does for a user standing on the thread when news comes, and so move what they
 // arrived on up by the news, where the growth below the thread's head leaves it put.
@@ -740,7 +740,7 @@ export class HeldNews {
  *  A reading is a value equal to the one drawn last exactly when it draws at the same
  *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
  *  `reading` where it is the first, where it equals the one drawn last, or where growth
- *  anywhere in the region would move nothing the user sees (geometry.js,
+ *  anywhere in the region would move nothing the user sees (dom/geometry.js,
  *  `growthIsSeen`), since a row may change anywhere in it; otherwise the reading drawn
  *  last. What it holds shows when the user opens it (`release` or `show`), or once
  *  that growth would move nothing seen. The wait lasts while `owner` stands: a departure
@@ -827,12 +827,12 @@ export class HeldReading {
  *  live sample's frame taking its child's height as the child arrives: `change()`
  *  applies the new size now where it would move nothing the reader sees, which it does
  *  before the page presents, while their reading is interrupted, or while growth
- *  anywhere in `node` is unseen (geometry.js, `growthIsSeen`). Otherwise `node` stands
+ *  anywhere in `node` is unseen (dom/geometry.js, `growthIsSeen`). Otherwise `node` stands
  *  as drawn and the change waits until that growth would move nothing seen, or until
  *  the reading breaks, as a hidden tab breaks it. Returns a step that drops a waiting
  *  change. A gesture of the reader's into the box is theirs to move it: the owner,
  *  which knows what counts as one, drops the wait and applies the change itself, as a
- *  live sample's host does on a click or key inside its child (sample.js). */
+ *  live sample's host does on a click or key inside its child (host/sample.js). */
 /** @param {Element} node @param {() => void} change */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {

@@ -2087,7 +2087,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     # A card the page has carried half past the window's top, Reply with it, is as
     # unseen there as one scrolled off: a landing in it brings it back all the same.
     # The box goes more than the pixel of slack past the top that reads a card held
-    # flush at the edge as shown (off-flow.js, `unseen`).
+    # flush at the edge as shown (readings/off-flow.js, `unseen`).
     reply.evaluate(
         """async (box) => {
           const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

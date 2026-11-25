@@ -223,7 +223,7 @@ def validate_work_roles(registry: dict, declarations: dict, path) -> None:
     `runtime/host/work.js` reads the entries as given, so an attribute the tag lacks, or a
     value its state can't take, would leave a goal never done or a worker without its
     goal, with nothing saying why. A role's state is the one widget value record on
-    its attribute, which work.js also reads as the role's report verb, and a worker's
+    its attribute, which host/work.js also reads as the role's report verb, and a worker's
     `on` names its goal by id."""
     roles = registry.get("$work", {}).get("widgets", {})
     if unknown := sorted(roles.keys() - declarations.keys()):

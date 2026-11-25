@@ -22,7 +22,7 @@
    it on every box. For the same reason PhotoSwipe draws no stand-in box of its own,
    which would sit behind the decoded image, doubling its shadow, until PhotoSwipe
    removed it a second later. Loading and decoding hold the page's rendering
-   (rendering.js, `holdRendering`), so a reader outside the page waits for the image
+   (base/rendering.js, `holdRendering`), so a reader outside the page waits for the image
    rather than the empty viewer. An image opened from inside a popover, such as a draft's attachment
    in the page comment card, leaves that popover and its draft standing beneath the
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
@@ -234,7 +234,7 @@ const cellHeads = (/** @type {Element} */ from) => {
   ].join(" · ");
 };
 
-// The viewer hands the user back to the image they opened it from (focus.js,
+// The viewer hands the user back to the image they opened it from (dom/focus.js,
 // `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
 // Opening settles once PhotoSwipe draws the image or the viewer says it is
 // unavailable. An opening that a newer one or the viewer's close supersedes still

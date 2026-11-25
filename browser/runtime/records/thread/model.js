@@ -84,7 +84,7 @@ export const messageKey = (message) => message.key ?? message.attempt ?? message
 // Every name that reaches a thread: its key (`threadKey`), its own id, the id of each
 // message in it, which a reply or settlement names as its `parent`, and the pending id
 // a message this tab sent went by before the log named it. A key that is an attempt
-// can't be another thread's name: an attempt is 32 hex digits (ids.js) or one of the
+// can't be another thread's name: an attempt is 32 hex digits (base/ids.js) or one of the
 // server's prefixed ones, and the log's ids are 8 (`event_log.new_event_id`).
 /** @template {{id: string, root: {attempt?: string}, msgs: readonly {id: string, attempt?: string}[]}} T
  * @param {readonly T[]} threads */
@@ -202,7 +202,7 @@ export const seatOf = (message) =>
 // server read until the log answers the gesture. A thread the user opened with words has
 // no log beyond the gesture: it waits on the agent for its send, whose record the
 // publisher makes under the pending id its local workflow shares
-// (`application.js`, `localUpdates`), and asks nothing yet.
+// (`host/application.js`, `localUpdates`), and asks nothing yet.
 /** @param {{id: string}} turn @returns {import("../../../types/domain.js").Attention} */
 const sending = (turn) => `update:${turn.id}`;
 
@@ -419,7 +419,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    draws them read in the turn it sends that, and the answer confirms rather than
    decides it. A record lists them in its messages' order.
 
-   Each thread's record is kept (`kept.js`) by the served thread and what it holds:
+   Each thread's record is kept (`state/kept.js`) by the served thread and what it holds:
    the versions this tab is marking read of it, its workflows, obligations and to-dos,
    the widgets in its messages with their state, and its messages' captured words
    (`messageBodies`), which adoption keeps by thread while they read the same. Within a
@@ -660,7 +660,7 @@ const threadRecord = keptEach(
   },
 );
 
-/** Each thread's record, kept until the thread or something it holds moves (kept.js).
+/** Each thread's record, kept until the thread or something it holds moves (state/kept.js).
  * @param {readonly Thread[]} threads
  * @param {import("../framework/application.js").SemanticDocument} document
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets

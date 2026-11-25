@@ -1,6 +1,6 @@
 /* Which layer a node stands in: Leaf's chrome, a label a widget declared as the page
    speaking, or the document. Every reading that climbs out of a widget asks it, so it is
-   answered here, from the marks Leaf's chrome wears, where geometry.js and the passage
+   answered here, from the marks Leaf's chrome wears, where dom/geometry.js and the passage
    readings both ask it and neither imports the other for it. The climb itself is the
    library's (lib/shadow-tree.js). */
 import { closestAcross, isElement, overIn } from "../lib/shadow-tree.js";
@@ -21,7 +21,7 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 // chrome it sits in.
 export const SAID = "[data-lf-said]";
 // The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
-// element at a time on its way down (passages.js, `chromeMark`).
+// element at a time on its way down (readings/passages.js, `chromeMark`).
 export const UI_MARKS = `.lf-ui, ${SAID}`;
 // The same question one node at a time: is this the runtime's own chrome rather than the
 // document? Every affordance asks it before acting on where the pointer or the caret is.

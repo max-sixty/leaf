@@ -42,11 +42,11 @@
 // user's own move, so no Send arrives under a pointer resting where the corner stood
 // empty (browser/AGENTS.md, "Controls stay where the user aims").
 //
-// An error about a box (errors.js, its `subject`), such as a refused send's whose words
+// An error about a box (transport/errors.js, its `subject`), such as a refused send's whose words
 // came back to it or an image it would not take, stands over the box's words and
 // actions, wrapping within its lines, until the user comes back to them: an edit there,
 // an image attached, a press on the cover or a key there, a send key or a press putting
-// the caret at the words' end and sending nothing, or Resume writing (drafts.js). While it stands the box sends nothing, so words the user
+// the caret at the words' end and sending nothing, or Resume writing (records/drafts.js). While it stands the box sends nothing, so words the user
 // has not seen again are never sent. The error is about the words, not the node, so it
 // also passes once the box stops showing them: it takes up another draft (`arrive`), as
 // the one passage composer does on each passage, or it is hidden or leaves the page
@@ -258,7 +258,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
-      // A sent message's picture is the one its message draws (page-markdown.js,
+      // A sent message's picture is the one its message draws (records/page-markdown.js,
       // `pageLinks`), in a paragraph of its own as the message sets it, with the removal
       // mark a rewrite adds.
       return sent
@@ -317,7 +317,7 @@ export const standsAtItsBox = (error) => {
 // field's `end` slot (text-field.js), as the entering word and its key are, so it
 // stands only while the box's words do, and reads in their face. Its mousedown keeps
 // the caret and focus where they are, and the press keeps the notice that offers it
-// (notifications.js, `keepsNotice`). The keyboard's route is the press's own command
+// (transport/notifications.js, `keepsNotice`). The keyboard's route is the press's own command
 // and a finger's is this, so it takes no tab stop.
 /** @param {BoxPress} press @param {readonly string[]} keys */
 const pressAtRest = (press, keys) =>
@@ -392,7 +392,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       enters = () => "",
       accessibleName = null,
       // Whether the box takes no words now, as the panel's field while a stance
-      // stands (field-readings.js, `still`): its draft stays, unwritable, and it
+      // stands (panel/field-readings.js, `still`): its draft stays, unwritable, and it
       // offers neither Send nor the microphone until this says otherwise.
       closed = () => false,
       // Whether the corner shows Dictate, or Send, while the user isn't writing in the
@@ -892,7 +892,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
     // A box the user stands on rather than in, as a walk's stop at a kept comment
-    // leaves them (anchor-travel.js, `onFrame`), takes Enter into its words, with the
+    // leaves them (features/anchor-travel.js, `onFrame`), takes Enter into its words, with the
     // caret after them, as `c` there does.
     keys(visualField, "On a text box", [
       {
@@ -910,7 +910,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     sendBtn = (submitIn ?? field).querySelector("button.lf-compose-submit");
     // The key that sends from the box is the box's own `text.send`, which sends rather
     // than pressing Send, so the box says it beside Send: as a key chip in Send's
-    // preview (preview.js), with the key that makes a new line where Return sends, and
+    // preview (annotations/preview.js), with the key that makes a new line where Return sends, and
     // in its `aria-keyshortcuts`, both from `sendBindings`.
     if (sendBtn)
       sendBtn.lfPreview = () => {
@@ -1058,8 +1058,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // composer moves to another passage before its bytes reach the server.
     // Attaching is the user coming back to the box, as an edit is. The upload and the
     // thumbnail it ends in belong to the rendering of the gesture that attached them
-    // (rendering.js, `holdRendering`), so the box moves for the thumbnail as for the
-    // user's own change rather than for news (box-motion.js, "Whose change it is").
+    // (base/rendering.js, `holdRendering`), so the box moves for the thumbnail as for the
+    // user's own change rather than for news (dom/box-motion.js, "Whose change it is").
     sync.addMedia = /** @param {readonly Blob[]} images */ async (images) => {
       if (images.length) passErrorsAt(ta);
       if (!images.length || sending || uploading || held()) return false;

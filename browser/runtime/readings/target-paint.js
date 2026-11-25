@@ -2,7 +2,7 @@
  * margin trace, the proxy ring and the location ring, and the stamp on the decision the
  * user stands in, which draws nothing of its own (`paintLocation`).
  *
- * Each is an attribute on the box it marks (page-paint.js, `RUNTIME_PAINT_ATTRIBUTE`),
+ * Each is an attribute on the box it marks (base/page-paint.js, `RUNTIME_PAINT_ATTRIBUTE`),
  * and the box draws the mark itself, as its own outline, or as its border image where
  * the mark reaches over a list marker (surfaces.css). So the mark moves with the box
  * through every scroll, transform and layout change in every engine, passes under what
@@ -19,7 +19,7 @@ import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 import { inChrome } from "../base/ui-marks.js";
 
-// One mark: an attribute on what it marks at a time (page-paint.js), which is each box
+// One mark: an attribute on what it marks at a time (base/page-paint.js), which is each box
 // the element shows through (`shownParts`), or the boxes `boxesOf` names, so an
 // element with no box of its own, such as a section styled `display: contents`, is
 // marked on the boxes it shows. A layout change can replace those boxes, so `refresh`
@@ -63,7 +63,7 @@ export function clearAim() {
 }
 
 // The aim marks `surface`, the element itself where nothing draws it for it, as a
-// comment's mark does (anchor-paint.js). Answers the box it shows, or null where none of
+// comment's mark does (annotations/anchor-paint.js). Answers the box it shows, or null where none of
 // it shows.
 /** @param {Element | null} element @param {Element | null} [surface] */
 export function paintAim(element, surface) {
@@ -91,7 +91,7 @@ export function labelAim(node) {
     placed: { rect, shown, levels },
     surface,
   } = aimed;
-  // The label stands clear above the marks at the box's top (geometry.js, `markedBox`),
+  // The label stands clear above the marks at the box's top (dom/geometry.js, `markedBox`),
   // and at the start of what the box draws (`inkedBox`), over a list marker beside it.
   const room = Math.max(0, rect.top - (markedBox(surface) ?? rect).top);
   const reach = Math.max(0, rect.left - (inkedBox(surface) ?? rect).left);

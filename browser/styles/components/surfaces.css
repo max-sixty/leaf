@@ -225,7 +225,7 @@ a[data-lf-external]::after,
    one shows: their gap (`--lf-band-gap`), the box's `--lf-ring-at`, else a region's gap,
    or a control's for a box that takes a press; and the room their band takes past the
    box's edge (`--lf-band-room`). So a surface that stands clear of the marks
-   (geometry.js, `markedBox`) clears them before they show. */
+   (dom/geometry.js, `markedBox`) clears them before they show. */
 :where(*) {
   outline-offset: var(--lf-ring-at, 0px);
   --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
@@ -247,8 +247,8 @@ a[data-lf-external]::after,
 }
 /* A visible focus destination wears the layer's band unless its own rule supplies
    a carrier, or another mark on it carries it: a comment's mark
-   (`[data-lf-projected-mark]`, visual-mark-paint.js), or the location ring round the decision
-   the user stands in (`[data-lf-projected-location]`, target-paint.js). Each stands where the
+   (`[data-lf-projected-mark]`, annotations/visual-mark-paint.js), or the location ring round the decision
+   the user stands in (`[data-lf-projected-location]`, readings/target-paint.js). Each stands where the
    box says, as this band does. Controls and reading destinations follow browser focus
    visibility. Current location remains separate, so pointer focus can reveal controls
    without drawing a ring.
@@ -272,8 +272,8 @@ a[data-lf-external]::after,
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
      positioned contents would paint over its outline. It wears no outline of its own
      while focused, the browser's ring included, which `:focus-visible` gives it before
-     the focus paint marks it (focus.js), when a moving card reads its rings
-     (box-motion.js).
+     the focus paint marks it (dom/focus.js), when a moving card reads its rings
+     (dom/box-motion.js).
    Either is a positioned box, so its ::after covers it. That ::after is at no weight
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
@@ -304,7 +304,7 @@ a[data-lf-external]::after,
    image beside a list marker (below), so it moves with the box through every scroll, transform and layout change in every engine, and passes
    under what the page stacks over the box as the box's own words do. The Alt aim
    (`[data-lf-aimed]`), the margin trace (`[data-lf-traced]`), a comment's mark (`data-lf-mark`,
-   visual-mark-paint.js), the location ring round the decision the user stands in
+   annotations/visual-mark-paint.js), the location ring round the decision the user stands in
    (`[data-lf-projected-location]`) and the proxy ring (`[data-lf-proxied]`) each stand where the
    box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
    says nothing. The outline is important, so a rule of the page's or a widget's that
@@ -335,7 +335,7 @@ a[data-lf-external]::after,
     var(--lf-band-ink, var(--lf-here)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
-/* A box beside a list marker (`[data-lf-beside-marker]`, geometry.js, `markerReach`)
+/* A box beside a list marker (`[data-lf-beside-marker]`, dom/geometry.js, `markerReach`)
    reaches its marks over the marker by the list inset, on the side the stamp names,
    since the browser draws an outside marker beyond the item's box and an outline
    stands the same distance out on every side. The box draws the band as a border image
@@ -606,20 +606,20 @@ a[data-lf-external]::after,
    band covers whole (`--lf-top-covered`). A margin the page gives a box itself
    replaces this one, which is how a page clears a header of its own (page-layout.md). Content the band covers past, beside a page tab
    strip rather than under it, keeps no margin. The browser's own scroll to a target
-   reads it, and so does the runtime's landing (landing-scroll.js), as one reading of
+   reads it, and so does the runtime's landing (readings/landing-scroll.js), as one reading of
    the same clearance. */
 :where(*) {
   scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
 }
 /* Where the user is wears a ring outside its box, so a scroll that brings the focus
-   into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
+   into view, the browser's or a landing's (features/anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: without it, an item landed at the top of a scrolling
    pane stands flush with it, the top of its ring cut off under the pane's header rule.
    On every side, since the ring is: a link Tab brings in from a wide table's end would
    stand flush with it too.
    `:focus` makes that room available to the landing before the focus mark paints
    after the script. At no weight, like the ring. A vendor control holds focus on a node
-   in its own tree, which those selectors don't reach, so the mark's part (focus.js,
+   in its own tree, which those selectors don't reach, so the mark's part (dom/focus.js,
    `markFocus`) brings it there, at a pseudo-element's weight; without it a diff's file
    filter could stand past its pane's foot, and a code block's Copy past its top. */
 :where(:focus),
@@ -1494,7 +1494,7 @@ button.lf-thread-news {
    where every surface reads it. Only the quoted words stand behind the rule, which
    with the quiet ink says they are quoted, so they take no marks. Leaf's words about
    them form a label over the rule in the status face: first a status word in Leaf's
-   italic (voice.js) where the page no longer reads as the quote does, such as a
+   italic (base/voice.js) where the page no longer reads as the quote does, such as a
    passage a revision took out of the latest version, which a finger reads as a pointer
    does (`quoteReading`), then where they stand (`anchorPlace`, records/thread/messages.js),
    which a margin card's bracket already shows. A thread on a place with no quoted

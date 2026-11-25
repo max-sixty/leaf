@@ -294,7 +294,7 @@ test("departure cancels queued rendering and reconnection accepts fresh work", a
   const owner = document.createElement("section");
   document.body.append(owner);
   // Only this frame's own job: the runtime queues other work on any mutation, such as
-  // focus.js refreshing its paint.
+  // dom/focus.js refreshing its paint.
   const phases = [];
   const own = new Set();
   let scheduling = false;

@@ -2631,7 +2631,7 @@ test("a chosen contribution offer retains its exact reading across a later updat
       "margin",
       activateContributionControl,
     )(chosen.reading.entries[0]);
-    // What an entry says is its preview (preview.js).
+    // What an entry says is its preview (annotations/preview.js).
     const { render } = await import("/runtime/records/framework.js");
     const said = (control) => {
       const box = document.createElement("div");

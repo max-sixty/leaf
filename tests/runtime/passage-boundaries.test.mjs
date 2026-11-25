@@ -297,7 +297,7 @@ test("a label declared inside the chrome is the page's, arriving and leaving", (
 
 // The two inputs the document reports nothing about. An observer sees neither a set the
 // runtime marks a widget's parts into nor a tree behind a shadow boundary, so each has a
-// door in passages.js, and a door that stopped forgetting would leave the reading unchanged
+// door in readings/passages.js, and a door that stopped forgetting would leave the reading unchanged
 // over words the page no longer says — with nothing else to catch it.
 test("a widget fenced after a reading was taken is in the next one", () => {
   document.body.innerHTML =
@@ -384,7 +384,7 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
 
 // A reading of the page's nodes finds an element by its id and names a part by its
 // label, though neither changes the page's words, so a reading kept from the page
-// (kept.js) is made again at either, in the task that made it. What is kept with the
+// (state/kept.js) is made again at either, in the task that made it. What is kept with the
 // words, as their layout on screen is, stays. A class that isn't Leaf's moves neither.
 test("a reading kept from the page is made again when an id or a part's name changes", () => {
   document.body.innerHTML =

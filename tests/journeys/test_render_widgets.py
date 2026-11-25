@@ -778,7 +778,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     )
 
     # Map travel keeps the user oriented rather than teleporting. The glide runs for a
-    # fixed time (scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
+    # fixed time (dom/scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
     # after it ends shows a jump; holding the frame clock steps it a frame's length per
     # frame, so the frames sampled show the same glide on any host.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")

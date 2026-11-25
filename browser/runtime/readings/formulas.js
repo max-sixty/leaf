@@ -11,7 +11,7 @@
    reads a formula as its LaTeX exactly as the file does, with no fence: a quote may run
    across a formula in a sentence, and it names the formula by its source, which is
    what its author can find. A selection inside one takes all of it
-   (native-selection.js, `pageRange`), and its range stands at the host's edges, so it
+   (dom/native-selection.js, `pageRange`), and its range stands at the host's edges, so it
    is drawn where the formula is (passages.js, `rangeOf`). The shadow root also keeps
    Temml's rules for `<math>` off any MathML the page writes itself.
 
@@ -19,7 +19,7 @@
    root, but its font face in the document, where Chromium reads a face from, beside the
    rules that keep a formula's `<code>`, which wears `data-lf-formula`, and a display
    formula's `<pre>` from drawing code's face round it, in lf-base as a dependency's
-   defaults are (base-layer.js), so the page's own CSS outranks them. A display
+   defaults are (base/base-layer.js), so the page's own CSS outranks them. A display
    formula keeps a code block's Copy, which copies its LaTeX. A source Temml refuses keeps
    showing as written, and the refusal goes to the page's log, where its agent reads it
    (`reportPageError`). */

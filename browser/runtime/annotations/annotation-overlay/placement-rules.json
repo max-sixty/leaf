@@ -69,7 +69,7 @@
       "rules": [
         {
           "id": "place-clear",
-          "says": "Clear of its text by the room the marks at the text's edge take on that side, each mark's gap and band and, beside a list item, the list marker (geometry.js, `markedBox`): the text's own marks, and those of a box around it that a comment can name, where that box's edge stands within the gap that follows (mark-room.js, `markRoom`). Then a gap (`COMMENT_GAP`), the same one it keeps from the room's edges, so its edge never meets the mark's line."
+          "says": "Clear of its text by the room the marks at the text's edge take on that side, each mark's gap and band and, beside a list item, the list marker (dom/geometry.js, `markedBox`): the text's own marks, and those of a box around it that a comment can name, where that box's edge stands within the gap that follows (readings/mark-room.js, `markRoom`). Then a gap (`COMMENT_GAP`), the same one it keeps from the room's edges, so its edge never meets the mark's line."
         },
         {
           "id": "place-beside",

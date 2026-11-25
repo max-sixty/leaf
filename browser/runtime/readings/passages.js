@@ -72,7 +72,7 @@
    naming a worker, any generated index entry stays chrome, and the passage lives where
    the page speaks it. Two copies of one label carry the same text and, being fenced,
    the same empty context, so neither can be told from the other and a drag across
-   either detaches. (`data-lf-echo` is what such a route declares; control-labels.js
+   either detaches. (`data-lf-echo` is what such a route declares; dom/control-labels.js
    says how.)
 
    Use `inChrome` when the question is whether an element belongs to the runtime's
@@ -92,13 +92,13 @@
 
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
-   `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
+   `pageShadowRoots` (dom/shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
    open roots. `pageQueryAll` clears or queries marks everywhere the runtime may write.
-   `focused` (focus.js) descends through retargeted `document.activeElement`
+   `focused` (dom/focus.js) descends through retargeted `document.activeElement`
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
@@ -198,7 +198,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // inside its <svg>: a quote holding text the search skips is a quote nothing can find
 // again. The authored reading additionally skips content an upgrade generated, so it
 // reads a live block as the block's source does: a version comparison paints a source's
-// words onto the live block standing for it (version.js), and a module reads its own
+// words onto the live block standing for it (features/version.js), and a module reads its own
 // authored words. So generated text the page speaks, such as a widget's label drawn
 // from its attribute, is quotable and outside the authored reading.
 //
@@ -395,7 +395,7 @@ export const elementOver = (n) => {
   throw new Error("A passage node has no element over it");
 };
 // The walk asks it of a declared root before crossing in, and the refusal is final: the
-// root is refused for good (`refuseShadowRoot`, shadow.js), and from then on every walk,
+// root is refused for good (`refuseShadowRoot`, dom/shadow.js), and from then on every walk,
 // this one included, reads its host as it reads a host whose root the registry does not
 // declare, by the host's own children, which are the words the file holds. So the page
 // refuses the text once, here, whichever reader reaches it first, and no reader meets it
@@ -476,7 +476,7 @@ export function refuseBareText() {
 // words, is a document of its own (`authoredScope`) standing
 // inside the chrome that draws the message, so the body frames a reading there as a
 // widget does, and the words read as their writer's: a heading in a reply names what
-// follows it there. The version diff compares versions' sources (version.js,
+// follows it there. The version diff compares versions' sources (features/version.js,
 // `paintedSource`) and reads no message: reading every block on the live page, a
 // conversation's paragraphs among them, it would take a reader's comments for the page's
 // words.
@@ -519,7 +519,7 @@ const NO_CONTEXT = Object.freeze({
   cells: null,
 });
 // The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
-// (ui-marks.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
+// (base/ui-marks.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
 // the walk asks each of one element with `matches`, so a marker added to a selector
 // reaches both. `MARKS` joins the attribute markers, so an element whose attributes are
 // only a class or an id is settled by one match.
@@ -2086,10 +2086,10 @@ const renames = (record) =>
 // attributes because it decides whether a control takes a `<label>`'s name (`labels`).
 const pageVersion = version(catchUpReading);
 /** Which reading of the page stands: a new count each time the page's is forgotten, or
- * an id or a part's name changes. A reader of the page as a whole reads it (kept.js,
+ * an id or a part's name changes. A reader of the page as a whole reads it (state/kept.js,
  * `version`) as it catches up (`catchUpReading`), as `pageText`, `readingParts` and
  * `documentOutline` do, and so does `elementById`, so a reading derived from the page,
- * as On Me's places are, is kept while this stands (kept.js, `kept`); a reading of one
+ * as On Me's places are, is kept while this stands (state/kept.js, `kept`); a reading of one
  * element's words or children stands while its piece does (`readsElement`). Work that
  * spans tasks, as a search does, compares it to hear that the page changed under it. It
  * holds nothing of the reading itself.
@@ -2184,7 +2184,7 @@ function watchReading() {
   return watcher;
 }
 // What keeps a record of where things stand in the page's words, as anchor placement
-// keeps where each anchor stands (anchor-placement.js), hears that the page's reading
+// keeps where each anchor stands (annotations/anchor-placement.js), hears that the page's reading
 // changed, as it happens (`hearPageWords`, `hear`), and reads what changed off the two readings
 // (`quotesChanged`), by the reading's own rules: its text, its edges and fences, and the
 // order its walk puts the page's trees in. It hears what no reading shows besides: the
@@ -2226,7 +2226,7 @@ export function hearPageWords(hear) {
 }
 // A declared shadow stage is part of its document's words — `textNodesUnder` walks into
 // one at its host's place in the string — and no observer crosses the boundary on its
-// own. shadow-stage.js, which is the only door a `shadow` root is built through,
+// own. dom/shadow-stage.js, which is the only door a `shadow` root is built through,
 // hands each one here as it fills it, and again each time it adopts it. The first time
 // forgets the reading of the document the root stands in, which was read without it;
 // from then on the watcher reports the root's changes itself. The words it fills with
@@ -2443,7 +2443,7 @@ function catchUpReading() {
   drainReading();
   pageVersion.read();
 }
-/** Says that the reading being made (kept.js) is derived from `element`'s own children
+/** Says that the reading being made (state/kept.js) is derived from `element`'s own children
  * and words, so it is kept while the piece of its document's reading the element stands
  * in stands (`readingDocument`, `readingPart`), and made afresh each time where no
  * document reads the element: chrome, a node since detached, a node of a parsed
@@ -2464,7 +2464,7 @@ export function readsElement(element) {
   const part = scope === pageDocument() ? readingPart(element) : null;
   pieceVersion(part ?? scope).read();
 }
-/** Says that the reading being made (kept.js) is derived from the reading of the
+/** Says that the reading being made (state/kept.js) is derived from the reading of the
  * document `scope` (`authoredScope`), so it is kept while that reading stands and an
  * answer holding the document's nodes keeps none past a change that removes them. It
  * lasts as long as the reading of the words, as the layout of the words on screen does

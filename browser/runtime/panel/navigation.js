@@ -85,7 +85,7 @@ import { savedReadingSettled } from "../dom/keyboard/bindings.js";
 
 // The walk's stops, in the page's order (records/thread/placement.js, `threadPlace`): each
 // thread that stands open or holds the user's unsent words, by its id, and each comment
-// the user began and hasn't sent, by its draft's context (drafts.js, the drafts list),
+// the user began and hasn't sent, by its draft's context (records/drafts.js, the drafts list),
 // placed at its passage or element (`savedAt`), so the walk reaches every draft
 // Threads lists. A reply or a rewrite is its thread's, whose stop opens the thread, a
 // resolved one included. A comment whose subject this version no longer shows stands
@@ -118,8 +118,8 @@ function walkStops(placedAt, savedAt) {
 
 // The stop the walk stands on. A thread's is the one the origin's current location is
 // in, wherever it is drawn; its target, with the thread's card beside it, is at the
-// thread, not on it (current-target.js, `walkOrigin`). A comment's is the one whose
-// box the user stands on (drafts.js, `standsOnDraft`), as the walk's arrival leaves
+// thread, not on it (records/current-target.js, `walkOrigin`). A comment's is the one whose
+// box the user stands on (records/drafts.js, `standsOnDraft`), as the walk's arrival leaves
 // them; in its editor, a walk key is a letter of the comment.
 /** @param {Stops} stops @param {import("../records/current-target.js").WalkOrigin | null} origin */
 function currentStop({ keys, drafts }, origin) {
@@ -131,7 +131,7 @@ function currentStop({ keys, drafts }, origin) {
 
 // What a position names its list: by its stops' noun where they are all of one kind,
 // "Thread 2 of 5" or "Draft 1 of 2", and by both kinds where it holds threads and
-// drafts, "2 of 5 threads and drafts" (walk-position.js, `beginWalk`).
+// drafts, "2 of 5 threads and drafts" (records/walk-position.js, `beginWalk`).
 /** @param {Stops} stops */
 const listNames = ({ keys, drafts }) =>
   !drafts.size
@@ -157,13 +157,13 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 // t/T walk the stops in page order, coming round from either end to the other
 // (`cycledRow`). A thread's stop opens the thread (`arriveAtThread`). A comment's
 // opens its box beside its passage or element, holding its words, and stands the user
-// on the box without putting the caret in it (drafts.js, `showDraft`), so the next `t`
+// on the box without putting the caret in it (records/drafts.js, `showDraft`), so the next `t`
 // walks on and `c` puts the caret after the words, as `c` opens a thread's reply box
 // from the thread (records/thread/landing.js). A walk that put the caret in the box would type
 // its next `t` there.
 //
 // From anywhere but a stop, the walk steps by the page walks' one rule (`stepFrom`,
-// current-target.js): a place on the page against each stop's place. A thread at the
+// records/current-target.js): a place on the page against each stop's place. A thread at the
 // user's current location, or a stop whose place holds where they are, is where they
 // are without being on it, so the press arrives there, unless what the window shows
 // puts them at a stop ahead of it. A general thread has no place and stands after
@@ -228,7 +228,7 @@ export function placeThreadEdge(thread, edge) {
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page; Go-to's `g g`
 // and `g G` take an unbounded step, which `glideTo` stops at the box's edge. All follow
-// the active region and glide (scrolling.js, `glideTo`). A press steps from where the
+// the active region and glide (dom/scrolling.js, `glideTo`). A press steps from where the
 // box is headed (`scrollGoal`), so presses made while the page still moves, whether
 // after another step, after a landing such as `m`'s, or after the browser's own Space
 // or PageDown (`afterBrowserScroll`), add up as if each had landed. At a region's edge
@@ -485,7 +485,7 @@ export function createNavigation({ threadDestinations, placedAt, savedAt, showDr
         showDraft,
       }),
   });
-  // A sample's spent step arrives at its frame (sample.js). It goes on only while the
+  // A sample's spent step arrives at its frame (host/sample.js). It goes on only while the
   // user is still in that frame: one that lands after they have left was not theirs to
   // finish. The child's scripts are the page author's, like the page's own, so the
   // frame's word is trusted as a page script's would be.

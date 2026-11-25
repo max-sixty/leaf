@@ -3,7 +3,7 @@
    link to the section they are reading.
 
    A heading's address is the outermost authored addressable between it and the element
-   it titles (addressable-names.js, `titledElement`): a section's address when the
+   it titles (readings/addressable-names.js, `titledElement`): a section's address when the
    heading opens an identified section, an hgroup's when it opens an identified hgroup,
    else the heading's own id. A heading with none of these has no link, since a lent id
    would not survive the next revision.
@@ -31,7 +31,7 @@
    is on, so each borrows one of two names, which marks.css gives it through an
    attribute (`lend`) the margin doesn't hear (margin-layout.js, `heardPage`).
    Rejected: a name of the heading's own written into its style, as other owners name
-   a box (css-anchors.js, `anchorReading`), which the margin heard as a restyle, so the
+   a box (dom/css-anchors.js, `anchorReading`), which the margin heard as a restyle, so the
    first time the pointer reached each heading, by a move or a scroll, it ran a pass
    over every row. A heading named already, by its author or in its style, keeps
    those names, and the link writes a name of the heading's own beside them into its
@@ -303,7 +303,7 @@ export function watchHeadingLinks() {
   };
   // The user is on a heading's link while focus is in its control, as after a press. A
   // let-go's focus on a heading is gone by the time its script ends, only moving where
-  // Tab starts (focus.js, `letGo`), so the link is read once the script has ended.
+  // Tab starts (dom/focus.js, `letGo`), so the link is read once the script has ended.
   onCurrentLocation((node) =>
     queueMicrotask(() => {
       const at = focused();

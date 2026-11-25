@@ -87,7 +87,7 @@ window.Selection.prototype.getComposedRanges ??= function ({ shadowRoots = [] } 
   return [{ startContainer, startOffset, endContainer, endOffset }];
 };
 // happy-dom has no StaticRange either, which the runtime builds for a span of the page
-// it reads rather than selects (passages.js, `runReading`).
+// it reads rather than selects (readings/passages.js, `runReading`).
 globalThis.StaticRange ??= class StaticRange {
   /** @param {{startContainer: Node, startOffset: number, endContainer: Node, endOffset: number}} init */
   constructor({ startContainer, startOffset, endContainer, endOffset }) {
@@ -96,7 +96,7 @@ globalThis.StaticRange ??= class StaticRange {
 };
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
-// the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and
+// the visual viewport, which happy-dom lacks and dom/geometry.js reads (`shownWindow`) and
 // listens to (`whenNone`), covers it unzoomed.
 for (const [name, size] of [
   ["clientWidth", () => innerWidth],
@@ -151,7 +151,7 @@ window.getComputedStyle = (element, pseudo) => {
   });
 };
 // A box's transforms compute to their initial values where nothing declares them, which
-// a scroll's axes read (element-axes.js) to carry a glide's travel to the window.
+// a scroll's axes read (dom/element-axes.js) to carry a glide's travel to the window.
 const UNTRANSFORMED = { rotate: "none", scale: "none", transform: "none", zoom: "1" };
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.

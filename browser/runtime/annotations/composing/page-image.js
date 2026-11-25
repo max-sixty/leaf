@@ -152,7 +152,7 @@ export async function pageImage(clip, { exclude = [] } = {}) {
     bottom: clip.y - scrollY + clip.height,
   });
   // The crop carried into the frame's own viewport by the inverse of its frame
-  // (element-axes.js, `elementBorderFrame`), where the child and the substitute's own
+  // (dom/element-axes.js, `elementBorderFrame`), where the child and the substitute's own
   // box read it, held to that viewport. A turned frame draws the box that covers the
   // turned crop; the crop cuts what lies outside it from the image.
   /** @param {HTMLIFrameElement} frame */

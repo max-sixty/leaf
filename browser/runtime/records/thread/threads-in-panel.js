@@ -4,10 +4,10 @@
    panel, and then in the panel; records/thread/destination.js states the rule every route
    follows and why. Only the user's two presses choose: a card's Open in panel chooses
    the panel, and the panel's Show on page chooses cards. A press chooses only on a window
-   wide enough for cards (content-layout.js, `windowHoldsRail`): a narrower one puts every
+   wide enough for cards (readings/content-layout.js, `windowHoldsRail`): a narrower one puts every
    thread in the panel whatever was chosen, and Show on page there goes to the passage and
    leaves the choice as it stood. Each choice says what now holds in a notice offering the
-   press that takes it back, as `o` does (annotation-layer.js). The notice says "Threads
+   press that takes it back, as `o` does (annotations/annotation-layer.js). The notice says "Threads
    open in the panel" rather than naming a mode: the glossary keeps "mode" for a state
    that changes what input means, as Design and Draw do, and this one changes only where
    a thread opens, so no chip or indicator stands for it either.

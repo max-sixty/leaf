@@ -78,8 +78,8 @@ async function sourceMovedOn() {
 
 // A reload Leaf asks for, as a delivery that moved on and a revision that needs a fresh
 // document do, rather than the user. The document going hands the one it loads the
-// user's place (version.js, `captureHandoff`), and the tab carries its unsent words to
-// it (drafts.js), so the leave prompt that reload raises asks the user nothing
+// user's place (features/version.js, `captureHandoff`), and the tab carries its unsent words to
+// it (records/drafts.js), so the leave prompt that reload raises asks the user nothing
 // (`takeLeafUnload`). A page's own prompt can still keep the document: `leafReloads`
 // stays true, so whichever departure ends it later hands over the place it leaves,
 // while a later prompt is no longer the reload's, so a close asks before dropping words.
@@ -471,7 +471,7 @@ const encoder = new window.TextEncoder();
 // request; a gesture's body is far smaller.
 const KEEPALIVE_BYTES = 60_000;
 
-// The page's one door to the log, spelled once. Its callers — delivery.js, which
+// The page's one door to the log, spelled once. Its callers — host/delivery.js, which
 // orders the user's own gestures through it and sends bookkeeping beside them, and the
 // error report below, which deliberately doesn't — share the request rather than
 // anything about the sending: same path, same method, same encoding, so a door that

@@ -735,7 +735,7 @@ function fieldEditor(
 
   // A picture's syntax, while the caret is away, is the picture the message shows for it,
   // from the source the parser resolved, a reference's included, at the address the
-  // renderer gives page media (page-markdown.js, `pageLinks`). A press on it puts the
+  // renderer gives page media (records/page-markdown.js, `pageLinks`). A press on it puts the
   // caret in its source.
   class Picture extends WidgetType {
     /** @param {string} src @param {string} alt */
@@ -2722,7 +2722,7 @@ function fieldEditor(
           },
         }),
         // An edit's reveal shows the caret's row in the host first; the view's own
-        // reveal (editor-view.js) then carries the caret out through the page.
+        // reveal (annotations/editor-view.js) then carries the caret out through the page.
         EditorView.scrollHandler.of((view, range) => {
           field.revealed(view, range.head);
           return false;

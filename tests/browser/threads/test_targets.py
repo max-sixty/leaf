@@ -361,7 +361,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     words no item holds, a draft's item at rest, and a mark in the chrome, which neither
     press takes. Where the aim's press takes an item, its hand covers any cursor the page
     gives the item. Each place's cursor is read where the pointer is, since each hand is
-    painted on the element under it (anchor-paint.js, page-geometry.js); a mark of the
+    painted on the element under it (annotations/anchor-paint.js, panel/page-geometry.js); a mark of the
     arm on `body` made Firefox visit every element of the page as ⌥ went down or up."""
     url = serve(
         ARMED_PAGE,

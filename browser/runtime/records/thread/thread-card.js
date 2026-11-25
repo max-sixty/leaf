@@ -69,13 +69,13 @@
    they send another turn, and a user who stood at the end keeps their turn wholly in
    sight above the press, its head included. A user whose wheel or key has the box
    scrolling as the answer arrives stands wherever that scroll takes them, though the
-   browser has yet to move the box (arrivals.js, `readerScrolls`), or has moved it
+   browser has yet to move the box (dom/arrivals.js, `readerScrolls`), or has moved it
    before the page heard the input, as it does for macOS's precise wheels. Until then
    the answer is this thread's to place (`answering`), and a box that follows its end,
    as a card's transcript does (thread-preview.js), leaves it be. An answer the end
    followed into sight that grows afterwards, as a picture in it loads, is placed again
    by the same rule (`placesEnd`). The user chose New reply for the panel, and the rest
-   of the floating panel's growth with it (floating-panel.js, which records it); the
+   of the floating panel's growth with it (panel/floating-panel.js, which records it); the
    margin card takes it too, so one mechanism serves both, and that mechanism's rule at
    its end, under the user's request for one thread view (thread-preview.js). */
 import { nextRender, sizeObserver } from "../../lib/frame-pass.js";
@@ -501,7 +501,7 @@ const lastTurn = (model) =>
    floating card at the edge it does not hold, would move what the user is on
    (thread-preview.js, `heldEdge`), and since the card stands itself, a landing in it
    scrolls nothing into view; and `standsAtEnd()`, whether the reader stands at the end
-   the card's transcript follows, as its keeper says (scrolling.js, `followEnd`).
+   the card's transcript follows, as its keeper says (dom/scrolling.js, `followEnd`).
    The thread draws each part apart in a box of its own (`apart`), which the container
    places in the place it names before the thread draws it, as it places the thread's
    box in its outlet. The reply's options are read as the box is made, once for the
@@ -535,7 +535,7 @@ const lastTurn = (model) =>
 const apartBox = () => {
   const box = document.createElement("div");
   box.className = "lf-thread-apart lf-ui";
-  box.dataset.lfRuntime = ""; // passages.js, leafSurface
+  box.dataset.lfRuntime = ""; // readings/passages.js, leafSurface
   generatedElement(box);
   return box;
 };
@@ -655,7 +655,7 @@ export class ThreadView {
     this.#continuity = new ReplyContinuity(this.node);
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ring-overlay", "lf-ui");
-    this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
+    this.node.dataset.lfRuntime = ""; // readings/passages.js, leafSurface
     generatedElement(this.node);
     this.node.dataset.lfOffer = "";
   }
@@ -933,7 +933,7 @@ export class ThreadView {
     // A thread whose container stands its reply apart lands no one there: as one
     // rewrite gives way to the next, a landing in the panel's field would let go of the
     // height its view holds for a rewrite and take it again in the same press
-    // (floating-panel.js, `holdThread`).
+    // (panel/floating-panel.js, `holdThread`).
     restoreFocus?.(
       ...(replyApart
         ? []
@@ -1098,7 +1098,7 @@ export class ThreadView {
       // reply's ground, its head first where it is taller than that, read where the
       // box is headed, New reply stuck at its foot, through the box's transforms. The
       // box glides there, as it glides to the end, and reads the turn again at each
-      // frame (scrolling.js, `glideBy`), so a transcript that changes above the turn
+      // frame (dom/scrolling.js, `glideBy`), so a transcript that changes above the turn
       // meanwhile still leaves it in sight.
       glideBy(scroller, () => {
         if (!turn.isConnected) return null;
@@ -1132,7 +1132,7 @@ export class ThreadView {
 
   // Scrolling the answer's start into sight above New reply takes New reply away, the
   // box keeping its height. A scroll Leaf makes, as keeping the box's foot beside a
-  // growing field (scrolling.js, `keepFoot`), is not the user going there.
+  // growing field (dom/scrolling.js, `keepFoot`), is not the user going there.
   #sawAnswer = () => {
     const waiting = this.#waiting;
     if (!waiting || !browserScrolls(waiting.scroller)) return;

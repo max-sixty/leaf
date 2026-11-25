@@ -72,9 +72,9 @@ if (child) {
     });
   });
   // The reader's own input here goes to the containing page by its event type, for its
-  // focus (focus.js, `inputInFrame`) and for whether the frame is theirs to move
+  // focus (dom/focus.js, `inputInFrame`) and for whether the frame is theirs to move
   // (sample.js, `claim`). The inputs are the document's one reading of them
-  // (focus.js, `onUserInput`). A click is input of its own, since by pointer or by
+  // (dom/focus.js, `onUserInput`). A click is input of its own, since by pointer or by
   // Enter or Space it lands after the press that began it.
   /** @param {Event} event */
   const input = (event) => {
@@ -88,7 +88,7 @@ if (child) {
     focusDestination(currentLocation, "return");
     return document.hasFocus();
   });
-  // The containing page's check asks for all near work (presentation.js,
+  // The containing page's check asks for all near work (readings/presentation.js,
   // `startNearWork`); this document starts its own and answers at once, and the check
   // waits for each document's readiness itself (render_checks.py, `start_near_work`).
   registerSampleCommand("near-work", () => {

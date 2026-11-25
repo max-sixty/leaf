@@ -66,7 +66,7 @@ export function surfaceGrip({ surface, bounds, dropped }) {
       y: within(room, box.top + travel.y, "top", "bottom", now.height),
     };
     // The translate moves the whole surface along the axes of the box it stands in,
-    // which a transform there or further out turns or scales (element-axes.js,
+    // which a transform there or further out turns or scales (dom/element-axes.js,
     // `translateAxes`), so the step from where it stands to the spot, carried back along
     // those axes, is what the translate adds.
     const { x: across, y: down } = translateAxes(surface);

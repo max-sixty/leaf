@@ -243,7 +243,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
 
 def about_this_page(page):
     """Open About this page from the leaf's menu and return the dialog; it alone shows
-    the session reference (page-about.js, the `about` group)."""
+    the session reference (panel/page-about.js, the `about` group)."""
     panel_control(page, "inspection").click()
     about = page.get_by_role("dialog", name="About this page", exact=True)
     expect(about).to_be_visible()
@@ -537,7 +537,7 @@ def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
 
 
 # Hold each command the page sends a sample's document over the private port the
-# host publishes on the entry script (sample.js, `connect`), so the document's own
+# host publishes on the entry script (host/sample.js, `connect`), so the document's own
 # arrival lands before any answer: `heldCommands` sends them on.
 HOLD_COMMANDS = """entry => {
   window.heldCommands = [];

@@ -290,7 +290,7 @@ const ownerRuntimeSyntax = [
     selector:
       'AssignmentExpression[operator="+="][left.type="MemberExpression"][left.property.name="value"]',
     message:
-      "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
+      "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from state/version-signal.js.",
   },
   {
     selector:
@@ -370,7 +370,8 @@ export const semanticStoreOwnershipRule = {
     const report = (node) =>
       context.report({
         node,
-        message: "Only semantic-state.js may construct the application publisher.",
+        message:
+          "Only state/semantic-state.js may construct the application publisher.",
       });
     return {
       ImportDeclaration(node) {
@@ -419,10 +420,10 @@ export const semanticStoreOwnershipRule = {
   },
 };
 
-// The user’s current location, and what moved them there, is focus.js's one reading
+// The user’s current location, and what moved them there, is dom/focus.js's one reading
 // (`onCurrentLocation`). A `focusin` or `focusout` listener hears nothing of a move between two
 // nodes of one shadow tree beneath it, and a reader that tells the runtime's returns or
-// the keyboard's arrivals apart for itself answers a question focus.js already answers.
+// the keyboard's arrivals apart for itself answers a question dom/focus.js already answers.
 // So the two event names appear nowhere else, in a listener, a list of event types, a
 // comparison or a Lit binding, and `focus` and `blur` are not heard on the document or
 // captured anywhere, which would hear every element beneath. An element's own `focus`
@@ -491,7 +492,7 @@ const currentLocationListenersRule = {
 };
 
 // Every focus the runtime and the packages place says what moved the user there
-// (`focusDestination(node, cause)` in focus.js), since that call is the only place that
+// (`focusDestination(node, cause)` in dom/focus.js), since that call is the only place that
 // knows whether it is a route or a return, and each reader of where they stand acts on
 // the word. A plain `focus()` publishes as the user's own move. The rule knows the
 // element method by its shape, no argument or an options object, so a method of the same
@@ -617,7 +618,7 @@ const nativeLayersRule = {
   },
 };
 
-// Where the user stands is read through `focused()` in focus.js, or `focused(tree)` for
+// Where the user stands is read through `focused()` in dom/focus.js, or `focused(tree)` for
 // the node representing it in one tree, as `tree.activeElement` retargets focus. A raw
 // `activeElement`, of the document or of a shadow root, misses a label press that holds
 // the user on the element they stood on, and the document's stops at the host of the
@@ -720,9 +721,9 @@ export const openLayersRule = {
   },
 };
 
-// A script moves a box through the scroll owners: a reveal through landing-scroll.js's
+// A script moves a box through the scroll owners: a reveal through readings/landing-scroll.js's
 // `scrollIntoView`, bounded `within` the one box that may move, an end through
-// `scrollToEnd` and a relative move through `moveScrollerBy` (scrolling.js). A sum
+// `scrollToEnd` and a relative move through `moveScrollerBy` (dom/scrolling.js). A sum
 // written into `scrollTop` or `scrollLeft` is how a reveal is hand-rolled, with its own
 // reading of the band and the edge, so the rule refuses every assignment to either; a
 // script that sets an offset outright says so with `scrollTo`, which the runtime hears
@@ -835,7 +836,7 @@ const scrollEndsRule = {
 // a sibling, or whether something contains it): a node that may stand elsewhere already.
 // The option names the files that may still call the platform's movers.
 const MOVE_MESSAGE =
-  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/dom/dom-move.js, dom-children.js; widget-api.js in a package): a plain insertion blurs it and drops its caret.";
+  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/dom/dom-move.js, dom/dom-children.js; widget-api.js in a package): a plain insertion blurs it and drops its caret.";
 const MADE = new Set([
   "createElement",
   "createElementNS",
@@ -942,7 +943,7 @@ export const movesRule = {
 };
 
 // A layer hands the user back as it closes in one act (`closeLayer(close, land)` in
-// focus.js), so the platform's own hand-back and the owner's reach readers once, as where
+// dom/focus.js), so the platform's own hand-back and the owner's reach readers once, as where
 // the user ends up. A return made anywhere else is a layer return beside it, which
 // readers hear as a second move and holds read as a newer word. The rule admits
 // `handBack(...)` only in a landing's own body: the function passed as a close's `land`,
@@ -1135,7 +1136,7 @@ const topLevelAwaitRule = {
 };
 
 // A notice's or an error's words name no key: the step they point to is a press the
-// panel's field offers (field-readings.js, `press`). The rule reads every string a
+// panel's field offers (panel/field-readings.js, `press`). The rule reads every string a
 // module writes for the form such words took before, a dash or a semicolon and then a
 // shortcut, a character or `g` and one, doing something ("— v shows them", "; g i
 // resumes it"), past a count or the article ("— 3 changes", "— a process exited"). It
@@ -1150,7 +1151,7 @@ export const spelledKeysRule = {
         context.report({
           node,
           message:
-            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (dom/keyboard/control-keys.js), which a package's `lf-announce` reaches by giving its rows (`{words, rows}`), rather than spelling it in the words: both name a key only while it would work.",
+            "Offer the step as a press (transport/notifications.js, `press`; transport/errors.js), or in an announcement say its key through `saying` (dom/keyboard/control-keys.js), which a package's `lf-announce` reaches by giving its rows (`{words, rows}`), rather than spelling it in the words: both name a key only while it would work.",
         });
     };
     return {
@@ -1180,7 +1181,7 @@ const architecturePlugin = {
         const file = runtimeName(context.filename ?? context.getFilename());
         // The bootstrap and the prepaint run before the module graph and write only
         // what the first paint needs, before any authored revision has replaced the
-        // root's attributes. root-state.js is the sole mutation boundary after that.
+        // root's attributes. state/root-state.js is the sole mutation boundary after that.
         if (["bootstrap.js", "prepaint.js", "state/root-state.js"].includes(file))
           return {};
         const source = context.sourceCode ?? context.getSourceCode();
@@ -1365,7 +1366,7 @@ const architecturePlugin = {
         const report = (node, kind) =>
           context.report({
             node,
-            message: `Mutate document-root ${kind} through root-state.js so authored revision replacement preserves ownership.`,
+            message: `Mutate document-root ${kind} through state/root-state.js so authored revision replacement preserves ownership.`,
           });
         return {
           AssignmentExpression(node) {
@@ -1787,7 +1788,7 @@ export default [
           // The shared CodeMirror adapter places its own native editor.
           "browser/runtime/annotations/editor-view.js",
           // A held release stands in for the browser's own press, so it focuses the
-          // target as that press does, ringless; focus.js reads it as the press's.
+          // target as that press does, ringless; dom/focus.js reads it as the press's.
           "browser/runtime/annotations/preview.js",
         ],
       ],
@@ -1833,7 +1834,7 @@ export default [
           // The one reading of the user’s current location.
           "browser/runtime/dom/focus.js",
           // The editor asks whether its own content holds focus inside the closed
-          // root it renders in, which focus.js, reading through open roots, cannot see.
+          // root it renders in, which dom/focus.js, reading through open roots, cannot see.
           "browser/runtime/annotations/editor-view.js",
           "browser/runtime/annotations/composing/text-field.js",
         ],
@@ -1883,8 +1884,8 @@ export default [
     // A vendored algorithm is not an application owner, so a primitive may reuse
     // one rather than write a second copy of it beside the layer's, with its imports
     // subject to the same boundary. Nor is another primitive,
-    // whose own imports this same rule holds: `rendering.js`, which every rendering
-    // callback is counted through, or `focus.js`, which a primitive that moves the
+    // whose own imports this same rule holds: `base/rendering.js`, which every rendering
+    // callback is counted through, or `dom/focus.js`, which a primitive that moves the
     // user's node asks to keep their current location on it. Nor is a module of the
     // library (lib/), which its own block below keeps clear of every owner.
     files: runtimePrimitives.map((name) => `browser/runtime/${name}`),

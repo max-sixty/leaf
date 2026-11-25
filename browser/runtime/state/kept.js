@@ -31,12 +31,12 @@
    publication's fold reads none, catches nothing up. What the page's watcher doesn't
    hear, such as a datum's source or a role making a press, is read beside what
    announces its change, the document presented or a widget's layout changing
-   (anchor-resolution.js, `currentDatums`, `claimsVisualGesture`).
+   (readings/anchor-resolution.js, `currentDatums`, `claimsVisualGesture`).
 
    The publication's fold keeps each record it makes this way, keyed by the served
    record it is made from, so a publication about one thing makes only that thing's
    records again: the served reading keeps every record the server didn't change
-   (`completeState` in `layer-client.js`), and publication gives each unchanged part
+   (`completeState` in `transport/layer-client.js`), and publication gives each unchanged part
    its old identity (records/framework/snapshot.js, `share`). A make at module scope reads only
    its arguments, so a fold can't read more than it is kept by.
 

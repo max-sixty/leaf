@@ -1,22 +1,22 @@
 // @ts-check
 /* The change walk: `h` and Shift+`h` step through the changes the version comparison
-   marks (version.js, `comparisonChanges`), each a hunk of the block diff, in the page's
+   marks (features/version.js, `comparisonChanges`), each a hunk of the block diff, in the page's
    order, coming round at either end, while a comparison stands (a Compare in
    Versions, which `g V v` presses, or the return notice's Show changes). A diff
    reader's next and previous hunk, which is what the letter stands for.
 
    A step starts from the user's place by the rule every page walk shares
-   (current-target.js, `walkOrigin` and `stepFrom`), and lands on the change: on the
+   (records/current-target.js, `walkOrigin` and `stepFrom`), and lands on the change: on the
    block it starts with, or, where it only took blocks out, on its gap's stand-in
-   (margin-bars.js, `removalProxy`), which rings the gap, since the block beside the gap
+   (features/margin-bars.js, `removalProxy`), which rings the gap, since the block beside the gap
    didn't change. It brings the change into view where it is not, and says the walk's
-   position as every walk says it (walk-position.js), a listener hearing after it what
-   the version was saved after (change-provenance.js). A current location anywhere in a
+   position as every walk says it (records/walk-position.js), a listener hearing after it what
+   the version was saved after (features/change-provenance.js). A current location anywhere in a
    change's blocks, or on its gap's stand-in, is on that change, so the next step goes
    on to the following one, even from one of two gaps beside one block to the other;
    from any other origin a step compares only where each change stands, as an editor's
    next-hunk key does. The change's margin entry, and a gap's stand-in, open what it
-   replaced over it (version.js, `toggleChangeCard`).
+   replaced over it (features/version.js, `toggleChangeCard`).
 
    The marks are annotations, so `g H` hides them with the rest, and nothing here stops
    them: a comparison ends with its Compare in Versions, which `g V v` presses again.
@@ -26,7 +26,7 @@
    row reach it with a tap.
 
    With no comparison standing, or one that marks nothing, a press says "No changes
-   marked" in the panel (notifications.js, `notice`), as every page walk with nothing to
+   marked" in the panel (transport/notifications.js, `notice`), as every page walk with nothing to
    step through says so (dom/keyboard/AGENTS.md, "Page grammar"), so the key is live on
    every page. While a comparison a press started is still loading, its marks aren't
    known yet, so the key isn't taken rather than saying none are marked. */
@@ -91,14 +91,14 @@ function step(dir) {
     ? cycledRow(list, current, dir)
     : stepFrom(list, origin, dir, start);
   if (!change) return;
-  // A gap's stand-in brings the gap into view as it takes focus (margin-bars.js).
+  // A gap's stand-in brings the gap into view as it takes focus (features/margin-bars.js).
   if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
   const said = beginWalk("change", "Change", position, { about: "comparison" });
   if (!said) return;
   // A listener hears what the version was saved after too, as the ⇄ entry's label says
-  // it under what the change did (change-provenance.js).
+  // it under what the change did (features/change-provenance.js).
   const savedAfter = (versionProvenance()?.lines ?? []).map(wordsText).join(" ");
   announce(savedAfter ? `${said}. ${savedAfter}` : said);
 }

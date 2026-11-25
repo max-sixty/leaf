@@ -171,7 +171,7 @@ function createApplication(dependencies) {
   };
 
   // The document-wide pass. Every presenter claims its region now and paints the current
-  // semantic root on the pass that follows, in the order semantic-state.js declares, so
+  // semantic root on the pass that follows, in the order state/semantic-state.js declares, so
   // a caller that changes what the page shows only has to say so — it names no renderer
   // and cannot leave one out. What comes back is the whole pass.
   //
@@ -257,7 +257,7 @@ function createApplication(dependencies) {
     }
   };
   // The revision a visible tab showed, sent as the user leaves; the event door keeps a
-  // send alive past its document (layer-client.js, `postEvent`). Nothing draws it ahead
+  // send alive past its document (transport/layer-client.js, `postEvent`). Nothing draws it ahead
   // of the answer.
   createSinceSeen({
     markSeen: (revision) =>
@@ -334,7 +334,7 @@ function createApplication(dependencies) {
   }
   // The margin's annotations, which the margin's own geometry and contributions also
   // redraw directly, at once, since a contribution's control and the focus prepared on
-  // it must stand when the call returns (contributions.js). `refresh()` redraws them
+  // it must stand when the call returns (features/contributions.js). `refresh()` redraws them
   // once they have been drawn.
   let annotationsDrawn = false;
   const paintAnnotations = () => {
@@ -714,7 +714,7 @@ function createApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     threadActions,
-    // The panel's On rows' own arrival, where `m` would arrive (queue-api.js).
+    // The panel's On rows' own arrival, where `m` would arrive (state/queue-api.js).
     queueActions,
     // Goes to an obligation by its id, which is also its row's on an On list: an
     // update's or a to-do's at its row's arrival, a question asked in words at its
@@ -733,7 +733,7 @@ function createApplication(dependencies) {
       }
       return dependencies.goToObligation(item);
     },
-    // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    // The On Me walk within one region (panel/queue-walk.js), the walk an `lf-tally` steps.
     nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
       options,
     ) => dependencies.nextObligationWithin(options),

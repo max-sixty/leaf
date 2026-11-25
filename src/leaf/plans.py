@@ -46,8 +46,8 @@ its steps that ended done of those not dropped. A step naming an obligation a la
 version removed reads as dropped.
 
 The floating panel's On <agent> shows the plan above its list while one stands, and On
-Me can group its items under the goals whose steps name them (`floating-panel.js`,
-`queue-walk.js`). `conversation-loop.md`, "When to write", asks an agent for a plan
+Me can group its items under the goals whose steps name them (`panel/floating-panel.js`,
+`panel/queue-walk.js`). `conversation-loop.md`, "When to write", asks an agent for a plan
 when its work runs to several steps and past the turn it is in.
 
 Experimental, like to-dos and the lists; nothing outside this repository depends on it.

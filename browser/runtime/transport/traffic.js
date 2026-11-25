@@ -19,12 +19,12 @@
    once the body has been read or the read has failed. `received` and `applied` are the
    same pair for the state an answer through either door carries: `received` as the page
    takes it in hand, `applied` once the page has adopted it, dropped it as overtaken or
-   failed to show it (state-application.js, `receiveState`). `pending` names the
+   failed to show it (host/state-application.js, `receiveState`). `pending` names the
    attempts the published semantic state still holds as sending, in ledger order, and
    changes with the publication that accepts or refuses one: an entry behind a head that
    is retrying stays pending until its turn, even where a read has already shown its
    attempt landed, because an applied reading does not replace a delivery outcome. A
-   bookkeeping event (delivery.js), the page's error report, and a media upload
+   bookkeeping event (host/delivery.js), the page's error report, and a media upload
    (layer-client.js) never enter that ledger.
 
    So a wait for "what this page sent has come back, and the page has taken in the

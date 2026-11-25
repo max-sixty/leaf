@@ -196,7 +196,7 @@ export async function replyDestination(
 // The thread itself, for a user whose node has no like where it now stands. Another
 // owner that put them on a drawn node meanwhile, as a list keeping its rows does, has
 // placed them already, and a travel taking them to the thread lands them itself
-// (anchor-travel.js, `travellingTo`), as when a press on a closed file's marker opens
+// (features/anchor-travel.js, `travellingTo`), as when a press on a closed file's marker opens
 // the file and the thread leaves the marker for a seat beside its line.
 /** @param {string} id @param {OpenThread} open @param {UserIntent} may
  * @param {(id: string) => boolean} travellingTo */

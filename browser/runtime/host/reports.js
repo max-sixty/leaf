@@ -42,7 +42,7 @@
    Accepted and local attempts publish one complete snapshot, including reads whose
    event list did not grow and definitive refusals that restore authoritative truth.
    Time-dependent paints are separate: a synchronous `ago` or `clockValue` reading is
-   recorded with what else the paint read (`presence.js`), and the shared tick repaints
+   recorded with what else the paint read (`state/presence.js`), and the shared tick repaints
    only paints whose reading changed, while their owners stand, so a new widget owes no
    entry in a kernel list of clock consumers. A held state does not reset the
    measured server clock offset. Lit owns the rendering subscription and its connection

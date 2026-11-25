@@ -158,7 +158,7 @@ def test_a_framed_page_moves_nobody_until_the_user_enters_it(browser, serve):
 
     go = page.locator("#go")
     go.evaluate("(go, url) => go.href = url + '#far'", embedded.url)
-    # Travel is the navigation's handler (history.js), so the navigation succeeds once
+    # Travel is the navigation's handler (records/history.js), so the navigation succeeds once
     # travel has landed and put focus wherever it was going to.
     embedded.evaluate("""() => {
       window.travelled = new Promise((resolve) =>

@@ -2,8 +2,8 @@
 /* What each seat says about a page's served activity: the page's status sentence and
    what its explanation adds, and a row of All pages. Both are worded here from the one
    `activity` reading the server sends, and from the page's queues, so a fact the seats
-   share changes in one place. Nothing here reads or writes the document; page-status.js
-   and live-leaves.js read what these return, the floating panel draws it, and
+   share changes in one place. Nothing here reads or writes the document; panel/page-status.js
+   and host/live-leaves.js read what these return, the floating panel draws it, and
    `tests/runtime/activity-words.test.mjs` holds each sentence. */
 import { capitalized, counted } from "../lib/words.js";
 import { ago } from "./presence.js";
@@ -139,7 +139,7 @@ const publicationWords = (published) => [
 ];
 
 // Rendered strings derive from structured parts, each said by the agent or by Leaf
-// (voice.js), so an authored detail keeps its exact source without recovering its
+// (base/voice.js), so an authored detail keeps its exact source without recovering its
 // position from a combined status sentence. The agent's sentence carries its `source`;
 // a to-do's title is the agent's too. The wordings below write Leaf's own words as
 // strings, which become Leaf's parts here.
@@ -272,7 +272,7 @@ function statusWords({
 // change is announced. Each wording also comes as parts, each said by the agent or by
 // Leaf (`summaryParts`, `explanationParts`, `addsParts`). Each reading the user acts on differently
 // has its own `kind`, since a change of kind is what the status announces
-// (page-status.js): a server that went away and then starts refusing this tab's key
+// (panel/page-status.js): a server that went away and then starts refusing this tab's key
 // asks something new of the user.
 /** @param {ActivityReading | null} state
  * @param {Exclude<import("../records/framework/application.js").Reach, {reach: "waiting"}> | {reach?: never}} options */
@@ -311,7 +311,7 @@ export function pageStatus(state, options = {}) {
   }
   // An unreachable server is reported, not asked about: the page retries on its own, the
   // words being written are kept as drafts, and a change the user sends meanwhile says
-  // itself that it is waiting (delivery.js). The leaf still turns red, since the page
+  // itself that it is waiting (host/delivery.js). The leaf still turns red, since the page
   // has lost its link to the agent, and the words stay a report (floating-panel.css).
   if (reach !== "reached")
     return {
@@ -467,7 +467,7 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
 const WITHOUT_QUEUES = new Set(["broken", "refused", "faulted", "unreachable"]);
 
 // Each reading of a reached page the user acts on differently, by a name of its own,
-// since a change of name is what the status announces (page-status.js): the agent at
+// since a change of name is what the status announces (panel/page-status.js): the agent at
 // work, there and ready, there with its work stalled, away, holding the page no
 // longer, or done with it.
 /** @param {Activity["presence"]} presence @param {boolean} working @param {boolean} blocked */

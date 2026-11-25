@@ -201,7 +201,7 @@ def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
 
 def test_the_thread_walk_goes_on_from_a_card_still_carried_in(browser, serve):
     """A walk that changes the card's thread carries the card's list from where the last
-    thread's card stood to the new one's place (box-motion.js), drawn above the window
+    thread's card stood to the new one's place (dom/box-motion.js), drawn above the window
     while the page has scrolled down to it. A key pressed meanwhile is meant for the card
     the walk reached, so `T` steps back from it rather than letting go of it and opening
     it again. The card's tween is held long, so the key lands once the glide has ended

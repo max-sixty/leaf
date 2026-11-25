@@ -1,7 +1,7 @@
 /* The page status, presented by the floating panel (floating-panel.js).
  *
  * The status says how the server answered the page's latest read (`reach`) and what the
- * reading it adopted says, in the words activity-words.js gives it (`statusReading`). It
+ * reading it adopted says, in the words state/activity-words.js gives it (`statusReading`). It
  * paints the tab's icon in its tone and announces a change after the first status
  * reading. Provisional interface readiness gives a status without establishing that
  * announcement baseline; saved state or a failed read does.
@@ -137,10 +137,10 @@ let saidActionableWork;
 /** @type {string | undefined} */
 let saidTone;
 // A refused key, or a reading the page could not apply, is an error the user should see
-// wherever they are (errors.js), held while the status says it, since it asks the user to
+// wherever they are (transport/errors.js), held while the status says it, since it asks the user to
 // act. An unreachable server is not: the page reconnects on its own, so the status
 // reports it in its own face, and a change the user sends meanwhile holds its own error
-// (delivery.js). The status announces a change of kind in its own words already.
+// (host/delivery.js). The status announces a change of kind in its own words already.
 const holdBlocked = holdingError({ announce: false });
 /** @param {ReturnType<typeof currentStatus>} current */
 function paintStatus(current) {
@@ -163,7 +163,7 @@ function paintStatus(current) {
     (saidKind !== kind ||
       (actionableWork !== null && actionableWork !== saidActionableWork));
   // The tone turning to working after the first reading is a moment the panel's leaf
-  // answers (notifications.js, `gesture`). A read that failed says nothing of the agent,
+  // answers (transport/notifications.js, `gesture`). A read that failed says nothing of the agent,
   // so the tone it shows is passed over: work the page reconnects to isn't picked up.
   const pickedUp = saidTone !== undefined && tone === "working" && saidTone !== tone;
   saidKind = kind;
@@ -180,7 +180,7 @@ export function mountPageStatus() {
     const current = currentStatus();
     untracked(() => paintStatus(current));
   });
-  // The count follows the same reading as the panel's badge (tab-title.js).
+  // The count follows the same reading as the panel's badge (base/tab-title.js).
   effect(() => {
     const count = onUserCount();
     untracked(() => paintTabTitle(count));

@@ -241,7 +241,7 @@ export function registerContribution({ key, target, source = target, read, activ
       activate();
       return true;
     },
-    // Puts the user on the entry's control, saying what moved them (focus.js,
+    // Puts the user on the entry's control, saying what moved them (dom/focus.js,
     // `focusDestination`).
     focus(entryKey, cause, surface = null) {
       return arrive(entryKey, surface, (destination) => {

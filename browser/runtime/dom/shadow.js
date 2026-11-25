@@ -18,12 +18,12 @@ import { registry } from "../state/registry.js";
 // A declared root is the stage a `shadow` widget built through `shadowStage`, so
 // the roots come from the stages' registry (`liveStages`, arrivals.js), not from a
 // query of `root`. Every id the document doesn't hold is looked for here
-// (`elementById`, passages.js), as is an obligation's widget in a thread no one has
+// (`elementById`, readings/passages.js), as is an obligation's widget in a thread no one has
 // opened, on every paint that places it, so this answer costs the number of stages, not
 // the size of the page. A root attached any other way carries none of a stage's marks
 // or watches, and its host reads as one with no declared root: by its own children.
 //
-// A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
+// A root refused for holding bare text (readings/passages.js, `refusesBareText`) leaves the list for
 // good, and its host reads the same way.
 /** @type {WeakSet<ShadowRoot>} */
 const refusedRoots = new WeakSet();

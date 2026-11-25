@@ -50,7 +50,7 @@ test("an entry stays one object until what it is made from changes", () => {
     assert.equal(entryFor(second, "other"), entryFor(first, "other"));
 
     // A producer's publication is a change, whatever it says, since it can carry a
-    // command the record's values don't show (contribution-controls.js).
+    // command the record's values don't show (features/contribution-controls.js).
     registration.update();
     const published = inventory.collect();
     assert.notEqual(entryFor(published, "other"), entryFor(second, "other"));

@@ -107,7 +107,7 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
 
     page.reload()
     wait_until_ready(page)
-    # The reload returns the user to the reply the row's press put them in (history.js),
+    # The reload returns the user to the reply the row's press put them in (records/history.js),
     # which Escape leaves for its thread, where `t` walks on.
     expect(page.locator(PANEL_REPLY)).to_be_focused()
     page.keyboard.press("Escape")

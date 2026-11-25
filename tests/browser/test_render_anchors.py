@@ -1207,7 +1207,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
 def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     # The clipped source sits beyond the near observer's 600px scroll margin
-    # (geometry.js, `nearObserver`), so the synchronous first reading and the
+    # (dom/geometry.js, `nearObserver`), so the synchronous first reading and the
     # observer's first record agree it stays out of layout. A nearer source enters
     # layout on that record, before or after presentation as load decides.
     url = live_url(
@@ -2637,7 +2637,7 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_locat
     browser, serve
 ):
     """A component that makes its own shadow root, as a Web Awesome control does, moves
-    focus between its own controls with no event reaching any root focus.js listens on.
+    focus between its own controls with no event reaching any root dom/focus.js listens on.
     The current location is still read once the key's task ends, so every reader of it
     hears the move as the Tab it was."""
     page = open_page(browser, serve(DIFF_PAGE))
@@ -3823,7 +3823,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-page-thread leaf-text")).to_be_focused()
     # A trip waits on the thread refresh before it decides to move, and that same
-    # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
+    # refresh is what writes this card's placement (`scrollToThread`, features/anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
     # long enough to have covered the wait.
@@ -5278,7 +5278,7 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
 def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
     """The anchor paint builds a thread's marks, the index the pointer is found in and
     the highlight painting them only for a presentation that changes a mark: ten that
-    change none build nothing (anchor-paint.js, `paint`)."""
+    change none build nothing (annotations/anchor-paint.js, `paint`)."""
     url = serve(leaf_page("Kept", '<p id="kept">Words a thread is about.</p>'))
     append_carried_log_record(
         serve.page_dir,
@@ -5366,7 +5366,7 @@ def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
     old = page.evaluate(words, stood)
     page.mouse.move(old["left"] - 30, old["top"] - 30)
     page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
-    # The hover frame the move queued (anchor-paint.js, `refreshHover`) has painted
+    # The hover frame the move queued (annotations/anchor-paint.js, `refreshHover`) has painted
     # the hand where it found a mark.
     rendered(page)
     expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
@@ -5572,7 +5572,7 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
 
 
 # What the page hears as it starts that its input clock counts as the user's
-# (document-inputs.js), and where focus lands: startup reopens a saved draft only while
+# (base/document-inputs.js), and where focus lands: startup reopens a saved draft only while
 # neither has moved (`recoverComposer` in leaf.js). Registered before the reload, so its
 # listeners come before the clock's.
 HEARD_AS_IT_STARTS = """(() => {
@@ -5704,7 +5704,7 @@ def _changed_page(request, engine, serve):
 
 def _rest_on(page, box):
     """Rest the pointer on a box, from away, and read the hand once the hover frame
-    each move queued (anchor-paint.js, `refreshHover`) has run: once, since a later
+    each move queued (annotations/anchor-paint.js, `refreshHover`) has run: once, since a later
     presentation would find the marks again and hide a fault."""
     page.mouse.move(2, 2)
     rendered(page)

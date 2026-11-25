@@ -153,7 +153,7 @@ The live root serves the active revision, and revision and version addresses go 
 the same delivery, all naming the page root as canonical (`revision_delivery.py`). The
 revision manifest's `executable` digest decides whether an open tab patches its
 document or replaces it (`revision_artifact.py`). The browser compares the two
-authored DOM baselines to decide which widgets a patch keeps (`version.js`).
+authored DOM baselines to decide which widgets a patch keeps (`features/version.js`).
 
 A publication that also changes the log stages its bundle, names it in its first
 admitted event, and writes the revision marker last, and the next page transaction

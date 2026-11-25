@@ -160,14 +160,14 @@ export function createFloatingResponsePlacement({
   // mounts: the box the user sees.
   const fabField = () => response.composition().field;
   // The box follows every change of its layout as the panel and the card do
-  // (box-motion.js): a line the field gains or loses, the measure it widens into, which
-  // a key changes at once but for a line it takes away (box-motion.js, "Whose change
+  // (dom/box-motion.js): a line the field gains or loses, the measure it widens into, which
+  // a key changes at once but for a line it takes away (dom/box-motion.js, "Whose change
   // it is"). The field's frame is the box, drawn by a surface behind it, and the
   // composer holding the field and the pictures hanging off it is what moves, so the
   // grip beside it, whose clip opens its middle to the field's presses, is never cut.
   // It reads in the plane its placement stands it in, so a scroll or a carry that moves
   // it whole moves nothing in it, and a change of the open box's size asks for its
-  // placement first (box-motion.js, `placed`). A box no placement stands has nothing
+  // placement first (dom/box-motion.js, `placed`). A box no placement stands has nothing
   // to move from, and one seated in a widget's outlet stands in that widget's flow.
   /** @type {ReturnType<typeof boxMotion> | null} */
   let following = null;
@@ -245,7 +245,7 @@ export function createFloatingResponsePlacement({
       // The frame's width in its own CSS pixels, which the card Send opens starts at
       // (thread-preview.js, `size-width`), whatever scales the page after Send.
       width,
-      // The field the card grows out of (box-motion.js, `drawnAt`).
+      // The field the card grows out of (dom/box-motion.js, `drawnAt`).
       field: following ? shown(following.outline()) : field,
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
@@ -443,7 +443,7 @@ export function createFloatingResponsePlacement({
   }
   // The native selected place owns a live response transaction; after replacement,
   // only the durable coordinate can find it again. A pointed element keeps the row
-  // the hand named and reads its current box (pointed-place.js).
+  // the hand named and reads its current box (readings/pointed-place.js).
   /** @param {Anchor | null} anchor */
   function anchorGeometry(anchor) {
     if (anchor?.quote) {
@@ -649,7 +649,7 @@ export function createFloatingResponsePlacement({
         editingAttachment = response.open ? attachment : null;
         // A scroll carries the box beside its words by CSS anchors, and its solve moves
         // it only where an edge takes it in or lets it go; what a placement moves
-        // travels when it follows a change of the box's size (box-motion.js, `placed`).
+        // travels when it follows a change of the box's size (dom/box-motion.js, `placed`).
         // The open box's first spot is the first reading its motion follows from. A
         // drag the grip carried ends where the placement stands the box.
         const hang = mediaSide(position.placement, boundary);

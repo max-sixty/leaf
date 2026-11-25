@@ -68,7 +68,7 @@ export function openDocumentLayout({ onRead }) {
   readFinished = onRead;
   documentLayoutOpen = true;
   // A disclosure or popover the page opens can move its prose; one in Leaf's chrome,
-  // such as a preview standing over the page (preview.js), moves none of it.
+  // such as a preview standing over the page (annotations/preview.js), moves none of it.
   document.addEventListener(
     "toggle",
     (event) => {

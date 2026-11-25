@@ -3,7 +3,7 @@
  * The response surface calls `remember` only at genuine selection gestures, refining
  * a completed pointer selection after snapping. One semantic anchor and direction survive same-page revisions;
  * neither editor selections nor programmatic restoration choose that passage.
- * History separately keeps the selection on each entry the user leaves (history.js).
+ * History separately keeps the selection on each entry the user leaves (records/history.js).
  * Restore selection resolves current words through shared travel, refusing a missing
  * or ambiguous passage rather than choosing another occurrence. */
 import {
@@ -305,7 +305,7 @@ export function snapSelection() {
   const first = segments[0];
   const last = segments.at(-1);
   if (!first || !last) return;
-  // Each end snaps in the reading it stands in, a part's or the frame's (passages.js,
+  // Each end snaps in the reading it stands in, a part's or the frame's (readings/passages.js,
   // `pageText`); a sentence snaps only within one.
   const head = readingHolding(first.node);
   const tail = readingHolding(last.node);

@@ -3,11 +3,11 @@
    A widget whose element has a `threadOutlets` method is a seat for as long as it
    stands upgraded: `watchThreadSurfaces` registers it once its module has defined it and
    retires it when it leaves, over the same arrival lifetime every element owner holds
-   (`watchArrivals`, arrivals.js), so a move within one batch keeps it. The runtime asks
+   (`watchArrivals`, dom/arrivals.js), so a move within one batch keeps it. The runtime asks
    the widget itself for outlets with
    `owner.threadOutlets(targets, {signal, collection, onCommit})` on every thread pass.
    The widget says its seats changed as it says any change in what it holds, with
-   `lf-layout`, which asks for a pass (anchor-controls.js), and reaches its
+   `lf-layout`, which asks for a pass (annotations/anchor-controls.js), and reaches its
    registration through `threadSurface(owner)` to open a comment on itself or one of
    its datums (`open(node)`) or to take the composer out of a node it is about to
    remove (`release(node)`). The selected page presentation registers explicitly
@@ -100,7 +100,7 @@ export function watchThreadSurfaces(commands) {
     arrive(owner) {
       if (registrations.has(owner)) return;
       // Every door that brings a tag in imports its module before connecting its
-      // markup (`widget-loader.js`), and this watch starts after startup's upgrade, so
+      // markup (`records/widget-loader.js`), and this watch starts after startup's upgrade, so
       // an undefined owner failed to upgrade, which its module's failure reports.
       if (!owner.matches(":defined")) return;
       const outlets = owner.threadOutlets;

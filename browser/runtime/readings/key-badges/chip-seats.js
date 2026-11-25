@@ -1,5 +1,5 @@
 /* Where key chips stand. Each chip stands in a seat, a box anchored to the target the
-   chip names (target-paint-geometry.js, `paintSet`, with nothing cutting it), so the
+   chip names (readings/target-paint-geometry.js, `paintSet`, with nothing cutting it), so the
    browser carries the chip with every scroll that moves its target, and no scroll
    writes it. A placement pass seats chips where the room around their targets puts
    them at rest; a scroll leaves each chip riding where it was seated, hidden once its

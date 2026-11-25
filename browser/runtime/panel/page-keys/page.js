@@ -109,7 +109,7 @@ pageCommand({
 });
 
 // Every walk, Go-to and link that moves the page leaves a history entry where the user
-// stood (anchor-travel.js), so the browser's own Back is the way back to it. Leaf binds
+// stood (features/anchor-travel.js), so the browser's own Back is the way back to it. Leaf binds
 // no key of its own for that; this row names the browser's, which differ by platform.
 const [BACK, FORWARD] = MAC ? ["Mod+[", "Mod+]"] : ["Alt+ArrowLeft", "Alt+ArrowRight"];
 pageCommand({
@@ -130,7 +130,7 @@ pageCommand({
 
 // Current location is a destination on the page. Releasing it lands at its floor, the document.
 // A thread in the floating panel has no floor of its own: what stands open there, the
-// menu and then a view, is a step of this ladder (floating-panel.js), so putting the
+// menu and then a view, is a step of this ladder (panel/floating-panel.js), so putting the
 // view away is the way out of a panel thread.
 //
 // Inner controls, reply boxes, and native layers answer first. Page-side state waits

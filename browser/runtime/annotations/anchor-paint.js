@@ -381,7 +381,7 @@ export function createAnchorPaint({
   // `highlightsFromPoint` walks every range a highlight holds (notes/browser-support.md,
   // "Highlight hit testing"). With the annotation layer hidden there is no mark to be
   // under: an unseen passage shows no hand and opens nothing. With `whole`, a character's
-  // box reaches across its line's leading (geometry.js, `lined`), as a preview's room
+  // box reaches across its line's leading (dom/geometry.js, `lined`), as a preview's room
   // reads it (`markBox`); a press and a hover read the character alone.
   /** @param {number} x @param {number} y @param {Element | null} [under] the element
    * under the point, where the caller has hit-tested it already
@@ -585,7 +585,7 @@ export function createAnchorPaint({
   // on them, so the preview stands once by the line first pointed at as the pointer
   // crosses the pieces an inline element or a shadow root splits a passage into
   // (preview.js, `pointRange`). One range from the first piece to the last collapsed
-  // where a passage ran into a shadow tree (passages.js, `rangeOf`). The owner reads a
+  // where a passage ran into a shadow tree (readings/passages.js, `rangeOf`). The owner reads a
   // standing preview again each time it is told its range, so it is told again only
   // when the threads under the pointer change: telling it on each move drew 512
   // threads' lines on every move over a word 512 threads mark.
@@ -646,7 +646,7 @@ export function createAnchorPaint({
 
   // The hand over a mark is a paint on the document's element under the pointer (a
   // shadow tree's host, whose cursor its tree inherits), which the margin's page
-  // observer does not hear (page-paint.js) and whose cursor reaches only what it holds.
+  // observer does not hear (base/page-paint.js) and whose cursor reaches only what it holds.
   // A class on `body` ran a margin pass at each change and restyled the whole body. It
   // stands only where a press opens the thread: a control or editing region keeps its
   // own press there (composing/surface.js, the page's click), and so its own cursor.
@@ -689,7 +689,7 @@ export function createAnchorPaint({
     marks.length === parts.length && marks.every((mark, at) => mark === parts[at]);
 
   // A passage's marks are the live ranges anchor placement keeps of it, the one record
-  // of where it is (resolved-target.js, `targetSegments`), which a reading that moves
+  // of where it is (readings/resolved-target.js, `targetSegments`), which a reading that moves
   // nothing keeps; an element's are its parts, kept while they are the same elements.
   // So a presentation that changes no mark keeps its ranges, the index of them (`index`)
   // and the highlight painting them as they stand, and the hover stays bound to them;
@@ -711,7 +711,7 @@ export function createAnchorPaint({
 
     // In the page's reading order, as the margin lists its entries, which names the
     // thread a press on overlapping passages opens and the order a mark's preview lists
-    // them in (resolved-target.js, `readingOrder`).
+    // them in (readings/resolved-target.js, `readingOrder`).
     const inOrder = [...readings].sort((left, right) =>
       readingOrder(readingPlace(left.placement), readingPlace(right.placement)),
     );

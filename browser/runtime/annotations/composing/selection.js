@@ -94,7 +94,7 @@ import { PRESS, rowArrows } from "../../lib/keys.js";
 // ⋯ over the field's end, in the head row the floating frame reserves, which
 // only the floating presentation has.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
-fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
+fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (readings/passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
 // A public part a theme restyles (`layer.chrome_restyle`), its ground inside it.
@@ -204,7 +204,7 @@ export let pendingAbout = null;
 export let pendingDrawing = null;
 
 // The words of the element a comment was pointed at, as the passage that finds them
-// again once a re-render has replaced the element (pointed-place.js); null for none.
+// again once a re-render has replaced the element (readings/pointed-place.js); null for none.
 /** @param {Element} element */
 function wordsOf(element) {
   const range = document.createRange();
@@ -231,7 +231,7 @@ const composerPayload = (fields) => ({
   touched: Date.now(),
 });
 // The draft a comment the log holds on a passage was written in, as this composer keeps
-// it, which taking the comment back puts its words back in (undo.js).
+// it, which taking the comment back puts its words back in (annotations/undo.js).
 /** @param {{anchor: Anchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("./drawing-record.js").DraftDrawing | undefined}} comment */
 export const commentDraft = (comment) => ({
   ctx: composerCtx(comment.anchor),
@@ -544,7 +544,7 @@ export function createSelectionComposer({
   }
   // A new passage defaults to the mode current at the open — a composer opened in
   // design mode is about design — and a restored draft passes its saved modes. A pointing
-  // gesture passes the row inside the target it landed on (`point`, pointed-place.js),
+  // gesture passes the row inside the target it landed on (`point`, readings/pointed-place.js),
   // or null; a route that names no point leaves the bar where it stands on this anchor.
   /** @param {Anchor | null} anchor @param {string | null | undefined} text @param {{suggest?: boolean | undefined, about?: "design" | null | undefined, drawing?: import("./drawing-record.js").DraftDrawing | null | undefined, focus?: boolean, point?: Element | null | undefined, revision?: number | null}} [options] */
   function openComposer(
@@ -572,7 +572,7 @@ export function createSelectionComposer({
       if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
       seededQuote = "";
       composerEpoch += 1;
-      // Every passage keeps its own draft (drafts.js, `draftSubject`), so the box
+      // Every passage keeps its own draft (records/drafts.js, `draftSubject`), so the box
       // takes up the one at the passage it opens on, whatever gesture opened it, and
       // the words it leaves stay with their passage, listed under Threads' Drafts.
       const leaves = composerOpen && composerHolds();
@@ -687,7 +687,7 @@ export function createSelectionComposer({
     hideComposer();
   }
   // `c` taking the user into a thread's reply leaves the composer's passage. Its draft
-  // stays there (drafts.js, `draftSubject`), and the box going down says so where it
+  // stays there (records/drafts.js, `draftSubject`), and the box going down says so where it
   // held words. Advancing the generation makes the detachment later than both a draft
   // watch and a send already in flight, so neither can reclaim the view when it settles.
   function leaveForThread() {
@@ -707,7 +707,7 @@ export function createSelectionComposer({
     leaveComposer(false);
     // A send lands the user itself, on the conversation it opens, so the bar it takes
     // down lets go of no one first. Letting go reads the page's reading place, which
-    // the first read after a change measures across the whole page (reading-place.js,
+    // the first read after a change measures across the whole page (readings/reading-place.js,
     // `runsIn`), only for the send to move the user on.
     if (sending) {
       sending.letGo = takeDownFab();
@@ -832,7 +832,7 @@ export function createSelectionComposer({
             },
             // A refusal withdraws the thread the send drew and hands the words back to
             // this passage's draft, and the user who has done nothing since back to its
-            // box (drafts.js, `sendMessage`), as the page comment card's does, unless
+            // box (records/drafts.js, `sendMessage`), as the page comment card's does, unless
             // another passage's composer stands meanwhile.
             () => {
               if (composerEpoch !== epoch || composerOpen) return;

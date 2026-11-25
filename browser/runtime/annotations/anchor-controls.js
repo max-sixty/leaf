@@ -3,7 +3,7 @@
  * This view owns visual comment proxies, controls for reactions in force, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
  * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
- * details shelf with the seat naming the group as its details (details-shelf.js). A
+ * details shelf with the seat naming the group as its details (features/details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
  * declared part through the target picker (`s`). A failed thread presentation withdraws
  * visual proxies until a valid reading replaces them. A reaction in force first reveals
@@ -263,12 +263,12 @@ export function createAnchorControls({
 
   // The plan is a reading of the page's own pictures, their labels and the parts their
   // widgets register, none of which a thread changes, kept until something it read
-  // changes (kept.js, `kept`): the page's reading, a visual's parts (visual-parts.js), or
+  // changes (state/kept.js, `kept`): the page's reading, a visual's parts (state/visual-parts.js), or
   // the document presented or a widget's layout changing, which is what tells of a new
-  // press around a picture (anchor-resolution.js, `unclaimedVisualGesture`). A thread
+  // press around a picture (readings/anchor-resolution.js, `unclaimedVisualGesture`). A thread
   // pass over an unchanged page keeps the responses it published. The pictures are
   // found in each piece of the page's reading, kept until that piece changes
-  // (passages.js, `readingElements`), so planning again after one part of the page
+  // (readings/passages.js, `readingElements`), so planning again after one part of the page
   // changed searches that part alone.
   const plan = kept(visualActionPlan);
   /** @type {Map<Element, VisualAction[]> | null} */
@@ -484,7 +484,7 @@ export function createAnchorControls({
     // reaction's seat, the section a message's link names. Reading the document here
     // draws them again when a revision replaces it, as one that writes its own
     // `aria-details` on a commented block it keeps, which the note's relation must then
-    // follow (details-shelf.js).
+    // follow (features/details-shelf.js).
     shownDocument();
     /** @type {Map<Element, [string, ...string[]]>} */
     const notes = new Map();
@@ -549,7 +549,7 @@ export function createAnchorControls({
   };
 
   // A press away from a reaction whose removal stands offered takes the offer back
-  // (focus.js, `onPressAway`).
+  // (dom/focus.js, `onPressAway`).
   /** @param {readonly EventTarget[]} path */
   const offeredAway = (path) =>
     [...reactionSeats.values()].filter(

@@ -95,7 +95,7 @@ const dialogList = el("div", "lf-page-map-list");
 dialogList.toggleAttribute("data-lf-scroll", true);
 // While the map stands its list scrolls on its own, so it is a reading region then, as
 // the command reference's list is: the list is what scrolls a row, and what keeps the
-// row the user is on where it stood as the sheet re-renders (user-place.js,
+// row the user is on where it stood as the sheet re-renders (readings/user-place.js,
 // `holdUserPlace`).
 /** @type {(() => void) | null} */
 let stopListReading = null;
@@ -364,7 +364,7 @@ export function createPageMapDialog({
       }),
     );
     // A draft's row reads its words as the map opens, as every view of drafts does
-    // (drafts.js, the drafts list): no keystroke renews the inventory's items.
+    // (records/drafts.js, the drafts list): no keystroke renews the inventory's items.
     groups = marginMapGroups(
       entries,
       (item) => KINDS[item.kind],
@@ -423,7 +423,7 @@ export function createPageMapDialog({
     if (!dialog.open) return;
     // What the map lists can change with no reading behind it, as a widget's own
     // contribution does once its work finishes, so the map keeps the row the user is on
-    // across that as a reading does (user-place.js, `holdUserPlace`).
+    // across that as a reading does (readings/user-place.js, `holdUserPlace`).
     const keep = holdUserPlace();
     renderSheet();
     keep();

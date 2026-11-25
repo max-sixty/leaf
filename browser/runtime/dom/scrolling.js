@@ -1,11 +1,11 @@
 /* Scroll positions, and whose each one is.
 
    A box stands where the reader chose, or where layout put it. The reader chooses with
-   a wheel, a key or a scrollbar, through a Leaf landing (landing-scroll.js), and through
+   a wheel, a key or a scrollbar, through a Leaf landing (readings/landing-scroll.js), and through
    the browser's own navigation, such as find-in-page opening a closed disclosure onto
    its match. Layout puts a box where a clamp leaves it as content shrinks, where scroll
    anchoring adjusts it, and at the offset it kept while it did not scroll. Continuity's
-   shift restore (version.js) undoes only layout's moves, so it asks which boxes the
+   shift restore (features/version.js) undoes only layout's moves, so it asks which boxes the
    reader has chosen for since its reading (`chosenSince`).
 
    A scroll sequence ends with `scrollend`, whoever started it, and Chromium, Firefox and
@@ -15,14 +15,14 @@
    choice unless layout explains it: the box's extent changed while it moved
    (`watchLayout`). A script's jump in the frame of a layout change therefore reads as
    layout's, and the reader's input aimed at the box, which continuity records itself
-   (version.js, `inputSince`), settles those. The browser's travel into hidden content,
+   (features/version.js, `inputSince`), settles those. The browser's travel into hidden content,
    as find-in-page opening a fold onto its match, fires `beforematch` first, so its end
    is a choice whatever the opening did to the layout. Opening a closed `<details>`
    fires none, so a disclosure that opens without its summary's click marks the same
    travel, for its own box and those inside it. An end that leaves the box where
    its last one did, as Firefox sends after a layout move, chose nothing. A place
-   keeper's write returns the reader to a place they already had (reading-place.js,
-   `restorePlace`; user-place.js, `returnPlace`; continuity's move of the page with its
+   keeper's write returns the reader to a place they already had (readings/reading-place.js,
+   `restorePlace`; readings/user-place.js, `returnPlace`; continuity's move of the page with its
    band), so it says where it left each box (`placeKept`), and a sequence ending there
    is the keeper's. An explicit landing counts from its start (`startScroll`), even
    when instant, since layout it caused can be announced before its sequence ends.
@@ -61,7 +61,7 @@ export const pageScroller = nativeScroller;
 // The boxes whose sequence under way Leaf started, a landing or a glide
 // (`startScroll`), how many Leaf has started in each, and the boxes whose latest scroll
 // followed one of the keys the browser scrolls with, which Leaf leaves to it
-// (navigation.js), rather than a hand (`afterBrowserScroll`). Only the inputs that set
+// (panel/navigation.js), rather than a hand (`afterBrowserScroll`). Only the inputs that set
 // the browser scrolling decide which: a pointer, a wheel or a touch, or one of those
 // keys. Any other key, such as Leaf's `d`, moves nothing the browser drives, so a `d`
 // pressed during PageDown leaves PageDown's scroll a key's, and a second `d` waits too.
@@ -197,7 +197,7 @@ ended.set(pageScroller, pageScroller.scrollTop);
 // wheel's or PageDown's, with the write that stops it (arrivals.js,
 // `stopWhereItStands`), since no script can say where that scroll goes. A glide of
 // Leaf's goes on: a landing measures from where it is headed and takes it over
-// (landing-scroll.js, `readingBandMoves`), so `t` pressed again while the walk still
+// (readings/landing-scroll.js, `readingBandMoves`), so `t` pressed again while the walk still
 // moves lands as typed slowly, where stopping the glide left the page where it stood
 // whenever the destination was already in view there; a return stops it itself.
 // Chromium can deliver one last compositor scroll after that cancellation, so the
@@ -255,7 +255,7 @@ document.addEventListener(
 // without that, as find-in-page opens one, travels into it, until the sequence the
 // travel starts has ended. That travel counts only for the disclosure and the boxes
 // inside it, since Leaf itself opens disclosures too, carrying one open across a
-// revision (carry.js) while layout moves the page around it. The opening is read from
+// revision (records/carry.js) while layout moves the page around it. The opening is read from
 // its `open` attribute, whose record arrives before the next rendering update, rather
 // than from `toggle`, which follows in a task of its own: on a busy main thread the
 // rendering update that ends the travel's sequence can run first, and that end would
@@ -314,7 +314,7 @@ document.addEventListener(
   },
 );
 // The scroll an input sets off in `box`, the one box it moves (`scrollsFor`;
-// scroll-containers.js, `inputScroller`), is the reader's from the input: the browser
+// readings/scroll-containers.js, `inputScroller`), is the reader's from the input: the browser
 // applies it a frame or more later, Firefox each wheel's and key's, and the box's first
 // scroll event comes later still. Read from that event, it was nobody's meanwhile, so a
 // step pressed just after PageDown didn't wait for it (`afterBrowserScroll`), and a
@@ -517,8 +517,8 @@ export const reachable = (box, top, from = box.scrollTop) =>
   Math.max(-from, Math.min(scrollLimit(box) - from, top));
 
 // A glide moves a box to a goal at the pace of the browser's own paging keys, and every
-// smooth vertical motion Leaf makes is one: the reading-page keys (navigation.js,
-// `stepAlong`), the go-to sequence's edges, and every landing (landing-scroll.js), such
+// smooth vertical motion Leaf makes is one: the reading-page keys (panel/navigation.js,
+// `stepAlong`), the go-to sequence's edges, and every landing (readings/landing-scroll.js), such
 // as the ones `m`, `t`, a link and Back set off. Native paging is a quick glide — PageDown covers a
 // page in ~150ms in Chromium and Firefox, and Space and the arrows ride the same
 // animator — but JS cannot ask for that animator. A script's smooth scroll is slower by
@@ -549,7 +549,7 @@ export const reachable = (box, top, from = box.scrollTop) =>
 // typed slowly, and Home takes the page back to the top though `d` hasn't moved it.
 // Stopped where it stood, the glide left PageDown paging from the page mid-way. It
 // stands down too the moment the box moves under any other hand, such as a scrollbar's
-// drag, and a return takes the box from it (history.js). A clamp's move is no hand's, as
+// drag, and a return takes the box from it (records/history.js). A clamp's move is no hand's, as
 // the box's end comes up past where the glide put it, so the glide goes on from there
 // (`holding`). A landing's glide asks the landing at each frame where the box now goes,
 // so a destination layout moves still lands where the landing puts it (`aimed`). A
@@ -582,8 +582,8 @@ const glideIn = new Map();
 // (annotations/composing/surface.js), and the Go-to map, which labels only a still scene
 // (panel/page-keys/go-to-sequence.js). Landed first, that work reads the page as the same keys
 // typed slowly leave it. What Leaf reads and moves itself asks where the glides land
-// instead, the user's place (scroll-containers.js, `seenAhead`) and its reveals
-// (landing-scroll.js, `readingBandMoves`), because a box the page carries by anchoring,
+// instead, the user's place (readings/scroll-containers.js, `seenAhead`) and its reveals
+// (readings/landing-scroll.js, `readingBandMoves`), because a box the page carries by anchoring,
 // as a thread card, takes a scroll only at the next frame: with every key landing the
 // glides first, the card a walk had focused read as off screen, and `c` or `d` pressed
 // as `t` set off let go of it. A glide a hand has taken the box from leaves it where the
@@ -739,7 +739,7 @@ function aimed(box, glide) {
 }
 // Give the glide under way in `box`, where one holds it, to the landing whose `aim` says
 // where the box now goes, as a landing takes every box that scrolls its destination
-// (landing-scroll.js, `scrollIntoView`). The landing's destination is the whole goal.
+// (readings/landing-scroll.js, `scrollIntoView`). The landing's destination is the whole goal.
 /** @param {Element} box @param {() => number | null} aim */
 export function steerGlide(box, aim) {
   const glide = holding(box);
@@ -938,7 +938,7 @@ export function keepFoot(box) {
 }
 
 // A box that follows its end, as a margin card's transcript and a block bounded at its
-// end (bounds.js) do, keeps a reader who stands at its end there through whatever
+// end (readings/bounds.js) do, keeps a reader who stands at its end there through whatever
 // changes its size or what it holds: its room, as the reply box beside a card's
 // transcript takes height or gives it back, or the card refits; an entry drawn at its
 // end; an entry growing after it is drawn, as a picture in it loads. A reader who
@@ -973,7 +973,7 @@ export function keepFoot(box) {
 // transcript, and that reader still stands at the end. A box the browser doesn't draw,
 // as in a hidden tab or a shut disclosure, is read only once it is drawn again: its
 // layout says nothing meanwhile of where its reader stands, and reading it makes the
-// browser lay out what it skips (bounds.js). A change that
+// browser lay out what it skips (readings/bounds.js). A change that
 // leaves the end where it stood asks nothing, and one that leaves the reader at the new
 // end writes nothing, since no scroll write that moves nothing is made (arrivals.js,
 // `setScroll`): in Firefox, a card that put its transcript back at an end it already
@@ -986,13 +986,13 @@ export function keepFoot(box) {
 // below the growth, such as the end of an answer whose picture loads.
 //
 // The keeper reads the box at each of its size readings. An owner that sees what the box
-// holds change asks it to read the box at once (`check`), as bounds.js does for a log:
+// holds change asks it to read the box at once (`check`), as readings/bounds.js does for a log:
 // text grows a box without resizing any box a size observer reports, as text appended
 // to a `<pre>` log does, and a log emptied and refilled in two steps is clamped to its
 // top in between, which only a reading at that moment sees as the reader still at its
 // end. The keeper says whether its reader stands at the end (`standsAtEnd`), by the test
 // it follows by or at the end as the box now stands, but not while an input heads the
-// box up or across, as a revision asks of a bounded log to record its place (bounds.js,
+// box up or across, as a revision asks of a bounded log to record its place (readings/bounds.js,
 // `followingItsEnd`): a place recorded at the end then put the log back there and
 // cancelled the wheel.
 /** @typedef {{extent: number, limit: number}} BoxExtent */

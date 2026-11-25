@@ -18,7 +18,7 @@
    there, a press on the cover or Resume writing (`g i`), or the field stops showing
    them (`passErrorsAt`, `errorOver`; annotations/composing/input.js). The floating panel's field
    also says an error about nothing, in its status's place while it is empty, until the
-   user's first edit there (floating-panel.js). An error no field stands for, or one the user has
+   user's first edit there (panel/floating-panel.js). An error no field stands for, or one the user has
    passed, waits in the Errors list in the leaf's menu, with a dot on the leaf and on
    the menu's Errors until the user opens the list (`seeErrors`), so the row the
    dotted leaf leads to reads at once. The user chose this over
@@ -31,16 +31,16 @@
    (`press`), as a refused send whose words came back out of view offers Resume
    writing, while that press can still act (its `stands`). The floating panel's field
    shows it after the error's words with the keys that would make it now, as it shows a
-   notice's (field-readings.js, `end`), and the Errors list offers it beside Dismiss. A
+   notice's (panel/field-readings.js, `end`), and the Errors list offers it beside Dismiss. A
    text field's cover draws no press, so an error about one offers none.
 
    A screen reader hears each error as it is raised, unless its producer already says
-   it aloud, as page-status.js does a change of status. News and acknowledgements stay
+   it aloud, as panel/page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one.
 
    Each error keeps the revision the page showed and the stack it was raised from
    (`revision`, `stack`), so whoever is handed a copy of it starts from the source and
-   the code that raised it, however the page has moved on since (floating-panel.js,
+   the code that raised it, however the page has moved on since (panel/floating-panel.js,
    `errorReport`).
    The tab's trace records it among the gestures that led to it (interaction-log.js). */
 import { signal, untracked } from "/runtime/records/framework.js";

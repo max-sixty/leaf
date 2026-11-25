@@ -1,5 +1,5 @@
 /* The version picker's commands, for the floating panel's Versions list
- * (floating-panel.js), which draws its rows from `versionsReading` (version.js).
+ * (panel/floating-panel.js), which draws its rows from `versionsReading` (version.js).
  *
  * Version travel supplies stable commands, which this owner holds for the panel. It
  * never fetches a document, chooses a version, or decides what a comparison means.

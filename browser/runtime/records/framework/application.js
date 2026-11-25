@@ -280,7 +280,7 @@ function advance(entry, signal, admitted = null) {
  * }} WidgetDescriptor
  */
 
-// An admitted entry as the folds read it, kept by the served entry (`kept.js`), so a
+// An admitted entry as the folds read it, kept by the served entry (`state/kept.js`), so a
 // widget's fold can tell the entries in force on it unchanged by identity.
 const admittedEntry = keptEach(
   /** @param {PageView["document"]["projection"]["entries"][number]} wire */
@@ -355,7 +355,7 @@ const NO_WITHDRAWALS = [];
 /* The admitted inventory owns membership and widget completion. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
  * visible before its POST settles the obligation. */
-// A widget's obligation record as this tab reads it, kept (`kept.js`) by the served
+// A widget's obligation record as this tab reads it, kept (`state/kept.js`) by the served
 // record, its widget's state, the verb it awaits and that widget's withdrawals, so a
 // publication that moves one widget makes that widget's record again and no other.
 const widgetObligation = keptEach(
@@ -554,7 +554,7 @@ function currentWidgetRelations(descriptors, widgets, desired) {
  * records a send alone publishes (`localUpdates`): the answer it is owed, which stands
  * for every update the server listed open in its thread, and the resend a refused one
  * leaves. Nothing here selects a list again. */
-// Each served item's row, kept by the item and the record it carries (`kept.js`).
+// Each served item's row, kept by the item and the record it carries (`state/kept.js`).
 const recordRow = keptEach(
   /** @param {QueueItem} item @param {ObligationRecord} obligation */
   (item, obligation) => ({ ...item, obligation }),
@@ -888,7 +888,7 @@ function widgetReading(inputs, descriptor) {
 /** @param {{ presentation?: PresentationLifecycle }} [options] */
 export function createSemanticApplication({ presentation } = {}) {
   // The fold, and each step of it that reads the whole page, run again only where an
-  // argument it is given changed (`kept.js`). A step left alone hands back what it made
+  // argument it is given changed (`state/kept.js`). A step left alone hands back what it made
   // last time, which the publisher has shared before and so need not compare again
   // (snapshot.js, `shareFold`): a publication about one thing costs what it changed,
   // and one that moves no argument of the fold, such as a widget's output, folds

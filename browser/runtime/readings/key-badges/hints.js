@@ -621,7 +621,7 @@ export function createHintSession({
 
   // Every way the map is replaced whole puts the user back at its head, with no letters
   // typed and nothing heard. Whether the page is moving is a fact about the page rather
-  // than about the map (arrivals.js, `scrolling`).
+  // than about the map (dom/arrivals.js, `scrolling`).
   /** @param {C[]} found */
   function hold(found) {
     prefix = "";
@@ -646,7 +646,7 @@ export function createHintSession({
       : -1;
   }
 
-  // The map stands on a scene the browser has drawn (arrivals.js, `scrollDrawn`). A
+  // The map stands on a scene the browser has drawn (dom/arrivals.js, `scrollDrawn`). A
   // scroll a script has just written, as `g` writes landing the glides under way, leaves
   // a box anchored to what it moved where it stood until the next rendering update, so a
   // map read then would name a margin entry the thread card the walk opened is arriving

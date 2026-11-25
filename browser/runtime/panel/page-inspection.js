@@ -437,7 +437,7 @@ export async function openPageInspection(intent) {
     : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
   loading = available;
   // Each text the menu copies, under its name, then what it grants beyond what it says
-  // (page-controls.js, `title`). A row's terse `value` only shortens its text, so it
+  // (base/page-controls.js, `title`). A row's terse `value` only shortens its text, so it
   // stands in the menu alone.
   render(
     html`<h2 class="lf-label">Page details</h2>

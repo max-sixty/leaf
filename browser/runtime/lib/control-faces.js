@@ -58,7 +58,7 @@
      (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
    - `entry`: a margin entry, which Leaf builds, a glyph out in the page's margin
      whose label a pointer or a key reveals, framed by what it promises: an action raised, a disclosure
-     ringed, a status ghosted (contribution-controls.js), with its tone
+     ringed, a status ghosted (features/contribution-controls.js), with its tone
      (`data-lf-tone`) on its glyph. A change's entry, a disclosure, is raised as an
      action is (`data-lf-kinds="change"`). One in force (`aria-pressed`), as a reaction the
      user left in the margin is, stands on the chip, and a row standing as a pin over
@@ -69,7 +69,7 @@
      (`aria-pressed="true"`).
    - `response`: a choice of the response bar, which Leaf builds: Comment, Suggest or
      a reaction, which floats over the page and so wears the field's frame, height and lift
-     (widget-elements.js, `responseAction`); a reaction among them is a toggle
+     (dom/widget-elements.js, `responseAction`); a reaction among them is a toggle
      (`aria-pressed`) and wears a reaction's states. The comment box's face while the
      box rests (`data-lf-rest` on its bar) wears the corner of the card it becomes.
    - `gutter`: a line's number in a code view's gutter, which takes a comment on its
@@ -96,7 +96,7 @@
      the ring on visible focus, since a press on the phrase focuses it too (gloss.css);
      a note or a picture's proxy stands on the details shelf, apart from the page,
      which nothing but the keys or assistive technology reaches, so any focus on it
-     rings its target and brings the target into view (details-shelf.js).
+     rings its target and brings the target into view (features/details-shelf.js).
 
    A holder whose presses join into one control says so with `data-lf-joined`, as a
    block's toolbar of marks and a question's Done cell do: each press in it is square

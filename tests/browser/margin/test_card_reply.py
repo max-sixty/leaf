@@ -625,7 +625,7 @@ def test_a_margin_reply_send_shows_the_sent_turn(browser, serve, place):
 
 
 # Where the card's outline, its head row and each turn are drawn now: the outline as its
-# surface's ring is cut (box-motion.js), the rest by their boxes.
+# surface's ring is cut (dom/box-motion.js), the rest by their boxes.
 CARD_DRAWN = """card => {
   const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
   const ground = card.querySelector('.lf-margin-preview-ground');
@@ -976,7 +976,7 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     page.wait_for_function(CARD_RELEASED)
     rest = preview.evaluate(CARD_DRAWN)
     assert rest[0] > held_up[0] + 5, f"the summary closed and the card stayed: {rest}"
-    # The transcript changed size, so its turns show where they now stand (box-motion.js).
+    # The transcript changed size, so its turns show where they now stand (dom/box-motion.js).
     assert drawn[:2] == pytest.approx(held_up[:2], abs=1), f"{held_up} -> {drawn}"
 
 
@@ -1070,7 +1070,7 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     browser, serve
 ):
     """A line typed into a card's reply grows the field in the frame the key lands
-    (box-motion.js, "Whose change it is"), its focus ring drawn whole at its new size
+    (dom/box-motion.js, "Whose change it is"), its focus ring drawn whole at its new size
     in that frame. Were the growth to travel, the field's own paper would stand at its
     grown size over the ring's lower edge until the ring had nearly reached its rest."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))

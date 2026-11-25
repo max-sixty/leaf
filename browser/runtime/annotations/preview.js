@@ -13,13 +13,13 @@
      it. It says a name the control's markup gives where either holds the other's words,
      as a key chip or a count beside a name leaves it said, and a name its content gives
      unless it cuts a word of it short. A face that cuts none leaves unsaid only the
-     control's quiet words (`.lf-quiet`, declared-words.js), which the screen doesn't
+     control's quiet words (`.lf-quiet`, records/declared-words.js), which the screen doesn't
      show, as a check's verdict beside a case's title. The preview reads those words
      alone; where key chips stand in it, the control's whole name heads them. A control
      whose face says its name and that no key reaches previews nothing. A field the user
      types in previews nothing: its words are what they read. A control is any native or
-     ARIA press, a range and a select among them (control-selectors.js, `PRESSES`), or a
-     custom control whose `data-lf-offer` names its press (widget-elements.js,
+     ARIA press, a range and a select among them (dom/control-selectors.js, `PRESSES`), or a
+     custom control whose `data-lf-offer` names its press (dom/widget-elements.js,
      `PRESSABLE`). The rest of Leaf's chrome, such as a thread card a walk lands on or a
      pointer rests in, previews no name of its own, since its words are what the user
      reads.
@@ -90,7 +90,7 @@
 
    Every preview wears one face (`.lf-preview`, chrome.css): its name on the first
    line with its key chips, then its lines of detail, in one type and colour. Only the
-   words Leaf itself says keep their italic (voice.js), as they do on every seat. A
+   words Leaf itself says keep their italic (base/voice.js), as they do on every seat. A
    preview that quotes a block of the page, as a link's place does, takes the face's
    excerpt room (`data-lf-face="excerpt"`): the same type, colours and spacing, wider.
    An element that draws its preview itself, as the dial hangs each depth's page under
@@ -183,7 +183,7 @@
      target hides it, and so do a press and any key but Escape, as the platform's
      tooltip goes, while the key does its own work; the target then stays quiet until
      the pointer comes back to it. A modifier alone is
-     half a press rather than a key (control-selectors.js, `MODIFIER_KEYS`), so ⌥ held
+     half a press rather than a key (dom/control-selectors.js, `MODIFIER_KEYS`), so ⌥ held
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
      a resting pointer never covers what the user reads, and nor does one a pointer
@@ -192,7 +192,7 @@
      the user leaves takes its preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
      once, with no fade, where the user aimed it there by a Tab or Shift+Tab, or by a
-     placement standing in for one (`step`), the cause its mover gives (focus.js,
+     placement standing in for one (`step`), the cause its mover gives (dom/focus.js,
      `focusDestination`): Tab is the keyboard's pointing, a step to the next control
      the user may press. Leaving the target hides it. Focus any command places shows
      nothing: a walk or an arrow key landing (`move`), as `m` lands on an On Me item's
@@ -205,7 +205,7 @@
      does, so a landing's preview stays one key away.
    - `K` reads at the caret instead where the caret stands in what focus is on, or
      anywhere while focus rests on the body, and the user can see it (`here`); for a
-     selection, the caret is the end that Shift and an arrow move (native-selection.js,
+     selection, the caret is the end that Shift and an arrow move (dom/native-selection.js,
      `userCaret`). Caret browsing (F7), which Chromium and Firefox offer and
      Safari doesn't, walks the caret through words that take no focus, such as an age's
      (age.js), so an element that previews to a resting pointer previews to the keyboard
@@ -670,7 +670,7 @@ const heardIn = (parent, root) =>
 // `joined` together, as a word split by its markup reads; `partial` says some of its words
 // or numbers don't show, so the face can't stand for a name it only begins, and `cut`
 // that some of those are words a listener hears (`heardIn`). `quiet` is the quiet words
-// a listener hears in `root` (`.lf-quiet`, declared-words.js), which the screen never
+// a listener hears in `root` (`.lf-quiet`, records/declared-words.js), which the screen never
 // shows, so they aren't cut. `chips` are the key chips it shows, in order.
 /** @param {Element} root @param {Element | null} [skip] @returns {Face | null} */
 function faceOf(root, skip = null) {
@@ -1236,7 +1236,7 @@ const standsBy = ({ target, holder, reading }) =>
 // stand over what it covers and let the pointer through to it (`data-lf-covers`).
 // It stands `GAP` clear of a range's line, and of the marks round a box, which a
 // focus ring, the aim or a comment's mark draws there, on each side as far as they
-// reach, as a thread's card does (mark-room.js, `markRoom`); further clear of a box a
+// reach, as a thread's card does (readings/mark-room.js, `markRoom`); further clear of a box a
 // finger holds, which covers what is under it.
 const EDGE = 8;
 const GAP = { line: 6, box: 6, hold: 22 };
@@ -1274,7 +1274,7 @@ function takeWithin(record) {
   };
 }
 // What the preview stands by: its anchor element and the box inside it, in client
-// coordinates; for an element, the box it shows as (geometry.js, `shownBox`), every
+// coordinates; for an element, the box it shows as (dom/geometry.js, `shownBox`), every
 // part of an element drawn through `display: contents` included, and the element,
 // whose marks the preview stands clear of too (`stand`).
 /** @param {Shown} record @param {Reading} reading @returns {{source: HTMLElement, box: Box, subject?: Element} | null} */
@@ -1485,7 +1485,7 @@ function stand(record, reading, standing, aim = false) {
   const room = shownWindow({ gap: EDGE, item: tip });
   tip.style.setProperty("--lf-preview-span", layoutPx(room.width));
   // Its edges stand at offsets from the box `anchor()` reads its source at, which in
-  // Firefox leaves out the source's transforms (css-anchors.js, `anchorBox`).
+  // Firefox leaves out the source's transforms (dom/css-anchors.js, `anchorBox`).
   const by = anchorBox(source);
   // The size this decision read, which the observer of what it stands by compares.
   const { width: sourceWidth, height: sourceHeight } = source.getBoundingClientRect();
@@ -1737,7 +1737,7 @@ function stand(record, reading, standing, aim = false) {
 // a preview standing over a chart is not, which bounds its cost. A range's holder, the
 // element holding its words, holds other ranges on its other lines, as a paragraph does
 // other threads' marks, so for a range nothing is left untested (`own` is null). Only a
-// mark on its own line (`line`), across its leading (geometry.js, `lined`) and its whole
+// mark on its own line (`line`), across its leading (dom/geometry.js, `lined`) and its whole
 // width, goes untested, since there the mark is the preview's own or one beside it; a
 // control there, as a button in a deep leading just below the words, is still tested.
 /** @param {Placement} at @param {number} reach @param {Element} holder @param {Box | null} own @param {Box | null} line */
@@ -1782,7 +1782,7 @@ function steps(from, to) {
 // What a preview must leave reachable where it can: everything whose access the user
 // must keep, whichever owner routes a gesture there, so the question is what the user
 // reaches, not what Leaf's gestures take. That is what the page works
-// (control-selectors.js, `WORKS`); anything focusable, as a stop Leaf lends code that
+// (dom/control-selectors.js, `WORKS`); anything focusable, as a stop Leaf lends code that
 // overflows or a tab panel, which `WORKS` leaves to its own gestures; anything that
 // scrolls; anything embedding a document, whose controls no hit test out here finds;
 // and whatever previews, which a pointer reads. It is wider than what takes the
@@ -1826,7 +1826,7 @@ export function declareRanges(at) {
 // finds, or a range its owner says lies there, which may be in the holder (`declareRanges`).
 // A box
 // around `holder` (`around`) stands under the preview wherever it stands, so it is no
-// control to keep clear of where it takes nothing (widget-elements.js, `aimableAt`),
+// control to keep clear of where it takes nothing (dom/widget-elements.js, `aimableAt`),
 // as a scrolling box, a stop Leaf lends code or a tab panel doesn't, nor where it takes
 // the pointer only to be read, as a widget drawing its own content or a box that
 // previews, whose controls are tested for themselves; and is one where a press acts on
@@ -1938,7 +1938,7 @@ function point(target, read = null, at, again = false) {
 // saying the pointer left its range (`pointRange`): the node under the pointer is in the
 // preview, or the preview lets the pointer through (`data-lf-covers`) and the pointer is
 // over its box, off what it is about (`onSubject`), and over nothing there that takes
-// the pointer (widget-elements.js, `aimableAt`). What takes it is whatever the user
+// the pointer (dom/widget-elements.js, `aimableAt`). What takes it is whatever the user
 // aims at, whether or not it previews, inside the element the preview stands by or
 // around it: a field, a titled link, a chart, whose drawing says what the pointer
 // reads there, and a card a press opens around one; a scrolling or focusable box that
@@ -1999,7 +1999,7 @@ function aimed() {
 }
 // What a pointer or a held finger at `node` reads: the range a range's owner says is
 // there, as a thread's words, only where nothing else at that point takes the pointer
-// (widget-elements.js, `aimableAt`), and otherwise the element that previews itself
+// (dom/widget-elements.js, `aimableAt`), and otherwise the element that previews itself
 // there, or nothing. So a link or a gloss holding a thread's words previews itself, a
 // titled button shows only its title, and a thread's words in code or a draft preview
 // nothing, their thread reached by its margin entry, `t` and its Threads row. Focus
@@ -2150,7 +2150,7 @@ const showFocus = (node) =>
 // A new presentation of the document reads the standing preview again, as the place a
 // link opens or a thread's turn changes under it: what it says now is drawn where it
 // stands, with no fade, and words that came back the same leave it as it is. It is read
-// at the moment it first showed (presence.js, `atClock`), so a presentation whose only
+// at the moment it first showed (state/presence.js, `atClock`), so a presentation whose only
 // change is the clock, as a later state read's, ages nothing it says. A preview whose
 // target now says nothing goes.
 function refresh() {
@@ -2268,7 +2268,7 @@ export function mountPreviews(chrome) {
   );
   // Focus arriving is a new reading, whatever put the target's last one away, and
   // focus leaving takes its preview along. It shows only where the user aimed it, as
-  // whoever moved it says (focus.js, `focusDestination`): a Tab, Shift+Tab or a
+  // whoever moved it says (dom/focus.js, `focusDestination`): a Tab, Shift+Tab or a
   // placement standing in for one (`step`).
   onCurrentLocation((node, cause) => {
     quiet = null;

@@ -459,7 +459,7 @@ HOLD_MOTION = """
     // A scroll timeline owns its progress; assigning an absolute time to it throws.
     // The hold is for gesture animations on the document timeline that end. An endless
     // one has no last frame to step to or finish, as a glide's hold on scroll anchoring
-    // has none (scrolling.js, `holdBox`).
+    // has none (dom/scrolling.js, `holdBox`).
     if (
       motion.timeline !== document.timeline ||
       motion.effect?.getComputedTiming().endTime === Infinity
@@ -918,7 +918,7 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# The location ring round the decision `el` (target-paint.js, `paintLocation`), which
+# The location ring round the decision `el` (readings/target-paint.js, `paintLocation`), which
 # `el` draws as its own outline while it wears `data-lf-projected-location`, read as RING
 # reads an outline: its band's style, width and colour, or "none" where `el` stands in
 # no ring.

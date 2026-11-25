@@ -1,4 +1,4 @@
-"""The page's reading kept in pieces (passages.js, `Piece`), where a browser's answer
+"""The page's reading kept in pieces (readings/passages.js, `Piece`), where a browser's answer
 decides it: which slot shows a host's child, since a browser assigns a child to one slot
 where the runtime tests' DOM assigns it to every slot that would take it, and which
 words a search can reach, which it reads off computed styles."""

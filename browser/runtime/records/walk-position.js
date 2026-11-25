@@ -23,7 +23,7 @@
    lib/widget-events.js) on the stop the step landed on, so a widget calls nothing of
    Leaf's and a page without Leaf hears nothing. The event carries a place and no
    reader, so Leaf can't tell when a list that changed has made the place wrong. The
-   place therefore stands for its step's moment alone (notifications.js, `answerStep`),
+   place therefore stands for its step's moment alone (transport/notifications.js, `answerStep`),
    which is as long as the page's field says any step. So a widget's place before an
    open thread's Reply goes with the moment, where a walk of Leaf's own stands. Within
    the moment, the place ends as soon as the user is no longer at it:
@@ -128,7 +128,7 @@ function endSaid() {
   repaint();
 }
 
-// A step's walk takes the panel's seat for a notice's moment (notifications.js,
+// A step's walk takes the panel's seat for a notice's moment (transport/notifications.js,
 // `answerStep`), and the panel's leaf answers the step, one landing where the last did
 // included. Reading the same walk on an ordinary repaint does neither again. A step
 // within a list standing whole in view (`ends`, its first and last stops) is declined:
@@ -159,7 +159,7 @@ function stepTo(walk, ends) {
 // stops, so a step within a list standing whole in view is declined (`stepTo`); a list
 // whose stops all stand in view whenever it can be walked, as Go-to's hints do,
 // declares no walk. `about` names the fact where the user stands whose list the walk
-// is over (floating-panel.js, `standing`), as "comparison" does for its changes.
+// is over (panel/floating-panel.js, `standing`), as "comparison" does for its changes.
 /** @param {string} key @param {string | null} noun @param {() => WalkPosition | null} read
  * @param {WalkFacts} [facts] */
 export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
@@ -280,7 +280,7 @@ export function rowWalk({
     if (!row) return;
     focusDestination(row, "move");
     // After the focus paint this move queued, since a landing measures the box wearing
-    // the row's ring, which that paint marks (focus.js, `ringBox`).
+    // the row's ring, which that paint marks (dom/focus.js, `ringBox`).
     if (scroll) afterScript(() => scrollIntoView(row, { block: "nearest" }));
     beginWalk(id, noun, position, { list: ends });
     if (row !== was) landed?.(row);

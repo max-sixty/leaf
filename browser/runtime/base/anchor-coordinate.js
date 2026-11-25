@@ -33,7 +33,7 @@ export const sameAnchor = (a, b) =>
 // A URL fragment names an element by its id, `#<id>`, or a part of a widget by the
 // widget's id and a key the widget answers (`addressedElements`), `#<id>:<key>`, as
 // `#build-log:3-5` names lines 3 to 5 of a code block. Resolution reads the whole
-// fragment as an id first (anchor-resolution.js, `fragmentAddress`), so an authored id
+// fragment as an id first (readings/anchor-resolution.js, `fragmentAddress`), so an authored id
 // holding a colon keeps its link. A widget's id is split at the fragment's first colon,
 // and `fragmentUrl` percent-encodes any colon in the id; the key is the rest, decoded
 // once, so a key may hold colons and slashes of its own.

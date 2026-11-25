@@ -1,6 +1,6 @@
 /* Who moved the user, and whether they have moved on since.
 
-   focus.js answers both for every owner. Each placement names its cause, and every
+   dom/focus.js answers both for every owner. Each placement names its cause, and every
    reader of where the user stands hears it. One module keeps the two readings of
    "since": a hold asks whether focus was placed anywhere since it began, since typing in
    the box it holds is the user working there; delayed work asks whether the user did

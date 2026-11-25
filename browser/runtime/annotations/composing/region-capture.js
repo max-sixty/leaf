@@ -34,7 +34,7 @@ export function createRegionCapture({
   /** @type {ReturnType<typeof import("./region-selector.js").createRegionSelector> | null} */
   let selector = null;
   // A claimed drag owns its compatibility mouse events, even after release, for as long
-  // as the press lasts (focus.js, `pressRecords`), and the next primary press starts a
+  // as the press lasts (dom/focus.js, `pressRecords`), and the next primary press starts a
   // new gesture, including on a chrome control. A timer cannot delimit that ownership:
   // its work may outlive the next tap.
   /** @type {import("../../dom/focus.js").PressRecords<true>} */
@@ -69,7 +69,7 @@ export function createRegionCapture({
           if (!event.isPrimary || event.button !== 0) return;
           claimed.keep(event, true);
           // The browser shows the cursor of the element holding the pointer, so the
-          // drag goes to the one wearing the crosshair (page-geometry.js), which stays
+          // drag goes to the one wearing the crosshair (panel/page-geometry.js), which stays
           // where the press landed until the release.
           (
             elementFromPointAcross(event.clientX, event.clientY) ??

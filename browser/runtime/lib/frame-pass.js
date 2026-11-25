@@ -28,7 +28,7 @@
 
    A host that waits for the page to come to rest hears this work as it is asked for
    (`observeRenderingWork`) and asks whether any callback still waits
-   (`callbacksPending`), as Leaf's settled reading does (rendering.js). What it hears is
+   (`callbacksPending`), as Leaf's settled reading does (base/rendering.js). What it hears is
    work toward a resting state. Motion that may run until the user stops it, such as
    playback, calls the browser's `requestAnimationFrame` instead, and an observer of
    boxes that may move for as long as the page plays says `counted: false`. */

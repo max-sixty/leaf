@@ -19,7 +19,7 @@ import { floatingPlacement } from "/runtime/annotations/annotation-overlay/float
 document.documentElement.style.setProperty("--lf-thread-card-min", "320px");
 document.documentElement.style.setProperty("--lf-thread-card", "592px");
 // The room the marks round a paragraph take past it on each side, their gap and band,
-// as the attachment reads it (geometry.js, `markedBox`).
+// as the attachment reads it (dom/geometry.js, `markedBox`).
 const paragraph = { left: 8, top: 8, right: 8, bottom: 8 };
 
 // A window boundary, keyed by its edges as commentBoundary keys one, with no chrome

@@ -282,7 +282,7 @@ function paintAgentDescription(control) {
   );
 }
 
-// What an entry says when pointed at (preview.js): its label, the context its
+// What an entry says when pointed at (annotations/preview.js): its label, the context its
 // projection gives it, and what its title says beyond the label, such as an agent's work
 // on it, each word said by whoever says it. A finger holding the entry reads the same.
 // It is about the passage it stands beside, which it leaves in view.
@@ -307,7 +307,7 @@ function entryPreview() {
     name: record.voice ? voiced(saidBy(record.voice, label)) : label,
     about: closestAcross(this, "[data-lf-margin-for]")?.lfTarget ?? null,
     detail: [
-      // A context of several lines says each on its own (voice.js, `linesOf`).
+      // A context of several lines says each on its own (base/voice.js, `linesOf`).
       ...(record.context ? linesOf(record.context).map(voiced) : []),
       more.length ? voiced(more) : null,
     ],
@@ -594,7 +594,7 @@ export function forgetContributionControls(offered) {
 
 /** Activate the current record and retain focus through its current surface: the
  *  activation's `focus(key)` hands the user on from the control they pressed to the
- *  entry `key` names, which is a return (focus.js, `focusDestination`). `reveal` shows a
+ *  entry `key` names, which is a return (dom/focus.js, `focusDestination`). `reveal` shows a
  *  destination its surface hides first, as the margin does a row annotations hide. */
 /** @param {ControlActivation} activation @param {((control: Element) => unknown) | null} reveal */
 export function activateContributionControl(

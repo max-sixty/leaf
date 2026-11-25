@@ -14,7 +14,7 @@
  * Leaf puts the user on a part's element as it travels to the part or hands them back
  * from a comment on it. A visual whose parts are no places to stand, as the marks round
  * a chart's points are not, names `focus(id)` and takes that focus itself: Leaf calls
- * `focus(id)` as it places focus on the visual and at no other time (focus.js,
+ * `focus(id)` as it places focus on the visual and at no other time (dom/focus.js,
  * `FocusDestination`), and the visual settles on the part, as a chart moves its
  * reading to the point even where it holds focus already.
  *
@@ -49,13 +49,13 @@
  * again once a layout change is said on the visual or inside it (lib/widget-events.js,
  * `LAYOUT`), which a visual says after it draws, a reveal that draws included, and Leaf
  * says for an element each time it sets the element's properties
- * (element-integration.js). A change said elsewhere leaves the reading kept, so a
+ * (host/element-integration.js). A change said elsewhere leaves the reading kept, so a
  * film playing on the page doesn't make every other visual read its parts again.
  *
  * Beside each visual's count, the module keeps one of every layout change said in the
  * page (`layoutsChanged`), for a reading of what widgets draw that has no single
- * visual to ask about, such as whether a picture is a control's (anchor-resolution.js)
- * or where a frame's entries stand (reading-place.js). */
+ * visual to ask about, such as whether a picture is a control's (readings/anchor-resolution.js)
+ * or where a frame's entries stand (readings/reading-place.js). */
 
 import { labelWords } from "../lib/words.js";
 import { under, upFrom } from "../lib/shadow-tree.js";
@@ -73,7 +73,7 @@ import { version } from "./kept.js";
  * focus?: (id: string) => void}} Parts */
 
 // Whether an element is a visual of its own, as the page declares them
-// (anchor-resolution.js). A document that says nothing has none.
+// (readings/anchor-resolution.js). A document that says nothing has none.
 /** @type {(element: Element) => boolean} */
 let isVisual = () => false;
 /** @param {(element: Element) => boolean} declared */

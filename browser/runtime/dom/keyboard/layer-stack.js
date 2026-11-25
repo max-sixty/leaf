@@ -37,7 +37,7 @@
    widget moves the user into the layer, where it has a control to land on, from its
    `toggle` event.
 
-   A hint popover (`popover="hint"`), as a preview is (preview.js), holds no control and
+   A hint popover (`popover="hint"`), as a preview is (annotations/preview.js), holds no control and
    takes no key, and the platform closes it as any other popover opens, so it joins no
    stack: the dispatcher tiers no scope over it, its opening changes nothing a modal
    admits and expands no control its `source` names, and its closing hands nobody back.

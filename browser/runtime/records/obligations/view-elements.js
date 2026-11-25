@@ -11,6 +11,6 @@ export const OBLIGATION_CONTROL =
 // An On card or line in the floating panel that shows an obligation, naming it in
 // `data-lf-obligation-id`; every On item, an update's and a to-do's too, names its record
 // by the same id in `data-lf-key`. A user on it is on that obligation
-// (current-target.js, `currentLocationOrigin`), wherever it stands on the page, if
+// (records/current-target.js, `currentLocationOrigin`), wherever it stands on the page, if
 // anywhere.
 export const ON_CARD = ".lf-fp-on-item[data-lf-obligation-id]";

@@ -199,7 +199,7 @@ export function projectionOrigins(authoredSnapshots, projection) {
 // (lib/rank.js), so each container lists its units by rank once every placement in force is
 // in. `projection.py`'s `folded_positions` is the server's reading of the same rule.
 //
-// Each widget's folded state is kept (`kept.js`) by its authored state and the entries
+// Each widget's folded state is kept (`state/kept.js`) by its authored state and the entries
 // in force on it, so every widget nothing touched keeps the very state it had, and a
 // reader of one, such as a thread holding a widget, can tell it unchanged by identity.
 /** @typedef {{state: import("../../../types/domain.js").AuthoredWidget["state"], entries: ProjectionEntry[], specs: ReadonlyMap<string, import("../../../types/domain.js").ActionSpec>}} FoldedWidget */

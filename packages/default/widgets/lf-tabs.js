@@ -15,8 +15,8 @@
  * that page, whatever else main holds, and says so on itself (`data-lf-page-views`).
  * Leaf then names the open panel in the address by its id, adds a history entry for
  * each switch the user makes, and shows an entry's panel again on Back and Forward
- * (the runtime's views.js). A link inside a panel is still fragment travel
- * (history.js).
+ * (the runtime's records/views.js). A link inside a panel is still fragment travel
+ * (records/history.js).
  *
  * The authored `flow="page"` puts the set in the document's flow (`flow`), and
  * the package styles its unframed face, separately from the address above. In
@@ -242,7 +242,7 @@ export class TabSet extends LeafElement {
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
       // the window after the switch (`#showTab`), once the focus paint marks its ring,
-      // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
+      // as every walk's landing does (records/walk-position.js, `rowWalk`). The move queues that
       // paint for the end of this script, so a microtask queued after the move runs
       // behind it. Left out of sight, the tab would lose focus to the next key
       // (panel/page-keys/controller.js).

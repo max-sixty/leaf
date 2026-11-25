@@ -10,9 +10,9 @@
  *
  * The picker owns the complete version list, where each version older than the one
  * shown offers a Compare that marks what changed since it, and names the version the
- * user last saw (since-seen.js) "last seen" while the page has changed since it.
+ * user last saw (host/since-seen.js) "last seen" while the page has changed since it.
  * Versions opens on the version it offers (`selection.offered`), whose Compare
- * Versions' `v` presses (floating-panel.js). A lit Compare clears the comparison. The
+ * Versions' `v` presses (panel/floating-panel.js). A lit Compare clears the comparison. The
  * comparison and the picker's presentation need no application capability, so they
  * live at module scope, one per document, and other surfaces import their readers
  * directly; the controller keeps travel and activation, which do. Block marks show
@@ -42,17 +42,17 @@
  * floating panel's field offers at its end while it says the page is an older version,
  * and the leaf's menu's row for the latest, explicitly release that hold.
  *
- * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
+ * Retained nodes keep their mechanical state. Replaced nodes use `records/carry.js`'s authored-id
  * contract. Both installs restore authored values and disclosures; the patch passes its
  * retained nodes so restoration skips them. Registered draft editors carry native
  * editing under their existing replacement identity; module state cannot cross
  * documents. Drafts and chrome preferences use their own stores.
  *
  * A fresh-document install is a reload, so it returns the user to the entry's record as
- * every reload does (history.js, `beginArrival`): the page's place, the thread view and
+ * every reload does (records/history.js, `beginArrival`): the page's place, the thread view and
  * where they were in it, which reader the margin's rule opens it in where its passage
  * is gone (records/thread/address.js, `claim`), the panel's list, focus, and the selection. A
- * reload Leaf asks for (layer-client.js, `reloadDocument`), as a fresh-document install
+ * reload Leaf asks for (transport/layer-client.js, `reloadDocument`), as a fresh-document install
  * does and as a delivery that moved on does, such as a server restarted under another
  * Leaf (`reloadNow`), also hands the document it loads a page-scoped, one-use handoff
  * (`captureHandoff`) of what the record doesn't hold: each reading region's place, the
@@ -70,13 +70,13 @@
  * left. Words the user types through the reload change it after that moment: the key
  * hold types them into the value and caret it carries for a field of the page's own,
  * and the drafts move its record of the box being written (`draftEditing`) with the
- * words they take in (bootstrap.js, `typeBack`; drafts.js, `takeHeldWords`).
+ * words they take in (bootstrap.js, `typeBack`; records/drafts.js, `takeHeldWords`).
  *
  * Until the arriving document has returned the user to the entry, printed keys wait
  * (dom/keyboard/bindings.js, `placeHandedBack`), then run where the user was put back. Keys
  * typed for the box the user was writing in are the exception: they are its words as
  * they are typed, so the box comes back holding them (bootstrap.js, `typeBack`).
- * Waiting keys are no input (document-inputs.js, `holdKeys`), so they don't end the
+ * Waiting keys are no input (base/document-inputs.js, `holdKeys`), so they don't end the
  * return; any other input does, and drops them. The keys not yet pressed when the
  * document goes carry to the next reload Leaf asks for of the address (bootstrap.js,
  * `holdEarlyKeys`). An in-place
@@ -87,7 +87,7 @@
  * State application serializes responses and remains pending after navigation starts
  * until the old document is discarded.
  *
- * `captureView` records a place (reading-place.js) for the page and each reading
+ * `captureView` records a place (readings/reading-place.js) for the page and each reading
  * region, and the decision landmark. `restoreView` returns the user to them. A fresh
  * navigation aimed at an element keeps it landed while the page arrives (`aimArrival`).
  * `landArrival` runs after presentation: a valid handoff restores its part;
@@ -460,7 +460,7 @@ const shownBehind = (active) =>
       : `v${runtime.currentStamp} of ${active.version}`;
 
 /** @typedef {import("../../types/contract.js").ServedReading["versions"][number]} StampedVersion */
-// The version the user last saw, as their arrival found it (since-seen.js, `sawLast`).
+// The version the user last saw, as their arrival found it (host/since-seen.js, `sawLast`).
 const lastSeen = signal(/** @type {StampedVersion | null} */ (null));
 /** @param {StampedVersion | null} version */
 export const sawLast = (version) => {
@@ -490,7 +490,7 @@ const parenthesized = (roles) => {
 // a stamp sets off follows the rows on screen, not how many versions the session has
 // stamped (AGENTS.md, "Responsiveness"). Closing Versions or the page moving on leaves
 // at most one count half done. Rejected: counting the rows near the window as
-// `nearObserver` reads it (geometry.js), whose 600px past each edge of a scroller suits
+// `nearObserver` reads it (dom/geometry.js), whose 600px past each edge of a scroller suits
 // layout work; for counts, each pick would also fetch and compare those 600px of rows.
 const widgetStates = readPart((root) => root.effective.widgets);
 const versionCounts = signal(
@@ -678,7 +678,7 @@ export const offeredVersion = () =>
 // The page before its first accepted state has a null `runtime.state`. Version controls
 // read the immutable document revision and the accepted root.
 // The agent's latest save failing its check is an error the user should see wherever
-// they are (errors.js), held while the page shows the last one that passed; Versions
+// they are (transport/errors.js), held while the page shows the last one that passed; Versions
 // says what the check found.
 const holdFailedSave = holdingError();
 function paintPicker() {
@@ -1644,7 +1644,7 @@ function setDiff(on, base = null, pendingBase = null) {
   });
 }
 // The one way a comparison starts, from a row's Compare, from the return notice's Show
-// changes (since-seen.js), or from an activation putting back the one it dropped. It states a base rather than toggling
+// changes (host/since-seen.js), or from an activation putting back the one it dropped. It states a base rather than toggling
 // one — the toggle is each press's own reading of it. Everything touching the live page
 // happens in one synchronous stretch after the single await: presses can ask for a
 // comparison faster than one arrives, and a marking pass that could interleave with the
@@ -1675,7 +1675,7 @@ export async function showComparison(base) {
   diffSavedAfter = loaded.savedAfter;
   setDiff(true, base);
   // A notice about the comparison, which the page field's standing words say as it
-  // starts ("5 changes since v2", floating-panel.js, `standing`), so it shows where
+  // starts ("5 changes since v2", panel/floating-panel.js, `standing`), so it shows where
   // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
   notice(
@@ -1837,7 +1837,7 @@ export function createVersionController({
   restoreRetainedCurrentLocation,
   captureObligationCurrentLocation,
   restoreObligationCurrentLocation,
-  // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
+  // The chrome's Versions, which `g V` opens or puts away (panel/floating-panel.js, `doors`).
   versions,
 }) {
   versionsStand = versions.shows;
@@ -2134,7 +2134,7 @@ export function createVersionController({
       draftEditing,
       replyThread: draftEditing?.mirrored ? drawnThreadId(heldThread()) : null,
       // A replaced reply box takes focus back either way, but is brought into view only
-      // where it was where the user is (user-place.js, `focusPlace`).
+      // where it was where the user is (readings/user-place.js, `focusPlace`).
       replyInView: focusPlace() !== null,
       // Obligation location is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent obligation does not also own focus.
@@ -2390,7 +2390,7 @@ export function createVersionController({
   // changed, since the server answers this tab in its revision's layer (http.py,
   // `_named_layer`); only one this Leaf can no longer admit input against is refused
   // instead, and the refusal's probe of the document source reloads it at once
-  // (layer-client.js, `sourceMovedOn`).
+  // (transport/layer-client.js, `sourceMovedOn`).
   // Whether the move happens now is asked at the commit: an unresolved delivery or
   // `midComposition` defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced or by a load that failed, after
@@ -2515,7 +2515,7 @@ export function createVersionController({
   // ---------- reading continuity across a replacement ----------
   // Capture passage and decision landmarks plus each reading region's position. Resolve
   // a passage first, then its section, then a raw offset in the same scroller at the
-  // same width and revision (reading-place.js, `rawOffsetFits`). Document travel stores
+  // same width and revision (readings/reading-place.js, `rawOffsetFits`). Document travel stores
   // this reading per tab; restored chrome layout precedes scroll recovery.
 
   /** @typedef {import("../readings/reading-place.js").ReadingPlace} ReadingPlace */
@@ -2604,7 +2604,7 @@ export function createVersionController({
 
   // The revision handoff restores the region the user works first, so that a box two
   // regions share lands where that one left it. Focus names a region only while it is
-  // where the user is (user-place.js, `focusPlace`): a pane the reader scrolled away
+  // where the user is (readings/user-place.js, `focusPlace`): a pane the reader scrolled away
   // from, though it keeps their focus, would take them back to it.
   const activeReadingRegion = (candidates = readingRegions()) => {
     const focusedRegion = containingReadingRegionFor(focusPlace());
@@ -2628,7 +2628,7 @@ export function createVersionController({
   //
   // One place per scroller, read from the words that scroller carries: the page's from
   // every word outside a box that scrolls on its own, flowing regions included
-  // (reading-place.js, `capturePlace`), and each bounded region's from its body. It is
+  // (readings/reading-place.js, `capturePlace`), and each bounded region's from its body. It is
   // recorded when a scroll the reader made comes to rest or ends in that scroller, and
   // where the user is or steps, in the scroller holding them (`recordPlaces`). A
   // place whose scroller is gone goes with the next record.
@@ -2645,7 +2645,7 @@ export function createVersionController({
   // landing band.
   //
   // Only the user moves their place, and a scroll is theirs when it ends as their choice
-  // (scrolling.js, `chosenSince`): a wheel, a key, a landing, a page's script or the
+  // (dom/scrolling.js, `chosenSince`): a wheel, a key, a landing, a page's script or the
   // browser's own travel, but not a clamp, an anchoring adjustment or a place keeper's
   // write. A restore is the runtime's move: read back, it can name other words than the
   // place it restored, and it can fall short of that place, cut off by its box's range,
@@ -2664,7 +2664,7 @@ export function createVersionController({
   // end of a scroll a restore started is the runtime's, wherever layout carried the box
   // before it (`writing`), and input counts for the box it scrolls, not the document.
   //
-  // A region can show one subject of several in turn (reading-regions.js,
+  // A region can show one subject of several in turn (readings/reading-regions.js,
   // `showReadingSubject`). The place of a subject leaving is kept by subject, and the
   // one showing returns the reader to theirs.
   const PAGE = "$page";
@@ -2767,7 +2767,7 @@ export function createVersionController({
   // A scroll the runtime's own restore started is the runtime's when it ends, wherever
   // layout settling carried the box before the end, unless the reader aimed input at
   // the box meanwhile: the end of a keeper's sequence the layout moved on is no choice
-  // of the reader's (scrolling.js counts it as one). `writing` holds each box a restore
+  // of the reader's (dom/scrolling.js counts it as one). `writing` holds each box a restore
   // moved until its sequence ends; `ownEnd` the choice count of that end.
   /** @type {WeakMap<Element, number>} */
   const writing = new WeakMap();
@@ -2794,7 +2794,7 @@ export function createVersionController({
   };
 
   // A place is the reader's when they chose a scroll in its box since it was last
-  // recorded (scrolling.js, `chosenSince`), acted since, as a wheel does before its
+  // recorded (dom/scrolling.js, `chosenSince`), acted since, as a wheel does before its
   // scroll ends, or stand in the box (`currentLocation`). Only those records rank (`at`): a
   // scroll layout made, a clamp or an anchoring adjustment, records nothing, and a box's
   // first place, taken as the page arrives, ranks below every one the reader made.
@@ -2826,7 +2826,7 @@ export function createVersionController({
   // The newest place speaking for `box`, where it lands there: by a landmark the box now
   // carries, by a section holding the whole box, which lands it at its start, or by the
   // box's own end, or its raw offset where its width and revision are those it was read
-  // at (reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
+  // at (readings/reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
   // box's words before the shift; with none, as for a region returning from
   // concealment, only the box's own place speaks for it. Places the reader made rank
   // by when they made them; among places none of them made, such as those the page
@@ -2918,7 +2918,7 @@ export function createVersionController({
   // a frame late changes it, and only then: re-application exists for that late layout,
   // and outliving it would put back a place under whatever else changes the page. The
   // window closes at the first quiet rendering update after the last widget
-  // preparation lands (rendering.js, `afterSettling`), which includes the layout the
+  // preparation lands (base/rendering.js, `afterSettling`), which includes the layout the
   // preparation committed and the size changes it made, with every region standing
   // where it was last seen (`regionsSettled`); or once the last hold ends, or a
   // revision ends them all. A preparation keeps it open however long a slow device
@@ -3177,7 +3177,7 @@ export function createVersionController({
       rest(scrolls);
     };
     document.addEventListener("scroll", scrolled, { capture: true, passive: true });
-    // A scroll's end is the reader's choice (scrolling.js), and a place taken before it
+    // A scroll's end is the reader's choice (dom/scrolling.js), and a place taken before it
     // would read as older than that choice. WebKit, and Chromium for touch, end a scroll
     // frames after its last scroll event, so the end takes a place of its own. Like the
     // scroll listener above, it reads the document's own scrollers.
@@ -3243,7 +3243,7 @@ export function createVersionController({
   function installArrival(arrival) {
     installReadingContinuity();
     // A reload and Back or Forward from another document return to the entry's record
-    // (history.js); a reload Leaf asked for adds its handoff (`captureHandoff`). Two
+    // (records/history.js); a reload Leaf asked for adds its handoff (`captureHandoff`). Two
     // arrivals hold no record: a fresh URL aimed at a target a widget generates, hides,
     // or moves (`aimArrival`), and a new navigation in this tab to a page that shows
     // another revision since the tab last left it, whose new entry the view saved at
@@ -3269,7 +3269,7 @@ export function createVersionController({
     // Where it puts the user back (prepaint.js, `placesUser`).
     const placed = handoff && window.lfStorage.placesUser() ? handoff : null;
     // Printed keys typed while the user is put back wait until the arrival has done so
-    // (history.js, `settled`), the entry's record's return and the handoff's restore
+    // (records/history.js, `settled`), the entry's record's return and the handoff's restore
     // (`landArrival`) among its work, then run where it put the user; those typed for
     // the box they were writing in are its words already (bootstrap.js, `typeBack`). An
     // input of theirs meanwhile ended the arrival, and the hold let the waiting keys go
@@ -3293,7 +3293,7 @@ export function createVersionController({
       if (anchoringIsReady() && !pendingRestoration()?.owes())
         tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
-    // The handoff is part of the document's arrival (history.js, `beginArrival`), whose
+    // The handoff is part of the document's arrival (records/history.js, `beginArrival`), whose
     // one intent its every step runs under, the early focus of an authored control
     // among them, so that focus doesn't end the record's return. Its place, the reading
     // regions, focus, caret and the reply being written, belongs to the entry it was
@@ -3305,11 +3305,11 @@ export function createVersionController({
     // the document started, or one in an exclusive group they changed, keeps their
     // change, which is newer than anything the records carry, and is owed nothing of
     // where they were in it either, since their input ended the arrival's claim on the
-    // place (document-inputs.js, `edited`); so its record goes unrestored.
+    // place (base/document-inputs.js, `edited`); so its record goes unrestored.
     const currentIntent = arrival.intent;
     // What the document hands on as it goes (prepaint.js): the handoff as it came,
     // while it still owes this entry its place, until the arrival has put it back or
-    // the user has acted within the entry (history.js, `owes`). Its values went into
+    // the user has acted within the entry (records/history.js, `owes`). Its values went into
     // the document as it arrived, so after then a reload Leaf asks for takes a fresh
     // handoff of what the document holds, and any other departure hands on nothing.
     window.lfStorage.handOnWith(() =>
@@ -3330,7 +3330,7 @@ export function createVersionController({
       );
     // The rest of what the handoff carries of the document comes back here too,
     // whatever becomes of the arrival: the pointer, which is where the user's pointer
-    // stands, not where they were in the entry, and stands until it moves (pointer.js);
+    // stands, not where they were in the entry, and stands until it moves (base/pointer.js);
     // and the comparison, chosen now, so a capture before the page draws it hands it on
     // (`selectedBase`), and drawn once the page presents (`landArrival`).
     if (handoff) {
@@ -3338,7 +3338,7 @@ export function createVersionController({
       if (handoff.comparison) setDiff(false, null, handoff.comparison);
     }
     // The arrival in order, returning to the entry's record where it calls for it
-    // (`returnToRecord`, history.js `arrive`).
+    // (`returnToRecord`, records/history.js `arrive`).
     /** @param {(returnsFocus?: boolean) => Promise<void>} returnToRecord */
     const landArrival = (returnToRecord) =>
       landContinuity(async () => {
@@ -3353,7 +3353,7 @@ export function createVersionController({
             // thread the claim opened.
             // Focus on a control of the page's own, with its caret, is the handoff's to
             // put back, which it did as the document arrived (`restoreCarry`), not the
-            // record's (history.js, `returnTo`).
+            // record's (records/history.js, `returnTo`).
             await keepReplySession(placed, async () => {
               await returnToRecord(!window.lfStorage.handedFocus);
               await restoreEditingContinuity(placed, currentIntent);
@@ -3390,9 +3390,9 @@ export function createVersionController({
   // the browser's own rule (`scrollToFragment`), the target's start at its scroller's
   // landing edge, taken in the geometry of that step, so a target nothing moved stays
   // where it is. The fragment is read before widgets upgrade, since the page's open
-  // view is then named in the URL (views.js, as a root tab set's open panel), and that
+  // view is then named in the URL (records/views.js, as a root tab set's open panel), and that
   // is display state, not a destination. A reload or history traversal returns to its
-  // entry's record instead (history.js), and input during the arrival ends it. However
+  // entry's record instead (records/history.js), and input during the arrival ends it. However
   // the page arrived, a URL naming a widget's key asks the widget to draw the key's
   // part (`revealAddressed`) where the page doesn't show it once widgets upgrade
   // (anchor-travel.js, `fragmentShown`), so the widget shows the state the URL names:

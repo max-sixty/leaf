@@ -50,11 +50,11 @@
 
    What ⌘Z, or a notice's Undo, took back takes a tint once the page shows the
    withdrawal, after the page has gone there if it was out of view (`tint`). It is the
-   tint a message arriving and a revision's changed block take (motion.js,
+   tint a message arriving and a revision's changed block take (dom/motion.js,
    `backgroundFlash`), so the page marks every change it shows the same way. It tints
    the widget, message, thread or passage the undo changed, and a message the undo took
    away tints the thread that held it. The undo's notice stands its time and then until
-   the user's next input (notifications.js, `showNotice`). Under reduced motion
+   the user's next input (transport/notifications.js, `showNotice`). Under reduced motion
    there is no tint, and the held notice says it alone. An exact control's withdrawal
    tints nothing, since the user pressed it where the gesture is drawn. The tint and the
    hold are the user's decision, over keeping a notice that leaves after 4 s, holding it
@@ -91,7 +91,7 @@
    opens where a route to it opens it.
 
    Taking back what the user wrote puts it to draft rather than discarding it, since no
-   redo brings it back (`writtenIn`; drafts.js, `giveBackWords`): a comment's words, and
+   redo brings it back (`writtenIn`; records/drafts.js, `giveBackWords`): a comment's words, and
    its drawing, go back to its passage's draft or the page's, a reply's to its thread's
    reply box, and a rewrite's to the message's rewrite, and Resume writing goes to them.
    A comment whose thread goes with it brings the words of that thread's reply box
@@ -103,7 +103,7 @@
    comment does (`keepRefusedWords`), which carried it under whatever was sent from
    that box next.
 
-   A box's Discard or Escape throws its changed words away (drafts.js, `discardDraft`),
+   A box's Discard or Escape throws its changed words away (records/drafts.js, `discardDraft`),
    a gesture of the user's that never reaches the log, so this page keeps it, the
    latest only, until the document reloads (`keepDiscard`). ⌘Z takes it back while it
    is the user's newest gesture: while every other gesture the page can take back was
@@ -119,7 +119,7 @@
    decision). Rejected, by the user: Restore discarded edit (`g D`), which took the
    discard back past any newer gesture, a second route to one result with a row of its
    own under a phone's Navigate; and, while only a rewrite's Escape discarded, a timed
-   Undo chip after the discard, a target the user cannot learn (notifications.js). */
+   Undo chip after the discard, a target the user cannot learn (transport/notifications.js). */
 import { notice } from "../transport/notifications.js";
 import {
   applicationState,
@@ -511,7 +511,7 @@ export function createUndo({
   // where threads open. Where the user sees the thread drawn on the page, as in a
   // widget's seat, the route doesn't travel. `travel` and `history` are the route's
   // too: a return no gesture of the user's began, as after the log refuses a
-  // settlement, adds no Back step (history.js).
+  // settlement, adds no Back step (records/history.js).
   /** @param {string} id @param {UserIntent} intent
    * @param {{travel?: boolean, history?: boolean}} [route] */
   function returnToThread(id, intent, { travel = true, history = true } = {}) {
@@ -538,7 +538,7 @@ export function createUndo({
       return openThread(place.message, { part: "message", intent, travel });
     if (place?.thread) return returnToThread(place.thread, intent, { travel });
     if (place?.fragment === undefined || !intent()) return;
-    // A fragment link's own navigation step (anchor-travel.js, `followFragment`), so
+    // A fragment link's own navigation step (features/anchor-travel.js, `followFragment`), so
     // Back returns to where the user was reading.
     const url = new URL(window.location.href);
     url.hash = place.fragment;
@@ -572,7 +572,7 @@ export function createUndo({
   // made, its thread, else the place where it stood out of view when they pressed. Both
   // are read before the withdrawal, which takes the settlement's mark with it. What it
   // changed is tinted once the user is there. Only a place out of view is travel there,
-  // a Back step by travel's rule (anchor-travel.js, `prepareNavigationStep`); a thread
+  // a Back step by travel's rule (features/anchor-travel.js, `prepareNavigationStep`); a thread
   // in view opens where the user stands. Undo keeps no history of its own.
   /** @param {UndoEvent} event */
   function walkTo(event) {
@@ -591,7 +591,7 @@ export function createUndo({
     return answer;
   }
   // Take a discard back: its words go back to their draft as a withdrawn message's do
-  // (drafts.js, `giveBackWords`), and the user is put in their box where Resume writing
+  // (records/drafts.js, `giveBackWords`), and the user is put in their box where Resume writing
   // opens it, which is tinted once they stand in it. The box is the discard's place, so
   // the route travels where it stood out of view, as for any undo.
   /** @param {Discard} held */
@@ -613,7 +613,7 @@ export function createUndo({
     return event ? walkTo(event) : null;
   }
 
-  // The press a notice of the gesture made under `attempt` offers (notifications.js,
+  // The press a notice of the gesture made under `attempt` offers (transport/notifications.js,
   // `press`), as a Reopen's notice, or a Resolve's that leaves no thread open, offers
   // Undo (records/thread/folding.js, `nextStep`). It names ⌘Z's command only while ⌘Z would
   // take that gesture: once another gesture of the user's is the newest, it names no

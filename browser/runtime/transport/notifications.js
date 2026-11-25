@@ -4,21 +4,21 @@
    focus or scroll the panel. `notice` is the one visible surface for a moment's news,
    such as an arrived version or an undo, and it stands in one seat: the floating
    panel's seat for passing words, whose own words come back when the notice's time is
-   up (field-readings.js). A walk's step holds the seat for the same moment,
+   up (panel/field-readings.js). A walk's step holds the seat for the same moment,
    said in the walk's live position rather than words given here (`answerStep`). A
    notice is text, but for the one press it may carry (`press`): after the user's own
    gesture, the press that matters most next, such as the next open thread after a
-   Resolve or the undo that takes a gesture back (records/thread/folding.js, `nextStep`; undo.js,
+   Resolve or the undo that takes a gesture back (records/thread/folding.js, `nextStep`; annotations/undo.js,
    `offerUndo`), and with news, the press that shows what it reports, as Show changes
-   does for the changes since the version the user last saw (since-seen.js). The
+   does for the changes since the version the user last saw (host/since-seen.js). The
    floating panel's field says the press at its end, after the words, as "Resolved “One
    reconnect in about 40” … Next thread t". The press names a command (`command`),
    whose press it makes unless it brings its own `run`, as Show changes compares with
-   the version the user last saw under Compare's keys (since-seen.js). It names none
+   the version the user last saw under Compare's keys (host/since-seen.js). It names none
    while no command would make its press, as Undo names ⌘Z only while ⌘Z would take
-   the gesture its notice reports (undo.js, `offerUndo`). The field shows the press
+   the gesture its notice reports (annotations/undo.js, `offerUndo`). The field shows the press
    with the keys that would make that command now, and only while some would
-   (floating-panel.js, `pressReading`): so never on a touchscreen, where the panel's
+   (panel/floating-panel.js, `pressReading`): so never on a touchscreen, where the panel's
    menu and lists reach
    what it does. The live region hears the words alone, and a screen reader meets the
    press as the button it is, its key inside. So a notice's words name no key: one
@@ -31,7 +31,7 @@
    for the rest of its moment what the screen beside it contradicts. A notice of a change
    to where the user stands names that fact (`about`), as "Annotations hidden" names
    the annotations, so a surface whose words already say where the user stands, as the
-   page field's do (floating-panel.js, `standing`), leaves it to them, unless it offers
+   page field's do (panel/floating-panel.js, `standing`), leaves it to them, unless it offers
    a press, which those words don't, while the folded leaf's peek and a thread's field,
    which say none, show it. Only the panel knows which
    surface draws the seat, so such a notice holds it as any other does, unseen on the
@@ -45,7 +45,7 @@
 
    The moments the panel's leaf answers with a gesture (`Moment`) pass through here too
    (`gesture`), each with its ordinal, so the leaf plays once for each, a repeat
-   included (floating-panel.js, `GESTURES`). A notice of the user's own command is
+   included (panel/floating-panel.js, `GESTURES`). A notice of the user's own command is
    one; each other moment's producer gives it, news as it arrives rather than when its
    notice shows. */
 import { el } from "../lib/elements.js";
@@ -117,8 +117,8 @@ const noticeVisible = () => noticePresentation.peek().visible;
 
 // A notice is Leaf's news, so a notice given as a string is Leaf's words; one that
 // relays the agent's words too is given as parts, each said by whoever says it
-// (semantic-news.js), which the seat draws apart and the live region hears as one line
-// (voice.js).
+// (host/semantic-news.js), which the seat draws apart and the live region hears as one line
+// (base/voice.js).
 /** @param {Words} message */
 export const noticeWords = (message) =>
   typeof message === "string" ? [leafSays(message)] : message;
@@ -159,7 +159,7 @@ addEventListener(ANNOUNCE, ({ detail }) =>
 
 // An undo ("Undone: Chose “Fast” just now"), an arrival ("Updated to v3"): the
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget
-// draws it where it was made; the live region alone hears it (application.js,
+// draws it where it was made; the live region alone hears it (host/application.js,
 // `named`). A notice offering a press (`press`) has the field's end say that press's
 // word and key, where the page's own press stands at rest.
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press]
@@ -205,13 +205,13 @@ function retireNotice() {
 // How long a notice stands is one rule, kept in one place (`showNotice`) so a better
 // guess at what the user still needs can replace it whole. Every notice stands its
 // time. One answering the user's own gesture with a press, or one its caller holds
-// (`holds`), as an undo's is (undo.js), then stays until the user's next input: the
+// (`holds`), as an undo's is (annotations/undo.js), then stays until the user's next input: the
 // panel says the press at the field's end, so one leaving on its timer would take it
 // from under a hand on its way there. The user's inputs within its time leave it
 // standing, so the Escape that takes the caret out of a reply box, where the field shows
 // no press, shows a discard's Undo rather than ending its notice. News passes on its time,
 // its press with it, since it answers nothing the user did: the user chose that news
-// never hold the seat until they act (since-seen.js). A press stands no longer than it
+// never hold the seat until they act (host/since-seen.js). A press stands no longer than it
 // can act: a gesture the log refused, or one taken back by any route, takes its notice
 // away. An input on the press itself, which `keepsNotice` marks, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";
@@ -322,12 +322,12 @@ function yieldNotice() {
 }
 
 // A walk's step is a command of the user's whose answer is the walk's live position
-// rather than words of its own (walk-position.js), so the seat says that position for
-// a notice's moment from the latest step (field-readings.js, "notice"), and news
+// rather than words of its own (records/walk-position.js), so the seat says that position for
+// a notice's moment from the latest step (panel/field-readings.js, "notice"), and news
 // arriving meanwhile waits for it as it waits for a notice. The walk itself stands
 // where it landed after the moment; only the seat goes back to its own words, and a
 // place a widget said goes with the moment. A walk answers only a step
-// (walk-position.js, `stepTo`), so ordinary repaints never restart the moment.
+// (records/walk-position.js, `stepTo`), so ordinary repaints never restart the moment.
 let stepTimer = 0;
 const stepping = signal(false);
 export const answeringStep = () => stepping.value;

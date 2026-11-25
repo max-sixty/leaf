@@ -4,9 +4,9 @@
  * title ("Draw"; dom/keyboard/dispatch.js, `innermostStance`).
  * The floating panel reads this signal for its empty field, where the Go-to words, or
  * a walk's position for its step's moment, take the status's place, and which takes
- * no words while a stance stands (field-readings.js, `still`); its row names the
+ * no words while a stance stands (panel/field-readings.js, `still`); its row names the
  * stance beside the stance's ✕ by `stanceWords`, read when it paints. Painted in the repaint
- * frame (repaint.js), since these readings follow focus, the sequence's state and the
+ * frame (dom/repaint.js), since these readings follow focus, the sequence's state and the
  * register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows
  * the walk's items, as On Me does, can mark the one the walk is at. */

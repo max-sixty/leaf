@@ -18,7 +18,7 @@
  *   typography and ink; a custom-element host keeps its component-owned face and state
  *   styling.
  * - `data-lf-gen`, words the page's authored source lacks: the `wrote` reading leaves
- *   them out, and they are a passage cell of their own (passages.js).
+ *   them out, and they are a passage cell of their own (readings/passages.js).
  * - `data-lf-offer`, how the press is spelled: the tag or input type for a native
  *   press, the tag for a custom host that opts into its own press contract, the role
  *   for a selectable one, and the empty string for the rest of the chrome a module
@@ -33,7 +33,7 @@ import "./role-button-press.js";
 
 // Whether this document runs without Leaf's runtime, where a symbol's `title` is the only
 // reading of its name a pointer gets: on Leaf the preview reads its accessible name on
-// every route, and the browser shows a title's tooltip in place of it (preview.js), so a
+// every route, and the browser shows a title's tooltip in place of it (annotations/preview.js), so a
 // writer writes none there. The prepaint marks the root of a page the runtime upgrades
 // (`data-lf-interactive`, prepaint.js), the mark a package's own stylesheet reads, and
 // takes it off where the runtime can't start.
@@ -96,7 +96,7 @@ export function offer(tag, cls, label, inputType, pressable = false) {
 // `label` names the press. A worded role shows it, and `offerAction` writes it as the
 // words; the element writer leaves the words to whoever owns the element's content,
 // such as a template. A symbol or mark says it as the accessible name, which the preview
-// shows with the keys that press it on Leaf (preview.js), and off Leaf as the `title`
+// shows with the keys that press it on Leaf (annotations/preview.js), and off Leaf as the `title`
 // the browser's tooltip shows (`titlesName`).
 /** @template {Element} T @param {T} node @param {LeafActionRole} role
  * @param {string} [cls] @param {string} [label] @returns {T} */

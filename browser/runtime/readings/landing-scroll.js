@@ -26,7 +26,7 @@
  *
  * Where the glides under way leave the destination is read where they land: each box a
  * glide moves is scrolled to its goal, the destination read, and the box put back in
- * one task (scrolling.js, `whereGlidesLand`), a write and a write back for each.
+ * one task (dom/scrolling.js, `whereGlidesLand`), a write and a write back for each.
  *
  * Room and being shown are this module's too, so a landing that asks whether to move
  * reads the same arithmetic the move then does. A destination's room (`landingRoom`) is
@@ -35,13 +35,13 @@
  * destination's own at its foot: what a landing can show of it at once. `fitsWhole`
  * compares it with that room. Where a landing would leave a destination (`landedBox`)
  * is read by the same arithmetic, so a surface that would stand over it there can give
- * way first (floating-panel.js, `clearFor`).
+ * way first (panel/floating-panel.js, `clearFor`).
  *
  * Every nearest landing first asks whether the destination is already shown
  * (`alreadyShown`), so one that follows the user, a Tab's arrival, entering a reply or
  * returning to a thread, and one that takes them somewhere, travel and the walks, ask
  * one question. It is shown where a nearest landing would move nothing: the user sees
- * it (geometry.js, `seenRect`, which takes away the box the chrome covers where its
+ * it (dom/geometry.js, `seenRect`, which takes away the box the chrome covers where its
  * motion leaves it, so a control beside the floating panel stays put, and one a view of
  * the panel is opening over is not shown), out to its ring's room where the user is on or
  * inside it (see below), as far as the boxes between it and its reading region let that
@@ -64,13 +64,13 @@
  * `sideways: false` keeps every box's sideways place, for a landing that aligns what
  * the user is already reading, such as `g z` and a diff's file.
  *
- * A landing is the reader's choice of where each box it moves stands (scrolling.js).
+ * A landing is the reader's choice of where each box it moves stands (dom/scrolling.js).
  * Count it as it starts, including an instant landing: navigation can change layout
  * in the same task, so its scroll end alone cannot distinguish the landing from
  * anchoring or a clamp before the keeper restores that layout change.
  *
  * A destination the user is on is measured by the box that wears its focus ring
- * (focus.js, `ringBox`), with its own margins, the ring's room: a playground's choice
+ * (dom/focus.js, `ringBox`), with its own margins, the ring's room: a playground's choice
  * rings its radio and words together, and a landing that measured the radio left the
  * face's ring cut at its pane's foot. Where that box is longer than its room, the
  * destination is its own box again, so the user still sees the control. Every other
@@ -138,10 +138,10 @@ const snappedToward = (from, top) => {
   return top > from ? Math.max(from, snapped) : Math.min(from, snapped);
 };
 
-// A smooth landing glides (scrolling.js, `glides`); only the reading band's vertical
+// A smooth landing glides (dom/scrolling.js, `glides`); only the reading band's vertical
 // moves are smooth, so it moves only scrollTop. An instant one is the reader's choice
 // from its start (`startScroll`), unless it returns them to a place they had (`kept`,
-// scrolling.js, `placeKept`). `by.top` counts from `from`: where the box stands, or
+// dom/scrolling.js, `placeKept`). `by.top` counts from `from`: where the box stands, or
 // for the reading band's moves where its glide is headed (`readingBandMoves`). An
 // instant landing takes the box from a glide under way, even to put it where it
 // stands, unless it only moves the box across: that move, as the walk before a
@@ -149,7 +149,7 @@ const snappedToward = (from, top) => {
 // so the region's landing after it still aims from the glide's goal. Stopped there, a
 // sideways reveal pressed during a glide landed from where the page stood. A `held`
 // landing keeps a box at the band's edge (`snappedToward`). A glide asks `aim` at each
-// frame where the landing now puts the box (scrolling.js, `aimed`), so content drawn
+// frame where the landing now puts the box (dom/scrolling.js, `aimed`), so content drawn
 // above the destination after the landing starts, in the same task or during the glide,
 // still leaves the destination where the landing puts it.
 /** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {{kept?: boolean, from?: number, held?: boolean, aim?: (() => number | null) | undefined}} [options] */
@@ -406,7 +406,7 @@ function placementBy(where, box, block, band, margin) {
 // and how far the glide under way in the box has still to scroll it (`ahead`), with
 // how far the glides and the moves together carry it (`moved` of the whole).
 // Scrolling and its prediction (`landedBox`) both read it, so they can't disagree.
-// Every region is read where the glides under way will leave it (scrolling.js,
+// Every region is read where the glides under way will leave it (dom/scrolling.js,
 // `whereGlidesLand`), and its move counts from its glide's goal, since a key pressed
 // while the page moves acts where the motion lands: `/` pressed as `d` sets off, in a
 // diff whose filter the glide is carrying out of view, brings the filter in as the same
@@ -415,7 +415,7 @@ function placementBy(where, box, block, band, margin) {
 // A start or centre landing aims at the same place either way.
 //
 // A region's move carries the destination only until it first stops riding it
-// (geometry.js, `carried`), read where the glides leave it, and each region around it
+// (dom/geometry.js, `carried`), read where the glides leave it, and each region around it
 // then finds the destination carried that far. A sidebar's track standing short of
 // the line it sticks at rides the page only to that line, so `m` pressed as `d` sets
 // off, for an ask in the track, finds it in the window where `d` lands and moves the
@@ -508,7 +508,7 @@ function scrollIntoReadingBand(
 }
 
 // Where a landing now puts each box it moves, for the box's glide to ask at each frame
-// (scrolling.js, `aimed`), each read afresh as at the landing's start: a reading
+// (dom/scrolling.js, `aimed`), each read afresh as at the landing's start: a reading
 // region's move from where the glides under way land, a box the walk inside `within`
 // moves from where it stands, and nowhere further for a `nearest` landing whose
 // destination is already shown (`alreadyShown`). Null once the destination is removed or

@@ -90,7 +90,7 @@
    An editor's Discard and Escape throw its changed words away (`discardDraft`), as a
    message rewrite and an `lf-draft` edit do: the draft settles in every tab, as Cancel
    settles it, and the words go to the page's undo, which keeps them as a gesture ⌘Z
-   takes back (undo.js, `keepDiscard`) and gives them back here (`giveBackWords`).
+   takes back (annotations/undo.js, `keepDiscard`) and gives them back here (`giveBackWords`).
 
    Settlement is generation-specific. `activeDraftRecord` filters settled records and
    the generation this document is sending. The server never hands this document a
@@ -469,7 +469,7 @@ const writeWaiting = () => {
 // words sent, cancelled or written over elsewhere. Work a write is carrying needs no
 // prompt, since the resend above takes it on. A reload the user asks for asks too,
 // though its tab keeps the work for it, since the prompt can't tell a reload from a
-// close. The prompt a reload Leaf asks for raises asks nothing (layer-client.js,
+// close. The prompt a reload Leaf asks for raises asks nothing (transport/layer-client.js,
 // `takeLeafUnload`): it is no close, and after a server restarted under another Leaf,
 // which refuses this document's writes, every word typed since would otherwise put the
 // prompt in front of a reload the user never asked for.
@@ -595,7 +595,7 @@ function heardWrite(ctx, sent, { written, store, version, record }) {
 // A message draft is kept under what it is written about, and it stays there until it
 // is sent or put away. The contexts below, named only here, say which subject each
 // draft is about. Threads lists the drafts under Drafts (`draftsReading`;
-// floating-panel.js, `draftsListing`), and a press on a row or Resume writing brings the
+// panel/floating-panel.js, `draftsListing`), and a press on a row or Resume writing brings the
 // user back to one (`createWritingResume`). Opening another box opens that box's own
 // draft and moves no words into it. Rejected: an explicit Comment on
 // another target, or `c` into a thread, moving the unsent words there. Words move only
@@ -643,7 +643,7 @@ export function threadDraft(ctx) {
 const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 // What a box that stops showing the user's words says, once: that they are kept, with
 // Resume writing, the press that brings them back, at the panel field's end, where the
-// user looks for a moment's next press and its key (notifications.js, `press`). A
+// user looks for a moment's next press and its key (transport/notifications.js, `press`). A
 // refusal's error offers the same press (`keepRefusedWords`).
 export function noticeDraftKept() {
   notice("Draft kept", { press: writingPlace && RESUME_WRITING });
@@ -778,7 +778,7 @@ function transferDraft(from, to, text) {
   tellDraft(to, activeDraftRecord(to)?.text ?? text);
   return place;
 }
-// Who keeps the words a box's Discard or Escape throws away: the page's undo (undo.js,
+// Who keeps the words a box's Discard or Escape throws away: the page's undo (annotations/undo.js,
 // `keepDiscard`), set as the application mounts.
 /** @typedef {{ctx: string, text: string, payload: DraftPayload | undefined, at: Element | null}} Discarded */
 /** @type {((discarded: Discarded) => void) | null} */
@@ -809,7 +809,7 @@ export const draftContexts = () => [...draftCache.keys()];
 // The page's own draft isn't listed: the floating panel's field shows it and no view of
 // drafts does, so listing it would repaint every view of drafts as the field's words
 // start and end. It is the one list every view of drafts reads: Threads' Drafts band and the
-// leaf's dot (floating-panel.js), and each draft's margin entry. It publishes when
+// leaf's dot (panel/floating-panel.js), and each draft's margin entry. It publishes when
 // a draft starts or stops holding something or what it is about changes, so a
 // keystroke in a draft already listed costs one comparison and repaints nothing; a
 // view reads the draft's words where it draws them (`loadDraft`).
@@ -1121,7 +1121,7 @@ const atEnd = (ctx) => {
   return [end, end];
 };
 // Words an undo took back from the log, given back to the draft they were written in
-// (undo.js, `withdraw`), so taking a message back puts it to draft rather than
+// (annotations/undo.js, `withdraw`), so taking a message back puts it to draft rather than
 // discarding it. They come first, then the words of the box `under` them, the reply box
 // of a thread that went with them, then any words the draft holds now, which the user
 // wrote after them. A draft holding something of its own keeps its own `payload`, such
@@ -1171,10 +1171,10 @@ const shownIn = (ctx) =>
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
 // destination, a content change to that draft like any other, and the refusal's error
-// says they are kept (delivery.js). The error is about the box on screen the sending
+// says they are kept (host/delivery.js). The error is about the box on screen the sending
 // gesture's words came back to, where there is one (`field`); otherwise it is about no
 // box and offers Resume writing as its press (`press`), since a box's cover draws no
-// press (errors.js).
+// press (transport/errors.js).
 //
 // Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
 // press on the error over them does (annotations/composing/input.js), so Enter sends them.
@@ -1250,7 +1250,7 @@ document.addEventListener("input", (event) => {
   });
   if (editor) rememberWriting(editorInput(editor));
 });
-// In capture, since a key typed in the editor stops at it (field-keys.js).
+// In capture, since a key typed in the editor stops at it (base/field-keys.js).
 document.addEventListener(
   "keyup",
   (event) => {
@@ -1378,7 +1378,7 @@ export function createWritingResume({
       const box = route.control ? (editor?.box() ?? null) : null;
       const within = box && route.control ? namedIn(box, route.control) : null;
       // Coming back to the words is the user dealing with any error over them, as a
-      // press on it is (errors.js, `passErrorsAt`).
+      // press on it is (transport/errors.js, `passErrorsAt`).
       intent.handoff(() => {
         passErrorsAt(field);
         if (within && within !== box) focusDestination(within, "return");
@@ -1398,7 +1398,7 @@ export function createWritingResume({
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
     );
   };
-  // The thread walk's way onto a draft it names by context (navigation.js): the draft's
+  // The thread walk's way onto a draft it names by context (panel/navigation.js): the draft's
   // box opens on its own record, as Resume writing opens it, and the user stands on the
   // box rather than in it (`standsOnDraft`), so a walk key goes on walking and `c` puts
   // the caret in the words. It answers whether the user arrived. Opening a draft is no
@@ -1650,7 +1650,7 @@ export function mirrorDraft(
 // reload's record of the box being written holds (`captureDraftEditing`), while the
 // draft is still the generation that record was read at (`draftEditingStands`), and
 // after its words otherwise. That record moves with them, so a reload that still puts
-// the user back in the box puts the caret after them (version.js,
+// the user back in the box puts the caret after them (features/version.js,
 // `restoreEditingContinuity`). The words leave the panel's field, where the keys stood,
 // as the hand-back ends; where they aren't then on screen in their box (`shownIn`),
 // the panel says the draft is kept, with Resume writing, which goes to their end, as

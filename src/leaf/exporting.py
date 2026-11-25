@@ -439,7 +439,7 @@ def export_document(
                 }
             },
             # The generation the revision was captured at, which the runtime holds
-            # the embedded registry and reading to (`layer-client.js`), as it holds a
+            # the embedded registry and reading to (`transport/layer-client.js`), as it holds a
             # served document's.
             runtime=runtime_settings(
                 payload,

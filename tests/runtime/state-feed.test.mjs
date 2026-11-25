@@ -206,7 +206,7 @@ test("the page asks for no reading it already has in hand", async (t) => {
       (call) => new URL(call.arguments[0]).pathname === "/api/state",
     ).length;
   // An answer is prepared before the page adopts it, which is when `runtime.reading`
-  // names it; until then the answer is in hand, as `state-application.js` keeps it.
+  // names it; until then the answer is in hand, as `host/state-application.js` keeps it.
   const preparing = new Map();
   let inHand = null;
   const receiveState = async (answer) => {

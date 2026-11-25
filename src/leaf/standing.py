@@ -36,7 +36,7 @@ ahead of the agent's, then by `strength`. The page reads the agent's side of all
 them beside `presence`, whether anyone is there to take input (`activity`).
 
 Each surface words these fields and nothing else (`records/thread/workflow.js`,
-`activity-words.js`), so a difference a surface wants to show is either one of them or
+`state/activity-words.js`), so a difference a surface wants to show is either one of them or
 the agent's own line. The words on screen are more than the four states: a reason has
 its own, such as Stopped or Gone quiet.
 """

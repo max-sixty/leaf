@@ -83,7 +83,7 @@ def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
     engine, glide, follow, when, request, serve
 ):
     """A key pressed while one of Leaf's glides runs acts as it would once the glide had
-    landed (user-place.js, `focusPlace`). Every glide here sets off from a link in the
+    landed (readings/user-place.js, `focusPlace`). Every glide here sets off from a link in the
     middle of the page and carries it away, and the key that follows ends the same way
     pressed during the glide as after its landing: focus on the same control, as seen,
     and the page at the same scroll. During it is at once, before the glide's first

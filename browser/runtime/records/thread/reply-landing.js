@@ -10,9 +10,9 @@
    the transcript: the caret lives in it, and the browser's own
    caret reveal would scroll the transcript on every keystroke to clear it. A thread too
    tall to show, landed as a whole, lands its reply row where one fits, and otherwise
-   stays where it is while any of it is in front of the user (geometry.js, `seenRect`):
+   stays where it is while any of it is in front of the user (dom/geometry.js, `seenRect`):
    the nearest edge of a box taller than its room is a jump to its top, which a landing
-   that takes the user somewhere makes (`landing-scroll.js`, `alreadyShown`) and one
+   that takes the user somewhere makes (`readings/landing-scroll.js`, `alreadyShown`) and one
    that follows them into a thread they see doesn't.
 
    A send moves the box it was sent from, once the user saw it, by no more than the turn
@@ -25,7 +25,7 @@
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
    thread in a surface fixed over the page, the margin card, is shown by bringing that
-   surface back first (`off-flow.js`). These landings serve thread navigation,
+   surface back first (`readings/off-flow.js`). These landings serve thread navigation,
    sending, and editor growth. Merely entering a reply reveals its writing area
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
    the turn the user was reading, even when it is not the latest one. A thread opened
@@ -67,7 +67,7 @@ const replyRowOf = (held, control) => {
 // A reply row pinned to its scroller's foot (a panel card's) stands in the band
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end. Pinned is the row itself stuck, which includes
-// the row standing on its foot line at the thread's very end (geometry.js, `stuckBox`).
+// the row standing on its foot line at the thread's very end (dom/geometry.js, `stuckBox`).
 /** @param {Element | null | undefined} reply */
 export const pinnedReply = (reply) =>
   reply != null && stuckBox(reply) === reply ? reply : null;
@@ -107,7 +107,7 @@ const landingTarget = (held, control) => {
 };
 
 // Whether the user has scrolled a reply row away: none of it in front of them
-// (geometry.js, `seenRect`).
+// (dom/geometry.js, `seenRect`).
 /** @param {Element} node */
 const onScreen = (node) => seenRect(node, new Map()) !== null;
 
@@ -134,7 +134,7 @@ const returnTurn = (transcript, unread) => {
 
 // Where a box scrolling a transcript starts showing its turns: where their heads stick,
 // below the focus-ring room the box keeps over them. A turn landed in that room would
-// start where read tracking sees nothing of it (geometry.js, `seenRect`), and never read.
+// start where read tracking sees nothing of it (dom/geometry.js, `seenRect`), and never read.
 /** @param {Element} scroller */
 const headLine = (scroller) =>
   scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller);
@@ -145,9 +145,9 @@ const headLine = (scroller) =>
 // that line it starts. A message a closed fold holds is no turn the user read to.
 // `showReading` stands that turn there again in a new drawing of the thread, so its
 // lines come back where they stood though turns above them grew, folded or arrived
-// since. History keeps it for each entry (history.js), the panel's
+// since. History keeps it for each entry (records/history.js), the panel's
 // hold of where the user stepped in from, and a revision's handoff of the panel's view
-// (floating-panel.js, `captureCurrentLocation`). A card holding its transcript through
+// (panel/floating-panel.js, `captureCurrentLocation`). A card holding its transcript through
 // one placement keeps the offset it reads and writes within that fit instead
 // (thread-preview.js), since the drawing it measures stays the same.
 /** @typedef {{offset: number} & ({message: string} | {summary: string})} ThreadReading */
@@ -276,7 +276,7 @@ export function scrollThreadIntoView(
 // the next update, and an in-flight pixel destination would outlive the room it named.
 // The geometry owner then preserves the landed end while it fits that room. A floating
 // box presents the send itself, its content riding from where it stood to where the
-// landing left it (box-motion.js, "send"), so the landing stays one instant scroll.
+// landing left it (dom/box-motion.js, "send"), so the landing stays one instant scroll.
 /** @param {Element} input */
 export function sendLanding(input) {
   const held = input.closest(THREAD);
@@ -328,7 +328,7 @@ const covered = (reply) =>
 // Editing reveals only the writing area. Revealing the whole thread here would pull
 // earlier turns back into view on the first keystroke in an already-visible reply. It
 // follows the area's foot into the band rather than asking whether the area is already
-// shown (landing-scroll.js, `keepInBand`).
+// shown (readings/landing-scroll.js, `keepInBand`).
 /** @param {Element} held @param {Element} input @param {Element | null} reply */
 const revealWritingArea = (held, input, reply) => {
   bringBackSurfaceOf(held, "instant");
@@ -363,7 +363,7 @@ export function followBoxGrowth(input) {
   // pulled a long one's top into view on every key.
   if (!reply) return;
   // A separate transcript gives up height rather than being covered by the editor, and
-  // keeps the words at its end beside the box itself (scrolling.js, `followEnd`).
+  // keeps the words at its end beside the box itself (dom/scrolling.js, `followEnd`).
   if (separateTranscript(held)) {
     if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;
@@ -394,7 +394,7 @@ export function readBoxPlace(input) {
 
 // A render that inserts above the control the user is on, such as an agent's turn
 // arriving in the thread they are writing in (held-news.js), keeps that control where it
-// stood, as every reading from outside the tab does (user-place.js,
+// stood, as every reading from outside the tab does (readings/user-place.js,
 // `holdUserPlace`). A user on the
 // thread itself, where a send leaves them, waits at its reply box, so the box is what
 // stays still while it is shown, as a chat's composer does, and what stands above it

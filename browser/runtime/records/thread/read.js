@@ -11,13 +11,13 @@
    widget's hidden states — is not evidence the page can observe; unread tracks
    encounter with the message's visible surface, not exhaustive inspection.
    Each observation pass batches newly completed versions into one `read` event, which
-   the application sends outside the gesture queue (delivery.js). A refused receipt
+   the application sends outside the gesture queue (host/delivery.js). A refused receipt
    leaves the message unread and is retried only on a new visit. A leaf.page visitor who
    has only read the page has no private page to record a read in, so exposure counts
-   only while the session is active (layer-client.js), as user-view.js reports a view
+   only while the session is active (transport/layer-client.js), as panel/user-view.js reports a view
    only then, and a pass runs when it turns active; the edge refuses a read sent
    before. A pass also runs on each change to what the page shows of its window
-   (geometry.js, `watchRoom`), which includes a nonmodal surface closing: it can reveal
+   (dom/geometry.js, `watchRoom`), which includes a nonmodal surface closing: it can reveal
    a body without moving it or closing its permanent native ancestor.
 
    The same rendered-body and room observations record first visible agent words in
@@ -79,7 +79,7 @@ function mergeIntervals(intervals) {
 function visibleInterval(body, clips, band) {
   if (!presented(body)) return null;
   const box = body.getBoundingClientRect();
-  // Sticky headers and the floating panel are left out of what is seen (geometry.js), so
+  // Sticky headers and the floating panel are left out of what is seen (dom/geometry.js), so
   // a message any part of which is under one has not been shown whole, and the
   // full-width rule below withholds it.
   const clipped = seenRect(body, clips);

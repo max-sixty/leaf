@@ -2,7 +2,7 @@
  *
  * An element is the semantic hit and travel target; its optional visual `surface` changes
  * only contour paint, and a part of a picture carries the `label` its visual registers
- * for it (visual-parts.js). A passage carries text segments instead. Both kinds name `place`,
+ * for it (state/visual-parts.js). A passage carries text segments instead. Both kinds name `place`,
  * where panel order and attached chrome sit: a verified control face for a named
  * control passage, otherwise its readable block or authored item. Frame-bound paint uses only an exact
  * target; a fallback place remains useful for travel and attached chrome, but cannot
@@ -67,7 +67,7 @@ export const targetElement = (resolved) =>
 // that node its passage starts; and the order two such places are read in, by the
 // page's rendered order (lib/shadow-tree.js, `renderedOrder`, or the `renderedOrdering` a sort
 // of many passes), then, in one text node, by where each starts. Every list of the page's targets is in this order: the margin's entries
-// (annotation-inventory.js) and the threads a passage's mark names (anchor-paint.js).
+// (features/annotation-inventory.js) and the threads a passage's mark names (annotations/anchor-paint.js).
 /** @param {ResolvedTarget | null | undefined} resolved @param {Element | null} [point] */
 export const readingPlace = (resolved, point = null) => {
   const [first] = targetSegments(resolved);

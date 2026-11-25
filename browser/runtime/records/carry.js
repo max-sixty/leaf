@@ -22,11 +22,11 @@
  * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
- * Which state a control carries is document-inputs.js's (`holdsValue`, `holdsTick`,
+ * Which state a control carries is base/document-inputs.js's (`holdsValue`, `holdsTick`,
  * `holdsOpen`): select values, contenteditable markup, and file-input values are
  * excluded.
  * Modules restore their own stored state, such as tabs and drafts, through their own
- * lifecycles. `version.js` owns when capture and restoration run for each install,
+ * lifecycles. `features/version.js` owns when capture and restoration run for each install,
  * and which records a reload's arrival restores (`installArrival`).
  *
  * Focus is named by identity a reload keeps (`focusKey`), which history's record of an
@@ -36,12 +36,12 @@
  * caret. Inside a message, as on the page, a name comes first: an element by its id,
  * which focus in its shadow tree counts as on it, and a generated control by its
  * owner's id and its key. An element nothing names is named by its place among the
- * elements like it (focus.js, `likeSelector`) in the nearest holder something names,
+ * elements like it (dom/focus.js, `likeSelector`) in the nearest holder something names,
  * the message or the page. That place names it only where the holder is drawn from the
  * same words: a message, whose words are the log's, or the page in the revision the key
  * was read in. A revision's handoff of page elements takes no such place, since it
  * names nothing the arriving revision must hold; the floating panel's and the margin's
- * handoffs of a thread view take a thread key whole (floating-panel.js,
+ * handoffs of a thread view take a thread key whole (panel/floating-panel.js,
  * margin-projection.js, `captureCurrentLocation`).
  */
 import { setScroll } from "../dom/arrivals.js";
@@ -249,7 +249,7 @@ export function captureCarry(root, authored) {
 // What records carry of the document itself, values, checked state and disclosures,
 // which a Back within one document keeps too, without where the user was in it, focus,
 // caret and scroll offsets, which belong to the entry the records were read on
-// (version.js, `installArrival`).
+// (features/version.js, `installArrival`).
 /** @param {readonly CarryRecord[] | null | undefined} records @returns {CarryRecord[]} */
 export const documentState = (records) =>
   (records ?? []).map(({ id, name, open, value, checked }) => ({

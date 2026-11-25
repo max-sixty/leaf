@@ -8,7 +8,7 @@
    (heading-links.js), and the control's rules place it with `anchor()` against that
    block. The control passes under the sticky headers the page declares
    over its block, as the block's own words do, standing in the frames that cut every
-   box following scrolled content (css-anchors.js, `headerLevels`), so a block scrolled
+   box following scrolled content (dom/css-anchors.js, `headerLevels`), so a block scrolled
    under a stuck toolbar offers no control over the toolbar's.
    Document controls share one stable chrome child, including their clipping frames.
    Making every control a sibling of transient chrome lets a new margin measurement
@@ -130,7 +130,7 @@ export function aimControl({ control, near, anchor }) {
 
 // The control's anchor insets carry how far `anchor()` reads the block's corner from
 // where it shows, and `anchor-size()` its size, which only an engine that leaves
-// transforms out makes other than nothing (css-anchors.js, `anchorBox`), such as Firefox
+// transforms out makes other than nothing (dom/css-anchors.js, `anchorBox`), such as Firefox
 // on a block in a table granted room or a scaled slide. Read whenever the control is
 // about to show, and wherever a pin keeps off where it stands at rest
 // (`blockControlBoxes`); a control shown as it arrives reads them with the batch's

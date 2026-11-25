@@ -86,7 +86,7 @@ export function createProjectionPresentation() {
   // A live revision keeps that reading until its next projection completes. Current
   // document readiness belongs to the presentation coordinator, whose document:patch
   // region holds the installation, rather than to erasing and restoring this count.
-  // The fold keeps the coverage records while no event joins the log (`kept.js`), so
+  // The fold keeps the coverage records while no event joins the log (`state/kept.js`), so
   // once the stamp covers them a presentation that moves no widget event, such as a
   // thread's repaint, returns without walking the log again.
   /** @type {unknown} */

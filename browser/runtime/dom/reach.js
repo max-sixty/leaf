@@ -20,7 +20,7 @@ import { keeps } from "../lib/keeps.js";
 // accident. Their CSS owns overflow, including changes at breakpoints; the shared rule
 // contains positioned descendants. Style discovery measures only these surfaces. Stop
 // eligibility still checks the rendered controls inside them. A reading region's body
-// is one: a module's wears the mark with the region's name (reading-regions.js), and
+// is one: a module's wears the mark with the region's name (readings/reading-regions.js), and
 // registration marks the runtime's own.
 /** @typedef {Document | Element | ShadowRoot} Scope
  * @typedef {Pick<CSSStyleDeclaration, "overflowX" | "overflowY" | "position" | "direction">} ScrollStyle */
@@ -168,7 +168,7 @@ export function reachReadingScroller(el, paintContinuation) {
 }
 
 // A composition change, such as a tab set switching, puts each reading region's place
-// back only when the change ends (reading-regions.js, `preserveReadingRegions`), so a
+// back only when the change ends (readings/reading-regions.js, `preserveReadingRegions`), so a
 // cue painted while it runs reads a scroll the restore is about to move, and paints
 // again after it. A body under an owner whose change is open waits for that end.
 /** @type {Set<Element>} */
@@ -477,7 +477,7 @@ function gone(el) {
 // A box that stands in skipped content keeps what it last wore until it is drawn: measuring
 // it would force that content's style, and a box on no screen is no stop and shows no
 // edge. The reading and sideways edge paints ask it themselves, since a reading region
-// is painted as it registers, and a block can register in a hidden panel (bounds.js).
+// is painted as it registers, and a block can register in a hidden panel (readings/bounds.js).
 /** @param {Element} el */
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {

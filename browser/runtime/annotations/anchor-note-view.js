@@ -4,7 +4,7 @@
  * carries comments. Anchor controls supplies each commented block with its thread ids, and
  * this projection keeps one native button per block saying how many, which enters the
  * block's first thread. The button stands on the details shelf, and the block names it as
- * its details (details-shelf.js).
+ * its details (features/details-shelf.js).
  *
  * The notes stand together, so each is named for the block it counts as a thread's quote
  * names it, cut to a spoken name's length ("2 comments on § paragraph · The first…"),
@@ -12,7 +12,7 @@
  *
  * A keyboard reaches a block's threads from the block itself (`c`, `t`) and through its
  * margin row. The note is a proxy for its block (control-faces.js, `proxy`): focus on it
- * rings the block and brings it into view (details-shelf.js).
+ * rings the block and brings it into view (features/details-shelf.js).
  */
 import { counted } from "../lib/words.js";
 import { aimTargetAt } from "../readings/anchor-resolution.js";
@@ -50,7 +50,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
   /** @param {ReadonlyMap<Element, CommentThreads>} notes */
   function present(notes) {
     // A block the page drew anew keeps its note, found by the thread it enters, so a
-    // user on the note stays on it (details-shelf.js, `shelve`). One passage across
+    // user on the note stays on it (features/details-shelf.js, `shelve`). One passage across
     // several blocks gives each a note entering the same thread, so the notes that
     // left wait in page order under that thread, and each new block takes the first.
     /** @type {Map<string, [Element, ReturnType<typeof claim>][]>} */

@@ -480,7 +480,7 @@ def test_a_mark_s_preview_stands_clear_of_the_mark_on_the_next_line(
     """A passage mark's preview keeps clear of another thread's mark as of any control,
     though the mark is a range of words in the same paragraph, so the pointer going on
     to that mark finds it and its press opens that thread, rather than landing on the
-    preview and only putting it away (preview.js, `declareRanges`)."""
+    preview and only putting it away (annotations/preview.js, `declareRanges`)."""
     url = serve(
         STACKED,
         events=[
@@ -528,7 +528,7 @@ def test_a_mark_s_preview_stands_by_its_words_on_loosely_leaded_type(
     """Where a paragraph's leading is deeper than the gap a preview keeps from its line,
     the preview's rows of hit tests land in its own line's leading, which reads as that
     line's mark. That line is the preview's own, so the preview still stands below the
-    words it is about, at their start (preview.js, `clearRoom`)."""
+    words it is about, at their start (annotations/preview.js, `clearRoom`)."""
     words = "the thread's words"
     url = serve(
         LOOSE,
@@ -569,7 +569,7 @@ def test_a_mark_s_preview_keeps_clear_of_a_control_in_its_line_s_leading(
 ):
     """The preview's own line goes untested only for marks: a control standing in that
     line's deep leading, just below the words, is still one the preview keeps clear of
-    (preview.js, `clearRoom`)."""
+    (annotations/preview.js, `clearRoom`)."""
     words = "the thread's words"
     url = serve(
         DEEP,
@@ -819,7 +819,7 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     preview a pointer would, above the line, which the finger doesn't cover. Its
     release presses nothing, as any hold's, so the preview stands and the thread stays
     shut until a tap on the words opens it, as a tap there always does
-    (preview.js, `pointRange`)."""
+    (annotations/preview.js, `pointRange`)."""
     url = _thread_on_a_passage(serve)
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, has_touch=True
@@ -2625,7 +2625,7 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
 
 
 # A widget that draws its own content (`content: empty`), as `lf-toc` does, which so
-# takes the pointer (widget-elements.js, `aimableAt`) though no press acts on it: a
+# takes the pointer (dom/widget-elements.js, `aimableAt`) though no press acts on it: a
 # column of links across the page's column, the middle one previewing a line of detail
 # under its name, as a contents row with marks does.
 ROUTE = {
@@ -2693,7 +2693,7 @@ def test_a_preview_stands_by_a_target_a_transform_moved(engine, request, serve):
     """A control in a box a transform moves, as a table granted room is translated into
     place (layouts.css), previews beside itself in each engine. Firefox leaves an
     anchor's transforms out of `anchor()`, so the preview's edges are measured from the
-    box Firefox reads (css-anchors.js, `anchorBox`); measured from the box a script
+    box Firefox reads (dom/css-anchors.js, `anchorBox`); measured from the box a script
     reads, the preview stood the translation away from its control."""
     page = open_page(
         request.getfixturevalue(engine),
@@ -3427,7 +3427,7 @@ def test_a_window_resize_decides_once_where_a_preview_stands(
     page.evaluate(
         """() => {
           document.getElementById('aim').lfPreview = () => ({name: 'A value says'});
-          // Each decision (preview.js, `stand`) measures the preview's width once; the
+          // Each decision (annotations/preview.js, `stand`) measures the preview's width once; the
           // page's watches measure it too.
           const tip = document.getElementById('lf-preview');
           const measure = tip.getBoundingClientRect;
@@ -3750,7 +3750,7 @@ def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
 
 # Whatever fills the window around a small control, so its preview has no side clear of
 # it and stands over it, letting the pointer through: a field and a titled link, each a
-# target the user aims at though neither previews (widget-elements.js, `aimableAt`).
+# target the user aims at though neither previews (dom/widget-elements.js, `aimableAt`).
 BENEATH = {
     "field": '<textarea id="under" aria-label="Draft" style="{}">A draft to edit.</textarea>',
     "titled link": '<a id="under" href="#elsewhere" title="Where it goes" style="display:'
@@ -4307,7 +4307,7 @@ def test_a_preview_leaves_a_region_the_user_works_in_reachable(
     """A preview stands clear of a region the user must keep reaching, though nothing
     in it previews and the gestures Leaf routes leave it alone: code that scrolls, a
     tab panel, a frame. A press there reaches it. A press on a tab panel's contents
-    lands where it would without the panel's tab stop (focus.js), so the panel shows
+    lands where it would without the panel's tab stop (dom/focus.js), so the panel shows
     the press reached it by receiving it rather than by taking focus."""
     page = open_page(
         request.getfixturevalue(engine),

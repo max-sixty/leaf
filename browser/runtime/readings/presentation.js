@@ -1,7 +1,7 @@
 /* The page's readiness: the stamps written on body, the work an owner finishes after
    presentation (`deferredArrival`), and the events startup dispatches to present the
    page (`PRESENTATION`, `PAGE_INTERFACE`). The words and marks the runtime paints onto
-   page-owned elements live in declared-words.js.
+   page-owned elements live in records/declared-words.js.
 
    The page has three readiness facts, all three written on `body` rather than on the
    root element. A reader waiting on the root sees an empty `dataset` forever, with every
@@ -118,7 +118,7 @@ let allNear = false;
 const askingAllNear = new Set();
 
 /** Run `start` once, when `node` comes near the window as `nearObserver` reads it
- * (geometry.js). The page counts the wait until the browser's first reading, which it
+ * (dom/geometry.js). The page counts the wait until the browser's first reading, which it
  * takes at its next rendering even in a frame off screen, has said whether `start`
  * runs, so work that reading starts is counted before the wait lands. A gesture
  * whose rendering brought the node near owns what `start`'s work later moves only
@@ -155,7 +155,7 @@ export function whenNear(node, start) {
 /** Start all work waiting for its node to near the window, and all that waits later,
  * for a check that reads every document the page can show rather than those near
  * where it opened. Each live sample's host asks its child the same
- * (sample.js, `nearWork`), so the check needn't know samples nest. */
+ * (host/sample.js, `nearWork`), so the check needn't know samples nest. */
 export function startNearWork() {
   allNear = true;
   for (const run of [...nearing]) run();

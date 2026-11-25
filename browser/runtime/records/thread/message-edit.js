@@ -4,7 +4,7 @@
    is a turn the agent answers (events.md, `edit`). Two facts make up a rewrite, each
    with the owner its kind has elsewhere:
 
-   - Its words are a draft under `rewrite:<message id>` (drafts.js), once the user
+   - Its words are a draft under `rewrite:<message id>` (records/drafts.js), once the user
      changes them, so they survive a reload, reach every tab, and come back on a
      refusal. Escape, Discard and Save settle them; words left by a reload or a refusal
      wait in the draft, the message saying it holds them (`keptRewrite`), and opening the
@@ -31,13 +31,13 @@
    rewrite again, which finds them, or Resume writing does. Back lands on the message's
    Edit control rather than the reply box, whose caret would raise a phone's keyboard.
    So an accidental Escape or Discard loses nothing for good: ⌘Z puts the discarded
-   words back in the rewrite's draft and opens its message on them (undo.js,
+   words back in the rewrite's draft and opens its message on them (annotations/undo.js,
    `takeDiscard`). Where the close leaves the user decides when ⌘Z reaches it (below).
    On the message's Edit control ⌘Z is Leaf's, and the discard's notice shows its Undo
    at once. The thread's reply box keeps ⌘Z for its own words, so from there ⌘Z
    reaches the discard once the user leaves the box, and the notice shows its Undo
    then. The notice answers the user's own gesture with a press, so it stays past its
-   time until the first input after it (notifications.js, `showNotice`), and the
+   time until the first input after it (transport/notifications.js, `showNotice`), and the
    Escape that leaves the box within that time shows its Undo.
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
@@ -97,7 +97,7 @@
    deletes the message (events.md, "Messages"), which then reads Deleted in its place
    (messages.js): a box emptied of words says so before the press, its field reading
    Delete message and its Save turning to Delete, so no dialog asks again: ⌘Z takes a
-   saved rewrite back, a deletion as any other (undo.js).
+   saved rewrite back, a deletion as any other (annotations/undo.js).
    Rejected: refusing an empty rewrite, which left a Save that drew as live and did
    nothing, so the user typed a placeholder such as "[removed]" over their words (the
    user's decision); and deleting by withdrawing the message (`undo`),
@@ -434,7 +434,7 @@ export class MessageEditor {
       return Boolean(control);
     };
     // Closing as Escape and Discard do, throwing away what changed, which ⌘Z brings
-    // back (undo.js, `keepDiscard`), and returning the user to where the rewrite was
+    // back (annotations/undo.js, `keepDiscard`), and returning the user to where the rewrite was
     // opened (the header): up ↑'s rung, or onto the message's Edit control.
     const close = () => {
       const says = unchanged() ? "Stopped editing" : null;

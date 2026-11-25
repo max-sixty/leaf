@@ -902,7 +902,7 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     assert panel_tab(page, "Threads").bounding_box() == tab
     page.keyboard.type("Could")
     expect(page.locator(".lf-fp-send")).to_be_visible()
-    # Send's preview names the key that sends from the box (preview.js).
+    # Send's preview names the key that sends from the box (annotations/preview.js).
     page.locator(".lf-fp-send").hover()
     expect(page.locator("#lf-preview")).to_be_visible()
     expect(page.locator("#lf-preview .lf-preview-word")).to_have_text("Send")
@@ -1634,7 +1634,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     and a notice says what joined. Enter on it lets the list settle and lands on the
     first row it named, where K reads its preview. Later news holds the rows still
     behind the notice, and that preview keeps its corner, its words fitted to the room
-    the notice leaves it (preview.js). A tab press draws the list whole, a row it held
+    the notice leaves it (annotations/preview.js). A tab press draws the list whole, a row it held
     included."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
@@ -1677,7 +1677,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect(rows).to_have_count(5)
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     expect(returned).to_be_focused()
-    # A landing previews nothing until the user asks (preview.js).
+    # A landing previews nothing until the user asks (annotations/preview.js).
     expect(page.locator(PREVIEW)).to_be_hidden()
     page.keyboard.press("Shift+K")
     expect(page.locator(PREVIEW)).to_be_visible()
@@ -2572,7 +2572,7 @@ FOOT = """([parts, fromEnd]) => {
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):
-    """The floating panel declares the one box it covers (geometry.js, `declareCover`),
+    """The floating panel declares the one box it covers (dom/geometry.js, `declareCover`),
     and what a view open above the row covers is hidden from every reading of what the
     user sees: a paragraph in the band the view stands across reads as unseen while the
     view is open, though part of it stands beside the view, since the user sees it only
@@ -2614,7 +2614,7 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
 
 def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, serve):
     """The top layer paints over the panel, so a popover standing over an open view is
-    in front of the user and the panel's cover takes none of it (geometry.js,
+    in front of the user and the panel's cover takes none of it (dom/geometry.js,
     `covered`): a Tab's arrival there leaves the view open, as it does a stop the view
     stands clear of."""
     popover = (
@@ -2650,7 +2650,7 @@ def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, se
 
 def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     """Whether the panel stands over an arrival is read where its box comes to rest, not
-    where its motion has drawn it so far (geometry.js, `covered`): a Tab's arrival at a
+    where its motion has drawn it so far (dom/geometry.js, `covered`): a Tab's arrival at a
     stop at the page's foot while Threads is still opening over it puts the view away,
     as it does once the view stands open, and the stop ends in sight."""
     # The Tab leaves a stop the view never covers, above where it comes to rest: a key
@@ -2691,7 +2691,7 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
 
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):
     """A package that draws the page's conversations itself keeps that place under the
-    panel (application.js, `registerThreadPresentation`, `yields`): the page starts
+    panel (host/application.js, `registerThreadPresentation`, `yields`): the page starts
     without a fault, and a thread opened from the panel's Threads opens in the
     package's reader rather than above the row."""
     from render_cases_interaction import package_workspace
@@ -2708,7 +2708,7 @@ def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, ser
 
 def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, serve):
     """A page's own reader registered while the panel shows a thread takes that thread
-    (application.js, `yielded`): the panel's view goes and the reader is asked to show
+    (host/application.js, `yielded`): the panel's view goes and the reader is asked to show
     it, at the message the user was located on, rather than the panel standing open on a
     conversation it no longer draws."""
     url = serve(LONG_PAGE)
@@ -3421,7 +3421,7 @@ def test_an_error_copies_with_where_it_was_raised_and_which_leaf_ran(browser, se
 
 def test_a_walk_says_its_position_in_the_panel(browser, serve):
     """A walk's position is said where the panel says whatever passes, not against the
-    window: in the empty field's place, as a notice is. The room the page shows (geometry.js, `shownWindow`) runs from the window's
+    window: in the empty field's place, as a notice is. The room the page shows (dom/geometry.js, `shownWindow`) runs from the window's
     head to the panel's row whether or not a walk is under way. The position goes
     unsaid once the caret is in the field, though its moment has not passed, and stays
     unsaid once the comment's thread opens over the row and the send leaves the user
@@ -5148,7 +5148,7 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
     """A wheel up the open thread's view, as the view gives up room at its top in the
     same moment, as it does to a reply that gains a line or to a draft from another tab,
     moves the thread as far as the wheel moves it alone, and the view gives way too
-    (scrolling.js, `keepFoot`). Firefox applies the wheel's scroll a frame or more after
+    (dom/scrolling.js, `keepFoot`). Firefox applies the wheel's scroll a frame or more after
     the wheel, and the view's own move made meanwhile cancelled it: with 100px of room
     taken from 300, a wheel of 200px up left the view 100px further down the thread
     rather than 100px further up it."""
@@ -5203,7 +5203,7 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
             # The box's sequence ended with no scroll heard in it: the quiet spell ran
             # out before the browser applied the wheel, as a Firefox starved of CPU
             # does, and the move the view owed, made at that end, cancelled the wheel.
-            # That loss is accepted as a corner case (arrivals.js, `SETTLE_MS`): no
+            # That loss is accepted as a corner case (dom/arrivals.js, `SETTLE_MS`): no
             # event says the browser won't scroll. The move this test guards against,
             # made at the wheel, scrolls the box before its sequence ends.
             pytest.xfail("the browser applied the wheel after the reader's wait ended")
@@ -5318,7 +5318,7 @@ def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serv
 def test_copy_link_is_one_press_over_plain_http(browser, serve):
     """A page another machine reads over plain HTTP has no Clipboard API, and the leaf's
     menu still offers Copy link there, since the copy control copies through the
-    browser's selection command (copy-control.js, `canCopy`)."""
+    browser's selection command (transport/copy-control.js, `canCopy`)."""
     local_url = live_url(serve(LONG_PAGE))
     context, remote_url = over_plain_http(browser, local_url)
     page = open_page(browser, remote_url, context=context)
@@ -5903,7 +5903,7 @@ def test_a_ring_the_field_comes_back_to_mid_tween_waits_for_its_end(browser, ser
     exists only while the focus paint marks the field's row. The field is a part of the
     box that moves, and focus leaving it and coming back while a line it gave up still
     travels makes that ::after anew. Its ring waits for the tween's end, as the one the
-    motion drew from the tween's start does (box-motion.js): drawn at once, it would
+    motion drew from the tween's start does (dom/box-motion.js): drawn at once, it would
     stand at the field's rest size inside a box still travelling."""
     page = floating(browser, serve(LONG_PAGE))
     page.emulate_media(reduced_motion="no-preference")
@@ -6005,7 +6005,7 @@ def test_the_field_s_words_and_mark_keep_to_its_top_edge_both_ways(browser, serv
     """A line added raises the box's top edge in the frame the key lands, the field's
     words and the more-room mark with it, as a textarea's would; a line removed carries
     the words down with that edge over the tween, the mark riding its corner (box-
-    motion.js, "Whose change it is"). The mark fades in with the fourth line and out
+    dom/motion.js, "Whose change it is"). The mark fades in with the fourth line and out
     with it. The words don't jump to their place on removal while the edge travels,
     nor does the mark stand still while the rising edge uncovers it. The removal's
     first frame shows the field's words where they stood, so no line is cut off where

@@ -96,7 +96,7 @@
   }
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and starts where the card will, so the
-     card Send opens grows out of the field from that start (box-motion.js, `drawnAt`).
+     card Send opens grows out of the field from that start (dom/box-motion.js, `drawnAt`).
      The frame is as wide as its words' longest line, from the card's least width
      (`--lf-thread-card-min`) to the measure (`--lf-thread-card`) or its room where that
      is narrower, and wraps them there, so a first line widens it away from its start,
@@ -171,7 +171,7 @@
     will-change: opacity;
   }
   /* Floating, the box moves as the card it grows into does (floating-response.js,
-     box-motion.js): the composer is a box of its own in the frame's field row, holding
+     dom/box-motion.js): the composer is a box of its own in the frame's field row, holding
      what moves, and the field's frame is the box its surface draws, its border the
      surface's ring showing through the pixel its own face leaves round it. The editor
      paints nothing of its own, so its words travel inside the frame while it moves. */
@@ -343,12 +343,12 @@
   /* The face fills the card. Its border is the surface's ring, which shows through it,
      and its own paper, the fill's colour at rest, makes the card read as painted to a
      contrast checker, which reads no clipped layer; while the card moves its motion
-     lets the surface's fill show instead (box-motion.js). */
+     lets the surface's fill show instead (dom/box-motion.js). */
   .lf-margin-preview-card {
     box-sizing: border-box;
     min-height: 0;
     /* It only clips, so nothing scrolls it, and its motion letting what it carries
-       stand past its edge changes no scroll container (box-motion.js). */
+       stand past its edge changes no scroll container (dom/box-motion.js). */
     overflow: clip;
     padding: var(--lf-thread-pad);
     border: 1px solid transparent;
@@ -698,7 +698,7 @@
     scrollbar-gutter: stable;
   }
   /* The bar shows only where the turns overflow as layout stands them, as the gutter
-     does. A motion draws the turns away from where they stand (box-motion.js), and the
+     does. A motion draws the turns away from where they stand (dom/box-motion.js), and the
      browser counts that drawing as overflow: a bar it showed then would rewrap the
      turns a line taller for the motion's length, lifting the card and dropping it
      back. The transcript still scrolls. */

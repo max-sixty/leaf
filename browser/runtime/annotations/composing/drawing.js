@@ -209,7 +209,7 @@ export function createDrawingController({
   /** @type {{anchor: Anchor} | null} */
   let lastDrawn = null;
   let mounted = false;
-  // The press Draw mode claimed. The claim is the press's (focus.js, `pressRecords`), so
+  // The press Draw mode claimed. The claim is the press's (dom/focus.js, `pressRecords`), so
   // it stands from the pointerdown through the compatibility events its release owes,
   // and goes with the press: leaving Draw mode with the pointer still down, as Escape
   // can, keeps that physical press claimed through its click; only the drawing stops.
@@ -460,7 +460,7 @@ export function createDrawingController({
       return;
     }
     // The browser shows the cursor of the element holding the pointer, so the stroke's
-    // moves go to the one wearing the crosshair (page-geometry.js), inside a widget's
+    // moves go to the one wearing the crosshair (panel/page-geometry.js), inside a widget's
     // tree where the press landed in one.
     const holder = elementFromPointAcross(event.clientX, event.clientY) ?? event.target;
     if (holder instanceof Element) holder.setPointerCapture(event.pointerId);
@@ -589,7 +589,7 @@ export function createDrawingController({
   // The presses a claimed pointer's own sequence still owes the page, swallowed so a
   // stroke that ended over a control does not also activate it. The claim stands over
   // the whole document until the stroke's compatibility events have passed, so it has to
-  // say which presses it is for: a keyboard activation is not one of them (pointer.js).
+  // say which presses it is for: a keyboard activation is not one of them (base/pointer.js).
   // Eating it silently lost the user's press — Ctrl+Enter on the composer the stroke
   // had just opened sent nothing, and nothing said so.
   /** @param {MouseEvent} event */

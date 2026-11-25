@@ -12,17 +12,17 @@
    gesture put a view away by its close request (dom/keyboard/close-requests.js), so they
    rename the entry and never traverse. A route that travels to a thread names the entry
    it adds the same way: the step is written once the view stands open, and the entry
-   left keeps the name it had (history.js, `prepareEntry`). A seat's thread stands in
+   left keeps the name it had (records/history.js, `prepareEntry`). A seat's thread stands in
    its widget rather than in a view, so its entry names no thread. The composition
    compares threads rather than spellings, so a link naming one of a thread's replies
    stands. The entry is renamed as the change happens, so a press that closes a card as
    it takes focus renames the entry it is on before the link it lands on adds the next
-   one; history.js says when a rename waits (`replaceEntry`).
+   one; records/history.js says when a rename waits (`replaceEntry`).
 
    A traversal shows the thread its entry names (`claim`): it opens that thread where
    the user stands, or puts the open thread away where the entry names none, beside any
    fragment the entry carries, and resolves to false, leaving the page and the user's
-   place in it to the entry's record (history.js). The record holds the reader the
+   place in it to the entry's record (records/history.js). The record holds the reader the
    entry's view was, the route's `reader` request for it, which the claim passes on, so
    a thread about a passage the user read in the floating panel opens there again, and
    one they read in its card opens in its card, or where Leaf places it when no card can
@@ -35,7 +35,7 @@
    user to the view they had left. Where the record says
    the floating panel showed a list, the list comes back as the user left it: On on
    its tab, read to where they had read it, standing on the row the record names, the
-   one the user left by, else the row of the thread put away (floating-panel.js,
+   one the user left by, else the row of the thread put away (panel/floating-panel.js,
    `putThreadAway`), so Back from a thread opened from Threads returns to Threads on
    its row though a reload has forgotten the panel's views since, or Escape put the
    thread away first.
@@ -43,7 +43,7 @@
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
    focus. Where the browser restored the page's place, as on a reload, the arrival is a
    return, which moves the page no further than the browser put it, as a fragment's
-   return doesn't (version.js, `aimArrival`): the thread opens where the page stands,
+   return doesn't (features/version.js, `aimArrival`): the thread opens where the page stands,
    with the user in it, so the next `t` goes on from it. Where the URL also names an
    element, which places the page, the thread opens beside it without focus. So a widget
    that names the view it opens in the fragment, as a tab set names the panel the
@@ -70,7 +70,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   };
 
   // `url` naming the thread that stands open now, or none: the one composition of the
-  // parameter, which every entry history writes takes (history.js, `nameThread`).
+  // parameter, which every entry history writes takes (records/history.js, `nameThread`).
   /** @param {URL} url */
   function name(url) {
     const open = untracked(shown)?.id ?? null;
@@ -106,7 +106,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
           }
         : null;
     if (open?.id === id && (!kept || open.reader === kept.reader)) return null;
-    // Under the intent of the restoration that asks (history.js), which a newer
+    // Under the intent of the restoration that asks (records/history.js), which a newer
     // navigation or the user's own input ends.
     return async () => {
       if (!intent()) return false;
@@ -130,7 +130,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   }
 
   // The arrival's route to the thread `url` names, under the arrival's intent
-  // (history.js, `beginRestoration`), or null where it names none. `restored` is an
+  // (records/history.js, `beginRestoration`), or null where it names none. `restored` is an
   // arrival whose place the browser restored, a reload's or a traversal's into the
   // document.
   /** @param {URL} url @param {import("../../dom/user-intent.js").UserIntent} intent

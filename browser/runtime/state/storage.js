@@ -23,11 +23,11 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // outlives the tab, because closing one is the ordinary end of a tab here. The words
 // themselves, what the user typed or drew into a composition the log settles (a
 // comment, a reply, an `lf-draft`) and hasn't sent, are every tab's and every device's,
-// so the page's server keeps them (drafts.js), and the agent reads none of them, because
+// so the page's server keeps them (records/drafts.js), and the agent reads none of them, because
 // sending is when the user says them. An edit to a bound file is not one: the file on
 // disk is what tabs share, so its buffer stays in its tab. The tab holds unsent words
 // only from a page to its reload, while the server has yet to answer their writes
-// (drafts.js). `userStore` is this user's
+// (records/drafts.js). `userStore` is this user's
 // lasting preference across pages, which is the chrome they arrange and expect to find
 // arranged. The stores reach this tab or this browser. What another browser or the agent
 // must read is none of the three: it goes in the log, which every tab already follows,
@@ -44,7 +44,7 @@ const { stored } = window.lfStorage;
 // surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
 // collapsed group) — a module reaches its drafts through `draft`, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
-// nobody asked for. tab-store.js owns the portable widget store, and views.js keeps
+// nobody asked for. tab-store.js owns the portable widget store, and records/views.js keeps
 // which member a widget shows.
 export const writingStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the

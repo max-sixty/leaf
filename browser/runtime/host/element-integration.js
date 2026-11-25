@@ -69,7 +69,7 @@
    draws nothing; a `pending-task` from a node inside the element is preparation
    (widget-controller.js). A visual may have redrawn the parts
    it marks by the time a pass's drawing is in, which the pass says with
-   `layoutChanged` (visual-parts.js).
+   `layoutChanged` (state/visual-parts.js).
 
    Where one publication moves several readings, their `state`s are set in the page's
    rendered order, a parent before what it holds, whichever class was defined first: a
@@ -87,7 +87,7 @@
    Leaf set, and Leaf cancels the event where it will set the element's `state`: a
    widget's reading, or, on an element that only reads data, an empty one once its
    inputs are set. Leaf also dresses the open shadow root of an element that says it
-   (shadow-stage.js), whatever its tag declares. */
+   (dom/shadow-stage.js), whatever its tag declares. */
 import { effect, signal, untracked } from "/runtime/records/framework.js";
 import {
   attachApplicationPresentation,
@@ -135,7 +135,7 @@ const valueOf = (reading, verb) => {
   const state = reading?.state[verb];
   return text(state && "value" in state ? state.value : null);
 };
-// An arrival offers an element again whenever its children change (arrivals.js).
+// An arrival offers an element again whenever its children change (dom/arrivals.js).
 /** @type {WeakSet<Element>} */
 const hosted = new WeakSet();
 // The elements that said `lf-connect`.

@@ -17,7 +17,7 @@
    while the user is on the obligation, and so does the platform's own press of the
    control the user is on, its Enter and Space (text-entry.js, `nativeActivationAt`),
    which every control of its kind takes. `controlKeys` is that reading as key chips, which
-   the preview of a control draws (preview.js) as it shows, and `paintCoreControls` puts
+   the preview of a control draws (annotations/preview.js) as it shows, and `paintCoreControls` puts
    the same presses in the control's `aria-keyshortcuts`, since a screen reader announces
    the attribute with no context to say where a key works. A control's attribute also
    names the keys its own scopes take while it has focus (scopes.js,
@@ -94,7 +94,7 @@ const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boo
 
 /** The complete shortcut one command advertises, each press a step as a key chip
  * spells it, for a presentation that draws a command as words with its keys
- * (page-controls.js, a row's `shortcut`). Empty for a command no key reaches. Resolved by
+ * (base/page-controls.js, a row's `shortcut`). Empty for a command no key reaches. Resolved by
  * command id rather than by row identity: a scope may carry another owner's command as a
  * row of its own — a `g` destination wraps the declaration it stands for — and the
  * shortcut the user presses is the one that scope prefixes. */
@@ -132,7 +132,7 @@ function pressNow(id) {
   return null;
 }
 /** The bindings that would make a command's press now (`pressNow`), for a surface that
- * hands them on to be spelled, as a preview's `keys` (preview.js), or none, as on a
+ * hands them on to be spelled, as a preview's `keys` (annotations/preview.js), or none, as on a
  * page that shows no keys, a touchscreen's. */
 /** @param {string} id */
 export function commandBindingsNow(id) {

@@ -527,7 +527,7 @@ def scroll_settled(page, scroller=None, axis="y"):
 
 # The floating panel's row ends in the leaf, which counts what waits on the user
 # on a badge over its corner (`.lf-fp-badge`) and dots a thread with news, and opens the On view on the tab those
-# marks point at (floating-panel.js, `leafOpens`). While a stance or search stands, its
+# marks point at (panel/floating-panel.js, `leafOpens`). While a stance or search stands, its
 # way out (`.lf-fp-row > .lf-fp-exit`) stands before it. A view's Close
 # (`.lf-fp-exit.lf-fp-close`) ends a list's tabs or another view's head line instead.
 LEAF = ".lf-fp-leaf"
@@ -540,7 +540,7 @@ LEAF = ".lf-fp-leaf"
 PANEL = ".lf-floating-panel"
 
 # The words in the panel's one seat for what passes, such as a notice or a walk's
-# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
+# position (panel/floating-panel.js, `passing`): the leaf's peek while it shows one over an
 # open view, else an error standing over the field's words (annotations/composing/input.js), else
 # the empty field's placeholder.
 PANEL_SAYS = """() => {
@@ -574,7 +574,7 @@ def panel_tab(page: Page | FrameLocator, name: str):
 
 def unfold(page: Page | FrameLocator, press=None):
     """Unfold a panel folded to the leaf, by `.` or where focus landed on a place its
-    row alone would hide (floating-panel.js, `giveWay`), with a press on the leaf, which
+    row alone would hide (panel/floating-panel.js, `giveWay`), with a press on the leaf, which
     then opens no view. `press` presses a control, a click by default."""
     host = page.locator(PANEL)
     if host.get_attribute("data-lf-rest") == "mark":

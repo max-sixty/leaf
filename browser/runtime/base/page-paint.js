@@ -22,15 +22,15 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   source: "data-lf-source",
   sourceRevision: "data-lf-source-revision",
   // A data widget that has reported a draw (records/projection/data.js, `projectMarked`), so
-  // its source stamps say which revision it shows (anchor-resolution.js).
+  // its source stamps say which revision it shows (readings/anchor-resolution.js).
   drawReported: "data-lf-draw-reported",
   userOverride: "data-lf-user-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
-  // A box the runtime or a module opts into scroll reach (reach.js), as the page's
+  // A box the runtime or a module opts into scroll reach (dom/reach.js), as the page's
   // `scroll` class does for its own boxes. A value names the box a reading region,
-  // and the frame around one names the region it holds (reading-regions.js).
+  // and the frame around one names the region it holds (readings/reading-regions.js).
   scrollSurface: "data-lf-scroll",
   scrollHost: "data-lf-scroll-host",
   scrolls: "data-lf-scrolls",
@@ -43,7 +43,7 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   // (annotations/annotation-overlay/floating.js).
   floatingEditor: "data-lf-floating-editor",
   traffic: "data-lf-traffic",
-  // The marks the runtime draws round a box as its outline (target-paint.js,
+  // The marks the runtime draws round a box as its outline (readings/target-paint.js,
   // surfaces.css): the aim, the trace a margin entry draws on what it concerns, the proxy
   // ring and the location ring. Attributes rather than classes, so an observer of the
   // page's classes, such as the margin's (margin-layout.js), hears none of them.
@@ -51,24 +51,24 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traced: "data-lf-traced",
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
-  // On a marked box whose marks reach over a list marker (geometry.js, `markerReach`),
+  // On a marked box whose marks reach over a list marker (dom/geometry.js, `markerReach`),
   // which surfaces.css reads to draw them.
   besideMarker: "data-lf-beside-marker",
   // The cursor's paint, on the element under the pointer, which the margin likewise does
-  // not hear: the hand over a thread's mark (anchor-paint.js,
+  // not hear: the hand over a thread's mark (annotations/anchor-paint.js,
   // annotation-chrome.css), and the aim's hand where it has an item and the crosshair of
-  // Draw mode and Capture area (page-geometry.js).
+  // Draw mode and Capture area (panel/page-geometry.js).
   overMark: "data-lf-over-mark",
   overItem: "data-lf-over-item",
   crosshair: "data-lf-crosshair",
-  // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
+  // The anchor name a heading holds while its link shows (records/heading-links.js, marks.css),
   // which the margin likewise does not hear.
   headingLink: "data-lf-heading-link",
   // A typeset formula's `<code>`, `inline` or `display`, whose rules stop drawing
-  // code's face round it and round a display formula's `<pre>` (formulas.js).
+  // code's face round it and round a display formula's `<pre>` (readings/formulas.js).
   formula: "data-lf-formula",
   // An element holding words a passage highlight paints, which the highlights' rules
-  // name (anchor-paint.js, `holdWords`; marks.css).
+  // name (annotations/anchor-paint.js, `holdWords`; marks.css).
   markedWords: "data-lf-marked-words",
 });
 
@@ -81,12 +81,12 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   mediaWidth: "data-lf-media-width",
   mediaHeight: "data-lf-media-height",
   // A module's, not a runtime writer's: the quiet word it declares on a part, which the
-  // runtime writes there (declared-words.js, `watchQuietWords`). Paint even on an
+  // runtime writes there (records/declared-words.js, `watchQuietWords`). Paint even on an
   // authored element, a suggestion's slot, since the word follows the slot's state.
   quiet: "data-lf-quiet",
 });
 
-// Whether the page has presented: the stamp presentation.js writes once on `body` and
+// Whether the page has presented: the stamp readings/presentation.js writes once on `body` and
 // never takes back.
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);

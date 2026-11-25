@@ -17,7 +17,7 @@ export const onList = (whom) => (whom === "me" ? "On Me" : `On ${whom}`);
 // waits on whoever it is on once the server's reading is in, else that the list can't
 // be had while the server is offline or is still loading, as Threads says of its list.
 // On Me's words are its empty view's, `m` pressed over it, and the notice of a reading
-// that empties it (semantic-news.js).
+// that empties it (host/semantic-news.js).
 /** @param {string} phase @param {string} whom `me`, or the agent's name */
 export const emptyOnList = (phase, whom) =>
   phase === "ready"
@@ -53,7 +53,7 @@ export const itemNoun = (item) =>
 // row says: a reply the agent sent, or a to-do's outcome. A widget's
 // obligation says its own ending (records/obligations/answer.js). The agent's own reply and
 // the end it gave its own to-do are its acts, in its voice; Leaf says how anything
-// else on the user's list ended (voice.js).
+// else on the user's list ended (base/voice.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 /** @param {import("../records/framework/snapshot.js").Immutable<import("../records/framework/application.js").CurrentQueueItem>} item */
 export const itemOutcome = (item) =>

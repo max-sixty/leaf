@@ -9,7 +9,7 @@
 
    A comment stands by what it is about. `clear` is the box it keeps
    clear of, as the page shows it: the paragraph holding a passage, the element, or the
-   row a pointing gesture named in it (pointed-place.js). `extent` is that box whole,
+   row a pointing gesture named in it (readings/pointed-place.js). `extent` is that box whole,
    however much of it a scroll has clipped, which is what the room around it is measured
    from. `row` is the first line it stands level with beside `clear`, and `lastRow` the
    last: a passage's first line for both, else `extent`'s top and foot. Both come from
@@ -44,7 +44,7 @@
    the room, so a crossed edge never moves the card (`scroll-with-text`). A region in
    flow scrolls nothing itself, so a surface on words in a pane the page scrolls stands
    in the page, or in whatever box scrolls that pane; which boxes scroll is the
-   stylesheet's to say (reading-regions.js). Rejected: the
+   stylesheet's to say (readings/reading-regions.js). Rejected: the
    block that scrolls the row, which capped a card on a log row at the log's height and,
    once a short log filled, moved its card from the rail into the log. Also rejected:
    the innermost reading region around the row, whether or not it scrolled, which
@@ -85,7 +85,7 @@
    boundary scrolls its own content. Only `makeRoom` scrolls, for a card opening under
    or over its target (`size-page-still`). A surface is opening until it first
    stands. The first move Leaf then starts in its scroller before any later input
-   (scrolling.js, `scrollStarts`) opens it once more, until it stands again. A walk
+   (dom/scrolling.js, `scrollStarts`) opens it once more, until it stands again. A walk
    opens its card before its landing brings the card's words in from beyond the
    window, so the card makes its room again where that landing leaves them, on the
    side it chose. A scroll a later input makes, or one Leaf doesn't start, such as a
@@ -391,7 +391,7 @@ const sameBoundary = (a, b) =>
 const vertical = (side) => side === "top" || side === "bottom";
 
 // How far, in viewport pixels, scrolling `scroller` toward the end that brings room in
-// on `side` carries `element` before it first stops riding (geometry.js, `carried`).
+// on `side` carries `element` before it first stops riding (dom/geometry.js, `carried`).
 // The browser scrolls in local CSS pixels, which the scroller's transformed axis
 // projects; an inverted axis reverses which local end brings room in on that side.
 /** @param {Side} side @param {Element} scroller @param {Element} element */
@@ -434,12 +434,12 @@ function reachableRoom(side, extent, room, boundary, scroller, element) {
 // closed. Where the subject's `extent` and this surface cannot show together, no scroll
 // makes that room. The boundary then holds the
 // surface over its subject instead of scrolling the subject away. The room is read where
-// the scroller is headed (scrolling.js, `whereGlidesLand`), as a key pressed while the
+// the scroller is headed (dom/scrolling.js, `whereGlidesLand`), as a key pressed while the
 // page glides acts as though the glide had landed. A glide under way takes the room
 // into its goal and reads it again at each frame, though the room asks for no move yet
-// (scrolling.js, `glideBy`), so the page lands once, with the room made, wherever layout
+// (dom/scrolling.js, `glideBy`), so the page lands once, with the room made, wherever layout
 // moves the subject meanwhile. The move carries `clear` only until its `element` first
-// stops riding it (geometry.js, `carried`), so a subject in a sticky box the scroll can't
+// stops riding it (dom/geometry.js, `carried`), so a subject in a sticky box the scroll can't
 // carry asks for no move.
 /** @param {"top" | "bottom"} side @param {() => Clearance | null | false} read @param {number} height @param {Boundary} boundary @param {Element} scroller */
 export function makeRoom(side, read, height, boundary, scroller) {
@@ -534,7 +534,7 @@ export const standsTall = (texts) => {
   return false;
 };
 // How far a surface on `side` stands from what it is about (`place-clear`): the room the
-// marks round it take past its box on that side (the attachment's `room`, mark-room.js
+// marks round it take past its box on that side (the attachment's `room`, readings/mark-room.js
 // `markRoom`), their gap and band and any reach over a list marker, then the gap the
 // surface keeps from the edge of its room, so the mark's line and the surface's edge
 // have that gap between them too. It holds whether or not a mark shows, since one

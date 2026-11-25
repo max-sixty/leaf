@@ -266,7 +266,7 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
     engine, request, serve
 ):
     """A thread's words preview the thread only where nothing else there takes the
-    pointer (widget-elements.js, `aimableAt`). Words inside a link, or all of a link's,
+    pointer (dom/widget-elements.js, `aimableAt`). Words inside a link, or all of a link's,
     preview the link; in a titled button, only the title the browser shows; a gloss's
     words, its explanation; and words in a card that says what it holds, the card.
     Words in plain prose preview their thread."""

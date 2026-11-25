@@ -47,7 +47,7 @@ export function answerWords(item) {
 
 /* How a finished obligation ended, in the words a Done row and the floating panel show:
    its answer, after a colon so the two never read as one phrase, or its withdrawal.
-   Leaf says what became of what the page asked of the user (voice.js); the answer
+   Leaf says what became of what the page asked of the user (base/voice.js); the answer
    itself is the user's value, in the interface's face. */
 /** @param {AnswerableObligation} item */
 export function obligationEnding(item) {

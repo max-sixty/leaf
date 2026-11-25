@@ -40,7 +40,7 @@
  * sample's page out of view in Chromium"), so without that end a reader who scrolled
  * past the frame as it loaded would hold the page until they came back.
  * A reading step the child's scroll chain spent goes on from the frame here, as the
- * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
+ * wheel's scroll chains out of a frame (panel/navigation.js, `stepAlong`).
  * Removing a frame retires its realm before releasing the allocation, including on
  * reset and parent departure. Destruction cancels pending admission and queue
  * waits; an allocation already in flight is allowed to finish so its returned
@@ -57,7 +57,7 @@
  * fails or departs, since the frame takes the document's height as it arrives
  * (sample-child.js), which moves this page's boxes on screen or off. That part may wait
  * on a rendering, which a frame off screen or in a closed disclosure may not get
- * (rendering.js; notes/browser-support.md, "A sample's page out of view in Chromium"):
+ * (base/rendering.js; notes/browser-support.md, "A sample's page out of view in Chromium"):
  * a chart sized by its first layout waits, and so does the upgrade of the widget layer
  * holding it. A deadline caps that wait (`SIZING_MS`). Past it, once a check has asked
  * for all near work (`nearWork`), and for a window from the start, whose frame keeps
@@ -81,7 +81,7 @@
  * document reaches the other's DOM, storage or runtime, and the child's requests to
  * other servers follow opaque-origin CORS. Native focus and reveal calls an authored
  * script makes keep their browser behavior; Leaf's own placements are skipped unless
- * the child holds focus (focus.js, `canPlaceFocus`), and its reveals stay within its
+ * the child holds focus (dom/focus.js, `canPlaceFocus`), and its reveals stay within its
  * document. Child-capability responses carry `Referrer-Policy: no-referrer` (http.py,
  * `_sample_headers`). The frame delegates no permission policy, so the browser refuses
  * the child's clipboard writes and its copy controls fall back as on any page whose
@@ -368,7 +368,7 @@ export function mountSample(
       document.visibilityState === "visible" && frameVisibility()?.visible !== false
     );
   }
-  // Whether the browser renders the frame: on screen (frame-visibility.js) in a page
+  // Whether the browser renders the frame: on screen (base/frame-visibility.js) in a page
   // that itself shows.
   function rendered() {
     return pageShows() && seen.shown();
@@ -775,7 +775,7 @@ export function mountSample(
     });
   }
   // A check that asks this page for all the work it holds until the reader comes near
-  // (presentation.js, `startNearWork`) asks each upgraded child document the same, once,
+  // (readings/presentation.js, `startNearWork`) asks each upgraded child document the same, once,
   // and counts the child as arriving until it has started that work. The check waits
   // for each document itself (render_checks.py, `start_near_work`).
   /** @type {string | null} */

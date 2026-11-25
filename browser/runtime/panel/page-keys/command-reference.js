@@ -36,7 +36,7 @@
    the reference to reopen with an explanation.
 
    `?` opens it from anywhere a key reaches, and the page's controls carry the same
-   door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
+   door as their Keyboard shortcuts row (base/page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
 import { labelWords } from "../../lib/words.js";

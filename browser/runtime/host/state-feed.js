@@ -3,7 +3,7 @@
    freshness read also names the reading of the machine's other pages, which it hands to
    their list (live-leaves.js, `hearPages`) and never compares with the page's own; a
    look that hears nothing tells the list so too. It names the store and version of
-   the user's drafts as well, which drafts.js follows the same way (`hearDrafts`).
+   the user's drafts as well, which records/drafts.js follows the same way (`hearDrafts`).
 
    `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
    while waiting means the log has not been read; it does not mean there are no comments.

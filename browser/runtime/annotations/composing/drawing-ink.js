@@ -7,7 +7,7 @@
  * cache or observer; a page without that producer still draws its live gestures.
  *
  * Each mark stands in the frames that cut its target, anchored to it (paint stands,
- * target-paint-geometry.js), so every scroll that moves the target carries it without
+ * readings/target-paint-geometry.js), so every scroll that moves the target carries it without
  * extending the document's overflow, and a pane scrolling its target away cuts it at
  * its edge. Ink still being drawn is cut by nothing, since the pen goes where the
  * user puts it. Equal complete descriptions retain the actual SVG node.

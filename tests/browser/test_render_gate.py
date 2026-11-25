@@ -1889,8 +1889,8 @@ def other_pages(page):
 # or null outside every thread or where the user sees none of the focused node. Seeing
 # it takes both what the browser draws, which `checkVisibility` reads through every
 # ancestor's display, visibility and opacity, and where it is drawn, which `seenRect`
-# (geometry.js) holds to the viewport, every clip and the chrome, as
-# anchor-resolution.js composes the two for a passage.
+# (dom/geometry.js) holds to the viewport, every clip and the chrome, as
+# readings/anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
   const {focused} = await window.__lfCheckApi();
@@ -2081,10 +2081,10 @@ def resize_findings(page, path):
 
 def untouched_resize_findings(page):
     """A page opened at its widest and scrolled by no one still shows its place, the
-    words at its landing edge (reading-place.js), once the window narrows to a phone's:
+    words at its landing edge (readings/reading-place.js), once the window narrows to a phone's:
     continuity keeps the page's own place, and a region the narrowing carries into the
     page, as a sidebar's track or a pane stacking under the one before, holds no place
-    of the reader's to take the page to (version.js, `placeFor`). Read on a page of its
+    of the reader's to take the page to (features/version.js, `placeFor`). Read on a page of its
     own, since every other journey scrolls the page it reads."""
     assert page.viewport_size["width"] == RESIZE_PATH[0]
     rendered(page)
@@ -3857,7 +3857,7 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
     """A box turned a quarter shows across what it holds down, so what it clips to is
-    the box its turned padding box covers (geometry.js, `shownBand`): words it shows
+    the box its turned padding box covers (dom/geometry.js, `shownBand`): words it shows
     whole are not clipped out, and words held past its foot are."""
     source = leaf_page(
         "Turned column",

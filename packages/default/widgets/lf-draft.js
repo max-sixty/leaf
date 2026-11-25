@@ -56,7 +56,7 @@
  * offers, puts them back and opens the editor on them (the draft's `discard`), so a
  * stray press on Discard loses nothing for good; every other way out saves them as Save
  * does, which submits one absolute edit through the shared send generation. A
- * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
+ * press away from the draft saves (dom/focus.js, `onPressAway`), so a tap elsewhere on a
  * phone keeps what was typed without finding Save first, and Android's back
  * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
  * sends the agent a turn, as a stray tap does (the user's decision). Rejected: back closing the editor with its

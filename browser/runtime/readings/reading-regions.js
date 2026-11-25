@@ -19,7 +19,7 @@
    A module states a region on the box itself: reach's mark with a name,
    `data-lf-scroll="<name>"`, makes the box a region's body for as long as it stands in
    the page wearing it, and `data-lf-scroll-host="<name>"` on a box around it makes that
-   box the host. One watch (arrivals.js) keeps those regions registered. Every question
+   box the host. One watch (dom/arrivals.js) keeps those regions registered. Every question
    asked of the registry first reads the mutations the watch has yet to deliver
    (`readMarks`), because a question can come in the task that wrote the mark: a widget
    draws a box and shows its first subject in it (`showReadingSubject`), lands
@@ -27,7 +27,7 @@
    heard only at the watch's delivery would be a region none of those knew. A reading
    of the marks is one batch, which decides its departures first, so a box that replaces
    another takes the id the other held. The watch is this module's own: reach's watch
-   of the same mark (reach.js) starts once the page has presented and gives back a
+   of the same mark (dom/reach.js) starts once the page has presented and gives back a
    keyboard stop where a box leaves, which a reading in the middle of a task would do
    to a box a script is only moving. The runtime registers its own regions directly
    (`registerReadingRegion`).
@@ -68,7 +68,7 @@
    `onReadingInput` tells a reader where the user explicitly clicked. It includes
    unfocusable words, which update the reading region without a focus arrival, and a
    control already holding focus, where the browser announces none. A step by Tab is
-   an arrival, which a reader hears from `onCurrentLocation` (focus.js) as it hears
+   an arrival, which a reader hears from `onCurrentLocation` (dom/focus.js) as it hears
    every other. Mechanical returns, programmatic arrivals and scrolling are not
    choices of another passage. Each consumer interprets that target in its own
    domain. */
@@ -327,7 +327,7 @@ export const readingRegionFor = (node) => {
 // (`releaseFocus`) or a press on nothing puts the user. Anything in the chrome names
 // nothing new, so opening a menu leaves the pane the user was reading as the answer.
 // A key press is not among them: its target is where focus already stands, which
-// arrived as a change where the user is (focus.js, `onCurrentLocation`), or the body,
+// arrived as a change where the user is (dom/focus.js, `onCurrentLocation`), or the body,
 // which is where a click on words leaves it.
 //
 // The page's own answer is kept apart from a surface's. A region in the chrome, such as
@@ -340,7 +340,7 @@ let recentRegionId = null;
 /** @type {string | null} */
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press while it is down (focus.js, `pressing`);
+// That focus belongs to the same press while it is down (dom/focus.js, `pressing`);
 // pointerdown has already named its place.
 /** @type {Set<(node: Node) => void>} */
 const readingInputReaders = new Set();
@@ -388,7 +388,7 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 // where the user reads. One scrolled out of the window still is.
 /** @param {ReadingRegion | undefined} region */
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
-// A region the reading keys chose for the user (navigation.js, `regionForStep`) is the
+// A region the reading keys chose for the user (panel/navigation.js, `regionForStep`) is the
 // one they acted in, as a wheel there makes it, so a walk goes on from it. It stays the
 // keys' choice rather than the user's until the user next acts, which the keys read to
 // keep the page ahead of it.
@@ -545,7 +545,7 @@ const pageGeometry = () => ({
   band: landingBand(pageScroller)?.top ?? 0,
 });
 // A band that moves with the window's width shifts the page. One that moves without
-// it, as a page tab strip arriving does (`--lf-root-headers`, root-headers.js), comes with
+// it, as a page tab strip arriving does (`--lf-root-headers`, dom/root-headers.js), comes with
 // the content that moved it, whose owner keeps the reader's place across it, so it is
 // taken as seen wherever it is read: no size need change with it, and left unseen it
 // would read as unsettled, recording nothing, until the window next changed.

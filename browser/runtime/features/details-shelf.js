@@ -29,9 +29,9 @@
  * page, away from the element it is about, so each owner takes its controls out of the
  * Tab order, and builds each as a proxy (control-faces.js, `proxy`), which shows
  * nothing of its own. Focus on a note stands at what it stands for (`standsFor`): the
- * user's place is there (current-target.js), and the focus brings it into view,
+ * user's place is there (records/current-target.js), and the focus brings it into view,
  * nearest, as a focus move to it would, opening what folds it away. The focus ring
- * stands round it, in a drawn part's own contour (target-paint.js, the proxy ring), on
+ * stands round it, in a drawn part's own contour (readings/target-paint.js, the proxy ring), on
  * any focus, visible or not: nothing but the keys or assistive technology reaches the
  * shelf. The ring follows what the note stands for while focus stays, so a target the
  * page draws anew, which shelves the note under the new element, takes it with it.

@@ -1,5 +1,5 @@
 /* The pages served on this machine now, as the floating panel's All pages lists them
-   (`leavesRows`), and its row among the page's controls (page-controls.js), offered
+   (`leavesRows`), and its row among the page's controls (base/page-controls.js), offered
    while another page is served beside this one.
 
    The list is the machine's, not the page's, so it travels apart from the page's

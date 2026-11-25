@@ -1241,7 +1241,7 @@ class BrowserEnd:
                 f"{url} reached revision {shown} but did not finish presenting it, "
                 f"with its status reading ‘{status}’",
             )
-            # The page is body less Leaf's own elements (passages.js, `inPage`).
+            # The page is body less Leaf's own elements (readings/passages.js, `inPage`).
             rendered = page.evaluate(
                 "() => [...document.body.children]"
                 ".filter((el) => !el.matches('.lf-chrome, [data-lf-runtime]'))"

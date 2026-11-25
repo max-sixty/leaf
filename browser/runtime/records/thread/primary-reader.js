@@ -1,6 +1,6 @@
 /* The page's primary reader of Thread conversations: the one presentation, a
    package's or the floating panel's, that draws each thread in outlets it names
-   (application.js, `attachPresentation`). */
+   (host/application.js, `attachPresentation`). */
 import { aborted } from "../../base/abort.js";
 import { randomId } from "../../base/ids.js";
 import { under, renderedUnder, shadowHost } from "../../lib/shadow-tree.js";

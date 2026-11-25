@@ -523,7 +523,7 @@ attribute no rule reads.
 An opaque sample's sandbox isolates DOM and storage, but authored JavaScript's
 native focus and reveal calls can still move focus or scroll its containing
 page. Leaf contains its own placements through `browser/runtime/dom/focus.js`,
-`dom/keyboard/layer-stack.js`, `landing-scroll.js` and `editor-view.js`; this is a
+`dom/keyboard/layer-stack.js`, `readings/landing-scroll.js` and `annotations/editor-view.js`; this is a
 cooperative runtime contract, not a security boundary for authored scripts.
 Chrome 155 and Chromium 153.0.8010.12 allowed autonomous child focus transfers
 on 2026-10-09. On 2026-10-10, typing into an already focused offscreen native
@@ -802,7 +802,7 @@ name read through `attr()` before lifting those limits.
 A thread card opened by a click keeps no ring in Firefox however the user then
 types, so nothing marks the card the thread keys act on. Playwright Chromium
 156.0.8078.4 matched `:focus-visible` on the clicked thread at the next key, Shift
-included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
+included; Playwright Firefox 157.0 never did, on 2026-11-02. `dom/focus.js`
 (`visibleFocus`) follows the browser's answer, and the open card is the only thread
 keys reach; a key pressed after scrolling it away lets go of it
 (`panel/page-keys/controller.js`).
@@ -813,7 +813,7 @@ card's `.lf-page-thread` matches `:focus-visible`.
 ### A keyboard caret in Safari
 
 Safari has no caret browsing, so a keyboard user there can't put the caret on words
-that take no focus. `K` (`preview.js`, `here`) can't read at a caret there, and the
+that take no focus. `K` (`annotations/preview.js`, `here`) can't read at a caret there, and the
 keyboard can't select words to comment on (`browser.caret` in `panel/page-keys/page.js`).
 Safari's Tab, as Playwright WebKit runs it, stops only at text fields and elements with
 their own `tabindex`, so Leaf's own keys move a keyboard user there: walks, Go-to and
@@ -826,7 +826,7 @@ These reach an age's clock time without a caret, the same in every engine:
   three in the examples have no keyboard route in Safari: the command hub's atlas
   tree and each of its workers' "Last heard", and the PR walkthrough's brief.
 - A row of Threads or of an On list, reached by arrows, names its age's time in the
-  preview `K` reads there (`floating-panel.js`, `ageLine`).
+  preview `K` reads there (`panel/floating-panel.js`, `ageLine`).
 - An activity row's target previews its row's time. Safari's Tab reaches the target
   only with Option+Tab or "Press Tab to highlight each item", and Go-to presses it
   rather than landing on it.
@@ -858,7 +858,7 @@ blurs the focused element, Playwright Chromium 159.0.8154.6 (build 1255) and Web
 27.2 (build 2388) each checked the next radio and left focus on it, stepped the
 slider, and left focus on the select, while Firefox 159.0 (build 1572) did none of
 these; that page didn't scroll the controls away first. The controller withholds
-those arrows in every engine (focus.js, `controlNavigationKeys`), so the arrow that
+those arrows in every engine (dom/focus.js, `controlNavigationKeys`), so the arrow that
 lets go scrolls nothing. Recheck on a plain page holding two radios of one name, the
 first checked and focused, whose capturing `keydown` listener on the document blurs
 the focused element: the gap is closed in an engine when ArrowDown leaves the first
@@ -971,9 +971,9 @@ entry and the reason in the stylesheet.
 On 2026-11-03, Playwright WebKit 27.2 (build 2370) sent a `scrollend` on each
 frame of a PageDown's or Space's animation, 12 for one PageDown, where Chromium
 156 and Firefox 157 send one as the scroll lands. So in WebKit one keypress makes
-a scroll sequence per frame (`arrivals.js`, `watchScrollEnds`), and each reader
+a scroll sequence per frame (`dom/arrivals.js`, `watchScrollEnds`), and each reader
 of a scroll's end runs on every frame of it. A Leaf step pressed during such a
-scroll waits for it to end (`scrolling.js`, `afterBrowserScroll`), which in
+scroll waits for it to end (`dom/scrolling.js`, `afterBrowserScroll`), which in
 WebKit is the first frame's end, so the step moves from where that frame left
 the page and the rest of the browser's move is lost, or the step is: Space and
 then `d` 40 ms later ended at 651 px, and PageDown and then `d` at 720, PageDown
@@ -1018,14 +1018,14 @@ In Leaf the root drops its scroll padding while the user writes in a floating
 box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
 is revealed, and each key that lands in the same frame adds another reveal's
 scroll; #5417 accepted that overshoot. Tab pressed in the frame `t` sets off
-in lands the walk's glide first (scrolling.js, `landForKey`), and Chromium then
+in lands the walk's glide first (dom/scrolling.js, `landForKey`), and Chromium then
 reveals the thread card's next control where the card stood before the landing,
 scrolling the page on past where the walk leaves it; the glide matrix in
 `tests/journeys/navigation/test_reading_place.py` holds that case as known.
 Leaf's own readers ask where the glides land instead of reading an anchored box
-after a landing (scroll-containers.js, `seenAhead`), and a reading of the whole
+after a landing (readings/scroll-containers.js, `seenAhead`), and a reading of the whole
 scene, as a hint map's, waits until the rendering update after a script's scroll
-(arrivals.js, `scrollDrawn`). Recheck the three calls in
+(dom/arrivals.js, `scrollDrawn`). Recheck the three calls in
 Chromium; a 90px scroll means the gap has closed, and the matrix's known case
 then passes.
 
@@ -1134,7 +1134,7 @@ stretch. On 2026-11-02, before a long text document's runs were sized to their l
 while `elementFromPoint` there found line 11,041, the box showed line 11,035 onwards
 with no comment mark, and the run was still skipped 1.5 s later. Setting the run
 `content-visibility: visible` drew line 11,000 where it was reported. So travel draws
-the box it lands in for the jump and releases it two frames later (`anchor-travel.js`,
+the box it lands in for the jump and releases it two frames later (`features/anchor-travel.js`,
 `drawForLanding`), and the hit-test finds the line because its run is drawn. Runs are
 sized to the lines their rows fill (`lf-text-document.js`, `sizeRuns`), but long
 tokens, which Firefox also breaks after a slash, fill more lines than that: with the
@@ -1213,7 +1213,7 @@ which the read unlocks. On 2026-11-16, 20,000 `div` rows in such a panel, shown 
 after `display: none`, took 20 ms of style and 46 ms of the layout the read forced in
 Chromium (a trace's `UpdateLayoutTree` and `Layout`), and 6.5 ms for the whole read
 with no Leaf sheets. Page search's first read inside a closed tab pays it for the
-whole panel (`passages.js`, `searchableWords`). Leaf leaves it for now, since the
+whole panel (`readings/passages.js`, `searchableWords`). Leaf leaves it for now, since the
 container gives a narrow column and a widget's `100cqi` the shell's width. Rewriting
 the two `lf-shell` size queries would cost less than giving up the container and may
 lift it in Chromium, though not in Firefox; it is untested on a Leaf page, where the
@@ -1301,11 +1301,11 @@ link, go Back, and read `destination.key` and `destination.getState()` in Forwar
 Stock Firefox 160.0 (macOS) blurs the focused element, leaving focus on `body`, as it
 applies a same-document traversal, in the task that fires `popstate`, though Leaf
 intercepts the traversal with `focusReset: "manual"`. Leaf returns the user's place
-before the browser applies the traversal (`history.js`), so after Forward to a
+before the browser applies the traversal (`records/history.js`), so after Forward to a
 followed link's target, focus was on `body` rather than on the target, and the next
 command started from the top of the page. Observed 2026-11-22 through Marionette;
 disposition: corrected, since Back and Forward are a path users take often:
-`history.js` puts focus back on the node the return placed it on once the traversal
+`records/history.js` puts focus back on the node the return placed it on once the traversal
 has applied. To recheck, log `focusout` during Forward in stock Firefox: a
 `focusout` with no script on its stack just before `popstate` is the drop.
 
@@ -1333,7 +1333,7 @@ So `markHit` takes the caret lookup's text node and offset, reads the one or two
 characters' boxes around the offset, and finds the marks covering that character in
 an index of the marks' live ranges, the ones the highlight paints. After a change to
 the page's words, anchor placement places again only the threads whose quotes the
-page's index of quotes says changed (passages.js, `quotesChanged`), and the index reads
+page's index of quotes says changed (readings/passages.js, `quotesChanged`), and the index reads
 again only those threads' ranges. Recheck by timing
 `highlightsFromPoint` over a mark on pages of 32 and 512 marks, and at a point under a
 covering box; once its cost holds still and every engine names nothing under a cover,
@@ -1416,7 +1416,7 @@ cancelled there as everywhere, which stops WebKit's own click. The cost: on iOS 
 held past 500 ms reads rather than presses whatever the user set in Touch
 Accommodations, which no page can read. To recheck, hold a finger on an element with a
 `contextmenu` listener in Safari on an iPhone or the simulator; once it logs, drop the
-timer and `holdsUntold` in `preview.js`.
+timer and `holdsUntold` in `annotations/preview.js`.
 
 ### Two spellings of position-visibility
 

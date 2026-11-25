@@ -20,7 +20,7 @@ test("the count leads the title while above zero and follows it to zero", async 
   assert.equal(document.head.querySelectorAll("title").length, 1);
 
   // A revision replaces the authored title node while a count is showing
-  // (version.js, `activateHead`).
+  // (features/version.js, `activateHead`).
   paintTabTitle(3);
   const revised = document.createElement("title");
   revised.textContent = "Ship review, revised";

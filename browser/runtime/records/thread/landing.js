@@ -173,13 +173,22 @@ const resolutionControl = (thread) =>
 const movingControl = (thread) => (thread ? threadPart(thread, "move") : null);
 
 // The message the user is in, by focus or by the caret a click on its words leaves
-// (`userCaret`).
+// (`userCaret`), else the one `otherwise` picks. The messages stand in the whole of
+// the thread (selectors.js, `wholeThread`), apart from controls a view draws on its
+// own lines, as the panel's view draws Resolve on its head.
 /** @param {Element | null} node */
 const messageAt = (node) => closestAcross(node, ".lf-msg");
-/** @param {Element} thread */
-function messageIn(thread) {
+/** @param {Element | null} thread
+ * @param {(whole: Element) => Element | null | undefined} otherwise */
+function messageIn(thread, otherwise) {
+  if (!thread) return null;
+  const whole = wholeThread(thread);
   const caret = userCaret()?.element ?? null;
-  return messageAt(focused()) ?? (under(caret, thread) ? messageAt(caret) : null);
+  return (
+    messageAt(focused()) ??
+    (under(caret, whole) ? messageAt(caret) : null) ??
+    otherwise(whole)
+  );
 }
 // A message's copy control of `kind` (messages.js): `copy` or `link`.
 /** @param {Element | null | undefined} message @param {"copy" | "link"} kind */
@@ -191,21 +200,20 @@ function messageControl(message, kind) {
 // The Copy of the message the user is in, else of the thread's latest message.
 /** @param {Element | null} thread */
 const messageCopy = (thread) =>
-  thread &&
   messageControl(
-    messageIn(thread) ?? [...thread.querySelectorAll(".lf-msg")].at(-1),
+    messageIn(thread, (whole) => [...whole.querySelectorAll(".lf-msg")].at(-1)),
     "copy",
   );
 // The Copy link of the message the user is in, else of the thread's opening message,
 // whose link is the thread's.
 /** @param {Element | null} thread */
 const messageLinkCopy = (thread) =>
-  thread &&
   messageControl(
-    messageIn(thread) ??
-      thread.querySelector(
-        `.lf-msg[data-lf-event="${CSS.escape(drawnThreadId(thread) ?? "")}"]`,
+    messageIn(thread, (whole) =>
+      whole.querySelector(
+        `.lf-msg[data-lf-event="${CSS.escape(drawnThreadId(whole) ?? "")}"]`,
       ),
+    ),
     "link",
   );
 

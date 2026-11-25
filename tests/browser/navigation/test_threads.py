@@ -1617,7 +1617,8 @@ def test_a_thread_url_with_a_fragment_lands_there_with_the_thread_open(browser, 
 def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve):
     """A message's Copy link copies the page's address naming that message, without
     the fragment the address held, and the link opens the thread on the message; `y`
-    on the thread, where no message has focus, copies the thread's own link."""
+    on the thread's Resolve, which the panel draws apart from its messages, copies the
+    thread's own link."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Where does this end?")
     reply = append_carried_log_record(
@@ -1647,7 +1648,7 @@ def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve
         {**dict(parse_qsl(here.query)), "thread": reply},
         "",
     )
-    thread.focus()
+    page.locator(".lf-fp-thread-controls .lf-resolve").focus()
     page.keyboard.press("y")
     page.wait_for_function(
         "copied => navigator.clipboard.readText().then((now) => now !== copied)",
@@ -1661,6 +1662,96 @@ def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve
     expect(
         followed.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
     ).to_be_focused()
+
+
+def test_a_finger_copies_a_reply_s_link(browser, serve):
+    """Under a finger, where the address names only the thread, a reply offers its Copy
+    link, though not its Copy, whose words a finger selects instead."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "At the last paragraph.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        has_touch=True,
+        is_mobile=True,
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    page = open_page(browser, thread_url(url, root), context=context)
+    message = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
+    expect(message.locator(".lf-msg-copy")).to_be_hidden()
+    message.locator(".lf-msg-link").tap()
+    expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
+    copied = urlsplit(page.evaluate("navigator.clipboard.readText()"))
+    assert dict(parse_qsl(copied.query))["thread"] == reply
+
+
+def test_a_link_to_a_folded_message_opens_its_fold(browser, serve):
+    """A link naming a message a summary folds opens the fold and lands on it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    said = [
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Step {n}.",
+            },
+        )["id"]
+        for n in range(3)
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "summary",
+            "author": "agent",
+            "agent": "Claude",
+            "thread": root,
+            "from": said[0],
+            "through": said[1],
+            "text": "The first two steps.",
+        },
+    )
+    page = open_page(browser, thread_url(url, said[0]))
+    expect(
+        page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{said[0]}"]')
+    ).to_be_focused()
+
+
+@pytest.mark.parametrize(
+    "named",
+    [
+        {"author": "user", "token": "keep"},
+        {"author": "agent", "agent": "Claude", "text": "Reading.", "ephemeral": True},
+    ],
+    ids=["reaction", "progress"],
+)
+def test_a_link_naming_a_message_drawn_without_a_row_opens_its_thread(
+    browser, serve, named
+):
+    """A link naming a reaction, a chip on the message it answers, or a step of the
+    agent's work, which the thread draws as a face, opens the thread as its own link
+    does."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?", author="agent")
+    event = append_carried_log_record(
+        serve.page_dir, {"kind": "reply", "parent": root, "revision": 1, **named}
+    )["id"]
+    page = open_page(browser, thread_url(url, event))
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_focused()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1792,7 +1883,9 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
         ],
     )
     page = open_page(browser, thread_url(url, "answer01"), context=one_user)
-    expect(linked_thread(page, "anchor01")).to_be_focused()
+    expect(
+        linked_thread(page, "anchor01").locator('.lf-msg[data-lf-event="answer01"]')
+    ).to_be_focused()
     expect(page.locator("#target")).to_be_in_viewport()
     assert page.evaluate("history.length") == 2
     # The tab set names the view it opened beside the thread, and the entry keeps both:

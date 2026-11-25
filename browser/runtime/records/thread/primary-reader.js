@@ -621,6 +621,8 @@ export function createPrimaryReader(
   }
   /** @param {string} key
    * @param {{message?: string | null, part?: import("./destination.js").ThreadPart}} [options] */
+  // A message drawn as no row of its own, as a later reaction or a step of the agent's
+  // work, is reached at its thread (focus.js, `threadFocusDestination`).
   const destination = (key, { message = null, part = null } = {}) => {
     const parts = destinations.get(key) ?? [];
     if (message) {
@@ -632,10 +634,10 @@ export function createPrimaryReader(
         );
         if (node) return node;
       }
-      return null;
     }
     const first = parts[0]?.node ?? null;
-    if (part === "thread") return (parts.length && drawingOf(parts)) || first;
+    if (message || part === "thread")
+      return (parts.length && drawingOf(parts)) || first;
     return replyOf(key) || first;
   };
   return Object.freeze({

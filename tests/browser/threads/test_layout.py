@@ -1030,7 +1030,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     Threads list does, and its top row names whoever wrote the words under it. The
     card pinned the root's name beside its actions, so it opened at the top to keep
     that name true, leaving the newest turn out of view. A continuation fades the
-    words below the moving name without fading the next message's author."""
+    words below the moving name without fading the next message's author, and a
+    hairline marks each edge the turns run on past: under the heads' line, and the
+    reply box's rule run out across the card."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -1070,6 +1072,21 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         landed["under"] == -1 and landed["endGap"]
     ), landed
     assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
+
+    def edges():
+        """Whether the line under the heads' line shows, and the reply box's rule spans
+        the card rather than its words."""
+        return transcript.evaluate(
+            """box => {
+              const line = getComputedStyle(box.parentElement, '::before');
+              const field = box.parentElement.querySelector(
+                '.lf-thread-reply .lf-compose-field');
+              return {above: line.content !== 'none' && line.borderTopWidth === '1px',
+                below: getComputedStyle(field).backgroundSize.startsWith('100% ')};
+            }"""
+        )
+
+    assert edges() == {"above": True, "below": False}
 
     def continuation():
         """Read the fade's actual painted box, including its grid positioning."""
@@ -1132,6 +1149,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             ), cue
         else:
             assert cue["height"] == 0, cue
+        assert edges() == {"above": index > 0, "below": True}
 
     # Follow the outgoing header as the next author pushes it off the top, then
     # follow the transcript edge through the gap. Neither position fades a name. The

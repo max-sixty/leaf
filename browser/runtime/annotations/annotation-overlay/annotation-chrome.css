@@ -755,6 +755,32 @@
     grid-column: 1 / -1;
     block-size: var(--lf-transcript-room);
   }
+  /* Where the turns run on past an edge, a hairline across the card marks it, as a
+     bar's does where content passes under it: under the heads' line once anything is
+     scrolled away above, and over the reply box, its rule run out to the card's sides,
+     while more stands below (`data-lf-more-below`, dom/reach.js). At the turns' end the
+     reply box's rule stands over its words alone. The fades at either edge soften a
+     cut through words, and show nothing where the cut falls between them; the line
+     shows wherever it falls. The upper line stands over the heads, the actions and
+     the fade below them, at the foot of the paper the heads' line holds (above), where
+     the turns pass under it, and it spans the card as the reply box does. */
+  .lf-margin-thread .lf-page-thread[data-lf-scrolled]::before {
+    content: "";
+    position: absolute;
+    inset: var(--lf-msg-head-height) calc(-1 * var(--lf-thread-pad)) auto;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-self: start;
+    z-index: 1;
+    border-block-start: 1px solid var(--lf-rule);
+    pointer-events: none;
+  }
+  .lf-margin-thread
+    .lf-thread-transcript[data-lf-more-below]
+    ~ .lf-thread-reply
+    .lf-compose-field {
+    background-size: 100% 1px;
+  }
   /* The words stand the thread text inset inside the card's padding. The transcript
      keeps room past their edges for what is drawn beyond a box: a focus ring, which a
      rewrite draws outside its frame, and the marks round a block in a message, such as

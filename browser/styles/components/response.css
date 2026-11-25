@@ -729,8 +729,10 @@ leaf-composition-field {
    the card's rounding at the card's corners and stands square at its top, inside the
    card (browser/AGENTS.md, "Visual treatment carries meaning"). At rest it draws only
    a rule over its words, inset as far as they are, at its top, as the panel's row does
-   under an open thread; holding the caret it takes the card's ground, lighter than the
-   card's paper, and the ring on the band's outer edge, inside the box. The user chose this
+   under an open thread, and a margin card runs it out to the card's sides while its
+   turns continue below (annotation-chrome.css); holding the caret it takes the card's
+   ground, lighter than the card's paper, and the ring on the band's outer edge, inside
+   the box. The user chose this
    over the box at the card's padding in a field's frame and corners, which the panel's
    field had already left. */
 :is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field {

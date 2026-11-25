@@ -28,7 +28,7 @@
  * screen. A page's part always opens at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (base.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's address. Its column sticks in the window beside the
+ * the root set. Its column sticks in the window beside the
  * item the page scrolls, and scrolls on its own past the window's height, so its list
  * is pinned as a box's strip is, and a switch made while it is opens the new item at
  * its start. Where a side list fills a height it is given, as a full-height

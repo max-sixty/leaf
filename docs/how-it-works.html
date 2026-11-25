@@ -5817,8 +5817,9 @@ verdict/
                 widget’s answer under its <code>id</code>.</lf-note
               >
               <lf-note at="8"
-                >The tag holds nothing the page’s author writes. The module draws all of
-                it.</lf-note
+                >The tag holds nothing the page’s author writes: the module draws all of
+                it. A tag that leaves <code>content</code> out holds its author’s
+                markup.</lf-note
               >
               <lf-note at="11"
                 >A verb is one kind of action the user takes on the widget, under a name
@@ -5828,11 +5829,12 @@ verdict/
                 one. <code>record</code> names the attribute that holds the answer: the
                 server checks an action’s value against the
                 <code>verdict</code> attribute’s schema before it appends the action to
-                the <a href="#event-log">event log</a>. When the agent next revises the
-                page, it writes the answer into that attribute, so the markup shows the
-                decision. A verb that keeps an answer for each part of a widget, or
-                records something other than one attribute, says so with keys this
-                widget leaves out (<a href="/extending/#keys">Registry keys</a
+                the <a href="#event-log">event log</a>. Leaf’s instructions have the
+                agent write the answer into that attribute when it next revises the
+                page, so the markup shows the decision. A verb that keeps an answer for
+                each part of a widget, or records something other than one attribute,
+                says so with keys this widget leaves out (<a href="/extending/#keys"
+                  >Registry keys</a
                 >).</lf-note
               >
               <lf-note at="12"
@@ -5841,7 +5843,8 @@ verdict/
                 around the widget, and it stays on On Me, the user’s list of everything
                 waiting on them, until it is answered. <code>value</code> names the verb
                 whose value is the answer, so the question is answered once
-                <code>decide</code> has one.</lf-note
+                <code>decide</code> has one. Leaf then delivers that answer to the
+                agent.</lf-note
               >
             </lf-code>
             <h3 id="verdict-module-heading">Module</h3>
@@ -5853,7 +5856,7 @@ verdict/
               <pre><code class="language-js">
 import { html, render } from "/vendor/lit.js";
 
-const CHOICES = { ship: "Ship", hold: "Hold" };
+const LABELS = { ship: "Ship", hold: "Hold" };
 
 customElements.define(
   "lf-verdict",
@@ -5868,7 +5871,7 @@ customElements.define(
         &gt;
           ${label}
         &lt;/button&gt;`;
-      render(Object.entries(CHOICES).map(button), this);
+      render(Object.entries(LABELS).map(button), this);
     }
 
     press(value) {
@@ -5883,21 +5886,33 @@ customElements.define(
                 copy at this path, and the module imports no code of Leaf’s
                 own.</lf-note
               >
-              <lf-note at="8"
-                >Leaf sets <code>state</code> when the page loads and again after every
-                change to it, whether this tab, another tab, Undo or a new version made
-                the change. It holds each declared verb by name, and the setter draws
-                the whole of it each time.</lf-note
+              <lf-note at="3"
+                >A label for each answer the declaration’s <code>enum</code> lists. The
+                server reads only the declaration, so the module names the answers
+                again.</lf-note
               >
-              <lf-note at="17"
-                >The button carries the state in HTML’s own attributes.
-                <code>aria-pressed</code> marks the recorded answer, which is
-                <code>decide.value</code>, or <code>null</code> before there is one. The
-                page’s theme, the package that gives it its look, draws the pressed
-                button, and a screen reader announces it.
-                <code>aria-disabled</code> marks a button the user may not press now, as
-                when the page has no server to record the action. Leaf records nothing
-                for a press then, so the module needs no check of its own.</lf-note
+              <lf-note at="8"
+                >Leaf sets <code>state</code> once the module has defined the element,
+                and again each time the state changes, whether this tab, another tab,
+                Undo or a new version of the page changed it. It holds each declared
+                verb’s state by name, here <code>decide</code>, and the setter draws all
+                of it each time.</lf-note
+              >
+              <lf-note at="13"
+                ><code>decide.value</code> is the answer, or <code>null</code> before
+                there is one, and <code>aria-pressed</code> marks its button. The page’s
+                theme (the package that gives the page its look) draws a plain
+                <code>&lt;button&gt;</code> and its pressed state, and a screen reader
+                says which is pressed. <code>decide.available</code> is false while the
+                user may not press, as when the page has no server to record the action.
+                <code>aria-disabled</code> shows that and, unlike <code>disabled</code>,
+                leaves the button in the keyboard’s reach. Leaf records nothing for a
+                press while it is false, so the module needs no check of its own.
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/module-plain-elements.md"
+                  >The widget protocol</a
+                >
+                lists what else a verb’s state holds.</lf-note
               >
               <lf-note at="22"
                 >An action names its verb and carries its own <code>detail</code>. For a
@@ -5950,8 +5965,11 @@ lf-verdict {
               <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac): Leaf sets
               <code>state</code> again, so neither button is pressed, and pressing
               <strong>Activity changed</strong> in the feed shows the action marked
-              undone. On this page the widget only demonstrates, so its question stays
-              off On Me.
+              undone. Each Undo takes back the latest press, so an earlier answer stands
+              again. A widget offers the same from a control of its own by dispatching
+              an <code>lf-undo</code> event whose <code>detail</code> is
+              <code>{ verb: "decide" }</code>. Here the widget stands in a sample, which
+              only demonstrates, so its question stays off On Me.
             </p>
             <lf-sample id="verdict-sample" label="Example: ship or hold" interactive>
               <lf-group id="release" label="Ship 4.2 today?">
@@ -6041,8 +6059,10 @@ lf-verdict {
                   <td>
                     A class the module writes on the part, such as
                     <code class="nowrap">.lf-rows</code> for a list whose rows share
-                    their columns. A control takes Leaf’s look from the function in
-                    Leaf’s library that builds it.
+                    their columns. A control needs none: a native one, such as a
+                    <code class="nowrap">&lt;button&gt;</code>, takes the theme’s look,
+                    and a function in Leaf’s library builds one that looks like Leaf’s
+                    own controls.
                   </td>
                 </tr>
                 <tr id="form-part">
@@ -6090,10 +6110,10 @@ lf-verdict {
                     stylesheet sets, as it could for any custom element.
                   </th>
                   <td>
-                    A widget need not import any code of Leaf’s, so the same widget also
-                    runs on a page without Leaf. A component from another UI library
-                    becomes a widget with a declaration and a wrapper of a few lines:
-                    the declaration’s <code>record</code> gains a
+                    A widget need not import any code of Leaf’s, so one can be written
+                    to run on a page without Leaf too. A component from another UI
+                    library becomes a widget with a declaration and a wrapper of a few
+                    lines: the declaration’s <code>record</code> gains a
                     <code>property</code> key that names the component’s property
                     holding its value, and Leaf sets and reads that property (<a
                       href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/module-plain-elements.md"

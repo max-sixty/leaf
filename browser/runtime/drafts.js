@@ -117,6 +117,7 @@ import { writingStore } from "./storage.js";
 import { tabStore } from "./tab-store.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
+import { readAttachedMedia, writeAttachedMedia } from "./media.js";
 import { nameIn, namedIn } from "./carry.js";
 import { renderedUnder } from "./lib/shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -365,6 +366,7 @@ function hearReading({ store, version, drafts }) {
     }
     adopt(ctx, recordOf(incoming), store, incoming?.version ?? version);
   }
+  takeHeldWords();
   writeWaiting();
 }
 // What a look at the server heard of the drafts: their store and its version, which
@@ -1143,6 +1145,13 @@ export function giveBackWords(ctx, text, payload, under = null) {
   if (reply && under !== null) clearDraft(under);
   keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
 }
+// The box on screen that shows `ctx`'s words, or null where none does.
+/** @param {string} ctx */
+const shownIn = (ctx) =>
+  [...draftEditors]
+    .filter((view) => view.ctx === ctx)
+    .map((view) => editorInput(view))
+    .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
 // What a refusal left the user, given every attempt it refused, read once each sender's
 // own answer has returned its words (`standGesture`) and any owner has reopened its box
 // for them.
@@ -1190,12 +1199,6 @@ export function keepRefusedWords(attempts) {
     );
     return ctx === undefined ? [] : [ctx];
   });
-  /** @param {string} ctx */
-  const shownIn = (ctx) =>
-    [...draftEditors]
-      .filter((view) => view.ctx === ctx)
-      .map((view) => editorInput(view))
-      .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
   // Words back where Resume writing already goes are resumed at their end too, not at
   // the start of the box the send emptied.
@@ -1636,11 +1639,72 @@ export function mirrorDraft(
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
+// Words the user typed through a reload Leaf asked for, which the early key hold
+// keeps for their box (bootstrap.js, `typeBack`), each batch with the context of the
+// draft they were typed for. They go into that draft, among its words
+// and before any pictures it holds (media.js, `readAttachedMedia`): at the caret the
+// reload's record of the box being written holds (`captureDraftEditing`), while the
+// draft is still the generation that record was read at (`draftEditingStands`), and
+// after its words otherwise. That record moves with them, so a reload that still puts
+// the user back in the box puts the caret after them (version.js,
+// `restoreEditingContinuity`). The words leave the panel's field, where the keys stood,
+// as the hand-back ends; where they aren't then on screen in their box (`shownIn`),
+// the panel says the draft is kept, with Resume writing, which goes to their end, as
+// it does for words from a document that doesn't put the user back here. A document
+// served without the drafts takes them once its first reading has told it what the
+// draft holds (`hearReading`).
+const HELD_WORDS = "lf-held-words";
+/** @param {Event} [event] */
+function takeHeldWords(event) {
+  const ended = event instanceof CustomEvent ? event.detail : null;
+  if (typeof ended === "string" && !shownIn(ended)) noticeDraftKept();
+  if (heard.store === null && !offlineInteractive) return;
+  const left = tabStore.get(HELD_WORDS);
+  if (!left) return;
+  tabStore.set(HELD_WORDS, null);
+  /** @type {{context: string, words: string}[]} */
+  let kept;
+  try {
+    kept = JSON.parse(left);
+  } catch {
+    return;
+  }
+  const handed = /** @type {DraftEditing | undefined} */ (
+    window.lfStorage?.handoff?.draftEditing
+  );
+  for (const { context, words: typed } of kept) {
+    const box = handed?.context === context ? handed : null;
+    const current = activeDraftRecord(context);
+    const { text, paths } = readAttachedMedia(current?.text ?? "");
+    const [start, end] =
+      box && draftEditingStands(box) && box.selection
+        ? box.selection
+        : [text.length, text.length];
+    const words = text.slice(0, start) + typed + text.slice(end);
+    const value = writeAttachedMedia(words, paths);
+    saveDraft(context, value, current?.payload);
+    tellDraft(context, value, current?.payload);
+    /** @type {Caret} */
+    const selection = [start + typed.length, start + typed.length];
+    keepWritingPlace({ context, selection, generation: randomId() });
+    if (box)
+      Object.assign(box, {
+        words,
+        selection,
+        attempt: activeDraftRecord(context)?.attempt,
+      });
+  }
+  if (!window.lfStorage?.placesUser()) noticeDraftKept();
+}
+
 // The drafts start from the copies the page this tab reloaded left waiting
 // (`takeWaitingDrafts`), then those the document was served with (`lf-drafts`), heard
-// as any reading is (`hearReading`); every later change reaches the list through the
-// maps. A document served without them, as a release's or an export's, hears them at
-// its first look, or has none.
+// as any reading is (`hearReading`), then the words the key hold let go
+// (`takeHeldWords`); every later change reaches the list through the maps. A document
+// served without them, as a release's or an export's, hears them at its first look, or
+// has none.
 takeWaitingDrafts();
 const served = document.getElementById("lf-drafts")?.textContent;
 if (served) hearReading(/** @type {DraftsReading} */ (JSON.parse(served)));
+takeHeldWords();
+document.addEventListener(HELD_WORDS, takeHeldWords);

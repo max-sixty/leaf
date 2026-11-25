@@ -237,7 +237,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
     elif kind == "option":
-        editor = page.locator("#options-root > .lf-another textarea")
+        editor = page.locator("#options-root > .lf-another input")
     else:
         page.locator("#passage").click(click_count=3)
         page.keyboard.press("c")
@@ -619,7 +619,7 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
         _seat, editor = open_seat_box(page, "#seat-root")
         revised = original.replace("What should we do?", "What should we do next?")
     else:
-        editor = page.locator("#options-root > .lf-another textarea")
+        editor = page.locator("#options-root > .lf-another input")
         revised = original.replace("Initial choice", "A revised initial choice")
     write(editor, "An unsent edit keeps its exact selection.")
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")

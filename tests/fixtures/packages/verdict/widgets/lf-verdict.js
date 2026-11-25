@@ -2,9 +2,9 @@
 //
 // The module imports nothing. Leaf sets `state` as the decision's reading moves and
 // `notes`, a line for each choice, as the source its `source` names delivers. A press
-// dispatches `lf-action`, which Leaf records, and each choice carries `data-lf-part`,
-// which makes it a comment target. On a page without Leaf nobody sets `state`, and
-// the choices stay unavailable.
+// dispatches `lf-action`, which Leaf records, and `lfParts` names each choice a
+// comment target. On a page without Leaf nobody sets `state`, and the choices stay
+// unavailable.
 
 const CHOICES = [
   ["ship", "Ship"],
@@ -29,6 +29,16 @@ customElements.define(
     #state = null;
     #notes = null;
 
+    // Each choice is a comment target.
+    lfParts = {
+      read: () =>
+        [...this.querySelectorAll("button")].map((element) => ({
+          id: `choice:${element.value}`,
+          element,
+          label: element.textContent,
+        })),
+    };
+
     get state() {
       return this.#state;
     }
@@ -52,7 +62,6 @@ customElements.define(
         button.type = "button";
         button.value = value;
         button.textContent = label;
-        button.dataset.lfPart = `choice:${value}`;
         button.addEventListener("click", () => this.#decide(value, label));
         this.append(button);
       }

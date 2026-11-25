@@ -44,11 +44,8 @@ word for its kind instead, which the library's
 [`element-word.js`](../../../browser/runtime/lib/element-word.js) gives. That word is the element's `aria-roledescription`, which the module that
 builds the element writes along with a role for it, since ARIA ignores the attribute
 on an element with no role, as `lf-playground` makes each preset a `group` it calls
-"preset". Without one, it is what the element answers from an `lfWord()`
-method, for a word that depends on the element, as `lf-suggestion` says "insertion"
-or "rewrite"; else its tag without `lf-`. Where a widget's words alone don't convey
-its structure, as a rewrite's old and new text don't, its `lfSays()` returns the
-words that describe it. A widget's name is its `label` attribute, as an option
+"preset", and the module writes it again where the word depends on the element.
+Without one, it is the tag without `lf-`. A widget's name is its `label` attribute, as an option
 card's, a board card's or a column's is, which names its element on every widget
 that takes it (the registry's `$attributes`), whether or not the widget draws it.
 The page's name is its own `<title>`, which `document.title` doesn't give while the

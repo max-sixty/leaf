@@ -1443,7 +1443,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
 // control the focus paint marks, so only that control has one, and a landing made in the
-// focus task finds it only after the paint (`rowWalk`, walk-position.js). Reading the
+// focus task finds it only after the paint. Reading the
 // ring must not paint an intermediate focus destination: a return in the same
 // task would otherwise remove and restore the previous focus marks.
 /** @template {Element | Range} T @param {T} node @returns {T | Element} */

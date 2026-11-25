@@ -8,8 +8,7 @@
    element reads (`lfPreview`, preview.js, `lf-preview` as that changes, and
    `lf-preview-ended` as the preview goes), the words it asks a listener to hear
    (`lf-announce`), where a step of its own walk landed (`lf-walk`, walk-position.js),
-   the inventory of Comment targets it states (`data-lf-part` marks or `lfParts`,
-   visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control
+   the inventory of Comment targets it states (`lfParts`, visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control
    (`data-lf-copy`, code-copy.js) and a quiet word (`data-lf-quiet`,
    declared-words.js).
    A page without Leaf reads none of them, so there the widget binds no key, shows no

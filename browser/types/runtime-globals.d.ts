@@ -189,8 +189,7 @@ interface Element {
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
-  /** A visual's parts where its `data-lf-part` marks don't say them, read as each
-   * reading of the visual asks (`visual-parts.js`). */
+  /** A visual's parts, read as each reading of the visual asks (`visual-parts.js`). */
   lfParts?: import("../runtime/visual-parts.js").Parts | undefined;
 }
 
@@ -376,14 +375,6 @@ interface ShadowRoot {
     listener: EventListenerOrEventListenerObject | null,
     options?: boolean | EventListenerOptions,
   ): void;
-}
-
-interface Element {
-  /** The word a widget's module names its kind by where it depends on the element
-   * (`lib/element-word.js`, `widgetWord`); a fixed word is the element's
-   * `aria-roledescription`. */
-  lfWord?(): string;
-  lfSays?(): string;
 }
 
 interface HTMLElement {

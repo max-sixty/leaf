@@ -28,7 +28,7 @@ import { nextRender } from "./lib/frame-pass.js";
 /** @typedef {Partial<Record<"reflectFirstScopes" | "markHere" | "paintCurrentLocation" | "paintSelectedMarginEntries"
  * | "paintTouchControls" | "paintCloseRequests" | "paintStatusContext" | "syncLayout" | "pageShifted"
  * | "publishInputHint" | "restFab" | "paintGoToHints" | "paintTargetPickerHints" | "paintCommandHints" | "paintCoreControls"
- * | "paintVersionShortcuts" | "reflectKeys", () => unknown>>} Painters */
+ * | "reflectKeys", () => unknown>>} Painters */
 /** @type {Painters | null} */
 let painters = null;
 let frame = 0;
@@ -81,7 +81,6 @@ function requestFrame() {
     p.paintTargetPickerHints?.();
     p.paintCommandHints?.();
     p.paintCoreControls?.();
-    p.paintVersionShortcuts?.();
     p.reflectKeys?.();
   });
 }

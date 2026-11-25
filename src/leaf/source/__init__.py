@@ -1,2 +1,3 @@
-"""A page's authored source: its documents, passages and styles, the registry and
-layers, and its data bindings."""
+"""A page's source and what it is composed with: its documents, passages, styles
+and data bindings, and the registry, layer, runtime and browser probes the serving Leaf
+supplies."""

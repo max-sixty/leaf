@@ -627,7 +627,7 @@ holds the measurement.
   `test_every_press_is_built_by_role`, `test_a_press_wears_its_role_s_face_alone`.
 - **Leaf's elements wear only Leaf's names.** A class or data attribute the runtime
   or a package module writes starts with `lf-` or `data-lf-`, the names `page check`
-  refuses an author (`../src/leaf/pages/validation.md`), so a page's CSS for its own names
+  refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
   never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
   tokens. The kernel's rules name no class a page coins for itself either, so a page's
   own `.button` or `.choice` keeps its author's look. A page's own controls take Leaf's
@@ -965,7 +965,7 @@ markup, where the file reads them (`content`).
 
 Run `leaf page check <page> --render`, or the relevant browser test file, after
 changing `leaf.js`, a runtime owner, a widget module, the registry or the theme
-(`../src/leaf/pages/validation.md`, "Browser validation"). Put a check on the side that
+(`../src/leaf/validation.md`, "Browser validation"). Put a check on the side that
 can observe the fact: static validation owns schema, ids, nesting, passages, event
 shapes and file readings, and the browser owns computed layout, composed trees, module
 writes, focus and replay idempotence.

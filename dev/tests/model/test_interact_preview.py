@@ -755,7 +755,7 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     (foreign / "scripts/patch_manifest.py").write_text(
         "raise RuntimeError('host producer')"
     )
-    override = host_state / "leaf/pages/packages/names/diff"
+    override = host_state / "leaf/packages/names/diff"
     override.parent.mkdir(parents=True)
     override.symlink_to(foreign, target_is_directory=True)
     monkeypatch.setenv("XDG_STATE_HOME", str(host_state))

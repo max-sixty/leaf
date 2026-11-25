@@ -1,2 +1,3 @@
-"""What gets written into a page: event admission, revisions and the page
-transaction, to-dos, plans, workflows, and where the agent's work stands."""
+"""Writing to a page and the work it records: event admission, revisions and the
+page transaction, and the to-dos, plans, workflows and standing of the agent's work
+read from the log."""

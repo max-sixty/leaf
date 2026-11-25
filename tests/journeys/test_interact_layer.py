@@ -477,7 +477,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
 
     for held_package in (
         package,
-        other_state / "leaf" / "pages" / "packages" / "locks" / package.name,
+        other_state / "leaf" / "packages" / "locks" / package.name,
     ):
         with packages_model.package_write_lock(held_package):
             installing = spawn(

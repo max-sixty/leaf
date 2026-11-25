@@ -6,7 +6,7 @@ logic, and any branching across modules, belongs in the module that owns it.
 
 Each module owns one concern and states its contract in its header, and each layer
 package's `__init__.py` says what the package holds, so read the headers to find an
-owner (`head -n 3 leaf/*/__init__.py leaf/*/*.py`). Callers import the owning module
+owner (`head -n 3 leaf/*/*.py leaf/*/*/*.py`). Callers import the owning module
 directly; a package's `__init__.py` holds only its header, never a second API. The
 packages stand in one order, and a module imports only from its own package and the
 packages below it (`../.config/importlinter.ini`, whose header says what to do when a

@@ -444,7 +444,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     from markdown_it import MarkdownIt
 
     kinds = cleanup_model.kernel_registry()["$events"]["kinds"]
-    text = Path(schema_model.__file__).with_name("events.md").read_text()
+    text = (Path(schema_model.__file__).parents[1] / "events.md").read_text()
     tokens = MarkdownIt("commonmark").enable("table").parse(text)
     start = next(
         index for index, token in enumerate(tokens) if token.type == "table_open"

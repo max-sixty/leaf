@@ -2698,7 +2698,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
     sources = (
         schema_model.ASSETS,
         schema_model.BUNDLED_PACKAGES,
-        Path(schema_model.__file__).parent,
+        Path(schema_model.__file__).parents[1],
     )
     paths = sorted(path for root in sources for path in root.rglob("*"))
     names, prefixes = styles_model.set_properties(

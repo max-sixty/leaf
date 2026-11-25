@@ -371,7 +371,7 @@ stored ones, and takes the best. An annotation with no candidate becomes an orph
 counted on its own sidebar tab.
 
 Leaf's anchor carries the same `quote`, `prefix` and `suffix`, but matches the quote
-exactly ([events.md](../src/leaf/log/events.md), "Anchors";
+exactly ([events.md](../src/leaf/events.md), "Anchors";
 `anchor_capture.resolve_quote`). It takes the occurrence whose context matches
 exactly, or the quote's only occurrence. Repeated text with no deciding context
 detaches, and a revision that drops the passage moves the thread to its surviving

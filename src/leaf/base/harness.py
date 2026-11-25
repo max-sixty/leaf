@@ -11,8 +11,10 @@ harness's name or reads its environment variables. `session_harness` reads the o
 running this command out of the environment; `claim_harness` rebuilds the one a
 page's claim recorded.
 
-This module stands low in the import order, since the event log, admission and
-claims read a harness, so a method here calls only modules below it. Behaviour one
+This module stands in `base`, since the event log, admission and claims read a
+harness, so a method here calls only modules below it. The Codex harness's
+`receive_pointer` and `reconcile_turn` are the two that don't: they import
+`codex_state` from `agents`, an import the contract allows by name. Behaviour one
 harness needs is such a method, which the others answer by default. Behaviour that
 needs a module above this one lives above that module instead, and reads a fact the
 harness declares: `inference` names the transport `inference.harness_generator`

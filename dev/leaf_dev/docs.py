@@ -46,10 +46,10 @@ DOCS = ROOT / PRODUCT_DOCS
 EXAMPLES = ROOT / WORKED_EXAMPLES
 SCRIPTS = ROOT / "src" / "leaf"
 SERVED_SCHEMA = SCRIPTS / "serving" / "served_state" / "state.schema.json"
-INTERACTION_SCHEMA = SCRIPTS / "interaction-batch.schema.json"
+INTERACTION_SCHEMA = SCRIPTS / "log" / "interaction-batch.schema.json"
 # Where each event kind's meaning is written: its row of the kinds table that opens
 # the file, at the anchor `kind-<kind>`.
-EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/log/events.md"
+EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
 
 # The site's route bar, the brand first.
 SITE_NAV = (

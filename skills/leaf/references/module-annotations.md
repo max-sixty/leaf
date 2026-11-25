@@ -142,7 +142,7 @@ page. It names a `section`, an element's id, and may say where inside that eleme
 a `datum`, a `visual` part or a `quote`, the words of a passage; a quote may stand
 inside a datum. `prefix` and `suffix`, where the anchor has them, are the text before
 and after the quote, which tell two copies of the same words apart.
-[events.md](../../../src/leaf/log/events.md), "Anchors", defines every field.
+[events.md](../../../src/leaf/events.md), "Anchors", defines every field.
 
 `agentName()` returns the page's current agent name, or "the agent" when none is
 supplied. Use it when a package attributes agent activity.

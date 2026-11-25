@@ -6,7 +6,7 @@ import { textWidth } from "/runtime/lib/text-width.js";
 import {
   assignRows,
   timeAxis,
-  seconds,
+  elapsed,
   AXIS_EDGE as EDGE,
   AXIS_LABEL_GAP as LABEL_GAP,
   AXIS_LABEL_CHROME as LABEL_CHROME,
@@ -226,7 +226,7 @@ export function render(host, current, model, layout) {
   /** @type {(TimelineRun | null)[]} */
   const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length
-    ? `Step ${current + 1} of ${model.steps.length} · ${seconds(now)}`
+    ? `Step ${current + 1} of ${model.steps.length} · ${elapsed(now)}`
     : "No events";
   return html`<div class="lf-timeline-view" data-lf-gen="1">
     <div
@@ -342,7 +342,7 @@ export function render(host, current, model, layout) {
               .lfPreview=${stepPreview(step)}
             >
               <span class="lf-timeline-step-time lf-row-lead"
-                >${seconds(step.time)}</span
+                >${elapsed(step.time)}</span
               >
               ${columns.map((run, column) => {
                 const events = step.events.filter((event) => event.lane.run === run);

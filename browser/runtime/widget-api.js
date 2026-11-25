@@ -32,9 +32,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-// `titledElement(heading)`: the element a heading titles, its hgroup and the section or
-// article that opens with it, which a count per heading counts under that heading.
-export { titledElement } from "./addressable-names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
@@ -79,7 +76,7 @@ export {
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";
-export { named, phrasing, says } from "./passages.js";
+export { named, says } from "./passages.js";
 export { clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";

@@ -62,13 +62,16 @@ export const threadReplyInput = (thread) => {
 };
 
 // Where in a drawing of a thread a route lands: the thread, its reply box (else the
-// thread), or the message `message` names.
+// thread), or the message `message` names, else the thread where the drawing gives the
+// message no row of its own, as it gives a later reaction or a step of the agent's
+// work (transcript.js).
 /** @param {Element} thread
  * @param {{part?: "thread" | "reply" | "message" | null, message: string} | {part?: "thread" | "reply" | null, message?: null}} [options] */
 export function threadFocusDestination(thread, options = {}) {
   if (options.part === "message")
-    return thread.querySelector(
-      `.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`,
+    return (
+      thread.querySelector(`.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`) ??
+      thread
     );
   return (
     (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread

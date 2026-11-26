@@ -2,7 +2,11 @@
  * the one reading every control's keys come from (dom/keyboard/control-keys.js, `reachingNow`).
  *
  * A row or route opts in through `bindingBadge`: an Element lends a widget-positioned
- * face; null requests a runtime corner chip. The widget owns placement, while this
+ * face; null requests a runtime corner chip. A text box whose words cover the
+ * placeholder that names the key entering it wears that key as a corner chip too
+ * (`coveredEntry`; annotations/composing/surface.js): the key is the dispatcher's, and
+ * the box is where its press lands, which its command can't declare as a control
+ * without the key dying wherever the box is gone. The widget owns placement, while this
  * presenter owns words and visibility; a control's accessible shortcuts are
  * dom/keyboard/control-keys.js's, from the same reading. A lent face keeps its out-of-flow seat even
  * when empty or its command leaves reach. A face labels a key and takes no pointer, as
@@ -123,8 +127,8 @@ export const drawnKeys = (control) =>
         .map(({ binding }) => spell(binding))
     : [];
 
-/** @param {{presentedControl: (control: Element) => Element}} options */
-export function createCommandHints({ presentedControl }) {
+/** @param {{presentedControl: (control: Element) => Element, coveredEntry: () => {control: Element, binding: string} | null}} options */
+export function createCommandHints({ presentedControl, coveredEntry }) {
   let mounted = false;
   let hasRoutes = false;
   // Whether the last paint ran while a scroll moved, and so wore every face.
@@ -203,7 +207,11 @@ export function createCommandHints({ presentedControl }) {
     const { available } = reachingNow({ fresh: true });
     // A touch screen gets the accessible shortcuts and no faces: a digit drawn where the
     // user has no keyboard names a press they cannot make (`advertisesKeys`).
+    /** @type {{binding: string, control: Element, bindingBadge: BindingBadge | null}[]} */
     const visualRoutes = advertisesKeys() ? hintRoutes(available) : [];
+    // A touch screen's dispatcher names no key, so no box wears one.
+    const entry = coveredEntry();
+    if (entry) visualRoutes.push({ ...entry, bindingBadge: null });
     hasRoutes = visualRoutes.length > 0;
     if (!visualRoutes.length) {
       restoreBindingBadges();

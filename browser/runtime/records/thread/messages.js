@@ -340,6 +340,9 @@ export const draftWords = (draft) => {
     drawing: payload?.drawing,
   });
 };
+// A listed draft's words as a preview reads them: a line of them, cut at its length.
+/** @param {import("../drafts.js").ListedDraft} draft */
+export const draftLine = (draft) => excerptWords(draftWords(draft), PREVIEWED_LINE);
 // What drafts say when pointed at, on a row of Threads and on a margin entry: each
 // one's words, a line of them, under what it is about where the place pointed at
 // doesn't already say it. What Send makes of it stands beside it on both.
@@ -347,16 +350,14 @@ export const draftWords = (draft) => {
  * @param {import("../../base/voice.js").Words | null} [about]
  * @returns {import("../../annotations/preview.js").Preview | null} */
 export function draftPreview(drafts, about = null) {
-  /** @param {import("../drafts.js").ListedDraft} draft */
-  const said = (draft) => excerptWords(draftWords(draft), PREVIEWED_LINE);
   const [only] = drafts;
   if (!only) return null;
   if (drafts.length === 1)
-    return { name: about ? voiced(about) : "Draft", detail: [said(only)] };
+    return { name: about ? voiced(about) : "Draft", detail: [draftLine(only)] };
   return {
     name: counted(drafts.length, "draft"),
     list: {
-      items: drafts.map(said),
+      items: drafts.map(draftLine),
       more: (count) =>
         voiced(leafSays(`and ${counted(count, "more draft", "more drafts")}`)),
     },

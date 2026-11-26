@@ -114,7 +114,7 @@ import {
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../../records/thread/landing.js";
 import { advertisesKeys } from "../../dom/keyboard/bindings.js";
-import { commandKeysNow } from "../../dom/keyboard/control-keys.js";
+import { commandBindingsNow, commandKeysNow } from "../../dom/keyboard/control-keys.js";
 import { pageCommand, pageRung, pageScope } from "../../dom/keyboard/register.js";
 
 import {
@@ -129,7 +129,7 @@ import {
   selectionAnchor,
   snapSelection,
 } from "./capture.js";
-import { takesNoWords } from "./input.js";
+import { coveredFrame, takesNoWords } from "./input.js";
 import { repaint } from "../../dom/repaint.js";
 import {
   drawn,
@@ -157,7 +157,8 @@ import {
   pointerAt,
   pressIsKeyboardActivation,
 } from "../../base/pointer.js";
-import { anchorLabel } from "../../records/thread/messages.js";
+import { anchorLabel, draftLine, draftWords } from "../../records/thread/messages.js";
+import { draftsReading } from "../../records/drafts.js";
 import { seatOf } from "../../state/thread/model.js";
 
 import { livePoint } from "../../readings/pointed-place.js";
@@ -996,6 +997,14 @@ export function createResponseSurface({
     fabRest.addEventListener("click", () => {
       if (resting) commentOnTarget(resting);
     });
+    // Kept words the box cuts short read whole under its name.
+    fabRest.lfPreview = () => {
+      const words = fabRest.querySelector(".lf-compose-placeholder-words");
+      const kept = resting && keptDraft(resting.anchor);
+      return kept && words && words.scrollWidth > words.clientWidth
+        ? { detail: [draftLine(kept)] }
+        : null;
+    };
   }
   // Whether the page's own words stood selected when the keys were last painted.
   // Escape owns the selection from its first glyph. Paint only that crossing, including
@@ -1423,7 +1432,10 @@ export function createResponseSurface({
         (inlineBox ? { held: inline, box: inlineBox } : null),
     };
   }
-  /** @returns {{title: string, box: Element | null, go: () => unknown, rest?: NonNullable<ReturnType<ResponseOptions["currentTarget"]>>}} */
+  // `onWords` marks a destination where c puts the caret in the words its box holds now.
+  // The comment box moved to where the user stands is no such place: it opens on that
+  // place's own draft, whatever words the box holds.
+  /** @returns {{title: string, box: Element | null, onWords?: boolean, go: () => unknown, rest?: NonNullable<ReturnType<ResponseOptions["currentTarget"]>>}} */
   function commentDestination() {
     // The panel's field quotes the selected words, and a press there does what c does,
     // so the field carries c's badge.
@@ -1471,12 +1483,14 @@ export function createResponseSurface({
             : addressableWord(elementById(anchor.section)) || "element",
         ),
         box: fabInput,
+        onWords: true,
         go: focusFabComment,
       };
     if (said)
       return {
         ...commenting("thread"),
         box: said.box,
+        onWords: true,
         go: () => {
           composer.leaveForThread();
           landIn(said);
@@ -1511,7 +1525,12 @@ export function createResponseSurface({
         },
       };
     // The page's own box is the floating panel's field.
-    return { ...commenting("page"), box: pageComment.box, go: pageComment.open };
+    return {
+      ...commenting("page"),
+      box: pageComment.box,
+      onWords: true,
+      go: pageComment.open,
+    };
   }
 
   // The destination's box is the identity chrome uses to place a contextual binding badge,
@@ -1523,6 +1542,17 @@ export function createResponseSurface({
     const { box } = commentDestination();
     commentKey = commandKeysNow("comment.create").join(" ");
     return { box, label: commentKey };
+  };
+  // The box c puts the caret in the words of, while those words cover the placeholder
+  // that would name c, with that key: the key chips hang it on the box's corner
+  // (input.js, `coveredFrame`; readings/key-badges/command-hints.js). Comment declares no
+  // control to carry the chip, since a control it lacked would leave c dead everywhere
+  // else (dom/keyboard/bindings.js, `commandAvailable`).
+  const coveredEntry = () => {
+    const { box, onWords } = commentDestination();
+    const control = onWords ? coveredFrame(box) : null;
+    const [binding] = control ? commandBindingsNow("comment.create") : [];
+    return control && binding ? { control, binding } : null;
   };
 
   // The target the box rests beside: the one `c` would open it on, while the user can see
@@ -1549,6 +1579,12 @@ export function createResponseSurface({
     placement?.release();
     keeps(fabBar, "data-lf-rest", null);
   }
+  // The draft kept on a target, as the margin and Threads list it.
+  /** @param {Anchor} anchor */
+  const keptDraft = (anchor) => {
+    const key = composer.draftKey(anchor);
+    return draftsReading().find(({ context }) => context === key);
+  };
   // Read in each repaint, since where `c` goes follows focus, whether a scroll has taken
   // it out of sight (readings/user-place.js), and the state.
   function restFab() {
@@ -1564,9 +1600,13 @@ export function createResponseSurface({
       placement?.stop({ reset: true });
     }
     keeps(fabBar, "data-lf-rest", "");
+    // A draft kept on the target shows its words where the empty box says Comment…,
+    // since `c` opens the box on them, as a box holding words shows them.
+    const draft = keptDraft(target.anchor);
+    const kept = draft ? draftWords(draft) : "";
     render(
-      html`<span class="lf-compose-placeholder"
-        ><span class="lf-compose-placeholder-words">${COMMENT_HINT}</span
+      html`<span class="lf-compose-placeholder" ?data-lf-words=${Boolean(kept)}
+        ><span class="lf-compose-placeholder-words">${kept || COMMENT_HINT}</span
         ><kbd class="lf-key-badge">${key}</kbd></span
       >`,
       fabRest,
@@ -1687,6 +1727,7 @@ export function createResponseSurface({
     watchHeldDrawings: composer.watchHeldDrawings,
     setDraftDrawing: composer.setDraftDrawing,
     commentHint,
+    coveredEntry,
     restFab,
     fabPositioned,
     showFab,

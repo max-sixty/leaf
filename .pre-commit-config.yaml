@@ -10,6 +10,8 @@ repos:
       - id: end-of-file-fixer
         exclude: *verbatim
       - id: check-yaml
+        # pnpm writes its lockfile as two documents: pnpm itself, then the dependencies.
+        args: [--allow-multiple-documents]
       - id: check-json
       - id: check-toml
       - id: mixed-line-ending

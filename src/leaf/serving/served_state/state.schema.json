@@ -700,6 +700,10 @@
         },
         "since": { "type": ["string", "null"] },
         "detail": { "type": ["string", "null"] },
+        "waiting_on": {
+          "description": "On a to-do's step: what the to-do waits on, as its record says (`todos`), or null.",
+          "type": ["string", "null"]
+        },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/PlanStep" } },
         "done": { "type": "integer" },
         "total": { "type": "integer" }
@@ -714,6 +718,7 @@
         "running",
         "since",
         "detail",
+        "waiting_on",
         "steps",
         "done",
         "total"
@@ -1214,6 +1219,10 @@
           "description": "On an update: the id of the workflow it stands by, the strongest serving it, or null once nothing does.",
           "type": ["string", "null"]
         },
+        "waiting_on": {
+          "description": "On a to-do: what its work waits on, in the agent's words, until a start takes it up or it ends (`todos`), or null.",
+          "type": ["string", "null"]
+        },
         "line": {
           "description": "On a to-do: the start in force on it, whose text is the line the agent last said of it, or null.",
           "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }]
@@ -1317,7 +1326,15 @@
             "message": { "type": "null" },
             "answer": { "type": "null" }
           },
-          "required": ["line", "seq", "ts", "agent", "session", "revision"]
+          "required": [
+            "waiting_on",
+            "line",
+            "seq",
+            "ts",
+            "agent",
+            "session",
+            "revision"
+          ]
         }
       ]
     },

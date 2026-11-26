@@ -4333,8 +4333,8 @@ def test_only_an_open_thread_says_new_in_threads(browser, serve):
 
 def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, serve):
     """On Claude is the agent's work list: what it has in hand, what is queued behind
-    that, and what it finished, a line each with its stage and how long it has stood
-    there, and under the work in hand, what its running step wrote. The chooser at its foot shows the same work as a summary instead, a choice
+    that, what waits on something the agent named, and what it finished, a line each
+    with its stage and how long it has stood there, and under the work in hand, what its running step wrote. The chooser at its foot shows the same work as a summary instead, a choice
     the browser keeps across a reload."""
     url = serve(LONG_PAGE)
     page_dir = serve.page_dir
@@ -4349,6 +4349,15 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         "create", str(page_dir), "page", "--title", "Draft the release note"
     )
     task("create", str(page_dir), "page", "--title", "Check the rollout")
+    task(
+        "create",
+        str(page_dir),
+        "page",
+        "--title",
+        "Merge the release",
+        "--waiting-on",
+        "its review",
+    )
     tidied = task("create", str(page_dir), "page", "--title", "Tidy the wording")
     task("end", str(page_dir), tidied["id"], "done")
     task(
@@ -4369,17 +4378,24 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         [
             re.compile(r"^\s*In hand\s*1\s*$"),
             re.compile(r"^\s*Up next\s*1\s*$"),
+            re.compile(r"^\s*Waiting\s*1\s*$"),
             re.compile(r"^\s*Done\s*1\s*$"),
         ]
     )
     lines = view.locator(".lf-fp-on-line")
     expect(lines.locator(".lf-fp-label")).to_have_text(
-        ["Draft the release note", "Check the rollout", "Tidy the wording"]
+        [
+            "Draft the release note",
+            "Check the rollout",
+            "Merge the release",
+            "Tidy the wording",
+        ]
     )
     expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         [
             re.compile(r"^On it \S+$"),
             re.compile(r"^Still to do \S+$"),
+            re.compile(r"^Waiting on its review \S+$"),
             re.compile(r"^Done \S+$"),
         ]
     )
@@ -4401,7 +4417,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     # Leaf says the summary, and the agent's own words, its line and a to-do's title,
     # stand in its own face within it.
     expect(summary).to_contain_text(
-        "Working on 1; 1 up next. Now: Drafting the note's first line."
+        "Working on 1; 1 up next, 1 waiting. Now: Drafting the note's first line."
     )
     expect(summary).to_contain_text("Last done: Tidy the wording")
     # Its age is a time, which says when to a pointer, as every age the panel shows:

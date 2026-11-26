@@ -1941,15 +1941,13 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     scroll and a landing scrolls the page to show it.
 
     A control the user is on is measured out to its ring's room, all of it but what a box
-    clipping without scrolling hides, and along each axis only where a nearest landing
-    would move something along that axis. So these are shown and a nearest landing on
-    them moves nothing: the first row of a clipped group 4px below the band's top; a
-    button 4px from the window's side on a page that scrolls only down; one beside the
-    floating panel, standing in the panel's foot band, whose ring's room runs past the
-    window's side; and a fixed button 4px from the side of a page that scrolls across,
-    since scrolling the page moves no fixed box. A button 4px inside a mirrored pane's
-    edge is not shown while the pane can scroll its ring's room in, and a nearest
-    landing scrolls the pane until it is."""
+    clipping without scrolling hides, except where a nearest landing would move nothing.
+    So these are shown and a nearest landing on them moves nothing: the first row of a
+    clipped group 4px below the band's top; a button 4px from the window's side on a
+    page that scrolls only down; and a fixed button 4px from the side of a page that
+    scrolls across, since scrolling the page moves no fixed box. A button 4px inside a
+    mirrored pane's edge is not shown while the pane can scroll its ring's room in, and a
+    nearest landing scrolls the pane until it is."""
     source = leaf_page(
         "Room",
         '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
@@ -2113,36 +2111,6 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
         assert reading["gap"] == pytest.approx(4, abs=0.5), reading
         assert reading["across"] > 0, reading
         assert reading["shown"] is True, reading
-
-    with subtests.test(case="a ring's room past the side, beside the panel"):
-        reading = page.evaluate("""async () => {
-          const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
-          const {scrollIntoView} = await window.__lfWidgetApi();
-          const root = document.documentElement;
-          const band = landingBand(root);
-          const beside = document.createElement('button');
-          beside.textContent = 'Beside';
-          beside.style.cssText = 'position:absolute;width:80px;height:30px;margin:0';
-          document.body.append(beside);
-          beside.style.left = `${scrollX + root.clientWidth - 4 - 80}px`;
-          beside.style.top = `${scrollY + band.bottom + 2 - 30}px`;
-          beside.focus({preventScroll: true});
-          const box = beside.getBoundingClientRect();
-          const seen = seenRect(beside, new Map());
-          const y = scrollY;
-          const shown = alreadyShown(beside);
-          scrollIntoView(beside, {block: 'nearest', behavior: 'instant'});
-          const moved = scrollY - y;
-          beside.remove();
-          return {band: band.bottom, vh: innerHeight, bottom: box.bottom,
-                  whole: Boolean(seen) && seen.top <= box.top && seen.bottom >= box.bottom,
-                  shown, moved};
-        }""")
-        assert reading["band"] < reading["vh"], reading
-        assert reading["bottom"] > reading["band"], reading
-        assert reading["whole"], reading
-        assert reading["shown"] is True, reading
-        assert reading["moved"] == 0, reading
 
     with subtests.test(case="a ring's room a clipping group hides"):
         reading = page.evaluate("""async () => {

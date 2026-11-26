@@ -40,33 +40,46 @@
  * Every nearest landing first asks whether the destination is already shown
  * (`alreadyShown`), so one that follows the user, a Tab's arrival, entering a reply or
  * returning to a thread, and one that takes them somewhere, travel and the walks, ask
- * one question. It is shown where a nearest landing would move nothing. The user sees
- * it whole (dom/geometry.js, `seenRect`, which takes away the box the chrome covers
- * where its motion leaves it, so a control beside the floating panel stays put, and one
- * a view of the panel is opening over is not shown) along each axis where it fits its
- * room, all of it but what the boxes between it and the nearest box that scrolls it
- * clip (`landable`), since no landing moves those. Where the user is on or inside it,
- * they see its ring's room too (see below), cut the same way, except along an axis
- * where a nearest landing would move nothing (`landsStill`): no landing brings in room
- * past a window's side the page can't scroll toward, or room around a control in a box
- * fixed in the window, such as the comment box. Where it is taller than its room, a
- * nearest landing's own moves bring no more of it in, so a box taller than the window
- * that the user sees only part of still comes in as far as it fits, and a fold the user
- * goes to opens from its start. Travel and the walks land a destination at its start or
- * centre rather than nearest, and ask the question of that landing (`block`): a box
- * taller than its room is shown there only where that landing would move nothing, so
- * travel to a section the user is reading inside, or to a file of a diff they have read
- * down, still lands its opening. Its edges are compared at layout precision
- * (lib/keeps.js, `atLayoutPrecision`): a box a landing put flush at an edge reads back
- * a float's rounding past it in Firefox, and a reading that counted it unseen would
- * land it again and enter travel's history. A box a glide under way is carrying
- * (scroll-containers.js, `glideTravel`) is shown only where it is seen both where it
- * stands and where that motion will leave it, as a key pressed while the page moves
- * acts as if the motion had landed: `Shift+m` just after `m` finds the obligation `m`
- * is leaving already gone. Only a box growing under the user's keystrokes skips the
- * question, keeping its foot in the band as the browser keeps a caret (`keepInBand`).
- * `sideways: false` keeps every box's sideways place, for a landing that aligns what
- * the user is already reading, such as `g z` and a diff's file.
+ * one question: whether the user sees it. They see it whole (dom/geometry.js,
+ * `seenRect`, which takes away the box the chrome covers where its motion leaves it, so
+ * a control beside the floating panel stays put, and one a view of the panel is opening
+ * over is not shown) along each axis where it fits its room, all of it but what the
+ * boxes between it and the nearest box that scrolls it clip (`landable`), since no
+ * landing moves those. Where the user is on or inside it, they see its ring's room too
+ * (see below), cut the same way, or a nearest landing would move nothing
+ * (`landsStill`): no landing brings in room past a window's side the page can't scroll
+ * toward, or around a control in a box fixed in the window, such as the comment box.
+ * Where it is taller than its room, a nearest landing's own moves bring no more of it
+ * in, so a box taller than the window that the user sees only part of still comes in as
+ * far as it fits, and a fold the user goes to opens from its start. Travel and the
+ * walks land a destination at its start or centre rather than nearest, and ask the
+ * question of that landing (`block`): a box taller than its room is shown there only
+ * where that landing would move nothing, so travel to a section the user is reading
+ * inside, or to a file of a diff they have read down, still lands its opening. Its
+ * edges are compared at layout precision (lib/keeps.js, `atLayoutPrecision`): a box a
+ * landing put flush at an edge reads back a float's rounding past it in Firefox, and a
+ * reading that counted it unseen would land it again and enter travel's history. A box
+ * a glide under way is carrying (scroll-containers.js, `glideTravel`) is shown only
+ * where it is seen both where it stands and where that motion will leave it, as a key
+ * pressed while the page moves acts as if the motion had landed: `Shift+m` just after
+ * `m` finds the obligation `m` is leaving already gone. Only a box growing under the
+ * user's keystrokes skips the question, keeping its foot in the band as the browser
+ * keeps a caret (`keepInBand`). `sideways: false` keeps every box's sideways place, for
+ * a landing that aligns what the user is already reading, such as `g z` and a diff's
+ * file.
+ *
+ * The question asks what the user sees rather than whether a landing would move,
+ * because a landing keeps a box further in than the user needs to see it: below the
+ * room it keeps under the headers, and above the floating panel's foot band in every
+ * column. So a landing would move a box the user already sees there. Where the user
+ * doesn't see a ring's room, the landing is asked whether it would move at all, so a
+ * control within a ring's room of both the window's side and the panel's foot band
+ * moves above the band. A landing also places room an inner box hides, so a row flush
+ * with a scrolling pane's end, at the band's edge, moves the page by that room. Both
+ * moves are a few pixels on a rare path, which may move (SOUL.md, "Keep Leaf's code
+ * plain"). Asking the landing axis by axis kept the first still at the cost of an axis
+ * parameter through its moves, and keeping the second still takes a model of which box
+ * hides the room.
  *
  * A landing is the reader's choice of where each box it moves stands (dom/scrolling.js).
  * Count it as it starts, including an instant landing: navigation can change layout
@@ -317,21 +330,20 @@ function landable(shown, out) {
   return out;
 }
 
-/** @typedef {{across: boolean, down: boolean}} Axes */
-// The axes, among those where `box` fits `room`, along which `seen` (what the user sees
-// of `want`) falls short of `want`. Along an axis where `box` is longer, the landing's
-// own arithmetic answers (see `alreadyShown`), so this asks nothing there.
-/** @param {Box} seen @param {DOMRect} box @param {Box} want @param {{width: number, height: number}} room @returns {Axes} */
-function unseenAxes(seen, box, want, room) {
+// Whether `seen`, what the user sees of `want`, covers it along each axis where `box`
+// fits `room`. Along an axis where it is longer, the landing's own arithmetic answers
+// (see `alreadyShown`), so this asks nothing there.
+/** @param {Box} seen @param {DOMRect} box @param {Box} want @param {{width: number, height: number}} room */
+function seesWhole(seen, box, want, room) {
   /** @param {"top" | "left"} start @param {"bottom" | "right"} end @param {number} length @param {number} size */
-  const short = (start, end, length, size) =>
-    atLayoutPrecision(length) <= atLayoutPrecision(size) &&
-    (atLayoutPrecision(seen[start]) > atLayoutPrecision(want[start]) ||
-      atLayoutPrecision(seen[end]) < atLayoutPrecision(want[end]));
-  return {
-    across: short("left", "right", box.width, room.width),
-    down: short("top", "bottom", box.height, room.height),
-  };
+  const along = (start, end, length, size) =>
+    atLayoutPrecision(length) > atLayoutPrecision(size) ||
+    (atLayoutPrecision(seen[start]) <= atLayoutPrecision(want[start]) &&
+      atLayoutPrecision(seen[end]) >= atLayoutPrecision(want[end]));
+  return (
+    along("top", "bottom", box.height, room.height) &&
+    along("left", "right", box.width, room.width)
+  );
 }
 
 // Whether the user is on `where` or inside it, so it wears its ring and is measured out
@@ -359,36 +371,33 @@ export function alreadyShown(
   // (scroll-containers.js, `seenGlided`).
   const travel = glideTravel(shown);
   const ahead = travel && seenGlided(shown, out, travel);
-  /** @param {Box} want @returns {Axes} */
-  const unseen = (want) => {
-    const now = unseenAxes(seen, box, want, room);
-    if (!travel) return now;
-    if (!ahead) return { across: true, down: true };
-    const { x, y } = travel;
-    const landed = {
-      left: want.left + x,
-      right: want.right + x,
-      top: want.top + y,
-      bottom: want.bottom + y,
-    };
-    const then = unseenAxes(ahead, box, landed, room);
-    return { across: now.across || then.across, down: now.down || then.down };
-  };
-  const cut = unseen(landable(shown, box));
-  if (cut.across || cut.down) return false;
+  if (travel && !ahead) return false;
+  const { x, y } = travel ?? { x: 0, y: 0 };
+  /** @param {Box} want */
+  const sees = (want) =>
+    seesWhole(seen, box, want, room) &&
+    (!ahead ||
+      seesWhole(
+        ahead,
+        box,
+        {
+          left: want.left + x,
+          right: want.right + x,
+          top: want.top + y,
+          bottom: want.bottom + y,
+        },
+        room,
+      ));
+  if (!sees(landable(shown, box))) return false;
   if (box.width > room.width && seen.right - seen.left < room.width) return false;
   const tall = box.height > room.height;
-  const roomCut = out === box ? cut : unseen(landable(shown, out));
-  if (!tall && !roomCut.across && !roomCut.down) return true;
+  if (!tall && (out === box || sees(landable(shown, out)))) return true;
   // A box longer than its room is shown where the landing would bring no more of it in,
   // by its own moves: a nearest landing filling its boxes, or as far as they can scroll,
-  // and one at its start or centre with its opening at the band's top. Along an axis
-  // where the user doesn't see its ring's room, it is shown where a nearest landing
-  // would move nothing along that axis (see the header).
-  return landsStill(where, tall ? block : "nearest", {
-    across: roomCut.across,
-    down: tall || roomCut.down,
-  });
+  // and one at its start or centre with its opening at the band's top. One whose ring's
+  // room the user doesn't see is shown where a nearest landing would move nothing (see
+  // the header).
+  return landsStill(where, tall ? block : "nearest");
 }
 
 // How far to scroll a box down so that `box`, where `where` stands, lands at `block` in
@@ -614,10 +623,9 @@ export function scrollIntoView(
 // The moves the walk before a destination's reading region makes (`scrollIntoView`),
 // each read when the caller asks for it, after it made the last: every box clipping the
 // destination reveals it across at the nearest edge, and each inside `targetScroller`
-// down too. `down: false` leaves out the moves down, for a question about the moves
-// across alone (`landsStill`).
-/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways @param {boolean} [down] */
-function* innerMoves(where, targetScroller, within, sideways, down = true) {
+// down too.
+/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways */
+function* innerMoves(where, targetScroller, within, sideways) {
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
@@ -637,38 +645,35 @@ function* innerMoves(where, targetScroller, within, sideways, down = true) {
             left,
             right,
           );
-      const byY =
-        inside && down
-          ? placementBy(
-              where,
-              destination,
-              "nearest",
-              band,
-              topMargin(where, box, band, start),
-            )
-          : 0;
+      const byY = inside
+        ? placementBy(
+            where,
+            destination,
+            "nearest",
+            band,
+            topMargin(where, box, band, start),
+          )
+        : 0;
       yield { box, by: localScrollBy(box, { x: byX, y: byY }) };
     }
     if (box === within || box === pageScroller || fixedInWindow(box)) return;
   }
 }
 
-// Whether a landing on `where` at `block` would move no box along the axes asked. Down
-// or up, neither the walk before its reading region, which lands it nearest whatever
-// the block, nor the region and those around it (`readingBandMoves`) would move one;
-// across, only that walk moves boxes.
+// Whether a landing on `where` at `block` would move no box: neither the walk before its
+// reading region, which lands it nearest whatever the block, nor the region and those
+// around it (`readingBandMoves`).
 // Each move is read where the destination stands now, which holds while every move
 // before it is none, and every one is asked rather than their sum: a pane bringing in
 // more of a box while the page carries the pane back leaves the box where it stood,
 // and still shows more of it.
-/** @param {Destination} where @param {ScrollLogicalPosition} block @param {Axes} axes */
-function landsStill(where, block, { across, down }) {
+/** @param {Destination} where @param {ScrollLogicalPosition} block */
+function landsStill(where, block) {
   const holder = holderOf(where);
   const targetScroller = scrollersOf(holder).next().value;
-  for (const { by } of innerMoves(where, targetScroller, null, across, down))
+  for (const { by } of innerMoves(where, targetScroller, null, true))
     if (atLayoutPrecision(by.top) || atLayoutPrecision(by.left)) return false;
   return (
-    !down ||
     !targetScroller ||
     readingBandMoves(where, holder, block).moves.every(
       ({ moved }) => Math.abs(moved) < 1,

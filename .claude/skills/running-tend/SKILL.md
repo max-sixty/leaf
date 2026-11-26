@@ -423,5 +423,8 @@ bundle needs it, and rebuild everything.
 
 Dependabot reports a failed update job only in the run list, so check its npm job
 each week: `gh run list --event dynamic` names it `npm_and_yarn in /. - Update`.
-When the newest one failed, or none ran in the past week, fix the cause its log
-names.
+When the newest one failed, fix the cause its log names. When none ran in the
+past week, check that Dependabot isn't paused (`paused` in
+`gh api repos/{owner}/{repo}/automated-security-fixes`), then start a run by
+merging a pull request that edits `.github/dependabot.yml`: any change to that
+file starts every ecosystem's update run.

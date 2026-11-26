@@ -235,6 +235,9 @@ const authorName = (message) => (message.author === "agent" ? message.agent : "M
 // The characters of a thread's name or a message's opening line a preview keeps,
 // which wrap within its width.
 export const PREVIEWED_LINE = 120;
+// The characters of a thread's name a preview listing several threads keeps of each,
+// and a thread card's own name keeps.
+export const LISTED_NAME = 60;
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
 // and how many messages it holds, each said by whoever says it, less the part `said`,
@@ -318,7 +321,7 @@ export function threadPreview(threads, said = null) {
       items: threads.map((thread) =>
         standing(
           threadStands(thread, null),
-          `${excerptWords(threadName(thread), 60)} · `,
+          `${excerptWords(threadName(thread), LISTED_NAME)} · `,
         ),
       ),
       more: (count) =>

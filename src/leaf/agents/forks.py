@@ -337,7 +337,7 @@ def _owed(page: PageTransaction, thread: str, responses: dict) -> str | None:
     (`delivery.current_responses`): the newest owed input waiting there, which may
     be newer than the round's turns, as a pick on an option the agent sent in the
     thread is (`workflows.handed_over`); None where the thread owes no reply."""
-    from .events import settle
+    from leaf.log.events import settle
 
     held = _threads(page).get(thread)
     return next(

@@ -814,6 +814,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `dom/geometry.js` `shownRectHeld`                                                      |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `lib/shown-box.js` `contentsRects`, `contentsBox`                                      |
 | How an element's layout pixels map to the viewport, through every transform, and a box carried by it  | `dom/element-axes.js` `elementMatrix`, `elementBorderFrame`, `carriedBox`              |
+| The size a style writes to hold an element as it stands: its own layout pixels, fraction included     | `dom/element-axes.js` `elementBorderFrame`                                             |
 | Whether a box is stuck, and the band sticky headers cover                                             | `dom/geometry.js` `stuckBox`, `visibleBand`                                            |
 | What the page shows where the glides under way land, each box put back within the task                | `dom/scrolling.js` `whereGlidesLand`                                                   |
 | How far a scroll of a box carries a node, which a sticky box around it rides only to its line         | `dom/geometry.js` `carried`                                                            |

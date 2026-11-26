@@ -67,7 +67,6 @@ from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.pages import hosting as hosting_model
 from leaf.pages.page_snapshot import capture_page_snapshot
-from leaf.pages.render_gate import scheme as scheme_model
 from leaf.pages.render_gate import version as render_gate_model
 from leaf.pages.render_gate.preview import preview_server
 from leaf.serving import http as http_model
@@ -104,7 +103,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     read and probe keeps the suite's deadline, so a slow machine still renders.
     """
     monkeypatch.chdir(tmp_path)
-    bounded = scheme_model.served
+    bounded = render_gate_model.served
     shortened = []
 
     def served(page, url, path, timeout_ms=None):
@@ -113,7 +112,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             timeout_ms = 1500
         return bounded(page, url, path, timeout_ms)
 
-    monkeypatch.setattr(scheme_model, "served", served)
+    monkeypatch.setattr(render_gate_model, "served", served)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
     for _ in (1, 2):

@@ -10,7 +10,10 @@ reach the page at the next `page init --package`. Changing the selection, or
 taking the page to this Leaf's page protocol, refreshes an active revision from
 valid source before returning, so deliveries use the new vocabulary without needing
 a browser or state read first. Invalid source keeps its last good revision and
-reports its check errors. A page with no active revision stays unactivated.
+reports its check errors. A page with no active revision stays unactivated. A server
+another installed copy of Leaf started hands its page to this one (`follow_copy`),
+which renews the page's layer where it needs that and restarts the server under
+this Leaf.
 
 A page's look is one of the packages it lists, Leaf's own `reading` among them: Leaf
 composes the mandatory layer and then the listed packages in order
@@ -33,6 +36,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
+from leaf.base.detached import Handshake
 from leaf.base.findings import Finding, note
 from leaf.base.harness import Harness, claim_harness, session_harness
 from leaf.base.leases import lock_is_held, page_locked
@@ -46,10 +50,17 @@ from leaf.base.schema import (
     PAGE_OWNED_FILES,
     SERVER_LOCK,
 )
-from leaf.base.service import claim_path, held_elsewhere, page_claim, refuse_held
+from leaf.base.server import running_server
+from leaf.base.service import (
+    claim_is_active,
+    claim_path,
+    held_elsewhere,
+    page_claim,
+    refuse_held,
+)
 from leaf.base.state import flocked, hooks_run_here, remove_claim
 from leaf.log.event_log import initialized, start_log
-from leaf.pages.hosting import restarting_server
+from leaf.pages.hosting import check_servable, restarting_server
 from leaf.records.transaction import PageTransaction
 from leaf.source.layer import (
     checked_layer_inputs,
@@ -141,7 +152,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     instead: a write command naming the page (`cli.resolve_dir`), the prompt hook
     serving the page again (`reconnect`), a hook that reads the session's pages
     (`renew_held`), or the restart of a page server that follows the session's copy
-    (`hosting.follow_copy`). A command that only reads the page leaves it as it is.
+    (`follow_copy`). A command that only reads the page leaves it as it is.
     Only the session holding the page renews it, or any caller while no live
     session does: another session may still run the
     Leaf that initialized the page, which renewing would lock out of it, and its own
@@ -179,7 +190,7 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
     page: a hook that reads the session's pages (`hook_transport.read_plans`), as the
     prompt and Stop hooks do and a tool boundary does with something to carry or a
     status check due, and the restart of a page server that follows the session's
-    Leaf (`hosting.follow_copy`). After an update in place that moves the page
+    Leaf (`follow_copy`). After an update in place that moves the page
     protocol, the restart's renewal comes before the session's next hook, so the
     successors of the session's watch and of Codex's adapter, which only read the
     page, deliver its input once the renewal lands.
@@ -192,6 +203,51 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
     if held is None or held["id"] != session_id or not hooks_run_here(session_id):
         return None
     return renew_layer(page_dir, claim_harness(held))
+
+
+def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
+    """`server _follow`: restart at its address, under this Leaf, the server
+    `server_id` names, which another installed copy started and which asked
+    (`server_lifetime.stop_when_service_ends`): the copy this Leaf replaced at the
+    same path, or one the session holding the page ran before its hooks ran this
+    Leaf.
+
+    The answer through `handshake` says only that this copy runs, since only a
+    failed launch is worth the server's trying again. A page at an older page
+    protocol, as an update can leave it, is renewed first, for the live session
+    holding the page (`renew_held`) or while none does (`renew_layer`), and what
+    holds the renewal back is queued for that session's next step (`clerk.queue`).
+    After an update in place, no hook runs before this renewal, so the successors of
+    the session's watch and of Codex's adapter read the page once it lands. The
+    renewal restarts the server itself, and takes turns with a hook's renewal of the
+    same page (`_reinit`).
+
+    Otherwise the restart (`hosting.restarting_server`) follows, for the session
+    holding the page, unless the page changed since the server asked: a page this
+    Leaf still can't serve, as one whose renewal was refused, stays with the server
+    serving it (`hosting.check_servable`); a server another start put in place, such
+    as a checkout's or a renewal's, keeps running; and a session service whose
+    session has ended retires after its grace, as it would have on the old copy.
+    These checks come last, so that little time passes between them and the stop."""
+    if not handshake.announce():
+        return
+    held = page_claim(page_dir)
+    if held is None or not claim_is_active(held):
+        renew_layer(page_dir, None)
+    elif unready := renew_held(page_dir, held["id"]):
+        from leaf.agents.clerk import queue
+
+        queue(held["id"], [str(unready)], wake=True)
+    check_servable(page_dir)
+    running = running_server(page_dir)
+    held = page_claim(page_dir)
+    live = claim_is_active(held)
+    if running is None or running["server_id"] != server_id:
+        return
+    if running["lifetime"] == "session" and not live:
+        return
+    with restarting_server(page_dir, claim_harness(held) if live else None):
+        pass
 
 
 def _reinit(
@@ -277,7 +333,7 @@ def _init_page(
     packages advise (`_PagePlan`); a re-selection `still` no longer wants under the
     transaction commits nothing."""
     from leaf.records.authored_checks.source import check_source
-    from leaf.records.revisioning import activate_checked_source
+    from leaf.records.revision_publication import activate_checked_source
 
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.

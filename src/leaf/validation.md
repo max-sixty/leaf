@@ -68,16 +68,17 @@ A reference to a thread, such as a widget's `resolves`, is checked against the t
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
 comment the log lost. A live sample template's child is checked as a page against its
 initial history wherever the template is declared, in the page or in a message's
-markup (`authored_checks.source.sample_errors`; `sample_content.py` builds that
-history). A `data-sample-threads` thread the parent's log does not hold yet leaves the
-child without it, so a first version may name threads whose seed log is unwritten.
-Corpus generation composes from the shipped log, so there a missing thread is a
-mistake in the declaration and is refused.
+markup (`authored_checks.documents.sample_errors`, which builds that history with
+`initial_sample_events`). A `data-sample-threads` thread the parent's log does not
+hold yet leaves the child without it, so a first version may name threads whose seed
+log is unwritten. Corpus generation composes from the shipped log, so there a missing
+thread is a mistake in the declaration and is refused.
 
 Which writes check and publish the saved source is the writer's: progress and failure
 replies use the active revision, a detach still checks the saved source, and a
 successful reply publishes the source it checked (`thread._compose_and_append`, and
-`revisioning.py`'s header for how a publication and its anchor moves land together).
+`revision_publication.py`'s header for how a publication and its anchor moves land
+together).
 
 ### Page code
 

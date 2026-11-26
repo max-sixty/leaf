@@ -1,6 +1,6 @@
 """Which of the user's messages waited while a version was saved, and where each
-revision stands in the log (`provenance.py`, `revisioning.py`): what a version says
-it was saved after."""
+revision stands in the log (`provenance.py`, `revision_publication.py`): what a
+version says it was saved after."""
 
 import random
 from copy import deepcopy

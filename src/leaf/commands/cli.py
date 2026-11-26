@@ -1306,7 +1306,7 @@ def _follow(page_dir: Path, server_id: str, handshake: int) -> None:
     """Private child a page server starts through the launcher of the copy that
     replaced its own (`server_lifetime.stop_when_service_ends`)."""
     from leaf.base.detached import Handshake
-    from leaf.pages.hosting import follow_copy
+    from leaf.pages.vendoring import follow_copy
 
     with Handshake(handshake) as answer:
         follow_copy(page_dir, server_id, answer)

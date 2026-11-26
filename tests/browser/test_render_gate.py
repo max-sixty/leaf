@@ -3763,7 +3763,7 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     advice = [finding for finding in findings if finding.code == "contained-space"]
     assert len(advice) == 5
     assert all(finding.severity == "advice" for finding in advice)
-    assert "as a section, article, details or figure" in str(advice[0])
+    assert "as a section, article or details" in str(advice[0])
     assert "put data-width on the frame" in str(advice[0])
 
 

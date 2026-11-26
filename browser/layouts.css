@@ -413,8 +413,7 @@
   }
   /* A flow is a box whose blocks stand in the flow around it, so they share its room:
    * a section, an article or a disclosure (`details`), as HTML writes a document's
-   * parts, a figure, whose caption keeps the column beside the exhibit it captions,
-   * and a widget that draws no box of its own around its blocks
+   * parts, and a widget that draws no box of its own around its blocks
    * (`flow`). One carrying a Layout of its own, a `layout-` class, arranges what
    * it holds, and one carrying a width of its own (`data-width`) is a block that takes
    * the room itself, so its children use the room inside it; neither is a flow. A flow shares the room of
@@ -442,7 +441,7 @@
   }
   :not(
       .layout-column,
-      :is(section, article, details, figure):where(
+      :is(section, article, details):where(
         :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
       ),
       [data-lf-flow]
@@ -468,13 +467,11 @@
   section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
   article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
   details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
-  figure:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
   [data-lf-flow] {
     --lf-flow: 1;
     &:where(section):dir(ltr),
     &:where(article):dir(ltr),
     &:where(details):dir(ltr),
-    &:where(figure):dir(ltr),
     &:where([data-lf-flow]):dir(ltr) {
       --lf-free-start: var(--lf-free-left);
       --lf-free-end: var(--lf-free-right);
@@ -482,7 +479,6 @@
     &:where(section):dir(rtl),
     &:where(article):dir(rtl),
     &:where(details):dir(rtl),
-    &:where(figure):dir(rtl),
     &:where([data-lf-flow]):dir(rtl) {
       --lf-free-start: var(--lf-free-right);
       --lf-free-end: var(--lf-free-left);
@@ -499,10 +495,6 @@
         & > :is([data-lf-space], .layout-sidebar)
       ),
     &:where(details):has(
-        > :is([data-lf-space], .layout-sidebar),
-        & > :is([data-lf-space], .layout-sidebar)
-      ),
-    &:where(figure):has(
         > :is([data-lf-space], .layout-sidebar),
         & > :is([data-lf-space], .layout-sidebar)
       ),
@@ -548,7 +540,7 @@
   :is(
     .layout-column,
     :is(
-      :is(section, article, details, figure):where(
+      :is(section, article, details):where(
         :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
       ),
       [data-lf-flow]
@@ -556,7 +548,7 @@
   ) {
     > :not(
       .layout-column,
-      :is(section, article, details, figure):where(
+      :is(section, article, details):where(
         :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
       ),
       [data-lf-flow]
@@ -632,7 +624,6 @@
         > section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
         > article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
         > details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
-        > figure:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
         > [data-lf-flow] {
           --lf-wide-reach: 0px;
           --lf-reach-start: 0px;
@@ -640,7 +631,6 @@
           &:where(section):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
           &:where(article):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
           &:where(details):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
-          &:where(figure):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
           &:where([data-lf-flow]):has(
               > [data-lf-space="wide"],
               & > [data-lf-space="wide"]
@@ -656,10 +646,6 @@
               & > :is([data-lf-space="available"], .layout-sidebar)
             ),
           &:where(details):has(
-              > :is([data-lf-space="available"], .layout-sidebar),
-              & > :is([data-lf-space="available"], .layout-sidebar)
-            ),
-          &:where(figure):has(
               > :is([data-lf-space="available"], .layout-sidebar),
               & > :is([data-lf-space="available"], .layout-sidebar)
             ),
@@ -679,10 +665,6 @@
               & > :is([data-lf-space], .layout-sidebar)
             ),
           &:where(details):has(
-              > :is([data-lf-space], .layout-sidebar),
-              & > :is([data-lf-space], .layout-sidebar)
-            ),
-          &:where(figure):has(
               > :is([data-lf-space], .layout-sidebar),
               & > :is([data-lf-space], .layout-sidebar)
             ),

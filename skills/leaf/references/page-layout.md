@@ -91,11 +91,10 @@ since the entry is itself a control.
 
 A `layout-column` is ordinary block flow at the reading measure, centered, with the
 space on both sides available to exhibits. Its blocks' margins collapse and a float
-stands beside the prose, as on any page. A `section`, `article`, `details` or
-`figure` shares that space with what it holds, at any depth, so an exhibit in it
-breaks out as one standing in the column does, and a figure's caption stays on the
-column, unless it carries a Layout, such as `layout-tiles`, which arranges what it
-holds. Other wrappers contain their children: a `div`, list,
+stands beside the prose, as on any page. A `section`, `article` or `details` shares
+that space with what it holds, at any depth, so an exhibit in it breaks out as one
+standing in the column does, unless it carries a Layout, such as `layout-tiles`, which
+arranges what it holds. Other wrappers contain their children: a `div`, list,
 callout or custom grid does not grant a nested exhibit room outside its own box. The
 same `data-width` contract applies at every level.
 
@@ -309,7 +308,7 @@ column and sidebar pages:
 
 A `table` with either value is only as wide as its columns need, up to that width.
 A block widens when it is a child of the `layout-column`, or of a `section`,
-`article`, `details` or `figure` in its flow, whose blocks stand in the flow around it,
+`article` or `details` in its flow, whose blocks stand in the flow around it,
 so its words stay on the column beside a wider one. A framed holder, such as a
 callout, needs its own `data-width` to widen; its children use the room inside it. A
 wide child alone does not widen its holder. Write a box that arranges its own

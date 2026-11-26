@@ -124,19 +124,26 @@ class ObligationRegistration(NamedTuple):
 def obligation_registrations(
     document, registry: dict
 ) -> dict[str, ObligationRegistration]:
-    """Compact immutable registration inputs, separate from a revision's parse."""
-    return {
-        unit: ObligationRegistration(
+    """Compact immutable registration inputs, separate from a revision's parse. A
+    widget an exhibit shows (`structure.shown_in`) registers as one that neither asks
+    nor is asked by a write, as the current version's fold reads it: it asked nothing
+    there, and a write to it there was a demonstration."""
+    registrations = {}
+    for unit, record in document.by_id.items():
+        declaration = registry.get(record["tag"], {}).get("awaits")
+        if declaration is None:
+            continue
+        eligible = not shown_in(record, registry)
+        registrations[unit] = ObligationRegistration(
             record["tag"],
-            matches_when(record["attrs"], declaration.get("when")),
+            eligible and matches_when(record["attrs"], declaration.get("when")),
             "restated" in record["attrs"],
             frozenset(
                 verb
                 for verb, spec in registry[record["tag"]].get("verbs", {}).items()
-                if (spec.get("record") or {}).get("kind") == "value"
+                if eligible
+                and (spec.get("record") or {}).get("kind") == "value"
                 and spec["record"]["attr"] in declaration.get("when", {})
             ),
         )
-        for unit, record in document.by_id.items()
-        if (declaration := registry.get(record["tag"], {}).get("awaits")) is not None
-    }
+    return registrations

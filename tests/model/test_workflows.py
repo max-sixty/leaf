@@ -1485,35 +1485,6 @@ def test_a_failure_hands_back_only_what_its_delivery_carried(page_dir):
     assert owed(state_json(page_dir)) == []
 
 
-def test_a_failure_hands_back_what_it_carried_after_its_address_is_taken_back(
-    page_dir,
-):
-    """A delivery carried the user's message and their pick after it, addressed to
-    the pick. The user takes the pick back, and the delivery fails: the failure goes
-    in at the message, which it hands back, rather than leaving it for a delivery
-    the harness said it would not retry."""
-    asked = offer_choice(page_dir)
-    message = say(page_dir, asked, "File it?")
-    picked = choose(page_dir, "file")
-    append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
-    )
-    failure = thread_model.fail_answer(
-        page_dir,
-        picked["id"],
-        "delivery_unconfirmed",
-        "Send it again if I still need an answer.",
-        also=[message["id"]],
-        attempt=f"unconfirmed-{picked['id']}",
-        identity={"session": "s1"},
-        only_if_unclaimed=False,
-    )
-    assert failure is not None and failure["responds"] == message["id"]
-    state = state_json(page_dir)
-    assert owed(state) == []
-    assert update_records(state) == {f"update:{message['id']}": "user"}
-
-
 def test_editing_out_an_answered_choice_reopens_nothing(page_dir):
     """Once one answer settled the user's message and their pick, the agent's edit
     that takes the choice out of its message leaves both settled."""

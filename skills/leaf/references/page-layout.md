@@ -223,6 +223,14 @@ the page's own grid of panes:
 }
 ```
 
+Give material beside the regions' work, such as a list of open items or a report, a view
+of its own, so the regions keep the room the reader works in. Make the body a tab set
+with `flow="page"`, put the regions in its first tab, so the page still opens on them,
+and add a tab for the material. A grid of panes that is a tab's one block fills the
+window below the tab strip, as it does as the body. Written as a second block beside the
+body, the material would split the window's height with it, and written as another
+region, it would take room from the others.
+
 A widget that asks, such as a playground, stands in its question's group
 (`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
 heading asks the question, the group's label asks it too:

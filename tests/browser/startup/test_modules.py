@@ -33,10 +33,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import wait_until_ready
-from leaf.runtime_selection import serving_runtime
+from leaf.commands import cli as cli_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import wait_until_ready
+from leaf.source.runtime_selection import serving_runtime
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 

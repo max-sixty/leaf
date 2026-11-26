@@ -9,8 +9,8 @@ import subprocess
 
 from interact_support import ROOT, STATED_TIMEOUT
 
-from leaf import service as service_model
-from leaf import state as state_model
+from leaf.base import service as service_model
+from leaf.base import state as state_model
 
 LAUNCHER = str(ROOT / "bin" / "leaf")
 REGISTRATIONS = json.loads((ROOT / "hooks" / "hooks.json").read_text())["hooks"]

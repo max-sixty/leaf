@@ -26,8 +26,8 @@ from PIL import Image
 from playwright.sync_api import Page
 
 import leaf_website
-from leaf.hosting import LeafHTTPServer
-from leaf.render_gate.scheme import collect_page_exceptions
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.pages.render_gate.scheme import collect_page_exceptions
 from leaf_dev.browser import Window, headless_shell, load, screenshot, tab
 from leaf_dev.commands.site import _build as site_build
 from leaf_dev.example_data import catalog_sources

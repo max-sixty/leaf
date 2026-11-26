@@ -26,7 +26,7 @@
      without Leaf draws the words, and so does a served page until the runtime has
      defined the element. A file that runs no script can't keep an age, so a static
      export draws the words too, or the clock time where the author wrote none
-     (src/leaf/static-export.js).
+     (src/leaf/pages/static-export.js).
    - It follows the clock with one effect of its own and writes one text node. A
      `LeafElement` would make each age a stage Leaf dresses and watches
      (dom/shadow-stage.js), which a list of ages pays once for each.

@@ -49,9 +49,9 @@ def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
     whichever Leaf captured the version, since only that runtime reads that state."""
     from click.testing import CliRunner
 
-    from leaf import cli as cli_model
-    from leaf import runtime_selection
-    from leaf.exporting import cmd_export
+    from leaf.commands import cli as cli_model
+    from leaf.pages.exporting import cmd_export
+    from leaf.source import runtime_selection
 
     stamped = CliRunner().invoke(
         cli_model.cli, ["page", "stamp", str(page_dir), "--text", "Exported"]

@@ -29,8 +29,8 @@ from browser.startup import (
     first_frame,
 )
 from browser.startup.test_readiness import answer_as_another_runtime
-from leaf import event_log as events_model
-from leaf.render_checks import asked_again, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

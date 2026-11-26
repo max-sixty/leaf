@@ -22,7 +22,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 def test_g_V_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(

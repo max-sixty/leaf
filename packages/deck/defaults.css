@@ -140,18 +140,6 @@ lf-deck[data-lf-deck-flying] {
       scroll-margin-block: var(--lf-deck-bar-h) calc(2 * var(--lf-deck-edge));
     }
 
-    /* The deck holds the tallest height it has stood at (lf-deck.js, `#hold`), and the
-       open card fills it, so a shorter card's frame takes in the room rather than
-       leaving it empty below. The end frame keeps its own height, since a frame drawn
-       round empty room reads as a place to drop something. */
-    :scope:is(lf-deck).lf-rendered {
-      display: flex;
-      flex-direction: column;
-    }
-    :scope:is(lf-deck).lf-rendered > [data-lf-deck-open] {
-      flex-grow: 1;
-    }
-
     :scope:is(lf-deck) > [data-lf-view] > :first-child {
       margin-block-start: 0;
     }

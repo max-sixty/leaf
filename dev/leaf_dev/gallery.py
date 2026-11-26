@@ -17,8 +17,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from leaf.media import write_media
-from leaf.schema import MEDIA_DIR
+from leaf.base.schema import MEDIA_DIR
+from leaf.serving.media import write_media
 
 
 def media(directory: Path, data: bytes) -> str:

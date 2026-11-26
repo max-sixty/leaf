@@ -37,7 +37,7 @@ from render_harness import (
 )
 
 from browser.widgets import expect_accept_all
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

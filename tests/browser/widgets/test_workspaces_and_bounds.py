@@ -26,9 +26,9 @@ from render_harness import (
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -267,6 +267,76 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     resized(page, 1280, 720)
     pane_scroll_behavior(page, queue_pane, "bounded")
     fills_the_window(page, workspace, True)
+
+
+@pytest.mark.parametrize(
+    "opening,closing",
+    [
+        (
+            '<lf-tabs id="holder" flow="page"><lf-tab id="work" label="Review">',
+            '</lf-tab><lf-tab id="open" label="Open items"><ul><li>Merge it</li></ul>'
+            "</lf-tab></lf-tabs>",
+        ),
+        (
+            '<lf-group id="holder" label="Which item ships first?">'
+            "<h2>Which item ships first?</h2>",
+            "</lf-group>",
+        ),
+    ],
+    ids=["page-tab", "question-group"],
+)
+def test_a_grid_of_panes_told_the_height_holds_its_panes_as_the_body_does(
+    browser, serve, opening, closing
+):
+    """A grid of panes that a box filling the workspace's height passes that height to,
+    as a page tab's one block or a question group's answer, keeps the regions on the
+    screen as the body's grid does: it takes what the strip or the heading leaves, each
+    pane's body scrolls on its own, and the box around it has nothing to scroll. So
+    material beside the regions' work, such as a list of open items, can take a tab of
+    its own."""
+    page = open_page(
+        browser,
+        serve(
+            WORKSPACE_PAGE.replace(
+                '<div id="review-regions">', f'{opening}<div id="review-regions">'
+            ).replace("  <footer>", f"{closing}<footer>")
+        ),
+    )
+    resized(page, 1920, 720)
+    pane_scroll_behavior(page, page.locator("#queue"), "bounded")
+    fills_the_window(page, page.locator("main"), True)
+    readings = page.evaluate(
+        """() => {
+          const box = el => el.getBoundingClientRect();
+          const body = id => document.querySelector(`#${id} > :not(header, footer)`);
+          const holder = document.getElementById('holder');
+          const grid = document.getElementById('review-regions');
+          return {holder: [holder.clientHeight, holder.scrollHeight],
+                  queue: [body('queue').clientHeight, body('queue').scrollHeight],
+                  detail: [body('detail').clientHeight, body('detail').scrollHeight],
+                  frame: getComputedStyle(grid).borderTopWidth,
+                  gridEnd: box(grid).bottom,
+                  holderEnd: box(holder).bottom};
+        }"""
+    )
+    assert readings["holder"][1] <= readings["holder"][0] + 1, readings
+    assert readings["queue"][1] > readings["queue"][0], readings
+    assert readings["detail"][1] > readings["detail"][0], readings
+    assert readings["frame"] == "1px", readings
+    assert readings["holderEnd"] - readings["gridEnd"] < 24, readings
+    # The render check's reading of how the workspace holds its panes finds the grid.
+    held = page.evaluate("async () => (await import('/checks/layout.js')).heldPanes()")
+    assert [(g["at"], g["held"], g["panes"], g["beside"]) for g in held] == [
+        ("<div id=review-regions>", True, 2, 2)
+    ], held
+    # A tab the user leaves holds no grid on the screen.
+    if opening.startswith("<lf-tabs"):
+        page.get_by_role("tab", name="Open items").click()
+        page.wait_for_function("() => document.getElementById('work').hidden !== false")
+        assert (
+            page.evaluate("async () => (await import('/checks/layout.js')).heldPanes()")
+            == []
+        )
 
 
 def test_a_workspace_reaches_the_window_foot_and_leaves_nothing_to_scroll(

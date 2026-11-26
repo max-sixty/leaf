@@ -14,7 +14,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 # A live revision that puts a tab set above this one moves it 430px down the window,

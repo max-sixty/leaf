@@ -26,13 +26,13 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import exporting as exporting_model
-from leaf import files as files_model
-from leaf import media as media_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
-from leaf.structure import UTF8_BOM
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.pages import exporting as exporting_model
+from leaf.serving import media as media_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
+from leaf.source.structure import UTF8_BOM
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed

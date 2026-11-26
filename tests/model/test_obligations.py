@@ -11,14 +11,14 @@ from interact_support import (
     served_obligations,
 )
 
-from leaf import obligations as obligations_model
-from leaf import standing as standing_model
-from leaf.gesture_words import element_name
-from leaf.passages import SourceReading
-from leaf.projection import page_reading
-from leaf.served_state.browser import browser_state
-from leaf.structure import SourceDocument
-from leaf.work_reading import WorkReading
+from leaf.base import standing as standing_model
+from leaf.log import obligations as obligations_model
+from leaf.log.gesture_words import element_name
+from leaf.log.projection import page_reading
+from leaf.records.work_reading import WorkReading
+from leaf.serving.served_state.browser import browser_state
+from leaf.source.passages import SourceReading
+from leaf.source.structure import SourceDocument
 
 OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-option id="b">B</lf-option></lf-options>'
 
@@ -1054,7 +1054,7 @@ def test_a_todo_end_names_only_a_todo():
     an id that names neither a to-do nor an obligation as unknown."""
     from interact_support import ModelPage
 
-    from leaf.event_contracts import EventRefused, admitted_event
+    from leaf.records.event_contracts import EventRefused, admitted_event
 
     document = page()
     door = ModelPage(
@@ -1173,8 +1173,8 @@ def test_a_widget_is_quoted_where_the_browser_fences_it(case):
 def test_a_detail_condition_names_a_declared_value_of_its_verb():
     """A widget whose answer is a detail value the verb can't hold never completes,
     so the registry refuses it."""
-    from leaf.registry.contract import RegistryError
-    from leaf.registry.validation import validate_registry
+    from leaf.source.registry.contract import RegistryError
+    from leaf.source.registry.validation import validate_registry
 
     registry = deepcopy(model.model_layer())
     entry = registry["lf-suggestion"]

@@ -1,7 +1,7 @@
 /* The kernel registry's facts, as the browser reads them.
 
    The kernel registry beside this module holds the facts no layer changes. Python
-   reads it from the serving Leaf's runtime (`leaf.registry.kernel`), and so does the
+   reads it from the serving Leaf's runtime (`leaf.source.registry.kernel`), and so does the
    browser: a page runs the serving Leaf's runtime (`runtime_selection`), and no layer
    can replace one of its files. A page's own `/registry.json` is its composed
    vocabulary (`registry.js`), and the runtime reads these facts here rather than
@@ -16,7 +16,7 @@
 import kernel from "../kernel-registry.json" with { type: "json" };
 
 const { collapse, blocks, context, phrasing, closing, opening } = kernel.$passages;
-// How a page turns into text (`leaf/passages.py`): a run of these characters is one
+// How a page turns into text (`leaf/source/passages.py`): a run of these characters is one
 // space, each of these tags is one block, and an anchor starts with this much context
 // on each side of its quote. Escaped, since a character class gives `]`, `\`, `^` and
 // `-` meanings of their own.

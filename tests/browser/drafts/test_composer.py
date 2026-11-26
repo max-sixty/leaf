@@ -46,7 +46,7 @@ from render_harness import (
 
 from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import clear_of_the_panel, paste_image
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

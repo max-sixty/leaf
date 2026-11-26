@@ -166,9 +166,9 @@ def run_hosted() -> None:
     """The isolated child, importing the arm's production hosted implementation."""
     import leaf_website
     from leaf import __file__ as leaf_source
-    from leaf.event_log import read_events
-    from leaf.interaction_log import read_interactions
-    from leaf.thread import successful_replies
+    from leaf.agents.thread import successful_replies
+    from leaf.log.event_log import read_events
+    from leaf.log.interaction_log import read_interactions
     from leaf_dev.review_scenario import post
 
     try:

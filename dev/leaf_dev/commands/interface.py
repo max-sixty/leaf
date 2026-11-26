@@ -87,7 +87,7 @@ import tree_sitter_javascript
 import turbohtml
 from tree_sitter import Language, Node, Parser, Query, QueryCursor
 
-from leaf.registry.contract import is_element_name
+from leaf.source.registry.contract import is_element_name
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     arm_commit,

@@ -45,7 +45,7 @@
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be
- * (`CACHE_CONTROL`, `src/leaf/http.py`).
+ * (`CACHE_CONTROL`, `src/leaf/serving/http.py`).
  */
 
 import * as z from "zod/mini";

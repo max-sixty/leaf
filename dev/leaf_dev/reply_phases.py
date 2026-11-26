@@ -23,7 +23,7 @@ server's clock. The harness's record splits that span into phases (`turn_phases`
 where it went, each moment once:
 
 - Leaf's share: delivery, the time Leaf's own commands took, which each `leaf`
-  command records in the page it acted on (`leaf.interaction_log.record_command`),
+  command records in the page it acted on (`leaf.log.interaction_log.record_command`),
   and Leaf's hooks where the harness times them;
 - `harness`: the part of each model phase before the harness sent the request, as
   its other hooks ran, where the record has the request;
@@ -64,7 +64,7 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
-from leaf.harness import NUDGE_WORDS, claude_code_config
+from leaf.base.harness import NUDGE_WORDS, claude_code_config
 from leaf_dev import ROOT
 
 # The directory change an agent puts before a command, which says nothing of it.

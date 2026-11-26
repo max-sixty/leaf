@@ -8,7 +8,7 @@ from render_cases_interaction import PANEL_PAGE
 from render_harness import ROOT, leaf_page, open_page, rendered, selection_field, write
 
 from browser.test_render_reactions import select_paragraph
-from leaf import data as data_model
+from leaf.source import data as data_model
 
 
 @pytest.mark.parametrize("touch,width", [(False, 1280), (True, 390)])

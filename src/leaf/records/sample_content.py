@@ -15,7 +15,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from leaf.base.findings import Finding, Rejected
-from leaf.base.state import now_iso
+from leaf.base.state import aware_instant, now_iso
 from leaf.log.event_log import EventRefused
 from leaf.log.projection import generated_children, logged_words
 from leaf.log.thread_context import (
@@ -37,7 +37,6 @@ from leaf.source.data_contracts import (
     initial_data_document_readings,
 )
 from leaf.source.registry.kernel import kernel_event_kinds
-from leaf.source.registry.schema import aware_instant
 from leaf.source.structure import SourceDocument
 
 

@@ -1143,6 +1143,7 @@ class TextDocument extends LeafElement {
         words.text,
         words.caret.offsetNode,
         words.caret.offset,
+        true,
       );
     if (!words || offset === null) return;
     const line = words.text.slice(0, offset).split(/\r\n|\r|\n/).length;

@@ -85,7 +85,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
       if (at < 0) continue;
       matches++;
       assert.equal(
-        markdownSourceOffset(body, source, node, at + 2),
+        markdownSourceOffset(body, source, node, at + 2, false),
         source.indexOf("word300") + 2,
         source,
       );
@@ -104,7 +104,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     paintMarkdown(body, source);
     const node = body.querySelector("code").firstChild;
     assert.equal(
-      markdownSourceOffset(body, source, node, node.data.indexOf(word)),
+      markdownSourceOffset(body, source, node, node.data.indexOf(word), false),
       at,
       source,
     );
@@ -116,7 +116,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     for (let node; (node = walker.nextNode());) {
       const at = node.data.indexOf("*word300");
       if (at < 0) continue;
-      const offset = markdownSourceOffset(body, source, node, at);
+      const offset = markdownSourceOffset(body, source, node, at, false);
       assert.ok(
         offset !== null && offset <= source.indexOf("\\*"),
         `${source}: ${offset}`,
@@ -131,10 +131,58 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     const at = node.data.indexOf("word300");
     for (const offset of [0, 2])
       assert.equal(
-        markdownSourceOffset(body, source, node, at + offset),
+        markdownSourceOffset(body, source, node, at + offset, false),
         source.indexOf("word300") + offset,
         source,
       );
+  }
+});
+
+test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds its source", async () => {
+  const { loadMarkdown, makeMarkdown, markdownSourceOffset } =
+    await import("/runtime/lib/markdown.js");
+  await loadMarkdown();
+  const module = await import("/vendor/markdown-it.esm.js");
+  // The header's markup spells its visible word in an attribute, a comment and a style
+  // before the line that shows it.
+  const source = [
+    '<p title="Gizmo" align="center">',
+    "  <!-- Gizmo's logo -->",
+    '  <img src="logo.svg" alt="">',
+    "  <style>.Gizmo { color: red }</style>",
+    "  Gizmo &amp; friends",
+    "</p>",
+    "",
+    "<details>",
+    "<summary>From source</summary>",
+    "",
+    "Run the build.",
+    "",
+    "</details>",
+    "",
+    "Last words.",
+  ].join("\n");
+  // The file's HTML draws as its tags say, less the style a sanitizer takes out, and
+  // the fold holds the paragraph inside it.
+  const body = document.createElement("div");
+  body.innerHTML = makeMarkdown(module, false, true).render(source, { links: {} });
+  body.querySelector("style")?.remove();
+  assert.ok(body.querySelector("details > p"));
+  for (const [word, at] of [
+    ["Gizmo", source.indexOf("Gizmo &amp;")],
+    ["friends", source.indexOf("friends")],
+    ["source", source.indexOf("source")],
+    ["build", source.indexOf("build")],
+    ["Last", source.indexOf("Last")],
+  ]) {
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode()) && !node.data.includes(word)) {}
+    assert.equal(
+      markdownSourceOffset(body, source, node, node.data.indexOf(word) + 2, true),
+      at + 2,
+      word,
+    );
   }
 });
 
@@ -569,7 +617,7 @@ test("a table cell's words and a caret in them stand in its own cell, past the p
     paintMarkdown(body, source, {});
     for (const [index, cell] of body.querySelectorAll("th").entries()) {
       const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT).nextNode();
-      const offset = markdownSourceOffset(body, source, words, words.data.length);
+      const offset = markdownSourceOffset(body, source, words, words.data.length, false);
       const [from, to] = spans[index];
       assert.ok(from < offset && offset <= to, `${source}: cell ${index} at ${offset}`);
     }

@@ -1099,13 +1099,17 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     browser, serve, tmp_path
 ):
     """A double-click on a word in the rendered copy of the editor's file puts the
-    editor's caret at the start of the word's line, whichever block holds it, and leaves
-    no word selected in the copy. A double-click on a link in the copy only follows the
-    link, though the link scrolls other words under the second press, and one on a copy
-    that names no editor selects its word as the browser does."""
+    editor's caret at the start of the word's line, whichever block holds it, the file's
+    own HTML and the Markdown a fold of it wraps included, and leaves no word selected
+    in the copy. A double-click on a link in the copy only follows the link, though the
+    link scrolls other words under the second press, and one on a copy that names no
+    editor selects its word as the browser does."""
     file = tmp_path / "README.md"
     file.write_text(
+        '<p align="center">\n  <strong>Gizmo</strong>\n  <br>\n'
+        "  A tool that <em>does</em> things.\n</p>\n\n"
         "[To the end](#the-end)\n\nA paragraph's first line\nwraps onto a second line."
+        "\n\n<details>\n<summary>From source</summary>\n\nRun the build.\n\n</details>"
         "\n\n- one\n- two\n\n```sh\nsh run.sh\n```\n\n"
         "| a | b |\n| --- | --- |\n| x | gamma |\n\n"
         + "\n\n".join(f"Paragraph {number}." for number in range(1, 41))
@@ -1132,12 +1136,15 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     expect(preview.get_by_role("cell", name="gamma")).to_be_visible()
 
     def double_click(locator, word):
+        locator.get_by_text(word).first.scroll_into_view_if_needed()
         point = word_point(locator, word)
         page.mouse.dblclick(point["x"], point["y"])
 
     double_click(page.locator("#written .lf-text-document-preview"), "written")
     assert page.evaluate("() => getSelection().toString()") == "written"
 
+    preview.locator("details > summary").click()
+    expect(preview.get_by_text("Run the build.")).to_be_visible()
     # The first double-click lands on selected words, and a fenced command's first word
     # is also the fence's language.
     preview.locator("p", has_text="wraps").evaluate(
@@ -1145,6 +1152,9 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     )
     for word, line in [
         ("wraps", "wraps onto a second line."),
+        ("Gizmo", "<strong>Gizmo</strong>"),
+        ("tool", "A tool that <em>does</em> things."),
+        ("build", "Run the build."),
         ("two", "- two"),
         ("sh", "sh run.sh"),
         ("gamma", "| x | gamma |"),
@@ -1157,6 +1167,7 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     expect(editor.locator(".cm-activeLine")).to_have_text("Z| x | gamma |")
 
     # The link's scroll lands before the double-click's second press.
+    preview.get_by_text("To the end").scroll_into_view_if_needed()
     point = word_point(preview, "To the end")
     page.mouse.click(point["x"], point["y"])
     expect(preview.get_by_role("heading", name="The end")).to_be_in_viewport()

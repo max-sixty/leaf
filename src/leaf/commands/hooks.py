@@ -74,11 +74,25 @@ session")."""
 
 import json
 import os
+import sys
+import tempfile
 import time
 from typing import TYPE_CHECKING, NoReturn
 
-from leaf.base.leases import first_hook_for_tool, mark_hooks, mark_root
+from leaf.base.leases import (
+    end_if_terminated,
+    first_hook_for_tool,
+    lane_path,
+    mark_hooks,
+    mark_module,
+    mark_root,
+    release_lease,
+    release_on_termination,
+    take_lane,
+)
+from leaf.base.page_memory import memory_of
 from leaf.base.refusals import Refused
+from leaf.base.schema import SKILL_FILE
 from leaf.base.state import (
     PLUGIN_ROOT,
     CopyReplaced,
@@ -96,6 +110,7 @@ from leaf.base.state import (
     turn_closed,
     worker_tool_batch,
 )
+from leaf.log.interaction_log import record_follower
 from leaf.records.transaction import owned_pages
 
 if TYPE_CHECKING:
@@ -283,8 +298,6 @@ def reload_skill(session_id: str) -> str | None:
     widget's instructions in context, where those written before one have them. Restating a rule on every prompt weighs on every turn and covers only
     that rule, so this message names what the compaction removed and
     leaves the rules to the skill and its routes."""
-    from leaf.base.schema import SKILL_FILE
-
     pages = owned_pages(session_id)
     if not pages:
         return None
@@ -368,7 +381,6 @@ def cmd_pages(payload: dict) -> None:
     whether a follower had run (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from leaf.base.harness import ClaudeCodeHarness
-    from leaf.base.leases import mark_module
 
     # Only Leaf's Claude Code module starts a follower, so one running shows the
     # module loaded in this process (`ClaudeCodeHarness.unloaded_module`).
@@ -381,10 +393,7 @@ def cmd_pages(payload: dict) -> None:
     from leaf.agents.completions import listed as completions_listed
     from leaf.agents.completions import watch
     from leaf.agents.presence import PRESENCE_CACHE_S, live_leaves
-    from leaf.base.leases import lane_path, release_lease, take_lane
-    from leaf.base.page_memory import memory_of
     from leaf.log.file_changes import FileChanges, page_changes, wait
-    from leaf.log.interaction_log import record_follower
 
     queued = watch(sid)
     # Whether this follower still holds the lane, which a later one takes.
@@ -540,8 +549,6 @@ def main(
     after the next run, as any failed watch does; the session's hooks can't run
     until that copy can start either.
     """
-    import sys
-
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
@@ -565,8 +572,6 @@ def main(
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
-        from leaf.base.leases import end_if_terminated, release_on_termination
-
         release_on_termination()
         try:
             woke = cmd_watch(harness, payload)
@@ -589,8 +594,6 @@ def _watch_from_new_copy(harness: str, payload: dict) -> NoReturn:
     would fill. The environment drops the host's choice of launcher
     (`LEAF_HOST_LAUNCHER`, which `bin/leaf` reads), since that would send the call
     back to the host's."""
-    import tempfile
-
     with tempfile.TemporaryFile() as incoming:
         incoming.write(json.dumps(payload).encode())
         incoming.seek(0)

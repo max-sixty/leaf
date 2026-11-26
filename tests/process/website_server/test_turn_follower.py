@@ -26,7 +26,7 @@ from leaf.base.state import session_record
 from leaf.commands.session import set_status
 from leaf.log.event_log import read_events
 from leaf.log.interaction_log import read_interactions
-from leaf.pages.render_gate.command import message_check
+from leaf.pages.render_gate.messages import message_check
 from process.website_server import (
     accept_in_turn,
     hosted_follower,

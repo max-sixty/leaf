@@ -66,7 +66,7 @@ from leaf.base.leases import (
 from leaf.base.refusals import Refused
 from leaf.base.state import LoadedCopy, flocked
 from leaf.commands.session import PageTick, Watch, read_watch_pass
-from leaf.pages.render_gate.command import message_check
+from leaf.pages.render_gate.messages import message_check
 from leaf.records.transaction import owned_pages
 
 

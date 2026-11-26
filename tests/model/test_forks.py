@@ -33,7 +33,6 @@ from leaf.records import transaction as transaction_model
 from leaf.records.transaction import PageTransaction
 from leaf.serving import event_endpoint as endpoint_model
 from leaf.serving import server_rows as server_rows_model
-from leaf.source import revision_artifact as revision_artifact_model
 
 # What Leaf's Claude Code hooks module gives the pages follower of session s1
 # (`hooks.cmd_pages`).
@@ -629,7 +628,7 @@ def test_the_follower_reads_a_thread_a_version_reopened_as_the_fold_does(
         for offset, event in enumerate(logged, 1):
             log.write(json.dumps({**event, "seq": seq + offset, "ts": ts}) + "\n")
     monkeypatch.setattr(
-        revision_artifact_model, "active_enclosing", lambda page_dir: {"sec1": ["w1"]}
+        forks_model, "active_enclosing", lambda page_dir: {"sec1": ["w1"]}
     )
     assert listed(claimed) == [basis(claimed, "contained-c1", "contained-c1")]
 

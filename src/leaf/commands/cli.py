@@ -28,8 +28,9 @@ from typing import NamedTuple, TextIO
 
 import click
 
+from leaf.base.machine import sandbox_refusal
 from leaf.base.schema import WAIT_BATCH_OUTPUT_INSTRUCTION
-from leaf.base.state import PLUGIN_ROOT
+from leaf.base.state import PLUGIN_ROOT, main
 from leaf.pages.render_gate.browser import VARIABLES as BROWSER_VARIABLES
 from leaf.source.registry.kernel import title_limit
 
@@ -211,7 +212,6 @@ class LeafGroup(click.Group):
         return name, command, remaining
 
     def invoke(self, ctx: click.Context):
-        from leaf.base.machine import sandbox_refusal
         from leaf.base.refusals import Refused
 
         try:
@@ -330,8 +330,6 @@ def hook(harness: str, watch: bool, pages: bool, fork: bool) -> None:
 @cli.command(cls=PrintsItself, hidden=True)
 def session_end() -> None:
     """End the harness instance named by the JSON payload on stdin."""
-    from leaf.base.state import main
-
     main()
 
 
@@ -1441,7 +1439,7 @@ def thread_create(
     a --part the page would show nowhere. The comment's id is the thread's.
     """
     from leaf.agents.thread import Drawn, UndrawnPart, UnsaidQuote, cmd_comment
-    from leaf.pages.render_gate.command import message_check
+    from leaf.pages.render_gate.messages import message_check
 
     body = read_body(text, body_file)
     try:
@@ -1542,7 +1540,7 @@ def thread_reply(
     each leaves.
     """
     from leaf.agents.thread import post_reply, post_response
-    from leaf.pages.render_gate.command import message_check
+    from leaf.pages.render_gate.messages import message_check
 
     text = read_body(options.pop("text"), options.pop("body_file"))
     # The agent names a thread nobody has titled yet (`untitled-thread`).
@@ -1606,7 +1604,7 @@ def thread_edit(
     stable unless the thread's subject changes.
     """
     from leaf.agents.thread import cmd_edit
-    from leaf.pages.render_gate.command import message_check
+    from leaf.pages.render_gate.messages import message_check
 
     renames_only = title is not None and text is None and body_file is None
     body = None if renames_only else read_body(text, body_file)

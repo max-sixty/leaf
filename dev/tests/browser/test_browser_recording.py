@@ -48,15 +48,15 @@ def test_trace_handoff_serves_the_native_viewer_without_desktop_launches(
         stderr=subprocess.PIPE,
         text=True,
     )
-    wait_for(
-        attempted.exists,
-        bool,
+    # The guard creates the file before it writes the line, so wait for a whole
+    # line rather than for the file.
+    before = wait_for(
+        lambda: attempted.read_text() if attempted.exists() else "",
+        lambda text: text.endswith("\n"),
         failure="legacy trace command never attempted a desktop launch",
     )
-    launches = [json.loads(line) for line in attempted.read_text().splitlines()]
-    assert launches, "the launch interceptor must see the legacy command's side effect"
     # Keep the control's evidence: any launch from the new server appends a line.
-    before = attempted.read_text()
+    assert [json.loads(line) for line in before.splitlines()]
 
     server = spawn(
         [sys.executable, "-m", "leaf_dev", "trace-server", str(trace)],

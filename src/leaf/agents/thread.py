@@ -55,6 +55,13 @@ from leaf.source.registry.kernel import kinds_declaring, title_limit
 from leaf.source.revision_artifact import active_enclosing, read_revision
 from leaf.source.structure import SourceDocument
 
+# The browser check a message's markup runs before it posts
+# (`render_gate.command.message_check`): given the page, the kind of message and the
+# markup, it raises `Rejected` where a widget in the markup doesn't draw. The render
+# gate stands above this module, so each write takes the check from its command, and
+# a write given none posts the markup unrun, as on a host with no browser.
+MessageCheck = Callable[[Path, str, str], None]
+
 
 def drawn_markup(text: str) -> str:
     """The markup an agent's message draws from `text` where its Markdown holds HTML
@@ -374,6 +381,7 @@ def cmd_comment(
     title: str | None = None,
     obligation: bool = False,
     drawn: Drawn | None = None,
+    check: MessageCheck | None = None,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -387,13 +395,13 @@ def cmd_comment(
     Two targets need the drawn page, which the command draws and passes back as
     `drawn` (`render_gate.drawn_anchor`), since the render gate stands above this
     module. A quote the file's reading lacks is refused as `UnsaidQuote`, and a part in
-    a visual no render reading of the version read as `UndrawnPart`."""
+    a visual no render reading of the version read as `UndrawnPart`. For the same
+    reason the command passes `check`, which runs the message's HTML before the page
+    lease is taken."""
     title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
-    if markup := drawn_markup(body):
-        from leaf.pages.render_gate.command import message_check
-
-        message_check(page_dir, "comment", markup)
+    if check is not None and (markup := drawn_markup(body)):
+        check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         return open_thread(
             page_dir,
@@ -642,6 +650,7 @@ def post_reply(
     part: str = "",
     detach: bool = False,
     title: str | None = None,
+    check: MessageCheck | None = None,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor;
     the appended record, or the earlier reply a repeated `attempt` names, or none
@@ -677,6 +686,9 @@ def post_reply(
     message or a harness's failure receipt: Leaf's own write, which goes in as the
     claimant's and says nothing beside it.
 
+    ``check`` runs the reply's HTML before the page lease is taken
+    (`MessageCheck`).
+
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
@@ -695,10 +707,8 @@ def post_reply(
     title = agent_title(title)
     todo = agent_title(todo)
     text = checked_text(page_dir, text, html=True)
-    if markup := drawn_markup(text):
-        from leaf.pages.render_gate.command import message_check
-
-        message_check(page_dir, "reply", markup)
+    if check is not None and (markup := drawn_markup(text)):
+        check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -1217,7 +1227,12 @@ def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
 
 
 def post_response(
-    reference: str, text, *, reservation: str | None = None, **options
+    reference: str,
+    text,
+    *,
+    reservation: str | None = None,
+    check: MessageCheck | None = None,
+    **options,
 ) -> dict | None:
     """Author a complete reply at the delivery's exact captured response address.
 
@@ -1267,6 +1282,7 @@ def post_response(
         settlement=REFUSE if reservation is None else ProviderFinal(reservation),
         attempt=attempt,
         validate_source=True,
+        check=check,
         **options,
     )
 
@@ -1400,7 +1416,12 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
 
 @contract_writer
 def cmd_edit(
-    page_dir: Path, message: str, text, *, title: str | None = None
+    page_dir: Path,
+    message: str,
+    text,
+    *,
+    title: str | None = None,
+    check: MessageCheck | None = None,
 ) -> list[dict]:
     """Append a text revision to one agent-authored message, rename the thread it is
     in, or both, and return the records appended.
@@ -1408,10 +1429,10 @@ def cmd_edit(
     The message event is immutable: the edit points back to it, so the log retains
     every wording while readings take the latest, its HTML included
     (`thread_context.thread_structure`). HTML in the new words meets the gates a new
-    message's does, under the revision the user is looking at, which the edit names
-    as such a message does. Where the message
-    holds a widget the user has acted on, the edit goes in and Leaf says what becomes
-    of their answer (`_answered_widgets`). A summary folding the message stands, and
+    message's does, `check` included, under the revision the user is looking at,
+    which the edit names as such a message does. Where the message holds a widget
+    the user has acted on, the edit goes in and Leaf says what becomes of their
+    answer (`_answered_widgets`). A summary folding the message stands, and
     Leaf names it (`_folding_summaries`), since only the agent knows whether its
     edit changes what the summary reports. Admission refuses a message another voice
     wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
@@ -1429,10 +1450,8 @@ def cmd_edit(
         else None
     )
     markup = drawn_markup(body) if body is not None else ""
-    if markup:
-        from leaf.pages.render_gate.command import message_check
-
-        message_check(page_dir, "edit", markup)
+    if markup and check is not None:
+        check(page_dir, "edit", markup)
     answered = []
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)

@@ -93,6 +93,7 @@ from leaf.commands.session import set_status
 from leaf.log.interaction_log import append_interactions
 from leaf.pages.hosting import LeafHTTPServer
 from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate.command import message_check
 from leaf.records.revisioning import activate_source
 from leaf.records.transaction import PageTransaction, restore_page_claim
 from leaf.serving.http import PageEndpoint, PostRoute, scope_page_urls
@@ -480,6 +481,7 @@ class HostedTurn(CarriedTurn):
             reply_target,
             buffered,
             lifecycle=lifecycle,
+            check=message_check,
         )
         self.harness = harness
         self.delivery_id = delivery_id

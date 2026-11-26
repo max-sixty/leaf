@@ -396,8 +396,11 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(
     names another write, so a write outside Leaf moves the reading a visible tab polls
     and that source's run, and so do rewriting the same bytes, a same-size rewrite that
     puts the old modification time back, and a file becoming unreadable, which the
-    source then reports."""
-    target = tmp_path / "notes.txt"
+    source then reports. A failure whose cause the file's stamp doesn't name, as a
+    symlink put in its path, clears once its cause does."""
+    folder = tmp_path / "notes"
+    folder.mkdir()
+    target = folder / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
 
@@ -435,6 +438,14 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(
     finally:
         target.chmod(0o644)
     assert source()["value"]["text"] == "BRAVO\n"
+
+    moved = tmp_path / "moved"
+    folder.rename(moved)
+    folder.symlink_to(moved)
+    assert "symlink" in moves(lambda: target.write_text("CHARLIE\n"))["error"]
+    folder.unlink()
+    moved.rename(folder)
+    assert source()["value"]["text"] == "CHARLIE\n"
 
 
 def test_a_bound_file_is_the_page_s_source_under_its_binding(
@@ -493,13 +504,19 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
     status, body = comment(read["revision"], "file_source_comment_1")
     assert status == 200, body
 
-    # Binding a file outside its folder names it by a longer path.
+    # Binding a file outside its folder names it by a longer path, which reaches a tab
+    # holding the reading before it.
+    held = json.loads(fetch(f"{server}/api/state")[1])["browser"]["basis"]["key"]
     (tmp_path / "other.md").write_text("Other.\n")
     bind_file(page_dir, "other", tmp_path / "other.md")
     relabelled = read_page_data(page_dir)["sources"]["readme"]
     assert relabelled["value"]["name"] == "sub/README.md"
     assert relabelled["revision"] == read["revision"]
-    assert relabelled["run"] != read["run"]
+    tail = json.loads(
+        fetch(f"{server}/api/state", headers={"Leaf-Held-Basis": held})[1]
+    )
+    changes = {tuple(change["at"]): change.get("value") for change in tail["patch"]}
+    assert changes[("data", "sources", "readme", "value")]["name"] == "sub/README.md"
 
     target.write_bytes(b"\x00")
     unreadable = read_page_data(page_dir)["sources"]["readme"]
@@ -524,20 +541,16 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
     assert readings["document"]["edit"]["file"] == str(target.resolve())
 
 
-def test_an_input_of_another_contract_can_t_take_a_bound_file(
-    server, page_dir, tmp_path
-):
+def test_an_input_of_another_contract_can_t_take_a_bound_file(page_dir, tmp_path):
     """A widget input reading another contract than a file's draws nothing from it, so
-    `page check` refuses markup that binds a file's id there, and the door refuses a
-    comment naming the value it holds now on a page that bound the file after its
-    markup was checked."""
+    `page check` refuses markup that binds a file's id there, and the widget's
+    construction says the input has no value it can draw."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
             '<p><lf-num id="count-num" source="count" run="r1">3</lf-num></p>\n</main>',
         )
     )
-    publish(page_dir)
     target = tmp_path / "count.txt"
     target.write_text("3\n")
     bind_file(page_dir, "count", target)
@@ -547,18 +560,11 @@ def test_an_input_of_another_contract_can_t_take_a_bound_file(
         "file-contract"
     ]
 
-    comment = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "Where does three come from?",
-        "anchor": {
-            "section": "count-num",
-            "datum": "value",
-            "source": "count",
-            "source_revision": read_page_data(page_dir)["sources"]["count"]["revision"],
-        },
-        "attempt": "file_contract_comment_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
-    assert status == 400
-    assert refused_on(body).code == "datum-undrawn-source"
+    registry = read_page_registry(page_dir).registry
+    measurement = input_readings(
+        {"id": "count-num", "source": "count", "run": "r1"},
+        registry["lf-num"],
+        read_page_data(page_dir),
+        page_dir,
+    )["measurement"]
+    assert (measurement["available"], "value" in measurement) == (False, False)

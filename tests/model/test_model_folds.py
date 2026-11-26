@@ -906,9 +906,8 @@ def test_a_reply_sends_its_message_and_what_it_changed_of_its_thread():
 
 def test_a_data_write_sends_a_held_reading_only_the_source_it_wrote():
     """However many sources a page holds, a write to one sends that source's new value
-    and fields and nothing of any other source, a rerun that writes the same value
-    again included, since a source's revision and run name its value together
-    (`served_state.tail`)."""
+    and fields and nothing of any other source, and a rerun that writes the same value
+    again sends its run and not the value (`served_state.tail`)."""
     page = model.leaf_page("Tail", '<p id="p">One.</p>')
 
     def changes(sources: int, rewritten: str) -> dict:
@@ -929,11 +928,8 @@ def test_a_data_write_sends_a_held_reading_only_the_source_it_wrote():
     }
     assert many[("data", "sources", "s1", "value")] == "A new line.\n"
     rerun = changes(30, "Line of 1.\n" * 200)
-    assert {at[:3] for at in rerun if at[0] == "data"} == {
-        ("data", "version"),
-        ("data", "sources", "s1"),
-    }
-    assert rerun[("data", "sources", "s1", "value")] == "Line of 1.\n" * 200
+    assert ("data", "sources", "s1", "run") in rerun
+    assert ("data", "sources", "s1", "value") not in rerun
 
 
 def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():

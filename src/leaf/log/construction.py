@@ -49,6 +49,9 @@ def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> di
             continue
         reading = stored["sources"].get(source, {})
         bound = files.get(source)
+        # The widget draws a value only under its input's own contract, as the
+        # browser's reader takes one (`host/data.js`, `dataReader`).
+        drawn = "value" in reading and reading["contract"] == spec["contract"]
         inputs[name] = {
             "origin": {
                 "input": name,
@@ -57,7 +60,7 @@ def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> di
                 "revision": reading.get("revision"),
                 "path": [],
             },
-            "available": "value" in reading,
+            "available": drawn,
             "edit": {
                 "kind": "data" if bound is None else "file",
                 "page": str(page_dir),
@@ -72,7 +75,12 @@ def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> di
         }
         if "error" in reading:
             inputs[name]["error"] = reading["error"]
-        if "value" in reading:
+        elif "value" in reading and not drawn:
+            inputs[name]["error"] = (
+                f"source {source!r} holds a {reading['contract']!r}, and this input "
+                f"reads {spec['contract']!r}"
+            )
+        if drawn:
             inputs[name]["value"] = reading["value"]
             inputs[name]["updated"] = reading["updated"]
     return inputs

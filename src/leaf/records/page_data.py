@@ -26,7 +26,14 @@ from leaf.base.schema import DATA_SOURCE_NAME
 from leaf.base.state import now_iso
 from leaf.log.thread_context import thread_structure
 from leaf.records.transaction import PageTransaction
-from leaf.source.data import PUBLICATION, read_source, source_file, write_data
+from leaf.source.data import (
+    PUBLICATION,
+    data_version,
+    read_data,
+    read_source,
+    source_file,
+    write_data,
+)
 from leaf.source.data_contracts import (
     DataError,
     authored_readings,
@@ -88,6 +95,20 @@ def working_data_bindings(
             *authored_readings(page_dir, registry),
         ]
     )
+
+
+def bound_data(page_dir: Path, registry: dict, events: list) -> dict:
+    """The page's data (`data.read_data`) less each source no document or message of
+    the page binds, such as a file the page grants an editor alone, and the version of
+    what is left, so a reader that names it is sent these sources and no others."""
+    stored = read_data(page_dir, registry)
+    bindings, _errors = working_data_bindings(page_dir, registry, events)
+    sources = {
+        source: reading
+        for source, reading in stored["sources"].items()
+        if source in bindings
+    }
+    return {"version": data_version(sources), "sources": sources}
 
 
 def page_data_binding_inventory(

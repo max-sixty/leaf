@@ -2163,8 +2163,8 @@ _TEXT = {
     "datum-undrawn-source": _refuses(
         _ADMITS,
         lambda at, v: (
-            f"datum anchor names the value source {v['source']!r} holds now, which"
-            f" section {v['section']!r} can't draw: {v['why']}"
+            f"datum anchor names what source {v['source']!r} holds now, an error"
+            f" rather than a value section {v['section']!r} could draw: {v['why']}"
         ),
     ),
     "hold-target": _refuses(

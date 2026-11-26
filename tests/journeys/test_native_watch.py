@@ -46,9 +46,9 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     stamped = []
     stamp = files.file_stamp
 
-    def recording(path):
+    def recording(path, **options):
         stamped.append(Path(path))
-        return stamp(path)
+        return stamp(path, **options)
 
     with monkeypatch.context() as stamps:
         stamps.setattr(files, "file_stamp", recording)

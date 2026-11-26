@@ -133,6 +133,8 @@ def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
     assert public["files"] == live["files"]
     assert "notes" in live["data"]["sources"]
     assert "notes" not in public["data"]["sources"]
+    # The version a tab names names the sources it was sent.
+    assert public["data"]["version"] != live["data"]["version"]
     assert served_state_error(public, "answer") is None
 
 

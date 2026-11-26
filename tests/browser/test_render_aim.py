@@ -3841,11 +3841,11 @@ sequenceDiagram
 
 
 def test_every_box_a_diagram_names_takes_its_own_comment(browser, serve):
-    """Every kind of diagram gives each box its author named a comment of its own,
-    keyed by its kind and its name within the box Pele draws it in. A box that holds
-    others is marked on its own frame. A name nothing tells apart, and a box Pele
-    numbers for want of a name, take the whole diagram's comment, and the diagram
-    still draws."""
+    """Each box an author names takes a comment of its own in every kind of diagram
+    that draws its boxes under their names, keyed by its kind and name, and a box that
+    holds others is marked on its own frame. A name drawn twice, a group Pele numbers
+    for want of a name, and a journey, whose steps Pele numbers on a phone, take the
+    whole diagram's comment, and the diagram still draws."""
     page = open_page(
         browser,
         serve(
@@ -3853,17 +3853,13 @@ def test_every_box_a_diagram_names_takes_its_own_comment(browser, serve):
                 "Every diagram's boxes",
                 """
 <h1 id="t">Boxes</h1>
-<lf-diagram id="release"><pre>
-journey
-  section Build
-    Review: 5: Me
-  section Ship
-    Review: 4: Me
-</pre></lf-diagram>
 <lf-diagram id="board"><pre>
 kanban
   Todo
     t1[Write docs]
+    [Review]
+  Done
+    [Review]
 </pre></lf-diagram>
 <lf-diagram id="years"><pre>
 timeline
@@ -3883,6 +3879,11 @@ block-beta
     a
   end
 </pre></lf-diagram>
+<lf-diagram id="release"><pre>
+journey
+  section Build
+    Review: 5: Me
+</pre></lf-diagram>
 """,
             )
         ),
@@ -3894,19 +3895,15 @@ block-beta
             [p.id, p.label, p.surface ? p.surface.localName : p.element.localName])]))"""
     )
     assert parts == {
-        "release": [
-            ["group:Build", "Build", "rect"],
-            ["node:Build/Review", "Build · Review", "g"],
-            ["group:Ship", "Ship", "rect"],
-            ["node:Ship/Review", "Ship · Review", "g"],
-        ],
         "board": [
-            ["group:Todo", "Todo 1", "rect"],
-            ["node:Todo/t1", "Write docs", "g"],
+            ["group:Todo", "Todo 2", "rect"],
+            ["node:t1", "Write docs", "g"],
+            ["group:Done", "Done 1", "rect"],
         ],
         "years": [["node:2025", "2025 Ship", "g"]],
         "model": [["group:Job", "Job", "g"], ["node:Job", "Job", "g"]],
         "blocks": [["node:a", "a", "g"]],
+        "release": [],
     }
 
 

@@ -51,52 +51,54 @@ const loadRenderer = () => (rendererReady ??= import("/vendor/pele.esm.js"));
 // Pele's own `maxWidth` would be its home, and this goes once Pele wraps labels for it.
 const COMPACT = { flowchart: { wrappingWidth: 84, nodeSpacing: 8 } };
 
-// Pele draws each box its author named, in every kind of diagram, as a node or a
-// cluster carrying the name as `data-id`: the Mermaid id, or the box's words where the
-// language gives it none, as a journey's task or a timeline's period has. So each takes
-// a comment of its own, keyed by its kind and its name: a sequence diagram's `box A`
-// is a group and its `participant A` a node. A start or end point and a state's
-// divider are Pele's own, and a sequence diagram's foot row draws the participants its
-// head row draws again, so none of those is a part. Nor is a box its author left
-// unnamed, as an untitled block group or a subgraph titled only in quotes: Pele numbers
-// those in order (`id-1`, `subGraph0`), so a comment on one would move to another box
-// once the author adds one above it.
+// In most kinds of diagram Pele draws each box its author named as a node or a cluster
+// carrying the name as `data-id`, the same at every width: the Mermaid id, or the box's
+// words where the language gives it none, as a kanban card or a timeline's period has.
+// So each such box takes a comment of its own, keyed by its kind and its name: a
+// sequence diagram's `box A` is a group and its `participant A` a node. A start or end
+// point, a state's divider and a note are Pele's own, numbered in order, and a sequence
+// diagram's foot row draws the participants its head row draws again, so none of those
+// is a part. Nor is a group its author left unnamed, as an untitled block group or a
+// subgraph titled only in quotes, which Pele numbers too (`id-1`, `subGraph0`). The
+// kinds left out number what they draw: a journey draws its tasks as numbered steps at
+// a phone's width, and charts, such as a Gantt chart or a pie, number their items. A
+// numbered key would move a comment to another box once the author adds one above it.
 //
-// A box Pele draws inside another named box is named within it, as a journey's task is
-// within its section and a kanban card within its column: a section's task names are
-// its own, so `Ship/Review` stays that task whatever other sections hold. A name drawn
-// twice within one place, as one label on two periods of a timeline without sections,
-// points at no one box, so each copy takes the whole diagram's comment rather than one
-// of them taking it by its place in the drawing.
+// A name drawn twice, as one label on two periods of a timeline, points at no one box,
+// so each copy takes the whole diagram's comment rather than one of them taking it by
+// its place in the drawing.
+const NAMING = new Set([
+  "architecture",
+  "block",
+  "c4",
+  "class",
+  "er",
+  "flowchart",
+  "kanban",
+  "mindmap",
+  "requirement",
+  "sequence",
+  "state",
+  "timeline",
+]);
 const NAMED =
-  'g[data-id]:not([data-id=""]):is(.pele-node,.pele-cluster)' +
-  ":not(.pele-state-start,.pele-state-end,.pele-state-divider,.pele-actor-footer)";
-const NUMBERED = /^(?:id-|subGraph)\d+$/;
-/** @param {Element} drawn @returns {[key: string, box: Element][]} */
-function namedParts(drawn) {
-  /** @param {Element} box @returns {string} */
-  const path = (box) => {
-    const name = encodeURIComponent(box.getAttribute("data-id") ?? "");
-    const holder = box.parentElement?.closest(NAMED);
-    return holder ? `${path(holder)}/${name}` : name;
-  };
-  const boxes = [...drawn.querySelectorAll(NAMED)].filter(
-    (box) => !NUMBERED.test(box.getAttribute("data-id") ?? ""),
-  );
+  'g[data-id]:not([data-id=""]):is(.pele-node,.pele-cluster):not(.pele-note,' +
+  ".pele-state-start,.pele-state-end,.pele-state-divider,.pele-actor-footer)";
+/** @param {ReturnType<typeof import("pele").parse>} model @param {Element} drawn
+ * @returns {[key: string, box: Element][]} */
+function namedParts(model, drawn) {
+  if (!NAMING.has(model.type)) return [];
   /** @type {[key: string, box: Element][]} */
-  const parts = boxes.map((box) => [
-    `${box.matches(".pele-cluster") ? "group" : "node"}:${path(box)}`,
-    box,
-  ]);
-  const twice = repeated(parts.map(([key]) => key));
-  return parts.filter(([key]) => !twice(key));
-}
-/** @param {string[]} keys */
-function repeated(keys) {
+  const parts = [...drawn.querySelectorAll(NAMED)].flatMap((box) => {
+    const id = box.getAttribute("data-id") ?? "";
+    const group = box.matches(".pele-cluster");
+    if (group && /^(?:id-|subGraph)\d+$/.test(id)) return [];
+    return [[`${group ? "group" : "node"}:${encodeURIComponent(id)}`, box]];
+  });
   /** @type {Map<string, number>} */
   const seen = new Map();
-  for (const key of keys) seen.set(key, (seen.get(key) ?? 0) + 1);
-  return (/** @type {string} */ key) => (seen.get(key) ?? 0) > 1;
+  for (const [key] of parts) seen.set(key, (seen.get(key) ?? 0) + 1);
+  return parts.filter(([key]) => seen.get(key) === 1);
 }
 
 // The words a drawn box says, with a space where a line wraps. Pele sets each line of a
@@ -255,21 +257,14 @@ customElements.define(
       nameWithoutTooltip(this.querySelector(":scope > svg"));
       this.style.setProperty("--lf-diagram-height", `${height}px`);
       this.style.setProperty("--lf-diagram-padding", `${drawingPadding}px`);
-      // A class or an entity says its members too, so its name is its label, and a box
-      // whose words another part also says is told apart by the box holding it. A box
+      // A class or an entity says its members too, so its name is its label. A box
       // Pele draws other named boxes inside, as a kanban column holds its cards, is
       // marked on its own frame, the shape it draws first, and the boxes keep theirs.
       const named = ["class", "er"].includes(model.type);
-      /** @param {Element} box */
-      const words = (box) =>
-        (!named && wordsOf(box)) || box.getAttribute("data-id") || "";
-      const parts = namedParts(this);
-      const said = repeated(parts.map(([, element]) => words(element)));
       const visualParts = new Map();
-      for (const [key, element] of parts) {
-        const holder = element.parentElement?.closest(NAMED);
-        const own = words(element);
-        const label = said(own) && holder ? `${words(holder)} · ${own}` : own;
+      for (const [key, element] of namedParts(model, this)) {
+        const id = element.getAttribute("data-id") ?? "";
+        const label = (!named && wordsOf(element)) || id;
         const surface = element.querySelector(NAMED)
           ? element.querySelector(":scope > :is(rect, path, polygon, circle, ellipse)")
           : null;

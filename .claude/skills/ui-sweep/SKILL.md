@@ -43,8 +43,10 @@ and continue the authorized review while the choice is pending.
 
 Apply the current
 [Web Interface Guidelines](https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md)
-to changed controls and their dependent interactions. When a skill is unavailable,
-say so and use its upstream guidance or Leaf's browser workflow.
+to changed controls and their dependent interactions. For composition questions,
+start with Impeccable's `critique`, then its relevant focused workflows. Read the
+installed skill and the selected playbook in full. When a skill is unavailable, say so
+and use its upstream guidance or Leaf's browser workflow.
 
 Verify findings against ordinary browser use and Leaf's owning contracts; authoring
 preferences remain the author's and user's choices, and Leaf's browser proof,

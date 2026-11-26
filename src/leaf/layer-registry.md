@@ -60,7 +60,7 @@ answer names the server's (`Leaf-Runtime`), and a tab names its own on every wri
 Each side refuses the other's message naming another runtime, so a tab from before a
 restart under an updated Leaf reloads rather than reading or writing with code the
 server no longer runs. The served state names the layer's `fingerprint` and this Leaf
-as its `producer` (`registry.storage.served_layer`), which the panel's menu (Copy Leaf
+as its `producer` (`layer.served_layer`), which the panel's menu (Copy Leaf
 version) shows.
 
 A served page's bootstrap (`runtime/bootstrap.js`) reloads the tab when the server

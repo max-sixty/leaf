@@ -20,8 +20,8 @@ from leaf.source.registry import validation as registry_validation
 from leaf.source.registry.contract import complete_declarations
 from leaf.source.registry.layer import stamp_composition
 from leaf.source.registry.schema import check_schema
-from leaf.source.registry.storage import load_registry
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev import declared_records, docs
 from leaf_dev.docs import EXAMPLES, product_sources
 from leaf_dev.example_data import named_source, published_sources

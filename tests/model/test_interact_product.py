@@ -48,7 +48,6 @@ from leaf.base.findings import Finding, Rejected
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.log import events as event_folds_model
-from leaf.log import obligations as obligations_model
 from leaf.log.thread_context import logged_fragment, thread_digest
 from leaf.records import revisioning as revisioning_model
 from leaf.records import todos as todos_model
@@ -60,7 +59,8 @@ from leaf.records.authored_checks.admission import (
 from leaf.records.authored_checks.declarations import declaration_advice
 from leaf.records.markup_checks.instances import question_errors, reference_errors
 from leaf.source import layer as layer_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import obligation_sources as obligation_sources_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry.contract import element_declarations
 from leaf.source.registry.validation import incoming_registry
 from leaf.source.structure import SourceDocument
@@ -227,7 +227,7 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
 
 
 def test_page_events_name_revisions_and_stamps_name_both(page_dir):
-    kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
+    kinds = vocabulary_model.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
@@ -240,7 +240,7 @@ def test_page_events_name_revisions_and_stamps_name_both(page_dir):
 
 def test_options_require_an_id(page_dir):
     # Actions name their widget by id, and every group takes them.
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     errs = markup_findings(
         '<lf-options><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',
         registry,
@@ -252,7 +252,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     # The registry marks a sample's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     errs = markup_findings(
         '<lf-sample id="sp" label="a decision">'
         '<lf-options id="g"><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>'
@@ -272,7 +272,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     label is blank, and advises on one its own label alone names; the registry refuses
     a group without a label or an id. A message's widget, a mention in a sample, a
     widget that asks nothing and one set among words need none."""
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     first = (
         '<lf-options id="g-one">'
         '<lf-option id="o-one" label="One"><strong>One</strong></lf-option>'
@@ -286,7 +286,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
 
     def prompts(body):
         document = SourceDocument(f"<main>{body}</main>")
-        return obligations_model.obligation_sources(document, registry).prompts
+        return obligation_sources_model.obligation_sources(document, registry).prompts
 
     # The label names the question, wherever the widget stands in the group; several
     # widgets in one group share it.
@@ -364,7 +364,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
 def test_a_worker_is_assigned_only_to_a_goal(page_dir):
     """The work reading assigns a worker only to the goal its `on` names, so an id of
     an element with another role is refused, while a goal's passes."""
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     parser = SourceDocument(
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="active"><strong>Goal</strong>'
@@ -390,7 +390,7 @@ def test_a_worker_is_assigned_only_to_a_goal(page_dir):
 
 
 def test_registry_examples_validate(page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     assert any(
         tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
@@ -398,7 +398,7 @@ def test_registry_examples_validate(page_dir):
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     registry["lf-diff"]["example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
@@ -420,7 +420,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     `paths` is what a filename means, which is how a diff colours a file nobody declared
     a language for. A path resolving outside `names` would resolve to a language neither
     bundle is required to carry."""
-    reg = registry_storage.load_registry(page_dir)
+    reg = vocabulary_model.load_registry(page_dir)
     names = set(reg["$languages"]["names"])
     paths = reg["$languages"]["paths"]
     assert (
@@ -1485,7 +1485,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     def said():
         """What the user's choice says, in the words they chose it in."""
         from leaf.log.gesture_words import GestureWords
-        from leaf.source.registry.storage import require_registry
+        from leaf.source.vocabulary import require_registry
 
         events = events_model.read_events(page_dir)
         words = GestureWords(events, require_registry(page_dir), {}.__getitem__)

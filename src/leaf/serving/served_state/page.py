@@ -114,7 +114,7 @@ def read_served_page(
 def served_layer_identity(context: PageRead, view_revision: int | None) -> dict:
     """The identity of the layer the shown revision was read under, or the page's
     before a revision exists, with the fingerprint of the layer this Leaf composes to
-    serve it (`registry.storage.served_layer`). The serving route adds it to the
+    serve it (`layer.served_layer`). The serving route adds it to the
     page's reading (`read_served_page`), because the fingerprint digests every file
     the layer serves, and a reader of the page's state such as `leaf page state` has
     no use for it."""

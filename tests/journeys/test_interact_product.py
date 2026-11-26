@@ -24,7 +24,7 @@ import leaf.pages.validation.command as checking_command
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.log.thread_context import logged_fragment
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import (
     leaf_in_process,
@@ -37,7 +37,7 @@ from leaf_dev.page_fixtures import (
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):
     """A settled group needs an id for its disclosure state, as every group does,
     but the whole unreferenced group may leave a later revision."""
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     assert found(
         markup_findings(
             '<lf-options settled><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',

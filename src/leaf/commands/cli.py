@@ -654,7 +654,7 @@ def vocabulary(page_dir: Path) -> dict:
     composes for the page's packages, with the page's own declarations over it.
     Ordinary keys are element names or CSS selectors; `$` keys are facts shared
     across the layer."""
-    from leaf.source.registry.storage import require_candidate
+    from leaf.source.vocabulary import require_candidate
 
     return require_candidate(page_dir).registry
 

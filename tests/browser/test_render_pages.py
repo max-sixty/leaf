@@ -90,8 +90,8 @@ from leaf.base import schema as schema_model
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.pages.render_gate.scheme import console_finding
-from leaf.source.registry.storage import load_registry
 from leaf.source.render_checks import asked_again, rendered, wait_until_ready
+from leaf.source.vocabulary import load_registry
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

@@ -14,7 +14,7 @@ from leaf.base.findings import Finding
 from leaf.log.events import build_threads
 from leaf.log.projection import page_reading
 from leaf.source.anchor_capture import resolve_quote
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import visual_parts
 from leaf.source.revision_artifact import RevisionArtifact, read_revision
 from leaf.source.structure import SourceDocument

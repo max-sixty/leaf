@@ -404,7 +404,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     from leaf.base.harness import session_harness
     from leaf.log.event_log import read_events
     from leaf.source.data import read_data
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(

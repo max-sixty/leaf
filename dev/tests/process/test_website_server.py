@@ -898,7 +898,7 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
 
 def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir):
     from leaf.records.event_contracts import event_record_error
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
 
     harness = website_server.WebsiteCodexHarness("codex")
     comment = append_event(

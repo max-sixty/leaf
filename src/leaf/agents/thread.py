@@ -29,7 +29,7 @@ from leaf.log.events import (
     is_answer,
     taken_back,
 )
-from leaf.log.obligations import local_obligation_entry, questions_in_words, shown_in
+from leaf.log.obligations import questions_in_words
 from leaf.log.projection import page_reading
 from leaf.log.thread_context import thread_message, thread_names, thread_structure
 from leaf.records.activity import answer_command, reply_command
@@ -49,11 +49,13 @@ from leaf.records.event_contracts import append_admitted
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
 from leaf.source.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
-from leaf.source.passages import SourceReading, holds_html, message_markup
+from leaf.source.obligation_sources import local_obligation_entry
+from leaf.source.passages import holds_html, message_markup
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import kinds_declaring, title_limit
 from leaf.source.revision_artifact import active_enclosing, read_revision
-from leaf.source.structure import SourceDocument
+from leaf.source.structure import SourceDocument, shown_in
 
 
 def drawn_markup(text: str) -> str:
@@ -250,7 +252,7 @@ def current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
@@ -493,7 +495,7 @@ def ask_again(
     asked in its thread (`thread_questions`). `OwedAnswer` where the thread owes the
     user a reply, which the question waits on. Refused, as an agent's reply is, where
     its HTML doesn't validate (`check_markup`)."""
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     message = question.removeprefix("message:")
     name = f"message:{message}"
@@ -1435,7 +1437,7 @@ def cmd_edit(
     unedited.
     """
     from leaf.records.event_contracts import append_all_admitted
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     title = agent_title(title)
     body = (
@@ -1563,7 +1565,7 @@ def cmd_summarize(
     thread its first message sits in; or nothing, where `fence`, given the page
     under its lock, says the writer no longer should, as a fork that summarizes a
     thread for the agent (`summary_fork`)."""
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:

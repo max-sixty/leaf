@@ -32,12 +32,10 @@ from leaf.log import event_log as events_model
 from leaf.pages import packages as packages_model
 from leaf.records.revisioning import activate_source
 from leaf.source import layer as layer_model
+from leaf.source.layer import selected_layer
 from leaf.source.registry.contract import stamp_grammars
-from leaf.source.registry.storage import (
-    layer_record,
-    load_registry,
-    selected,
-)
+from leaf.source.registry.storage import layer_record
+from leaf.source.vocabulary import load_registry
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -187,7 +185,7 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     def composed(page):
         layer_2 = layer_record(page)
         assert layer_2 is not None
-        return selected(layer_2, page)
+        return selected_layer(layer_2, page)
 
     assert composed(page) == composed(baseline)
     assert load_registry(page)["$layer"]["packages"] == []
@@ -375,7 +373,7 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     assert load_registry(page)["lf-installed"]["description"] == "Replacement snapshot."
     layer_3 = layer_record(page)
     assert layer_3 is not None
-    theme = selected(layer_3, page).top_files["theme.css"].decode()
+    theme = selected_layer(layer_3, page).top_files["theme.css"].decode()
     assert "lf-installed { color: purple; }" in theme
     (source / "overrides.css").write_text(".bad { color red; }\n")
     refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
@@ -534,7 +532,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert initialized.exit_code == 0, initialized.output
     layer_5 = layer_record(page)
     assert layer_5 is not None
-    layer = selected(layer_5, page)
+    layer = selected_layer(layer_5, page)
     # The package's widget rule reaches the page among its defaults, unscoped.
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
@@ -664,6 +662,7 @@ import weakref
 from leaf.base import page_memory
 from leaf.base import schema as schema_model
 from leaf.pages import vendoring as vendoring_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import storage as registry_storage
 
 
@@ -757,7 +756,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     )
 
     assert vendored.exit_code == 0, vendored.output
-    registry = registry_storage.load_registry(page)
+    registry = vocabulary_model.load_registry(page)
     assert registry["$layer"]["packages"] == ["callout"]
     assert "lf-callout" in registry
     assert "/widgets/lf-callout.js" in layer_files(page)
@@ -851,12 +850,12 @@ def test_package_instructions_do_not_change_a_revisions_browser_address(
     assert activate_source(page).error is None
     artifact = read_artifact(page, 1)
     record = json.loads(artifact.manifest)["layer"]
-    first_layer = registry_storage.selected(record, page)
+    first_layer = layer_model.selected_layer(record, page)
     first = executing(artifact)
 
     (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
     assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    second_layer = registry_storage.selected(record, page)
+    second_layer = layer_model.selected_layer(record, page)
     second = executing(artifact)
 
     assert second_layer.fingerprint != first_layer.fingerprint
@@ -888,7 +887,7 @@ def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
         assert made.exit_code == 0, made.output
         record = registry_storage.layer_record(page)
         assert record is not None
-        layer = registry_storage.selected(record, page)
+        layer = layer_model.selected_layer(record, page)
         assert sheet in layer.files["/theme.css"].decode()
         kept.add(layer)
     del layer
@@ -899,7 +898,7 @@ def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
     # (`layer.forget_layers`), composes the page's layer again.
     [before] = kept
     layer_model.forget_layers()
-    after = registry_storage.selected(record, page)
+    after = layer_model.selected_layer(record, page)
     assert after is not before
     kept.add(after)
     del before, after

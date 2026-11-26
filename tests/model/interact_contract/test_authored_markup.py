@@ -588,7 +588,7 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     parses as a block's contents but not as the declaration list delivery reads,
     and unasked would pass every check only for delivery to refuse it."""
     from leaf.serving.revision_delivery import DeliveryAddress, rebase_document
-    from leaf.source.revision_artifact import ArtifactError
+    from leaf.source.capture_refusals import ArtifactError
 
     markup = holder.format(f'<p style="{style}">Shown</p>')
     source = styled("", markup)

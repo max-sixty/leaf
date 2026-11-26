@@ -89,7 +89,7 @@ from leaf.log import event_log as events_model
 from leaf.records import page_data as page_data_model
 from leaf.source import anchor_capture as anchor_capture_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.render_checks import evaluate_probe, rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
@@ -311,7 +311,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
     expect(page.locator("#gate-milestone > .lf-column-name")).to_have_count(1)
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
+    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
     cases = [
         ("#gate-card strong", "Build feeders", "gate-card"),
         ("#gate-card", "Two classic models.", "gate-card"),
@@ -587,7 +587,7 @@ def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, ser
     track = page.locator("#track").bounding_box()
     body = page.locator("#body").bounding_box()
     assert track["x"] + track["width"] <= body["x"], (track, body)
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
+    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
     cases = [
         ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
         ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
@@ -652,7 +652,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     url = live_url(serve(markup))
     page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
+    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
     expected = anchor_capture_model.capture_anchor(
         structure_model.SourceDocument(markup), registry, quote, "review"
     )
@@ -2060,7 +2060,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert inherited["connected"], inherited
     assert inherited["after"] == ["rgb(161, 35, 69)"] * 3, inherited
 
-    langs = registry_storage.load_registry(serve.page_dir)["$languages"]["names"]
+    langs = vocabulary_model.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',

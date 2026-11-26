@@ -88,12 +88,13 @@ from leaf.serving.served_state import page as served_page
 from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
 from leaf.source import structure as structure_model
 from leaf.source.registry.contract import RegistryError
-from leaf.source.registry.storage import load_registry, read_page_registry
 from leaf.source.registry.validation import incoming_registry
 from leaf.source.revision_artifact import active_enclosing, read_artifact
 from leaf.source.runtime_selection import execution_identity
+from leaf.source.vocabulary import load_registry, read_page_registry
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
@@ -186,7 +187,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
-    from leaf.source.passages import SourceReading
+    from leaf.source.reading import SourceReading
     from leaf.source.revision_artifact import capture_artifact, write_artifact
     from leaf.source.structure import SourceDocument
 
@@ -269,7 +270,7 @@ class ModelPage:
         return self.documents[revision]
 
     def reading(self, revision: int, registry: dict):
-        return passages_model.SourceReading(self.documents[revision], registry)
+        return reading_model.SourceReading(self.documents[revision], registry)
 
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
@@ -618,7 +619,8 @@ PAGE = f"""<!doctype html>
 </html>
 """
 # PAGE's Plan section stands in a named group, so a widget a test writes there asks a
-# question (`obligations.widget_groups`); a test opening the section matches this.
+# question (`obligation_sources.widget_groups`); a test opening the section matches
+# this.
 PLAN_OPENING = '<section id="plan">'
 # PAGE places no widget whose module only a browser can judge, so `page check` on it
 # and on the versions built from it never starts one (`needs_browser`). A test about a

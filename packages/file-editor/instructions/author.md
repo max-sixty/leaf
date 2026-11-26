@@ -36,28 +36,29 @@ Each file is labelled by its path below the deepest folder holding every file th
 page binds, here `deploy/values.yaml`, `deploy/alerts.yaml` and `docs/runbook.md`;
 `leaf file bind` prints the label it gives.
 
-Each binding is also a data source of the page, under the binding's id, holding the
-file as it stands on disk. A widget bound to it with `source`, such as a Markdown
-preview, shows each write to the file and needs no editor on the page. The editor
-writes the file about half a second after the reader stops typing. A Markdown file
-beside its rendered copy, where the reader comments on passages or suggests new
-wording, takes two elements, each in a pane of a workspace so both fill the window's
-height:
+A reading of the file beside its editor, such as a Markdown preview, binds the editor
+with `for`. The editor holds the open file's name and text, as last read or saved, as
+its `text` output, so the preview shows each save, about half a second after the
+reader stops typing, follows whichever file an editor of several has open, and takes
+a double-click on a word to the editor. A Markdown file beside its rendered copy,
+where the reader comments on passages or suggests new wording, takes two elements,
+each in a pane of a workspace so both fill the window's height:
 
 ```html
 <lf-file-editor id="readme-editor" binding="readme"></lf-file-editor>
 <lf-text-document
   id="readme-rendered"
-  source="readme"
+  for="readme-editor"
   preview="markdown"
 ></lf-text-document>
 ```
 
-A comment on the rendered copy, or on the numbered lines of its Source tab, names the
-file and the revision of it the reader saw. The editor's own lines take no comments,
-since typing changes them under the comment. To show whichever file an editor of
-several has open, bind the widget with `for` to the editor instead, which holds the
-open file's name and text, as last read or saved, as its `text` output.
+Each binding is also a data source of the page, under the binding's id, holding the
+file as it stands on disk. A widget on a page with no editor binds the file with
+`source`, as `source="readme"`, and shows each write to it, whoever makes it. A
+comment on a reading of the file, or on the numbered lines of its Source tab, names
+the file. The editor's own lines take no comments, since typing changes them under
+the comment.
 
 Tell the reader that edits save automatically. The editor saves as the reader types
 and saves a file the moment the reader opens another. It shows a change written

@@ -23,7 +23,9 @@ time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one 
 sandbox bridge runs for Claude Code is timed from the bridge's start of it.
 
 Claude Code's pages follower records in each page the session holds that it runs
-there, listing line forks for the page's rounds (`record_follower`).
+there, listing line forks for the page's rounds (`record_follower`). Leaf notes what
+it asks each fork of the session's conversation and what came of it (`note`, as
+`forks`, `summary_fork` and `clerk` call it).
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
@@ -148,30 +150,29 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     and one killed outright leaves no record. Dropped where the page can't be
     written, as `record_command` is."""
     record = {
-        "source": "cli",
         "type": "watch",
         "session": session,
         "started": datetime.fromtimestamp(began, UTC).isoformat(),
         "protocol": kernel_protocol(),
         "ended": ended,
     }
-    _record_in(pages, record)
+    for page_dir in pages:
+        note(page_dir, record)
 
 
 def record_follower(pages: list[Path], session: str) -> None:
     """Record in each page a Claude Code session's pages follower starts listing
     (`hooks.cmd_pages`) that the follower runs, holding the session's forks lane.
     Dropped where the page can't be written, as `record_command` is."""
-    record = {"source": "cli", "type": "follower", "session": session}
-    _record_in(pages, record)
-
-
-def _record_in(pages: list[Path], record: dict) -> None:
-    """Append `record` to each page's diagnostics, dropped where a page can't be
-    written."""
     for page_dir in pages:
-        with contextlib.suppress(OSError):
-            append_interactions(page_dir, [record])
+        note(page_dir, {"type": "follower", "session": session})
+
+
+def note(page_dir: Path, record: dict) -> None:
+    """Append `record`, a diagnostic a `leaf` command writes, to the page's
+    diagnostics, dropped where the page can't be written, as `record_command` is."""
+    with contextlib.suppress(OSError):
+        append_interactions(page_dir, [{"source": "cli", **record}])
 
 
 def admit_batch(batch: object) -> dict:

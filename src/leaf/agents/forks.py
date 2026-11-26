@@ -131,6 +131,7 @@ from leaf.agents import summary_fork
 from leaf.base.json_block import json_block
 from leaf.base.state import page_key
 from leaf.log.events import unlined
+from leaf.log.interaction_log import note
 from leaf.records.transaction import PageTransaction
 
 # The words that open the line fork's question, which the transcript carries.
@@ -226,12 +227,12 @@ def _awaits_line(page: PageTransaction, basis: dict) -> bool:
 
 def step(session_id: str, payload: dict) -> dict | None:
     """Leaf's answer to the module's report of one of a thread's instructions
-    (`carrier.step`), by its basis's `kind`. For a round that awaits a line (`line`),
+    (`hooks.cmd_fork`), by its basis's `kind`. For a round that awaits a line (`line`),
     the follower's report asks the line fork's question (`ask`), with the forks to
     make beside it, and the line fork's answer, or a failed step, is posted or
     recorded (`route`). For a fork beside it (`beside`), Leaf writes what it answered
     by the duty its basis names (`BESIDE`)."""
-    from leaf.agents.carrier import fork
+    from leaf.agents.carrier import fork, run_facts
 
     basis = payload["basis"]
     kind = basis["kind"]
@@ -306,7 +307,9 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
             data = _thread_data(page, basis["inputs"])
             beside = [
                 fork
-                for fork in ([summary_fork.ask(page, data, basis)] if data else [])
+                for fork in (
+                    [summary_fork.ask(page, thread_json(data), basis)] if data else []
+                )
                 if fork is not None
             ]
     except FileNotFoundError:
@@ -414,7 +417,8 @@ def route(
     """Post the line fork's answer as the agent's working line on the round `basis`
     names (`_line`), or say why there is none: the line fork failed (`failed`, its
     reason), or its answer doesn't fit `ANSWER`. What came of it is recorded in the
-    page's diagnostics, with what `run_facts` read of the fork's run (`run`)."""
+    page's diagnostics, with what `carrier.run_facts` read of the fork's run
+    (`run`)."""
     from leaf.agents.clerk import read_answer
     from leaf.base.refusals import Refused
 
@@ -453,29 +457,6 @@ def _record(session_id: str, basis: dict, outcome: dict) -> None:
             **outcome,
         },
     )
-
-
-def run_facts(payload: dict) -> dict:
-    """What a page's diagnostics note of a fork's run, from the module's report of it
-    (`carrier.fork`): its `usage`, its time (`elapsedMs`) and what it resent of the
-    main thread's conversation (`request`), each where the report gives it."""
-    facts = {
-        "usage": payload.get("usage"),
-        "elapsedMs": payload.get("elapsed_ms"),
-        "request": payload.get("resent"),
-    }
-    return {name: value for name, value in facts.items() if value is not None}
-
-
-def note(page_dir: Path, record: dict) -> None:
-    """Append `record` to the page's diagnostics, dropped where the page can't be
-    written, as every diagnostic is (`interaction_log`)."""
-    from leaf.log.interaction_log import append_interactions
-
-    try:
-        append_interactions(page_dir, [{"source": "cli", **record}])
-    except OSError:
-        pass
 
 
 def _line(session_id: str, basis: dict, text: str) -> dict:

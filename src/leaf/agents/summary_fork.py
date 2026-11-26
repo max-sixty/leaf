@@ -67,6 +67,7 @@ from leaf.agents.clerk import queue, read_answer, reference_paragraph
 from leaf.agents.thread import cmd_summarize
 from leaf.base.refusals import Refused
 from leaf.log.events import active_summaries, build_threads, spoken_turns
+from leaf.log.interaction_log import note
 from leaf.log.thread_context import summary_hint
 from leaf.records.transaction import PageTransaction
 from leaf.source.revision_artifact import active_enclosing
@@ -102,16 +103,14 @@ ANSWER = {
 }
 
 # The id the summary takes while `_fence` asks whether it would still be in force.
-# `forks` imports this module, so this module imports from `forks` where it calls it.
 _WEIGHED = "summary-fork"
 
 
-def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
+def ask(page: PageTransaction, whole: str, basis: dict) -> dict | None:
     """The fork to make beside the line fork for the round `basis` names,
     as `{"prompt", "basis"}`, where Leaf suggests a range of it to summarize; else
-    None. `data` is the thread whole, as `forks._thread_data` reads it from `page`."""
-    from leaf.agents.forks import thread_json
-
+    None. `whole` is the thread whole from `page`, as the line fork's prompt
+    shows it (`forks.thread_json`)."""
     threads = build_threads(page.events, active_enclosing(page.page_dir))
     thread = threads.get(basis["thread"])
     if thread is None:
@@ -121,7 +120,7 @@ def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
     if hint is None:
         return None
     return {
-        "prompt": prompt(thread_json(data), hint),
+        "prompt": prompt(whole, hint),
         "basis": {
             "duty": "summary",
             "page": basis["page"],
@@ -174,10 +173,8 @@ def take_answer(
     agent; or nothing, where the fork folds nothing or `_fence` stops it; or tell the
     agent the range `basis` suggested, where the fork failed, its answer doesn't fit
     `ANSWER`, or Leaf can't take its range (`_fence`, admission). What came of it is
-    noted in the page's diagnostics, with what `forks.run_facts` read of the fork's run
-    (`run`)."""
-    from leaf.agents.forks import note
-
+    noted in the page's diagnostics, with what `carrier.run_facts` read of the fork's
+    run (`run`)."""
     page_dir = Path(basis["page"])
     outcome: dict
     chosen: dict = {}

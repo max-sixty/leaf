@@ -36,6 +36,7 @@ const goTo = createGoToSequence({
     agent: { ...door, name: () => "On Agent" },
     leaves: door,
   },
+  heldByStance: () => false,
   openPageMap: () => {},
   hintChrome: { barriers: () => [] },
   directDestinations: () => [],

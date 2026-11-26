@@ -3766,10 +3766,3 @@ export function contextAround(
   }
   return { before: side(start, before, true), after: side(end, after, false) };
 }
-
-/** @template {Element} [E=Element] @param {string} sel @returns {E[]} */
-export function pageParts(sel) {
-  /** @type {E[]} */
-  const elements = pageQueryAll(sel);
-  return elements.filter(inPage);
-}

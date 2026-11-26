@@ -1,10 +1,11 @@
 /* The Go-to sequence: `g` opens one prefix grammar, and this owner holds its vocabulary.
 
-   Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, the presses a widget built, visible margin entries and the ages an
-   author wrote in the page (`pageAges`) are read together in screen order and receive
-   short prefix-free labels. `readings/key-badges/hints.js` owns that map — the
-   codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
+   Visible, visually discovered targets share one generated-letter namespace, whoever
+   drew them: the page, a widget, or Leaf over the page, as the floating panel's tabs
+   and a thread card's Resolve are. Links, tabs, folds, the presses a widget or Leaf
+   built, visible margin entries and the ages an author wrote in the page (`pageAges`)
+   are read together in screen order and receive short prefix-free labels.
+   `readings/key-badges/hints.js` owns that map — the codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
    that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin entries, `g t`
@@ -39,8 +40,8 @@
    distinct.
 
    Arming paints `data-lf-go-to-active` on the body and puts an overlay hint on each
-   visible page target. Generated targets show only their suffix; the reference retains
-   that shared prefix. A moving page target cannot carry a readable opaque route, so the generated
+   visible target. Generated targets show only their suffix; the reference retains
+   that shared prefix. A moving target cannot carry a readable opaque route, so the generated
    part of the map is withheld until the scene settles. Escape removes one typed letter,
    then a filter, then closes the sequence. Armed, the sequence is a stance
    (touch-controls.js): the panel's row names it Go to beside the ✕ that takes the
@@ -93,7 +94,6 @@ import {
 } from "../../dom/keyboard/register.js";
 import { focusedThreadTarget } from "../../records/thread/focus.js";
 import { letGo, focusDestination, focused } from "../../dom/focus.js";
-import { pageParts } from "../../readings/passages.js";
 import { addressableSays } from "../../readings/addressable-names.js";
 import { announce } from "../../transport/notifications.js";
 import { GENERATED, inPage, pageQueryAll } from "../../readings/passages.js";
@@ -120,7 +120,8 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * `words` names one target it keeps and many, as `counted` takes them (lib/words.js).
  * @typedef {Object} GoToOptions
  * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "agent" | "leaves">} doors
- * @property {{barriers: () => import("../../base/box.js").Box[]}} hintChrome
+ * @property {(element: Element) => boolean} heldByStance
+ * @property {import("../../readings/key-badges/hints.js").HintChrome} hintChrome
  * @property {() => unknown} openPageMap
  * @property {() => readonly Command[]} directDestinations
  * @property {ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToElement"]} scrollToElement
@@ -132,6 +133,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 /** @param {GoToOptions} options */
 export function createGoToSequence({
   doors,
+  heldByStance,
   hintChrome,
   openPageMap,
   directDestinations,
@@ -141,30 +143,29 @@ export function createGoToSequence({
   placeThreadEdge,
   stepReading,
 }) {
-  // ---------- the g sequence: visible page targets ----------
-  // These queries declare which page actions join the generated namespace. A link belongs
-  // to the authored body, including link apparatus a page widget generated: lf-toc's
-  // map repeats heading words, but its visible anchors are still routes through this
-  // page. Runtime surfaces remain named global destinations. Other platform targets use pageParts so an
-  // injected control inside the document does not silently become a tab or fold route.
+  // ---------- the g sequence: visible targets ----------
+  // These queries declare which actions join the generated namespace, read across the
+  // whole document: the page's own, the apparatus a widget generated, as lf-toc's map of
+  // links is, and Leaf's chrome over the page, as a link in an agent's message or the
+  // floating panel's tabs and Close are. What the user can't see or press stays out of
+  // the map by the visibility and exposure tests every member passes
+  // (`visibleCandidates`), so a surface Leaf keeps closed or covered adds no hint. So
+  // does the part of the panel's row Go-to holds while it stands, its ✕ and the field's
+  // Close (`heldByStance`), which would only end Go-to, as Escape does.
   /** @returns {HTMLAnchorElement[]} */
-  const pageLinks = () => {
-    /** @type {HTMLAnchorElement[]} */
-    const links = pageQueryAll("a[href]");
-    return links.filter(inPage);
-  };
+  const links = () => pageQueryAll("a[href]");
   // The tabs rather than their panels: the visible choice is what wears the hint and
   // what the user is on afterwards. `role=tab` is the platform vocabulary, so an
   // authored tab pattern and lf-tabs take the same route without naming a widget family.
   /** @returns {HTMLElement[]} */
-  const pageTabs = () => pageParts('[role="tab"]');
+  const tabs = () => pageQueryAll('[role="tab"]');
   // The summaries rather than the boxes they head: a summary is what the user is on,
   // what a chip sits beside, and the only part of a disclosure the platform gives a key to —
   // so a <details> whose author wrote no summary has no visible target here. Every
   // disclosure and not the shut ones, for the reason above: a list counting what is shut
   // means a different section the moment one of them opens.
   /** @returns {HTMLElement[]} */
-  const pageDisclosures = () => pageParts("details > summary");
+  const disclosures = () => pageQueryAll("details > summary");
   // The ages an author wrote in the page's own content: the `lf-age` elements in the
   // page outside what a widget wrote, which is words a module marks as its own
   // (`GENERATED`) and the body of a widget that draws all its content
@@ -181,17 +182,18 @@ export function createGoToSequence({
     );
   // Narrower than the disclosure scope's own reading: this route can reveal a native
   // disclosure by its summary, while an aria-expanded group has no equivalent arrival.
-  // The presses themselves, wherever a widget put them. Each is declared as it is built:
-  // `offer` writes the native press's tag or input type, or the tag of a custom host that
-  // opted into its own press contract; `selectableOffer` writes the role it gave. Those are
-  // the values the theme's hand already reads. A widget joins by building its control rather
-  // than by an entry here. The register stays about capabilities; a press is
+  // The presses themselves, wherever a widget or Leaf put them. Each is declared as it is
+  // built: `offer` writes the native press's tag or input type, or the tag of a custom
+  // host that opted into its own press contract; `selectableOffer` writes the role it
+  // gave. Those are the values the theme's hand already reads. A widget, or a surface of
+  // Leaf's, joins by building its control rather than by an entry here. The register
+  // stays about capabilities; a press is
   // a route to one, and this is how a route that spends no key of its own is reached. The
   // reading stops where the hand stops, because it is the same reading. A gutter's press
   // is left out: it stands for its line, which the target picker addresses, and a chip
   // on each of a diff's lines buried the map's other routes (control-faces.js).
   /** @returns {HTMLElement[]} */
-  const pageControls = () => pageParts(`${PRESSABLE}:not(.${actionClass("gutter")})`);
+  const controls = () => pageQueryAll(`${PRESSABLE}:not(.${actionClass("gutter")})`);
 
   // A link keeps the platform activation that its author wrote. Fragment travel owns
   // arrival for every activation route; the sequence only names the new tab a link's
@@ -299,13 +301,13 @@ export function createGoToSequence({
           ),
         ]
       : []),
-    targetKind("Tab", pageTabs, press),
-    targetKind("Link", pageLinks, followLink),
-    targetKind("Fold", pageDisclosures, (summary) => {
+    targetKind("Tab", tabs, press),
+    targetKind("Link", links, followLink),
+    targetKind("Fold", disclosures, (summary) => {
       scrollToElement(summary.parentElement, undefined, "nearest");
       focusDestination(summary, "move");
     }),
-    targetKind("Control", pageControls, press),
+    targetKind("Control", controls, press),
     targetKind("Time", pageAges, (age) => focusDestination(age, "step")),
   ];
   /** @type {TargetFilter[]} */
@@ -375,13 +377,19 @@ export function createGoToSequence({
         const { member } = candidate;
         // A role=tab anchor is one activation surface, not a tab and a link. TARGET_KINDS
         // orders the more specific meaning first; genuinely different nested elements stay.
+        // A transparent control is unseen, though it takes the pointer, as a message's
+        // controls do until the pointer or focus is on the message, so it wears no chip.
         const unavailable =
           seen.has(member) ||
           !member.isConnected ||
-          !member.checkVisibility() ||
+          !member.checkVisibility({
+            opacityProperty: true,
+            visibilityProperty: true,
+          }) ||
           member.matches(":disabled") ||
           member.getAttribute("aria-disabled") === "true" ||
-          closestAcross(member, "[inert]");
+          closestAcross(member, "[inert]") ||
+          heldByStance(member);
         if (unavailable) continue;
         const rect = placement.badgeBox(member);
         if (!rect || !placement.exposes(member, rect, candidate.exposure)) continue;

@@ -3278,6 +3278,23 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def panel_go_to(page: Page) -> None:
+    """The Go-to sequence armed over the floating panel's Threads view, whose tabs,
+    rows and Close wear chips beside the page's."""
+    go_to_threads(page)
+    rendered(page)
+    go_to(page)
+
+
+def card_go_to(page: Page) -> None:
+    """The Go-to sequence armed from a thread card the pointer opened, whose head's
+    presses and microphone wear chips, while each message's own controls, unseen until
+    the pointer rests on it, wear none."""
+    card_by_pointer(page)
+    page.keyboard.press("Escape")
+    go_to(page)
+
+
 def contents_by_keyboard(page: Page) -> None:
     """The contents map revealed by focus on its first section link."""
     page.keyboard.press("Tab")
@@ -4253,6 +4270,8 @@ STATES = (
     State("plan-panel", "review-a-plan", go_to_threads),
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
     State("plan-go-to", "review-a-plan", go_to, window=Window((1024, 768))),
+    State("plan-panel-go-to", "review-a-plan", panel_go_to),
+    State("plan-card-go-to", "review-a-plan", card_go_to),
     State(
         "plan-thread-in-panel",
         "review-a-plan",

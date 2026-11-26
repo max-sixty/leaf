@@ -422,9 +422,12 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-labels a[data-lf-toc-shown] {
       pointer-events: auto;
     }
+    /* Go-to shows the labels at once, since its map names only the links it sees as it
+     * arms (panel/page-keys/go-to-sequence.js), and a label still fading in is unseen. */
     @scope (body[data-lf-go-to-active] lf-toc) {
       :scope:is(lf-toc) .lf-toc-labels {
         opacity: 1;
+        transition: none;
       }
       :scope:is(lf-toc) .lf-toc-labels::before,
       :scope:is(lf-toc) .lf-toc-labels a[data-lf-toc-shown] {

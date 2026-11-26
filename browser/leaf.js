@@ -286,8 +286,10 @@ async function boot() {
   });
 
   // The fixed furniture every generated-hint map is spread around: the boxes the chrome
-  // covers (dom/geometry.js, `coverBoxes`). Both maps read the same boxes.
-  const hintChrome = { barriers: () => coverBoxes() };
+  // covers over a member (dom/geometry.js, `coverBoxes`). Both maps read the same boxes.
+  const hintChrome = {
+    barriers: (/** @type {Element | undefined} */ member) => coverBoxes(member),
+  };
   const anchorPlacement = createAnchorPlacement();
   // Every page marks its commented words, previews their threads under the pointer
   // and opens one on a press, whoever draws its margin.
@@ -706,6 +708,7 @@ async function boot() {
   });
   const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
+    heldByStance: floatingPanel.heldByStance,
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [

@@ -6318,6 +6318,17 @@ export function createFloatingPanel({
     // alone, as Threads, On, Versions and All pages are; one a route qualifies, as a
     // menu group or Errors, stays shut.
     shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
+    // Whether an element is part of the row a stance holds while it stands (**The
+    // row**): the field, whose end offers the stance's Close, and the ✕ that ends it,
+    // but not the leaf, and nothing while a search holds the field. Read from the
+    // dispatcher, as `stanceHolds` is, so it answers in the task that arms a stance,
+    // before the row draws it. Go-to, itself a stance, leaves these parts out of its
+    // map (page-keys/go-to-sequence.js), since each would only end it.
+    heldByStance: (/** @type {Element} */ element) =>
+      stanceHolds() &&
+      !activeSearch() &&
+      element.closest(".lf-fp-row") !== null &&
+      element.closest(".lf-fp-leaf") === null,
     /** @param {import("../records/history.js").RecordList | null} list @param {string | null} from
      * @param {import("../dom/user-intent.js").UserIntent} intent */
     putThreadAway: (list, from, intent) => {

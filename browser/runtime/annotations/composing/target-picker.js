@@ -143,7 +143,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @typedef {import("../../readings/anchor-resolution.js").AimTarget} PickerTarget
  * @typedef {Object} TargetPickerOptions
  * @property {ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToPassage"]} scrollToPassage
- * @property {{barriers: () => import("../../base/box.js").Box[]}} hintChrome
+ * @property {import("../../readings/key-badges/hints.js").HintChrome} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
  * @property {() => boolean} pointerModeActive

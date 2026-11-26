@@ -75,7 +75,9 @@ export function boundFile(binding) {
     // Resolves the saved file, or a refusal in the server's own words, which wrote
     // nothing, with the newer file where the file had moved on from `revision`. It
     // rejects where the page can't write, and where no such answer came, when the save
-    // may have reached the file.
+    // may have reached the file. A server fault (5xx) is no such answer: the server
+    // may have written the file and then failed, as a host that keeps the page
+    // elsewhere does when its store refuses the commit.
     /** @param {Pick<import("../../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
      * @returns {Promise<import("../../types/contract.js").ServedFileSnapshot | {refused: string, current: import("../../types/contract.js").ServedFileSnapshot | null}>} */
     save: async (snapshot) => {
@@ -87,7 +89,7 @@ export function boundFile(binding) {
         });
       } catch (error) {
         // `request` passes on a `RequestError` only where the server said why.
-        if (!(error instanceof RequestError)) throw error;
+        if (!(error instanceof RequestError) || error.status >= 500) throw error;
         return { refused: error.message, current: error.current ?? null };
       }
     },

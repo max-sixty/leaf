@@ -1387,11 +1387,11 @@ export function createResponseSurface({
         if (design) openOnDesign(design);
         return;
       }
-      // A painted owner may contain working controls or editing regions. Their
-      // native click keeps its meaning even when an annotation covers the owner. So does
-      // a click a widget took, which it says by preventing the click's default
-      // (module-input.md, "Pointer presses"), as panel/page-keys/controller.js reads a key:
-      // a press on an option card picks the option and opens no thread on its question.
+      // Marked words may stand in a working control or editing region, whose native
+      // click keeps its meaning over the mark. So does a click a widget took, which it
+      // says by preventing the click's default (module-input.md, "Pointer presses"), as
+      // panel/page-keys/controller.js reads a key: a press on an option card's marked
+      // words picks the option and opens no thread.
       if (ev.defaultPrevented || closestAcross(target, WORKS)) return;
       // The record rather than this event's own coordinates, for the reason the record is
       // kept from a pointer event at all (base/pointer.js): `click` is a legacy mouse event and

@@ -611,11 +611,15 @@ WORD_LINES = """message => {
   const lines = new Map();
   for (const box of range.getClientRects()) {
     if (box.width < 1) continue;
-    const at = Math.round(box.top - top);
-    const [left, right] = lines.get(at) ?? [Infinity, -Infinity];
-    lines.set(at, [Math.min(left, box.left), Math.max(right, box.right)]);
+    const line = Math.round(box.top - top);
+    const [at, left, right] = lines.get(line) ?? [Infinity, Infinity, -Infinity];
+    lines.set(line, [
+      Math.min(at, box.top - top),
+      Math.min(left, box.left),
+      Math.max(right, box.right),
+    ]);
   }
-  return [...lines].map(([at, [left, right]]) => [at, left, right]);
+  return [...lines.values()];
 }"""
 
 
@@ -645,7 +649,10 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
     keeps its place and its breaks, the picture its place and size and the head its
     words, and the turns after it theirs: the field's frame stands in the room around
     the words and picture, and Discard, Save and the picture's removal mark are all a
-    rewrite adds."""
+    rewrite adds. The panel holds its view's height while the rewrite is open, and the
+    view stands on its foot, so a height held a fraction of a pixel off, as a whole
+    pixel's rounding leaves it, carries the message by that fraction: a device pixel on
+    a screen of two to the CSS pixel. So nothing moves at all."""
     page, thread, message = _rewrite_surface(
         browser, serve, surface, text=PICTURED, init_script=MARGIN_EDITOR_ROOTS
     )
@@ -666,16 +673,14 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
                 "shelf",
             ):
                 continue
-            assert editing[part][side] == pytest.approx(shown[part][side], abs=0.5), (
+            assert editing[part][side] == shown[part][side], (
                 part,
                 shown[part],
                 editing[part],
             )
     for side in ("answer", "height"):
-        assert editing[side] == pytest.approx(shown[side], abs=0.5), (shown, editing)
-    assert len(editing["lines"]) == len(shown["lines"]), (shown, editing)
-    for line, was in zip(editing["lines"], shown["lines"], strict=True):
-        assert line == pytest.approx(was, abs=1), (shown["lines"], editing["lines"])
+        assert editing[side] == shown[side], (shown, editing)
+    assert editing["lines"] == shown["lines"], (shown["lines"], editing["lines"])
     expect(
         message.get_by_role("button", name="Remove attached image 1", exact=True)
     ).to_be_attached()

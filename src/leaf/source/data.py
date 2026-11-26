@@ -18,14 +18,23 @@ including a rerun with the same value. Both survive copying the page directory.
 Nothing retains an earlier value: a reader or anchor naming a revision the source
 no longer holds is reading a replaced value. A document that must keep one value
 binds a source id nothing rewrites.
+
+A file the page binds (`file_bindings`) is a source too, under its binding's id:
+a `text-document` valued `{key, name, text, revision}`, the binding, the file's label,
+its text and the revision a save names, read again whenever its stamp moves
+(`file_sources`). Its run is the file's revision and `updated` when the file was last
+written. Nothing else writes it: `leaf data set` refuses its id (`page_data`), and a
+publication under that id stands behind it. A file the page can't read is a source
+holding the reason as its error.
 """
 
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 
 from leaf.base.files import file_stamp, replace_files
-from leaf.base.page_memory import memo
+from leaf.base.page_memory import Slot, memo
 from leaf.base.schema import DATA_DIR
 from leaf.base.state import (
     STRING,
@@ -33,9 +42,15 @@ from leaf.base.state import (
     Record,
     described,
     json_bytes,
+    now_iso,
     object_schema,
 )
 from leaf.source.data_contracts import payload_error
+from leaf.source.file_bindings import FileBindingError, bound_paths, labels, read_bound
+
+# The contract a bound file is a source under. The `default` package declares it, and
+# every layer composes that package.
+FILE_CONTRACT = "text-document"
 
 PUBLICATION = Record(
     "data-source",
@@ -72,14 +87,17 @@ def _source_names(page_dir: Path) -> list[str]:
 
 
 def read_contracts(page_dir: Path) -> dict[str, str]:
-    """Source id → the contract its publication was set under."""
+    """Source id → the contract its publication was set under, or a bound file's."""
     readings = {
         source: _publication(page_dir, source) for source in _source_names(page_dir)
     }
     return {
-        source: kept[0]["contract"]
-        for source, kept in readings.items()
-        if kept is not None
+        **{
+            source: kept[0]["contract"]
+            for source, kept in readings.items()
+            if kept is not None
+        },
+        **dict.fromkeys(bound_paths(page_dir), FILE_CONTRACT),
     }
 
 
@@ -175,17 +193,70 @@ def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
     return {**reading, "value": value}
 
 
+class _Files(Slot):
+    """Every bound file's source, kept while no binding, label or file stamp moves."""
+
+
+def file_sources(page_dir: Path) -> dict[str, dict]:
+    """Each file the page binds as a source, by binding (the module header)."""
+    paths = bound_paths(page_dir)
+    named = labels(paths)
+    key = tuple(
+        (binding, path, file_stamp(path), named[binding])
+        for binding, path in paths.items()
+    )
+    return memo(page_dir, _Files).get(
+        key,
+        lambda: {
+            binding: _file_source(binding, path, named[binding])
+            for binding, path in paths.items()
+        },
+    )
+
+
+def _file_source(binding: str, path: Path, label: str) -> dict:
+    try:
+        read, written = read_bound(path, label)
+    except FileBindingError as error:
+        revision = value_revision(str(error))
+        return {
+            "contract": FILE_CONTRACT,
+            "revision": revision,
+            "run": revision,
+            "updated": now_iso(),
+            "error": str(error),
+        }
+    value = {
+        "key": binding,
+        "name": label,
+        "text": read["text"],
+        "revision": read["revision"],
+    }
+    return {
+        "contract": FILE_CONTRACT,
+        "revision": value_revision(value),
+        "run": read["revision"],
+        "updated": datetime.fromtimestamp(written)
+        .astimezone()
+        .isoformat(timespec="milliseconds"),
+        "value": value,
+    }
+
+
 def read_data(page_dir: Path, registry: dict | None) -> dict:
-    """Every source the page holds, read and judged against `registry`, with their
-    `data_version`. A page whose layer cannot be read has no contracts to judge its
-    values by, and reads as holding none."""
+    """Every source the page holds, the files it binds among them, read and judged
+    against `registry`, with their `data_version`. A page whose layer cannot be read
+    has no contracts to judge its values by, and reads as holding none."""
     names = _source_names(page_dir)
     # A source the page no longer holds keeps nothing.
     held = memo(page_dir, _Publications).held
     for source in held.keys() - set(names):
         held.pop(source, None)
     readings = (
-        {source: read_source(page_dir, source, registry) for source in names}
+        {
+            **{source: read_source(page_dir, source, registry) for source in names},
+            **file_sources(page_dir),
+        }
         if registry is not None
         else {}
     )

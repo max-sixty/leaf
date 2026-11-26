@@ -26,6 +26,10 @@ The page's reading stamps each bound file (`bound_paths`), so the news token mov
 and the page's watchers wake when a bound file does, and a state answer carries each
 binding's label and stamp (`bound_files`), naming which binding moved. A stamp only
 prompts a read; the read's revision decides what changed.
+
+Each binding is also one of the page's data sources, read as `read_bound` reads it
+(`data.read_data`), so a widget shows the file by binding its id as it would any
+source, with no editor on the page.
 """
 
 import hashlib
@@ -75,14 +79,20 @@ class StaleFileError(FileBindingError):
 
 
 @contextmanager
-def _access(page_dir: Path):
-    """Serialize browser file access and keep OS paths out of its refusals."""
+def _pathless():
+    """Refuse a failed file access in words that keep OS paths out."""
     try:
-        with page_locked(page_dir):
-            yield
+        yield
     except OSError as error:
         reason = error.strerror or "filesystem operation failed"
         raise FileBindingError(f"Could not access the bound file: {reason}.") from error
+
+
+@contextmanager
+def _access(page_dir: Path):
+    """Serialize browser file access and keep OS paths out of its refusals."""
+    with _pathless(), page_locked(page_dir):
+        yield
 
 
 def _grants(page_dir: Path) -> dict[str, str]:
@@ -260,6 +270,16 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
         for other in BINDINGS.others(page_dir / FILE_BINDINGS_FILE):
             other.unlink(missing_ok=True)
     return {"binding": binding, "bound": False}
+
+
+def read_bound(path: Path, label: str) -> tuple[dict, float]:
+    """The file at `path`, one `bound_paths` gives, as `read_file` reads it, and when it
+    was last written, as a POSIX time. It takes no page lock, as the page's reading
+    reads the grants without one (`data.read_data`): a save replaces the file whole, so
+    a read sees one version or the other."""
+    with _pathless():
+        written = path.stat().st_mtime
+        return _snapshot(path, _read(path), label), written
 
 
 def read_file(page_dir: Path, binding: str) -> dict | None:

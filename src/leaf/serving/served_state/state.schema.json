@@ -92,7 +92,7 @@
             "sources": {
               "type": "object",
               "additionalProperties": {
-                "description": "One published source (`data.read_source`), with its publication metadata and value or validation error. Sources without a publication are omitted by `read_data`.",
+                "description": "One published source (`data.read_source`) or bound file (`data.file_sources`), with its metadata and value or error. Sources with neither are omitted by `read_data`.",
                 "type": "object",
                 "properties": {
                   "contract": { "type": "string" },

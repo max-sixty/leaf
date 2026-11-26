@@ -35,23 +35,28 @@ Each file is labelled by its path below the deepest folder holding every file th
 page binds, here `deploy/values.yaml`, `deploy/alerts.yaml` and `docs/runbook.md`;
 `leaf file bind` prints the label it gives.
 
-The editor holds the open file's name and text, as last read or saved, as its `text`
-output. A reading bound to it with `for`, such as a Markdown preview, shows each save,
-about half a second after the reader stops typing, and a comment on it names the file. A Markdown file beside its rendered copy, where the reader comments on passages or
-suggests new wording, takes two elements, each in a pane of a workspace so both fill
-the window's height:
+Each binding is also a data source of the page, under the binding's id, holding the
+file as it stands on disk. A widget bound to it with `source`, such as a Markdown
+preview, shows each write to the file and needs no editor on the page. The editor
+writes the file about half a second after the reader stops typing. A Markdown file
+beside its rendered copy, where the reader comments on passages or suggests new
+wording, takes two elements, each in a pane of a workspace so both fill the window's
+height:
 
 ```html
 <lf-file-editor id="readme-editor" binding="readme"></lf-file-editor>
 <lf-text-document
   id="readme-rendered"
-  for="readme-editor"
+  source="readme"
   preview="markdown"
 ></lf-text-document>
 ```
 
-The editor's own lines take no comments, since typing changes them under the comment;
-the reader comments on the rendered copy, or on the numbered lines of its Source tab.
+A comment on the rendered copy, or on the numbered lines of its Source tab, names the
+file and the revision of it the reader saw. The editor's own lines take no comments,
+since typing changes them under the comment. To show whichever file an editor of
+several has open, bind the widget with `for` to the editor instead, which holds the
+open file's name and text, as last read or saved, as its `text` output.
 
 Tell the reader that edits save automatically. The editor saves as the reader types
 and saves a file the moment the reader opens another. It shows a change written
@@ -59,6 +64,11 @@ elsewhere, by you or another program, and marks the lines it changed until the
 reader edits them. It takes such a change in on other lines than the reader's unsaved
 edit; where the two touch the same lines, it keeps the draft and reports the conflict
 in its own status line with the choices that resolve it.
+
+Change a bound file with a tool that edits the file as it stands, such as a harness's
+edit tool, rather than writing the whole file from a copy you read earlier. Such a
+write puts back words the reader has saved since your read, and the editor's Undo
+can't return them, since a write from elsewhere starts its undo history afresh.
 
 Edits change the file itself, outside Leaf's action history, and Undo in the editor is
 an ordinary edit that saves too. Show a file the reader should not change with `lf-code`

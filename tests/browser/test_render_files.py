@@ -18,6 +18,7 @@ from render_harness import (
     rendered,
     rgb_pixels,
     scroll_settled,
+    told,
     wait_until_ready,
 )
 
@@ -156,6 +157,52 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
         "Typed here. Paragraph 150."
     )
     loaded.wait_for_function(centred)
+
+
+def test_a_preview_bound_to_a_file_follows_each_write_with_or_without_an_editor(
+    browser, serve, tmp_path
+):
+    """A Markdown preview bound by `source` to a file the page binds shows each save
+    of the editor beside it and, on a page with no editor, each write to the file from
+    elsewhere, as an agent's. What it draws names the file's source and revision, which
+    a comment on its words records."""
+    file = tmp_path / "README.md"
+    file.write_text("# Notes\n\nFirst words.\n")
+    preview_markup = (
+        '<lf-text-document id="preview" source="notes" preview="markdown">'
+        "</lf-text-document>"
+    )
+    edited = serve(
+        leaf_page(
+            "Notes",
+            '<h1>Notes</h1><lf-file-editor id="notes-file" binding="notes">'
+            f"</lf-file-editor>{preview_markup}",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    alone = serve(leaf_page("Notes", f"<h1>Notes</h1>{preview_markup}"))
+    bind_file(serve.page_dir, "notes", file)
+
+    page = open_page(browser, live_url(edited))
+    preview = page.locator("#preview .lf-text-document-preview")
+    expect(preview).to_contain_text("First words.")
+    expect(preview).to_have_attribute("data-lf-source", "notes")
+    page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    ).click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Typed in the editor.")
+    expect(preview).to_contain_text("Typed in the editor.")
+
+    reader = open_page(browser, live_url(alone))
+    shown = reader.locator("#preview .lf-text-document-preview")
+    expect(shown).to_contain_text("Typed in the editor.")
+    revision = shown.get_attribute("data-lf-source-revision")
+    file.write_text(file.read_text() + "\n\nAdded elsewhere.\n")
+    told(reader)
+    expect(shown).to_contain_text("Added elsewhere.")
+    expect(shown).not_to_have_attribute("data-lf-source-revision", revision or "")
 
 
 def test_paper_keeps_the_files_words_and_drops_the_editors_controls(

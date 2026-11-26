@@ -10,15 +10,20 @@ from threading import Event
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    PAGE,
     STATED_TIMEOUT,
     TOKEN,
     fetch,
     lock_contention,
+    publish,
+    read_page_data,
     running_http_server,
 )
 
 from leaf.base.locations import PATH_LOCKS, path_lock_key
 from leaf.commands.cli import cli
+from leaf.records.page_data import cmd_data_set
+from leaf.source.data_contracts import DataError
 from leaf.source.file_bindings import (
     BINDINGS,
     MAX_FILE_BYTES,
@@ -406,3 +411,62 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
     target.write_text("edited outside Leaf\n")
     assert page_reading(page_dir) != reading
     assert stamps()["notes"] != stamped["notes"]
+
+
+def test_a_bound_file_is_the_page_s_source_under_its_binding(
+    server, page_dir, tmp_path
+):
+    """A widget shows a bound file by binding its id as it would any source, with no
+    editor on the page: a `text-document` of the file's label, text and revision, read
+    again as the file changes. A comment on what the widget drew names the file's
+    revision, and a file the page can't read is a source holding why. `leaf data set`
+    refuses the id, since a write to the file is what changes it."""
+    target = tmp_path / "README.md"
+    target.write_text("# Notes\n")
+    bind_file(page_dir, "readme", target)
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            '<lf-text-document id="readme-preview" source="readme" '
+            'preview="markdown"></lf-text-document>\n</main>',
+        )
+    )
+    publish(page_dir)
+    read = read_page_data(page_dir)["sources"]["readme"]
+    saved = read_file(page_dir, "readme")
+    assert saved is not None
+    assert (read["contract"], read["value"]) == (
+        "text-document",
+        {
+            "key": "readme",
+            "name": "README.md",
+            "text": "# Notes\n",
+            "revision": saved["revision"],
+        },
+    )
+    comment = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "Say what the notes are for.",
+        "anchor": {
+            "section": "readme-preview",
+            "datum": "source",
+            "source": "readme",
+            "source_revision": read["revision"],
+            "quote": "Notes",
+        },
+        "attempt": "file_source_comment_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
+    assert status == 200, body
+
+    target.write_text("# Notes on cold starts\n")
+    assert read_page_data(page_dir)["sources"]["readme"]["value"]["text"] == (
+        "# Notes on cold starts\n"
+    )
+    target.write_bytes(b"\x00")
+    assert read_page_data(page_dir)["sources"]["readme"]["error"] == (
+        "File contains binary control characters."
+    )
+    with pytest.raises(DataError, match="'readme' is a bound file"):
+        cmd_data_set(page_dir, "readme", "# Notes\n")

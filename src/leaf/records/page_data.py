@@ -35,6 +35,7 @@ from leaf.source.data_contracts import (
     merge_data_document_readings,
     payload_error,
 )
+from leaf.source.file_bindings import bound_paths
 from leaf.source.revision_artifact import read_revision, revision_history
 from leaf.source.vocabulary import read_page_registry
 
@@ -133,6 +134,13 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir) as page:
+        # A bound file is its binding's source (`data.file_sources`), and its file is
+        # what a write changes.
+        if source in bound_paths(page_dir):
+            raise DataError(
+                f"source {source!r} is a bound file; write the file itself, and the "
+                "page shows each write"
+            )
         registry = read_page_registry(page_dir).registry
         bindings, binding_errors = working_data_bindings(
             page_dir, registry, page.events

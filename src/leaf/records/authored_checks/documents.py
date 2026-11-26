@@ -102,9 +102,7 @@ def _page_errors(
     return errors
 
 
-def authored_document_checks(
-    page_dir, document, events, registry, readings, thread_ids
-):
+def authored_document_checks(document, events, registry, readings, thread_ids):
     """The same authored-page gate for the root and each isolated child document.
 
     The stylesheets a document's delivery rewrites, its children's among them, and
@@ -332,7 +330,6 @@ def sample_errors(
                 child, child_events, registry or {}
             )
             child_errors = authored_document_checks(
-                page_dir,
                 child,
                 child_events,
                 registry,

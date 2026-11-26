@@ -219,7 +219,6 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         else []
     )
     document_errors = authored_document_checks(
-        page_dir,
         document,
         events,
         registry,

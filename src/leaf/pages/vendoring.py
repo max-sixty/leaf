@@ -36,7 +36,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.base.detached import Handshake
 from leaf.base.findings import Finding, note
 from leaf.base.harness import Harness, claim_harness, session_harness
 from leaf.base.leases import lock_is_held, page_locked
@@ -205,22 +204,20 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
     return renew_layer(page_dir, claim_harness(held))
 
 
-def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
+def follow_copy(page_dir: Path, server_id: str) -> None:
     """`server _follow`: restart at its address, under this Leaf, the server
     `server_id` names, which another installed copy started and which asked
     (`server_lifetime.stop_when_service_ends`): the copy this Leaf replaced at the
     same path, or one the session holding the page ran before its hooks ran this
     Leaf.
 
-    The answer through `handshake` says only that this copy runs, since only a
-    failed launch is worth the server's trying again. A page at an older page
-    protocol, as an update can leave it, is renewed first, for the live session
-    holding the page (`renew_held`) or while none does (`renew_layer`), and what
-    holds the renewal back is queued for that session's next step (`clerk.queue`).
-    After an update in place, no hook runs before this renewal, so the successors of
-    the session's watch and of Codex's adapter read the page once it lands. The
-    renewal restarts the server itself, and takes turns with a hook's renewal of the
-    same page (`_reinit`).
+    A page at an older page protocol, as an update can leave it, is renewed first,
+    for the live session holding the page (`renew_held`) or while none does
+    (`renew_layer`), and what holds the renewal back is queued for that session's
+    next step (`clerk.queue`). After an update in place, no hook runs before this
+    renewal, so the successors of the session's watch and of Codex's adapter read the
+    page once it lands. The renewal restarts the server itself, and takes turns with a
+    hook's renewal of the same page (`_reinit`).
 
     Otherwise the restart (`hosting.restarting_server`) follows, for the session
     holding the page, unless the page changed since the server asked: a page this
@@ -229,8 +226,6 @@ def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
     as a checkout's or a renewal's, keeps running; and a session service whose
     session has ended retires after its grace, as it would have on the old copy.
     These checks come last, so that little time passes between them and the stop."""
-    if not handshake.announce():
-        return
     held = page_claim(page_dir)
     if held is None or not claim_is_active(held):
         renew_layer(page_dir, None)

@@ -26,16 +26,18 @@ revisions after its base (`provenance.saved_after`), so a revision with none liv
 before it appends nothing: a fresh page, a sample and a published page's first read
 write nothing to the log. An event naming the bundle is the first of its
 publication: the publication's prerequisite, which `finish_publications` completes,
-and its seq is the revision's place. A first revision has no prerequisite, so one
-interrupted before its marker stays absent until a read activates the source again.
-A refused reply or note appends nothing, its revision included.
+and its seq is the revision's place. A first revision a read activates has no
+prerequisite, so one interrupted before its marker stays absent until a read
+activates the source again; a first revision a reply or note publishes has that event
+as its prerequisite, and the next transaction finishes it. A refused reply or note
+appends nothing, its revision included.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-from leaf.base.files import list_revisions
+from leaf.base.files import latest_revision, list_revisions
 from leaf.records.authored_checks.source_history import (
     EMPTY_READING,
     PredecessorReading,
@@ -65,8 +67,7 @@ class Activation(NamedTuple):
 
 def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:
     """Read the candidate revision without publishing any artifact or transitions."""
-    revisions = list_revisions(page_dir)
-    active = revisions[-1] if revisions else None
+    active = latest_revision(page_dir)
     if checked.errors:
         return Activation(active, "; ".join(map(str, checked.errors)), False)
     return Activation(checked.revision.candidate, None, not checked.revision.unchanged)

@@ -21,8 +21,10 @@ directly:
 The static check reads the exact `index.html` with no browser. It is deterministic and
 near-free, which is what makes running it on every save affordable, so keep a new
 check that way and put anything needing a browser in the browser half. The rules live
-in `records/authored_checks/source.py` and `records/markup_checks/markup.py`; these are the decisions
-behind them:
+in `records/authored_checks/source.py`, which reads the source and its capture,
+`records/authored_checks/documents.py`, the gate the page's document and each sample's
+child pass, and `records/markup_checks/`, the markup rules either applies; these are
+the decisions behind them:
 
 - Page code may be any script, classic or module, inline or a file, with its literal
   local import graph under `/page/`. Delivery defers a classic script and drops

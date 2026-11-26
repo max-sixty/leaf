@@ -117,7 +117,7 @@
 
   /* A panel groups one working region by its heading and spacing. The content owns any
      frame it needs; a table or log does not need a second card around it. Its name takes
-     the label font (base.css, `.lf-label`). */
+     the label font (elements.css, `.lf-label`). */
   section.lf-panel {
     margin: 18px 0;
     --lf-block-frame: trim;

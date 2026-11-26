@@ -112,19 +112,6 @@ test("a lazy widget answers with its hydration", () => {
   assert.deepEqual(asked, ["row-7"]);
 });
 
-test("an opted-in complete inventory derives targets while omission keeps the whole visual", () => {
-  document.body.innerHTML = "<main></main>";
-  registry["lf-film"].visual = { parts: "parts" };
-  const source = film();
-  source.setAttribute("parts", "all");
-  document.querySelector("main").append(source);
-  assert.deepEqual(frame(source, "one"), ["one"]);
-  revealAddressed(source, "frame:two");
-  assert.deepEqual(frame(source, "two"), ["two"]);
-  source.removeAttribute("parts");
-  assert.deepEqual(frame(source, "two"), []);
-});
-
 test("travel settles a visible part before a pending replacement can retire it", async () => {
   document.body.innerHTML = "<main></main>";
   const source = document.createElement("lf-film");

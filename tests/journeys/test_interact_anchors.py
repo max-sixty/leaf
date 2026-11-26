@@ -33,7 +33,7 @@ from leaf.source import vocabulary as vocabulary_model
 
 
 def declare_part_prefixes(page_dir, *prefixes):
-    """Give the page's diagram part-id prefixes in place of its authored list."""
+    """Give the page's diagram other part-id prefixes than it ships with."""
     declare_on_page(
         page_dir,
         lambda registry: registry["lf-diagram"].update(
@@ -45,11 +45,10 @@ def declare_part_prefixes(page_dir, *prefixes):
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
-    """A picture drawn from data cannot list its parts in markup, so its widget
-    declares their kinds: any id a prefix begins is a part a comment may name, with
-    nothing authored on the element, and one outside them is refused by name."""
+    """A visual's widget declares its parts' kinds rather than its markup listing
+    them: any id a prefix begins is a part a comment may name, and one outside them is
+    refused by name."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
-    declare_part_prefixes(page_dir, "node:")
     published(page_dir)
 
     named = comment(
@@ -68,7 +67,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
         vocabulary_model.read_page_registry(page_dir).registry,
     )
-    assert (refused.code, refused.values["declared"]["prefixes"]) == (
+    assert (refused.code, refused.values["prefixes"]) == (
         "undeclared-visual",
         ["node:"],
     )
@@ -97,8 +96,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     visual part and releases the old element from version retention."""
     v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
-        '<p id="old-wording">The retry starts here.</p>'
-        '<lf-diagram id="flow" parts="all">',
+        '<p id="old-wording">The retry starts here.</p><lf-diagram id="flow">',
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)

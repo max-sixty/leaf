@@ -189,12 +189,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
 
 def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
     """A provider can remove a visual target without deleting its original comment."""
-    (page_dir / "index.html").write_text(
-        FLOW_PAGE.replace(
-            '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="all">',
-        )
-    )
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     publish(page_dir)
     append_carried_log_record(
         page_dir,

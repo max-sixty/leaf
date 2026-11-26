@@ -51,10 +51,6 @@ FAILURE: dict[str, Any] = {
     "values": {"by": 40},
     "text": "at 360–900px wide, <div id=wide> is set 40px past the column",
 }
-# A diagram whose boxes a thread may name (`parts`), and what a reading of it drew.
-PARTS_PAGE = FLOW_PAGE.replace(
-    '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-)
 DRAWN = {
     "flow": {
         "parts": [{"id": "node:A", "label": "A"}, {"id": "node:B", "label": "B"}],
@@ -502,7 +498,7 @@ def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed):
     """The reading of a version hands `page state` the parts each visual drew in it,
     on the visual's element, and a later version shows none of them until it is read
     in turn: its visuals may draw other parts."""
-    (claimed / "index.html").write_text(PARTS_PAGE)
+    (claimed / "index.html").write_text(FLOW_PAGE)
     assert activate_source(claimed).error is None
     handover_pass_model.read_and_tell(claimed, checking([], visuals=DRAWN))
     assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
@@ -514,7 +510,7 @@ def test_a_data_update_lists_no_parts_until_a_check_reads_it(claimed):
     """A data update makes no new version but can change what a visual draws, so the
     parts a check drew list only while the page holds the data it read, and the next
     check lists them again."""
-    (claimed / "index.html").write_text(PARTS_PAGE)
+    (claimed / "index.html").write_text(FLOW_PAGE)
     declare_data_input(claimed, "builds", {"type": "array"})
     handover_pass_model.remember_reading(
         claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)

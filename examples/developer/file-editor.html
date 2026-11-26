@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="A local Markdown file, edited directly with quiet automatic saving and explicit conflict recovery, beside a rendered copy that follows each save."
+      content="A local Markdown file, edited directly with quiet automatic saving and explicit conflict recovery, beside a rendered copy and its changes, which follow each save."
     />
     <title>Quiet file editing</title>
     <style>
@@ -28,29 +28,50 @@
         <lf-pane id="file-editing-source" label="Source">
           <lf-file-editor id="research-file" binding="research-notes"></lf-file-editor>
         </lf-pane>
-        <lf-pane id="file-editing-rendered" label="Rendered">
-          <lf-text-document
-            id="research-rendered"
-            for="research-file"
-            preview="markdown"
-          ></lf-text-document>
+        <lf-pane id="file-editing-rendered" label="Rendered and changes">
+          <lf-tabs id="file-editing-views" flow="page">
+            <lf-tab id="file-editing-rendered-view" label="Rendered">
+              <lf-text-document
+                id="research-rendered"
+                for="research-file"
+                preview="markdown"
+              ></lf-text-document>
+            </lf-tab>
+            <lf-tab id="file-editing-changes" label="Changes">
+              <lf-diff
+                id="research-changes"
+                before="research-committed"
+                for="research-file"
+              ></lf-diff>
+            </lf-tab>
+          </lf-tabs>
         </lf-pane>
       </div>
       <footer>
         <details id="file-editing-setup">
           <summary>Where the file lives</summary>
           <p>
-            Changes save automatically, and the rendered copy follows each save.
-            Double-click a word in the rendered copy to type at the start of its line in
-            the editor. The editor follows changes made elsewhere and asks which version
-            to keep when edits overlap.
+            Edits save automatically, and the rendered copy and the Changes tab follow
+            each save. Double-click a word in the rendered copy to type at the start of
+            its line in the editor. The editor follows changes made elsewhere and asks
+            which version to keep when edits overlap.
           </p>
+          <p>
+            The Changes tab compares the file with the text it started from, which the
+            page holds as a source. On a repository, the agent sets that source from the
+            last commit, and sets it again after the next:
+          </p>
+          <pre
+            id="file-editing-committed"
+          ><code>git show HEAD:research-notes.md | jq -Rs '{name: "research-notes.md", text: .}' | leaf data set "$PAGE" research-committed</code></pre>
           <p>
             The page binds <code>files/research-notes.md</code> in its own directory, so
             every copy of the page, a preview or a visitor's on leaf.page, edits its own
             copy:
           </p>
-          <pre><code>leaf file bind "$PAGE" research-notes "$PAGE/files/research-notes.md"</code></pre>
+          <pre
+            id="file-editing-bind"
+          ><code>leaf file bind "$PAGE" research-notes "$PAGE/files/research-notes.md"</code></pre>
           <p>
             Edit a line and inspect the file on disk. A normal save leaves the header
             still. Hold a write request open to inspect delayed saving feedback. Change

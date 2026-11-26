@@ -62,20 +62,20 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.registry import storage as registry_storage
-from leaf.registry.storage import layer_record
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import scheme as scheme_model
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_server
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate import scheme as scheme_model
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.pages.render_gate.preview import preview_server
+from leaf.serving import http as http_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry.storage import layer_record
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

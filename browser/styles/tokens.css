@@ -597,6 +597,7 @@
 
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
+       A text field wears it only while the caret is in its words (response.css).
      - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
        (readings/target-paint.js, `paintLocation`), and the decision's focus ring too. It stands
        down while visible focus is inside the decision, whose own ring says where the

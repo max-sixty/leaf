@@ -30,7 +30,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import start_near_work
+from leaf.source.render_checks import start_near_work
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

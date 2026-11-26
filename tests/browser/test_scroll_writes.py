@@ -6,7 +6,7 @@ makes it, the runtime hears it as it is made (`runtime/dom/arrivals.js`)."""
 import pytest
 from render_harness import consume_browser_errors, leaf_page, open_page
 
-from leaf.render_checks import SERVED_TIMEOUT_MS
+from leaf.source.render_checks import SERVED_TIMEOUT_MS
 
 # Each style that decides which side of zero a box scrolls on, alone and in the
 # combinations where two of them cancel. Chromium and Firefox agree on every one.

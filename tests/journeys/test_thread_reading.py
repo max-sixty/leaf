@@ -13,8 +13,8 @@ from interact_support import (
     thread_records,
 )
 
-from leaf import event_log as events_model
-from leaf import session as session_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
 
 
 def test_exact_thread_history_and_wait_share_indirect_resolution_events(

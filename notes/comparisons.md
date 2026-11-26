@@ -51,7 +51,7 @@ capability. A stored answer alone does not establish what it means after a
 rewrite. The useful comparison is an answered interface revised around a
 person's decisions, passage comments, unsent drafts and reading position, then
 resumed through the supported route after its original session ends. Leaf's
-[tasks](../src/leaf/todos.py) already outlive execution attempts; process state,
+[tasks](../src/leaf/records/todos.py) already outlive execution attempts; process state,
 delivery and a fulfilled obligation are separate facts.
 
 **Views and evidence.** Earlier Workbench and Sfora demos showed alternate views
@@ -218,7 +218,7 @@ still needs a shared interaction test.
 
 Mermaid-to-Excalidraw editing, standalone asset export and live DOM checks remain
 useful references. The user's browser can report overflow/clipping for a batched
-repair prompt; Leaf's [render gate](../src/leaf/render_gate/version.py) checks
+repair prompt; Leaf's [render gate](../src/leaf/pages/render_gate/version.py) checks
 publication across desktop/narrow viewports and layout transitions.
 
 ## Sideshow

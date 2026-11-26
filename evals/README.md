@@ -489,9 +489,12 @@ A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, the path of a page to create, the
 arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory and
 Leaf state for every sample. The agent initializes the page itself, so the packages it
-selects, its theme among them, are part of what the case scores. Pinned files under `evals/<case>/` are copied into
-that workspace at the same relative paths. Cite those paths in the prompt; the
-agent can open, register, crop or mark the captures. Ask it to write the page.
+selects, its theme among them, are part of what the case scores. The files the asset pin
+holds under `evals/<case>/` (`.config/leaf-assets.json`), such as captures, are copied
+into that workspace at their paths below that directory; a file in this tree there is
+not. Cite those paths in the prompt; the agent can open, register, crop or mark the
+captures. Give a text fixture, such as a page's source, in the prompt itself. Ask it to
+write the page.
 `metadata.installed` lists package directories, relative to the repository, that
 `leaf package install` adds to that Leaf state before the agent starts, as packages
 the user installed on the machine.

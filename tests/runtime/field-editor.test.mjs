@@ -856,6 +856,30 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
   assert.equal(under.type("⏎"), "Para\n\n- \n- [x] Foo");
 });
 
+// The field redraws what an edit replaces, so Backspace and Delete on a message's
+// blank lines replace only the line they take, though the edit the check weighs runs
+// from the paragraph above.
+test("a key taking a message's blank line replaces only that line", async () => {
+  for (const [caret, key, expected] of [
+    [14, "⌫", [[13, 14, ""]]],
+    [11, "⌦", [[11, 12, ""]]],
+  ]) {
+    const field = await draftField("First line\n\n\n\n", caret, true);
+    /** @type {[number, number, string][]} */
+    const replaced = [];
+    const { dispatch } = field.view;
+    field.view.dispatch = (...specs) => {
+      for (const spec of specs)
+        spec.changes?.iterChanges((from, to, _a, _b, inserted) =>
+          replaced.push([from, to, inserted.toString()]),
+        );
+      dispatch(...specs);
+    };
+    assert.equal(field.type(key), "First line\n\n\n", key);
+    assert.deepEqual(replaced, expected, key);
+  }
+});
+
 // A seeded fuzzer over generated drafts and the keys a user presses in them. Each key
 // keeps what the field promises: it throws nothing, one Undo gives back the words
 // before it, and a body's saved words show as the field's did and save again unchanged.

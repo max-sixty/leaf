@@ -17,7 +17,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import evaluate_probe, rendered
+from leaf.source.render_checks import evaluate_probe, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

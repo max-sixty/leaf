@@ -92,15 +92,15 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import anchor_capture as anchor_capture_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.scheme import collect_page_exceptions
-from leaf.served_state import context as served_context
+from leaf.base import service as service_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.scheme import collect_page_exceptions
+from leaf.serving.served_state import context as served_context
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import data as data_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 

@@ -52,38 +52,39 @@ from model_folds import leaf_page
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as interact_files
-from leaf import hooks as hooks_model
-from leaf import layer as layer_model
-from leaf import locations as interact_locations
-from leaf import machine as machine_model
-from leaf import packages as packages_model
-from leaf import page_memory
-from leaf import revision_artifact as artifact_model
-from leaf import schema as schema_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf import styles as styles_model
-from leaf import vendoring as vendoring_model
-from leaf.findings import Finding
-from leaf.page import page_instructions
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.refusals import Refused
-from leaf.registry import storage as registry_storage
-from leaf.registry import widgets as registry_widgets
-from leaf.registry.contract import (
+from leaf.agents import delivery as delivery_model
+from leaf.agents.thread import fit_title
+from leaf.base import files as interact_files
+from leaf.base import locations as interact_locations
+from leaf.base import machine as machine_model
+from leaf.base import page_memory
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.log import event_log as events_model
+from leaf.pages import packages as packages_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.pages.page import page_instructions
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate.preview import preview_server
+from leaf.records.revisioning import activate_source
+from leaf.source import data as data_model
+from leaf.source import layer as layer_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import structure as structure_model
+from leaf.source import styles as styles_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry import widgets as registry_widgets
+from leaf.source.registry.contract import (
     DECLARED_WORDS,
     complete_declarations,
     stamp_grammars,
 )
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate.preview import preview_server
-from leaf.revisioning import activate_source
-from leaf.thread import fit_title
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     authored_sources,
@@ -349,7 +350,7 @@ def test_a_page_an_older_leaf_initialized_is_renewed_keeping_its_packages(claime
     `--package` keeps the packages it selected, the one field this Leaf reads off
     another Leaf's record. Read as none, the page would never be renewed, and `page
     init` would select no packages."""
-    from leaf.event_contracts import write_refusal
+    from leaf.records.event_contracts import write_refusal
 
     path = claimed / schema_model.LAYER_FILE
     record = registry_storage.layer_record(claimed)
@@ -385,7 +386,7 @@ def test_a_page_a_newer_leaf_initialized_is_refused_whatever_its_shape(claimed):
     reads the page's layer, name the newer Leaf as the repair, rather than crashing
     on the shape or reading it as none and naming `page init`, and none rewrites the
     file."""
-    from leaf.event_contracts import write_refusal
+    from leaf.records.event_contracts import write_refusal
 
     publish(claimed)
     path = claimed / schema_model.LAYER_FILE
@@ -868,7 +869,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
     # A harness's copy carries no `.git`, so the time it was made is the only date it
     # has: every file written then, the running module's own included.
     copied_at = 1_790_000_000
-    layer = cached / "src" / "leaf" / "layer.py"
+    layer = cached / "src" / "leaf" / "source" / "layer.py"
     os.utime(layer, (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
@@ -1231,7 +1232,8 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "layer.json").unlink()
     (first / "layer.json").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    (first / "stream.json").write_text("{}")
+    stream = service_model.STREAM.file(Path("stream.json"))
+    (first / stream).write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1241,7 +1243,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     for name in ("layer.json", "events.jsonl"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     # A stream the test wrote is a file it added, so the reset takes it away.
-    assert not (second / "stream.json").exists()
+    assert not (second / stream).exists()
 
 
 def _css_parse_errors(nodes):
@@ -2698,7 +2700,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
     sources = (
         schema_model.ASSETS,
         schema_model.BUNDLED_PACKAGES,
-        Path(schema_model.__file__).parent,
+        Path(schema_model.__file__).parents[1],
     )
     paths = sorted(path for root in sources for path in root.rglob("*"))
     names, prefixes = styles_model.set_properties(
@@ -2880,7 +2882,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     read = json.loads(js_facts("literals", [page_paint]))
     assets = schema_model.ASSETS
     sheet = (assets / "base.css").read_text() + (
-        assets / "runtime/chrome.css"
+        assets / "styles/components/element-marks.css"
     ).read_text()
 
     spelling = (
@@ -3352,7 +3354,7 @@ def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     page's state needs no package sheet or module, nor a validated registry, so the
     page reads on, and `page check` and a server about to bind (`http.page_endpoint`,
     which `server start` runs) refuse it, naming the repair."""
-    from leaf.http import page_endpoint
+    from leaf.serving.http import page_endpoint
 
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "notes"
@@ -5226,7 +5228,7 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
 
 
 def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
-    from leaf.revision_artifact import read_artifact
+    from leaf.source.revision_artifact import read_artifact
 
     manifest = json.loads(read_artifact(page, revision).manifest)
     return registry_storage.selected(manifest["layer"], page).files

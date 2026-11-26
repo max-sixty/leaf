@@ -16,8 +16,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 COMMENT_ON_OBLIGATION = {
     "kind": "comment",

@@ -47,10 +47,10 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, paste_image
-from leaf import drafts as drafts_model
-from leaf import event_log as events_model
-from leaf.render_checks import asked_again, wait_until_ready
-from leaf.render_gate.page_code import run_page_code
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.page_code import run_page_code
+from leaf.serving import drafts as drafts_model
+from leaf.source.render_checks import asked_again, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, open_on_me
 from leaf_dev.example_data import named_source
 

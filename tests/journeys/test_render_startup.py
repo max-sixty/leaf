@@ -39,13 +39,13 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import user_views as user_views_model
-from leaf.page_inputs import page_reading, source_readings
-from leaf.registry.storage import load_registry, served_layer
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.serving import user_views as user_views_model
+from leaf.source.page_inputs import page_reading, source_readings
+from leaf.source.registry.storage import load_registry, served_layer
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

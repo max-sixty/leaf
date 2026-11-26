@@ -59,10 +59,10 @@ from render_harness import (
 )
 
 from journeys import expect_showing
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import server as server_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
+from leaf.agents import server as server_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, show_resolved
 from leaf_dev.example_data import named_source, published_sources
 

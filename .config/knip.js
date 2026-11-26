@@ -34,7 +34,8 @@ export default {
     "{browser,packages/*,docs/*,tests/fixtures/packages/*}/widgets/lf-*.js",
     // The render gate's probes, which Python calls by name, and the script an export
     // draws its page with.
-    "src/leaf/{render-checks/*,static-export}.js",
+    "src/leaf/source/render-checks/*.js",
+    "src/leaf/pages/static-export.js",
     // Scripts the suite injects into pages, and the pages' own.
     "tests/*.{js,mjs}",
     "tests/{page_scripts,fixtures}/**/*.js",
@@ -54,7 +55,7 @@ export default {
     "/runtime/*": composed("runtime"),
     "/vendor/*": composed("vendor"),
     "/widgets/*": composed("widgets"),
-    "/checks/*": ["src/leaf/render-checks/*"],
+    "/checks/*": ["src/leaf/source/render-checks/*"],
   },
   include: ["files", "exports", "types", "cycles"],
   // Knip grades a cycle a warning by default, which exits 0.

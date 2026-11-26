@@ -24,8 +24,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 EARLY_PAGE = leaf_page(
     "Early comments",

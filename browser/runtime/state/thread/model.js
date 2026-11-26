@@ -173,6 +173,34 @@ export function threadCounts(threads) {
     unread: listed.filter(isNews).length,
   };
 }
+/**
+ * Where in the log a thread last changed, its event's `seq`, which Threads lists its
+ * rows by: a closed thread's closing, the event its row's age dates; an open thread's
+ * latest turn as it last moved (`moved`), so a rewrite counts. The user's own reply,
+ * rewrite or resolve on its way, which the log doesn't hold yet, is newer than all of
+ * it. A reaction is no turn, and neither is a reply still streaming, which counts once
+ * the log holds it. A message that reaches a closed thread without reopening it, as the
+ * agent's unannounced one does, leaves the thread where its closing put it, so a row's
+ * place and its age agree.
+ * @template {{id: string, token?: string, seq?: number, edited?: {seq?: number, ts: string} | undefined, [field: string]: unknown}} T
+ * @param {{msgs: readonly T[], root: {id: string}, resolved: {seq?: number | undefined} | null}} thread */
+export function lastChange(thread) {
+  if (thread.resolved) return thread.resolved.seq ?? Infinity;
+  let last = -Infinity;
+  for (const message of turns(thread))
+    if (!message.provisional) last = Math.max(last, moved(message).seq ?? Infinity);
+  return last;
+}
+/**
+ * `items` newest first by `at`, the later of two that tie first, as the later of two
+ * threads in the log's order is the later started.
+ * @template T @param {readonly T[]} items @param {(item: T) => number} at */
+export const newestFirst = (items, at) =>
+  items
+    .map((item) => ({ item, at: at(item) }))
+    .reverse()
+    .sort((a, b) => b.at - a.at)
+    .map(({ item }) => item);
 // Which widget's seat a message the server has not seen stands in, a pending thread's
 // root or the comment being written, by the rule `seat_root` reads the log by: an
 // element anchor naming that widget and carrying nothing else. Spelled again here
@@ -397,14 +425,14 @@ export const reactionsAt = (threads, anchor) =>
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
-// asks what is newest in a thread — the first unread, news — reads this,
-// so an agent message edited today is today's in all of them. A message still being
-// sent carries the clock the user's gesture gave it and no log position yet.
+// asks what is newest — the first unread, news, Threads' rows — reads this,
+// so an agent message edited today is today's in all of them. A message or rewrite still
+// being sent carries the clock the user's gesture gave it and no log position yet.
 /** @param {{edited?: {seq?: number, ts: string} | undefined, seq?: number, ts?: string}} message */
-export const moved = (message) => ({
-  seq: message.edited?.seq ?? message.seq ?? null,
-  ts: message.edited?.ts ?? message.ts ?? null,
-});
+export const moved = (message) =>
+  message.edited
+    ? { seq: message.edited.seq ?? null, ts: message.edited.ts }
+    : { seq: message.seq ?? null, ts: message.ts ?? null };
 
 /** @param {import("../../../types/domain.js").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;

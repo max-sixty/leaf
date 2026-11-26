@@ -127,6 +127,11 @@ lf-deck[data-lf-deck-flying] {
       border: 1px solid var(--lf-rule);
       border-radius: var(--lf-r);
       background: var(--lf-card);
+      /* The card draws a frame with the deck's bar flush above it, so its marks stand
+         one band inside its edge, over the frame (tokens.css, "Where it stands"):
+         outside it they would stand under the bar, which sticks over the cards in a
+         workspace. */
+      --lf-ring-at: var(--lf-focus-ring-inset);
       --lf-deck-first-edge:
         0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2) var(--lf-card),
         0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2 + 1px) var(--lf-rule);

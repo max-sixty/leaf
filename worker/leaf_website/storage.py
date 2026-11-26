@@ -12,7 +12,7 @@ never an input to a fold. Responses retain their exact bytes: the separately bun
 public assets are a different module graph.
 
 The user's drafts change with every keystroke and move no page reading
-(`reading.UNWATCHED`), so they take a path of their own. Each write of a page's drafts
+(`page_inputs.UNWATCHED`), so they take a path of their own. Each write of a page's drafts
 store replaces the Durable Object's copy of the store before the container replaces
 its file or answers the write (`publish_drafts`), so a replacement container restores
 every write a tab was answered for. The object's copy is the store of record: it

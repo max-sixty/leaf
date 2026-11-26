@@ -3490,6 +3490,13 @@ def authored_timeline_step(page: Page) -> None:
     page.keyboard.press("Space")
 
 
+def deck_card_by_keyboard(page: Page) -> None:
+    """The open card of a deck that fills a workspace, reached by Next On Me."""
+    keyboard_modality(page)
+    page.keyboard.press("m")
+    settle(page)
+
+
 @dataclass(frozen=True)
 class State:
     """The page `source` names, brought to this state by `drive` once it has loaded,
@@ -3506,6 +3513,7 @@ class State:
 
 
 STATES = (
+    State("deck-card-keyboard", "catch-up", deck_card_by_keyboard, region="#cu-deck"),
     State(
         "dynamic-request-preview",
         "dynamic-widgets",

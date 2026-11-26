@@ -34,7 +34,7 @@ lf-parts,
 lf-text-document {
   --lf-tabstrip-h: calc(9px + max(38px, var(--lf-aim-floor)));
 }
-/* A stacked panel's name takes the label font (base.css, `.lf-label`), which a
+/* A stacked panel's name takes the label font (elements.css, `.lf-label`), which a
  * generated name can't wear as a class. A side list's group label is a list's group
  * heading (controls.css, `.lf-rows-head`). */
 lf-tab::before,

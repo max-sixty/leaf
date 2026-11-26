@@ -772,7 +772,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
-        registry=readings.work.registry,
     )
 
 

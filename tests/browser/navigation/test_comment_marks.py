@@ -867,7 +867,9 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(page.locator("#p1")).to_be_in_viewport()
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     assert _ring_round(page, "#p1")
-    page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
+    page.locator("#p1").evaluate(
+        "p => { p.style.marginTop = ''; scrollTo({top: 0, behavior: 'instant'}); }"
+    )
     note.press("Enter")
     expect(inline1).to_be_focused()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))

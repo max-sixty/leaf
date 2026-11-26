@@ -1,11 +1,9 @@
 """One anchored response picker preserves the composer across every seat and input route."""
 
-import json
-
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
-from render_harness import ROOT, leaf_page, open_page, rendered, selection_field, write
+from render_harness import leaf_page, open_page, rendered, selection_field, write
 
 from browser.test_render_reactions import select_paragraph
 from leaf.records import page_data as page_data_model
@@ -35,16 +33,7 @@ def test_response_picker_keeps_the_comment_in_place(
         elif seat == "panel":
             selection_field(page).click()
     else:
-        registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-        layer = (
-            None
-            if reactions
-            else {
-                "$reactions": {
-                    "emoji": {emoji: None for emoji in registry["$reactions"]["emoji"]}
-                }
-            }
-        )
+        layer = None if reactions else {"$reactions": {"emoji": []}}
         url = serve(
             leaf_page(
                 "Review",

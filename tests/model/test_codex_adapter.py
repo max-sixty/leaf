@@ -665,11 +665,13 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
         record_claim(page, id="codex-thread", harness="codex", agent="Codex")
         append_carried_log_record(
             page,
+            # A page error owes no reply, so both pages' inputs share one record,
+            # which carries at most one.
             {
-                "kind": "comment",
+                "kind": "error",
                 "id": event_id,
-                "author": "user",
-                "emoji": "👍",
+                "author": "page",
+                "text": "TypeError: x is undefined",
             },
         )
         delivered = events_model.read_events(page)[-1]

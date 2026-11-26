@@ -770,13 +770,9 @@ cli_model.cli()
     assert declared(page_dir)["state"] == "waiting"
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
-    claimed, printing, capsys
-):
-    """A reaction is a mark, not a question: the agent answers it by acting, so an
-    acknowledged one nobody replied to does not hold the turn the way a comment
-    does. Nor does an `ok` the user put on the agent's answer hand the thread back
-    to the agent — a reaction is not the user speaking. The user's words are."""
+def test_a_reaction_holds_the_turn_as_words_do(claimed, printing, capsys):
+    """A reaction is the user speaking: a 👍 they put on the agent's answer, once
+    acknowledged and unanswered, holds the turn as words under the answer do."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
     assert session is not None
@@ -784,29 +780,19 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
     assert lease_path_7 is not None
     lease = leases_model.take_wait_lease(lease_path_7)
     assert lease
-    append_carried_log_record(
-        claimed,
-        {"kind": "comment", "author": "user", "revision": 1, "emoji": "✂️"},
-    )
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     answer = thread_model.post_reply(
         claimed, {"parent": asked["id"], "responds": asked["id"]}, "because"
     )
-    append_carried_log_record(
-        claimed,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "emoji": "👍"},
-    )
     receive_through(claimed, last_deliverable_seq(claimed))
-
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # Words under the answer are the user's last word, and hold the turn as ever.
     append_carried_log_record(
         claimed,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "but C?"},
+        {"kind": "reply", "author": "user", "parent": answer["id"], "emoji": "👍"},
     )
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))

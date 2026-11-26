@@ -503,7 +503,9 @@ _CLAUSES = {
 # The shape of each shared layer fact a complete vocabulary carries, every one
 # required and each held to its schema on its own (`registry.validation.check_layer_facts`).
 # Its consumers read each directly: a string `$tones.names` would answer the tone
-# check's membership test by substring, and a blank reaction emoji paints nothing.
+# check's membership test by substring, and a reaction the picker offers that is no
+# emoji is one admission refuses. A `leaf:` reference names a kernel record's field
+# (`registry.schema.leaf_resources`).
 # What names another fact, or needs more than a shape (a clause's `when` and a
 # contract's `schema` are JSON Schemas, `resources` are JMESPath), the same module's
 # `validate_layer_declarations` checks.
@@ -567,14 +569,10 @@ LAYER_FACTS = {
         "type": "object",
         "properties": {
             "emoji": {
-                "type": "object",
-                # An emoji is a mark: at most four code points.
-                "propertyNames": {"pattern": r"\S", "maxLength": 4},
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {"settles": {"type": "boolean"}},
-                    "additionalProperties": False,
-                },
+                "type": "array",
+                # One emoji, by the form a reaction's record holds it to.
+                "items": {"$ref": "leaf:event/comment#/properties/emoji"},
+                "uniqueItems": True,
             }
         },
         "required": ["emoji"],

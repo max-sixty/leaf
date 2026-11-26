@@ -21,7 +21,7 @@ function strip(inForce) {
     thread: "t1",
     message: "m1",
     latest: true,
-    choices: emojiChoices({ "👍": {}, "👎": {} }, inForce),
+    choices: emojiChoices(["👍", "👎"], inForce),
   });
   const press = (emoji) =>
     view.node.querySelector(`[data-lf-emoji="${emoji}"]`).click();
@@ -76,7 +76,7 @@ test("a mounted reaction sends before closing the picker and revealing held news
     thread: "t1",
     message: "m1",
     latest: true,
-    choices: emojiChoices({ "👍": {} }, []),
+    choices: emojiChoices(["👍"], []),
   });
   document.body.replaceChildren(head, view.node);
   render(html`${view.trigger}`, head);

@@ -6,8 +6,11 @@
  * details shelf with the seat naming the group as its details (features/details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
  * declared part through the target picker (`s`). A failed thread presentation withdraws
- * visual proxies until a valid reading replaces them. A reaction in force first reveals
- * its dedicated removal action; only that action withdraws the reaction. The removal
+ * visual proxies until a valid reading replaces them. A reaction in force is a message
+ * the agent owes an answer, so its entry carries its thread's receipt while the agent
+ * works on it, as a thread's margin entry does (`threadMarks`), and the agent's answer
+ * turns it into a thread the margin draws as one. It first reveals its dedicated removal
+ * action; only that action withdraws the reaction. The removal
  * wears the neutral undo icon and says "Undo", the word of every other control that takes
  * a gesture back, because removing a reaction is an undo of it. A red ✕ read as "close
  * this", nearly matched the ❌ reaction, and caught phone taps meant to dismiss the
@@ -55,6 +58,8 @@ import { offer, offeredAction } from "../lib/controls.js";
 import { keeps, keepsText } from "../lib/keeps.js";
 import { retainUserIntent } from "../dom/user-intent.js";
 import { bareReaction } from "../state/thread/model.js";
+import { threadMarks } from "../features/margin-model.js";
+import { agentName } from "../state/semantic-state.js";
 import { raiseError } from "../transport/errors.js";
 import { inChrome } from "../base/ui-marks.js";
 
@@ -66,7 +71,8 @@ const missingReference = (id) => `§ ${id} isn't in the version shown`;
 
 /** @typedef {import("../../types/domain.js").Anchor} Anchor */
 /** @typedef {import("../records/thread/thread-card.js").ThreadRecord["root"] & {emoji: string}} ReactionRoot */
-/** @typedef {{before: ReactionRoot[], inside: ReactionRoot[]}} ReactionGroup */
+/** @typedef {{root: ReactionRoot, receipt: import("../../types/domain.js").Workflow | null}} ReactionMark */
+/** @typedef {{before: ReactionMark[], inside: ReactionMark[]}} ReactionGroup */
 /** @typedef {{anchor: Anchor, label: string, key: string}} VisualAction */
 /** @typedef {HTMLButtonElement & {lfAnchor: Anchor}} VisualActionControl */
 /** @typedef {NonNullable<ReturnType<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["read"]>>} AnchorReading */
@@ -284,8 +290,8 @@ export function createAnchorControls({
   // Each target contributes its complete reading of its reactions in force. Only the selected
   // removal disclosure is local state; both rendered surfaces read the same entry keys.
   class ReactionSeat {
-    /** @type {readonly ReactionRoot[]} */
-    roots;
+    /** @type {readonly ReactionMark[]} */
+    marks;
     /** @type {string | null} */
     expanded = null;
     /** @type {import("../features/contributions.js").ContributionSurface | null} */
@@ -294,9 +300,9 @@ export function createAnchorControls({
     scope;
     /** @type {ReturnType<typeof registerContribution>} */
     margin;
-    /** @param {readonly ReactionRoot[]} roots @param {Element} at */
-    constructor(roots, at) {
-      this.roots = roots;
+    /** @param {readonly ReactionMark[]} marks @param {Element} at */
+    constructor(marks, at) {
+      this.marks = marks;
       this.scope = commandScope(
         "On a reaction",
         [
@@ -329,13 +335,14 @@ export function createAnchorControls({
         read: () => ({
           side: "after",
           state: this.expanded ? "engaged" : "idle",
-          entries: this.roots.flatMap((root) => [
+          entries: this.marks.flatMap(({ root, receipt }) => [
             {
               key: `reaction:${root.id}:open`,
               glyph: root.emoji,
               label: `${root.emoji} reaction actions`,
               behavior: "disclosure",
               rank: "secondary",
+              workflowReceipt: receipt,
               scope: this.scope,
               relation: {
                 kind: "entries",
@@ -352,18 +359,18 @@ export function createAnchorControls({
               visible: this.expanded === root.id,
             },
           ]),
-          readings: this.roots.map((root) => ({
+          readings: this.marks.map(({ root }) => ({
             id: `reaction:${root.id}`,
             text: `${root.emoji} reaction actions`,
             activate: () => this.margin.focus(`reaction:${root.id}:open`, "move"),
           })),
         }),
         activate: (activation, context) => {
-          const root = this.roots.find(
-            (candidate) =>
+          const root = this.marks.find(
+            ({ root: candidate }) =>
               activation === `reaction:${candidate.id}:open` ||
               activation === `reaction:${candidate.id}:remove`,
-          );
+          )?.root;
           if (!root) return;
           if (activation === `reaction:${root.id}:remove`) {
             withdrawReaction(root);
@@ -384,22 +391,24 @@ export function createAnchorControls({
   function seatReactions(seats) {
     const kept = new Set();
     for (const [at, held] of seats) {
-      const roots = [...held.before, ...held.inside];
+      const marks = [...held.before, ...held.inside];
       const record = reactionSeats.get(at);
       kept.add(at);
       if (!record) {
-        reactionSeats.set(at, new ReactionSeat(roots, at));
+        reactionSeats.set(at, new ReactionSeat(marks, at));
         continue;
       }
       const changed =
-        record.roots.length !== roots.length ||
-        roots.some(
-          (root, index) =>
-            root.id !== record.roots[index]?.id ||
-            root.emoji !== record.roots[index].emoji,
+        record.marks.length !== marks.length ||
+        marks.some(
+          ({ root, receipt }, index) =>
+            root.id !== record.marks[index]?.root.id ||
+            root.emoji !== record.marks[index].root.emoji ||
+            receipt !== record.marks[index].receipt,
         );
-      record.roots = roots;
-      if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
+      record.marks = marks;
+      if (!marks.some(({ root }) => root.id === record.expanded))
+        record.expanded = null;
       if (changed) record.margin.update();
     }
     for (const [at, record] of reactionSeats)
@@ -491,7 +500,10 @@ export function createAnchorControls({
       if (seats.reaction && bareReaction(thread)) {
         const { at, before } = seats.reaction;
         const held = reactions.get(at) ?? { before: [], inside: [] };
-        held[before ? "before" : "inside"].push(thread.root);
+        held[before ? "before" : "inside"].push({
+          root: thread.root,
+          receipt: threadMarks(thread, agentName()).workflowReceipt,
+        });
         reactions.set(at, held);
       }
       for (const holder of seats.notes) {

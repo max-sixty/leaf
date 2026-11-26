@@ -1862,11 +1862,10 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert layer_model.checked_inputs(resolved) == resolved
 
 
-def test_page_state_reads_reactions_as_marks(page_dir):
-    """`page state` lists every reaction in force, beside threads that
-    leave a bare one out — paint on the page is not a thread — and takes a
-    reaction back in once someone answers it, as the panel does. Its emoji is all it
-    carries; the agent reads it as the user meant it."""
+def test_page_state_reads_a_reaction_as_a_message(page_dir):
+    """`page state` lists a thread a reaction opened as any other, answered or not, and
+    the thread's history reads the reaction's emoji where a message reads its words;
+    the agent reads it as the user meant it."""
     published(page_dir)
     bare = append_carried_log_record(
         page_dir,
@@ -1882,7 +1881,6 @@ def test_page_state_reads_reactions_as_marks(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "emoji": "❌"},
     )
-    # A bare reaction owes no response; adding speech to it is proactive.
     posted = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1899,20 +1897,46 @@ def test_page_state_reads_reactions_as_marks(page_dir):
     assert posted.exit_code == 0, posted.output
     reply = json.loads(posted.output)
     state = state_json(page_dir)
-    assert [t["id"] for t in state["threads"]] == [answered["id"]]
+    assert [t["id"] for t in state["threads"]] == [bare["id"], answered["id"]]
     selected = CliRunner().invoke(
         cli_model.cli, ["page", "state", str(page_dir), answered["id"]]
     )
     assert selected.exit_code == 0, selected.output
-    assert [m["message"] for m in json.loads(selected.output)["content"]] == [
-        answered["id"],
-        reply["id"],
-    ]
-    assert [(r["emoji"], r["thread"]) for r in state["reactions"]] == [
-        ("✂️", bare["id"]),
-        ("❌", answered["id"]),
-    ]
-    assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
+    assert [
+        (m["message"], m.get("emoji"), m.get("text"))
+        for m in json.loads(selected.output)["content"]
+    ] == [(answered["id"], "❌", None), (reply["id"], None, "Which part?")]
+
+
+def test_the_agent_answers_with_an_emoji_as_with_words(page_dir):
+    """`thread reply --emoji` is the agent's reaction: one emoji in place of words,
+    which answers the update its reference names and declares what it leaves as
+    words do, and is refused beside words or as anything but one emoji."""
+    published(page_dir)
+    thanks = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Thanks!"},
+    )
+    reference = response_reference(page_dir, thanks)
+
+    def reply(*options):
+        return CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", reference, *options, "--title", "Thanks"],
+        )
+
+    both = reply("--done", "--emoji", "👍", "--text", "Glad it helps.")
+    assert both.exit_code != 0 and "--emoji" in both.output
+    assert reply("--done", "--emoji", "ok").exit_code != 0
+    nod = reply("--done", "--emoji", "👍")
+    assert nod.exit_code == 0, nod.output
+    record = json.loads(nod.output)
+    assert record["emoji"] == "👍" and "text" not in record
+    assert record["responds"] == thanks["id"]
+    [thread] = event_folds_model.build_threads(
+        events_model.read_events(page_dir), {}
+    ).values()
+    assert event_folds_model.owed_turns(thread) == []
 
 
 def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
@@ -1920,7 +1944,8 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     rewrite is. The withdrawal leaves what answered it its context: the thread stays,
     the reaction's place reads Deleted with what it said, the mark paints nothing, and
     nothing is owed to it. A reaction on a message keeps its place the same way, and one
-    nothing stands on still leaves every reading."""
+    nothing stands on still leaves every reading. The agent hears of each withdrawal
+    as it heard of the reaction."""
     published(page_dir)
     mark = append_command(
         page_dir,
@@ -1972,7 +1997,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "emoji": "👍",
         },
     )
-    # The agent closes the thread by the reaction it acted on, as its instructions say.
+    # The agent closes the thread by the reaction it acted on.
     resolved = CliRunner().invoke(
         cli_model.cli, ["thread", "resolve", str(page_dir), loose["id"]]
     )
@@ -1983,9 +2008,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
         )
         for gesture in (loose, nod, mark)
     ]
-    # Each withdrawal reaches the agent as its reaction did: one that answers no
-    # question wakes nobody, and `page state` stops listing it.
-    assert [undo["attention"] for undo in undos] == [False, False, False]
+    assert [undo["attention"] for undo in undos] == [True, True, True]
 
     thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
         mark["id"]
@@ -2006,7 +2029,6 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     assert thread["resolved"]["kind"] == "resolve"
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [mark["id"]]
-    assert state["reactions"] == []
 
 
 def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):

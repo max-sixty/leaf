@@ -588,13 +588,6 @@
     "example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },
   "$reactions": {
-    "emoji": {
-      "👍": { "settles": true },
-      "❌": {},
-      "🤔": {},
-      "✂️": {},
-      "🔎": {},
-      "🎯": {}
-    }
+    "emoji": ["👍", "❌", "🤔", "✂️", "🔎", "🎯"]
   }
 }

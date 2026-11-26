@@ -679,10 +679,9 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
         assert served_todos(served["browser"]) == []
 
 
-def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
-    """A reaction answers an obligation only when its emoji settles (`$reactions`): one
-    that doesn't leaves the obligation on the user, and the one that does is the
-    outcome the ended obligation records."""
+def test_an_obligation_ends_at_the_reaction_after_it(page_dir):
+    """A reaction is the user's next message, so whatever its emoji it answers the
+    question before it, and it is the outcome the ended obligation records."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -700,39 +699,20 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
             "Thread title",
         )
     )
-
-    def react(emoji):
-        return append_carried_log_record(
-            page_dir,
-            {
-                "kind": "reply",
-                "author": "user",
-                "revision": 1,
-                "parent": question["id"],
-                "emoji": emoji,
-            },
-        )
-
-    react("🤔")
-    assert standing_model.is_open(
-        next(
-            item
-            for item in state_json(page_dir)["obligations"]
-            if item["source"]["id"] == question["id"]
-        )
-    )
-    keep = react("👍")
-    assert standing_model.answered(
-        next(
-            item
-            for item in state_json(page_dir)["obligations"]
-            if item["source"]["id"] == question["id"]
-        )
+    reaction = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": question["id"],
+            "emoji": "🤔",
+        },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = served_obligations(served["browser"])["all"]
     assert standing_model.answered(answered)
-    assert answered["answer"]["event"]["id"] == keep["id"]
+    assert answered["answer"]["event"]["id"] == reaction["id"]
 
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):

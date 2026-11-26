@@ -182,7 +182,7 @@ Every answer declares whose move it leaves:
 
 - `--obligation`: the user's. It leaves them a decision, or something to try or
   review before making one, or asks them for an answer or permission. It creates
-  `message:<its id>` on On Me until their next reply or a settling reaction answers
+  `message:<its id>` on On Me until their next reply, words or a reaction, answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
   the message usually asks instead ("Ask for a pick").
@@ -216,6 +216,11 @@ leaf thread reply <answer.ref> --todo "Redo the card's top line" --waiting-on "W
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
 and **Still to do**, or **Waiting on <what>**, until you start or end the to-do. A
 promise declared `--done` reads as finished work.
+
+A reply may be one emoji in place of words, `--emoji 👍` for `--text`, where an emoji
+says all the answer needs to, as for a thanks in words that asks nothing. It declares what it
+leaves with `--done` or `--todo`; a reply that asks (`--obligation`), reports progress
+(`--ephemeral`) or moves its thread needs words.
 
 ### Ask for a pick
 
@@ -341,8 +346,7 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <message>` and choose a contiguous range yourself,
-starting and ending on spoken messages rather than reactions.
+with `leaf page state <page> <message>` and choose a contiguous range yourself.
 
 Fold what compresses most: settled detail and finished exchanges, whose outcome a
 few sentences carry. Keep in full the messages whose wording still matters

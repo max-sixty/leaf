@@ -557,13 +557,10 @@ def current_responses(
     return {item["input"]: item["answer"] for item in work.obligations}
 
 
-def _users_words_in_a_thread(event: dict) -> bool:
-    """The user's reply in words, which may answer a widget sent up its thread."""
-    return (
-        event["kind"] == "reply"
-        and event.get("author") == "user"
-        and "emoji" not in event
-    )
+def _users_reply_in_a_thread(event: dict) -> bool:
+    """The user's reply, words or a reaction, which may answer a widget sent up its
+    thread."""
+    return event["kind"] == "reply" and event.get("author") == "user"
 
 
 def batch_data(
@@ -594,7 +591,7 @@ def batch_data(
     facts = reader(batch)
     # The obligations are read only where an event can carry `waiting` or `settled`:
     # an action, or the user's words in a thread where the agent's messages may ask.
-    replies = [event for event in batch if _users_words_in_a_thread(event)]
+    replies = [event for event in batch if _users_reply_in_a_thread(event)]
     names = thread_names(events) if replies else {}
     drawing = thread_structure(events).fragments if replies else {}
     asking = {
@@ -644,11 +641,11 @@ def batch_data(
                 for thread in known["threads"]
                 for question in in_thread(thread, event["seq"])
             ]
-            if in_thread is not None and _users_words_in_a_thread(event)
+            if in_thread is not None and _users_reply_in_a_thread(event)
             else None
         ):
             entry["waiting"] = waiting
-        if _users_words_in_a_thread(event) and event["id"] in settled:
+        if _users_reply_in_a_thread(event) and event["id"] in settled:
             entry["settled"] = settled[event["id"]]
         captured.append(entry)
     return {
@@ -1226,7 +1223,7 @@ def wake_inputs(batch: list[dict], work: "WorkState") -> list[dict]:
     holds no usable `answer.ref`, as on a page that changed hands, which
     `deliverable` hands over again (`unreferenced`). An opened record without the
     completed `receipt` does not prove delivery. Other admitted attention (including
-    reports, errors, reactions and widget actions) remains transport input,
+    reports, errors and widget actions) remains transport input,
     independent of whether it carries a response obligation. Only what admission
     marked for the agent's attention wakes a hook (`requires_agent_attention`):
     advice rides in the batch beside such input (`deliverable`) and wakes nobody,

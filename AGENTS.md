@@ -67,12 +67,12 @@ as any architectural problem they leave stays easy to fix.
 
 ## The maintainer decides
 
-Make the improvements the repository's goals and code already justify. Every call
-outside the list below is yours: make it without asking, and name it in the pull
-request, with the passage that settled it where one did, so the maintainer can
-reverse it. Ask him only where a choice depends on a purpose or intent the code
-can't tell you, or shapes what every later user, package author or change works
-with:
+Make the improvements the repository's goals and code already justify. A call
+outside the list below is yours, and the work doesn't wait on the maintainer for
+it. Name the call in the pull request, with the passage that settled it where one
+did, so he can reverse it. Ask him only where a choice depends on a purpose or
+intent the code can't tell you, or shapes what every later user, package author or
+change works with:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
 - **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
@@ -523,10 +523,11 @@ advice rather than Leaf's, so it may name any widget.
 A package leans on Leaf only through the package interface: the keys of an element
 declaration, the widget protocol, Leaf's own elements, the functions `widget-api.js`
 exports and the styling names the references declare. Another author's package has
-nothing else, so Leaf's bundled widgets use nothing else, and each name is one more
-thing every author learns and every later change keeps working. A change meets a
-widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
-need of Leaf", says how to choose where it can't.
+nothing else, so Leaf's bundled widgets use nothing else. The interface sprawls
+through names that each look reasonable alone, and every later change keeps each
+name working, so Leaf keeps it small and coherent. A change meets a widget's need
+without a new name where it can, and `packages/AGENTS.md`, "A widget's need of
+Leaf", says how to choose where it can't.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the

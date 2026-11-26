@@ -133,8 +133,8 @@ leaf thread reply <page> <message> --text "The monitoring window has ended."
 Use the whole `answer.ref` when answering a delivered update or posting progress on
 it. The reference names the thread's newest input you were shown, and a reply there
 answers every input in the thread up to it. If the user has added to the thread
-since, Leaf refuses the reply, and their newer input reaches you: write again,
-answering it with the rest or apart from it, as you judge. Replies at the newest
+or taken that input back since, Leaf refuses the reply, and the change reaches you:
+write again, answering it with the rest or apart from it, as you judge. Replies at the newest
 reference all go in, so you can answer part now and the rest later; a `--todo`
 holds you to the rest. A message posted by page and message id answers nothing, so
 an answer its thread owes stays owed.

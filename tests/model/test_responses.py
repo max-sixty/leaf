@@ -738,6 +738,22 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
     assert answered.exit_code == 0, answered.output
     assert events_model.read_events(page_dir)[-1]["responds"] == asked["id"]
     assert state_json(page_dir)["queues"]["on_user"] == []
+    # That answer is the input's, so a second reply there answers nothing new, and a
+    # turn's final at the same reference yields to it.
+    again = CliRunner().invoke(
+        cli_model.cli, ["thread", "reply", reference, "--done", "--text", "Also this."]
+    )
+    assert again.exit_code == 0, again.output
+    assert "responds" not in events_model.read_events(page_dir)[-1]
+    assert (
+        thread_model.post_reply(
+            page_dir,
+            {"parent": asked["id"], "responds": asked["id"]},
+            "Here it is.",
+            settlement=thread_model.ProviderFinal("turn"),
+        )
+        is None
+    )
 
 
 def _reserved_author_response(page_dir):

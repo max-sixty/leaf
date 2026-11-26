@@ -1202,6 +1202,32 @@ def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
     assert answer["answer"]["parent"] == asked["id"]
 
 
+def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir):
+    """The user changes their pick and takes the change back before the agent
+    answers. The reference the agent holds names the change, which no longer stands,
+    so a reply there is refused and the pick the undo brought back stays owed. A
+    turn's final there goes in answering nothing."""
+    offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    second = choose(page_dir, "skip")
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == second["id"]
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]}
+    )
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(page_dir, answer["answer"], "Leaving it.")
+    assert refused.value.findings[0].code == "superseded-reply"
+    late = thread_model.post_reply(
+        page_dir,
+        answer["answer"],
+        "Leaving it.",
+        settlement=thread_model.ProviderFinal("turn"),
+    )
+    assert late is not None and "responds" not in late
+    assert [item["input"] for item in owed(state_json(page_dir))] == [first["id"]]
+
+
 @pytest.mark.parametrize("again", ["message", "pick"])
 def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, again):
     """A harness that gives up on a delivery holding the user's pick and their

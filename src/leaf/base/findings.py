@@ -303,7 +303,7 @@ _READ_AS_WRITTEN = "the user's recorded decisions are read as they were written"
 _SELECTED = "the page draws with the packages it selected"
 _RETRIED = "a retried write returns the event it first made, never a second"
 _OWED = "what an answer leaves owed stays on the user's or agent's list"
-_NEWER = "the user's newer input stays owed until the agent has read it"
+_SHOWN = "an answer settles only the input the agent was shown"
 _TITLED = "every thread the agent writes in has a title naming its subject"
 _REACHES = "the user can see and reach everything the page draws"
 _MARKS = "each comment marks and reaches the element or part it anchors to"
@@ -2480,11 +2480,10 @@ _TEXT = {
         f" {v['part']!r}"
     ),
     "superseded-reply": _refuses(
-        _NEWER,
+        _SHOWN,
         lambda at, v: (
-            f"the user has added to the thread since event {v['event']!r}; read what"
-            " they added and write again at the newest reference: "
-            + (v.get("held") or "the current delivery or thread state names it")
+            f"the thread has changed since event {v['event']!r}; read it as it"
+            f" stands and write again: {v['held']}"
         ),
     ),
     # What `thread.post_reply` notes beside a message that answers nothing: an

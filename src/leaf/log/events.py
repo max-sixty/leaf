@@ -804,9 +804,9 @@ def settle(thread: dict) -> Settled:
     The inputs are the user's turns and their actions on widgets sent in the thread,
     each at its place in the thread's history (`build_threads`, ``turns``). An agent
     turn whose `responds` names an input settles every input waiting at or before
-    that input's place: a write at a reference goes in only while no standing input
-    is newer than it (`thread.post_reply`), so it answers everything the thread held
-    up to there. An input taken back before the answer, with its rewrites, is no part
+    that input's place: a write at a reference goes in only while it names the
+    thread's newest standing input (`thread.post_reply`), so it answers everything
+    the thread held up to there. An input taken back before the answer, with its rewrites, is no part
     of what it settles, and one taken back after it leaves the settlement standing.
     An action an undo brings back while it still waits keeps the place it was made,
     and one brought back after it was settled waits again at the place it came back.

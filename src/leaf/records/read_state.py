@@ -53,13 +53,13 @@ def user_message_content(event: dict) -> bool:
     """Whether an admitted message contains agent content the user can encounter.
 
     Failure replies are content too: they tell the user why a response failed,
-    even though they are not substantive answers. Token reactions and unadmitted
+    even though they are not substantive answers. Reactions and unadmitted
     stream placeholders are not content versions in the page log.
     """
     return (
         event["kind"] in kinds_declaring("message")
         and event["author"] == "agent"
-        and not event.get("token")
+        and not event.get("emoji")
     )
 
 

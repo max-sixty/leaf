@@ -174,7 +174,7 @@ fabBar.prepend(composer);
  * @typedef {ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>} ComposerFrame
  * @typedef {Object} ComposerOptions
  * @property {(on: boolean) => unknown} setReact
- * @property {typeof import("../reactions.js").reactionTokens} reactionTokens
+ * @property {typeof import("../reactions.js").reactionEmoji} reactionEmoji
  * @property {typeof import("../reactions.js").reactionAvailable} reactionAvailable
  * @property {() => boolean} designModeActive
  * @property {ReturnType<typeof import("../../records/thread/destination.js").createThreadDestinations>["openPageThread"]} openPageThread
@@ -217,7 +217,7 @@ export let composerOpen = false;
 /** @param {ComposerOptions} options */
 export function createSelectionComposer({
   setReact,
-  reactionTokens,
+  reactionEmoji,
   reactionAvailable,
   designModeActive,
   openPageThread,
@@ -884,17 +884,17 @@ export function createSelectionComposer({
     touch: false,
     ready: savedReadingSettled,
     keys: () =>
-      reactionTokens()
+      reactionEmoji()
         .slice(0, 9)
         .map((_, index) => String(index + 1)),
     label: () => {
-      const count = Math.min(reactionTokens().length, 9);
+      const count = Math.min(reactionEmoji().length, 9);
       return count > 1 ? `1–${count}` : "1";
     },
     description: () =>
-      reactionTokens()
+      reactionEmoji()
         .slice(0, 9)
-        .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
+        .map((emoji, index) => `${index + 1} ${emoji}`)
         .join(", "),
     title: "react",
     when: () =>

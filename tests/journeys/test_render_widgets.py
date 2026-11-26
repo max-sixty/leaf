@@ -1306,7 +1306,7 @@ def test_focus_reactions_keep_a_projected_data_target(browser, serve, destinatio
     reaction = next(
         event
         for event in reversed(events_model.read_events(serve.page_dir))
-        if event["kind"] == "comment" and event.get("token")
+        if event["kind"] == "comment" and event.get("emoji")
     )
     assert reaction["anchor"]["section"] == owner
     assert reaction["anchor"]["datum"] == datum

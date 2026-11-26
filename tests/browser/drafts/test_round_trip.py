@@ -171,7 +171,7 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {
                 **({"section": section} if section else {}),
                 "quote": "Run the migration before deploying.",

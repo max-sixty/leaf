@@ -373,12 +373,17 @@ defines; list it in `required` when the widget can't work without the input. A w
 with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text is:
 where the markup binds the input whose `property` is `value` to nothing, Leaf sets
 `value` to the `<pre>`'s text, a string, so the widget reads one property either way, as
-`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
-`page check` refuses a `<pre>` on an element binding it. Its other inputs leave the
-`<pre>` alone, as `lf-code`'s `playhead` does. Leaf leaves the property of any other
-unbound input to the widget. Tell page authors how to bind it in `instructions`, and
-whoever produces the data in the contract's `instructions` (`packages.md`, "Package
-contract").
+`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string.
+Leaf leaves the property of any other unbound input to the widget. Tell page authors
+how to bind it in `instructions`, and whoever produces the data in the contract's
+`instructions` (`packages.md`, "Package contract").
+
+`page check` requires one `<pre>` on a widget with `content: data`. Where the markup
+binds the `value` input, it refuses the `<pre>`. Where the widget has a `value` input
+and the markup binds only its other inputs, it takes the element with or without a
+`<pre>`, since those inputs may supply the data in its place, as `lf-diff`'s two
+compared texts do. Say in the widget's `instructions` which the widget wants, and
+report a `<pre>` it won't read as an `error` (`module-plain-elements.md`, "`error`").
 
 ```json
 {

@@ -124,7 +124,7 @@ class Harness:
     # (`codex_adapter`): a claim starts or joins it before publishing its page
     # (`hosting.preparing_delivery`), the tool hook and Stop offer the record
     # (`hooks.offer_at_step`), and the reader's acknowledgement of a pointer the
-    # record offered confirms it there (`delivery.receive_delivery`).
+    # record offered confirms it there (`delivery_ack.receive_delivery`).
     adapter: ClassVar[bool] = False
     # How Leaf asks the harness's model a tool-free structured question, which
     # `inference.harness_generator` reads: a completion on the session's own model

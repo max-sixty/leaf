@@ -67,8 +67,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from xml.etree import ElementTree
 
-from leaf.agents.codex_state import confirm_codex_pointer
-from leaf.base.harness import session_harness
 from leaf.base.json_block import json_block, read_json_block
 from leaf.base.refusals import Refused
 from leaf.base.service import may_receive
@@ -78,7 +76,6 @@ from leaf.base.state import (
     described,
     flocked,
     object_schema,
-    open_session_turn,
     record_since,
     retire_if_gone,
     session_lock_path,
@@ -95,7 +92,7 @@ from leaf.records.transaction import (
 )
 
 if TYPE_CHECKING:
-    from leaf.serving.served_state.work import WorkState
+    from leaf.records.work_state import WorkState
 
 _INTEGER = {"type": "integer"}
 _STRINGS = {"type": "array", "items": STRING}
@@ -542,7 +539,7 @@ def _registry(page_dir: Path):
 
 
 def current_responses(
-    page_dir: Path, events: list[dict], reading=None
+    page_dir: Path, events: list[dict], work: "WorkState | None" = None
 ) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
@@ -551,10 +548,10 @@ def current_responses(
     the Stop hook name the same operation. An input a newer one in its thread covers
     publishes no record and owns none; the newest carries the thread's one answer.
     """
-    from leaf.serving.served_state.context import read_page
+    from leaf.agents.presence import read_work
 
-    reading = reading or read_page(page_dir, events)
-    return {item["input"]: item["answer"] for item in reading.work.obligations}
+    work = work if work is not None else read_work(page_dir, events)
+    return {item["input"]: item["answer"] for item in work.obligations}
 
 
 def _users_words_in_a_thread(event: dict) -> bool:
@@ -571,12 +568,15 @@ def batch_data(
     transaction,
     batch: list[dict],
     *,
-    responses: dict | None = None,
+    work: "WorkState | None" = None,
     whole: bool = False,
 ) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
-    from it. `whole` carries each thread whole (`thread_context.batch_threads`)."""
+    from it, by the page's work (`presence.read_work`), `work` where the caller has
+    already read it. `whole` carries each thread whole
+    (`thread_context.batch_threads`)."""
+    from leaf.agents.presence import read_work
     from leaf.base.leases import lane_up
     from leaf.log.obligations import (
         settled_by_message,
@@ -585,7 +585,6 @@ def batch_data(
     )
     from leaf.log.thread_context import batch_threads, thread_names, thread_structure
     from leaf.records.event_facts import EventFacts
-    from leaf.serving.served_state.context import read_page
 
     events = transaction.events
     reader = EventFacts(page_dir, events, _registry(page_dir))
@@ -605,16 +604,10 @@ def batch_data(
     reads_obligations = any(event["kind"] == "action" for event in batch) or any(
         asking.intersection(facts[event["id"]]["threads"]) for event in replies
     )
-    reading = (
-        read_page(page_dir, events) if responses is None or reads_obligations else None
-    )
-    if responses is None:
-        responses = current_responses(page_dir, events, reading)
-    if reads_obligations:
-        assert reading is not None
-    durable = (
-        reading.work.durable if reading is not None and reads_obligations else None
-    )
+    if work is None:
+        work = read_work(page_dir, events)
+    responses = current_responses(page_dir, events, work)
+    durable = work.durable if reads_obligations else None
     settled = (
         settled_by_message(durable.all_obligations["all"])
         if durable is not None
@@ -963,24 +956,6 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
     return delivery_reading(payload, part=part)
 
 
-def cmd_delivery_ack(delivery_id: str) -> None:
-    """Accept the reader's attestation that every part reached its context. A
-    page the delivery names that has gone refuses it in the system's own words. A
-    delivery an earlier turn already picked up is noted as a repeat
-    (`earlier_pickup`)."""
-    try:
-        receive_delivery(delivery_id)
-    except FileNotFoundError as error:
-        raise Refused(str(error)) from error
-    harness = session_harness()
-    if harness and (
-        repeat := earlier_pickup(read_delivery(delivery_id), harness.session)
-    ):
-        from leaf.base.findings import note
-
-        note(repeat)
-
-
 def earlier_pickup(payload: dict, session_id: str):
     """The note saying that an earlier turn of `session_id` already picked up the
     delivery `payload`, or None where none did.
@@ -992,9 +967,9 @@ def earlier_pickup(payload: dict, session_id: str):
     the answers its updates still owe, read from the page rather than the
     agent's memory, so the turn acknowledging it again repeats no work and still
     answers what the earlier turn left owed."""
+    from leaf.agents.presence import read_work
     from leaf.base.findings import Finding
     from leaf.records.activity import answer_command
-    from leaf.serving.served_state.context import read_page
 
     record = session_record(session_id)
     assert record is not None
@@ -1016,7 +991,7 @@ def earlier_pickup(payload: dict, session_id: str):
             turns |= earlier
             answers += [
                 answer_command(item["answer"], page_dir)
-                for item in read_page(page_dir, page.events).work.obligations
+                for item in read_work(page_dir, page.events).obligations
                 if item["input"] in inputs
             ]
     if not turns:
@@ -1215,9 +1190,9 @@ def deliverable(
     owed = []
     if received:
         if work is None:
-            from leaf.serving.served_state.context import read_page
+            from leaf.agents.presence import read_work
 
-            work = read_page(page.page_dir, page.events).work
+            work = read_work(page.page_dir, page.events)
         owed = unreferenced(page, work.obligations)
     if not pending and not owed:
         return []
@@ -1237,8 +1212,10 @@ def deliverable(
     return sorted([*owed, *pending, *advice], key=lambda event: event["seq"])
 
 
-def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
-    """Select what can wake a hook without changing its immutable receipt batch.
+def wake_inputs(batch: list[dict], work: "WorkState") -> list[dict]:
+    """Select what can wake a hook without changing its immutable receipt batch, by
+    the page's work, `work`, that `deliverable` read the batch by
+    (`presence.read_work`).
 
     A settled thread input has already had its meaning answered, even when its
     delivery was never received. Unsettled inputs read their existing canonical
@@ -1251,12 +1228,9 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     independent of whether it carries a response obligation.
     """
     from leaf.records.workflows import agent_inputs
-    from leaf.serving.served_state.context import read_page
     from leaf.source.registry.kernel import kinds_declaring
 
-    if not batch:
-        return []
-    agents = agent_inputs(read_page(page.page_dir, page.events).work.durable)
+    agents = agent_inputs(work.durable)
     pending = []
     for event in batch:
         if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
@@ -1447,29 +1421,6 @@ def record_receipt(page: PageTransaction, through: int) -> None:
     from leaf.records.event_contracts import append_admitted
 
     append_admitted(page, {"kind": "receipt", "author": "page", "through": through})
-
-
-def receive_delivery(delivery_id: str) -> list[Path]:
-    """Confirm a reader's complete input and record its entry into that turn.
-
-    The explicit acknowledgement command, `leaf delivery ack`, proves the
-    consumer is running even if its prompt hook failed. The canonical opener preserves known provider
-    lifecycle authority. Pointer receipt also retains its origin's reservation:
-    where the session's input travels through a delivery record its hooks offer
-    from (`Harness.adapter`), it keeps the exact turn a hook offered the pointer
-    to (`codex_state.confirm_codex_pointer`). Explicit confirmation is strict: a
-    transferred page or ended turn reports refusal rather than silently accepting
-    a partial receipt. Automatic hook and provider receipts observe an already-open
-    turn through `receive` instead.
-    """
-    payload = read_delivery(delivery_id)
-    acting_on_delivery(payload)
-    harness = session_harness()
-    if harness:
-        open_session_turn(harness.session)
-        if payload["acknowledge"] is None and harness.adapter:
-            return confirm_codex_pointer(harness.session, payload)
-    return receive(payload, harness.session if harness else None)
 
 
 def receive(payload: dict, session_id: str | None) -> list[Path]:

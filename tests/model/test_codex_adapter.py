@@ -64,6 +64,7 @@ from leaf.base.json_block import json_block, read_json_block
 from leaf.base.refusals import Refused
 from leaf.base.service import PREVIEW
 from leaf.commands import codex_run as codex_run_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import hook_transport as hook_transport_model
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
@@ -938,7 +939,7 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     )
     assert not capsys.readouterr().out
     assert len(codex_records("codex-thread")) == 1
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -1017,7 +1018,7 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
         assert not codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
-        delivery_model.cmd_delivery_ack(envelope["id"])
+        delivery_ack_model.cmd_delivery_ack(envelope["id"])
         [pickup] = [
             event
             for event in events_model.read_events(page_dir)
@@ -1065,7 +1066,7 @@ def test_codex_hook_keeps_oversized_input_whole_for_its_reader(
     assert acknowledged_through(page_dir) == 0
     reading = delivery_model.cmd_delivery_read(path.stem)
     assert reading["batches"][0]["events"][0]["text"] == text
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     assert not codex_records("codex-thread")
 
 
@@ -1115,7 +1116,7 @@ def test_codex_hook_pointer_read_cannot_move_its_offer_to_a_newer_turn(
     cleanup_model.prompt_turn("codex-thread", "newer")
     delivery_model.cmd_delivery_read(path.stem)
     with pytest.raises(delivery_model.ReceiptRefused, match="receiving turn"):
-        delivery_model.cmd_delivery_ack(path.stem)
+        delivery_ack_model.cmd_delivery_ack(path.stem)
     assert codex_records("codex-thread")[0][1]["state"] == "hook"
     assert not any(e["kind"] == "pickup" for e in events_model.read_events(page_dir))
 
@@ -1236,7 +1237,7 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     assert turn_record_5["turn_closed"] is None
     assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     delivery_model.cmd_delivery_read(path.stem)
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     [pickup] = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
     assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
         "opened",
@@ -1428,7 +1429,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
     )[0] == delivery_model.cmd_delivery_read(path.stem)
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     delivery_model.cmd_delivery_read(path.stem)
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -1533,7 +1534,7 @@ def test_a_comment_before_a_turns_first_tool_step_enters_that_turn(
         [(path, record)] = codex_records("codex-thread")
         assert (record["state"], record["turn"]) == ("hook", "user-turn")
         assert capsys.readouterr().out
-        delivery_model.cmd_delivery_ack(path.stem)
+        delivery_ack_model.cmd_delivery_ack(path.stem)
         assert not codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
@@ -1865,7 +1866,7 @@ def test_a_codex_tool_step_wins_a_queue_offer_based_on_stale_activity(
     [(path, record)] = codex_records("codex-thread")
     assert record["state"] == "hook"
     delivery_model.cmd_delivery_read(path.stem)
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     assert not codex_records("codex-thread")
     [pickup] = [
         event
@@ -1910,7 +1911,7 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
         shutil.rmtree(page_dir)
     envelope = delivery_model.cmd_delivery_read(path.stem)
     with pytest.raises(delivery_model.ReceiptRefused, match="no longer owns"):
-        delivery_model.cmd_delivery_ack(path.stem)
+        delivery_ack_model.cmd_delivery_ack(path.stem)
     assert {
         event["id"] for batch in envelope["batches"] for event in batch["events"]
     } == {comment["id"], resolved["id"]}
@@ -2504,7 +2505,7 @@ def _ack_in(turn: str, delivery_id: str, capsys) -> list[dict]:
     pointer does, and return the notes the ack printed."""
     cleanup_model.prompt_turn("codex-thread", turn)
     capsys.readouterr()
-    delivery_model.cmd_delivery_ack(delivery_id)
+    delivery_ack_model.cmd_delivery_ack(delivery_id)
     notes = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
     cleanup_model.close_session_turn("codex-thread", turn)
     return notes
@@ -2590,7 +2591,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
         with pytest.raises(OSError, match="receipt storage unavailable"):
             if transport == "hook":
                 delivery_model.cmd_delivery_read(path.stem)
-                delivery_model.cmd_delivery_ack(path.stem)
+                delivery_ack_model.cmd_delivery_ack(path.stem)
             elif transport == "app-server":
                 observer = _observer()
                 assert observer._observe_lifecycle("user-turn")

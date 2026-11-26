@@ -31,7 +31,12 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.agents.delivery import deliverable, wake_inputs
-from leaf.agents.presence import PRESENCE_CACHE_S, live_facts, nudge_unwatched
+from leaf.agents.presence import (
+    PRESENCE_CACHE_S,
+    live_facts,
+    nudge_unwatched,
+    read_work,
+)
 from leaf.base.page_memory import memory_of
 from leaf.base.rows import ROW, row_path
 from leaf.base.service import page_claim
@@ -135,9 +140,8 @@ def nudge_interrupted(page_dir: Path) -> None:
     for what the turn left."""
     with PageTransaction(page_dir) as page:
         claim = page.active_claim
-        if (
-            claim is not None
-            and not turn_closed(claim)
-            and wake_inputs(page, deliverable(page))
-        ):
+        if claim is None or turn_closed(claim):
+            return
+        work = read_work(page_dir, page.events)
+        if wake_inputs(deliverable(page, work), work):
             nudge_unwatched(page)

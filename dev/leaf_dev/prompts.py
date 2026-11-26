@@ -158,7 +158,9 @@ FOLDED = batch(LONG[:-1], LONG[-1])
 
 
 def line() -> str:
-    return forks.line_prompt(JOURNEY["line"]["batch"], JOURNEY["line"]["running"])
+    return forks.line_prompt(
+        forks.thread_json(JOURNEY["line"]["batch"]), JOURNEY["line"]["running"]
+    )
 
 
 def delivery_context() -> str:

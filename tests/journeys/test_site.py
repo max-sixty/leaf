@@ -73,6 +73,7 @@ from leaf.log.events import bare_reaction, build_threads
 from leaf.pages import hosting as hosting_model
 from leaf.pages.render_gate import version as render_gate_model
 from leaf.records.transaction import acknowledged
+from leaf.serving.drafts import DRAFTS
 from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import render_checks as render_checks_model
@@ -516,14 +517,16 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     revisions = files_model.list_revisions(gallery_page)
     assert set(gallery["states"]) == {str(revision) for revision in revisions}
     # The revision files the release publishes, beside which a visitor's record saved
-    # under an earlier release may hold others (`leaf_website.storage`), and the
-    # protocol that keys the record (`worker/src/index.ts`).
+    # under an earlier release may hold others (`leaf_website.storage`), the protocol
+    # that keys the record (`worker/src/index.ts`) and the drafts format that keys its
+    # drafts stores (`worker/src/storage.ts`).
     assert gallery["revisions"] == [
         files_model.revision_path(gallery_page, revision).stem for revision in revisions
     ]
     for name in gallery["revisions"]:
         assert (assets / "examples" / "feature-gallery" / "revisions" / name).is_dir()
     assert manifest["protocol"] == kernel_protocol()
+    assert manifest["drafts_format"] == DRAFTS.format
     assert (
         gallery["state"]
         == gallery["states"][str(files_model.latest_revision(gallery_page))]

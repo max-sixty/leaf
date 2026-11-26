@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.base.findings import Finding
+from leaf.log.events import build_threads
 from leaf.log.thread_context import placed_thread, thread_ids, thread_names
 from leaf.records.authored_checks.documents import (
     authored_document_checks,
@@ -26,6 +27,7 @@ from leaf.source.registry.contract import RegistryError
 from leaf.source.registry.storage import IncompatibleLayer
 from leaf.source.revision_artifact import (
     RevisionArtifact,
+    active_enclosing,
     capture_artifact,
     document_drops,
     page_files,
@@ -107,9 +109,6 @@ def moved_threads(
     or taking back the reaction that opened it leaves the move out. `page check` asks for the moves at the active revision,
     and the first reply on a revision (`thread._revision_advice`) for those since
     the agent's last reply."""
-    from leaf.log.events import build_threads
-    from leaf.source.revision_artifact import active_enclosing
-
     pending = {finding.values["thread"]: finding for finding in checked.advice}
     names = thread_names(events)
     placed = {}

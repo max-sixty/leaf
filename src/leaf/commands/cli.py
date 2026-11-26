@@ -28,8 +28,9 @@ from typing import NamedTuple, TextIO
 
 import click
 
+from leaf.base.machine import sandbox_refusal
 from leaf.base.schema import WAIT_BATCH_OUTPUT_INSTRUCTION
-from leaf.base.state import PLUGIN_ROOT
+from leaf.base.state import PLUGIN_ROOT, main
 from leaf.pages.render_gate.browser import VARIABLES as BROWSER_VARIABLES
 from leaf.source.registry.kernel import title_limit
 
@@ -211,7 +212,6 @@ class LeafGroup(click.Group):
         return name, command, remaining
 
     def invoke(self, ctx: click.Context):
-        from leaf.base.machine import sandbox_refusal
         from leaf.base.refusals import Refused
 
         try:
@@ -330,8 +330,6 @@ def hook(harness: str, watch: bool, pages: bool, fork: bool) -> None:
 @cli.command(cls=PrintsItself, hidden=True)
 def session_end() -> None:
     """End the harness instance named by the JSON payload on stdin."""
-    from leaf.base.state import main
-
     main()
 
 

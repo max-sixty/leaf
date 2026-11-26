@@ -71,10 +71,12 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from leaf.agents.presence import claimant_reading
+from leaf.agents.presence import claimant_reading, nudge_unwatched
 from leaf.base.findings import Finding
 from leaf.base.harness import detached_environment
 from leaf.log.event_log import read_events
+from leaf.log.interaction_log import append_interactions
+from leaf.records.event_contracts import append_admitted
 from leaf.records.render_reading import read_reading, write_reading
 from leaf.records.revisioning import activate_source
 from leaf.records.transaction import PageTransaction, requires_agent_attention
@@ -165,8 +167,6 @@ def cmd_read(page_dir: Path, check: Callable) -> None:
 
 
 def _read_and_tell(page_dir: Path, check: Callable) -> None:
-    from leaf.log.interaction_log import append_interactions
-
     started = time.monotonic()
     _, read = check(page_dir, render=True, screens=False)
     found = _finished(read[2]) if read is not None else None
@@ -198,9 +198,6 @@ def _tell(
     version `data`, that the page's latest reading didn't hold, and leave them, with
     the `visuals` it read, as its reading, where that version is still live and no
     reading of it beside this one told first. The findings told."""
-    from leaf.agents.presence import nudge_unwatched
-    from leaf.records.event_contracts import append_admitted
-
     with PageTransaction(page_dir) as page:
         live = _live(page_dir, page)
         before = read_reading(page_dir)

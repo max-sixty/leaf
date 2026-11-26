@@ -68,13 +68,14 @@ from leaf.base.service import (
     same_claim,
 )
 from leaf.base.state import PLUGIN_ROOT
+from leaf.log.event_log import jsonl_line
 from leaf.records.transaction import PageTransaction
 from leaf.serving.server_lifetime import (
     exit_serving,
     exit_serving_on_signals,
     stop_when_service_ends,
 )
-from leaf.source.layer import other_serving_leaf
+from leaf.source.layer import other_serving_leaf, payload_provenance
 
 if TYPE_CHECKING:
     from leaf.base.record_types import ServiceRecord
@@ -538,8 +539,6 @@ def _announce_server(page_dir: Path, url: str) -> bool:
     """Print a committed foreground server's reading (`started_server`), with what
     the command noted (`findings.with_held`), before it serves, since the command
     returns only when the server stops."""
-    from leaf.log.event_log import jsonl_line
-
     print(jsonl_line(with_held(started_server(page_dir, url))), flush=True)
     return True
 
@@ -681,7 +680,6 @@ def cmd_serve(
     from leaf.serving.handover_pass import HandoverPass
     from leaf.serving.http import page_endpoint
     from leaf.serving.server_rows import RowPublisher
-    from leaf.source.layer import payload_provenance
 
     lease = None
     httpd = None

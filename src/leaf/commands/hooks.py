@@ -2,9 +2,9 @@
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
 that its harness supports hook delivery (`Harness.hooks_carry`), and the Leaf it
-runs with the skill that Leaf ships (`leases.mark_skill`). The first hook to run
-another Leaf, shipping another skill, queues a notice telling the agent to read the
-skill again (`skill_changed`). An explicit
+runs with the skill that Leaf ships (`leases.mark_skill`). The first hook whose Leaf
+ships another skill than the previous hook's queues a notice telling the agent to
+read the skill again (`skill_changed`). An explicit
 `leaf wait` always prints the envelope; it does not depend on another hook
 running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
@@ -82,7 +82,6 @@ from leaf.base.state import (
     close_session_turn,
     flocked,
     held_claims,
-    installed_copy,
     installed_protocol,
     kernel_protocol,
     prompt_turn,
@@ -317,20 +316,17 @@ def skill_mark() -> str:
 
 def skill_changed(session_id: str, before: str, now: str) -> None:
     """Queue a notice telling the session's agent to read the leaf skill again, where
-    `now`, the mark this hook took (`skill_mark`), names another Leaf than `before`,
-    the previous hook's, and another skill.
+    `now`, the mark this hook took (`skill_mark`), names another skill than `before`,
+    the previous hook's.
 
-    The Leaf a session's hooks run changes when Claude Code loads another copy, which
-    it does as a process starts, on a resume or a background job's wake, and at
-    `/reload-plugins`; and when Codex or Pi replaces its copy in place, which the
-    next hook runs. The transcript carries over, so the agent still holds the skill and references
-    it read under the old Leaf, while its hooks and `leaf` commands run the new one.
-    Two versions whose skills match byte for byte, as an update that changed only code
-    leaves them, need no notice. An installed copy at the same root is another Leaf
-    once its skill changed, since only its harness writes it
-    (`state.installed_copy`). A checkout at the same root is the same Leaf: a
-    session whose hooks run a checkout is developing Leaf, and its edits to the
-    skill are changes it makes rather than instructions it missed.
+    The skill a session's hooks ship changes when Claude Code loads another copy,
+    which it does as a process starts, on a resume or a background job's wake, and at
+    `/reload-plugins`; when Codex or Pi replaces its copy in place, which the next hook
+    runs; and when the checkout a session's hooks run changes, by an edit or a merge.
+    The transcript carries over, so the agent still holds the skill and references it
+    read before, while its hooks and `leaf` commands run the new one. Two marks whose
+    skills match byte for byte, as an update that changed only code leaves them, need
+    no notice.
 
     The notice joins the lines the next prompt or tool boundary carries beside the
     input it hands over (`clerk.queue`, `hook_transport.carry_turn`), so the agent
@@ -339,9 +335,7 @@ def skill_changed(session_id: str, before: str, now: str) -> None:
     asks whether the session holds a page, rather than this one, since a resumed
     session's claims stay inactive until its first prompt serves its pages again
     (`reconnect`), after this hook marked the skill."""
-    root, _, skill = before.rpartition("\n")
-    here, _, shipped = now.rpartition("\n")
-    if skill == shipped or (root == here and not installed_copy(PLUGIN_ROOT)):
+    if before.rpartition("\n")[2] == now.rpartition("\n")[2]:
         return
     from leaf.agents.clerk import queue
     from leaf.base.schema import SKILL_FILE
@@ -413,15 +407,15 @@ def cmd_pages(payload: dict) -> None:
     takes the log as it stands, so it lists no round older than itself, and a
     follower started again lists none an earlier one listed.
 
-    It exits with `EX_TEMPFAIL`, without a last line, once the tree it runs from has
-    moved on under it (`_moved_on`), and the module starts it again from that tree.
-    A follower runs as long as its session, while a checkout Claude Code loads in
-    place (`--plugin-dir`) can move past a protocol bump between calls.
-
-    The module that reads the list stays the one the session loaded until
-    `/reload-plugins`, so a follower started again from such a checkout's newer code
-    may print it to an older module, which runs its instructions as any
-    (`carrier.py`).
+    It runs the code it started with until it exits or the module that started it
+    ends it, and Claude Code ends a module only to load another copy or the module's
+    own changed code (`hooks/claude-code.ts`). So in a checkout Claude Code loads in
+    place (`--plugin-dir`) it can run older Python than the session's hooks, as two
+    versions of Leaf at one page protocol may run side by side. It exits with
+    `EX_TEMPFAIL`, without a last line, once the tree it runs from has moved on under
+    it (`_moved_on`), and the module starts it again from that tree as it then
+    stands. A follower started again may print to an older module, which runs its
+    instructions as any (`carrier.py`).
 
     The follower notes once in each page it holds that it runs
     (`interaction_log.record_follower`), so a round that got no line fork says

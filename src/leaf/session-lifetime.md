@@ -286,10 +286,10 @@ version there, so Leaf identifies a copy by its path and commit
 
 Each hook records the root of the Leaf it runs (`leases.mark_skill`). At the
 session's next hook, a page at an older protocol is renewed (`layer-registry.md`,
-"Page protocol"), and where the hook runs another Leaf than the session's previous
-hook, and that Leaf ships another skill, the agent is told to read it again
-(`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
-restarts a page's server under that one at the same address (`hosting.start_page`).
+"Page protocol"), and where the hook's Leaf ships another skill than the session's
+previous hook's, the agent is told to read it again (`hooks.skill_changed`).
+`server start` from another Leaf restarts a page's server under that one at the
+same address (`hosting.start_page`).
 
 A command acts for the session its environment names only from a Leaf that runs
 that session: an installed copy, as the copy the session loaded is, or a checkout

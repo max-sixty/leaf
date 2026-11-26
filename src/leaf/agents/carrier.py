@@ -5,10 +5,10 @@ what it came to. The module adds only what it alone sees: the tool calls the mai
 thread is running, the main thread's last request, which a fork resends, and the end
 of a main-loop turn the model answered.
 
-Claude Code keeps the module it loaded until `/reload-plugins`, while a session whose
-hooks run a checkout Claude Code loads in place (`--plugin-dir`) runs each hook from
-that checkout as it stands, so its module and the Python the module reports to can
-come from different commits, either one the newer. The user chose that the module only carry instructions, over running
+Claude Code keeps the module it loaded until it loads another copy or the module's
+own code changes (`hooks/claude-code.ts`), while a session whose hooks run a checkout
+Claude Code loads in place (`--plugin-dir`) runs each hook from that checkout as it
+stands, so its module can be older than the Python the module reports to. The user chose that the module only carry instructions, over running
 each kind of fork's steps itself, so a change to what Leaf forks for, to what it asks
 of a call, or to what it does with an answer changes only the Python, and an older
 module runs it as it runs any instruction. The module changes only for a call or an

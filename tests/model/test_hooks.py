@@ -1811,13 +1811,12 @@ def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
 ):
     """The skill the agent read under the Leaf its hooks ran before may describe
     commands and rules the Leaf they run now changed, as after a resume,
-    `/reload-plugins`, an update Codex or Pi makes to its copy in place, or a hand-off
-    to a checkout. The first prompt whose Leaf ships another skill than the previous
-    hook's names the skill to read again, beside the input it hands over, and the next
-    prompt doesn't. A prompt whose
+    `/reload-plugins`, an update Codex or Pi makes to its copy in place, a hand-off
+    to a checkout, or an edit or merge in the checkout the hooks run. The first prompt
+    whose Leaf ships another skill than the previous hook's names the skill to read
+    again, beside the input it hands over, and the next prompt doesn't. A prompt whose
     Leaf ships the same skill, from the same copy or another, says nothing of it, and
-    the copy the previous hook ran from may be gone. Nor does an edit to the skill of
-    a checkout the hooks run, which the session developing it made."""
+    the copy the previous hook ran from may be gone."""
     shipped = schema_model.SKILL_FILE.parent
 
     def prompt() -> str:
@@ -1844,7 +1843,7 @@ def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
 
     same = tmp_path / "same"
     assert runs(same) not in prompt()
-    assert runs(same, "A skill being edited.\n") not in prompt()
+    assert runs(same, "A skill being edited.\n") in prompt()
 
     local = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "local"
     skill = runs(local, "A skill being edited.\n")
@@ -2307,8 +2306,8 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 
 def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
-    """Have session s1's hooks last run another Leaf, one at `protocol`, and return
-    its root (`leases.mark_skill`, `state.installed_protocol`)."""
+    """Have session s1's hooks last run another Leaf, one whose kernel registry names
+    `protocol`, and return its root (`leases.mark_skill`)."""
     root = tmp_path / f"leaf at {protocol}"
     registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
         cleanup_model.PLUGIN_ROOT

@@ -48,11 +48,11 @@
  * landing moves those. Where the user is on or inside it, they also see its ring's room
  * (see below), cut the same way, unless a nearest landing would move nothing
  * (`landsStill`), as where the room runs past an edge no scroll carries the control
- * away from: a window's side the page can't scroll toward, a strip's start while the
- * strip stands at its start, or any side of a control in a box fixed in the window,
- * such as the comment box. Where it is taller than its room, a nearest landing's own
- * moves bring no more of it in, so a box taller than the window that the user sees only
- * part of still comes in as far as it fits, and a fold the user goes to opens from its
+ * away from: a window's side the page can't scroll toward, either end of a strip that
+ * stands at that end, or the window's edge around a box fixed in the window, such as
+ * the comment box. Where it is taller than its room, a nearest landing's own moves
+ * bring no more of it in, so a box taller than the window that the user sees only part
+ * of still comes in as far as it fits, and a fold the user goes to opens from its
  * start. Travel and the walks land a destination at its start or centre rather than
  * nearest, and ask the question of that landing (`block`): a box taller than its room
  * is shown there only where that landing would move nothing, so travel to a section the
@@ -74,7 +74,7 @@
  * room it keeps under the headers, and above the floating panel's foot band in every
  * column. So a landing would move a box the user already sees there. Where the user
  * doesn't see a ring's room, the landing is asked whether it would move at all, so a
- * control whose room runs past such an edge moves into the band where it stands in the
+ * control whose room runs past such an edge moves into the band when it stands in the
  * room under the headers or in the panel's foot band. A landing also places room an
  * inner box hides, so a row flush with a scrolling pane's end, at the band's edge,
  * moves the page by that room. These paths are rare, and on a rare path the page may
@@ -103,8 +103,8 @@
  * stayed cut there, a link at a wide table's end in both engines, and in Firefox a
  * radio whose box showed whole while its ring was cut. An arrival lands nearest, which
  * moves nothing where its ring already shows (`alreadyShown`, out to its margins), so a
- * control in a stuck header, whose margin counts it as shown, stays put, and reads the
- * margins and padding the browser's reveal reads.
+ * control in a stuck header the user sees whole stays put, and reads the margins and
+ * padding the browser's reveal reads.
  */
 import { localScrollBy, scrollAxes } from "../dom/element-frame.js";
 import { deepFocus, onCurrentLocation, onUserInput, ringBox } from "../dom/focus.js";
@@ -305,8 +305,8 @@ export function fitsWhole(where) {
 }
 
 // `where`'s box (`destinationBox`) out to its margins, the ring's room. A negative
-// margin, which lets a landing leave a control in a stuck header inside the band's room
-// (element-marks.css), takes nothing from the box: the user still sees all of it.
+// margin, which lets a landing leave a control above the band's top, as one in a stuck
+// header (element-marks.css), takes nothing from the box: the user must see all of it.
 /** @param {Destination} where @param {DOMRect} box */
 function marginBox(where, box) {
   /** @param {MarginSide} side */

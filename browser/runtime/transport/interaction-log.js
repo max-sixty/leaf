@@ -387,8 +387,8 @@ if (url !== null) {
   document.addEventListener("lf-command-invoked", (event) => {
     const active = focused();
     enqueue({
-      type: "command",
       ...event.detail,
+      type: "command",
       focus: active ? { target: locator(active), node: nodeIdentity(active) } : null,
       scroll: [window.scrollX, window.scrollY],
     });

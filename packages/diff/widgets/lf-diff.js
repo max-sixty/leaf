@@ -110,14 +110,11 @@ const OPTIONS = Object.freeze({
 // draw refuses only its own file; `applyEntry` reports it to the agent that stored
 // it, since the manifest's producer leaves judging a patch to this widget. The path
 // keys a record in either form; the contract refuses a manifest that repeats one, and
-// `parsedFiles` refuses a patch text that does. Two compared texts become the patch
-// `comparisonPatch` writes of them, and read as any patch text does.
+// `parsedFiles` refuses a patch text that does. Two compared texts read as the patch
+// of them (`comparedRecords`).
 /** @param {DiffSource} source @returns {Promise<readonly SourceRecord[]>} */
 async function sourceRecords(source) {
-  if (typeof source === "object" && "after" in source) {
-    const patch = await comparisonPatch(source);
-    return patch ? sourceRecords(patch) : [];
-  }
+  if (typeof source === "object" && "after" in source) return comparedRecords(source);
   if (typeof source === "string")
     return (await parsedFiles(source)).map((file) => ({ path: file.name, file }));
   return Promise.all(
@@ -141,22 +138,23 @@ async function recordFile(patch, path) {
   return file;
 }
 
-// The Git patch of two texts of one file, with Git's three lines of context, or null
-// where they are the same. The file takes the name `after` gives it, or else `before`.
-// A patch holds only its hunks, so the comparison draws as any patch does. Handing
-// Pierre both whole texts instead (`parseDiffFromFile`) makes the diff expandable:
-// Pierre then draws an unchanged run of one line beside a hunk as a row of its own,
-// which the hunks (`sourceLines`) don't hold, and puts expand controls in its
+// Two texts of one file read as the Git patch of them, with Git's three lines of
+// context, and as no file where they are the same. The file takes the name the current
+// text gives it, or else the earlier text's, or else `UNNAMED`, since two plain strings
+// still compare. A patch holds only its hunks, so the comparison draws as any patch
+// does. Handing Pierre both whole texts instead (`parseDiffFromFile`) makes the diff
+// expandable: Pierre then draws an unchanged run of one line beside a hunk as a row of
+// its own, which the hunks (`sourceLines`) don't hold, and puts expand controls in its
 // separators, which nothing here answers.
-/** @param {Comparison} comparison */
-async function comparisonPatch({ before, after }) {
+/** @param {Comparison} comparison @returns {Promise<readonly SourceRecord[]>} */
+async function comparedRecords({ before, after }) {
   const text = (/** @type {TextDocument} */ side) =>
     typeof side === "string" ? side : side.text;
-  if (text(before) === text(after)) return null;
-  const name = [after, before].find((side) => typeof side === "object")?.name;
-  if (!name) throw new Error("neither compared text names its file");
+  if (text(before) === text(after)) return [];
+  const name =
+    [after, before].find((side) => typeof side === "object")?.name ?? UNNAMED;
   const { structuredPatch, formatPatch } = await parse();
-  return formatPatch({
+  const patch = formatPatch({
     ...structuredPatch(
       `a/${name}`,
       `b/${name}`,
@@ -168,6 +166,7 @@ async function comparisonPatch({ before, after }) {
     ),
     isGit: true,
   });
+  return sourceRecords(patch);
 }
 
 // Each record carries the index of the hunk it came out of. A hunk is the unit a
@@ -214,17 +213,19 @@ const hunkHeads = (entry) =>
 const nodeOf = ({ node }) => node;
 
 const LINE_KEY = "data-lf-line";
+// What a file with no name is called.
+const UNNAMED = "(unnamed file)";
 
 /** @param {import("./diff-coordinates.js").DiffCoordinate} coordinate */
 const lineLabel = ({ path, side, oldLine, newLine }) => {
-  const file = path || "(unnamed file)";
+  const file = path || UNNAMED;
   if (side === "old") return `${file} · old line ${oldLine}`;
   if (side === "new") return `${file} · new line ${newLine}`;
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
 /** @param {{path: string}} record */
-const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
+const fileLabel = ({ path }) => `${path || UNNAMED} · file`;
 // Only the header represents the file datum. The body contains independently
 // addressed lines and authored prose, whose comments must not inherit its identity.
 /** @param {FileEntry} entry */
@@ -422,7 +423,7 @@ function unwatchPathCut(view) {
 
 /** @param {FileSummary} record */
 function filePathTemplate({ path, previousPath }) {
-  const name = path || "(unnamed file)";
+  const name = path || UNNAMED;
   return html`<span class="lf-diff-path"
     >${
       previousPath
@@ -1076,7 +1077,7 @@ customElements.define(
     /** @returns {DiffSource | null} */
     #source() {
       const { beforeText: before, afterText: after } = this;
-      if (before === null || after === null) return this.value;
+      if (before == null || after == null) return this.value;
       if (this.#comparison?.before !== before || this.#comparison.after !== after)
         this.#comparison = { before, after };
       return this.#comparison;
@@ -1503,8 +1504,9 @@ customElements.define(
     // Marks each drawn file row, and each line of a loaded file, as data drawn from
     // `source`, and reports it. A manifest names the field each datum came from; a
     // patch text's datums take the whole delivery's origin, and an inline patch has no
-    // delivery. Two compared texts report the `afterText` they drew, the text that moves as
-    // the file is edited, since a widget's marks carry one input's source.
+    // delivery. The rows of two compared texts are the widget's own composition of both,
+    // a deleted row's words the earlier text's and the rest the current one's, so no one
+    // bound value supplied them, and they take no origin.
     /** @param {DiffSource | null | undefined} source */
     markFiles(source) {
       const compared =
@@ -1526,9 +1528,7 @@ customElements.define(
       for (const node of this.#marked) if (!marked.has(node)) unmark(node);
       this.#marked = marked;
       this.dispatchEvent(
-        new CustomEvent("drawn", {
-          detail: compared ? { afterText: source.after } : { value: source },
-        }),
+        new CustomEvent("drawn", { detail: { value: compared ? null : source } }),
       );
     }
 

@@ -129,26 +129,27 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
         # Tags that name this declaration in `owners` are its admissible members
-        # under any content model. "data" and "markdown" take one <pre>; "members"
-        # takes element members only, and "empty" takes nothing. Where the declaration
-        # has an input (`inputs`) whose property is `value`, the <pre> is that input's
-        # text, and the element's data comes from its inputs or its <pre>: it holds
-        # none once the markup binds any input, as a diff binding the two texts it
-        # compares holds no patch. Without such an input, every input, as a code
-        # block's playhead, leaves the <pre> its text.
+        # under any content model. "data" and "markdown" take one <pre>, the text of
+        # the input (`inputs`) whose property is `value`: none where the markup binds
+        # that input, and one or none where it binds another. The declaration doesn't
+        # say whether another input supplies the data in the <pre>'s place, as a
+        # diff's two compared texts do, or goes beside it, as a code block's playhead
+        # does. "members" takes element members only, and "empty" takes nothing.
         content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
-        inputs = entry.get("inputs", {}).values()
-        bound = any(spec.get("property") == "value" for spec in inputs) and any(
-            rec["attrs"].get(spec.get(key)) for spec in inputs for key in INPUT_BINDINGS
-        )
+        inputs = [
+            (spec, any(rec["attrs"].get(spec.get(key)) for key in INPUT_BINDINGS))
+            for spec in entry.get("inputs", {}).values()
+        ]
+        bound = any(on for spec, on in inputs if spec.get("property") == "value")
+        fed = any(on for _, on in inputs)
         if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(found_at("content-empty", rec))
         elif body_is_data(entry):
             others = [c for c in stray if c != "pre"]
             pres = rec["children"].count("pre")
-            if pres != (0 if bound else 1) or others:
+            if pres not in ({0} if bound else {0, 1} if fed else {1}) or others:
                 errors.append(
                     found_at("data-body", rec, children=rec["children"], bound=bound)
                 )

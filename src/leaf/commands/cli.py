@@ -654,7 +654,7 @@ def vocabulary(page_dir: Path) -> dict:
     composes for the page's packages, with the page's own declarations over it.
     Ordinary keys are element names or CSS selectors; `$` keys are facts shared
     across the layer."""
-    from leaf.source.registry.storage import require_candidate
+    from leaf.source.vocabulary import require_candidate
 
     return require_candidate(page_dir).registry
 
@@ -1386,14 +1386,18 @@ def _asked_questions(_ctx, _param, given: tuple[str, ...]) -> bool | list[str]:
     return True
 
 
-def _title_option(command):
+def _title_option(*, required: bool):
+    """`--title`, which names the thread a command writes in: a new thread always,
+    and a thread a reply joins where it has no title yet (`untitled-thread`)."""
     return click.option(
         "--title",
+        required=required,
         help=(
-            "name the thread for the panel unless it has a name: a few words; one "
-            f"past {title_limit()} characters is cut at a word"
+            "a few words naming the thread's subject"
+            + ("" if required else ", needed where it has no title yet")
+            + f"; one past {title_limit()} characters is cut at a word"
         ),
-    )(command)
+    )
 
 
 @thread.command(
@@ -1408,7 +1412,7 @@ def _title_option(command):
     help="a visual part within --section, such as one `page state` lists in its `parts`",
 )
 @body_options("the comment's text")
-@_title_option
+@_title_option(required=True)
 @click.option(
     "--obligation",
     is_flag=True,
@@ -1421,7 +1425,7 @@ def thread_create(
     part: str,
     text: str | None,
     body_file,
-    title: str | None,
+    title: str,
     obligation: bool,
 ) -> dict:
     """Create a thread as the agent: anchored where --quote or
@@ -1497,7 +1501,7 @@ def thread_create(
     "thread, ended by `leaf task end` with the reply's id",
 )
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
-@_title_option
+@_title_option(required=False)
 @click.option(
     "--obligation",
     metavar="[ID]",
@@ -1541,6 +1545,8 @@ def thread_reply(
     from leaf.pages.render_gate.command import message_check
 
     text = read_body(options.pop("text"), options.pop("body_file"))
+    # The agent names a thread nobody has titled yet (`untitled-thread`).
+    options["title_owed"] = True
     if message is not None:
         if done:
             raise click.UsageError(

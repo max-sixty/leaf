@@ -142,7 +142,7 @@ def bound_sources(page: Path, state: Path) -> dict:
         "import json, sys\n"
         "from pathlib import Path\n"
         "from leaf.source.data import read_data\n"
-        "from leaf.source.registry.storage import load_registry\n"
+        "from leaf.source.vocabulary import load_registry\n"
         "page = Path(sys.argv[1])\n"
         'print(json.dumps(read_data(page, load_registry(page))["sources"]))\n'
     )

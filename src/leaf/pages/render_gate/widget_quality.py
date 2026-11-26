@@ -52,13 +52,13 @@ from leaf.pages.page_snapshot import capture_page_snapshot
 from leaf.pages.render_gate.preview import preview_server
 from leaf.pages.render_gate.scheme import answer_reports, collect_page_errors, served
 from leaf.pages.vendoring import start_throwaway_page
+from leaf.source.capture_refusals import ArtifactError
 from leaf.source.data_contracts import output_findings
 from leaf.source.layer import checked_layer_inputs, compose_layer, package_layer_inputs
 from leaf.source.registry.contract import (
     element_declarations,
     read_registry_declarations,
 )
-from leaf.source.registry.storage import read_page_registry
 from leaf.source.render_checks import (
     RENDER_VIEWPORT,
     asked_again,
@@ -71,8 +71,9 @@ from leaf.source.render_checks import (
     wait_for_probe,
     wait_until_ready,
 )
-from leaf.source.revision_artifact import ArtifactError, capture_artifact
+from leaf.source.revision_artifact import capture_artifact
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import read_page_registry
 
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 

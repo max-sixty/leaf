@@ -35,7 +35,7 @@ from leaf.source import data as data_model
 from leaf.source import data_contracts as data_contracts_model
 from leaf.source import revision_artifact as artifact_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -331,7 +331,7 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     page_data_model.cmd_data_set(page_dir, "shared", "parent value")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     source_record = data_model.read_source(page_dir, "shared", registry)
     assert source_record is not None
     value = source_record["value"]

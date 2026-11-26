@@ -15,11 +15,11 @@ from leaf.records.authored_checks.documents import (
 )
 from leaf.source.data import read_contracts
 from leaf.source.data_contracts import data_binding_errors
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 from leaf.source.registry.kernel import kinds_declaring
-from leaf.source.registry.storage import require_registry
 from leaf.source.revision_artifact import read_revision, revision_history
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import require_registry
 
 
 def checked_text(

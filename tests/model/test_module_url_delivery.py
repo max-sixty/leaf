@@ -14,7 +14,7 @@ def running(artifact, runtime: dict[str, str], layer=None, vocabulary=None):
     (`runtime_selection.executing`), read in `vocabulary`: the one these tests
     capture under, which stands for the vocabulary a Leaf composes from the
     revision's layer selection and its own declarations
-    (`registry.storage.revision_vocabulary`)."""
+    (`revision_artifact.revision_vocabulary`)."""
     from leaf.source.revision_artifact import Resource
 
     served = ServingRuntime(
@@ -61,7 +61,7 @@ def test_capture_and_delivery_resolve_the_same_browser_url(
     reference, importer, expected
 ):
     from leaf.serving.revision_delivery import page_path
-    from leaf.source.revision_artifact import resolve_dependency
+    from leaf.source.resource_urls import resolve_dependency
 
     assert resolve_dependency(reference, importer) == expected[0]
     assert page_path(reference, importer) == expected
@@ -86,7 +86,7 @@ def test_capture_and_delivery_resolve_the_same_browser_url(
 )
 def test_nonlocal_and_fragment_resources_stay_as_written(reference):
     from leaf.serving.revision_delivery import page_path
-    from leaf.source.revision_artifact import dependency_reference
+    from leaf.source.resource_urls import dependency_reference
 
     assert dependency_reference(reference, "/page/image.svg") is None
     assert page_path(reference, "/page/image.svg") is None
@@ -96,7 +96,8 @@ def test_nonlocal_and_fragment_resources_stay_as_written(reference):
 @pytest.mark.parametrize("path", ["/page/image.svg", "page/image.svg"])
 def test_scheme_dependent_html_resources_are_refused(tmp_path, scheme, path):
     from leaf.serving.revision_delivery import page_path
-    from leaf.source.revision_artifact import ArtifactError, capture_artifact
+    from leaf.source.capture_refusals import ArtifactError
+    from leaf.source.revision_artifact import capture_artifact
     from leaf.source.structure import SourceDocument
 
     reference = f"{scheme}:{path}"
@@ -116,7 +117,8 @@ def test_scheme_dependent_html_resources_are_refused(tmp_path, scheme, path):
     "reference", ["https:", "http:", "https:#paint", "http:#paint", "https://["]
 )
 def test_invalid_or_scheme_dependent_resource_urls_reach_admission(tmp_path, reference):
-    from leaf.source.revision_artifact import ArtifactError, capture_artifact
+    from leaf.source.capture_refusals import ArtifactError
+    from leaf.source.revision_artifact import capture_artifact
     from leaf.source.structure import SourceDocument
 
     (tmp_path / "leaf.js").write_text("export {};")
@@ -446,7 +448,8 @@ def test_media_attributes_share_normalized_resource_identity():
     "reference", ["/page/%00.svg", "/page/../secret.svg", "/page/%2e%2e/secret.svg"]
 )
 def test_actual_resource_attributes_reach_capture_admission(tmp_path, reference):
-    from leaf.source.revision_artifact import ArtifactError, capture_artifact
+    from leaf.source.capture_refusals import ArtifactError
+    from leaf.source.revision_artifact import capture_artifact
     from leaf.source.structure import SourceDocument
 
     (tmp_path / "leaf.js").write_text("export {};")

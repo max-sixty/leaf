@@ -11,9 +11,9 @@ from leaf.base.files import revision_path
 from leaf.records.revisioning import activate_source
 from leaf.serving.live_shell import write_live_shell
 from leaf.serving.revision_delivery import json_script, layer_import_map
-from leaf.source.registry.storage import load_registry
 from leaf.source.revision_artifact import read_artifact
 from leaf.source.runtime_selection import executing
+from leaf.source.vocabulary import load_registry
 
 
 @pytest.mark.parametrize(

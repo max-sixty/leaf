@@ -11,13 +11,11 @@ from collections.abc import Collection
 from pathlib import Path
 
 from leaf.base.refusals import Refused
+from leaf.source.layer import selected_vocabulary
 from leaf.source.registry.contract import is_element_name
-from leaf.source.registry.storage import (
-    layer_record,
-    require_candidate,
-    selected_vocabulary,
-)
+from leaf.source.registry.storage import layer_record
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import require_candidate
 
 
 def instruction_selection(

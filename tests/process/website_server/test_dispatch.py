@@ -739,7 +739,9 @@ def test_a_prewarm_composes_the_page_layer(page_dir, tmp_path, monkeypatch):
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     composed = []
     monkeypatch.setattr(
-        website_server, "selected", lambda record, page: composed.append((record, page))
+        website_server,
+        "selected_layer",
+        lambda record, page: composed.append((record, page)),
     )
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())

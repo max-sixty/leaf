@@ -90,8 +90,8 @@ from leaf.base import schema as schema_model
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.pages.render_gate.scheme import console_finding
-from leaf.source.registry.storage import load_registry
 from leaf.source.render_checks import asked_again, rendered, wait_until_ready
+from leaf.source.vocabulary import load_registry
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -435,6 +435,8 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
             "thread",
             "create",
             str(d),
+            "--title",
+            "Version stamp",
             "--quote",
             "The version stamp never lands",
             "--text",
@@ -486,6 +488,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
                 "thread",
                 "create",
                 str(d),
+                "--title",
+                "Retry cap",
                 "--quote",
                 "Retries are capped at three",
                 "--text",

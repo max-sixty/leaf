@@ -8,10 +8,10 @@ for a diagram or image, a declared part for one box within a visual, or nothing 
 the page as a whole:
 
 ```bash
-leaf thread create <page> --quote "<passage in the current page>" --obligation --text "…?"
-leaf thread create <page> --section <element-id> --text "…"
-leaf thread create <page> --section <visual-id> --part <part-id> --text "…"
-leaf thread create <page> --obligation --text "…?"
+leaf thread create <page> --quote "<passage in the current page>" --title "…" --obligation --text "…?"
+leaf thread create <page> --section <element-id> --title "…" --text "…"
+leaf thread create <page> --section <visual-id> --part <part-id> --title "…" --text "…"
+leaf thread create <page> --title "…" --obligation --text "…?"
 ```
 
 A visual is a widget whose declaration in `leaf page vocabulary <page>` has a `visual`
@@ -49,10 +49,10 @@ When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has
 `anchor.detached: true`, and Threads keeps it with the quote it was about.
 
-When you open a thread, title it with `--title`, a few words naming its subject in
-Threads. When the user opens a thread, Leaf usually titles it as they post;
-if it is still untitled when you answer, the event's `handling` asks you to add
-`--title`.
+Threads lists each thread by its title, a few words naming its subject. Give one
+with `--title` when you open a thread. When the user opens a thread,
+Leaf usually titles it as they post. Where it hasn't, give `--title` on your first
+reply in the thread; a reply without one is refused.
 
 ```bash
 leaf thread create <page> --section <element-id> --title "Afternoon workshop" --text "…"

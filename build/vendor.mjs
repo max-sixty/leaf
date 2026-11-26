@@ -126,8 +126,9 @@ const bindTo = (filter, target) => ({
  * Each bundle, by name. A row's `out` is its first output, which names the bundle's
  * license notices. Rows give esbuild either `entry`, a module's source, or their own
  * entry points, and may add `adapt`ations, esbuild options, and a `place` for an
- * output committed outside the build's directory. A `copy` row takes a published
- * file as it stands instead, and may `finish` it.
+ * output committed outside the build's directory, and name in `inlined` the packages
+ * a prebuilt input carries inside it, which no input names (`bundledPackages`). A
+ * `copy` row takes a published file as it stands instead, and may `finish` it.
  */
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
@@ -579,6 +580,15 @@ const bundles = {
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],
+    // Plot's, d3-array's and d3-delaunay's published modules carry these inside them.
+    inlined: [
+      "binary-search-bounds",
+      "delaunator",
+      "internmap",
+      "interval-tree-1d",
+      "isoformat",
+      "robust-predicates",
+    ],
     adapt: [
       {
         file: /@observablehq\/plot\/dist\/plot\.js$/,
@@ -890,6 +900,7 @@ async function bundle(spec) {
     typeEntry: _typeEntry,
     finish = (source) => source,
     adapt: adaptations = [],
+    inlined = [],
     place = {},
     plugins = [],
     ...options
@@ -935,7 +946,7 @@ async function bundle(spec) {
       const name = path.relative(root, file.path).split(path.sep).join("/");
       outputs.set(place[name] ?? name, Buffer.from(file.contents));
     }
-    packages = bundledPackages(result.metafile, root);
+    packages = bundledPackages(result.metafile, root, inlined);
   }
   for (const [name, bytes] of outputs)
     if (name.endsWith(".js")) checkModule(bytes.toString(), name);

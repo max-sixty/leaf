@@ -4,6 +4,7 @@ from bisect import insort
 from collections import OrderedDict
 from collections.abc import Iterable, Iterator
 from functools import lru_cache
+from heapq import heappop, heappush
 from math import inf
 from operator import itemgetter
 from typing import NamedTuple
@@ -323,8 +324,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     log order, which `settle` walks: every turn said in the thread, the ones since
     taken back included, each action on a widget a message in it sent, and each undo
     that took one of them back. An action stands where it comes into force: where it
-    is made, and again, with its own ``seq``, where an undo of the action that
-    replaced it brings it back. Where it replaces an action at its coordinate, it carries that action's id as
+    is made, and again where an undo of the action that replaced it brings it back.
+    Where it replaces an action at its coordinate, it carries that action's id as
     ``replaces``. Only the server reads it.
 
     Whether a thread stands closed is read at every place in the log
@@ -786,30 +787,55 @@ def unanswered_turns(thread: dict) -> list[dict]:
 
 
 class Settlement(NamedTuple):
-    """One of the agent's turns and the inputs of the user's it took out of waiting
-    (`settle`): an answer and the inputs it answered, or a failure receipt and the
-    inputs it handed back."""
+    """One of the agent's turns and inputs of the user's it settled (`settle`), or a
+    failure receipt and the inputs it handed back."""
 
     answer: dict
-    # The inputs, in the order they came into force.
+    # The inputs, oldest first.
     turns: list
 
 
 class Settled(NamedTuple):
-    """A thread's history walked (`settle`): each of the agent's turns that took
-    inputs of the user's out of waiting, in log order; the inputs still waiting, in
-    the order they came into force; and each failure receipt with the inputs it
-    handed back that still stand and that no answer has covered since."""
+    """A thread's history walked (`settle`): each of the agent's turns that settled
+    inputs of the user's, in log order; the inputs still waiting, oldest first; and
+    each failure receipt with the inputs it handed back that no answer has settled
+    since and the user has not taken back."""
 
     settlements: list[Settlement]
     waiting: list[dict]
     handed_back: list[Settlement]
 
 
-def covered(event: dict) -> list[str]:
-    """The inputs an agent's answer or failure receipt names: its ``covers``, where
-    it answers more than the input its ``responds`` names, or else that input."""
-    return event.get("covers", [event["responds"]])
+class _Inputs:
+    """Inputs of the user's ordered by where each was made, `made`, from which an
+    answer takes every input made no later than the one it names. The heap keeps an
+    entry taken out by other means until `through` passes it."""
+
+    def __init__(self, made: dict[str, int]):
+        self.made = made
+        self.entries: dict[str, dict] = {}
+        self.order: list[tuple[int, str]] = []
+
+    def __contains__(self, identity: str) -> bool:
+        return identity in self.entries
+
+    def add(self, entry: dict) -> None:
+        self.entries[entry["id"]] = entry
+        heappush(self.order, (self.made[entry["id"]], entry["id"]))
+
+    def remove(self, identity: str) -> None:
+        self.entries.pop(identity, None)
+
+    def through(self, identity: str) -> list[dict]:
+        bound = self.made[identity]
+        taken = []
+        while self.order and self.order[0][0] <= bound:
+            if (entry := self.entries.pop(heappop(self.order)[1], None)) is not None:
+                taken.append(entry)
+        return taken
+
+    def oldest_first(self) -> list[dict]:
+        return sorted(self.entries.values(), key=lambda entry: self.made[entry["id"]])
 
 
 def settle(thread: dict) -> Settled:
@@ -817,39 +843,44 @@ def settle(thread: dict) -> Settled:
     still wait, and which a failure handed back.
 
     The inputs are the user's turns and their actions on widgets sent in the thread
-    (`build_threads`, ``turns``), in the order they come into force. An answer
-    settles the inputs it covers (`covered`), the ones its writer was owed when the
-    delivery it answers was captured (`thread.post_reply`), so an input that came
-    into force since, or came back, waits on. A failure receipt names the inputs it
-    gives up on the same way and hands them back to the user; `is_answer` tells the
-    two apart. A later answer covering one of them, as when the turn that failed
-    recovers, settles it.
+    (`build_threads`, ``turns``), in the order they were made. An agent turn whose
+    `responds` names a waiting input settles it and every input waiting that was made
+    before it, since a thread owes one answer to the inputs waiting in it, addressed
+    to the newest (`workflows.handed_over`). So answering older work leaves newer
+    input waiting, and an answer naming an input that does not wait settles nothing.
 
     An input stops waiting when the user takes it back, and an action also stops when
     another action replaces it at its coordinate. An action an undo brings back
-    waits again unless an answer covered it, since the agent has answered that
-    decision, or stands handed back again where a failure covered it since. A turn
+    waits again unless an answer settled it, since the agent has answered that
+    decision. It waits in the place it was made, so an answer from a delivery made
+    before the undo still settles nothing the user sent after that delivery. A turn
     taken back before the answer, with its rewrites, is no part of what the answer
     settles, and one taken back after it leaves the settlement standing.
+
+    A failure receipt names its input as an answer does and takes the same inputs out
+    of waiting, handing them back to the user; `is_answer` tells the two apart. A
+    later answer naming one of them, as when the turn that failed recovers, settles
+    it and those made before it, as answered, and the rest stay handed back.
 
     The history comes from the log alone, so every reader settles a thread the same
     way, with a registry or without one. It holds every action on a widget sent in the
     thread, one that owes nothing included, such as a pick still waiting for its
     group's Done; `workflows` decides which waiting actions are owed."""
     settled: list[Settlement] = []
-    # Each input in force → its entry in the history, in the order they came into
-    # force; and those of them waiting.
-    standing: dict[str, dict] = {}
-    waiting: dict[str, dict] = {}
+    # Each input → its place in the walk where it was made.
+    made: dict[str, int] = {}
+    waiting = _Inputs(made)
     answered: set[str] = set()
-    # Each input a failure handed back that no answer has covered since → the failure.
-    failed: dict[str, dict] = {}
     # Each message → the ids of its rewrites, which leave with it.
     rewrites: dict[str, list[str]] = {}
+    # Each input a failure handed back → the inputs it handed back with it.
+    failed: dict[str, _Inputs] = {}
+    handed: list[tuple[dict, _Inputs]] = []
 
     def leave(identity: str) -> None:
-        standing.pop(identity, None)
-        waiting.pop(identity, None)
+        waiting.remove(identity)
+        if (group := failed.pop(identity, None)) is not None:
+            group.remove(identity)
 
     for turn in thread["turns"]:
         if "undoes" in turn:
@@ -857,38 +888,60 @@ def settle(thread: dict) -> Settled:
             for identity in [gone, *rewrites.pop(gone, ())]:
                 leave(identity)
         elif turn["author"] != "agent":
+            identity = turn["id"]
+            made.setdefault(identity, len(made))
             if "replaces" in turn:
                 leave(turn["replaces"])
-            identity = turn["id"]
-            standing[identity] = turn
-            if identity not in answered and identity not in failed:
-                waiting[identity] = turn
+            if identity not in waiting and identity not in answered:
+                waiting.add(turn)
                 if turn["kind"] == "edit":
                     rewrites.setdefault(turn["message"], []).append(identity)
-        elif "responds" in turn:
-            named = set(covered(turn))
-            taken = [entry for identity, entry in waiting.items() if identity in named]
-            for entry in taken:
-                del waiting[entry["id"]]
-            if taken:
-                settled.append(Settlement(turn, taken))
-            if is_answer(turn):
-                answered |= named
-                for identity in named:
-                    failed.pop(identity, None)
+        elif (responds := turn.get("responds")) is not None:
+            if responds in waiting:
+                taken = waiting.through(responds)
+            elif is_answer(turn) and responds in failed:
+                taken = failed[responds].through(responds)
             else:
-                failed.update(dict.fromkeys(named - answered, turn))
-    handed: dict[str, Settlement] = {}
-    for identity, entry in standing.items():
-        if (failure := failed.get(identity)) is not None:
-            handed.setdefault(failure["id"], Settlement(failure, [])).turns.append(
-                entry
-            )
+                continue
+            settled.append(Settlement(turn, taken))
+            if turn.get("failure"):
+                group = _Inputs(made)
+                for entry in taken:
+                    group.add(entry)
+                    failed[entry["id"]] = group
+                handed.append((turn, group))
+            else:
+                for entry in taken:
+                    failed.pop(entry["id"], None)
+                    answered.add(entry["id"])
     return Settled(
         settled,
-        list(waiting.values()),
-        sorted(handed.values(), key=lambda each: each.answer["seq"]),
+        waiting.oldest_first(),
+        [
+            Settlement(failure, group.oldest_first())
+            for failure, group in handed
+            if group.entries
+        ],
     )
+
+
+def settling_answer(threads: dict, input_id: str) -> dict | None:
+    """The agent's answer to the input `input_id` names, where the input waits no
+    more: the answer that settled it, by naming it or an input made after it
+    (`settle`), or else one naming it after the user took it back. None while it
+    waits, or where a failure receipt was the last to settle it, which is no
+    answer."""
+    for thread in threads.values():
+        settled = settle(thread)
+        if any(turn["id"] == input_id for turn in settled.waiting):
+            return None
+        for each in reversed(settled.settlements):
+            if any(turn["id"] == input_id for turn in each.turns):
+                return each.answer if is_answer(each.answer) else None
+        for turn in thread["turns"]:
+            if turn.get("responds") == input_id and is_answer(turn):
+                return turn
+    return None
 
 
 def unanswered_agent_turn(thread: dict) -> dict | None:

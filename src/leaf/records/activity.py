@@ -26,7 +26,6 @@ import json
 from collections import Counter
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from operator import itemgetter
 from pathlib import Path
 from typing import NamedTuple
 
@@ -130,19 +129,20 @@ def _reply_evidence(reply: dict) -> dict:
     return {key: reply[key] for key in ("state", "turn", "settles", "attempt")}
 
 
-def _receipt_bindings(workflows: list[dict], present: dict) -> dict[str, dict | None]:
-    """Take each workflow's `receipt_refs` off it, and return, by input, the ref its
-    receipts recorded under the page's current claim, with what that ref's answer
-    covers (`workflows`, `receipt_refs`), or None.
+def _receipt_bindings(workflows: list[dict], present: dict) -> dict[str, dict]:
+    """Take each workflow's `receipt_refs` off it, and return, by input, what its
+    receipts give an answer owed to it: the `ref` recorded under the page's current
+    claim (`workflows`, `receipt_refs`), or nothing.
 
     A reference authorizes only the claim its delivery was captured under, and
     `post_reply` refuses it once another session claims the page, so a ref
     captured under an earlier owner is withheld. The update is then deliverable to
     the new owner again (`delivery.deliverable`), whose receipt records its ref."""
-    return {
-        item["input"]: item.pop("receipt_refs", {}).get(present.get("claim_session"))
-        for item in workflows
-    }
+    bindings = {}
+    for item in workflows:
+        usable = item.pop("receipt_refs", {}).get(present.get("claim_session"))
+        bindings[item["input"]] = {"ref": usable} if usable is not None else {}
+    return bindings
 
 
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
@@ -764,9 +764,8 @@ def canonical_activity(
     `obligations` are the answers the agent owes: for each update record whose next
     actor is the agent, the workflow of the input it names, carrying the record's id as
     `obligation`, whether a harness queue holds it (`queued`) and, as `answer`, the
-    operation that answers it (`obligations.response_address`), with `covers` where
-    the reply answers several inputs, those whose workflows name the record, and the
-    ref its receipts give it (`_receipt_bindings`). `reservations` reserve automatic replies from the
+    operation that answers it (`obligations.response_address`) with what its receipts
+    give it (`_receipt_bindings`). `reservations` reserve automatic replies from the
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. `on_it` are the
@@ -822,41 +821,24 @@ def canonical_activity(
         for record in updates["all"]
         if record["next_actor"] == "agent"
     }
-    owed_records = {record["id"] for record in owing.values()}
     workflows, aging, sent = _stand_workflows(
         interaction_evidence,
         present,
         now,
         held=held,
         turn=turn,
-        owed=owed_records,
+        owed={record["id"] for record in owing.values()},
         on_it=on_it,
     )
     todos, todo_aging = _stand_todos(log.owed, present, now, held=held, turn=turn)
     bindings = _receipt_bindings(workflows, present)
     _bind_reply(workflows, reply)
 
-    # The inputs each record the agent owes covers, in log order: those whose
-    # workflow names it.
-    covering: dict[str, list[str]] = {}
-    for item in sorted(workflows, key=itemgetter("seq")):
-        if item["obligation"] in owed_records:
-            covering.setdefault(item["obligation"], []).append(item["input"])
-
     def owed_answer(item: dict) -> dict:
-        record = owing[item["input"]]
-        answer = response_address(record)
-        if answer["kind"] == "reply" and len(inputs := covering[record["id"]]) > 1:
-            answer["covers"] = inputs
-        # A ref binds only where its answer covers every input this one does, so an
-        # input the thread has come to owe since its delivery is delivered again
-        # (`delivery.unreferenced`) with a ref that covers it.
-        held = bindings[item["input"]]
-        if held is not None and set(answer.get("covers", ())) <= {
-            item["input"],
-            *held.get("covers", ()),
-        }:
-            answer["ref"] = held["ref"]
+        answer = {
+            **response_address(owing[item["input"]]),
+            **bindings[item["input"]],
+        }
         reservation = (reservations or {}).get(item["input"])
         if answer["kind"] == "reply" and reply_reservation_stands(
             reservation,

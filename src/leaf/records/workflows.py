@@ -28,10 +28,9 @@ settled, and emits two readings of them, each the one home of its facts:
   with the claim and serves where it stands (`standing`), which the margin, the Page
   Map and a thread's receipt show. `obligation` names the record it serves, or is
   null for an update that owes nothing. `receipt_refs` maps each claim the update was
-  delivered under to the newest `answer.ref` a pickup recorded for it, with the inputs
-  that ref's answer covers (`delivery.record_pickup`); `activity` binds the ref the
-  page's current claim can use onto the owed answer where it covers everything the
-  answer now owes. An update no delivery has carried has no ref.
+  delivered under to the newest `answer.ref` a pickup recorded for it
+  (`delivery.record_pickup`); `activity` binds the ref the page's current claim can use
+  onto the owed answer. An update no delivery has carried has no ref.
 
 A record exists only for an update an operation names: the newest input the agent owes
 an answer in a thread, the newest unsettled owed page action on a widget's unit, an
@@ -40,7 +39,7 @@ inputs, such as a message and a pick after it, are the user's turns there
 (`events.owed_turns`) and the user's newest owed action on each unit of a widget a
 message there sent. They wait side by side in the thread's history (`events.settle`) and
 owe one reply, since two would say the same thing twice. That reply is addressed to the
-newest and covers them all, so each older input publishes no record, and its workflow
+newest and settles them all, so each older input publishes no record, and its workflow
 names the newest input's record. A widget action that answers no obligation, such as an
 edit to a user-owned draft or a moved card, owes nothing and publishes none. The log
 goes on applying it to later readings of the document, and `page check` makes the next
@@ -68,12 +67,9 @@ When a harness gives up on an update, `thread.fail_answer` writes the failure, a
 in the thread or a failed pickup of a page action, each carrying `failure`. The update's
 record then waits on the user, and its workflow keeps the failed response
 (`handed_back`), until the user acts again or the markup records the action. A failure
-in a thread hands back every input its reply would have covered (`events.settle`). Each
-keeps a handed-back workflow naming one record, which stands on the newest of those
-inputs still standing, until an answer covers it. The record retires once the user says
-something in the thread that still stands, an owed action of theirs there is newer than
-the failure, an answer covers an input made since the failure, whatever became of that
-input, or the thread closes.
+in a thread hands back every input waiting there with the update (`events.settle`). Each
+keeps a handed-back workflow naming one record, which stands on the newest of them the
+user has not taken back, until an answer settles it.
 """
 
 from bisect import bisect_right
@@ -84,7 +80,6 @@ from typing import NamedTuple
 from leaf.base import standing
 from leaf.log.events import (
     conversation_turns,
-    covered,
     exchange,
     is_answer,
     owed_turns,
@@ -282,8 +277,8 @@ def page_action_unsettled(
 
 class _Walk(NamedTuple):
     """One thread's history walked (`events.settle`): the inputs still waiting, by id
-    in the order they came into force, and each failure with the inputs it handed
-    back that still stand and are unanswered."""
+    in the order they were made, and each failure with the inputs it handed back
+    that are still unanswered."""
 
     waiting: dict[str, dict]
     handed_back: list
@@ -327,23 +322,28 @@ def handed_over(
     each of them names.
     """
     deliveries: dict[str, dict[str, dict]] = {}
-    # Each input a failure receipt covers → the newest such receipt.
-    failed_responses = {
-        input_id: event
+    responses = {
+        event["responds"]: event
         for event in events
-        if event["kind"] == "reply" and event.get("failure")
-        for input_id in covered(event)
+        if event["kind"] == "reply"
+        and event["author"] == "agent"
+        and event.get("responds")
+    }
+    failed_responses = {
+        input_id: response
+        for input_id, response in responses.items()
+        if response.get("failure")
     }
     # The newest `answer.ref` receipts recorded for each input (`record_pickup`)
-    # under each claim its deliveries were captured under, each with what it covers.
-    refs: dict[str, dict[str | None, dict]] = {}
+    # under each claim its deliveries were captured under.
+    refs: dict[str, dict[str | None, str]] = {}
     for event in events:
         if event["kind"] != "pickup":
             continue
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
         for event_id, ref in event.get("refs", {}).items():
-            refs.setdefault(event_id, {})[ref["claim"]] = ref
+            refs.setdefault(event_id, {})[ref["claim"]] = ref["ref"]
 
     log = todo_reading
     starts = log.starts
@@ -666,23 +666,17 @@ def handed_over(
                 for identity, (source, on, at, _unsettled) in owed_here.items()
             },
         }
-        # A failure reply gives up on the inputs it covers (`events.settle`), so it
-        # hands them back to the user as one, on one record. Those an answer covers
-        # since, as when the turn that failed recovers, leave it. It stands until the
-        # user acts in the thread again by anything that still stands, a turn or an
-        # owed action, or the agent answers anything they said since, whatever became
-        # of it. It waits on the user, so closing the thread over it retires it. One
-        # that fails in a thread already closed still stands: the user's resolve left
-        # the request owed, and nothing else would tell them no answer is coming.
+        # A failure reply gives up on the input it names and every input waiting
+        # before it (`events.settle`), so it hands them back to the user as one, on
+        # one record. Those an answer settles since, as when the turn that failed
+        # recovers, leave it. It stands until the user acts in the thread again by
+        # anything that still stands, a turn or an owed action. It waits on the
+        # user, so closing the thread over it retires it. One that fails in a thread
+        # already closed still stands: the user's resolve left the request owed, and
+        # nothing else would tell them no answer is coming.
         superseded = max(
             [turn["seq"] for turn in turns if turn["author"] != "agent"]
             + [source["seq"] for source, *_rest in owed_here.values()]
-            + [
-                by_id[identity]["seq"]
-                for turn in thread["turns"]
-                if is_answer(turn)
-                for identity in covered(turn)
-            ]
             + ([thread["resolved"]["seq"]] if thread["resolved"] else []),
             default=0,
         )
@@ -712,7 +706,7 @@ def handed_over(
         # input's address, so only that input publishes a record, and each workflow
         # names it. The record's workflow carries every start on the batch, which
         # `activity.in_hand` reads. The batch keeps the order the thread's history
-        # gives its inputs, and the reply covers them all.
+        # gives its inputs, so the newest is the one whose answer settles them all.
         owed_now = {
             **{
                 source["id"]: (source, target, coordinate)

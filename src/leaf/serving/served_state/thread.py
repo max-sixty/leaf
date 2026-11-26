@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 
-from leaf.agents.thread import successful_replies
 from leaf.base.schema import agent_name
 from leaf.log.events import (
     active_summaries,
@@ -11,6 +10,7 @@ from leaf.log.events import (
     owed_turns,
     progress_completions,
     seat_root,
+    settling_answer,
     spoken_turns,
 )
 from leaf.log.projection import ThreadMarkupReading
@@ -179,9 +179,9 @@ def browser_thread(
         live_reply is not None
         and live_reply["text"]
         and not any(_answers_live_reply(event, live_reply) for event in events)
-        # An answer that covers the reply's input with others in its thread is one
-        # the turn's final message will yield to (`thread.ProviderFinal`).
-        and not successful_replies(events, live_reply["responds"])
+        # An answer to a newer input in its thread settled the reply's input too, so
+        # the turn's final message will yield to it (`thread.ProviderFinal`).
+        and settling_answer(threads, live_reply["responds"]) is None
     ):
         target = next(
             (

@@ -185,7 +185,7 @@ export function createThreadDestinations({
     const place = threadTarget(id);
     return place !== null && visibleTargetParts(place).length > 0;
   };
-  // Where the thread stands in the page's order, as the list sorts it: its target, or
+  // Where the thread stands in the page's order, as the walks sort it: its target, or
   // the section its anchor names where the passage no longer resolves.
   /** @param {string} id */
   const threadPlace = (id) => {

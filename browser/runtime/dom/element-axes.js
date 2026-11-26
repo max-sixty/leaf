@@ -127,8 +127,11 @@ export function translateAxes(source) {
 // holds it) placed where `box`, the box's bounding rect, puts that corner. The computed
 // size gives the box to a fraction of a pixel; where it is the content box, it leaves out
 // the room a scrollbar's gutter takes from it, which the offset and client sizes, whole
-// pixels both, differ by beside the borders. A box with no CSS width of its own to read,
-// such as an SVG shape, has none.
+// pixels both, differ by beside the borders. An unturned box's size is its bounding
+// rect's over the map's scale instead, which is exact: Chromium serializes a computed
+// size to six significant figures, and a size written back from it, as a hold writes
+// one, can lose a layout unit. A box with no CSS width of its own to read, such as an
+// SVG shape, has none.
 /** @typedef {{width: number, height: number, matrix: DOMMatrix}} BorderFrame */
 /** @overload @param {HTMLElement} source @param {DOMRectReadOnly} [box] @param {DOMMatrixReadOnly} [matrix] @returns {BorderFrame} */
 /** @overload @param {Element} source @param {DOMRectReadOnly} [box] @param {DOMMatrixReadOnly} [matrix] @returns {BorderFrame | null} */
@@ -170,10 +173,15 @@ export function elementBorderFrame(
       gutter
     );
   };
-  const width = borderSize("width", "Left", "Right");
-  const height = borderSize("height", "Top", "Bottom");
-  if (width === undefined || height === undefined) return null;
+  const read = {
+    width: borderSize("width", "Left", "Right"),
+    height: borderSize("height", "Top", "Bottom"),
+  };
+  if (read.width === undefined || read.height === undefined) return null;
   const { a, b, c, d } = matrix;
+  const unturned = b === 0 && c === 0 && a !== 0 && d !== 0;
+  const width = unturned ? box.width / Math.abs(a) : read.width;
+  const height = unturned ? box.height / Math.abs(d) : read.height;
   const left = box.left - Math.min(0, width * a, height * c, width * a + height * c);
   const top = box.top - Math.min(0, width * b, height * d, width * b + height * d);
   return { width, height, matrix: new window.DOMMatrix([a, b, c, d, left, top]) };

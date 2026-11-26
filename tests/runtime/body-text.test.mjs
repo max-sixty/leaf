@@ -176,8 +176,8 @@ test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds it
     ["Last", source.indexOf("Last")],
   ]) {
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode()) && !node.data.includes(word)) {}
+    let node = walker.nextNode();
+    while (node && !node.data.includes(word)) node = walker.nextNode();
     assert.equal(
       markdownSourceOffset(body, source, node, node.data.indexOf(word) + 2, true),
       at + 2,
@@ -617,7 +617,13 @@ test("a table cell's words and a caret in them stand in its own cell, past the p
     paintMarkdown(body, source, {});
     for (const [index, cell] of body.querySelectorAll("th").entries()) {
       const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT).nextNode();
-      const offset = markdownSourceOffset(body, source, words, words.data.length, false);
+      const offset = markdownSourceOffset(
+        body,
+        source,
+        words,
+        words.data.length,
+        false,
+      );
       const [from, to] = spans[index];
       assert.ok(from < offset && offset <= to, `${source}: cell ${index} at ${offset}`);
     }

@@ -18,7 +18,7 @@ import { threadNamed } from "./state.js";
 /** @param {{
  * post: Post,
  * withdraw: ReturnType<typeof import("../undo.js").createUndo>["withdraw"],
- * sendReaction: typeof import("../../annotations/reactions.js").sendReaction,
+ * sendReaction: (event: Extract<Parameters<Post>[0], {kind: "comment" | "reply"}>, where: string, postReaction: Post) => Promise<Awaited<ReturnType<Post>>>,
  * currentRevision: () => number | null,
  * open: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
  * }} dependencies */
@@ -100,14 +100,14 @@ export function createThreadActions({
 
   // An explicit desired state retains the meaning of a control drawn from a held
   // reading. A concurrent change that already achieved it sends nothing.
-  /** @param {string} key @param {string} messageKey @param {string} token @param {boolean} active */
-  const setReaction = (key, messageKey, token, active) => {
+  /** @param {string} key @param {string} messageKey @param {string} emoji @param {boolean} active */
+  const setReaction = (key, messageKey, emoji, active) => {
     if (typeof active !== "boolean")
       throw new TypeError("A reaction needs its desired state");
     const thread = find(key);
     const message = thread?.msgs.find((item) => item.key === messageKey);
     const choice =
-      message && message.reactions?.choices.find((item) => item.name === token);
+      message && message.reactions?.choices.find((item) => item.emoji === emoji);
     if (!choice || active === Boolean(choice.inForce)) return null;
     if (choice.inForce) return withdraw(choice.inForce);
     const revision = currentRevision();
@@ -117,7 +117,7 @@ export function createThreadActions({
         kind: "reply",
         parent: message.id,
         revision,
-        token,
+        emoji,
       },
       `${message.agent}'s reply`,
       post,

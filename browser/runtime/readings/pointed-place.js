@@ -168,7 +168,7 @@ export function placePoints(threads, known) {
 
 // The band of `box` (the target's) level with `point`: across, the target's; down, the
 // row's, kept inside the target.
-/** @param {import("../dom/rect.js").Box} box @param {Element} point */
+/** @param {import("../base/box.js").Box} box @param {Element} point */
 export function pointBand(box, point) {
   const row = point.getBoundingClientRect();
   const top = clamp(row.top, box.top, box.bottom);

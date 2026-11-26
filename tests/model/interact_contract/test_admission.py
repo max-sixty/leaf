@@ -788,11 +788,11 @@ def test_an_empty_agent_name_uses_the_harness_default(
     assert (event["agent"], event["session"]) == ("Codex", "worker-1")
 
 
-def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
+def test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares(
     server, page_dir
 ):
-    """A reaction is a comment or reply carrying `token` in place of `text`: one of
-    the two and never both, a word the merged vocabulary declares, and no
+    """A reaction is a comment or reply carrying `emoji` in place of `text`: one of
+    the two and never both, an emoji the merged vocabulary declares, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
     also lets the user take back, answered or not."""
     publish(page_dir)
@@ -806,20 +806,20 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     )["state"]["events"][-1]
     for bad, says in [
         (
-            {"kind": "comment", "revision": 1, "token": "shrug"},
-            "unknown reaction token 'shrug'",
+            {"kind": "comment", "revision": 1, "emoji": "🤷"},
+            "unknown reaction '🤷'",
         ),
         (
-            {"kind": "comment", "revision": 1, "token": "keep", "text": "and"},
+            {"kind": "comment", "revision": 1, "emoji": "👍", "text": "and"},
             "is valid under each of",
         ),
         ({"kind": "comment", "revision": 1}, "is not valid under any of"),
         (
-            {"kind": "comment", "revision": 1, "token": "keep", "suggestion": True},
+            {"kind": "comment", "revision": 1, "emoji": "👍", "suggestion": True},
             "suggestion",
         ),
         (
-            {"kind": "reply", "revision": 1, "parent": root["id"], "token": "nope"},
+            {"kind": "reply", "revision": 1, "parent": root["id"], "emoji": "👎"},
             "unknown",
         ),
     ]:
@@ -834,7 +834,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
                 {
                     "kind": "comment",
                     "revision": 1,
-                    "token": "shorten",
+                    "emoji": "✂️",
                     "anchor": {"section": "plan", "quote": "Ship dark"},
                 }
             ).encode(),
@@ -845,11 +845,11 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         fetch(
             f"{server}/api/event",
             data=json.dumps(
-                {"kind": "reply", "revision": 1, "parent": root["id"], "token": "keep"}
+                {"kind": "reply", "revision": 1, "parent": root["id"], "emoji": "👍"}
             ).encode(),
         )[1]
     )["state"]["events"][-1]
-    assert nod["token"] == "keep" and nod["parent"] == root["id"]
+    assert nod["emoji"] == "👍" and nod["parent"] == root["id"]
 
     # The mark on the thread comes off with one press.
     status, body = fetch(
@@ -875,7 +875,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
-            {"kind": "reply", "revision": 1, "parent": nod["id"], "token": "keep"}
+            {"kind": "reply", "revision": 1, "parent": nod["id"], "emoji": "👍"}
         ).encode(),
     )
     assert status == 400 and refused_on(body).code == "withdrawn-parent"
@@ -890,7 +890,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
                     "kind": "reply",
                     "revision": 1,
                     "parent": reaction["id"],
-                    "token": "keep",
+                    "emoji": "👍",
                 }
             ).encode(),
         )[1]

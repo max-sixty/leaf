@@ -25,6 +25,7 @@ from render_harness import (
     show_done,
     stamp_page,
     wait_for_revision,
+    without_end_room,
     write,
 )
 
@@ -330,6 +331,8 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
         },
     )
     page = open_page(browser, url)
+    # The foot of a page with no room below it, which no scroll lifts clear of a view.
+    without_end_room(page)
     resized(page, 1280, 900)
     page.evaluate("getSelection().removeAllRanges()")
     thread = page.locator(panel_view("thread"))
@@ -398,6 +401,8 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
         },
     )
     page = open_page(browser, url)
+    # The foot of a page with no room below it, which no scroll lifts clear of a view.
+    without_end_room(page)
     resized(page, 1280, 900)
     page.evaluate("getSelection().removeAllRanges()")
     page.keyboard.press("m")
@@ -422,6 +427,8 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
+    # The foot of a page with no room below it, which no scroll lifts clear of a view.
+    without_end_room(page)
     resized(page, 1280, 900)
     on_me = page.locator(panel_view("queue"))
     page.locator("#h").click()
@@ -491,10 +498,14 @@ def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serv
     page.keyboard.press("ArrowLeft")
     expect(tab).to_contain_text("Menu")
     expect(tab).to_be_focused()
-    # A tab the view doesn't show names the door that opens its list from anywhere.
+    # A tab the view doesn't show names the door that opens its list from anywhere,
+    # after the list's name, which its count beside it is no part of.
     page.mouse.move(2, 2)
     page.locator(".lf-fp-tab", has_text=agent).hover()
     expect(page.locator(f"{PREVIEW} .lf-preview-keys kbd")).to_have_text(["g", "A"])
+    expect(page.locator(f"{PREVIEW} .lf-preview-word")).to_have_text(
+        re.compile(r"^On (?!Me\b)\w+$")
+    )
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(tab).to_contain_text(agent)
@@ -544,7 +555,12 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(words).to_have_text("2 left to answer")
     count = page.locator("#left .lf-tally-count")
     waiting_color = count.evaluate("node => getComputedStyle(node).color")
-    box = page.locator("#left").bounding_box()
+    # Where the tally stands on the page, which a landing that scrolls leaves alone.
+    tally_box = (
+        "node => { const r = node.getBoundingClientRect();"
+        " return [r.x, r.y + scrollY, r.width, r.height]; }"
+    )
+    box = page.locator("#left").evaluate(tally_box)
 
     # The row opens the obligation the user reads. Enter its obligation before deciding: the
     # strip itself precedes every panel in DOM order, but is not the walk's origin.
@@ -625,7 +641,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(count).to_have_css("color", waiting_color)
     expect(page.locator("#queue .lf-tab-answer").first).to_have_text("On Claude")
     expect(button).to_be_disabled()
-    assert page.locator("#left").bounding_box() == box
+    assert page.locator("#left").evaluate(tally_box) == box
 
 
 @pytest.mark.parametrize("idle_setup", ["at_rest", "layout_clamp"])
@@ -636,6 +652,8 @@ def test_an_idle_m_arrival_paints_in_its_first_frame(browser, serve, idle_setup)
     page = open_page(browser, serve(QUEUE_PAGE))
     resized(page, 1280, 900)
     if idle_setup == "layout_clamp":
+        # Content leaving below clamps the page only where no room is kept under it.
+        without_end_room(page)
         page.evaluate("""() => {
           const tail = document.createElement('div');
           tail.id = 'temporary-tail';

@@ -85,8 +85,8 @@
 #        text: The thread has no title yet. Name its subject with `--title "<a few
 #              words>"` on your reply.
 #      clause 7, does not apply:
-#        when: {"required": ["token"]}
-#        text: A reaction owes no answer. Act on the token if it calls for a change,
+#        when: {"required": ["emoji"]}
+#        text: A reaction owes no answer. Act on the emoji if it calls for a change,
 #              and reply only if its meaning is unclear. Once the page reflects it,
 #              close it with `leaf thread resolve <page> <message>`.
 #      clause 8, applies:
@@ -163,7 +163,7 @@
 #    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
-#        "format": "leaf-delivery/52",
+#        "format": "leaf-delivery/58",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf delivery ack e8417b8a && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
@@ -656,11 +656,11 @@ design comment:
 reaction on the page:
   event:
     kind: comment
-    token: '+1'
+    emoji: 👍
   told:
-    - when: {"required": ["token"]}
+    - when: {"required": ["emoji"]}
       text: >-
-        A reaction owes no answer. Act on the token if it calls for a change, and
+        A reaction owes no answer. Act on the emoji if it calls for a change, and
         reply only if its meaning is unclear. Once the page reflects it, close it
         with `leaf thread resolve <page> <message>`.
 
@@ -673,7 +673,7 @@ reply:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["token"]}}
+    - when: {"not": {"required": ["emoji"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
@@ -718,7 +718,7 @@ reply in an untitled thread:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["token"]}}
+    - when: {"not": {"required": ["emoji"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
@@ -766,7 +766,7 @@ reply with a pasted image:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["token"]}}
+    - when: {"not": {"required": ["emoji"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
@@ -819,11 +819,11 @@ reply in a long thread:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["token"]}}
+    - when: {"not": {"required": ["emoji"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
-    - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}, "not": {"required": ["token"]}}
+    - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}, "not": {"required": ["emoji"]}}
       text: >-
         This thread's entry in the batch's `threads` has a `summary_hint`: an earlier
         range of messages worth summarizing. As you answer, follow the Leaf skill's
@@ -873,7 +873,7 @@ reply in words to a choice the agent sent:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["token"]}}
+    - when: {"not": {"required": ["emoji"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
@@ -928,7 +928,7 @@ reply in words that answered the agent's question:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["token"]}}
+    - when: {"not": {"required": ["emoji"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
@@ -979,9 +979,9 @@ reply in words that answered the agent's question:
 reaction on a message:
   event:
     kind: reply
-    token: '+1'
+    emoji: 👍
   told:
-    - when: {"required": ["token"]}
+    - when: {"required": ["emoji"]}
       text: >-
         A reaction to your message. It needs no reply; Leaf already records whether
         it answers your question.

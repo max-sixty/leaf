@@ -81,7 +81,7 @@ export function threadFocusDestination(thread, options = {}) {
 // The thread whose root holds focus. A control inside it keeps its own command scope.
 export function focusedThreadTarget() {
   const active = focused();
-  return active?.matches?.(THREAD) ? active : null;
+  return active?.matches(THREAD) ? active : null;
 }
 
 // The thread the user is in, wherever it is drawn — the Threads list, the margin card, a

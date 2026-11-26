@@ -18,7 +18,7 @@ export const onUserCount = () => {
 export const readPlan = readPart((root) => root.effective.plan);
 
 /** @typedef {ReturnType<typeof readQueues>["on_user"][number]} CurrentQueueItem */
-/** @param {{arrive: ReturnType<typeof import("../panel/queue-walk.js").createQueueWalk>["arriveAtItem"]}} dependencies */
+/** @param {{arrive: (item: CurrentQueueItem) => Promise<boolean | undefined>}} dependencies */
 export function createQueueActions({ arrive }) {
   return Object.freeze({
     /** @param {string} id */

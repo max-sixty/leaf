@@ -943,9 +943,9 @@ export class Trace extends LeafElement {
               (candidate) =>
                 point !== null &&
                 candidate.timestamp <= point.timestamp &&
-                candidate.action.stream === (action?.stream ?? point?.image?.stream) &&
+                candidate.action.stream === (action?.stream ?? point.image?.stream) &&
                 checkpointOf(candidate.action, candidate.phase)?.pageId ===
-                  (pageId ?? point?.image?.pageId) &&
+                  (pageId ?? point.image?.pageId) &&
                 checkpointOf(candidate.action, candidate.phase)?.tree,
             )
             .at(-1);
@@ -1017,7 +1017,7 @@ export class Trace extends LeafElement {
     this.#chosenBookmark = null;
     const point = this.#pointAt(elapsed);
     this.#cursorTime = elapsed;
-    if (point && point.id !== this.#selected) {
+    if (point.id !== this.#selected) {
       this.#selected = point.id;
       this.#draw();
     } else this.#drawTime();
@@ -1589,7 +1589,7 @@ export class Trace extends LeafElement {
   }
 
   #cancelPicture() {
-    this.#pendingPicture?.resolve?.();
+    this.#pendingPicture?.resolve();
     this.#pendingPicture?.viewer?.destroy();
     this.#pendingPicture?.figure.remove();
     this.#pendingPicture = null;
@@ -1687,7 +1687,7 @@ export class Trace extends LeafElement {
     const preview =
       point !== null &&
       image.timestamp > point.timestamp &&
-      !checkpointOf(point?.action, point?.phase)?.imageId;
+      !checkpointOf(point.action, point.phase)?.imageId;
     if (this.#pictureId === image.id) {
       // A refreshed index keeps the Viewer, but its image belongs to the new
       // delivery, including the origin path drawn from that delivery's array.
@@ -1954,7 +1954,7 @@ export class Trace extends LeafElement {
       this.#inputBadge,
       "title",
       action && relation
-        ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input?.selector ? ` · ${action.input?.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
+        ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input?.selector ? ` · ${action.input.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
         : null,
     );
     // The point marks where the input lands in the shown capture's viewport, which
@@ -1962,11 +1962,7 @@ export class Trace extends LeafElement {
     const coordinate = action?.input?.point;
     const viewport = action?.input?.viewport;
     const visible =
-      coordinate &&
-      viewport &&
-      imageReady &&
-      image.pageId === action.pageId &&
-      this.#picture?.viewed;
+      coordinate && viewport && imageReady && image.pageId === action.pageId;
     this.#inputPoint.toggleAttribute("hidden", !visible);
     if (visible) {
       keeps(this.#inputPoint, "data-lf-x", String(coordinate.x / viewport.width));

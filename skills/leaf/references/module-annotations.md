@@ -50,8 +50,9 @@ thing.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
 `on-me`, `activity` and the margin's other kinds. `read()` may also return `readings`,
-items each with an `id` unique within the contribution and an optional `activate`,
-which the registration's `activateReading(id)` calls.
+items each with an `id` unique within the contribution, the `text` the margin shows
+for it, an optional `kind` from the same list, and an optional `activate`, which the
+registration's `activateReading(id)` calls.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with
@@ -162,7 +163,7 @@ threadActions.open(thread.key, { part: "thread" });
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
-threadActions.setReaction(thread.key, agentMessage.key, token, true);
+threadActions.setReaction(thread.key, agentMessage.key, emoji, true);
 ```
 
 `open(key, {part, focus, travel, message})` takes the user to the Thread wherever a

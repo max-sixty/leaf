@@ -154,7 +154,7 @@ function shownWidget(card) {
 /** @param {Element} card @param {Exclude<ReturnType<typeof shownWidget>, null | {fault: string}>} shown */
 function valuelessFault(card, { owner, record }) {
   if (record.kind !== "attribute") return null;
-  const members = widgetController(owner).read().memberships?.[record.attr];
+  const members = widgetController(owner).read().memberships[record.attr];
   if (!members?.length) return null;
   return members.some((member) => elementById(member, owner)?.hasAttribute(VALUE))
     ? null
@@ -181,7 +181,7 @@ function shownAnswer(card) {
   const { owner, verb, record } = shown;
   const controller = widgetController(owner);
   const reading = controller.read();
-  const state = reading.state?.[verb];
+  const state = reading.state[verb];
   if (!state) return null;
   const valueOf =
     record.kind === "attribute"
@@ -196,7 +196,7 @@ function shownAnswer(card) {
     // user picks, so the widget takes no answer for it and the user picks among them
     // in the widget itself. Answering with the first, or with all of them, would
     // record a pick the user never made.
-    const members = (reading.memberships?.[record.attr] ?? []).filter(
+    const members = (reading.memberships[record.attr] ?? []).filter(
       (member) => valueOf(member) === value,
     );
     return members.length === 1 ? { value: members } : null;
@@ -982,7 +982,7 @@ customElements.define(
     }
 
     get #position() {
-      const state = this.state.move;
+      const state = this.state?.move;
       if (!state || !("ranks" in state))
         throw new Error("Board requires positional move state");
       return state;

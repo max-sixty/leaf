@@ -6,7 +6,7 @@
    Every drawing of a thread, a card or the message parts a presentation names
    (records/thread/primary-reader.js), shows its turns: its spoken messages and its root, so a
    thread that grew out of a reaction opens on the mark, whose body records/thread/messages.js
-   writes as the glyph and its word, or as Deleted once the user takes the mark back
+   writes as its emoji, or as Deleted once the user takes the mark back
    (`deleted`), and any other reaction stands as its chip on the message it answers. Whose turn a thread is is read
    from the complete browser Thread's `attention` and nothing else, the obligation
    record that speaks for it: a user obligation outranks concurrent agent work, which
@@ -26,43 +26,42 @@ import { kept, keptEach } from "../kept.js";
 /** @typedef {import("../../../types/domain.js").Anchor} Anchor */
 /** @typedef {NonNullable<import("../semantic-application.js").SemanticDocument["messageBodies"]> extends ReadonlyMap<string, ReadonlyMap<string, infer B>> ? B : never} CapturedBody */
 
-/** @param {{token?: string}} message */
-export const isReaction = (message) => Boolean(message.token);
+/** @param {{emoji?: string}} message */
+export const isReaction = (message) => Boolean(message.emoji);
 /** @param {Pick<Message, "addressable">} message */
 const isAddressable = (message) => message.addressable !== false;
 
 // The reactions the user may choose on one of the agent's messages, each with the
 // reaction of theirs in force on it that a press takes back (`inForce`).
 /** @template {Pick<Message, "agent"> & {key: string}} T
- * @template {{token?: string}} S
+ * @template {{emoji?: string}} S
  * @param {string} thread @param {T} message @param {boolean} latest
- * @param {Record<string, {glyph: string}>} tokens @param {readonly S[]} inForce
+ * @param {Reactions} emoji @param {readonly S[]} inForce
  */
-const reactionChoices = (thread, message, latest, tokens, inForce) => ({
+const reactionChoices = (thread, message, latest, emoji, inForce) => ({
   thread,
   message: message.key,
   latest,
   agent: message.agent,
-  choices: tokenChoices(tokens, inForce),
+  choices: emojiChoices(emoji, inForce),
 });
 
-// The declared reaction tokens as choices on one target, each with the reaction in force
-// a press takes back. The bar, a reply's strip and the margin form render these; each
-// surface keeps its own face, and the token names the control on all of them.
-/** @template {{token?: string}} S
- * @param {Record<string, {glyph: string}>} tokens
+// The declared reactions as choices on one target, each its emoji with the reaction in
+// force a press takes back. The bar, a reply's strip and the margin form render these;
+// each surface keeps its own face, and the emoji is the control's face and its name on
+// all of them.
+/** @template {{emoji?: string}} S
+ * @param {Reactions} emoji the layer's `$reactions.emoji`
  * @param {readonly S[]} inForce
  */
-export const tokenChoices = (tokens, inForce) =>
-  Object.entries(tokens).map(([name, entry]) => ({
-    name,
-    glyph: entry.glyph,
-    label: name,
-    inForce: inForce.find((item) => item.token === name) ?? null,
+export const emojiChoices = (emoji, inForce) =>
+  Object.keys(emoji).map((choice) => ({
+    emoji: choice,
+    inForce: inForce.find((item) => item.emoji === choice) ?? null,
   }));
 /** @param {Thread} thread */
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
-/** @template {{id: string, token?: string, [field: string]: unknown}} T @param {{msgs: readonly T[], root: {id: string}}} thread */
+/** @template {{id: string, emoji?: string, [field: string]: unknown}} T @param {{msgs: readonly T[], root: {id: string}}} thread */
 export const turns = (thread) =>
   thread.msgs.filter(
     (message) => message.id === thread.root.id || !isReaction(message),
@@ -121,11 +120,11 @@ export function threadsBySection(threads) {
 
 // A message whose words the user may rewrite: one of their own that the log holds, with
 // words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
-/** @param {{author?: string, pending?: boolean, token?: string, text?: string | undefined}} message */
+/** @param {{author?: string, pending?: boolean, emoji?: string, text?: string | undefined}} message */
 export const editable = (message) =>
   message.author === "user" &&
   !message.pending &&
-  !message.token &&
+  !message.emoji &&
   Boolean(message.text);
 
 // A message its author deleted: a rewrite took all its words, and no drawing stands in
@@ -136,9 +135,9 @@ export const deleted = (message) =>
   Boolean(message.withdrawn) ||
   (Boolean(message.edited) && !message.text && !message.drawing);
 
-/** @template {{readonly bare_reaction: boolean, readonly root: {readonly token?: string | null}}} T
+/** @template {{readonly bare_reaction: boolean, readonly root: {readonly emoji?: string | null}}} T
  * @param {T} thread
- * @returns {thread is T & {bare_reaction: true, root: T["root"] & {token: string}}} */
+ * @returns {thread is T & {bare_reaction: true, root: T["root"] & {emoji: string}}} */
 export const bareReaction = (thread) => thread.bare_reaction;
 /** @param {Pick<Thread, "bare_reaction">} thread */
 export const discussed = (thread) => !thread.bare_reaction;
@@ -174,6 +173,34 @@ export function threadCounts(threads) {
     unread: listed.filter(isNews).length,
   };
 }
+/**
+ * Where in the log a thread last changed, its event's `seq`, which Threads lists its
+ * rows by: a closed thread's closing, the event its row's age dates; an open thread's
+ * latest turn as it last moved (`moved`), so a rewrite counts. The user's own reply,
+ * rewrite or resolve on its way, which the log doesn't hold yet, is newer than all of
+ * it. A reaction is no turn, and neither is a reply still streaming, which counts once
+ * the log holds it. A message that reaches a closed thread without reopening it, as the
+ * agent's unannounced one does, leaves the thread where its closing put it, so a row's
+ * place and its age agree.
+ * @template {{id: string, token?: string, seq?: number, edited?: {seq?: number, ts: string} | undefined, [field: string]: unknown}} T
+ * @param {{msgs: readonly T[], root: {id: string}, resolved: {seq?: number | undefined} | null}} thread */
+export function lastChange(thread) {
+  if (thread.resolved) return thread.resolved.seq ?? Infinity;
+  let last = -Infinity;
+  for (const message of turns(thread))
+    if (!message.provisional) last = Math.max(last, moved(message).seq ?? Infinity);
+  return last;
+}
+/**
+ * `items` newest first by `at`, the later of two that tie first, as the later of two
+ * threads in the log's order is the later started.
+ * @template T @param {readonly T[]} items @param {(item: T) => number} at */
+export const newestFirst = (items, at) =>
+  items
+    .map((item) => ({ item, at: at(item) }))
+    .reverse()
+    .sort((a, b) => b.at - a.at)
+    .map(({ item }) => item);
 // Which widget's seat a message the server has not seen stands in, a pending thread's
 // root or the comment being written, by the rule `seat_root` reads the log by: an
 // element anchor naming that widget and carrying nothing else. Spelled again here
@@ -232,9 +259,9 @@ function unedited(thread, message, withdrawn) {
 /** @param {Thread} thread @param {Thread["msgs"][number]} message
  * @returns {Thread["msgs"][number]} */
 function takenBack(thread, message) {
-  const { token, drawing, suggestion, edited, ...rest } = message;
+  const { emoji, drawing, suggestion, edited, ...rest } = message;
   const sent = thread.revisions.find((edit) => edit.message === message.id)?.was;
-  const was = token ?? sent ?? message.text ?? "";
+  const was = emoji ?? sent ?? message.text ?? "";
   return {
     ...rest,
     text: "",
@@ -381,7 +408,7 @@ export function foldThreads(threads, gestures) {
 }
 
 // The bare reactions in force on exactly this anchor — the bar's own question, asked
-// so its chips can say which tokens are already there. Anchors are compared as
+// so its chips can say which emoji are already there. Anchors are compared as
 // records, the way the file compares them.
 /** @template {Pick<Thread, "bare_reaction" | "resolved" | "anchor"> & {root: unknown}} T
  * @param {readonly T[]} threads @param {Anchor} anchor
@@ -398,14 +425,14 @@ export const reactionsAt = (threads, anchor) =>
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
-// asks what is newest in a thread — the first unread, news — reads this,
-// so an agent message edited today is today's in all of them. A message still being
-// sent carries the clock the user's gesture gave it and no log position yet.
+// asks what is newest — the first unread, news, Threads' rows — reads this,
+// so an agent message edited today is today's in all of them. A message or rewrite still
+// being sent carries the clock the user's gesture gave it and no log position yet.
 /** @param {{edited?: {seq?: number, ts: string} | undefined, seq?: number, ts?: string}} message */
-export const moved = (message) => ({
-  seq: message.edited?.seq ?? message.seq ?? null,
-  ts: message.edited?.ts ?? message.ts ?? null,
-});
+export const moved = (message) =>
+  message.edited
+    ? { seq: message.edited.seq ?? null, ts: message.edited.ts }
+    : { seq: message.seq ?? null, ts: message.ts ?? null };
 
 /** @param {import("../../../types/domain.js").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
@@ -429,8 +456,9 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    hold every message's. */
 
 // The reactions a registry declares none of.
-/** @type {Record<string, {glyph: string}>} */
-const NO_TOKENS = Object.freeze({});
+/** @typedef {Readonly<Record<string, {readonly settles?: boolean}>>} Reactions */
+/** @type {Reactions} */
+const NO_REACTIONS = Object.freeze({});
 
 /** @type {readonly never[]} */
 const NONE = Object.freeze([]);
@@ -444,7 +472,7 @@ function grouped(items, key) {
 }
 
 /** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../../types/domain.js").AuthoredWidget["state"]}} Unit */
-/** @typedef {import("../semantic-application.js").Workflow} Workflow */
+/** @typedef {import("../../../types/domain.js").Workflow} Workflow */
 /** @typedef {import("../semantic-application.js").ObligationRecord} ObligationRecord */
 /** @typedef {import("../../../types/domain.js").ContentVersion} ContentVersion */
 /** @typedef {ReadonlyMap<string, CapturedBody>} ThreadBodies */
@@ -523,12 +551,12 @@ const messageReading = keptEach(
       html && authored
         ? { kind: "authored", ...authored, units }
         : {
-            kind: message.token
+            kind: message.emoji
               ? "reaction"
               : message.suggestion
                 ? "suggestion"
                 : "prose",
-            text: authored?.text ?? plainText ?? message.text ?? message.token ?? "",
+            text: authored?.text ?? plainText ?? message.text ?? message.emoji ?? "",
           };
     return { ...record, thread, unread, key: messageKey(message), body, workflows };
   },
@@ -547,12 +575,12 @@ const messageReading = keptEach(
 // withdraws.
 const withReactions = keptEach(
   /** @param {PublishedMessage} message @param {string} thread @param {boolean} choosing
-   * @param {boolean} latest @param {Record<string, {glyph: string}>} tokens
+   * @param {boolean} latest @param {Reactions} emoji
    * @param {readonly PublishedMessage[]} inForce */
-  (message, thread, choosing, latest, tokens, inForce) => ({
+  (message, thread, choosing, latest, emoji, inForce) => ({
     ...message,
     reactions: choosing
-      ? reactionChoices(thread, message, latest, tokens, inForce)
+      ? reactionChoices(thread, message, latest, emoji, inForce)
       : null,
   }),
 );
@@ -560,11 +588,11 @@ const withReactions = keptEach(
 // One thread's record.
 const threadRecord = keptEach(
   /** @param {Thread} thread @param {boolean} ready
-   * @param {Record<string, {glyph: string}>} tokens
+   * @param {Reactions} emoji
    * @param {readonly ContentVersion[]} marking what this tab is marking read of its messages
    * @param {readonly Workflow[]} workflows @param {readonly ObligationRecord[]} obligations
    * @param {readonly Unit[]} units @param {ThreadBodies | undefined} bodies */
-  (thread, ready, tokens, marking, workflows, obligations, units, bodies) => {
+  (thread, ready, emoji, marking, workflows, obligations, units, bodies) => {
     const key = threadKey(thread);
     const locallyRead = new Set(marking.map(versionKey));
     /** @type {ContentVersion[]} */
@@ -607,7 +635,7 @@ const threadRecord = keptEach(
     );
     // A user's reaction in force on each message, and the agent's newest message the
     // user may address, read once for the thread rather than once per message.
-    const reacts = ready && Object.keys(tokens).length > 0 && !thread.resolved;
+    const reacts = ready && Object.keys(emoji).length > 0 && !thread.resolved;
     const latest = msgs.findLast(
       (message) => message.author === "agent" && isAddressable(message),
     );
@@ -622,7 +650,7 @@ const threadRecord = keptEach(
         key,
         choosing,
         choosing && latest === message,
-        tokens,
+        emoji,
         choosing ? (reactionsOn.get(message.id) ?? NONE) : NONE,
       );
     });
@@ -679,7 +707,7 @@ export function readThreadRecords(
   markingRead = NONE,
   ready = true,
 ) {
-  const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
+  const emoji = document.registry.$reactions?.emoji ?? NO_REACTIONS;
   const lists = byThread(workflows, obligations);
   const marking = markingByMessage(markingRead);
   const units = unitsByThread(document.descriptors, widgets);
@@ -687,7 +715,7 @@ export function readThreadRecords(
     threadRecord(
       thread,
       ready,
-      tokens,
+      emoji,
       Object.keys(thread.unread).flatMap((id) => marking.get(id) ?? []),
       lists.workflows.get(thread.id) ?? NONE,
       lists.obligations.get(thread.id) ?? NONE,

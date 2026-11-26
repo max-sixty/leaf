@@ -509,6 +509,12 @@ def test_the_hook_transport_imports_no_page_model():
     assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
 
 
+# The browser run (`render_gate/page_code.py`), and the Codex transport, whose import
+# registers an exit handler: a step that draws nothing in a browser and asks Codex
+# nothing loads neither.
+UNASKED = ("leaf.pages.render_gate.page_code", "leaf.agents.codex")
+
+
 @pytest.mark.parametrize(
     ("process", "listed"),
     [
@@ -526,7 +532,10 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
     not validated (`layer-registry.md`), so it loads no schema validator. A prompt
     hook delivering the user's comment, and the agent's reply, load the validator to
     match handling clauses and to admit the event, and neither loads the page's
-    source checks, the server or the file watcher."""
+    source checks, the server or the file watcher. None of them asks Codex anything
+    or draws anything in a browser: the reply's HTML runs the message check, which
+    loads the browser run only for markup a browser must judge
+    (`render_gate/messages.py`)."""
     published(claimed)
     hook = ["hook", "--harness", "claude-code"]
     payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
@@ -551,13 +560,24 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
                 response_reference(claimed, asked),
                 "--ephemeral",
                 "--text",
-                "Checking.",
+                "<em>Checking.</em>",
                 "--title",
                 "Check",
             )
         )
         assert asked["id"] in printed, printed
     assert unlisted_dependencies(imported, listed) == {}
+    assert {m: imported[m] for m in UNASKED if m in imported} == {}
+
+
+def test_a_page_check_with_nothing_a_browser_must_judge_loads_no_browser_run(page_dir):
+    """An agent checks its page after each edit. A page that runs no code of its own
+    and places no widget only a browser can judge needs no browser
+    (`browser_judged.needs_browser`), so its check loads none of the browser run, and
+    none of the Codex transport."""
+    printed, imported = fresh_imports(leaf_main("page", "check", str(page_dir)))
+    assert json.loads(printed)["browser"] is None, printed
+    assert {m: imported[m] for m in UNASKED if m in imported} == {}
 
 
 @pytest.mark.parametrize(

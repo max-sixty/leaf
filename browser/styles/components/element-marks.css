@@ -124,7 +124,7 @@
   --lf-band-ink: var(--lf-target-trace-ink);
 }
 :where([data-lf-mark="action"]:not([data-lf-traced])) {
-  --lf-band-ink: var(--lf-mark-contour-ink);
+  --lf-band-ink: var(--lf-action-target-ink);
   --lf-band-w: 1px;
 }
 /* Any other mark on the box keeps the user's ink (`--lf-ok`) over those two: the
@@ -285,7 +285,7 @@
    contour of each shape it draws, as that shape's stroke, so a diamond's mark follows
    its sides: no outline, brackets, veil or gap. The stroke is important, as the
    outline is, so a drawing's own stroke rules leave the mark standing while it shows;
-   its words keep their own. A comment's mark there takes the quieter contour ink.
+   its words keep their own.
    `svg` stands as an ancestor of its own, by which Chromium passes over these rules
    outside a drawing (browser/AGENTS.md, "A rule costs only the elements it could
    style"). */
@@ -343,10 +343,6 @@
   ) {
   --lf-ring-at: 0px;
   outline-style: solid !important;
-}
-:where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
-  --lf-band-ink: var(--lf-mark-contour-ink);
-  --lf-band-w: var(--lf-mark-contour-w);
 }
 /* A landing clears the sticky headers stacked over what it lands on. Its scroller's
    `scroll-padding` clears those over the whole scroller (the head room, a page tab

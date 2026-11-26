@@ -654,7 +654,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
             "author": "user",
             "revision": 1,
             "parent": question["id"],
-            **({"text": "Warm."} if answer_kind == "reply" else {"token": "keep"}),
+            **({"text": "Warm."} if answer_kind == "reply" else {"emoji": "👍"}),
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
@@ -678,7 +678,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
 
 
 def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
-    """A reaction answers an obligation only when its token settles (`$reactions`): one
+    """A reaction answers an obligation only when its emoji settles (`$reactions`): one
     that doesn't leaves the obligation on the user, and the one that does is the
     outcome the ended obligation records."""
     publish(page_dir)
@@ -699,7 +699,7 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
         )
     )
 
-    def react(token):
+    def react(emoji):
         return append_carried_log_record(
             page_dir,
             {
@@ -707,11 +707,11 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
                 "author": "user",
                 "revision": 1,
                 "parent": question["id"],
-                "token": token,
+                "emoji": emoji,
             },
         )
 
-    react("clarify")
+    react("🤔")
     assert standing_model.is_open(
         next(
             item
@@ -719,7 +719,7 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
             if item["source"]["id"] == question["id"]
         )
     )
-    keep = react("keep")
+    keep = react("👍")
     assert standing_model.answered(
         next(
             item
@@ -2141,7 +2141,7 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "plan"},
         },
     )
@@ -2162,7 +2162,7 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
             )["threads"]
             if thread["id"] == root["id"]
         ]
-        assert kept["root"]["withdrawn"]["was"] == "keep"
+        assert kept["root"]["withdrawn"]["was"] == "👍"
         # The thread stays a thread, so the agent may attach more work to it.
         append_command(page_dir, {**task, "title": "Check on a tablet"})
         assert opened["id"] in {

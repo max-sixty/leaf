@@ -54,7 +54,7 @@ const labelStand = paintStand();
 // What leaf.js mounts in the chrome: the stand the design label stands in.
 export const aimLayer = labelStand.root;
 // The aim's last placement, which the label at its corner is written from (`labelAim`).
-/** @type {{placed: import("./target-paint-geometry.js").Placement & {shown: import("../dom/rect.js").Box}, surface: Element} | null} */
+/** @type {{placed: import("./target-paint-geometry.js").Placement & {shown: import("../base/box.js").Box}, surface: Element} | null} */
 let aimed = null;
 
 export function clearAim() {

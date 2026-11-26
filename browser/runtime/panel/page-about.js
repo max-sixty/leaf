@@ -108,7 +108,7 @@ function previewDiagnostics(preview) {
     ...runtimeLines(),
     `layer generation: ${identity.layer?.generation}`,
     ...(identity.layer?.fingerprint
-      ? [`layer fingerprint: ${identity.layer?.fingerprint}`]
+      ? [`layer fingerprint: ${identity.layer.fingerprint}`]
       : []),
     ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
     `event sequence: ${runtime.lastEventSeq ?? 0}`,

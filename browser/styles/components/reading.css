@@ -429,7 +429,7 @@
        (test_a_has_leads_only_to_a_subject_naming_an_element).
        Whether focus is in the table is a property the table sets, `--lf-names-focus`,
        and the fade asks the table for it by a style query on the container the table
-       names, `lf-row-names` (`browser/AGENTS.md`, "A rule for focus anywhere in a box"),
+       names, `lf-row-names` (`browser/AGENTS.md`, "What a style rule costs"),
        so a focus move into or out of the table restyles the table, its fades and, while
        its fades are drawn, everything in it, and a move elsewhere on the page restyles
        none of it (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes).
@@ -545,8 +545,21 @@
       margin: var(--lf-h3-start) 0 8px;
       text-wrap: balance;
     }
+    /* A paragraph ends on more than one word where the line breaker can move a second
+     * one down: a lone last word reads as a stray. Chromium moves words among a
+     * paragraph's last lines and keeps their count; WebKit evens every line, now and
+     * then onto one more; Firefox lacks the value and breaks as before
+     * (notes/browser-support.md, "Pretty line breaking in Firefox").
+     *
+     * The style inherits, so it stands on the paragraph alone, which holds no list, code
+     * block or table. A list item or a cell can hold any of them, or a field: the
+     * floating panel's comment field stands in a list item, where the lines before its
+     * caret would break anew as the user typed, and WebKit would rewrap a code block's
+     * long lines. The user's own messages keep their editor's breaks (rendered.css,
+     * `.lf-msg-text > p`). */
     p {
       margin: 13px 0;
+      text-wrap-style: pretty;
     }
     /* An eyebrow is the short label above a heading, which HTML writes as a `<p>`
        before the heading in its `<hgroup>`; a `<p>` after the heading is a subtitle and

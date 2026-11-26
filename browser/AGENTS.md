@@ -247,7 +247,9 @@ needs (`../skills/leaf/SOUL.md`, "Let the user work as directly as in a terminal
   the action, such as a speech bubble for answering a question, leaves the reader
   guessing, and a preview doesn't fix that: the reader must already suspect the control
   to point at it. The rows of the leaf's menu keep their words, since the user opened
-  the menu to read them.
+  the menu to read them. A reaction shows its emoji with no word, since the emoji is
+  the message the user sends rather than a symbol for an action: the maintainer chose
+  to let the user and the agent work out what each emoji means between them.
 
 ### Pointing reads; pressing acts
 
@@ -419,10 +421,10 @@ document loads, `runtime/portable-api.js`.
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
-`../.config/dependency-cruiser.mjs` enforces these boundaries and the runtime's import
-layers ("Import layers"), and knip (`../.config/knip.js`) rejects import cycles. Both read
-the import graph, so imports use literal paths; only the widget and interaction
-loaders compute theirs.
+`../.config/dependency-cruiser.mjs` enforces these boundaries, eslint the runtime's
+import layers ("Import layers"), and knip (`../.config/knip.js`) rejects import cycles.
+Each reads the paths modules import, so imports use literal paths; only the widget and
+interaction loaders compute theirs.
 
 Each module owns one concern and states it in its header, so read the headers to find
 an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
@@ -482,13 +484,13 @@ part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
 ### Import layers
 
-The runtime's modules stand in import layers, and a module imports only modules of its
-own layer and of the layers below it. Each layer is a directory of `runtime/`, apart
-from two. The entry points form the top layer at the runtime's top level, since pages,
-packages and the server load them by served path. The library (`lib/`) keeps its
-served path and belongs to the bottom layer. `layers` in
-`../.config/dependency-cruiser.mjs` lists the layers and says what to do when an
-import points up.
+The runtime's modules stand in import layers, and a module names only modules of its
+own layer and of the layers below it, whether it imports them or names their types.
+Each layer is a directory of `runtime/`, apart from two. The entry points form the top
+layer at the runtime's top level, since pages, packages and the server load them by
+served path. The library (`lib/`) keeps its served path and belongs to the bottom layer.
+`runtimeLayers` in `../eslint.config.mjs` lists the layers and says what to do when a
+module names one above its own.
 
 ### The library of shared web code
 

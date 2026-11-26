@@ -8,13 +8,13 @@ included) and serves it until stopped. `--export` instead writes one HTML file t
 opens offline.
 
 A plain preview takes no claim: its comments settle in the page's log and nowhere
-else, so a session can drive it. `--user` claims the page for this session, so presses
-arrive through the harness's feedback path, and serves it from the page's durable
-service. It claims only where the session's hooks run the preview's runtime, as in
-`leaf-dev journey session`: any other Leaf acts for no session
-(`harness.session_harness`), so a checkout's `--user` preview in a session started
-normally serves unclaimed, and that checkout's `bin/leaf wait` hears it. Ending the
-preview stops its service and withdraws its acquisition.
+else, so a session can drive it. `--user` serves the page from its durable service. In
+a session started normally that serves it unclaimed, since a checkout acts for no
+session (`harness.session_harness`), and the checkout's `bin/leaf wait` hears it, as
+the reading printed beneath the URL says (`serves-for-no-session`). Only where the
+session's hooks run the preview's runtime, as in `leaf-dev journey session`, does it
+claim the page for the session, so presses arrive through the harness's feedback path.
+Ending the preview stops its service and withdraws its acquisition.
 
 A preview runs in the foreground; SIGTERM takes the same cleanup path as Ctrl-C.
 User previews resume the page in their slot, preserving its feedback and authored
@@ -346,13 +346,17 @@ class PreviewService:
             self.claim = started.claim
             yield started.url
 
-    @property
-    def note(self) -> str:
-        """Describe the committed service: a `--user` one as `leaf server start`
-        reads it (`hosting.server_reading`), as one JSON line."""
+    def reading(self, url: str) -> str:
+        """Describe the committed service at `url`: a `--user` one as one JSON line,
+        as `leaf server start` prints it, with its URL, its reading
+        (`hosting.server_reading`) and what serving it noted (`findings.with_held`),
+        such as that it serves for no session."""
+        from leaf.base.findings import with_held
         from leaf.pages.hosting import server_reading
 
-        return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
+        if not self.user:
+            return WATCHER_NOTE
+        return json.dumps(with_held({"url": url} | server_reading(self.page)))
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up.
@@ -786,6 +790,7 @@ def serve_preview(
     user: bool,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
+    from leaf.base.findings import hold, note, release
     from leaf.base.service import PREVIEW
 
     loaded = worker_identity(runtime)
@@ -838,20 +843,27 @@ def serve_preview(
             run=page,
             authored_source=source,
         )
-        with service.starting() as url:
-            pass
-        roots = source_roots(source, runtime)
-        watched = watch_paths(source, runtime, roots)
-        changes = watch_changes(watched)
-        print(
-            preparation_note(source, prepared_page.data_sources, prepared_page.versions)
-            if prepared_page is not None
-            else f"resumed {source.stem}",
-            end="\n\n",
-            flush=True,
-        )
-        print(service.note, file=sys.stderr, flush=True)
-        print(url, flush=True)
+        # What starting notes rides in the reading printed beneath the URL, in the
+        # same write, so a reader of the log who waits for the URL meets it too.
+        hold()
+        try:
+            with service.starting() as url:
+                pass
+            roots = source_roots(source, runtime)
+            watched = watch_paths(source, runtime, roots)
+            changes = watch_changes(watched)
+            print(
+                preparation_note(
+                    source, prepared_page.data_sources, prepared_page.versions
+                )
+                if prepared_page is not None
+                else f"resumed {source.stem}",
+                end="\n\n",
+                flush=True,
+            )
+            print(f"{url}\n{service.reading(url)}", flush=True)
+        finally:
+            note(*release())
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = next(changes)
@@ -980,8 +992,9 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
 @click.option(
     "--user",
     is_flag=True,
-    help="Hand this preview to a user: serve its page durably, claimed so presses "
-    "arrive as feedback where the session's hooks run this runtime.",
+    help="Hand this preview to a user: serve its page durably, for this checkout's "
+    "`bin/leaf wait PAGE` to hear, or claimed for the session where its hooks run "
+    "this runtime.",
 )
 @click.option(
     "--export",

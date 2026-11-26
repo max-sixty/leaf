@@ -66,12 +66,12 @@ import { inChrome } from "../../base/ui-marks.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
 /** @typedef {import("../../state/semantic-application.js").ObligationRecord} Obligation */
-/** @typedef {import("./answer.js").AnswerableObligation} AnswerableObligation */
+/** @import { AnswerableObligation } from "../../state/obligations/source.js" */
 /** @typedef {ReturnType<typeof obligationPlace>} ObligationNodes */
-/** @param {{prepareNavigationStep: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
- * arrive: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["arrive"],
+/** @param {{prepareNavigationStep: () => import("../../dom/arrival-plan.js").NavigationStep,
+ * arrive: import("../../dom/arrival-plan.js").Arrive,
  * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
- * threadLanding: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["threadLanding"],
+ * threadLanding: (id: string, target: import("../../dom/focus.js").FocusDestination | null) => import("../../dom/arrival-plan.js").Arrival | null,
  * focusForNavigation: typeof import("../../dom/focus.js").focusDestination,
  * presentedControl: (control: Element) => Element,
  * repaint: () => void}} dependencies */
@@ -536,16 +536,13 @@ export function createObligationView({
           next.thread && offFlow(target) ? threadLanding(next.thread, target) : null;
         return { target, source, box: null, region: null, landing };
       }
-      const box = scrollerFor(target);
-      return box
-        ? {
-            target,
-            source,
-            box,
-            region: arrivalRegion(source, inGroup ? context : null, target),
-            landing: null,
-          }
-        : { target, source, box: null, region: null, landing: null };
+      return {
+        target,
+        source,
+        box: scrollerFor(target),
+        region: arrivalRegion(source, inGroup ? context : null, target),
+        landing: null,
+      };
     };
     const initial = destination();
     if (!initial) return false;

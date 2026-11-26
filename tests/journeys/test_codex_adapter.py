@@ -1839,7 +1839,7 @@ try:
     if handoff == "preview":
         with preview.starting() as url:
             pass
-        started = (url, preview.note)
+        started = (url, preview.reading(url))
         # Joining the current adapter preserves the preview's acquisition.
         with preparing_delivery(session_harness()):
             pass

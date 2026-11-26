@@ -41,6 +41,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    without_end_room,
     write,
 )
 
@@ -991,9 +992,8 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
     # A window tall enough to hold the whole page, so the root has no scroll range and the
-    # browser will not focus body as a scrolling affordance. The page keeps no room at
-    # its end, as one with no Layout keeps none (layouts.css).
-    page.add_style_tag(content="body { padding-bottom: 0 !important; }")
+    # browser will not focus body as a scrolling affordance.
+    without_end_room(page)
     resized(page, 1200, 2400)
     assert not page.evaluate(
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"

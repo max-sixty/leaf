@@ -92,8 +92,8 @@ def history(
         if kind == "comment":
             row["anchor"] = event.get("anchor")
             row["about"] = event.get("about")
-            if event.get("token"):
-                row["token"] = event["token"]
+            if event.get("emoji"):
+                row["emoji"] = event["emoji"]
             else:
                 row["thread"] = thread_of(event)
                 row["holds"] = event.get("holds")
@@ -101,8 +101,8 @@ def history(
                 row["excerpt"] = event.get("text")
         elif kind == "reply":
             row["thread"] = thread_of(event)
-            if event.get("token"):
-                row["token"] = event["token"]
+            if event.get("emoji"):
+                row["emoji"] = event["emoji"]
             else:
                 row["excerpt"] = event.get("text")
         elif kind in {"edit", "resolve", "unresolve"}:

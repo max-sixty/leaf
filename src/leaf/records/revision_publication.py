@@ -43,7 +43,7 @@ from leaf.records.authored_checks.source_history import (
     PredecessorReading,
     revision_reanchors,
 )
-from leaf.records.event_contracts import append_admitted
+from leaf.records.event_contracts import OpenTransaction, append_admitted
 from leaf.records.page_view import CandidatePageView
 from leaf.source.revision_artifact import (
     publish_artifact,
@@ -56,7 +56,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from leaf.records.authored_checks.source import SourceCheck
-    from leaf.records.transaction import PageTransaction
 
 
 class Activation(NamedTuple):
@@ -88,7 +87,7 @@ def _append_reanchors(page, revision, moves, *, view=None):
         )
 
 
-def finish_publications(page: PageTransaction, publications: list[dict]) -> None:
+def finish_publications(page: OpenTransaction, publications: list[dict]) -> None:
     """Finish each journaled publication `files.unfinished_publications` found,
     before any transaction consumer reads the page.
 
@@ -183,13 +182,13 @@ def _publish_checked_source(page, checked, event=None):
     return activation, accepted
 
 
-def activate_checked_source(page: PageTransaction, checked: SourceCheck) -> Activation:
+def activate_checked_source(page: OpenTransaction, checked: SourceCheck) -> Activation:
     """Activate inputs checked under this same transaction and preserve every quote."""
     return _publish_checked_source(page, checked)[0]
 
 
 def publish_checked_event(
-    page: PageTransaction, checked: SourceCheck, event: dict
+    page: OpenTransaction, checked: SourceCheck, event: dict
 ) -> dict:
     """Publish checked inputs and their required reply or version note as one transition."""
     activation, accepted = _publish_checked_source(page, checked, event)

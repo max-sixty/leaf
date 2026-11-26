@@ -89,7 +89,7 @@ or places a data widget or a widget naming page media, is run once, and fails on
 `error` event its runtime posts, the same events `leaf wait` delivers
 (`pages/render_gate/page_code.py`). A thread command runs message markup placing one of those
 widgets the same way before it posts, apart from the page lease, and refuses it on the
-same reports (`pages/render_gate/command.message_check`); markup without one waits on no
+same reports (`pages/render_gate/messages.message_check`); markup without one waits on no
 browser.
 
 Leaf runs without a browser. Where the host has none, every browser gate (this run,

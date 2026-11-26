@@ -297,10 +297,10 @@ MESSAGE_FIELDS = (
     "agent",
     "text",
     "ephemeral",
-    # A reaction says its word where a comment says its text, so a thread that
+    # A reaction says its emoji where a comment says its text, so a thread that
     # grew out of a mark reads as the mark it started from rather than as a
     # message with nothing in it.
-    "token",
+    "emoji",
     "drawing",
     "suggestion",
     # What the user had on screen as they wrote a message with no passage, which is

@@ -111,7 +111,7 @@ function describe(event) {
     const label =
       labelTarget.getAttribute("aria-label") || labelTarget.getAttribute("title");
     if (label) entry.label = label;
-    else if (control) entry.label = control.textContent?.trim().slice(0, 200);
+    else if (control) entry.label = control.textContent.trim().slice(0, 200);
   }
   if (event instanceof window.KeyboardEvent) {
     entry.key = event.key;
@@ -387,8 +387,8 @@ if (url !== null) {
   document.addEventListener("lf-command-invoked", (event) => {
     const active = focused();
     enqueue({
-      type: "command",
       ...event.detail,
+      type: "command",
       focus: active ? { target: locator(active), node: nodeIdentity(active) } : null,
       scroll: [window.scrollX, window.scrollY],
     });

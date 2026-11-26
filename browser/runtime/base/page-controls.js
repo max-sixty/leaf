@@ -59,6 +59,7 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
 /** @typedef {"page" | "navigate" | "annotate" | "keys" | "about"} PageControlGroup */
+/** @import { WorkingPlace } from "./held-place.js" */
 
 /** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
@@ -86,14 +87,14 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   disabled?: boolean | (() => boolean),
  *   exit?: boolean,
  *   action?: string | (() => string),
- *   press?: (held: import("../records/history.js").WorkingPlace | null) => unknown,
+ *   press?: (held: WorkingPlace | null) => unknown,
  * }} PageControl
  */
 /** @param {PageControl} row */
 export function registerPageControl(row) {
-  if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
+  if (!row.key || !Number.isFinite(row.rank) || !row.label)
     throw new TypeError(
-      `Page control ${row.key} needs a key, a numeric rank, a label and a group`,
+      `Page control ${row.key} needs a key, a numeric rank and a label`,
     );
   if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
   rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));

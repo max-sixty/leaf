@@ -59,10 +59,10 @@ from render_harness import ROOT
 
 from leaf.log.event_log import read_events
 from leaf.pages.page_snapshot import capture_page_snapshot
-from leaf.pages.render_gate.page_code import needs_browser
 from leaf.pages.render_gate.preview import preview_server
 from leaf.pages.render_gate.version import render_version
 from leaf.records.authored_checks.source import check_source
+from leaf.source.browser_judged import needs_browser
 from leaf.source.render_checks import rendered, wait_until_ready
 
 SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))

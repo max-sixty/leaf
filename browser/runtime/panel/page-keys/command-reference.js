@@ -523,10 +523,10 @@ function captureCommandReferenceCatalog() {
             ),
           ),
           directWords: commandReferenceWords(
-            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""}`,
+            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description}`,
           ),
           familyWords: commandReferenceWords(
-            `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`,
+            `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription}`,
           ),
         });
         entryIndex += 1;

@@ -76,7 +76,7 @@ export function createStateApplication({
   /** @param {PresentedNews} current */
   const newsFormat =
     (current) =>
-    /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
+    /** @param {readonly import("../../types/domain.js").SemanticNews[]} value */
     (value) =>
       semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
   let stateApplying = false;
@@ -146,7 +146,7 @@ export function createStateApplication({
       thread.msgs.map((message) => ({
         message,
         preparation:
-          "html" in message && message.html
+          "html" in message
             ? markdown?.then(() => prepareAuthoredMessage(message, thread.id))
             : null,
       })),

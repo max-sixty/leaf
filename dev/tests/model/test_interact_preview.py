@@ -702,22 +702,30 @@ def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
 ):
     """A developer's flow: a checkout's `--user` preview, in a session whose hooks run
     another Leaf, as an installed copy, acts for no session. It serves the page
-    unclaimed and says so, and the checkout's own `leaf wait` on the page hears the
-    user."""
+    unclaimed and says so in the reading it prints beneath the URL, the line a read
+    of the log for the URL meets, and the checkout's own `leaf wait` on the page
+    hears the user."""
+    from leaf.base.findings import hold, release
     from leaf.commands.session import cmd_wait
     from leaf.pages.hosting import cmd_stop
 
     installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
     hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], installed)
     owner = preview.PreviewService(page_dir, user=True)
+    hold()
     try:
-        with owner.starting():
+        with owner.starting() as url:
             pass
+        reading = json.loads(owner.reading(url))
+        assert release() == []
         assert owner.claim is None
         assert service.page_claim(page_dir) is None
         assert server.running_server(page_dir)
-        notes = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
-        assert [note["code"] for note in notes] == ["serves-for-no-session"]
+        assert reading["url"] == url
+        assert [note["code"] for note in reading["findings"]] == [
+            "serves-for-no-session"
+        ]
+        assert capsys.readouterr().err == ""
 
         append_carried_log_record(
             page_dir, {"kind": "comment", "author": "user", "text": "for the checkout"}
@@ -727,6 +735,7 @@ def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
         [batch] = delivery["batches"]
         assert [event["text"] for event in batch["events"]] == ["for the checkout"]
     finally:
+        release()
         cmd_stop(page_dir)
 
 

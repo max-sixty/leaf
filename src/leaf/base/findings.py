@@ -2131,8 +2131,8 @@ _TEXT = {
     "unknown-reaction": _refuses(
         _ADMITS,
         lambda at, v: (
-            f"unknown reaction token {v['token']!r}; this layer declares"
-            f" {json_value(v['tokens'])}"
+            f"unknown reaction {v['emoji']!r}; this layer declares"
+            f" {json_value(v['declared'])}"
         ),
     ),
     # A comment's anchor and hold.

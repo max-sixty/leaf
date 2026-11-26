@@ -245,7 +245,6 @@ def todo_error(
     element_error,
     owed: set[str],
     items,
-    registry: dict,
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
 

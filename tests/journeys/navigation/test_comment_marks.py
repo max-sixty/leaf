@@ -54,7 +54,7 @@ def test_marked_words_are_seen_and_told_apart(request, serve, engine):
                 _comment_on(PASSAGES[state], id=f"c-{n}", text="Why these words?")
                 for n, state in enumerate(("mark", "pointed at", "open thread"))
             ]
-            + [_comment_on(PASSAGES["reaction"], token="keep")],
+            + [_comment_on(PASSAGES["reaction"], emoji="👍")],
         ),
     )
     page.wait_for_function(
@@ -133,7 +133,7 @@ def test_hiding_annotations_gives_marked_words_their_own_colours_back(
             OWN_COLOURS_PAGE,
             events=[
                 _comment_on(PASSAGES["mark"], id="c-link", text="Why this link?"),
-                _comment_on(PASSAGES["reaction"], token="keep"),
+                _comment_on(PASSAGES["reaction"], emoji="👍"),
                 # Words in a text document are anchored on its one datum, as capture
                 # writes them.
                 {
@@ -191,6 +191,10 @@ def test_hiding_annotations_gives_marked_words_their_own_colours_back(
         # Standing in a thread with the annotations hidden washes its words, and they
         # keep their own colour under the wash rather than take the mark's ink. Read
         # against both, since a translucent wash shifts the drawn cores of thin strokes.
+        # `t` walks from the reader's place, which the syntax colour's read left at the
+        # document's last lines, so the reader goes back to the top, before the link.
+        page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+        rendered(page)
         page.keyboard.press("t")
         wait_current_location(page, PASSAGES["mark"][1])
         page.mouse.move(0, 0)

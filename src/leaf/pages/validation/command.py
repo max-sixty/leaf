@@ -27,6 +27,7 @@ from leaf.records.authored_checks.source import (
     source_advice,
 )
 from leaf.serving.handover_pass import remember_reading
+from leaf.source.browser_judged import needs_browser
 from leaf.source.layer import selected_layer
 from leaf.source.registry.contract import RegistryError
 from leaf.source.registry.storage import layer_record
@@ -90,8 +91,6 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         ]
         if result.errors:
             return reported(1, found), None
-        from leaf.pages.render_gate.page_code import needs_browser
-
         assert result.artifact is not None
         runs_code = needs_browser(result.document, result.artifact)
         if not (runs_code or render):

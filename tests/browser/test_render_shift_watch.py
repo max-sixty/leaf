@@ -1416,6 +1416,65 @@ def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
         assert names_move(errors, "p#news"), errors
 
 
+@pytest.mark.parametrize(
+    "fault, protected",
+    [("", False), ("uncountered", True), ("alone", True)],
+)
+def test_a_stuck_foot_holds_its_line_through_a_carry_of_what_holds_it(
+    browser, fault, protected
+):
+    """News moves a scroller's content up a step, and a carry no input owns draws the
+    content where it was and slides it to where it stands. A box stuck to the
+    scroller's foot inside that content, as a thread's New reply is, has its inset
+    moved against the carry on the same clock, as dom/box-motion.js moves it, so it
+    holds its line on screen and moves nothing. Left to ride the carry, the stuck box
+    travels down and back with no input, and an inset moved with no carry under it
+    moves the box without input; both fail."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            "<style>@property --carry { syntax: '<length>+'; inherits: false;"
+            " initial-value: 0px 0px; }</style>"
+            '<section style="position:fixed;bottom:0;left:0;width:360px">'
+            '<div id="port" style="height:200px;overflow:auto;overflow-anchor:none">'
+            '<div id="content"><div id="step" style="height:40px"></div>'
+            '<div style="height:400px"></div>'
+            '<div id="foot" style="position:sticky;bottom:0">'
+            '<button id="press">New reply</button></div></div></div></section>'
+            "</body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """fault => {
+          const options = { duration: 300 };
+          window.carries = [];
+          if (fault !== 'alone') {
+            step.remove();
+            content.style.translate = 'var(--carry)';
+            window.carries.push(content.animate(
+              [{ '--carry': '0px 40px' }, { '--carry': '0px 0px' }], options));
+          }
+          if (fault !== 'uncountered')
+            window.carries.push(foot.animate(
+              [{ bottom: '40px' }, { bottom: '0px' }], options));
+        }""",
+        fault,
+    )
+    page.wait_for_function(
+        "window.carries.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if not protected:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#press"), errors
+
+
 def test_a_box_s_height_tween_is_no_carry(browser):
     """A ResizeObserver that tweens a wrapper's height to its content's new height, as
     an auto-height disclosure does, carries the line below with it: news moved that
@@ -2245,6 +2304,102 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
     rendered(page)
     judge_watches()
     assert page.lf_errors == []
+
+
+@pytest.mark.parametrize("late", [False, True], ids=["in-its-frame", "a-frame-late"])
+def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(
+    browser, serve, late
+):
+    """News seals a preparation's landing still open, and its step's carry, begun in a
+    ResizeObserver delivery after it lands, is a carry no input owns, as the carry of
+    an answer arriving while a reply's preparation lands is (dom/box-motion.js). The
+    answer grows a port standing on its foot, and the carry draws the port's head where
+    it was and slides it to where the rise puts it, so the head moves nothing a carry
+    of news's step may not draw. A carry begun a frame late, after a frame has painted
+    the head where the rise puts it, draws it back down and moves it, and fails."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sealed landing carry",
+                '<button id="press">Press</button>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                "</lf-group>",
+            )
+        ),
+    )
+    # The runtime's own markers, which an authored page may not wear, as the panel's
+    # standing box wears them.
+    page.evaluate(
+        """stand => document.body.insertAdjacentHTML('beforeend', stand)""",
+        '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;'
+        'left:0;width:360px"><header id="row"><button id="head">Close</button>'
+        '</header><div id="port" data-lf-rises '
+        'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+        '<div id="source" data-lf-reflow="append">'
+        '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+        '</div><button id="field">Comment</button></section>',
+    )
+    page.evaluate(
+        """async (late) => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+      CSS.registerProperty({
+        name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
+      });
+      const widget = document.querySelector('#choice');
+      const port = document.querySelector('#port');
+      const gate = Promise.withResolvers();
+      window.release = gate.resolve;
+      let height = null;
+      new ResizeObserver(() => {
+        const now = port.getBoundingClientRect().height;
+        const grew = height !== null && now > height;
+        height = now;
+        if (!grew) return;
+        const carry = () => {
+          window.carries = [row, port].map((part) => {
+            part.style.translate = 'var(--carry)';
+            return part.animate(
+              [{'--carry': '0px 40px'}, {'--carry': '0px 0px'}], {duration: 300});
+          });
+        };
+        if (late) requestAnimationFrame(() => requestAnimationFrame(carry));
+        else carry();
+      }).observe(port);
+      document.querySelector('#press').addEventListener('click', () => {
+        widget.querySelector(':scope > .lf-another').dispatchEvent(
+          new PendingTaskEvent(gate.promise));
+      }, {once: true});
+    }""",
+        late,
+    )
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    landing = page.evaluate("""async () => {
+      release();
+      await new Promise((done) => setTimeout(done));
+      const open = window.lfInputRenderingOpen();
+      document.body.setAttribute('data-lf-reading', 'news');
+      const next = document.createElement('p');
+      next.textContent = 'The answer.';
+      next.style.cssText = 'margin:0;height:40px';
+      document.getElementById('source').append(next);
+      return open;
+    }""")
+    assert landing, "the preparation's landing was over before news sealed it"
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    rendered(page)
+    judge_watches()
+    if not late:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#head"), errors
 
 
 @pytest.mark.parametrize(

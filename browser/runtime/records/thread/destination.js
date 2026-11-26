@@ -135,18 +135,37 @@ import { awaitsDrawing } from "../../readings/anchor-resolution.js";
 
 /** @typedef {NonNullable<ReturnType<typeof threadNamed>>} ThreadRecord */
 /** @typedef {"thread" | "reply" | "message" | null} ThreadPart */
+/** @import { NavigationStep } from "../../dom/arrival-plan.js" */
+/** Where the comment box stood as Send was pressed, which the card Send opens grows from
+ * (annotations/annotation-overlay/composing/floating-response.js, `frame`): its box, its
+ * placement as the comment box's placement captured it, which the card's adopts
+ * (annotations/annotation-overlay/comment-placement.js, `capture`, `adopt`), the width the
+ * card starts at, the field it grows out of, and how far the words stood above their end.
+ * A route carries it from the composer to the card.
+ * @typedef {{side: import("@floating-ui/dom").Side | null,
+ * boundary: readonly [number, number, number, number] | null, moved: boolean}} CapturedPlacement
+ * @typedef {{box: DOMRect, placement: CapturedPlacement, width: number, field: DOMRect,
+ * fromEnd: number}} SendFrame */
+/** The margin's thread card, where the overlay draws one
+ * (annotations/annotation-overlay/margin-projection.js, `threadPreview`).
+ * @typedef {{accompanied: () => Element | null,
+ * focusTarget: (id: string, options: {part: ThreadPart}) => ReturnType<typeof surfaceFocusTarget>,
+ * close: () => unknown, control: (id: string) => Element | null,
+ * open: (id: string, options: {origin: SendFrame | null, card: boolean}) => {presented: PromiseLike<unknown>} | null | undefined | false}} ThreadPreview */
+/** @import { UserIntent } from "../../dom/user-intent.js" */
 /** @typedef {{part: ThreadPart, message: string | null, focus: boolean,
  * last: boolean, page: boolean, signal: AbortSignal, current: () => boolean}} PrimaryRequest */
 /** @typedef {(key: string, request: PrimaryRequest) => boolean | void | PromiseLike<boolean | void>} OpenPrimary */
 /** @typedef {{owner: Element, open: OpenPrimary,
  * reader: ReturnType<typeof import("./primary-reader.js").createPrimaryReader>}} Presentation */
-/** @param {{placedAt: ReturnType<typeof import("../../annotations/anchor-placement.js").createAnchorPlacement>["placedAt"],
+/** @param {{placedAt: import("./placement.js").ThreadPlacements["placedAt"],
  * threadIdsAt: (node: Element) => readonly string[],
- * scrollToThread: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToThread"],
- * revealThread: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["revealThread"],
- * arrive: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["arrive"],
- * prepareNavigationStep: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
- * preview?: ReturnType<typeof import("../../annotations/annotation-overlay/margin-projection.js").createMarginProjection>["threadPreview"] | null}} dependencies */
+ * scrollToThread: (id: string, options: {part?: ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null,
+ * intent?: UserIntent | undefined, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}) => Promise<boolean>,
+ * revealThread: (id: string, intent: UserIntent | undefined) => Promise<boolean>,
+ * arrive: import("../../dom/arrival-plan.js").Arrive,
+ * prepareNavigationStep: () => NavigationStep,
+ * preview?: ThreadPreview | null}} dependencies */
 export function createThreadDestinations({
   placedAt,
   threadIdsAt,
@@ -185,7 +204,7 @@ export function createThreadDestinations({
     const place = threadTarget(id);
     return place !== null && visibleTargetParts(place).length > 0;
   };
-  // Where the thread stands in the page's order, as the list sorts it: its target, or
+  // Where the thread stands in the page's order, as the walks sort it: its target, or
   // the section its anchor names where the passage no longer resolves.
   /** @param {string} id */
   const threadPlace = (id) => {
@@ -266,7 +285,7 @@ export function createThreadDestinations({
 
   /** @typedef {{part?: "thread" | "reply" | "message" | null,
    * focus?: boolean, travel?: boolean, history?: boolean, scroll?: boolean,
-   * intent?: ReturnType<typeof retainUserIntent>, origin?: ReturnType<ReturnType<typeof import("../../annotations/annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>,
+   * intent?: ReturnType<typeof retainUserIntent>, origin?: SendFrame | null,
    * reader?: "page" | "primary" | "card" | "standing" | null}} OpenThreadOptions */
   /** @param {string} id @param {OpenThreadOptions} [options] */
   async function openPageThread(

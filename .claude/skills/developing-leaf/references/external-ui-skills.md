@@ -4,12 +4,8 @@ These optional reviews come from outside Leaf. The skills are installed separate
 so check the harness's available skills before invoking one.
 
 - [Impeccable](https://github.com/pbakaus/impeccable#installation):
-  `/impeccable critique` scores a surface on usability heuristics and personas, and
-  `detect` lints markup and rendered pages. On Leaf a critique finds no more than a
-  fresh agent that uses the page, at greater cost, and `detect` finds little that axe
-  doesn't. Its source scan can't see the theme Leaf adds when it serves a page, and
-  its URL scan times out on a live page's open event stream, so run
-  `detect --cdp <port> --json` against a headless Chrome you open on the preview URL.
+  `/impeccable critique` for hierarchy, grouping and clarity, `audit` for technical UI
+  quality, and focused workflows such as `layout` and `typeset`.
 - [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines):
   `/web-design-guidelines` for interface conventions, accessibility, navigation, forms
   and motion.

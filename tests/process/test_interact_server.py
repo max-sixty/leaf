@@ -1608,12 +1608,10 @@ def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, pag
     assert meta(reworded["executable"]) not in live
 
 
-def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
-    expected_tokens = list(
-        vocabulary_model.load_registry(page_dir)["$reactions"]["tokens"]
-    )
-    # Declared out of name order, so an order lost to sorting shows.
-    assert expected_tokens != sorted(expected_tokens)
+def test_a_revision_serves_reactions_in_their_declared_order(page_dir):
+    expected = list(vocabulary_model.load_registry(page_dir)["$reactions"]["emoji"])
+    # Declared out of code point order, so an order lost to sorting shows.
+    assert expected != sorted(expected)
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
     )
@@ -1623,13 +1621,13 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
     assert activated.created
     assert activated.revision is not None
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
-    assert list(artifact.registry["$reactions"]["tokens"]) == expected_tokens
+    assert list(artifact.registry["$reactions"]["emoji"]) == expected
 
     artifact_root = revision_root(page_dir, activated.revision)
     with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as temporary:
         status, served = fetch(temporary.origin + artifact_root + "/registry.json")
     assert status == 200
-    assert list(json.loads(served)["$reactions"]["tokens"]) == expected_tokens
+    assert list(json.loads(served)["$reactions"]["emoji"]) == expected
 
 
 def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
@@ -2023,12 +2021,12 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
             "author": "user",
             "parent": "c1",
         },
-        {"id": "rx1", "kind": "comment", "author": "user", "token": "keep"},
+        {"id": "rx1", "kind": "comment", "author": "user", "emoji": "👍"},
         {
             "id": "rx2",
             "kind": "comment",
             "author": "user",
-            "token": "keep",
+            "emoji": "👍",
         },
         {
             "id": "reply",

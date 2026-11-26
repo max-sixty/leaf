@@ -176,24 +176,24 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
         ),
     )
     resized(page, 800, 900)
+    # A letter of line 30, which the reader has scrolled to the window's middle.
+    letter = """el => {
+      const word = 'Line 30:', walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode()) && !node.data.includes(word)) {}
+      const at = node.data.indexOf(word), range = document.createRange();
+      range.setStart(node, at + 3); range.setEnd(node, at + 4);
+      const b = range.getBoundingClientRect();
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    }"""
+    body_text = page.locator("#long-draft .lf-draft-body")
     page.locator("#long-draft").evaluate(
-        """el => {
-          const box = el.closest('lf-pane') ? el : document.scrollingElement;
-          box.scrollTop = 600;
-        }"""
+        "(el, y) => { const box = el.closest('lf-pane') ? el : document.scrollingElement;"
+        " box.scrollTop += y - innerHeight / 2; }",
+        body_text.evaluate(letter)[1],
     )
     scroll_settled(page)
-    point = page.locator("#long-draft .lf-draft-body").evaluate(
-        """el => {
-          const word = 'Line 30:', walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-          let node;
-          while ((node = walker.nextNode()) && !node.data.includes(word)) {}
-          const at = node.data.indexOf(word), range = document.createRange();
-          range.setStart(node, at + 3); range.setEnd(node, at + 4);
-          const b = range.getBoundingClientRect();
-          return [b.x + b.width / 2, b.y + b.height / 2];
-        }"""
-    )
+    point = body_text.evaluate(letter)
     assert 60 < point[1] < 850, point
     reading = """() => ({
       page: document.scrollingElement.scrollTop,
@@ -1448,7 +1448,8 @@ def test_pointer_cancel_returns_draft_room_without_delaying_reading_or_focus(
     editor.focus()
     editor.evaluate("e=>e.select()")
     page.keyboard.insert_text("\n\n".join(["A longer paragraph in the draft."] * 8))
-    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    # The page scrolled until what follows the draft stands at the window's foot.
+    page.locator("#after").evaluate("p => p.scrollIntoView({block: 'end'})")
     scroll_settled(page)
     before = draft.bounding_box()["height"]
     scroll_before = page.evaluate("scrollY")

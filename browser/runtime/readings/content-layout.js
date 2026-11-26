@@ -42,8 +42,7 @@ function readDocumentLayout() {
     pageControlsChanged();
   }
   if (changed) {
-    const page = pageDocument();
-    if (page) layoutChanged(page);
+    layoutChanged(pageDocument());
     repaintPage();
   }
 }
@@ -168,7 +167,6 @@ const layoutHeader = () =>
   null;
 const head = () => {
   const body = document.body;
-  if (!body) return false;
   const header = layoutHeader();
   const value =
     header && getComputedStyle(header).position === "sticky"

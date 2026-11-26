@@ -9,26 +9,16 @@ from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from leaf.base.files import latest_revision
-from leaf.base.findings import Finding, Rejected, note
-from leaf.pages.page_snapshot import PageSnapshot, capture_page_snapshot
+from leaf.base.findings import Finding
+from leaf.pages.page_snapshot import PageSnapshot
 from leaf.pages.render_gate.browser import browser_hint, launch_browser
-from leaf.pages.render_gate.page_code import (
-    message_page,
-    places_judged_widget,
-    run_page_code,
-)
+from leaf.pages.render_gate.page_code import run_page_code
 from leaf.pages.render_gate.preview import preview_server
 from leaf.pages.render_gate.scheme import unready_finding
 from leaf.pages.render_gate.screens import save_screens
 from leaf.pages.render_gate.version import RenderReading, render_version
-from leaf.records.markup_checks.markup import repair_errors
 from leaf.serving.user_views import read_user_views
-from leaf.source.capture_refusals import ArtifactError
 from leaf.source.render_checks import RENDER_VIEWPORT, PageNotReady
-from leaf.source.revision_artifact import capture_artifact
-from leaf.source.structure import SourceDocument
-from leaf.source.vocabulary import read_page_registry
 
 # Set to `fixed` by a caller whose verdicts must not depend on who viewed the page: the
 # suite, CI, evals and leaf-dev's children (`leaf_dev.arms.environment`).
@@ -296,57 +286,6 @@ def browser_check(
                 desktop=desktop,
             )
     return BrowserCheck(gates, browser_name, errors, reading, saved, desktop=desktop)
-
-
-def message_check(page_dir: Path, kind: str, markup: str) -> None:
-    """Run a message's markup once, as a page of its own (`page_code.message_page`),
-    where it places a widget only a browser can judge, and refuse it on every error
-    that run reports, as plain `page check` fails a page. Takes the page's current
-    layer, the one the thread will draw the message with. Where the host has no
-    browser, or the browser fails before it reads the message, the message posts
-    unrun, and reports any failure when its thread draws.
-
-    A caller runs it before it takes the page lease to admit the message, since a
-    browser run takes about a second. The run's capture holds the lease only while
-    it reads the log (`page_snapshot.capture_page_snapshot`)."""
-    if repair_errors(SourceDocument(markup, fragment=True)):
-        # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
-        # with the paragraph Markdown drew around it, is the markup gate's to
-        # refuse, showing the HTML Markdown drew, where a run would report only
-        # the widget the repair emptied.
-        return
-    layer = read_page_registry(page_dir)
-    if layer is None:
-        return
-    document = message_page(markup)
-    try:
-        artifact = capture_artifact(
-            page_dir,
-            document,
-            layer.registry,
-            declaration_sources=layer.declaration_sources,
-            widget_sources=layer.widget_sources,
-        )
-    except ArtifactError:
-        # Markup that names what no page may load, such as the theme's stylesheet,
-        # is the markup gate's to refuse, in its own words, under the page lease.
-        return
-    if not places_judged_widget(document, artifact):
-        return
-    revision = (latest_revision(page_dir) or 0) + 1
-    snapshot = capture_page_snapshot(
-        page_dir, document, revision, url="/", artifact=artifact
-    )
-    ran = browser_check(page_dir, snapshot, page_code=True, render=False)
-    # What explains a failure without deciding one, such as a request that failed,
-    # and a run the browser couldn't finish, which posts the message as a host with
-    # no browser does, go beside the result.
-    note(*(f for f in ran.findings() if not f.refuses))
-    if ran.status:
-        raise Rejected(
-            [f for f in ran.findings() if f.refuses],
-            f"the HTML in the {kind} doesn't draw",
-        )
 
 
 @dataclass(frozen=True, slots=True)

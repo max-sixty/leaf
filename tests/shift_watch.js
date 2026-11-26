@@ -154,8 +154,8 @@
 // placed box's placement lands, dom/box-motion.js begins a carry that draws each part it
 // moved where the part was and slides it to where it stands, including a step news
 // made. The sensor reads as such a carry a translation begun while no input's rendering
-// is open whose last keyframe draws its target where its layout puts it and whose first
-// draws it elsewhere (`carrySteps`); it drew its underlying style until it began, and
+// is open, or once news has sealed each open one, whose last keyframe draws its target
+// where its layout puts it and whose first draws it elsewhere (`carrySteps`); it drew its underlying style until it began, and
 // the readings from before its step are kept while it moves. Its sampled translation is
 // credited only while it keeps a node between where the reading before the step drew it
 // and where the node's layout stands net of the carry (`carriesWithin`). A node first
@@ -168,7 +168,9 @@
 // may draw part of a step at once, as the step itself may draw all of it at once, but
 // it may not draw a node beyond either end of the step, nor make a step news may not
 // take pass. A translation that ends elsewhere is no carry, and a carry that draws no
-// step holds no node within one, so both fail as before.
+// step holds no node within one, so both fail as before. A sticky box the carry holds
+// has its inset moved against it on the same clock, so a stuck box holds its line;
+// that inset effect is credited beside the carry, as an inset is (`stickyInsetMotion`).
 //
 // Runs of motion. Movement without input is judged from the sensor's own readings,
 // which add up a slow animation's steps, rather than from Chrome's layout-shift
@@ -1282,7 +1284,16 @@
         .flatMap(animationProperties),
     );
     return Object.fromEntries(
-      ["transform", "translate", "left", "top", "marginLeft", "marginTop"]
+      [
+        "transform",
+        "translate",
+        "left",
+        "top",
+        "right",
+        "bottom",
+        "marginLeft",
+        "marginTop",
+      ]
         .filter((property) => !competing.has(property))
         .map((property) => [property, animatedValue(target, style, property)]),
     );
@@ -1425,9 +1436,13 @@
           .map((property) => [property, animatedValue(effect.target, style, property)]),
       );
       const readings = animated.get(animation) ?? [];
-      // A carry drew its underlying style until it began, so a comparison from a
-      // reading before it credits its first step too.
-      if (!readings.length && origin && carrySteps.has(animation))
+      // A carry, and an inset moved against one, drew its underlying style until it
+      // began, so a comparison from a reading before it credits its first step too.
+      if (
+        !readings.length &&
+        origin &&
+        (carrySteps.has(animation) || countering.has(animation))
+      )
         readings.push({
           at: -Infinity,
           values: Object.fromEntries(
@@ -2108,8 +2123,8 @@
     );
   };
   // An effect no rendering owns, begun while no input's rendering or preparation's
-  // landing is open, that carries its target back to its layout place (`carriesBack`)
-  // draws a layout step the page took without input, as dom/box-motion.js carries what news
+  // landing is open or once news has sealed each (`told`), that carries its target back
+  // to its layout place (`carriesBack`) draws a layout step the page took without input, as dom/box-motion.js carries what news
   // moved, in the ResizeObserver delivery after the step or where a placed box's
   // placement lands. An effect a rendering owned that resumes is still that rendering's.
   // Each keeps when it began, and when the frame before the latest reading was read, the
@@ -2117,6 +2132,26 @@
   // moving are credited each frame, within that step (`carriedMotion`).
   const carrySteps = new WeakMap();
   const carrying = new Set();
+  // A sticky box inside a carried part has its inset moved against the carry on the
+  // carry's clock (dom/box-motion.js, `streamContent`), so a stuck box holds its line
+  // while what holds it rides. That inset effect is credited as the carry is, while it
+  // runs, by the span `stickyInsetMotion` allows: an inset effect begun with no carry
+  // running on an ancestor of its target is not one.
+  const countering = new Set();
+  const countersCarry = (animation) => {
+    const target = animation.effect?.target;
+    const properties = animationProperties(animation);
+    return (
+      target instanceof Element &&
+      properties.length > 0 &&
+      properties.every((property) => property in STICKY_INSETS) &&
+      getComputedStyle(target).position === "sticky" &&
+      [...carrying].some((carry) => {
+        const carried = carry.effect?.target;
+        return carried !== target && carried?.contains(target) && activeMotion(carry);
+      })
+    );
+  };
   const beginsOwned = (animation, at) => {
     const continuedStep = continuedSteps.get(animation);
     continuedSteps.delete(animation);
@@ -2124,12 +2159,12 @@
     const owners = deliveredBy();
     for (const owner of owners) owner.own.add(animation);
     if (owners.length) return;
-    if (
+    const unowned =
       !(open && !open.told) &&
-      !landing.size &&
-      !renderings.some((rendering) => rendering.own.has(animation)) &&
-      carriesBack(animation)
-    ) {
+      ![...landing].some((rendering) => !rendering.told) &&
+      !renderings.some((rendering) => rendering.own.has(animation));
+    if (unowned && countersCarry(animation)) countering.add(animation);
+    if (unowned && carriesBack(animation)) {
       const step = frames.at(-2)?.at ?? -Infinity;
       carrySteps.set(animation, continuedStep ?? { began: at, step });
       carrying.add(animation);
@@ -2276,6 +2311,9 @@
     for (const animation of carrying)
       if (activeMotion(animation)) motion.push(animation);
       else carrying.delete(animation);
+    for (const animation of countering)
+      if (activeMotion(animation)) motion.push(animation);
+      else countering.delete(animation);
     audit();
     standingMotion();
     standingTyping();

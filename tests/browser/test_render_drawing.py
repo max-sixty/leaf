@@ -37,7 +37,7 @@ from browser.threads import open_panel_thread, paste_image
 from leaf.log import event_log as events_model
 from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -905,7 +905,7 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    reply = page.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(page, name="Reply", exact=True)
     reply.scroll_into_view_if_needed()
 
     page.keyboard.press("w")

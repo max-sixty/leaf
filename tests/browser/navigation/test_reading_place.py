@@ -1941,15 +1941,16 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     scroll and a landing scrolls the page to show it.
 
     A control the user is on is measured out to its ring's room, all of it but what a box
-    clipping without scrolling hides, and along each axis only where a nearest landing
-    would move something along that axis. So these are shown and a nearest landing on
-    them moves nothing: the first row of a clipped group 4px below the band's top; a
-    button 4px from the window's side on a page that scrolls only down; one beside the
-    floating panel, standing in the panel's foot band, whose ring's room runs past the
-    window's side; and a fixed button 4px from the side of a page that scrolls across,
-    since scrolling the page moves no fixed box. A button 4px inside a mirrored pane's
-    edge is not shown while the pane can scroll its ring's room in, and a nearest
-    landing scrolls the pane until it is."""
+    clipping without scrolling hides, except where a nearest landing would move nothing.
+    A negative margin, as a control in a stuck header wears, takes nothing from the box.
+    So these are shown and a nearest landing on them moves nothing: the first row of a
+    clipped group 4px below the band's top; a button 4px from the window's side on a
+    page that scrolls only down; a fixed button 4px from the side of a page that
+    scrolls across, since scrolling the page moves no fixed box; and a button with a
+    negative top margin, seen whole beside the floating panel, 2px into the panel's foot
+    band. A button 4px inside a
+    mirrored pane's edge is not shown while the pane can scroll its ring's room in, and a
+    nearest landing scrolls the pane until it is."""
     source = leaf_page(
         "Room",
         '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
@@ -2114,30 +2115,31 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
         assert reading["across"] > 0, reading
         assert reading["shown"] is True, reading
 
-    with subtests.test(case="a ring's room past the side, beside the panel"):
+    with subtests.test(case="a negative margin, beside the panel"):
         reading = page.evaluate("""async () => {
           const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
           const {scrollIntoView} = await window.__lfWidgetApi();
-          const root = document.documentElement;
-          const band = landingBand(root);
-          const beside = document.createElement('button');
-          beside.textContent = 'Beside';
-          beside.style.cssText = 'position:absolute;width:80px;height:30px;margin:0';
-          document.body.append(beside);
-          beside.style.left = `${scrollX + root.clientWidth - 4 - 80}px`;
-          beside.style.top = `${scrollY + band.bottom + 2 - 30}px`;
-          beside.focus({preventScroll: true});
-          const box = beside.getBoundingClientRect();
-          const seen = seenRect(beside, new Map());
+          const band = landingBand(document.documentElement);
+          const stuck = document.createElement('button');
+          stuck.textContent = 'Stuck';
+          stuck.style.cssText = 'position:absolute;left:20px;width:80px;height:30px;' +
+            'margin:0;scroll-margin-top:-12px';
+          document.body.append(stuck);
+          stuck.style.top = `${scrollY + band.bottom + 2 - 30}px`;
+          stuck.focus({preventScroll: true});
+          const box = stuck.getBoundingClientRect();
+          const seen = seenRect(stuck, new Map());
+          const margin = parseFloat(getComputedStyle(stuck).scrollMarginTop);
           const y = scrollY;
-          const shown = alreadyShown(beside);
-          scrollIntoView(beside, {block: 'nearest', behavior: 'instant'});
+          const shown = alreadyShown(stuck);
+          scrollIntoView(stuck, {block: 'nearest', behavior: 'instant'});
           const moved = scrollY - y;
-          beside.remove();
-          return {band: band.bottom, vh: innerHeight, bottom: box.bottom,
+          stuck.remove();
+          return {margin, band: band.bottom, vh: innerHeight, bottom: box.bottom,
                   whole: Boolean(seen) && seen.top <= box.top && seen.bottom >= box.bottom,
                   shown, moved};
         }""")
+        assert reading["margin"] < 0, reading
         assert reading["band"] < reading["vh"], reading
         assert reading["bottom"] > reading["band"], reading
         assert reading["whole"], reading

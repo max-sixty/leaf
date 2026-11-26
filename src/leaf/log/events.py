@@ -50,8 +50,8 @@ def event_document(event: dict) -> dict:
 
 
 def is_reaction(event: dict) -> bool:
-    """A message carrying a token in place of words ($events, $reactions)."""
-    return bool(event.get("token"))
+    """A message carrying an emoji in place of words ($events, $reactions)."""
+    return bool(event.get("emoji"))
 
 
 def is_answer(event: dict) -> bool:
@@ -537,7 +537,7 @@ def _resumes(reply: dict) -> bool:
     the user resolved without asking them anything (`unannounced`,
     `thread.post_reply`)."""
     return not (
-        "token" in reply
+        "emoji" in reply
         or "failure" in reply
         or reply.get("ephemeral")
         or reply.get("unannounced")
@@ -630,13 +630,13 @@ def in_history(event: dict, messages: frozenset[str]) -> bool:
     back: what settles a batch of turns."""
     kind = event["kind"]
     if kind in messages:
-        return "token" not in event and not event.get("ephemeral")
+        return "emoji" not in event and not event.get("ephemeral")
     return kind == "undo" or (kind == "edit" and event["author"] != "agent")
 
 
-# What a message says: its words, its reaction's mark and its drawing, and whether its
+# What a message says: its words, its reaction's emoji and its drawing, and whether its
 # words suggest a rewrite of the page.
-SAID = ("text", "token", "drawing", "suggestion")
+SAID = ("text", "emoji", "drawing", "suggestion")
 
 
 def rewritten(message: dict, edit: dict) -> dict:
@@ -656,11 +656,11 @@ def rewritten(message: dict, edit: dict) -> dict:
 def message_reading(event: dict, undo: dict | None) -> dict:
     """A message as a thread holds it: the record, or, where `undo` took it back and
     something still stands on it, its place with no words and no mark, `was` keeping
-    the words it was sent with, or its reaction's token."""
+    the words it was sent with, or its reaction's emoji."""
     if undo is None:
         return dict(event)
     kept = {key: value for key, value in event.items() if key not in SAID}
-    was = event.get("token", event.get("text", ""))
+    was = event.get("emoji", event.get("text", ""))
     return kept | {
         "text": "",
         "withdrawn": {"id": undo["id"], "ts": undo["ts"], "was": was},

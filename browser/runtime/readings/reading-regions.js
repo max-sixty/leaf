@@ -154,7 +154,7 @@ function* regionsAround(node, index) {
 // whether the region has bounds to give now, concealed or clipped away entirely.
 /** @param {ReadingRegion} region */
 const concealed = (region) =>
-  region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
+  region.host.closest("[hidden], [aria-hidden='true']") !== null ||
   region.body.matches("details:not([open])");
 
 /** @param {ReadingRegion} region */
@@ -192,8 +192,8 @@ export function registerReadingRegion({
   body,
   paintContinuation = undefined,
 }) {
-  if (typeof id !== "string" || !id || !host || !body)
-    throw new Error("leaf: a reading region needs id, host, and body");
+  if (typeof id !== "string" || !id)
+    throw new Error("leaf: a reading region needs an id");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
   /** @type {RegionRegistration} */

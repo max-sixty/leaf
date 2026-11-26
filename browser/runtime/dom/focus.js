@@ -187,8 +187,8 @@ export const tabStops = (root) =>
 // playground's preview holds, belongs to another window's `Element`.
 export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
-/** @typedef {[start: number, end: number, direction?: "forward" | "backward" | "none"]} Caret
- * @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
+/** @import { Caret } from "../base/held-place.js" */
+/** @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
 /** The element a destination puts the user on. @param {FocusDestination} destination */
 export const focusElement = (destination) =>
   isElement(destination) ? destination : destination.element;
@@ -300,7 +300,7 @@ function lendStop(destination, options) {
 // on any other throws rather than returning null.
 const CARETED = new Set(["text", "search", "url", "tel", "password"]);
 /** @param {Element} node
- * @returns {node is HTMLInputElement | HTMLTextAreaElement | import('../annotations/composing/text-field.js').LeafTextElement} */
+ * @returns {node is HTMLInputElement | (HTMLElement & Pick<HTMLTextAreaElement, "selectionStart" | "selectionEnd" | "selectionDirection" | "setSelectionRange">)} */
 const holdsCaret = (node) =>
   isHTML(node) &&
   (node.matches(TEXT_BOX) || (isHTML(node, "input") && CARETED.has(node.type)));
@@ -600,7 +600,7 @@ function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
   if (!present) {
-    if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
+    if (node.part.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
   } else if (
     node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
     node.hasAttribute("part")
@@ -1489,7 +1489,7 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!key) return restore;
   /** @type {Element | null} */
   let item = node;
-  while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
+  while (item && !item.matches(`[${key}]`)) item = renderedParent(item);
   if (!item || item === scope || !renderedUnder(item, scope)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.

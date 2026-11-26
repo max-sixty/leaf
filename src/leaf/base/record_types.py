@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Literal, NotRequired, TypedDict
 
+
 class AccessRecord(TypedDict):
     token: str
+
 
 class ServiceRecord(TypedDict):
     host: str

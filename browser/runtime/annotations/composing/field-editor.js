@@ -1203,7 +1203,7 @@ function fieldEditor(
       moved.ranges.every(
         (range, at) =>
           range.anchor === selection.ranges[at]?.anchor &&
-          range.head === selection.ranges[at]?.head,
+          range.head === selection.ranges[at].head,
       )
     )
       return false;
@@ -2182,8 +2182,7 @@ function fieldEditor(
       block && isCode(block.token) ? codeLine(state, block, line, containers) : null;
     /** @param {Placement} c */
     const startsHere = (c) => state.doc.lineAt(c.from).number === line.number;
-    /** @type {[number, number] | null} */
-    let own = null;
+    let own = /** @type {[number, number] | null} */ (null);
     /** @param {[number, number] | undefined} range */
     const consider = (range) => {
       if (range && (!own || range[0] > own[0])) own = range;
@@ -2225,7 +2224,7 @@ function fieldEditor(
       markers,
       block,
       first,
-      own: /** @type {[number, number] | null} */ (own),
+      own,
       words,
       end,
       code,
@@ -2338,8 +2337,7 @@ function fieldEditor(
   // (`joints`), whose space a key takes whole; null in a message's.
   /** @param {EditorState} state @param {Line} line */
   function jointBefore(state, line) {
-    /** @type {{from: number, to: number} | null} */
-    let found = null;
+    let found = /** @type {{from: number, to: number} | null} */ (null);
     state.field(joints).between(line.from - 1, line.from, (from, to) => {
       if (from < line.from && to >= line.from) found = { from, to };
     });

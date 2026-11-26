@@ -1,5 +1,5 @@
-/* Placement for threads: the page's order, which every reading of the threads
-   shares, and the part of the page a thing stands in (`partOver`).
+/* Placement for threads: the page's order, which the walks and the marks share, and
+   the part of the page a thing stands in (`partOver`).
 
    On Me groups every item under the part its subject stands in (`partOver` of the
    element it is about): questions, conversations and to-dos alike. A link's preview
@@ -27,56 +27,64 @@ import {
 } from "../../readings/passages.js";
 import { agentName } from "../../state/semantic-state.js";
 import { readingRegionFor } from "../../readings/reading-regions.js";
-import { byRenderedOrder, overIn, upFrom } from "../../lib/shadow-tree.js";
+import { overIn, upFrom } from "../../lib/shadow-tree.js";
 import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 import { kept } from "../../state/kept.js";
-// ---------- where the panel puts a thread ----------
-// The list reads in the page's order, not the log's. A page is a document with a
-// beginning and an end, and the user walks the thread the way they walk the
-// prose it is about: the thread on the lede is the first one, the thread on the punch
-// list is the last, and t/T, the marks out on the page and the panel's own scroll all
-// say the same order. Log order answered a different question — when a
-// thread was opened — which is a question about one thread rather than about a list, and
-// the message clocks already answer it.
+// ---------- where a thread stands in the page's order ----------
+// The `t` walk steps through threads in the page's order, not the log's. A page is a
+// document with a beginning and an end, and the user walks the threads the way they
+// walk the prose they are about: the thread on the lede is the first one, the thread on
+// the punch list is the last, and t/T and the marks out on the page say the same order.
+// Threads, the panel's list, answers a different question, what changed last, and reads
+// newest first (panel/floating-panel.js, `threadsListing`).
 //
 // Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
-// same resolution the marks are drawn from, so the list and the page cannot disagree about
-// which of two threads comes first. `inPageOrder` sorts by that placement and breaks
-// ties by log order.
+// same resolution the marks are drawn from, so the walk and the page cannot disagree
+// about which of two threads comes first. A walk sorts by that placement
+// (`byRenderedOrder`), which breaks ties by log order, so two threads on one paragraph
+// read in the order they were opened.
 //
 // A passage this version has rewritten falls back to the element the anchor names, which
 // is the whole point of an anchor carrying one: an id survives a rewrite that takes the
 // quote down with it, so a thread whose words are gone still belongs where it was about.
-// It reads as detached in the list and keeps its place in the page's order, which are two
-// true things rather than one true and one lost.
+// It reads as detached and keeps its place in the page's order, which are two true
+// things rather than one true and one lost.
 //
 // What is left resolves nowhere on the page: a general comment, which names nowhere; an
 // anchor whose element this version no longer holds either; and an anchor in another
 // thread's message, such as a comment on a widget an agent's reply carries. Such a
 // message is drawn in a Leaf surface only while something shows it, and the walk itself
 // opens and closes those views, so a place there would move the thread up and down the
-// list between presses and `t` would visit it twice and skip its neighbour. They all go
-// under the list, in log order, rather than at some point in the middle of it.
-// Where a thread stands, for every reading of the page's order of threads: the list's
-// sort and both walks' steps (`threadPlace` in destination.js). A passage a widget renders into a declared shadow root is
-// placed inside that root, and the page's order is read across those trees
-// (`renderedOrder`, lib/shadow-tree.js), so threads inside one widget keep their order among
-// themselves. A place in no tree at all — an element a version activation has replaced —
-// is no place, which is the same answer an anchor that resolves nowhere gets.
+// walk between presses and `t` would visit it twice and skip its neighbour. They all go
+// after every placed thread, in log order, rather than at some point in the middle.
+// Where a thread stands, for every reading of the page's order of threads: both walks'
+// steps (`threadPlace` in destination.js) and the order of Threads' drafts. A passage a
+// widget renders into a declared shadow root is placed inside that root, and the page's
+// order is read across those trees (`renderedOrder`, lib/shadow-tree.js), so threads
+// inside one widget keep their order among themselves. A place in no tree at all — an
+// element a version activation has replaced — is no place, which is the same answer an
+// anchor that resolves nowhere gets.
 /** @typedef {(id: string) => {place: Element | null} | null | undefined} PlacedAt */
+/** Where anchor placement puts a thread, a saved draft or the comment being composed
+ * (annotations/anchor-placement.js), as the readers it is handed to read it.
+ * @typedef {ReturnType<typeof import("./state.js").allThreads>[number]} Thread
+ * @typedef {import("../../../types/contract.js").CompleteUnion<import("../../readings/resolved-target.js").ResolvedTarget & {message?: string}>} ResolvedTarget
+ * @typedef {ResolvedTarget & {messageTarget: ReturnType<typeof import("./messages.js").messageHolding>,
+ * point: Element | null, pointRow: string | null, pointWords: string | null}} Placement
+ * @typedef {ReturnType<typeof import("../../readings/anchor-resolution.js").resolveAnchor>} PendingPlacement
+ * @typedef {{open: boolean, anchor: import("../../../types/domain.js").Anchor | null, about: string | null,
+ * drawing: import("../../../types/domain.js").DraftDrawing | null}} ThreadDraft
+ * @typedef {{readings: {thread: Thread, placement: Placement}[],
+ * draft: ThreadDraft & {resolved: PendingPlacement}, action: PendingPlacement}} PlacementReading
+ * @typedef {{placedAt: (id: string | null | undefined) => Placement | undefined,
+ * savedAt: (context: string) => Placement | undefined, pendingAt: () => PendingPlacement}} ThreadPlacements
+ */
 /** @param {Pick<import("../../../types/domain.js").Thread, "id" | "anchor">} t @param {PlacedAt} placedAt */
 export const threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
   return place?.isConnected && !leafSurface(place) ? place : null;
 };
-
-// The log's order is the tiebreak, so two threads on one paragraph read in the order they
-// were opened, and a page that gave nothing an id keeps exactly the list it had.
-/** @template {Pick<import("../../../types/domain.js").Thread, "id" | "anchor">} T
- * @param {readonly T[]} threads @param {PlacedAt} placedAt */
-export const inPageOrder = (threads, placedAt) =>
-  byRenderedOrder(threads, /** @param {T} t */ (t) => threadPlace(t, placedAt));
 
 // A document's own outline: the page's, or a message's markup, which is outlined as the
 // page is. Read off the headings the author wrote rather than off <section> nesting,

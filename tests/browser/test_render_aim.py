@@ -86,6 +86,7 @@ from render_harness import (
     stored_draft_text,
     told,
     wait_for_revision,
+    without_end_room,
     write,
 )
 
@@ -99,7 +100,7 @@ from leaf.source import anchor_capture as anchor_capture_model
 from leaf.source import passages as passages_model
 from leaf.source import structure as structure_model
 from leaf.source.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -397,6 +398,8 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
             )
         ),
     )
+    # The passage's page ends 800px below it, with no room kept past that end.
+    without_end_room(page)
     resized(page, 390, 900)
     page.evaluate(
         "() => scrollTo({top: document.getElementById('passage').offsetTop - 300})"
@@ -3141,7 +3144,7 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
         )
     )
     for anchor, extra in (
-        ("reacted", {"token": "keep"}),
+        ("reacted", {"emoji": "👍"}),
         ("commented", {"text": "Why?"}),
     ):
         append_carried_log_record(
@@ -3531,7 +3534,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     expect(page.locator("#visual")).not_to_have_attribute(
         "data-lf-mark", re.compile(".*")
     )
-    assert_drawn_in(inner, token_colour(page, "--lf-mark-contour-ink"), 1.5)
+    assert_drawn_in(inner, token_colour(page, "--lf-ok"), 2)
 
 
 def test_a_visual_part_replays_its_comment_and_takes_a_new_one_from_a_click(
@@ -3701,13 +3704,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
     surface.click(position={"x": 20, "y": 20})
     expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
-    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-ok"), 2)
     assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("wide-surface")
-    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-ok"), 2)
     page.keyboard.up("Alt")
 
 
@@ -5331,7 +5334,7 @@ def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
         dialog = page.get_by_role("dialog")
         expect(dialog).to_be_visible()
         expect(dialog).to_contain_text("Clarify this code.")
-        reply = dialog.get_by_role("textbox", name="Reply")
+        reply = text_field(dialog, name="Reply")
         reply.click()
         expect(reply).to_be_focused()
         page.keyboard.press("Escape")

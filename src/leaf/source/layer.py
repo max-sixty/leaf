@@ -48,6 +48,7 @@ from leaf.base.schema import (
 from leaf.base.server import running_server
 from leaf.base.state import PLUGIN_ROOT, installed_copy
 from leaf.source.registry.contract import MODULES, is_element_name, registry_error
+from leaf.source.registry.storage import layer_metadata_of
 
 
 def named_package(name: str) -> Path | None:
@@ -781,10 +782,6 @@ def layer_vocabulary(record: dict, vocabulary: LayerVocabulary) -> dict:
     """The registry of `vocabulary`, the layer `record` selects, with the selection
     and the generation the browser speaks under `$layer`. Each call makes a new copy
     of the layer's registry, sharing its entries."""
-    # Imported here: a hook that only hashes the skill (`files_identity`) reads no
-    # page's layer record.
-    from leaf.source.registry.storage import layer_metadata_of
-
     return {**vocabulary.registry, "$layer": layer_metadata_of(record)}
 
 

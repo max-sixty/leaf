@@ -135,7 +135,7 @@ import { signal } from "/vendor/signals-core.js";
 /** @typedef {NonNullable<Parameters<ReturnType<typeof import("./actions.js").createThreadActions>["edit"]>[3]>} EditOptions */
 /** @typedef {(text: string, options: EditOptions) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["edit"]>} SendRewrite */
 /** @typedef {{
- * wireInput: ReturnType<typeof import("../../annotations/composing/input.js").createCompositionInputs>["wireInput"],
+ * wireInput: import("../composition-input.js").WireInput,
  * said: () => string, base: () => string, send: SendRewrite,
  * land: () => unknown, saved: () => unknown, paint: () => void,
  * previous: () => MessageView | null,

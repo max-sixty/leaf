@@ -14,7 +14,7 @@
 
 import { clamp, overlaps, overlapsAcross, shifted, union } from "../../dom/rect.js";
 
-/** @typedef {import("../../dom/rect.js").Box} Box */
+/** @typedef {import("../../base/box.js").Box} Box */
 /** @typedef {(rect: Box) => Box | undefined} Blocked What a rect overlaps first, if anything. */
 /** @typedef {{before: readonly (Box | null)[], home: Box, after: readonly (Box | null)[]}} SeatSet */
 /** @typedef {{rect: Box, came?: number | undefined, held?: boolean | Box | null, pushed?: number | undefined}} Row */

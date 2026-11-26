@@ -39,7 +39,7 @@ const ancestorStyles = new MutationObserver((records) => {
 function watchAncestorStyles(scope) {
   const tree = scope.getRootNode();
   const root = "documentElement" in tree ? tree.documentElement : tree;
-  if (!root || styleRoots.has(root) || !root.isConnected) return;
+  if (styleRoots.has(root) || !root.isConnected) return;
   styleRoots.add(root);
   ancestorStyles.observe(root, {
     subtree: true,
@@ -136,7 +136,10 @@ const sideways = new Map();
 // so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
 // opt their bounded body in when they register it. The cue follows remaining content,
 // because the pane's fixed lower edge would otherwise keep promising another part of
-// the reading after the user reaches the end.
+// the reading after the user reaches the end. The body carries `data-lf-more-above`
+// while some of it is scrolled away above, and `data-lf-more-below` while some stands
+// below, for its owner's rules to read, as the rules showing a thread's jumps to its
+// ends do (annotation-chrome.css, floating-panel.css).
 /** @type {Map<Element, ((before: boolean) => void) | undefined>} */
 const downwards = new Map();
 watchScrolls((box) => {
@@ -160,6 +163,7 @@ export function reachReadingScroller(el, paintContinuation) {
     if (!watched(el)) unwatchReach(el);
     afterScript(() => {
       if (!downwards.has(el)) {
+        keeps(el, PAGE_PAINT_ATTRIBUTE.moreAbove, null);
         keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
         paintContinuation?.(false);
       }
@@ -202,7 +206,9 @@ function paintReadingReachNow() {
     const scrolling = userScrollport(style.overflowY);
     // A region with covering chrome paints its upper continuation at the chrome's
     // actual edge. Share the scroll/resize pass rather than watch the same body twice.
-    downwards.get(el)?.(scrolling && el.scrollTop > SCROLL_SLACK);
+    const above = scrolling && el.scrollTop > SCROLL_SLACK;
+    downwards.get(el)?.(above);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.moreAbove, above ? "" : null);
     keeps(
       el,
       PAGE_PAINT_ATTRIBUTE.moreBelow,
@@ -228,7 +234,7 @@ export function reachScrollers(root) {
         const classes = el.getAttribute("class");
         const style = el.getAttribute("style");
         const previous = seenDeclarations.get(el);
-        if (previous?.classes === classes && previous?.style === style) continue;
+        if (previous?.classes === classes && previous.style === style) continue;
         seenDeclarations.set(el, { classes, style });
         reread(el);
       }

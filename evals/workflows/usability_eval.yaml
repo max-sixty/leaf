@@ -1175,10 +1175,20 @@ cases:
               value:
                 - opt-online
           - kind: comment
-            token: shorten
+            emoji: "✂️"
             anchor:
               - why-now
               - The reporting team moves its dashboards
+          - kind: comment
+            emoji: "🔎"
+            anchor:
+              - backfill-scope
+              - 310 million rows of order history
+          - kind: comment
+            emoji: "🎯"
+            anchor:
+              - card-row-counts
+              - Dashboard for row counts
           - kind: action
             widget: follow-board
             action: move
@@ -1190,6 +1200,8 @@ cases:
             undoes: previous
           - kind: error
             text: "Uncaught TypeError: replaceAll must be called with a global RegExp ({origin}/:{line})"
+        - - kind: comment
+            text: I also put a few reactions on the page. Please handle those too.
     assert:
       - type: llm-rubric
         metric: outcome
@@ -1199,6 +1211,10 @@ cases:
           watch_left_to_leaf (the complete native trace): Throughout this live scenario, the agent left watching for later user input to Leaf rather than launching its own background wait or polling loop. Judge what the tools actually started, including renamed launchers, variables and wrappers. Reading help, quoting a wait command, and failed attempts that started nothing are allowed.
 
           comment_done (the final canonical page, state and agent replies): The paragraph says the dry run took 3 hours 10 minutes.
+
+          The user's second-round comment asks the agent to handle their reactions, so the reactions' absence from the first delivery excuses nothing: judge ✂️ and reactions_handled on the final state.
+
+          reactions_handled (the final canonical page, state, threads and agent replies): Besides ✂️ on why-now, the user put two reactions with no words: 🔎 on "310 million rows of order history" in backfill-scope, and 🎯 on the "Dashboard for row counts" follow-up card. The agent handles each one in one of these ways: it changes the page to fit a plausible reading of the reaction, such as saying where the row count comes from or that it is unverified for 🔎, or putting that follow-up first for 🎯; it reads the reaction as asking for no change, as 🎯 may say the card is right, and closes it; or it asks the user in the reaction's thread what they meant. Fail if a reaction gets no change, no question and no close, if the page or a reply states evidence for the row count that neither the page nor the workspace holds, or if a reply claims a change the final page doesn't show.
 
           The agent handles the admitted batch: updates dry-run to 3 h 10 min and answers that comment; incorporates the online-copy choice without asking again; shortens or proposes a meaningfully shorter why-now passage and resolves the reaction appropriately without a redundant reply; preserves the undone card move (lag alert remains Open); and repairs the copy-summary error while preserving its copy behavior. Do not impose a word-count threshold, specific markup shape or suggestion syntax. Use canonical pickup/driver observations to determine what inputs were actually delivered, and distinguish source-level repair evidence from a browser action that actually ran.
         transform: context.metadata.texts?.['evidence'] ?? ''

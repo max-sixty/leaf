@@ -57,7 +57,13 @@
  * the end reads as status rather than a control, and the panel's menu and lists reach
  * each press's result, as the ✕ beside a stance's name is Close's (floating-panel.js,
  * `stanceClose`). The user chose this, since the end is there to show shortcuts, over a
- * press standing without its key wherever the caret stood. They chose a notice's press, so a Resolve that moves the
+ * press standing without its key wherever the caret stood. An open thread's field
+ * says its one word at rest, Reply…, at its end, so to a finger it would say nothing.
+ * Under a finger the field says at rest the words it says once tapped (`turn`):
+ * Reply…, or Reply to reopen… on a resolved thread, as a card's reply box does. The
+ * user chose this over a field that showed a finger only a rule above blank space until
+ * tapped. It keeps the rule for presses: these words name what a tap anywhere on the
+ * field does, and the field's end still offers a finger no press. They chose a notice's press, so a Resolve that moves the
  * panel on says which thread it resolved and offers its next step there, over Undo and
  * ⌘Z after a Resolve. They chose Next On Me at rest while On Me lists anything over
  * Comment and c, since from reading or backing out `m` is the press they most often make
@@ -79,7 +85,7 @@ import { noticeWords } from "../transport/notifications.js";
 
 /** @typedef {import("../base/voice.js").Words} Words
  * @typedef {import("../base/voice.js").Said} Said
- * @typedef {import("../annotations/composing/input.js").BoxPress} BoxPress
+ * @typedef {import("../records/composition-input.js").BoxPress} BoxPress
  * @typedef {"key" | "comment" | "moment" | "none"} End
  */
 
@@ -87,6 +93,8 @@ import { noticeWords } from "../transport/notifications.js";
  * only by the reading that says it, so asking costs only what the field says.
  * @typedef {object} FieldFacts
  * @property {boolean} thread whether the field is an open thread's reply box
+ * @property {boolean} keys whether the field is shown keys, which a finger is not
+ * (dom/keyboard/bindings.js, `advertisesKeys`)
  * @property {boolean} writing whether the user writes in the field: focus in it, or a
  * dictation running there (annotations/composing/input.js, `writesIn`)
  * @property {{message: string, press: BoxPress | null} | null} error the newest error
@@ -188,9 +196,17 @@ export const FIELD_READINGS = Object.freeze([
   // over the key beside Reply with the turn at the field's end in one face, Reply alone
   // with the turn left to the thread's messages, and the agent's words in a lane of
   // their own before the seat. Reply takes the one dim face the user chose for every
-  // comment box's word. While a stance stands the box takes no reply, so its end offers
-  // the stance's Close (`still`).
-  { says: "turn", field: "thread", claims: () => [], end: "moment", offers: true },
+  // comment box's word. To a finger, which is shown no keys and so no Reply at the end,
+  // the field says Reply as its own words instead (the header). While a stance stands
+  // the box takes no reply, so it says nothing and its end offers the stance's Close
+  // (`still`).
+  {
+    says: "turn",
+    field: "thread",
+    claims: (f) => (f.keys || f.still ? [] : f.destination()),
+    end: "moment",
+    offers: true,
+  },
   // The agent's status, always, in the status's words (page-status.js). One that
   // reports reads dimmer than anything written, with the one sheen that marks work under
   // way while the agent works; one that asks the user to act reads in its tone's ink,

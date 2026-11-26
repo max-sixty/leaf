@@ -244,7 +244,13 @@ import {
   readThreads,
   threadNamed,
 } from "../records/thread/state.js";
-import { discussed, isNews, threadCounts } from "../state/thread/model.js";
+import {
+  discussed,
+  isNews,
+  lastChange,
+  newestFirst,
+  threadCounts,
+} from "../state/thread/model.js";
 import { LeafElement } from "../lib/leaf-element.js";
 import {
   RESOLVED,
@@ -281,7 +287,7 @@ import {
 import { drawnThreadId, THREAD } from "../records/thread/selectors.js";
 import { declareThreadParts } from "../records/thread/selectors.js";
 import { openingPart } from "../records/thread/focus.js";
-import { inPageOrder, threadPlace } from "../records/thread/placement.js";
+import { threadPlace } from "../records/thread/placement.js";
 import { dismissReply, releaseReplies } from "../records/thread/replies.js";
 import {
   BESIDE_PASSAGES,
@@ -482,7 +488,7 @@ const pressKeys = (press) =>
 // each ask, so a box standing it rechecks its keys without reading the field's words
 // again (annotations/composing/input.js, `pressing`), and what it does: its own `run`, else the
 // command it names.
-/** @param {FieldPress} press @returns {import("../annotations/composing/input.js").BoxPress} */
+/** @param {FieldPress} press @returns {import("../records/composition-input.js").BoxPress} */
 const pressReading = (press) => ({
   word: actionName(press.action),
   get keys() {
@@ -1254,7 +1260,7 @@ export function createFloatingPanel({
   // the news showed, where it showed one (`shown`, the messages drawn before it); and
   // reopened where the user had read it to (`reading`, records/thread/reply-landing.js,
   // `restoreCurrentLocation`).
-  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../records/thread/reply-landing.js").ThreadReading} | null} */
+  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../base/held-place.js").ThreadReading} | null} */
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -1315,6 +1321,7 @@ export function createFloatingPanel({
     const error = fieldError();
     return readField({
       thread: !page,
+      keys: advertisesKeys(),
       writing: writesIn(input),
       error: error && {
         message: error.message,
@@ -2000,7 +2007,7 @@ export function createFloatingPanel({
    *   pressed: {
    *     node: Element, at: number, height: number, holds: number, keep: () => void,
    *   } | null,
-   *   drawnSections: Map<string, string> | null,
+   *   drawnRows: Map<string, {section: string, at: number}> | null,
    *   drawnDrafts: Set<string> | null,
    *   onPageSeat: boolean,
    *   openItem: string | null,
@@ -2015,7 +2022,7 @@ export function createFloatingPanel({
     room: null,
     rewriting: false,
     pressed: null,
-    drawnSections: null,
+    drawnRows: null,
     drawnDrafts: null,
     onPageSeat: false,
     openItem: null,
@@ -2144,14 +2151,14 @@ export function createFloatingPanel({
     clearRow();
   }
   // Resolving a thread opened from Threads moves the user on: to the open thread after it
-  // in the page's order, or before it at the end, standing on its view so `r`, `t` and
+  // in the list's order, or before it at the end, standing on its view so `r`, `t` and
   // Escape go on from there; or, with none left, back to the list. A thread opened from
   // elsewhere goes back to where it came from. Taking the resolve back, or the log
   // refusing it, opens the thread again (folding.js, `settleThread`).
   const openThreads = () =>
-    inPageOrder(
+    newestFirst(
       threads().filter((candidate) => !candidate.resolved),
-      placedAt,
+      lastChange,
     );
   // The next thread is a fresh opening, as tall as what it holds (the header records
   // why its Resolve doesn't stay under the pointer). The thread resolved is found among
@@ -2607,10 +2614,10 @@ export function createFloatingPanel({
   // then fits, moving as one opening does; each such press repaints. The list takes
   // its room again in the next frame, once it stands at what it now fits.
   let refitting = false;
-  // Each row standing Threads draws, by its thread's key, with its section
-  // (`drawnSections`), and each draft's row by its key (`drawnDrafts`); null while no
-  // list stands, so the next paint draws every row where it now belongs
-  // (`threadsListing`, `draftsListing`).
+  // Each row standing Threads draws, by its thread's key, with its section and the
+  // change it is placed by (`drawnRows`), and each draft's row by its key
+  // (`drawnDrafts`); null while no list stands, so the next paint draws every row where
+  // it now belongs (`threadsListing`, `draftsListing`).
   // The keys of the rows a notice's press lands on, while its paint draws them
   // (`showJoined`).
   /** @type {Set<string> | null} */
@@ -2620,7 +2627,7 @@ export function createFloatingPanel({
   let fitted = null;
   function refit() {
     opening.room = null;
-    opening.drawnSections = null;
+    opening.drawnRows = null;
     opening.drawnDrafts = null;
     viewMovingUntil = performance.now() + viewResizeMs();
     if (refitting) return;
@@ -3280,17 +3287,16 @@ export function createFloatingPanel({
     }`;
   }
 
-  // The rows read in the page's order, the one the `t` walk steps through
-  // (records/thread/placement.js), so each thread stands among its passage's neighbours: the
-  // open threads, then the resolved ones folded under Resolved (`settledHeading`), as
-  // what left On Me stands under Done, each unread row marked. The user chose this,
-  // with Threads as the On view's tab, over Open, Unread, Drafts and
-  // Resolved filters, which a second row of tabs would have to hold. A search reads
-  // every thread's name, its messages and summaries as they read, and the words it is
-  // about, as its head quotes them (`threadPassage`), and lists matches as one list.
+  // The open threads, then the resolved ones folded under Resolved (`settledHeading`),
+  // as what left On Me stands under Done, each unread row marked. The user chose this,
+  // with Threads as the On view's tab, over Open, Unread, Drafts and Resolved filters,
+  // which a second row of tabs would have to hold. Each group reads newest first
+  // (`threadsListing`). A search reads every thread's name, its messages and summaries
+  // as they read, and the words it is about, as its head quotes them (`threadPassage`),
+  // and lists matches as one list. The threads come in the log's order.
   function shownThreads() {
     const words = query.trim().toLowerCase();
-    const shown = words
+    return words
       ? threads().filter((thread) =>
           [
             threadName(thread),
@@ -3303,13 +3309,13 @@ export function createFloatingPanel({
             .includes(words),
         )
       : threads();
-    return inPageOrder(shown, placedAt);
   }
   // A row joining Threads while the list stands, a thread the agent starts, or a row
-  // changing section, one a reply reopens or one resolved elsewhere, would move the
-  // rows the user reads there (`browser/AGENTS.md`, "News moves what the reader reads
-  // only in the thread they are in"). So the standing list draws each row in the
-  // section it drew it in, and a thread new to it not at all, and says what joined or moved in the notice a
+  // changing section or place, one a reply reopens or moves up, or one resolved
+  // elsewhere, would move the rows the user reads there (`browser/AGENTS.md`, "News
+  // moves what the reader reads only in the thread they are in"). So the standing list
+  // draws each row in the section and the place it drew it in, and a thread new to it
+  // not at all, and says what joined or changed section in the notice a
   // thread's held news uses (records/thread/held-news.js, `newsNotice`) until the user
   // presses it, which lets the list settle and lands on the first row it names. The
   // notice stands over the list, in the view's head, which grows the panel upward by
@@ -3319,37 +3325,49 @@ export function createFloatingPanel({
   // and over the notice in the held row's own place, which a long list scrolls out of
   // sight. The browser reads
   // nothing ahead of the server: a held row draws the thread as the server now reads
-  // it, in its old place. A row the user's own gesture moves, as their resolve or its
-  // Undo, moves at once (`gesturedOn`), and a press that changes what the list shows,
-  // a tab or a search, or the next opening, draws it whole (`refit`, `transition`).
+  // it, in its old place. A row the user's own gesture moves, as their reply, their
+  // resolve or its Undo, moves at once (`gesturedOn`), and a press that changes what
+  // the list shows, a tab or a search, or the next opening, draws it whole (`refit`,
+  // `transition`). A row news moves up within its section stays where it stood until
+  // then, and the notice doesn't count it: no row joined or left a section.
   // Rejected: holding only rows that would
   // land among the rows in sight, by their geometry, which a list whose rows change
   // section rather than join would hold none of.
-  // The rows the list draws, each in its section, and the threads joining or moving
-  // that it holds: `was` the section a moving row still stands in, null for one new.
+  // The rows the list draws, each in its section with the change it is placed by
+  // (`at`), and the threads joining or changing section that it holds: `was` the
+  // section a moving row still stands in, null for one the list didn't draw. The rows
+  // read newest first, by each thread's last change (`lastChange`), so a resolved row's
+  // place agrees with the age it says, as Done's do in On Me. The user chose that over
+  // the page's order, the one the `t` walk steps through (records/thread/placement.js),
+  // down which Resolved's ages read out of order.
   function threadsListing() {
     const searched = Boolean(query.trim());
+    const drawn = opening.drawnRows;
     const rows = [];
     const joined = [];
     for (const thread of shownThreads()) {
       const now = searched ? "found" : thread.resolved ? "resolved" : "open";
-      const was = opening.drawnSections
-        ? (opening.drawnSections.get(thread.key) ?? null)
-        : now;
-      if (was === now || gesturedOn(thread)) rows.push({ thread, section: now });
+      const held = drawn?.get(thread.key);
+      const was = drawn ? (held?.section ?? null) : now;
+      const acted = gesturedOn(thread);
+      const at = held && !acted ? held.at : lastChange(thread);
+      if (was === now || acted) rows.push({ thread, section: now, at });
       else {
         joined.push({ thread, was, now });
-        if (was) rows.push({ thread, section: was });
+        if (held) rows.push({ thread, section: held.section, at });
       }
     }
-    return { rows, joined, searched };
+    return { rows: newestFirst(rows, (row) => row.at), joined, searched };
   }
   // After a paint: what the standing list drew, which the next paint holds to.
-  function noteDrawnSections() {
+  function noteDrawnRows() {
     const stands = showing({ view: "threads" }) && inventoried();
-    opening.drawnSections = stands
+    opening.drawnRows = stands
       ? new Map(
-          threadsListing().rows.map(({ thread, section }) => [thread.key, section]),
+          threadsListing().rows.map(({ thread, section, at }) => [
+            thread.key,
+            { section, at },
+          ]),
         )
       : null;
     opening.drawnDrafts = stands
@@ -3362,7 +3380,7 @@ export function createFloatingPanel({
     /** @param {string} kind @param {string} one @param {string} many */
     const fact = (kind, one, many) => {
       const count = joined.filter(
-        ({ was, now }) => (was === null ? "new" : now) === kind,
+        ({ was, now }) => (was === null && now !== "found" ? "new" : now) === kind,
       ).length;
       return count ? counted(count, one, many) : null;
     };
@@ -3397,7 +3415,7 @@ export function createFloatingPanel({
       unfolded.add("resolved");
       refit();
     }
-    opening.drawnSections = null;
+    opening.drawnRows = null;
     opening.drawnDrafts = null;
     // The paint stands the list's walk on the row it lands on: a rove after it would
     // take back the stop the paint first gave another row, a write that changes nothing.
@@ -3438,9 +3456,9 @@ export function createFloatingPanel({
   // Enter opens, and a section stays unfolded while the panel stays open (`unfolded`).
   // It is its group's band (controls.css, `.lf-rows-group`, `data-lf-band`), its
   // disclosure arrow hanging in the band's start padding, so its name starts where every
-  // band's does. The user chose the fold over the newest three resolved
-  // with the rest behind a row, which puts a second order in a list read in the page's,
-  // and over resolved threads only searched for, which leaves them nothing to browse.
+  // band's does. The user chose the fold over resolved threads only searched for, which
+  // leaves them nothing to browse, and over the newest three resolved with the rest
+  // behind a row.
   /** @param {string} key @param {string} title @param {number} count */
   function settledHeading(key, title, count) {
     const open = unfolded.has(key);
@@ -3564,7 +3582,7 @@ export function createFloatingPanel({
         ?data-lf-resolved=${thread.resolved}
         data-lf-turn=${attention?.turn === "user" ? "user" : nothing}
         .lfPreview=${(
-          /** @type {import("../annotations/preview.js").Route} */ route,
+          /** @type {import("../base/preview-declaration.js").Route} */ route,
         ) => {
           const read = threadPreview(
             [thread],
@@ -3957,7 +3975,7 @@ export function createFloatingPanel({
   // taken back (records/undo.js).
   /** @param {import("../state/semantic-application.js").ObligationRecord} item */
   const answerGesture = (item) => {
-    const id = item?.answer?.event?.id ?? item?.answer?.event;
+    const id = item.answer?.event?.id ?? item.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
@@ -4300,13 +4318,13 @@ export function createFloatingPanel({
       ? ""
       : asking
         ? messageReading(asking, { workflows: [] }).body.plainText
-        : record?.prompt?.text;
+        : record?.prompt.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     // The other questions the user answers at this card's place (`also`): further
     // messages its thread's reply answers, and on an obligation's card those asked in a
     // thread about it, so an answer about a decision rides on the decision. Each reads
     // as its message, as a question asked in words does above.
-    const carried = (also ?? []).flatMap((id) => {
+    const carried = also.flatMap((id) => {
       const other = readObligations().byId.get(id);
       if (!other) return [];
       const where = other.thread ? threadByKey(other.thread) : null;
@@ -4533,7 +4551,7 @@ export function createFloatingPanel({
     /** @type {unknown} */
     let end = nothing;
     // The clock time behind the age the line's end shows, which its preview says.
-    /** @type {import("../annotations/preview.js").Line} */
+    /** @type {import("../base/preview-declaration.js").Line} */
     let ageSaid = null;
     const work = list === "agent" ? workOn(item) : null;
     if (work) {
@@ -4704,7 +4722,7 @@ export function createFloatingPanel({
       carrying.set(key, [
         ...new Set([
           ...(carrying.get(key) ?? []),
-          ...(item.also ?? []).filter((id) => !elsewhere.has(id)),
+          ...item.also.filter((id) => !elsewhere.has(id)),
         ]),
       ]);
     }
@@ -4922,7 +4940,9 @@ export function createFloatingPanel({
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
   // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
   // On <agent>'s, where they would press it from where the user is, so the user meets
-  // the key where they reach for the list.
+  // the key where they reach for the list. A tab is named for its list alone and
+  // described by its count, so a screen reader hears "Threads", then "2", and its
+  // preview's keys follow "Threads", not "Threads 2".
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count @param {(name: T) => string | null} door */
@@ -4936,6 +4956,8 @@ export function createFloatingPanel({
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
+            aria-label=${label(name)}
+            aria-description=${counted === null ? nothing : String(counted)}
             .lfPreview=${() => {
               const steps = opens && current !== name ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
@@ -5315,7 +5337,7 @@ export function createFloatingPanel({
     answered = beat;
 
     render(panelTemplate(), host);
-    noteDrawnSections();
+    noteDrawnRows();
     if (gestures) gestureLeaf(gestures);
 
     // Geometry, native focus and reading regions consume the committed tree.
@@ -5372,7 +5394,7 @@ export function createFloatingPanel({
   // first, so Close leaves the end. A finger, shown no keys, has the ✕ as its way out,
   // so Close stands only where the page shows keys. It asks the dispatcher whether a
   // stance stands now (`innermostStance`), as `fieldExit` does.
-  /** @returns {import("../annotations/composing/input.js").BoxPress | null} */
+  /** @returns {import("../records/composition-input.js").BoxPress | null} */
   function stanceClose() {
     const held = innermostStance();
     const exit = held ? rows().find((entry) => entry.exit) : null;
@@ -5509,7 +5531,7 @@ export function createFloatingPanel({
     // The field's search, the menu's or Threads', clears its words first; then, empty,
     // the menu's closes the menu and Threads' returns to Threads, as a find box returns
     // to its panel (dom/keyboard/AGENTS.md, "Escape").
-    if (focused()?.matches?.(".lf-fp-search"))
+    if (focused()?.matches(".lf-fp-search"))
       return query
         ? {
             root: host,
@@ -5592,7 +5614,7 @@ export function createFloatingPanel({
         : null;
   };
   /** @returns {HTMLElement | null} */
-  const tabOn = () => focused()?.closest?.(".lf-fp-tab") ?? null;
+  const tabOn = () => focused()?.closest(".lf-fp-tab") ?? null;
   // Whether the user stands where ← and → turn the On view's tabs: on a tab, or where
   // ↑ and ↓ walk its rows, a list that holds none included.
   const atTabs = () =>
@@ -5848,7 +5870,7 @@ export function createFloatingPanel({
   };
   /** @param {Element | null} node */
   const onMeHolds = (node) => doors.queue.shows() && onMe.lists(node);
-  /** @param {Pick<import("../features/anchor-travel.js").Arrival, "where" | "focus">} destination
+  /** @param {Pick<import("../dom/arrival-plan.js").Arrival, "where" | "focus">} destination
    * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
     if (!focus && ownPassage(where)) return;
@@ -6082,7 +6104,7 @@ export function createFloatingPanel({
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
   async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
-    if (!thread || !currentLocation) return false;
+    if (!thread) return false;
     const { reading, focus } = currentLocation;
     const intent = retainUserIntent();
     const returnFocus = () => {

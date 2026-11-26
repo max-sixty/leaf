@@ -413,7 +413,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
             "kind": "reply",
             "author": "user",
             "parent": question["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
 
@@ -650,7 +650,7 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     # A mark is no turn; the agent's next spoken turn takes the move in.
     append_carried_log_record(
         page_dir,
-        {"kind": "reply", "author": "agent", "parent": asked["id"], "token": "keep"},
+        {"kind": "reply", "author": "agent", "parent": asked["id"], "emoji": "👍"},
     )
     state, attention = reading()
     assert [item["input"] for item in state["workflows"]] == [moved["id"]]

@@ -764,6 +764,40 @@
     grid-column: 1 / -1;
     block-size: var(--lf-transcript-room);
   }
+  /* A thread's jumps (surfaces.css) stand in the transcript's grid cell rather than in
+     the transcript, since the transcript's foot fades. The cell stays put as the turns
+     scroll. The jumps are placed in it rather than laid out in it, as the fade over the
+     turns is (below), so the cell keeps the size the transcript and the reply box give
+     it. They stand in the column of the card's symbols: the start's a gap under the
+     heads' line, where the heads stick, and the end's a gap over the reply box's rule,
+     which stands a message's gap less the thread's padding below the cell. Each shows
+     while the turns stand past its edge, as reach marks the transcript
+     (`data-lf-more-above`, `data-lf-more-below`, dom/reach.js), the end's while New
+     reply doesn't stand there instead (`data-lf-awaits`). */
+  .lf-margin-thread .lf-page-thread > .lf-thread-jump {
+    position: absolute;
+    grid-column: 1 / -1;
+    /* Both lines: an absolute box's `auto` line is the grid's edge. */
+    grid-row: 2 / 3;
+    inset-inline-end: var(--lf-margin-symbol-end);
+  }
+  .lf-margin-thread .lf-page-thread > .lf-thread-jump[data-lf-jump="start"] {
+    inset-block-start: calc(var(--lf-msg-head-height) + var(--lf-sp-2));
+    margin-block-end: 0;
+  }
+  .lf-margin-thread .lf-page-thread > .lf-thread-jump[data-lf-jump="end"] {
+    inset-block-end: calc(var(--lf-sp-2) - (var(--lf-msg-gap) - var(--lf-thread-pad)));
+    margin-block: 0;
+  }
+  .lf-margin-thread
+    .lf-page-thread:has(> .lf-thread-transcript[data-lf-more-above])
+    > .lf-thread-jump[data-lf-jump="start"],
+  .lf-margin-thread
+    .lf-thread-transcript[data-lf-more-below]:not([data-lf-awaits])
+    ~ .lf-thread-jump[data-lf-jump="end"] {
+    opacity: 1;
+    visibility: visible;
+  }
   /* The words stand the thread text inset inside the card's padding. The transcript
      keeps room past their edges for what is drawn beyond a box: a focus ring, which a
      rewrite draws outside its frame, and the marks round a block in a message, such as
@@ -778,14 +812,14 @@
      head control's ring above the heads, where their slot starts (`--lf-top-start`).
      The room is taken from the card's padding, so the words keep their width and
      place and nothing scrolls sideways. Once anything is scrolled away, what stands on the heads' line covers
-     the room above it, the stuck head row across both tracks (`data-lf-scrolled`,
-     thread-preview.js); at the top a ring still has it. */
+     the room above it, the stuck head row across both tracks (`data-lf-more-above`,
+     dom/reach.js); at the top a ring still has it. */
   .lf-margin-thread .lf-page-thread {
     --lf-transcript-room: var(--lf-focus-region-room);
     --lf-transcript-edge-room: calc(var(--lf-thread-frame) - var(--lf-focus-ring-w));
     padding: 0;
   }
-  .lf-margin-thread .lf-page-thread[data-lf-scrolled] {
+  .lf-margin-thread .lf-thread-transcript[data-lf-more-above] {
     --lf-thread-room-cover: var(--lf-transcript-edge-room);
   }
   .lf-margin-thread .lf-page-thread::after {

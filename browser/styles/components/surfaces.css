@@ -985,6 +985,52 @@ summary {
   min-height: max(var(--lf-msg-head-height), var(--lf-aim-floor));
   font: var(--lf-font-small);
 }
+/* A thread's jumps to the start and end of its messages (thread-card.js, `#jumps`)
+   stand over them in the column of the thread's symbol presses, as Close's. They stick
+   in the box scrolling the thread, a gap inside its edges, and take no room of their
+   own. Each fades in where its container's rules show it, while messages stand past
+   its edge, and out as the box arrives there, unless it holds focus. A margin card's
+   box is its transcript, outside which they stand (annotation-chrome.css). The rules
+   name a jump by the attribute it declares, so they outrank the mark face's own
+   position (controls.css). */
+.lf-thread-jump[data-lf-jump] {
+  position: sticky;
+  z-index: 2;
+  margin-inline: auto
+    calc(
+      (max(var(--lf-icon-action-face), var(--lf-aim-floor)) - var(--lf-mark-size)) / 2
+    );
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--lf-motion-disclosure) linear,
+    visibility var(--lf-motion-disclosure);
+}
+.lf-thread-jump[data-lf-jump="start"] {
+  inset-block-start: var(--lf-sp-2);
+  margin-block-end: calc(-1 * var(--lf-mark-size));
+}
+/* The end's box stands as far above the messages' end as its reach stands below its
+   face, and gives that back below, so the reach ends with the messages. A reach past
+   them would be scrollable overflow wherever it runs deeper than the box's padding, as
+   a finger's does in the floating panel: every thread there would scroll by the
+   difference with nothing to show, and keeping to its end would lift the first
+   message's presses into Close's reach. */
+.lf-thread-jump[data-lf-jump="end"] {
+  --lf-jump-overhang: max(0px, (var(--lf-aim-floor) - var(--lf-mark-size)) / 2);
+  inset-block-end: var(--lf-sp-2);
+  margin-block: calc(-1 * (var(--lf-mark-size) + var(--lf-jump-overhang)))
+    var(--lf-jump-overhang);
+}
+.lf-thread-jump:focus {
+  opacity: 1;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf-thread-jump[data-lf-jump] {
+    transition: none;
+  }
+}
 .lf-thread-meta-actions {
   display: inline-flex;
   flex: none;

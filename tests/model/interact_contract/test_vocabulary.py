@@ -484,7 +484,7 @@ def test_wakeup_uses_the_recorded_identity_after_an_undo(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
         },
     )
     append_command(

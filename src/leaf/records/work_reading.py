@@ -79,7 +79,7 @@ class WorkReading:
             self.events,
             self.registry,
             self.threads,
-            self.log,
+            self.log.owed,
             reading=self.thread,
         )
 
@@ -95,7 +95,7 @@ class WorkReading:
     @cached_property
     def document(self):
         return (
-            read_document(self.page, self.threads, self.log)
+            read_document(self.page, self.threads, self.log.owed)
             if self.page is not None
             else None
         )

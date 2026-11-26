@@ -14,7 +14,14 @@ from functools import cache
 from pathlib import Path
 
 import click
-from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
+from playwright.sync_api import (
+    Browser,
+    FrameLocator,
+    Locator,
+    Page,
+    expect,
+    sync_playwright,
+)
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.source.render_checks import (
@@ -565,21 +572,40 @@ def panel_view(name: str) -> str:
 PANEL_THREAD = panel_view("thread")
 
 
+def text_field(
+    scope: Page | Locator | FrameLocator,
+    name: str | re.Pattern[str] | None = None,
+    *,
+    exact: bool | None = None,
+):
+    """Leaf's text field (`leaf-text`) in `scope` that a role query names `name`, matched
+    as `get_by_role` matches it. Its one textbox stands in a closed shadow root no
+    locator reaches, so this finds the group around it (text-field.js), among Leaf's
+    text fields alone, since other groups can carry the same words."""
+    return scope.get_by_role("group", name=name, exact=exact).and_(
+        scope.locator("leaf-text")
+    )
+
+
+# A JavaScript expression for the page's own check API (runtime/check-api.js), imported
+# from the page's entry, so it reads the runtime that page runs, each arm's its own, and
+# works on a page the harness doesn't watch, which has no `window.__lfCheckApi`
+# (tests/render_harness.py, the sensors).
+CHECK_API = """import(new URL('runtime/check-api.js', new URL(
+  document.querySelector('script[data-lf-entry]').dataset.lfEntry, location.href)).href)"""
+
+
 def choose_threads_in_panel(page: Page, on: bool = True) -> None:
     """Have this tab open threads about a passage in the panel, or with `on` false
     beside their passages, as for a user who chose that on an earlier visit
     (records/thread/threads-in-panel.js): the choice stored for the tab and read again, which
-    says nothing in the panel's field, as a reload doesn't. It imports the check API
-    from the page's own entry, so it works on a page the harness doesn't watch, which
-    has no `window.__lfCheckApi` (tests/render_harness.py, the sensors)."""
+    says nothing in the panel's field, as a reload doesn't."""
     page.evaluate(
-        """async (on) => {
-          const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-          const api = await import(
-            new URL('runtime/check-api.js', new URL(boot, location.href)).href);
+        f"""async (on) => {{
+          const api = await {CHECK_API};
           api.tabStore.set(api.THREADS_IN_PANEL_KEY, on ? "panel" : null);
           api.restoreThreadsInPanel();
-        }""",
+        }}""",
         on,
     )
 

@@ -296,7 +296,7 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_have_js_property("value", "s")
     write(field, "Keep this draft")
     page.keyboard.press("Tab")
-    expect(bar.locator('[data-lf-token="keep"]')).to_be_focused()
+    expect(bar.locator('[data-lf-emoji="👍"]')).to_be_focused()
     expect(field).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
@@ -344,10 +344,10 @@ def test_a_keyboard_comment_gesture_opens_its_targets_own_draft(browser, serve):
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
     """Without reactions, the focused composer still takes Escape."""
     registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    tokens = {name: None for name in registry["$reactions"]["tokens"]}
+    removed = {emoji: None for emoji in registry["$reactions"]["emoji"]}
     page = open_page(
         browser,
-        serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+        serve(TARGETS_PAGE, layer_registry={"$reactions": {"emoji": removed}}),
     )
     page.keyboard.press("s")
     code = (

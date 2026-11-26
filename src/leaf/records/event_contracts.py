@@ -10,6 +10,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
 from pathlib import Path
+from typing import Protocol
 
 from leaf.base.findings import Finding
 from leaf.base.harness import message_identity
@@ -59,10 +60,22 @@ from leaf.source.registry.kernel import (
     kinds_declaring,
     verb_writers,
 )
-from leaf.source.registry.reactions import reaction_tokens
+from leaf.source.registry.reactions import reaction_emoji
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
 from leaf.source.structure import quoted_in
+
+
+class OpenTransaction(Protocol):
+    """An open page transaction (`transaction.PageTransaction`), as admission reads the
+    log under its lease and appends to it."""
+
+    @property
+    def page_dir(self) -> Path: ...
+    @property
+    def events(self) -> list: ...
+
+    def _append_record(self, event: dict) -> dict: ...
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -545,13 +558,13 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
 
 
 def _reaction_error(event: dict, registry: dict) -> Finding | None:
-    if not event.get("token"):
+    if not event.get("emoji"):
         return None
-    tokens = reaction_tokens(registry)
-    if event["token"] not in tokens:
+    declared = reaction_emoji(registry)
+    if event["emoji"] not in declared:
         return Finding(
             "unknown-reaction",
-            values={"token": event["token"], "tokens": sorted(tokens)},
+            values={"emoji": event["emoji"], "declared": list(declared)},
         )
     return None
 
@@ -772,7 +785,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
-        registry=readings.work.registry,
     )
 
 
@@ -911,7 +923,9 @@ def voiced(event: dict) -> dict:
     return {"kind": event["kind"], "author": "agent", **message_identity(), **event}
 
 
-def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
+def append_admitted(
+    page: OpenTransaction, event: dict, *, view=None
+) -> tuple[dict, bool]:
     """Admit one event and append it, under the page transaction's log lease; the
     record, and whether this call appended it.
 
@@ -940,7 +954,7 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     return record, True
 
 
-def append_all_admitted(page, events: list[dict]) -> list[dict]:
+def append_all_admitted(page: OpenTransaction, events: list[dict]) -> list[dict]:
     """Admit `events` in order, each against the log as the ones before it leave it,
     then append them; their records. A refusal of any appends none, so a command that
     writes several events writes all of them or none. An event keeps the `id` it

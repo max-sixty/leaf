@@ -247,6 +247,8 @@ export function mountSample(
   /** @type {string | null} */
   let samplePage = null;
   let destroyed = false;
+  // Asked again after each wait a load makes, during which `destroy` can run.
+  const isDestroyed = () => destroyed;
   /** @type {Promise<SampleReady> | null} */
   let operation = null;
   /** @type {Promise<unknown> | null} */
@@ -304,7 +306,7 @@ export function mountSample(
   };
   /** @template {keyof SampleNotices} K @param {K} type @param {SampleNotices[K]} detail */
   const notify = (type, detail) => {
-    for (const callback of listeners[type] ?? []) callback(detail);
+    for (const callback of listeners[type]) callback(detail);
   };
   keeps(
     frame,
@@ -702,7 +704,7 @@ export function mountSample(
     allocation++;
     record("queued");
     const loading = loadWithinLimit(async (release) => {
-      if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+      if (isDestroyed()) throw new DOMException("sample destroyed", "AbortError");
       record("allocating");
       /** @type {import("../../types/contract.js").ServedSampleAnswer} */
       const { url, page } = await request(
@@ -714,7 +716,7 @@ export function mountSample(
       samplePage = page;
       record("allocated");
       try {
-        if (destroyed) {
+        if (isDestroyed()) {
           await retire("destroyed");
           throw new DOMException("sample destroyed", "AbortError");
         }
@@ -732,7 +734,7 @@ export function mountSample(
         });
         if (!admission.ok || !admission.headers.has("Leaf-Document"))
           throw new Error("The sample document did not start Leaf");
-        if (destroyed) {
+        if (isDestroyed()) {
           await retire("destroyed");
           throw new DOMException("sample destroyed", "AbortError");
         }

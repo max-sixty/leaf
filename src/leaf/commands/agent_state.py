@@ -209,7 +209,7 @@ def _base_state(
         "reactions": [
             {
                 "id": message["id"],
-                "token": message["token"],
+                "emoji": message["emoji"],
                 "anchor": message.get("anchor"),
                 "about": message.get("about"),
                 "parent": message.get("parent"),

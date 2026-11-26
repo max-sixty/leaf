@@ -52,7 +52,7 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { declarationFor, tokenEntry } from "../../state/registry.js";
+import { declarationFor } from "../../state/registry.js";
 import {
   isCanonicalMediaUrl,
   readAttachedMedia,
@@ -170,13 +170,10 @@ function proseReading(message) {
 // What a deleted message reads in its place, in Leaf's voice, as what the user did.
 const DELETED = leafSays("Deleted");
 
-/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
+/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly emoji?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
 export function messageText(message) {
   if (message.body?.kind === "authored") return message.body.text;
-  if (message.token) {
-    const token = tokenEntry(message.token);
-    return `${token?.glyph ?? ""} ${message.token}`.trim();
-  }
+  if (message.emoji) return message.emoji;
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
@@ -235,6 +232,9 @@ const authorName = (message) => (message.author === "agent" ? message.agent : "M
 // The characters of a thread's name or a message's opening line a preview keeps,
 // which wrap within its width.
 export const PREVIEWED_LINE = 120;
+// The characters of a thread's name a preview listing several threads keeps of each,
+// and a thread card's own name keeps.
+export const LISTED_NAME = 60;
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
 // and how many messages it holds, each said by whoever says it, less the part `said`,
@@ -290,7 +290,7 @@ export function saidTime(timestamp) {
  * which its line leaves out, so a screen reader hears it once.
  * @param {readonly import("./workflow.js").ThreadRecord[]} threads
  * @param {string | null} [said]
- * @returns {import("../../annotations/preview.js").Preview | null} */
+ * @returns {import("../../base/preview-declaration.js").Preview | null} */
 export function threadPreview(threads, said = null) {
   const [only] = threads;
   if (!only) return null;
@@ -318,7 +318,7 @@ export function threadPreview(threads, said = null) {
       items: threads.map((thread) =>
         standing(
           threadStands(thread, null),
-          `${excerptWords(threadName(thread), 60)} · `,
+          `${excerptWords(threadName(thread), LISTED_NAME)} · `,
         ),
       ),
       more: (count) =>
@@ -349,7 +349,7 @@ export const draftLine = (draft) => excerptWords(draftWords(draft), PREVIEWED_LI
 // doesn't already say it. What Send makes of it stands beside it on both.
 /** @param {readonly import("../drafts.js").ListedDraft[]} drafts
  * @param {import("../../base/voice.js").Words | null} [about]
- * @returns {import("../../annotations/preview.js").Preview | null} */
+ * @returns {import("../../base/preview-declaration.js").Preview | null} */
 export function draftPreview(drafts, about = null) {
   const [only] = drafts;
   if (!only) return null;
@@ -650,14 +650,13 @@ export function authoredHolder(id) {
 }
 /** @param {MessageRecord} message
  * @param {{authoredRank?: number,
- * workflows: readonly import("../../state/semantic-application.js").Workflow[],
+ * workflows: readonly import("../../../types/domain.js").Workflow[],
  * leaves?: {word: import("../../base/voice.js").Said, todo: string | null} | null}} options */
 export function messageReading(
   message,
   { authoredRank = 0, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = message.token ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
     : deleted(message)
@@ -713,8 +712,7 @@ export function messageReading(
         ? message.body.text
         : (prose?.plainText ?? message.text ?? ""),
       drawing: Boolean(message.drawing),
-      token: message.token ?? null,
-      glyph: token?.glyph ?? "",
+      emoji: message.emoji ?? "",
       authored,
     }),
     // The message as its Copy control copies it: its Markdown as written, any HTML in
@@ -731,7 +729,7 @@ export function messageReading(
 }
 
 /** @typedef {{read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage">,
- * reply: {wireInput: ReturnType<typeof import("../../annotations/composing/input.js").createCompositionInputs>["wireInput"],
+ * reply: {wireInput: import("../composition-input.js").WireInput,
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "edit">},
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
  * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"],
@@ -803,9 +801,7 @@ export class MessageView {
       // A message the keyboard stands on previews when it was said, as its time does to
       // a pointer or a finger (`agePreview`), beside that time in its head. Its words
       // preview nothing to a pointer or a finger, since they are what the user reads.
-      this.node.lfPreview = (
-        /** @type {import("../../annotations/preview.js").Route} */ route,
-      ) => {
+      this.node.lfPreview = (route) => {
         const at = route === "focus" ? clockTime(this.#model?.timestamp) : "";
         return at
           ? {
@@ -1150,7 +1146,7 @@ export class MessageView {
       </div>`;
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
-        <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
+        <span class="lf-react-said">${body.emoji}</span>
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;

@@ -1884,9 +1884,9 @@ flowchart LR
               selection, revisions, event log, media, and external data. Packages
               selected by a local path are copied into it; the serving Leaf supplies
               bundled packages and the runtime. Copying the directory preserves the
-              authored content and recorded decisions. Session ownership and browser
-              drafts live elsewhere. The diagram shows the durable inputs to current
-              state.
+              authored content and recorded decisions. Session ownership lives in the
+              machine’s state home instead. The diagram shows the durable inputs to
+              current state.
             </p>
             <figure id="data-flow" class="diagram-figure">
               <lf-diagram id="page-stores-diagram" data-height="646">
@@ -4871,12 +4871,12 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
           <section id="navigation-resolution">
             <h2>Resolving and replying</h2>
             <p id="navigation-resolve-rule">
-              <kbd>r</kbd> resolves the focused open thread. A thread open in the panel
-              moves on to the next open thread in page order, or the previous at the
-              end, which opens where every thread opens; with none left, it returns to
-              the list. A margin card moves on to the next thread at its passage, or the
-              one before, and closes onto its passage with none left. An embedded thread
-              folds in place.
+              <kbd>r</kbd> resolves the focused open thread. A thread opened from
+              Threads moves on to the open thread listed after it, or the one before at
+              the end, which opens where every thread opens; with none left, it returns
+              to the list. A margin card moves on to the next thread at its passage, or
+              the one before, and closes onto its passage with none left. An embedded
+              thread folds in place.
             </p>
             <details id="navigation-resolution-cases">
               <summary>Search, replies, and undo</summary>
@@ -4901,7 +4901,7 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     <td>
                       The search can show both open and resolved threads. Resolving a
                       thread opened from that list still advances through open threads
-                      in page order.
+                      in the order Threads lists them.
                     </td>
                   </tr>
                   <tr>

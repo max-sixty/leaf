@@ -41,7 +41,7 @@ def test_response_picker_keeps_the_comment_in_place(
             if reactions
             else {
                 "$reactions": {
-                    "tokens": {name: None for name in registry["$reactions"]["tokens"]}
+                    "emoji": {emoji: None for emoji in registry["$reactions"]["emoji"]}
                 }
             }
         )
@@ -102,7 +102,7 @@ def test_response_picker_keeps_the_comment_in_place(
     assert abs(after["height"] - before["height"]) <= 1, (before, after)
     if seat == "floating":
         expect(bar.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
-    expect(bar.get_by_role("button", name="keep", exact=True)).to_be_visible()
+    expect(bar.get_by_role("button", name="👍", exact=True)).to_be_visible()
     page.keyboard.press("Escape")
     expect(bar.locator(".lf-response-options")).to_be_hidden()
     expect(field).to_be_focused()

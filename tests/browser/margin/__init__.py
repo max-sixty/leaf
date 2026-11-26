@@ -13,11 +13,13 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
+    without_end_room,
     write,
 )
 
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 COMMENT_ON_OBLIGATION = {
     "kind": "comment",
@@ -416,14 +418,17 @@ CARD_AND_REPLY = """async () => {
 
 
 def drafting_in_a_short_card(browser, serve, width, height):
-    """A one-comment thread's card at this window, a word typed into its open reply."""
+    """A one-comment thread's card at this window, a word typed into its open reply.
+    The page keeps no room below its end, so a window too short for the card under
+    its words stands it over them."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    without_end_room(page)
     page.emulate_media(reduced_motion="reduce")
     resized(page, width, height)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     expect(editor).to_be_focused()
     editor.type("words")

@@ -49,7 +49,7 @@ from render_harness import (
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered, wait_for_probe
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -66,7 +66,7 @@ MARGIN_ACTIONS_EVENTS = (
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "token": "prioritize",
+        "emoji": "🎯",
         "anchor": {"section": "s-crowded"},
     },
 )
@@ -214,8 +214,8 @@ def _seed_card_threads(page_dir):
             "anchor": {"section": "crowded"},
         }
     )
-    for token in ("keep", "change"):
-        comment({"author": "user", "token": token, "anchor": {"section": "crowded"}})
+    for emoji in ("👍", "❌"):
+        comment({"author": "user", "emoji": emoji, "anchor": {"section": "crowded"}})
     return text["id"], crowded["id"]
 
 
@@ -268,7 +268,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     """
     page, preview, transcript = open_long_thread(browser, serve)
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     expect(preview.locator("leaf-text")).to_be_focused()
     place = "list => [list.scrollTop, list.scrollHeight - list.clientHeight]"
     settled = (
@@ -337,9 +337,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     )
     editor_start, narrow_lines = send_anchored_comment(page, text)
     assert narrow_lines > 1 if wrapping else narrow_lines == 1
-    page.locator(".lf-margin-thread").get_by_role(
-        "textbox", name="Reply", exact=True
-    ).click()
+    text_field(page.locator(".lf-margin-thread"), name="Reply", exact=True).click()
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 16) < narrow["minimum"], (
@@ -369,9 +367,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     resized(page, 1920, 900)
     editor_start, wide_lines = send_anchored_comment(page, text)
     assert wide_lines > 1 if wrapping else wide_lines == 1
-    page.locator(".lf-margin-thread").get_by_role(
-        "textbox", name="Reply", exact=True
-    ).click()
+    text_field(page.locator(".lf-margin-thread"), name="Reply", exact=True).click()
 
     # At this width clearing the controls would narrow the message. Both the
     # editor and its sent card use that space, retaining the editor's frame.
@@ -431,7 +427,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     # reply box's clipped part takes no press: the click lands on the thread, and
     # Playwright's retry scrolls the box into view.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     expect(editor).to_be_focused()
     rendered(page)
     before = page.evaluate(CARD_AND_REPLY)
@@ -718,7 +714,7 @@ def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
     pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     page.locator('[data-lf-margin-for="pane-top"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    editor = card.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(card, name="Reply", exact=True)
     editor.click()
     rendered(page)
     before = page.evaluate(CARD_AND_REPLY)
@@ -768,14 +764,14 @@ def test_a_pin_unfolds_from_the_seat_it_was_pressed_in(browser, serve):
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "token": "keep",
+        "emoji": "👍",
         "anchor": {"section": "editing-guide"},
     }
     page = open_page(
         browser, serve(MARGIN_ACTIONS_PAGE, events=[keep]), context=context
     )
     margins_laid_out(page)
-    reaction = page.get_by_role("button", name="keep reaction actions", exact=True)
+    reaction = page.get_by_role("button", name="👍 reaction actions", exact=True)
     cluster = page.locator(".lf-margin-cluster").filter(has=reaction)
     expect(cluster).to_have_attribute("data-lf-place", "pin")
     reaction.scroll_into_view_if_needed()
@@ -821,18 +817,16 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     reaction = next(
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token") == "prioritize"
+        if event.get("emoji") == "🎯"
     )
     reaction_actions = dialog.locator(
         '[data-lf-margin-entry-owner="reactions"]'
         f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
     )
-    expect(reaction_actions).to_have_attribute(
-        "aria-label", "prioritize reaction actions"
-    )
+    expect(reaction_actions).to_have_attribute("aria-label", "🎯 reaction actions")
     reaction_actions.click()
     expect(dialog).to_be_visible()
-    remove = dialog.get_by_role("button", name="Undo prioritize reaction", exact=True)
+    remove = dialog.get_by_role("button", name="Undo 🎯 reaction", exact=True)
     expect(remove).to_be_focused()
     page.keyboard.press("Escape")
     expect(remove).to_be_hidden()

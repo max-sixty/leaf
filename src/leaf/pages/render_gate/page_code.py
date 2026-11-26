@@ -1,26 +1,13 @@
 """The run plain `page check` gives what only a browser can judge.
 
-A page can carry code of its own: module scripts, and page widgets below `/page/`,
-with whatever each imports. It can also place a widget whose module reads content the
-static check only proves exists: a body of data (`content: data`), such as a chart's
-Plot expression, a diagram's Mermaid source or a diff, in a notation only the widget's
-module reads, or page media an attribute names, such as a screenshot pair whose two
-widths have to match. No static reading can say whether that code throws or whether
-the module can read that content, and a quick page never reaches `--render`. Without a
-browser run, a module that breaks on its first paint, or a chart whose body fails,
-would pass the check and reach the user, and its author would hear about it only from
-the watcher's `error` event. The check therefore runs the exact candidate once,
-wherever the page carries any of these: through upgrade, authoritative presentation,
-and one rendering frame after it, in the light scheme, at the render viewport, or with
-`--render` on the render check's page, at its desktop window (`PageCode`).
+Wherever a page carries what only a browser can judge (`browser_judged`, which says
+what that is and why), the check runs the exact candidate once: through upgrade,
+authoritative presentation, and one rendering frame after it, in the light scheme, at
+the render viewport, or with `--render` on the render check's page, at its desktop
+window (`PageCode`).
 
-A thread message's markup is run the same way before it posts (`message_page`,
-`command.message_check`), wherever it places one of those widgets. Nothing else draws
-it before the user opens its thread, so posting is the one moment its author can
-fix it before the user sees it. In the `widgets-draw-as-written` evals, 5 of 6
-Codex thread messages holding a Mermaid sequence diagram didn't draw (a `;` in a
-loop label or note ends the statement), and their authors never ran `--render`. A
-message with no such widget waits on no browser.
+A thread message takes the same run before it posts, where
+`browser_judged.places_judged_widget` selects its markup (`messages.py`).
 
 What fails it is what the runtime would report to the agent. `runtime/transport/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
@@ -43,12 +30,8 @@ gesture or a timer is not reached.
 
 from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
 
-import turbohtml
-
 from leaf.base.findings import Finding
-from leaf.base.schema import MEDIA_DIR
 from leaf.pages.render_gate.scheme import answer_reports, served, unready_finding
-from leaf.source.registry.contract import body_is_data
 from leaf.source.render_checks import (
     ADDRESS_MARKS,
     RENDER_VIEWPORT,
@@ -60,66 +43,6 @@ from leaf.source.render_checks import (
     wait_for_probe,
     wait_until_ready,
 )
-from leaf.source.revision_artifact import RevisionArtifact
-from leaf.source.structure import SourceDocument, element_attrs, script_kind
-
-
-def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
-    """Whether this revision runs what only a browser can judge: a script, or a
-    placed widget whose module reads what no static check has, a page widget's own
-    code, a data widget's body in a notation only its module parses, or the page
-    media its attributes name. A module a script imports is reached through that
-    script, and a widget the document never places never loads."""
-    scripts = [
-        *document.authoring.inline_scripts,
-        *document.authoring.external_scripts,
-    ]
-    if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
-        return True
-    return places_judged_widget(document, artifact)
-
-
-def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -> bool:
-    """Whether the document places a widget whose module reads what no static check
-    has: a page widget's own code, a data widget's body, or the page media its
-    attributes name. A widget the document never places never loads."""
-    registry = artifact.registry
-    implementations = artifact.implementations
-    return any(
-        implementations[record["tag"]]["owner"] == "page"
-        or body_is_data(registry[record["tag"]])
-        or any(
-            isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
-            for value in record["attrs"].values()
-        )
-        for record in document.lf_elements
-        if record["tag"] in implementations
-    )
-
-
-def message_page(markup: str) -> SourceDocument:
-    """A message's markup as a page of its own, as a sample's template is one.
-
-    A message's widgets stand in its thread rather than the page, where a chart in a
-    shut panel has no room to draw, so the run gives them the column the page's own
-    widgets have. The page's document stays out of it, so an error here is the
-    message's. A thread inserts markup through `template.innerHTML`, which never runs
-    a script in it, so the page leaves out every script a browser would run: the run is
-    for the widgets the markup places (`places_judged_widget`), and a script there would
-    refuse a message for code the user never runs, or change what the run reads."""
-    source = (
-        '<!doctype html><html lang="en"><head><title>Message</title></head>'
-        f'<body><main class="layout-column">{markup}</main></body></html>'
-    )
-    tree = turbohtml.parse(source, scripting=True, source_locations=True)
-    for script in reversed(tree.find_all("script")):
-        location = script.source_location
-        if location is None or script_kind(element_attrs(script)) == "data":
-            continue
-        end = (location.end_tag or location.start_tag).end_offset
-        source = source[: location.start_tag.start_offset] + source[end:]
-    return SourceDocument(source)
-
 
 # How `runtime/transport/layer-client.js` `reportPageError` opens the console line it writes for
 # each report, ahead of the words it posts.

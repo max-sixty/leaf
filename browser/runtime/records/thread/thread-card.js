@@ -77,7 +77,19 @@
    by the same rule (`placesEnd`). The user chose New reply for the panel, and the rest
    of the floating panel's growth with it (panel/floating-panel.js, which records it); the
    margin card takes it too, so one mechanism serves both, and that mechanism's rule at
-   its end, under the user's request for one thread view (thread-preview.js). */
+   its end, under the user's request for one thread view (thread-preview.js).
+
+   Two jumps stand over that box, presses that glide it to the messages' start or end
+   (`#jumps`), each shown by its container's rules while some of the messages stand
+   past its edge (surfaces.css), as chat apps float one at a conversation's foot. A
+   press moves focus to the thread, as New reply's does, so it doesn't fall to the page
+   as the press hides. Each is a mark standing as its own toolbar, the face a code
+   block's Copy wears over its code (controls.css), since a jump stands over words as
+   Copy does. A pin's lifted face read too heavy among the card's other presses, none
+   of which is lifted. The user chose the jumps over a hairline across the card at each
+   cut edge; over a bare chevron at the card's side, which looked unpolished to them;
+   and over a column kept clear of words for the chevrons, which took its width from
+   every message. */
 import { nextRender, sizeObserver } from "../../lib/frame-pass.js";
 import {
   holdFocus,
@@ -91,6 +103,7 @@ import { share } from "../../base/snapshot.js";
 import { turns, threadKey } from "../../state/thread/model.js";
 import {
   HOLDS,
+  LISTED_NAME,
   anchorPlace,
   messageReading,
   threadName,
@@ -109,6 +122,7 @@ import {
 } from "./replies.js";
 import {
   glideBy,
+  glideTo,
   SCROLL_SLACK,
   scrollGoal,
   scrollLimit,
@@ -179,7 +193,7 @@ import { excerptWords } from "../../lib/words.js";
 // the page's title, where no heading stands over them: a label of quoted words with no
 // place of their own, and the head's title for any other.
 /** @param {ThreadRecord} thread
- * @param {Pick<ReturnType<typeof import("../../annotations/anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
+ * @param {Pick<import("./placement.js").ThreadPlacements, "placedAt">} anchors */
 function quoteReading(thread, anchors) {
   const quoted = threadPassage(thread);
   const place = anchorPlace(quoted, thread.root.about);
@@ -242,9 +256,6 @@ const STOPPED = new Set(["stopped", "quiet", "interrupted"]);
 // key each is drawn under there.
 const WORKING = ".lf-thread-working";
 const FACE = "face:";
-// How much of the thread's name the card's own name says, as much as a preview listing
-// several threads says of each (messages.js, `threadPreview`).
-const NAMED = 60;
 // A first header's words, which a held-news notice stands after: everything it holds
 // but the message's own controls at its end.
 /** @param {HTMLElement} header @returns {HTMLElement[]} */
@@ -262,7 +273,7 @@ function workingMessage(thread, messages) {
   const running = workflows.find(inHand);
   const runningLine = running && hasWorkflowLine(running) ? running : null;
   const stopped = workflows.find(
-    /** @returns {workflow is Extract<import("../../state/semantic-application.js").Workflow, {detail: string}>} */
+    /** @returns {workflow is Extract<import("../../../types/domain.js").Workflow, {detail: string}>} */
     (workflow) =>
       workflow.state === "blocked" &&
       workflow.reason !== null &&
@@ -713,8 +724,7 @@ export class ThreadView {
   /** @param {string} id */
   ownsMessage(id) {
     return (
-      this.#model?.id === id ||
-      this.#model?.messages.some((message) => message.id === id)
+      this.#model.id === id || this.#model.messages.some((message) => message.id === id)
     );
   }
 
@@ -744,7 +754,7 @@ export class ThreadView {
     const { endNewsMoves, standsAtEnd } = this.#outlets;
     if (endNewsMoves) {
       if (news.settled) return false;
-      const last = this.#model?.messages.at(-1);
+      const last = this.#model.messages.at(-1);
       const list = this.#transcript.node;
       const follows =
         list.scrollHeight > list.clientHeight + 0.5 && Boolean(standsAtEnd?.());
@@ -790,7 +800,7 @@ export class ThreadView {
     if (!prior || !drawnWith) return false;
     // A card holding news draws on every pass: what it shows then moves with time and
     // the reader, not with its reading.
-    if (this.#model?.news) return false;
+    if (this.#model.news) return false;
     const { reread: _priorReread, ...was } = prior;
     const { reread: _reread, ...now } = model;
     const outside = this.#outside(model);
@@ -829,7 +839,7 @@ export class ThreadView {
       this.#retainHeaderSlot({ observe: false });
     // The rewrites the user has open, and the messages leaving, change their own room.
     const bodyPlace = published
-      ? this.#continuity?.before([
+      ? this.#continuity.before([
           ...this.#transcript.views
             .filter((view) => view.editing)
             .map(({ node }) => node),
@@ -872,7 +882,7 @@ export class ThreadView {
     // thread's name, cut short: an untitled thread's name is its first message, which
     // the card reads next, and said whole in the name it was heard twice.
     keeps(this.node, "role", "group");
-    keeps(this.node, "aria-label", `Thread, ${excerptWords(model.name, NAMED)}`);
+    keeps(this.node, "aria-label", `Thread, ${excerptWords(model.name, LISTED_NAME)}`);
     // A thread whose reply stands elsewhere ends with its messages, so it grows only at
     // its foot, the growing tail of the region holding it, as the panel's view is
     // (tests/shift_watch.js).
@@ -889,8 +899,9 @@ export class ThreadView {
     // anchored to the header beside the controls' box at its end (surfaces.css,
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
     keeps(notice.node, "data-lf-reflow", lined ? null : "text");
+    const [toStart, toEnd] = this.#jumps();
     const body = html`
-      ${this.#drawQuote()}${this.#transcript.node}
+      ${toStart}${this.#drawQuote()}${this.#transcript.node}${toEnd}
       ${
         lined
           ? (inLine ?? nothing)
@@ -908,7 +919,7 @@ export class ThreadView {
     render(
       html`
         ${inLine ? body : html`<div class="lf-thread-content">${body}</div>`}
-        ${this.#continuity?.gap ?? nothing} ${replyApart ? nothing : this.#reply.node}
+        ${this.#continuity.gap} ${replyApart ? nothing : this.#reply.node}
       `,
       this.node,
     );
@@ -924,7 +935,7 @@ export class ThreadView {
     else this.#releaseHeaderSlot();
     if (inLine && model.news) measure(this.node, () => this.#watchLineNews());
     else this.#releaseLineNews();
-    this.#continuity?.after(bodyPlace);
+    this.#continuity.after(bodyPlace);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
@@ -998,6 +1009,36 @@ export class ThreadView {
     >
       ${iconTemplate("down", "lf-action-icon")}Next unread
     </button>`;
+  }
+
+  // The jumps to the start and the end of the messages, where a box scrolls them (the
+  // header). The start's comes first in the thread's body and the end's after the
+  // transcript, so in a box that scrolls the whole thread, the start's sticks from the
+  // box's first scroll.
+  #jumps() {
+    if (!this.#outlets.scroller) return [nothing, nothing];
+    return /** @type {const} */ ([
+      ["start", "first-message"],
+      ["end", "latest-message"],
+    ]).map(
+      ([to, action]) =>
+        html`<button
+          type="button"
+          ${offeredAction("mark", "lf-thread-jump", undefined, { action })}
+          data-lf-bar
+          data-lf-jump=${to}
+          @click=${() => this.#jump(to)}
+        ></button>`,
+    );
+  }
+
+  /** @param {"start" | "end"} to */
+  #jump(to) {
+    const box = this.#outlets.scroller?.(this.#transcript.node);
+    if (!box) return;
+    focusDestination(wholeThread(this.node), "move");
+    if (to === "end") scrollToEnd(box, "smooth");
+    else glideTo(box, 0);
   }
 
   // New reply, at the transcript's end, which sticks at the foot of the box scrolling it.
@@ -1255,7 +1296,7 @@ export class ThreadView {
   }
 
   #retainHeaderSlot({ observe = true } = {}) {
-    const news = this.#model?.news;
+    const news = this.#model.news;
     if (observe && !news) {
       this.#releaseHeaderSlot();
       return;
@@ -1494,7 +1535,7 @@ export class ThreadView {
   // takes the pressed control away, as a held settlement does Resolve, the press leaves
   // the user on the thread's title.
   #showNews() {
-    if (!this.#model?.news) return;
+    if (!this.#model.news) return;
     const restoreFocus = holdFocus(this.node);
     this.#model.news.open();
     restoreFocus?.(this.node);
@@ -1623,7 +1664,7 @@ export class ThreadView {
     this.#quoteSize.disconnect();
     this.#quoteEffect?.();
     this.#quoteEffect = null;
-    this.#continuity?.release();
+    this.#continuity.release();
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;

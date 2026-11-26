@@ -143,7 +143,7 @@ export function datumLabel(anchor) {
 
 /** @param {Element} source @param {string} key */
 function suppliedDatum(source, key) {
-  const supplied = source?.lfDataDatum?.(key);
+  const supplied = source.lfDataDatum?.(key);
   return supplied instanceof Element &&
     under(supplied, source) &&
     supplied.getAttribute("data-lf-projection") === source.id

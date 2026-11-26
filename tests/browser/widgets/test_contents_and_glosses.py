@@ -1079,7 +1079,10 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 900)
     lens = page.locator("#lens-contents .lf-toc-window")
+    rows = page.locator("#lens-contents .lf-toc-rows")
     expect(lens).to_be_visible()
+    # The lens's place on the map, which the map's own place in the window leaves out:
+    # past the page's last line the margin scrolls with it.
     track = []
     for fraction in (0, 0.5, 1):
         page.evaluate(
@@ -1089,7 +1092,7 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
             "() => requestAnimationFrame(done))); }",
             fraction,
         )
-        track.append(lens.bounding_box()["y"])
+        track.append(lens.bounding_box()["y"] - rows.bounding_box()["y"])
     top, middle, foot = track
     assert top < middle < foot and foot > top + 300, track
 

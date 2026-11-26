@@ -786,7 +786,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
     assert lease
     append_carried_log_record(
         claimed,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
+        {"kind": "comment", "author": "user", "revision": 1, "emoji": "✂️"},
     )
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
@@ -796,7 +796,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
     )
     append_carried_log_record(
         claimed,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
+        {"kind": "reply", "author": "user", "parent": answer["id"], "emoji": "👍"},
     )
     receive_through(claimed, last_deliverable_seq(claimed))
 

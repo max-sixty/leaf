@@ -75,10 +75,10 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
 ):
     """A reactionless layer keeps Suggest in the compact response fallback."""
     registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    tokens = {name: None for name in registry["$reactions"]["tokens"]}
+    removed = {emoji: None for emoji in registry["$reactions"]["emoji"]}
     page = open_page(
         browser,
-        serve(INLINE_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+        serve(INLINE_PAGE, layer_registry={"$reactions": {"emoji": removed}}),
     )
     page.locator("#p").click(click_count=3)
     box = page.locator(".lf-fab-input")

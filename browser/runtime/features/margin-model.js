@@ -38,7 +38,7 @@ import { leafSays, wordsText } from "../base/voice.js";
  * @typedef {import("../base/contribution-model.js").ContributionKind} Kind
  * @typedef {import("../base/contribution-model.js").ContributionState} State
  * @typedef {import("../base/contribution-model.js").KindFace} KindFace
- * @typedef {import("../state/semantic-application.js").Workflow} Workflow
+ * @typedef {import("../../types/domain.js").Workflow} Workflow
  * @typedef {{word: import("../base/voice.js").Words, reason: string}} UserAttention
  * @typedef {{id: string, text: string, owner?: string, marker?: boolean,
  * represents?: boolean, workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
@@ -514,14 +514,20 @@ export function clusterProjection(
   });
 }
 
+// The kinds of reading that hold the user's own words: their threads and their drafts.
+const USERS_OWN = new Set(["comment", "draft"]);
+
 // Inputs are captured by the browser adapter. DOM targets, registrations, and activation
 // callbacks stay there; an entry owns only values.
 /** @template {Offer} O @param {MarginGroup<O>} group @returns {Readonly<MarginEntry<O>>} */
 export function marginEntry(group) {
+  // A contributed reading stands for Leaf's of its kind at its target, as a suggestion's
+  // stands for its own On Me marker, but never for the user's own threads and drafts.
   const represented = new Set(
     group.items
       .filter((item) => item.marker === false && item.represents)
-      .map((item) => item.kind),
+      .map((item) => item.kind)
+      .filter((kind) => !USERS_OWN.has(kind)),
   );
   let items = group.items
     .filter(

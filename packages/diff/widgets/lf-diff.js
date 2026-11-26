@@ -369,7 +369,7 @@ const pathSizes = sizeObserver((entries) => {
     };
   });
   for (const { path, header, cut, folders } of readings) {
-    if (cut) cutPaths.set(header, path.textContent ?? "");
+    if (cut) cutPaths.set(header, path.textContent);
     else cutPaths.delete(header);
     for (const { part, hidden } of folders)
       part.toggleAttribute("data-lf-folder-hidden", hidden);
@@ -919,7 +919,7 @@ async function parsedFiles(source) {
 // rows, line numbers and comment coordinates are the same either way.
 /** @template {NativeFile} T @param {T} file @returns {T} */
 function joinChangeRuns(file) {
-  for (const hunk of file.hunks ?? []) {
+  for (const hunk of file.hunks) {
     /** @type {NativeFile["hunks"][number]["hunkContent"]} */
     const content = [];
     for (const part of hunk.hunkContent) {
@@ -1128,14 +1128,12 @@ customElements.define(
         // the module answers it once from the chrome's own mark and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
         return () => {
-          this.rendering = (this.rendering ?? 0) + 1;
+          this.rendering = this.rendering + 1;
           if (this.#showing) this.#shown = undefined;
           // Leaf retires this surface when it leaves, after this cleanup, and puts
           // core's views back, so every outlet goes.
-          if (this.threadSeats) {
-            for (const record of this.threadSeats.values()) record.active = false;
-            this.retireThreadOutlets();
-          }
+          for (const record of this.threadSeats.values()) record.active = false;
+          this.retireThreadOutlets();
           this.threadSeats.clear();
         };
       });
@@ -1182,7 +1180,7 @@ customElements.define(
     // none.
     /** @param {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} source */
     async show(source) {
-      const rendering = (this.rendering ?? 0) + 1;
+      const rendering = this.rendering + 1;
       this.rendering = rendering;
       try {
         if (source == null) {

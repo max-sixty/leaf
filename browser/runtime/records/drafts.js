@@ -144,10 +144,12 @@ import { signal } from "/vendor/signals-core.js";
  * @typedef {{record: DraftRecord, stored: string | null, store: string | null, version: number, durable: boolean, ours: ReadonlySet<string>}} DraftCopy
  * @typedef {{attempts: string[], copy: Pick<DraftCopy, "record" | "stored" | "store" | "version" | "durable"> | null}} WaitingDraft
  * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
- * @typedef {import('../annotations/composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
- * @typedef {import('../annotations/composing/input.js').InputSync} InputSync
- * @typedef {import('../features/anchor-travel.js').EditorDestination} EditorDestination
- * @typedef {import('../dom/focus.js').Caret} Caret
+ * @typedef {HTMLElement & {value: string}} DraftField A draft's text field: a `leaf-text` (annotations/composing/text-field.js) or a textarea.
+ * @typedef {{load: (value: string) => void, closed: () => boolean, composition: () => {frame: Element}}} InputSync
+ * @typedef {{where: Element | Range, input: () => DraftField | null,
+ * frame?: () => Element | null, close?: () => void, open?: () => void | (() => void),
+ * present?: () => unknown, hasContent?: boolean}} EditorDestination
+ * @typedef {import("../base/held-place.js").Caret} Caret
  * @typedef {{context: string, selection: Caret | null, generation: string}} WritingPlace
  * @typedef {{ctx: string, input: DraftField | (() => DraftField | null), mirrored: boolean,
  * resume: (() => EditorDestination | null) | null, closed: () => boolean,
@@ -630,7 +632,7 @@ export const rewriteContext = (id) => PREFIX.rewrite + id;
 // Threads' Drafts also reads for what a passage's draft is about.
 /** @typedef {NonNullable<import("../../types/contract.js").EventMap["comment"]["anchor"]>} CommentAnchor
  * @typedef {{format: typeof DRAFT_FORMAT, anchor: CommentAnchor | null, revision: number | null, suggest: boolean,
- * about: "design" | null, drawing: import("../annotations/composing/drawing-record.js").DraftDrawing | null, touched: number}} ComposerDraft */
+ * about: "design" | null, drawing: import("../../types/domain.js").DraftDrawing | null, touched: number}} ComposerDraft */
 /** @param {CommentAnchor | null} anchor */
 export const composerCtx = (anchor) => commentContext(anchorKey(anchor));
 /** @param {Omit<ComposerDraft, "format" | "touched">} fields @returns {ComposerDraft} */
@@ -645,7 +647,7 @@ export function isComposerDraft(payload) {
 }
 // The draft a comment the log holds on a passage was written in, as the composer keeps
 // it, which taking the comment back puts its words back in (records/undo.js).
-/** @param {{anchor: CommentAnchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("../annotations/composing/drawing-record.js").DraftDrawing | undefined}} comment */
+/** @param {{anchor: CommentAnchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("../../types/domain.js").DraftDrawing | undefined}} comment */
 export const commentDraft = (comment) => ({
   ctx: composerCtx(comment.anchor),
   payload: composerPayload({
@@ -979,7 +981,8 @@ export async function sendDraft(ctx, owns, send) {
 // stands for those words. Only whether they have acted since counts, not where focus
 // stands, since withdrawing the thread the send landed them on hands their focus on.
 // After a later key or press the words wait for Resume writing.
-/** @param {string} ctx @param {() => boolean} owns @param {(attempt: string, payload: DraftPayload | undefined) => unknown} send
+/** @param {string} ctx @param {() => boolean} owns
+ * @param {(attempt: string, payload: DraftPayload | undefined) => PromiseLike<unknown> | null | undefined} send
  * @param {() => unknown} back */
 export function sendMessage(ctx, owns, send, back) {
   const current = claimDraft(ctx, owns);
@@ -1349,10 +1352,12 @@ function moveToPage(ctx) {
 // leaves the writing place where it was. Each travels to the draft, a Back step, except where the caller opens it
 // where the user stands (`travel: false`), as a press on its passage's margin marker
 // does (thread/destination.js).
-/** @typedef {{travel?: boolean, caret?: import("../dom/focus.js").Caret, control?: import("./carry.js").FocusKey,
+/** @typedef {{travel?: boolean, caret?: import("../base/held-place.js").Caret, control?: import("./carry.js").FocusKey,
  * intent?: ReturnType<typeof retainUserIntent>}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
- * arriveEditor: ReturnType<typeof import("../features/anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
+ * arriveEditor: (resolve: () => EditorDestination | null | undefined, options: {intent: ReturnType<typeof retainUserIntent>,
+ * caret: Caret | null, onFrame?: boolean, travel?: boolean}) => Promise<Element | null | undefined>,
+ * holdsThreadDraft: (ctx: string) => boolean}} options
  * @returns {{command: import("../dom/keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,
@@ -1499,7 +1504,7 @@ export function captureDraftEditing(at = focused()) {
 // names within the box (carry.js, `nameIn`). A reply's mirror is its thread's, which
 // history names by the thread. The words stay in the drafts store, which brings them
 // back with the box.
-/** @param {Element | null} [at] @returns {{draft: string, caret?: import("../dom/focus.js").Caret, box?: true, control?: import("./carry.js").FocusKey} | null} */
+/** @param {Element | null} [at] @returns {{draft: string, caret?: import("../base/held-place.js").Caret, box?: true, control?: import("./carry.js").FocusKey} | null} */
 export function draftFocus(at = focused()) {
   const editing = captureDraftEditing(at);
   if (editing && !editing.mirrored)
@@ -1710,7 +1715,7 @@ function takeHeldWords(event) {
     return;
   }
   const handed = /** @type {DraftEditing | undefined} */ (
-    window.lfStorage?.handoff?.draftEditing
+    window.lfStorage.handoff?.draftEditing
   );
   for (const { context, words: typed } of kept) {
     const box = handed?.context === context ? handed : null;
@@ -1734,7 +1739,7 @@ function takeHeldWords(event) {
         attempt: activeDraftRecord(context)?.attempt,
       });
   }
-  if (!window.lfStorage?.placesUser()) noticeDraftKept();
+  if (!window.lfStorage.placesUser()) noticeDraftKept();
 }
 
 // The drafts start from the copies the page this tab reloaded left waiting

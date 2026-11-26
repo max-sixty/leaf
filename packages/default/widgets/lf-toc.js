@@ -261,7 +261,7 @@ customElements.define(
     #scheduleMeasure = frameFor(this, () => this.#measure());
 
     #measure() {
-      if (!this.#main || !this.#scroller || !this.#rows) return;
+      if (!this.#main || !this.#scroller) return;
       const { disclosure, summary } = this.#drawing;
       // CSS already owns posture. A hidden summary means these links are an
       // always-exposed outline, which requires native open state in every engine.
@@ -554,7 +554,7 @@ customElements.define(
     #schedulePaint = frameFor(this, () => this.#paint());
 
     #paint() {
-      if (!this.#rows || !this.#scroller) return;
+      if (!this.#scroller) return;
       let current = this.#measured.find((measured) => measured.shown);
       if (!current) {
         this.#currentLink?.removeAttribute("aria-current");

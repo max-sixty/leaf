@@ -97,6 +97,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.agents import inference, thread_titles
+from leaf.agents.delivery import pickup_receipts
 from leaf.agents.thread import successful_replies
 from leaf.base.files import revision_path
 from leaf.base.findings import Finding
@@ -104,8 +105,9 @@ from leaf.base.leases import wait_is_live
 from leaf.base.server import running_server
 from leaf.base.service import claim_is_active, page_claim
 from leaf.base.state import session_live, session_record, turn_open
+from leaf.commands.agent_state import cmd_page_state
 from leaf.log.event_log import read_events
-from leaf.log.events import build_threads
+from leaf.log.events import build_threads, logged_fragment
 from leaf.log.interaction_log import read_interactions
 from leaf.source.render_checks import open_render_context, open_render_page
 from leaf.source.structure import SourceDocument
@@ -126,6 +128,8 @@ from leaf_dev.review_scenario import (
     REQUEST,
     USER_TURN,
     activity,
+    answers,
+    attempt,
     claimed,
     picked_up,
     post,
@@ -919,6 +923,93 @@ class Terminal:
             "mid-turn: the comment started a turn of its own",
         )
         return comment
+
+    def answered_twice(self, user: User, page: Path) -> str:
+        """`answered-twice`: the agent asks a question in a thread with clickable
+        choices, and the user, the session idle, answers it twice: in words naming a
+        choice, then with that choice as soon as the session has taken the words in,
+        before it answers them. The thread gets one answer, at the pick, which
+        settles the words too, so the thread owes nothing after it. The words and
+        the pick are posted as the page's tab posts them, at either end. Returns the
+        step's detail: whether one delivery carried both, and the answer."""
+        asked = user.comment("answered-twice")
+        self.settle(
+            lambda: user.answered("answered-twice"),
+            "answered-twice: the agent did not ask its question",
+        )
+        [question] = require(
+            answers(page, asked), "answered-twice: the question has no answer"
+        )
+        fragment = require(
+            logged_fragment(question), "answered-twice: the question has no choices"
+        )
+        tags = [r["tag"] for r in fragment.lf_elements]
+        require("lf-options" in tags, "answered-twice: the question has no lf-options")
+        # The first choice's first option, the elements being in document order.
+        at = tags.index("lf-options")
+        choice = fragment.lf_elements[at]
+        option = fragment.lf_elements[tags.index("lf-option", at)]
+        label = option["attrs"].get("label", option["attrs"]["id"])
+        client = PageClient(require(running_server(page), "no page server")["url"])
+        words = client.post(
+            {
+                "kind": "reply",
+                "parent": asked,
+                "attempt": attempt("answered-twice-words"),
+                "text": f"Let's go with “{label}”.",
+            }
+        )["id"]
+        self.until(
+            lambda: bool(picked_up(page, words)),
+            "answered-twice: the session did not take the words in",
+        )
+        require(
+            not answers(page, words),
+            "answered-twice: the agent answered the words before the user picked, so "
+            "the case did not arise",
+        )
+        pick = client.post(
+            {
+                "kind": "action",
+                "attempt": attempt("answered-twice-pick"),
+                "widget": choice["attrs"]["id"],
+                "action": "choose",
+                "detail": {"value": [option["attrs"]["id"]]},
+            }
+        )["id"]
+        self.settle(
+            lambda: answers(page, words) or answers(page, pick),
+            "answered-twice: the agent did not answer",
+        )
+        require(
+            not answers(page, words),
+            "answered-twice: the agent answered the words, which the pick had "
+            "overtaken",
+        )
+        replies = answers(page, pick)
+        require(
+            len(replies) == 1,
+            f"answered-twice: the pick has {len(replies)} answers, not one",
+        )
+        owed = [
+            item["input"]
+            for item in cmd_page_state(page)["workflows"]
+            if item["input"] in (words, pick)
+        ]
+        require(not owed, f"answered-twice: the thread still owes {owed}")
+        together = any(
+            words in pickup["events"] and pick in pickup["events"]
+            for pickup in pickup_receipts(read_events(page), phase="opened")
+        )
+        return (
+            "`answered-twice`: "
+            + (
+                "one delivery carried the words and the pick"
+                if together
+                else "the pick reached the session after the words"
+            )
+            + f"; the one answer: {replies[0]['text'][:200]!r}"
+        )
 
     def escape(self, user: User, page: Path) -> bool:
         """`escape`: Escape during the user's turn's shell command ends that turn,

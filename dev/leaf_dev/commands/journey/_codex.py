@@ -14,9 +14,9 @@ journey is then the terminal: it opens the task and types the user's turns, and
 sends the user's comments at the journey's user end. It reads the page's log and
 claim in process, and stops at the first check that fails.
 
-The steps, in order; `setup`, `release` and `mid-turn` are those more than one
-harness takes, as `_journey.Terminal` has them, with the task's adapter as what
-listens for the task between turns:
+The steps, in order; `setup`, `release`, `answered-twice` and `mid-turn` are those
+more than one harness takes, as `_journey.Terminal` has them, with the task's adapter
+as what listens for the task between turns:
 
 - `setup`, serving the page connecting delivery through this journey's transport.
   With `--sandbox`, the task's shell commands run in Codex's `workspace-write`
@@ -27,6 +27,8 @@ listens for the task between turns:
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
   moving its thread to the release rationale, are answered so;
+- `answered-twice`: the user answers the agent's question in words, then picks the
+  same choice once the task has taken the words in, and the thread gets one answer;
 - `mid-turn`, whose comment, on `codex-queue`, is answered before the user's
   turn's first final response rather than at its Stop;
 - `resume`: a turn interrupted during its shell command is resumed with empty input,
@@ -302,6 +304,10 @@ def steps(
             "the rich thread was not titled",
         )
         step(rich, started)
+
+    started = time.monotonic()
+    detail = codex.answered_twice(user, page)
+    codex.passed(user, page, "answered-twice", started, detail=detail)
 
     started = time.monotonic()
     if transport == "queue":

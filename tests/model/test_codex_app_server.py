@@ -2509,7 +2509,9 @@ def test_a_refused_turn_gives_up_the_reply_it_reserved(
         "codex-thread", prepared.payload["id"], target
     )
 
-    path = codex_model.record_path("codex-thread", prepared.payload["id"])
+    path = codex_model.RECORD.file(
+        codex_model.record_path("codex-thread", prepared.payload["id"])
+    )
     assert files_model.read_json(path)["state"] == "offering"
     assert connection.start_delivery(prepared.payload)
     assert isinstance(
@@ -3218,8 +3220,8 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
         codex_model.Abandoned,
     )
     path = codex_model.record_path("codex-thread", prepared.payload["id"])
-    assert not path.exists()
-    archived = path.parent / "history" / path.name
+    assert not codex_model.RECORD.file(path).exists()
+    archived = codex_model.RECORD.file(path.parent / "history" / path.name)
     assert files_model.read_json(archived)["state"] == "abandoned"
     assert [
         event["failure"]
@@ -3332,7 +3334,9 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     target = codex_model.stream_reply_target(prepared.payload)
     assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
-    path = codex_model.record_path("codex-thread", prepared.payload["id"])
+    path = codex_model.RECORD.file(
+        codex_model.record_path("codex-thread", prepared.payload["id"])
+    )
     record = files_model.read_json(path)
     record.update(state="abandoned", pending=list(range(len(record["batches"]))))
     cleanup_model.write_json(path, record)
@@ -3399,7 +3403,7 @@ def test_full_paginated_history_hydrates_an_accepted_delivery_omitted_from_resum
     assert connection._observe_lifecycle(turn_id)
     connection._fold(turn_id, prepared.payload["id"], follow=True)
     path = codex_model.record_path("codex-thread", prepared.payload["id"])
-    assert (path.parent / "history" / path.name).exists()
+    assert codex_model.RECORD.file(path.parent / "history" / path.name).exists()
     connection._disconnect_turns()
     if lifecycle == "closed":
         cleanup_model.close_session_turn("codex-thread", turn_id)
@@ -3541,7 +3545,9 @@ def test_unloaded_provider_history_cannot_abandon_an_uncertain_start(
     page_dir, app_server
 ):
     prepared = _codex_delivery(page_dir)
-    path = codex_model.record_path("codex-thread", prepared.payload["id"])
+    path = codex_model.RECORD.file(
+        codex_model.record_path("codex-thread", prepared.payload["id"])
+    )
     record = files_model.read_json(path)
     record["state"] = "starting"
     cleanup_model.write_json(path, record)
@@ -3825,7 +3831,9 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
 ):
     prepared = _codex_delivery(page_dir)
     target = codex_model.stream_reply_target(prepared.payload)
-    path = codex_model.record_path("codex-thread", prepared.payload["id"])
+    path = codex_model.RECORD.file(
+        codex_model.record_path("codex-thread", prepared.payload["id"])
+    )
     record = files_model.read_json(path)
     record["state"] = "starting"
     cleanup_model.write_json(path, record)

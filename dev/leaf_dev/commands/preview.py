@@ -242,7 +242,7 @@ def mark_preview(
     watcher can distinguish source edits from competing page edits. The page's own
     authored files and event log remain authoritative.
     """
-    from leaf.agents.server import PREVIEW
+    from leaf.base.service import PREVIEW
 
     PREVIEW.write(
         page / "preview.json",
@@ -431,13 +431,13 @@ class PreviewService:
     def stop(self) -> None:
         """Stop serving and withdraw this preview's acquisition, keeping successors."""
         from leaf.pages.hosting import cmd_stop
-        from leaf.records.transaction import PageTransaction
+        from leaf.records.transaction import ClaimTransition, PageTransaction
 
         if self.user:
             cmd_stop(self.page, owner=self.claim)
             if self.claim is not None:
                 with PageTransaction(self.page) as page:
-                    page.restore_claim(self.claim, None)
+                    page.restore_claim(ClaimTransition(None, self.claim, {}))
         else:
             self._close_temporary()
 
@@ -745,12 +745,13 @@ def discard_preview(page: Path) -> None:
     first, since its record goes with the page.
     """
     from leaf.base.service import claim_path
+    from leaf.base.state import CLAIM
     from leaf.pages.hosting import cmd_stop
 
     if page.exists():
         cmd_stop(page)
         shutil.rmtree(page)
-    claim_path(page).unlink(missing_ok=True)
+    CLAIM.remove(claim_path(page))
 
 
 def run_preview(
@@ -785,7 +786,7 @@ def serve_preview(
     user: bool,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
-    from leaf.agents.server import PREVIEW
+    from leaf.base.service import PREVIEW
 
     loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent

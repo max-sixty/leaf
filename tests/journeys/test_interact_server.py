@@ -750,7 +750,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     assert server_model.running_server(neighbor)
     hosting_model.cmd_stop(neighbor)
     assert rows() == []
-    assert not rows_model.row_path(neighbor).exists()
+    assert not rows_model.ROW.file(rows_model.row_path(neighbor)).exists()
 
 
 def test_pages_lists_the_machines_other_live_leaves(page_dir, server, tmp_path):
@@ -834,8 +834,8 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
         return [entry["title"] for entry in presence_model.other_leaves(page_dir)]
 
     assert titles() == ["Scratch"]
-    assert service_model.claim_path(deleted).exists()
-    assert service_model.claim_path(stopped).exists()
+    assert service_model.CLAIM.file(service_model.claim_path(deleted)).exists()
+    assert service_model.CLAIM.file(service_model.claim_path(stopped)).exists()
 
     lease = leases_model.take_lease(stopped / "server.lock")
     lease.write(read_record(stopped / "service.json")["server_id"].encode())
@@ -848,7 +848,7 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
 
     shutil.rmtree(stopped)
     assert titles() == ["Scratch"]
-    assert service_model.claim_path(stopped).exists()
+    assert service_model.CLAIM.file(service_model.claim_path(stopped)).exists()
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
@@ -912,7 +912,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     )
     original = server_model.running_server(neighbor)
     assert original is not None
-    (neighbor / "stream.json").write_text("{invalid")
+    service_model.STREAM.file(neighbor / "stream.json").write_text("{invalid")
     wait_for(
         lambda: server_model.running_server(neighbor),
         lambda service: service is None,
@@ -985,7 +985,7 @@ def test_a_start_serves_the_page_with_its_own_leaf(page_dir, persistent_server):
     as it is. One another Leaf started, here one whose record names another
     checkout, is restarted under this Leaf at the same URL, unless this Leaf can't
     serve the page, which is refused while the other Leaf goes on serving it."""
-    from leaf.source.registry.storage import LAYER, layer_record
+    from leaf.source.registry.storage import layer_record, write_layer
 
     runner = CliRunner()
 
@@ -1027,9 +1027,7 @@ def test_a_start_serves_the_page_with_its_own_leaf(page_dir, persistent_server):
         # server goes on reading it and must never find it missing.
         record = layer_record(page_dir)
         assert record is not None
-        LAYER.write(
-            page_dir / schema_model.LAYER_FILE, {**record, "packages": ["absent"]}
-        )
+        write_layer(page_dir, {**record, "packages": ["absent"]})
         started_by_another_leaf()
         refused = start()
         assert refused.exit_code != 0, refused.output
@@ -1059,7 +1057,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
 
     assert refused.exit_code != 0, refused.output
     assert "Use a newer Leaf" in refused.output
-    assert not service_model.claim_path(page_dir).exists()
+    assert not service_model.CLAIM.file(service_model.claim_path(page_dir)).exists()
     assert read_record(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
@@ -1113,7 +1111,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     assert presence_model.other_leaves(page_dir) == []
     # The stopped incarnation's row is retired by that reading, so a row present
     # later is one the reservation published.
-    assert not rows_model.row_path(neighbor).exists()
+    assert not rows_model.ROW.file(rows_model.row_path(neighbor)).exists()
     caller, end = socket.socketpair()
     child = spawn(
         [
@@ -1140,7 +1138,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             assert json.loads(announcements.readline())["url"] == previous["url"]
             assert leases_model.lock_is_held(neighbor / "server.lock")
             assert read_record(neighbor / "service.json") == desired
-            assert not rows_model.row_path(neighbor).exists()
+            assert not rows_model.ROW.file(rows_model.row_path(neighbor)).exists()
             assert server_model.running_server(neighbor) is None
             assert presence_model.other_leaves(page_dir) == []
             if accepted:
@@ -1156,14 +1154,16 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
                 assert current is not None
                 assert current["server_id"] != previous["server_id"]
                 assert (
-                    files_model.read_json(rows_model.row_path(neighbor))["server_id"]
+                    files_model.read_json(
+                        rows_model.ROW.file(rows_model.row_path(neighbor))
+                    )["server_id"]
                     == current["server_id"]
                 )
         if not accepted:
             caller.close()
             assert child.wait(timeout=STATED_TIMEOUT) == 0
             assert read_record(neighbor / "service.json") == desired
-            assert not rows_model.row_path(neighbor).exists()
+            assert not rows_model.ROW.file(rows_model.row_path(neighbor)).exists()
             assert presence_model.other_leaves(page_dir) == []
     finally:
         caller.close()
@@ -1206,7 +1206,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
     try:
         assert "url" in json.loads(caller.makefile("rb").readline())
         assert read_record(page_dir / "service.json") is None
-        assert not rows_model.row_path(page_dir).exists()
+        assert not rows_model.ROW.file(rows_model.row_path(page_dir)).exists()
         starting.start()
         assert attempting.wait(STATED_TIMEOUT), (
             "the successor never attempted the held server lease"
@@ -1247,7 +1247,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     hosting_model.cmd_stop(page_dir)
     desired = {**read_record(page_dir / "service.json"), "enabled": True}
     write_record(page_dir / "service.json", desired)
-    row_before = rows_model.row_path(page_dir).read_bytes()
+    row_before = rows_model.ROW.file(rows_model.row_path(page_dir)).read_bytes()
 
     def failed_constructor(*_args):
         assert server_model.running_server(page_dir) is None
@@ -1257,7 +1257,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
         hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
     assert read_record(page_dir / "service.json") == desired
-    assert rows_model.row_path(page_dir).read_bytes() == row_before
+    assert rows_model.ROW.file(rows_model.row_path(page_dir)).read_bytes() == row_before
     assert not leases_model.lock_is_held(page_dir / "server.lock")
     assert server_model.running_server(page_dir) is None
 
@@ -1415,10 +1415,10 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
     neighbour_page(deleted, title="Deleted", dead=True)
     shutil.rmtree(deleted)
     assert [row["title"] for row in presence_model.other_leaves(page_dir)] == ["Live"]
-    assert rows_model.row_path(live).is_file()
-    assert rows_model.row_path(reserved).is_file()
-    assert not rows_model.row_path(stopped).exists()
-    assert not rows_model.row_path(deleted).exists()
+    assert rows_model.ROW.file(rows_model.row_path(live)).is_file()
+    assert rows_model.ROW.file(rows_model.row_path(reserved)).is_file()
+    assert not rows_model.ROW.file(rows_model.row_path(stopped)).exists()
+    assert not rows_model.ROW.file(rows_model.row_path(deleted)).exists()
 
 
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
@@ -1459,7 +1459,7 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
         stdin=subprocess.PIPE,
         ENTERED=entered,
     )
-    path = rows_model.row_path(page_dir)
+    path = rows_model.ROW.file(rows_model.row_path(page_dir))
     wait_for(path.is_file, bool, failure="the server did not publish its initial row")
     entered.unlink()
     ended = threading.Event()

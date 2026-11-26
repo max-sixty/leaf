@@ -14,11 +14,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from leaf.base.detached import starting_detached
-from leaf.base.files import read_json
 from leaf.base.leases import end_if_terminated, lock_is_held
 from leaf.base.refusals import Refused
 from leaf.base.schema import ORPHAN_GRACE_SECS, PREVIEW_FILE, SERVER_LOCK, SERVICE_FILE
-from leaf.base.service import claim_is_active, page_claim
+from leaf.base.service import PREVIEW, page_claim, page_holder
 from leaf.base.state import (
     PLUGIN_ROOT,
     STRING,
@@ -88,18 +87,6 @@ ACCESS: Record[AccessRecord] = Record(
         "The key every page this machine serves is read with (`host_key`), in the "
         "state home's `access.json`.",
         object_schema({"token": STRING}),
-    ),
-    since=13,
-)
-# The page receives it whole, so its shape is the served state's `preview`.
-PREVIEW = Record(
-    "preview",
-    described(
-        "What a developer preview shows in browser chrome, as `leaf-dev preview` "
-        "writes it to the page directory's `preview.json`.",
-        read_json(
-            Path(__file__).parents[1] / "serving" / "served_state" / "state.schema.json"
-        )["$defs"]["Reading"]["properties"]["preview"],
     ),
     since=13,
 )
@@ -277,7 +264,8 @@ def stop_when_service_ends(page_dir: Path) -> None:
             exit_serving(0)
         persistent = service["lifetime"] == "persistent"
         held = page_claim(page_dir)
-        claimed = claim_is_active(held)
+        holder = page_holder(page_dir, held, None)
+        claimed = isinstance(holder, dict)
         if persistent or claimed:
             root = copy.successor(held["id"] if held is not None and claimed else None)
             if root is not None and root != asked:
@@ -290,7 +278,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
         if persistent:
             time.sleep(2.0)
             continue
-        if claimed:
+        if holder is not None:
             orphaned_at = None
         elif orphaned_at is None:
             orphaned_at = time.monotonic()
@@ -303,7 +291,10 @@ def stop_when_service_ends(page_dir: Path) -> None:
                     service = read_service(page_dir)
                     if not service or not service["enabled"]:
                         exit_serving(0)
-                    if service["lifetime"] == "persistent" or page.active_claim:
+                    if (
+                        service["lifetime"] == "persistent"
+                        or page.holder(None) is not None
+                    ):
                         orphaned_at = None
                         continue
                     exit_serving(0)
@@ -459,7 +450,7 @@ def host_key() -> str:
             if (access := ACCESS.read(path)) is None:
                 access = ACCESS.write(path, {"token": secrets.token_urlsafe(16)})
     # Whoever made the file, only the user reads the key.
-    hold_mode(path, 0o600)
+    hold_mode(ACCESS.file(path), 0o600)
     return access["token"]
 
 

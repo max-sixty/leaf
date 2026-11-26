@@ -75,6 +75,7 @@ from leaf.base.state import (
     flocked,
     object_schema,
     open_session_turn,
+    record_since,
     retire_if_gone,
     session_lock_path,
     session_record,
@@ -452,7 +453,6 @@ DELIVERY = Record(
         ),
     ),
     since=52,
-    kept=("batches/*/page",),
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 
@@ -491,13 +491,13 @@ def delivery_path(delivery_id: str) -> Path:
 
 
 def retire_gone_deliveries() -> None:
-    """Remove envelopes whose pages are all gone, whichever Leaf froze them.
+    """Remove envelopes of this shape whose pages are all gone.
 
     Envelopes are read one id at a time, so the only enumeration of them is here.
     Each page server runs it once as it starts (`hosting.cmd_serve`), away from
     any delivery an agent or a hook waits on: the read grows with every envelope
     the machine has kept."""
-    for path in (state_home() / "deliveries").glob("*.json"):
+    for path in DELIVERY.glob(state_home() / "deliveries"):
         retire_if_gone(DELIVERY, path)
 
 
@@ -827,7 +827,7 @@ def freeze_delivery(
         acknowledge=acknowledge(delivery_id) if acknowledge else None,
         correction=correction,
     )
-    if supplied and path.exists():
+    if supplied and DELIVERY.file(path).exists():
         if DELIVERY.read(path) != payload:
             raise DeliveryIdConflict(
                 f"delivery {delivery_id!r} already exists with other data"
@@ -852,11 +852,13 @@ def read_delivery(delivery_id: str) -> dict:
     except ValueError as error:
         raise Refused(str(error)) from error
     payload = stored_delivery(delivery_id)
-    if payload is None and path.exists():
+    if payload is None and (others := DELIVERY.others(path)):
         raise Refused(
-            f"delivery {delivery_id!r} was written by another Leaf, in a form this "
-            f"one does not read ({DELIVERY.format!r}). The updates it carried that "
-            "still owe an answer come again in the page's next delivery."
+            f"delivery {delivery_id!r} was written by another Leaf version as "
+            f"leaf-{DELIVERY.kind}/{record_since(others[0].name)}, which this Leaf "
+            "doesn't read. The "
+            "updates it carried that still owe an answer come again in the page's "
+            "next delivery: read and acknowledge that one instead."
         )
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
@@ -1355,8 +1357,12 @@ def receive_batch(
         if session_id
         else nullcontext()
     ):
-        if not may_receive(page.claim, session_id):
-            raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+        if not may_receive(page.page_dir, page.claim, session_id):
+            raise ReceiptRefused(
+                f"delivery no longer owns its page: {page.page_dir}; another "
+                "session or Leaf version holds it, and `leaf server start "
+                f"{page.page_dir}` in an agent session takes it over"
+            )
         if refusal := write_refusal(page.page_dir):
             raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}

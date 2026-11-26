@@ -158,31 +158,31 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     assert not bridge_model.live_sessions()
 
 
-@pytest.mark.parametrize("ending", ["live", "record ends", "session ends"])
+@pytest.mark.parametrize(
+    "ending", ["live", "a later kind", "record ends", "session ends"]
+)
 def test_the_bridge_lets_a_session_go_once_it_ends(ending):
-    """A session registered with a kind of lifetime this Leaf can't check, as a later
-    Leaf may register one, keeps the bridge until it ends: until its record says so,
-    or until its end retires its files, record and registration among them. So the
-    bridge can retire and free its port."""
+    """A registered session keeps the bridge until it ends: until its record says
+    so, or until its end retires its files, record and registration among them. So
+    the bridge can retire and free its port. A registration's lifetime of a kind this
+    Leaf can't check, as a later Leaf sharing this bridge may register, keeps it
+    too, since the registration's shape doesn't name its lifetime's keys."""
+    lifetime = {"window": "w-1"} if ending == "a later kind" else {"pid": os.getpid()}
     registration = state_model.session_file("later", f"{bridge_model.KEY}-1.bridge")
-    bridge_model.REGISTRATION.write(registration, {"id": "later", "window": "w-1"})
-    lifecycle = state_model.session_file("later", state_model.SESSION_SUFFIX)
-    if ending == "session ends":
-        started = state_model.new_session("later", {"pid": os.getpid()})
-        state_model.SESSION.write(lifecycle, {**started, "revision": 1})
-        state_model.end_session("later")
-    else:
-        recorded = state_model.new_session("later", {"window": "w-1"})
+    bridge_model.REGISTRATION.write(registration, {"id": "later", **lifetime})
+    if ending != "a later kind":
+        started = state_model.new_session("later", lifetime)
         if ending == "record ends":
-            recorded["ended"] = state_model.now_iso()
-        lifecycle.write_text(json.dumps({**recorded, "format": "leaf-session/999"}))
-    try:
-        assert bridge_model.live_sessions() is (ending == "live")
-        assert registration.exists() is (ending == "live")
-    finally:
-        # Ending the session at teardown would rewrite the record here with a
-        # lifetime this Leaf's schema doesn't allow, which the suite's check refuses.
-        lifecycle.unlink(missing_ok=True)
+            started["ended"] = state_model.now_iso()
+        state_model.SESSION.write(
+            state_model.session_file("later", state_model.SESSION_SUFFIX),
+            {**started, "revision": 1},
+        )
+    if ending == "session ends":
+        state_model.end_session("later")
+    live = ending in {"live", "a later kind"}
+    assert bridge_model.live_sessions() is live
+    assert bridge_model.REGISTRATION.file(registration).exists() is live
 
 
 def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):

@@ -171,34 +171,47 @@ export function arrangedBoxes(open, { shown = false } = {}) {
   });
 }
 
-// How a workspace holds the page's own panes: for each body of a `main.layout-workspace`
-// that has panes the page wrote as its cells, whether the Layout fills the window
-// (`--lf-full-height`, layouts.css) and the most of those panes that stand side by side, meaning
-// how many share some stretch of the page's height. One is a column of panes; a grid with
-// two stacked on the left of a tall third is two.
+// How a workspace holds the page's own panes: for each of its grids of them shown, a box
+// that holds only panes the page wrote, such as the body or a page tab's one block, other
+// than a pane's body (layouts.css, "A page's grid of panes"), whether the grid is told the
+// height it fills (`--lf-full-height`) and the most of those panes that stand side by
+// side, meaning how many share some stretch of the page's height. One is a column of
+// panes; a grid with two stacked on the left of a tall third is two.
 export function heldPanes() {
   const main = layoutBox();
   if (!main?.matches(".layout-workspace")) return [];
-  const held =
-    getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
-  return [...main.children].flatMap((body) => {
-    if (body.matches("header, footer")) return [];
-    const rects = [...body.children]
+  const grids = new Set(
+    [...main.querySelectorAll(AUTHORED_PANE)]
+      .map((pane) => /** @type {Element} */ (pane.parentElement))
+      .filter(
+        (grid) =>
+          !grid.parentElement?.matches(PANE) &&
+          [...grid.children].every((el) =>
+            el.matches(`${AUTHORED_PANE}, script, style, template`),
+          ) &&
+          !skipped(grid),
+      ),
+  );
+  return [...grids].flatMap((grid) => {
+    const rects = [...grid.children]
       .filter((el) => el.matches(AUTHORED_PANE))
       .map((pane) => pane.getBoundingClientRect())
       .filter((r) => r.width > 0 && r.height > 0);
     if (rects.length < 2) return [];
+    const held =
+      getComputedStyle(grid).getPropertyValue("--lf-full-height").trim() === "1";
     const beside = Math.max(
       ...rects.map(
         (r) => rects.filter((o) => o.top < r.bottom - 1 && r.top < o.bottom - 1).length,
       ),
     );
     return [
-      { at: element(body), place: place(body), held, panes: rects.length, beside },
+      { at: element(grid), place: place(grid), held, panes: rects.length, beside },
     ];
   });
 }
-const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
+const PANE = '[data-lf-reading-role="pane"]';
+const AUTHORED_PANE = `${PANE}:not([data-lf-generated])`;
 
 // Each region of a screen that runs past its room. A full-height workspace is a screen
 // rather than a page to scroll (page-layout.md, A workspace), so each region of it the

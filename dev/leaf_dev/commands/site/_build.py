@@ -57,6 +57,7 @@ from leaf.base.schema import (
     PAGE_STATE_FILES,
     SESSION_ROUTE_DIRS,
 )
+from leaf.base.state import record_name
 from leaf.log.event_log import initialized
 from leaf.serving.live_shell import write_live_shell
 from leaf.source.registry.kernel import kernel_protocol
@@ -274,7 +275,7 @@ def deduplicate_tree(
     for path in sorted(
         candidate for candidate in root.rglob("*") if candidate.is_file()
     ):
-        if path.name in mutable_names or path.parent.name in mutable_names:
+        if record_name(path.name) in mutable_names or path.parent.name in mutable_names:
             continue
         body = path.read_bytes()
         identity = (len(body), hashlib.sha256(body).digest())

@@ -58,7 +58,6 @@ BINDINGS = Record(
         ),
     ),
     since=50,
-    kept=("bindings",),
 )
 
 MAX_FILE_BYTES = 256 * 1024
@@ -87,9 +86,8 @@ def _access(page_dir: Path):
 
 
 def _grants(page_dir: Path) -> dict[str, str]:
-    """The grants as `files.json` records them, whichever Leaf wrote it, so the
-    next grant keeps those another Leaf recorded."""
-    record = BINDINGS.read_any(page_dir / FILE_BINDINGS_FILE)
+    """The grants as `files.json` records them."""
+    record = BINDINGS.read(page_dir / FILE_BINDINGS_FILE)
     return record["bindings"] if record else {}
 
 
@@ -231,7 +229,7 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
         path = canonical_path(file.expanduser(), strict=True)
     except OSError as error:
         raise FileBindingError(str(error)) from error
-    if path == (page_dir / FILE_BINDINGS_FILE).resolve():
+    if path == BINDINGS.file(page_dir / FILE_BINDINGS_FILE).resolve():
         raise FileBindingError("A page cannot edit its own file access grants.")
     with page_locked(page_dir):
         try:
@@ -251,12 +249,16 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
 
 
 def unbind_file(page_dir: Path, binding: str) -> dict:
-    """Withdraw one grant, including for browser buffers read before this call."""
+    """Withdraw one grant, including for browser buffers read before this call. The
+    user withdraws it from every Leaf, so the records a Leaf of another shape keeps
+    go whole, since this Leaf can't read which grants they hold (`state.Record`)."""
     _validate_binding(binding)
     with page_locked(page_dir):
         grants = _grants(page_dir)
         grants.pop(binding, None)
         BINDINGS.write(page_dir / FILE_BINDINGS_FILE, {"bindings": grants})
+        for other in BINDINGS.others(page_dir / FILE_BINDINGS_FILE):
+            other.unlink(missing_ok=True)
     return {"binding": binding, "bound": False}
 
 

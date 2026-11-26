@@ -14,7 +14,7 @@ from leaf.base.findings import Finding
 from leaf.base.page_memory import Slot, Stamped, memo, once
 from leaf.base.refusals import Refused
 from leaf.base.schema import LAYER_FILE
-from leaf.base.state import PLUGIN_ROOT, Record, stored_record
+from leaf.base.state import PLUGIN_ROOT, Record, replace_bytes, stored_record
 from leaf.source.registry.contract import RegistryError, read_registry_declarations
 from leaf.source.registry.kernel import kernel_protocol
 
@@ -25,7 +25,8 @@ LAYER = Record(
             "A page's layer selection, `layer.json` in its directory: the packages"
             " every Leaf that reads the page composes, in order, and the generation"
             " an open document speaks. Its `format` names the page protocol of the"
-            " Leaf that last initialized the page."
+            " Leaf that last initialized the page, so unlike every other record it"
+            " keeps one file whatever its shape (`write_layer`)."
         ),
         "type": "object",
         "properties": {
@@ -39,7 +40,6 @@ LAYER = Record(
         "required": ["packages", "generation"],
     },
     since=kernel_protocol(),
-    kept=("packages",),
 )
 
 
@@ -72,7 +72,7 @@ def layer_record(page_dir: Path) -> dict | None:
     as `newer-layer` where the format's number is higher than this Leaf's and as
     `foreign-layer` where it is lower (`layer-registry.md`, "Page protocol")."""
     stored = stored_record(page_dir / LAYER_FILE)
-    if stored is None or (recorded := LAYER.since_of(stored)) is None:
+    if stored is None or (recorded := _protocol(stored)) is None:
         return None
     if recorded != LAYER.since:
         values = {
@@ -91,10 +91,32 @@ def layer_record(page_dir: Path) -> dict | None:
 
 
 def layer_packages(page_dir: Path) -> list[str] | None:
-    """The packages the page's layer record selects, whichever Leaf wrote it
-    (`state.Record.read_any`), or None where the page holds no layer record."""
-    record = LAYER.read_any(page_dir / LAYER_FILE)
-    return None if record is None else list(record["packages"])
+    """The packages the page's layer record selects, at whichever protocol a Leaf
+    wrote it, or None where the page holds no layer record. A renewal carries them
+    to this Leaf's protocol (`vendoring.renew_layer`), since it replaces the record
+    rather than leaving it beside a new one (`write_layer`)."""
+    stored = stored_record(page_dir / LAYER_FILE)
+    if stored is None or _protocol(stored) is None:
+        return None
+    return list(stored["packages"])
+
+
+def write_layer(page_dir: Path, record: dict) -> None:
+    """Write the page's layer record, replacing one at any protocol. A record of
+    every other kind keeps a file per shape (`state.Record.file`), but the layer's
+    `format` is the page's protocol, which every Leaf reads to refuse a page at
+    another (`layer_record`), so a page holds one: two would let two protocols
+    write one log. Only the session holding the page moves it to another protocol
+    (`service.refuse_held`)."""
+    path = page_dir / LAYER_FILE
+    replace_bytes([(path, LAYER.encode(record), not path.is_symlink())])
+
+
+def _protocol(stored: dict) -> int | None:
+    """The page protocol a stored layer record's `format` names, or None where it
+    is no layer record."""
+    kind, _, protocol = str(stored.get("format", "")).rpartition("/")
+    return int(protocol) if kind == "leaf-layer" and protocol.isdecimal() else None
 
 
 def selected(record: dict, page_dir: Path):

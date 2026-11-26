@@ -1398,13 +1398,14 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored = data_model.source_file(page_dir, "builds")
     state = state_json(page_dir)
     assert stored == page_dir / state["data"]["dir"] / "builds.json"
-    assert json.loads(stored.read_text())["value"] == ["passing"]
+    file = data_model.PUBLICATION.file(stored)
+    assert json.loads(file.read_text())["value"] == ["passing"]
     [consumer] = state["data_bindings"]["builds"]["consumers"]
     assert consumer["widget"] == "test-data"
     assert state["data"]["errors"] == []
 
-    publication = json.loads(stored.read_text())
-    stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
+    publication = json.loads(file.read_text())
+    file.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
     _, findings = check_findings(page_dir)
@@ -2885,7 +2886,9 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert written.exit_code == 0, written.output
     served = state_json(page_dir)
     first = read_page_data(page_dir)
-    stored = data_model.source_file(page_dir, "deployments")
+    stored = data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "deployments")
+    )
     assert first["sources"]["deployments"] == {
         "contract": "deployment-rows",
         "revision": hashlib.sha256(
@@ -3074,9 +3077,11 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
         **{key: source[key] for key in ("contract", "revision", "run", "updated")},
     }
     assert source["value"] == {"main": "passing"}
-    assert json.loads(data_model.source_file(page_dir, "builds").read_text())[
-        "value"
-    ] == {"main": "passing"}
+    assert json.loads(
+        data_model.PUBLICATION.file(
+            data_model.source_file(page_dir, "builds")
+        ).read_text()
+    )["value"] == {"main": "passing"}
 
 
 def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
@@ -3098,7 +3103,9 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
 
     data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
-    assert data_model.source_file(page_dir, "project-feed").exists()
+    assert data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "project-feed")
+    ).exists()
 
 
 def test_a_source_bound_only_by_reply_html_can_be_set(page_dir):

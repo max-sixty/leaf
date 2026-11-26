@@ -87,11 +87,17 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     declare(claimed, ts=now.isoformat())
     assert activity_reading(claimed)["presence"] == "here"
 
-    # A claim an older Leaf wrote, with no `turn_opened`, owes no belief either.
+    # A session whose record a Leaf of another shape wrote, with no
+    # `turn_opened`, owes no belief either: this Leaf reads no record of it.
     lifecycle = cleanup_model.session_record("s1")
     assert lifecycle is not None
+    path = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    cleanup_model.SESSION.remove(path)
     cleanup_model.write_json(
-        cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX),
-        {key: value for key, value in lifecycle.items() if key != "turn_opened"},
+        path.with_name(f"{path.stem}@13{path.suffix}"),
+        {
+            "format": "leaf-session/13",
+            **{key: value for key, value in lifecycle.items() if key != "turn_opened"},
+        },
     )
     assert activity_reading(claimed)["presence"] == "gone"

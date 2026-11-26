@@ -154,6 +154,7 @@ from leaf.base.findings import Finding
 from leaf.base.harness import HOOK_TIMEOUT_S, Harness, claim_harness
 from leaf.base.json_block import json_block, read_json_block
 from leaf.base.schema import ANSWER_INSTRUCTION, PREVIEW_FILE
+from leaf.base.service import PREVIEW
 from leaf.base.state import (
     STATUS_CHECKED_SUFFIX,
     STATUS_RENEWAL,
@@ -344,7 +345,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         owed,
                         acknowledged_obligations(state),
                         watched,
-                        (page_dir / PREVIEW_FILE).exists(),
+                        PREVIEW.file(page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
                         unready,
                     )

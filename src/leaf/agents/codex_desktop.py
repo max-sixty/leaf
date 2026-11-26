@@ -62,6 +62,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from leaf.agents.codex import (
+    RECORD,
     START_TIMEOUT,
     AppServerRequestRejected,
     StartingOffer,
@@ -249,7 +250,7 @@ def settle_desktop_start(session_id: str) -> bool:
         if turn is not None:
             accept_codex_delivery(session_id, path.stem, turn)
         elif delivery_turn(session_id) is None and (
-            time.time() - path.stat().st_mtime > SETTLE_WINDOW
+            time.time() - RECORD.file(path).stat().st_mtime > SETTLE_WINDOW
         ):
             abandon_uncertain_delivery(session_id, read_delivery(path.stem))
         else:

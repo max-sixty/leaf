@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from leaf.agents.server import (
+    SERVICE,
     exit_serving,
     exit_serving_on_signals,
     host_key,
@@ -576,6 +577,15 @@ def _take_server_lease(page_dir: Path):
     lease = take_lease(page_dir / SERVER_LOCK, prepare=clear_identity)
     if lease is not None:
         return lease
+    if SERVICE.others(page_dir / SERVICE_FILE):
+        # Its record is of a shape this Leaf doesn't read, so no start can reuse
+        # the server or ask it to stop; a stop removes that record (`cmd_stop`).
+        raise Refused(
+            f"a server another Leaf version started is serving {page_dir}, and this "
+            f"Leaf can't read its record, so a start can't reuse or replace it: run "
+            f"`leaf server stop {page_dir}`, then `leaf server start {page_dir}`, "
+            "which serves the page at a new address"
+        )
     raise Refused(f"another server run is serving {page_dir}; re-run")
 
 
@@ -723,7 +733,8 @@ def cmd_serve(
                 try:
                     with PageTransaction(page_dir) as page:
                         if acquire and claimed:
-                            with page.publishing_claim(prepared_claim) as (_, claim):
+                            with page.publishing_claim(prepared_claim) as taken:
+                                claim = taken.claim
                                 if httpd is not None:
                                     assert service is not None
                                     write_service(page_dir, service)
@@ -744,7 +755,7 @@ def cmd_serve(
                         or not same_claim(page_claim(page_dir), prepared_claim)
                     ):
                         if previous_service is None:
-                            (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+                            SERVICE.remove(page_dir / SERVICE_FILE)
                         else:
                             write_service(page_dir, previous_service)
                     raise
@@ -1057,25 +1068,21 @@ def cmd_stop(
                     return stopped
             # The server may release its lease immediately after we disable it.
             service = read_service(page_dir)
-            # Whether a server runs is the lease's to say: one an older Leaf started
-            # over a record this version cannot read holds it without a readable
-            # record to show it by. A private preparation holds the lease too, but
-            # has no service record and has not become a running service.
+            others = SERVICE.others(page_dir / SERVICE_FILE)
+            # Whether a server runs is the lease's to say: one a Leaf of another
+            # `SERVICE` shape started holds it while that shape's record stands,
+            # whatever this shape's says. A private preparation holds the lease too,
+            # but has no service record and has not become a running service.
             stopped = (
                 stopped
                 or running_server(page_dir) is not None
-                or (
-                    service is None
-                    and (page_dir / SERVICE_FILE).exists()
-                    and lock_is_held(page_dir / SERVER_LOCK)
-                )
+                or (bool(others) and lock_is_held(page_dir / SERVER_LOCK))
             )
-            if service is None:
-                # A record this version cannot read names no service it could
-                # disable. Discarding it is what stops a server an older Leaf
-                # started over it, which exits once its record is gone.
-                (page_dir / SERVICE_FILE).unlink(missing_ok=True)
-            elif first:
+            # A stop ends the page's service at every shape (`state.Record`), and
+            # a server another shape's Leaf started exits once its record is gone.
+            for other in others:
+                other.unlink(missing_ok=True)
+            if service is not None and first:
                 disabled = service.copy()
                 disabled.pop("restart", None)
                 disabled["enabled"] = False
@@ -1083,7 +1090,7 @@ def cmd_stop(
                     disabled["restart"] = restart
                 if disabled != service:
                     write_service(page_dir, disabled)
-            elif service["enabled"]:
+            elif service is not None and service["enabled"]:
                 write_service(page_dir, {**service, "enabled": False})
             first = False
             lease = take_lease(page_dir / SERVER_LOCK)

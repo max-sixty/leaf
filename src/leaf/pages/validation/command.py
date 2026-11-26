@@ -9,12 +9,15 @@ gate's margin widths and saved screens even when it reports findings, unless the
 was not ready for them. `browser` is null where no gate needed one. The agent's render
 check leaves its reading (`render_reading`) for `page state` and for the page's server
 (`handover_pass`), which runs the same check without its screens
-(`check_page`) and keeps its own reading.
+(`check_page`) and keeps its own reading. Beside the source's own findings it names
+the drafts a Leaf of another version left in the page directory
+(`other_version_drafts`).
 """
 
 from pathlib import Path
 
 from leaf.base.files import list_revisions
+from leaf.base.findings import Finding
 from leaf.base.leases import page_locked
 from leaf.log.event_log import read_events
 from leaf.records.authored_checks.source import (
@@ -34,6 +37,22 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
     if read is not None:
         remember_reading(page_dir, *read)
     return report
+
+
+def other_version_drafts(page_dir: Path) -> list[Finding]:
+    """A note naming each drafts store a Leaf of another shape of it kept in the page
+    directory, which this Leaf reads none of (`state.Record.others`): the user's
+    unsent words, which only the user can say are no longer wanted. The page's other
+    records of other shapes are disposable, so `page check` names none of them."""
+    from leaf.base.schema import DRAFTS_FILE
+    from leaf.serving.drafts import DRAFTS
+
+    return [
+        Finding(
+            "other-version-drafts", values={"page": str(page_dir), "file": str(file)}
+        )
+        for file in DRAFTS.others(page_dir / DRAFTS_FILE)
+    ]
 
 
 def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
@@ -66,6 +85,7 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
             *result.errors,
             *moved_threads(page_dir, events, active - 1, result),
             *source_advice(page_dir, result),
+            *other_version_drafts(page_dir),
         ]
         if result.errors:
             return reported(1, found), None

@@ -37,7 +37,15 @@ from leaf.base.schema import (
     USER_VIEWS_LOCK,
 )
 from leaf.base.service import claim_path, page_claim
-from leaf.base.state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
+from leaf.base.state import (
+    CLAIM,
+    EVENTS_FILE,
+    SESSION,
+    SESSION_SUFFIX,
+    flocked,
+    record_name,
+    session_file,
+)
 from leaf.source.file_bindings import bound_paths
 
 # Diagnostic writes cannot move application state. The server writes
@@ -70,7 +78,7 @@ def page_input(page_dir: Path, path: Path) -> bool:
     if STAGED.fullmatch(path.name):
         return False
     if len(parts) == 1:
-        return parts[0] not in UNWATCHED
+        return record_name(parts[0]) not in UNWATCHED
     return parts[0] in TREES or len(parts) == 2
 
 
@@ -112,12 +120,17 @@ def outside_inputs(page_dir: Path) -> set[Path]:
 
 
 def _outside(page_dir: Path) -> list[tuple[str, Path]]:
-    named = [("$claim", claim_path(page_dir))]
+    named = [("$claim", CLAIM.file(claim_path(page_dir)))]
     claim = page_claim(page_dir)
     if claim:
         # Turn openings/closings and SessionEnd are shared session publications,
         # not rewrites of every page claim. They change each claimed page's state.
-        named.append(("$session", session_file(claim["id"], SESSION_SUFFIX).resolve()))
+        named.append(
+            (
+                "$session",
+                SESSION.file(session_file(claim["id"], SESSION_SUFFIX)).resolve(),
+            )
+        )
     return named + _bound(page_dir)
 
 
@@ -232,9 +245,14 @@ def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:
 
 def page_stamps(page_dir: Path) -> list[tuple[str, object]]:
     """Each stamp a reading takes inside the page directory, by name: each direct
-    child's but the diagnostics', and every entry's in `TREES`, named by its path from
-    the page directory, so a stamp inside a tree is named under the tree's own name."""
-    stamps = entry_stamps(page_dir, UNWATCHED)
+    child's but the diagnostics', a record's under the name its readers give it
+    (`state.record_name`), and every entry's in `TREES`, named by its path from the
+    page directory, so a stamp inside a tree is named under the tree's own name."""
+    stamps = [
+        (record_name(name), stamp)
+        for name, stamp in entry_stamps(page_dir, ())
+        if record_name(name) not in UNWATCHED
+    ]
     stamps.extend(
         (entry.relative_to(page_dir).as_posix(), file_stamp(entry))
         for tree in TREES

@@ -440,7 +440,7 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
     """A page with no service record has nothing that will serve it, so a wait
     on it ends on its first pass with the command that does, whether it was
     named or claimed earlier and found by the session's wait."""
-    assert not (page_dir / "service.json").exists()
+    assert not server_model.SERVICE.file(page_dir / "service.json").exists()
     session_model.cmd_waiting(page_dir)
     transaction_model.claim_page(page_dir)
 
@@ -1498,37 +1498,13 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     assert owed_answers(page_dir) == []
 
 
-def test_a_wait_for_no_session_leaves_a_session_another_leaf_recorded_its_input(
-    claimed, monkeypatch, capsys
-):
-    """A session whose lifecycle another Leaf recorded in another shape, as one an
-    older installed copy runs, still holds its page here, so a wait acting for no
-    session, as a terminal's or a checkout's, takes none of the user's input to it:
-    the wait says who holds the page and delivers nothing."""
-    lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
-    stored = json.loads(lifecycle.read_text())
-    stored["format"] = "leaf-session/13"
-    lifecycle.write_text(json.dumps(stored))
-    append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "for the session"}
-    )
-    cursor = acknowledged_through(claimed)
-    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
-
-    assert session_model.cmd_wait(claimed) == 2
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "session s1 holds it, and this Leaf acts for no session" in captured.err
-    assert acknowledged_through(claimed) == cursor
-
-
 def test_a_wait_for_no_session_leaves_an_unknown_harness_its_input(
     claimed, monkeypatch, capsys
 ):
     """A claim naming a harness this Leaf doesn't know, as a later Leaf's may, holds
     its page while its session lives, so a wait acting for no session takes none of
     the user's input to it."""
-    path = service_model.claim_path(claimed)
+    path = service_model.CLAIM.file(service_model.claim_path(claimed))
     stored = json.loads(path.read_text())
     stored["harness"] = "a-harness-a-later-leaf-named"
     path.write_text(json.dumps(stored))

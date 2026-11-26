@@ -21,7 +21,7 @@ from leaf.log.projection import (
     markup_value,
     record_members,
 )
-from leaf.source.data import source_file
+from leaf.source.data import PUBLICATION, source_file
 from leaf.source.registry.contract import recorded, state_specs, upgraded
 from leaf.source.structure import SourceDocument
 
@@ -57,7 +57,7 @@ def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> di
                 "kind": "data",
                 "page": str(page_dir),
                 "source": source,
-                "file": str(source_file(page_dir, source)),
+                "file": str(PUBLICATION.file(source_file(page_dir, source))),
                 "binding_attribute": spec["source"],
             },
         }

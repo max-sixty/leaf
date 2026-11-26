@@ -901,7 +901,9 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
         told(page)
         return page.evaluate("window.publications")
 
-    publication_file = data_model.source_file(serve.page_dir, "deployments")
+    publication_file = data_model.PUBLICATION.file(
+        data_model.source_file(serve.page_dir, "deployments")
+    )
     original = json.loads(publication_file.read_text())
     first = page.evaluate("window.publications")[0]
     datum = page.locator('[data-lf-datum="api"]')

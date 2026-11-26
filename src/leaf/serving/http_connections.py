@@ -87,7 +87,7 @@ def _read(page_dir: Path, path: Path) -> dict:
 
 def _write(path: Path, stored: dict) -> None:
     """Atomic secret storage with 0600 even if a previous file had wider access."""
-    replace_bytes([(path, CONNECTIONS.encode(stored), False)])
+    replace_bytes([(CONNECTIONS.file(path), CONNECTIONS.encode(stored), False)])
 
 
 def _name(name: str) -> None:
@@ -175,13 +175,17 @@ def bind(
 
 
 def unbind(page_dir: Path, name: str) -> dict:
-    """Withdraw a grant for future requests; an already-sent request may finish."""
+    """Withdraw a grant for future requests; an already-sent request may finish. The
+    user withdraws it from every Leaf, so the records a Leaf of another shape keeps
+    go whole, since this Leaf can't read which grants they hold (`state.Record`)."""
     _name(name)
     path = _record_path(page_dir)
     with flocked(path.with_suffix(".lock")):
         stored = _read(page_dir, path)
         stored["connections"].pop(name, None)
         _write(path, stored)
+        for other in CONNECTIONS.others(path):
+            other.unlink(missing_ok=True)
     return {"name": name, "bound": False}
 
 

@@ -30,7 +30,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from leaf.base.files import unfinished_publications
 from leaf.base.refusals import Refused
@@ -46,6 +46,7 @@ from leaf.base.service import (
     dead_session,
     no_stream,
     page_claim,
+    page_holder,
     prepare_claim,
     publish_claim,
     read_stream,
@@ -54,9 +55,11 @@ from leaf.base.service import (
 from leaf.base.state import (
     CLAIM,
     EVENTS_FILE,
+    claims_lock,
     flocked,
     now_iso,
     remove_claim,
+    replace_bytes,
     session_lock_path,
 )
 from leaf.log.event_log import (
@@ -85,6 +88,18 @@ def commit_provider() -> ModuleType | None:
     (`drafts.py`); either raising fails what it commits."""
     provider = os.environ.get("LEAF_PAGE_COMMIT")
     return importlib.import_module(provider) if provider else None
+
+
+class ClaimTransition(NamedTuple):
+    """One claim's publication (`PageTransaction.publishing_claim`), for its
+    rollback (`PageTransaction.restore_claim`): the page's claim at this shape before
+    it, the claim as its readers take it (`service.claim_reading`), and the bytes of
+    each claim of another shape it removed (`service.publish_claim`), filled as it
+    publishes."""
+
+    previous: dict | None
+    claim: dict
+    displaced: dict[Path, bytes]
 
 
 class PageTransaction:
@@ -127,8 +142,16 @@ class PageTransaction:
 
     @property
     def active_claim(self) -> dict | None:
+        """The claim while its session lives, which a reader acting for that session
+        acts by; who holds the page for a reader deciding whether it may act
+        against its holder is `holder`'s."""
         claim = self.claim
         return claim if claim_is_active(claim) else None
+
+    def holder(self, session_id: str | None) -> dict | str | None:
+        """Who holds the page for a reader acting for `session_id`
+        (`service.page_holder`)."""
+        return page_holder(self.page_dir, self.claim, session_id)
 
     def open_reply_reservation(self, responds: str) -> dict | None:
         """The reply reservation on `responds` while the claim turn it names is open
@@ -158,7 +181,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_names_session(claim, session_id) else None
 
-    def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
+    def take_claim(self, harness: Harness) -> ClaimTransition:
         """Record this session as the page's watcher.
 
         The record carries the claimant's harness as well as its id, so every
@@ -180,19 +203,21 @@ class PageTransaction:
         """
         with flocked(session_lock_path(claim["id"])):
             projected = claim_reading(claim)
+            assert projected is not None  # a claim reads as one
             if not claim_is_active(projected):
-                assert projected is not None
                 raise Refused(dead_session(projected))
-            previous = self.claim
-            yield previous, projected
-            publish_claim(self.page_dir, claim)
+            transition = ClaimTransition(self.claim, projected, {})
+            yield transition
+            transition.displaced.update(publish_claim(self.page_dir, claim))
 
-    def restore_claim(self, expected: dict, previous: dict | None) -> None:
-        """Roll back one failed claim without erasing a successor's."""
-        if not same_claim(self.claim, expected):
+    def restore_claim(self, transition: ClaimTransition) -> None:
+        """Roll back one failed claim without erasing a successor's, putting back
+        what it replaced: the previous claim at this shape and, unread, each claim
+        of another shape the publication removed."""
+        if not same_claim(self.claim, transition.claim):
             return
         path = claim_path(self.page_dir)
-        if previous is None:
+        if transition.previous is None:
             remove_claim(path)
         else:
             # The claim's own keys, less what its reading took from its session.
@@ -200,10 +225,13 @@ class PageTransaction:
                 self.page_dir,
                 {
                     key: value
-                    for key, value in previous.items()
+                    for key, value in transition.previous.items()
                     if key in CLAIM.schema["properties"]
                 },
             )
+        with flocked(claims_lock()):
+            for other, stored in transition.displaced.items():
+                replace_bytes([(other, stored, False)])
 
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
@@ -218,7 +246,7 @@ class PageTransaction:
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
         went out for."""
-        claim = CLAIM.read_any(claim_path(self.page_dir))
+        claim = CLAIM.read(claim_path(self.page_dir))
         assert claim is not None
         publish_claim(self.page_dir, {**claim, "messaged_ending": ending})
 
@@ -500,7 +528,8 @@ class PageTransaction:
         return acknowledged(self.events)
 
     def watch_state(self, harness: Harness | None) -> str:
-        if not claimant_matches(self.active_claim, harness):
+        holder = self.holder(harness.session if harness else None)
+        if isinstance(holder, str) or not claimant_matches(holder, harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
 
@@ -515,7 +544,7 @@ def _held_by(reservation: dict | None, session_id: str, attempt: str) -> bool:
     )
 
 
-def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
+def take_page_claim(page_dir: Path) -> ClaimTransition | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
     `server start` and `page claim` claim; waiting and authoring commands do not.
@@ -534,15 +563,12 @@ def claim_page(page_dir: Path) -> bool:
     return take_page_claim(page_dir) is not None
 
 
-def restore_page_claim(
-    page_dir: Path, transition: tuple[dict | None, dict] | None
-) -> None:
+def restore_page_claim(page_dir: Path, transition: ClaimTransition | None) -> None:
     """Undo a failed startup's claim, provided no successor replaced it."""
     if transition is None:
         return
-    previous, expected = transition
     with PageTransaction(page_dir) as page:
-        page.restore_claim(expected, previous)
+        page.restore_claim(transition)
 
 
 def owned_pages(session_id: str | None) -> list:

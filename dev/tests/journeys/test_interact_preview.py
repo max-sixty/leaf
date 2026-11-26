@@ -32,6 +32,7 @@ from leaf.commands import cli as cli_model
 from leaf.log.interaction_log import read_interactions
 from leaf.pages import hosting
 from leaf.records import transaction
+from leaf.serving.user_views import USER_VIEWS
 from leaf.source.registry.storage import layer_record
 from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
@@ -212,8 +213,11 @@ def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatc
 
     def changes(_watched):
         count = len(readings)
-        for name in ("observations.jsonl", "user-views.json"):
-            yield {str(page / name)}
+        for path in (
+            page / "observations.jsonl",
+            USER_VIEWS.file(page / "user-views.json"),
+        ):
+            yield {str(path)}
             assert len(readings) == count
         source.write_text(source.read_text().replace("Reading</h1>", "Revised</h1>"))
         yield {str(source)}

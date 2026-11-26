@@ -21,13 +21,12 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 
 from leaf.base.page_memory import PageMemory, memory_of
-from leaf.base.schema import LAYER_FILE
 from leaf.log.event_log import start_log
 from leaf.log.thread_context import thread_structure
 from leaf.records.revisioning import activate_source
 from leaf.records.sample_content import initial_sample_events
 from leaf.source.data import write_data
-from leaf.source.registry.storage import LAYER
+from leaf.source.registry.storage import write_layer
 from leaf.source.revision_artifact import Disposable, RevisionArtifact
 from leaf.source.runtime_selection import executing
 from leaf.source.structure import SourceDocument
@@ -98,7 +97,7 @@ class Samples:
                 target.write_bytes(resource.data)
             # The child selects the layer its parent's revision was captured under,
             # which this Leaf composes for it as for any page.
-            LAYER.write(child / LAYER_FILE, json.loads(artifact.manifest)["layer"])
+            write_layer(child, json.loads(artifact.manifest)["layer"])
             # A frozen parent lends the package bytes it captured, not whatever
             # copies page init may since have replaced in its directory.
             for directory, files in executing(artifact).package_copies.items():

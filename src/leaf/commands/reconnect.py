@@ -40,7 +40,7 @@ from leaf.base.findings import Finding
 from leaf.base.harness import Harness
 from leaf.base.refusals import Refused
 from leaf.base.schema import PREVIEW_FILE
-from leaf.base.service import claim_is_active, claim_records, prepare_claim
+from leaf.base.service import PREVIEW, claim_is_active, claim_records, prepare_claim
 from leaf.log.event_log import initialized
 
 
@@ -103,7 +103,7 @@ def to_serve(harness: Harness) -> list[Path]:
         page_dir = Path(claim["page"])
         if (
             claim["harness"] != harness.name
-            or (page_dir / PREVIEW_FILE).exists()
+            or PREVIEW.file(page_dir / PREVIEW_FILE).exists()
             or not initialized(page_dir)
         ):
             continue

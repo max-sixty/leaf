@@ -22,7 +22,7 @@ import yaml
 
 from leaf.agents.delivery import opened_input_ids
 from leaf.base.harness import ClaudeCodeHarness
-from leaf.base.state import turn_open
+from leaf.base.state import record_name, turn_open
 from leaf.log.event_log import read_events
 from leaf.records.transaction import requires_agent_attention
 from leaf.source.anchor_capture import capture_anchor
@@ -860,7 +860,8 @@ def ignore(directory, names):
     return {
         n
         for n in names
-        if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
+        if n in ("runtime", "vendor", "widgets", "instructions")
+        or record_name(n) == "service.json"
         or n.endswith((".lock", ".js", ".css"))
     }
 

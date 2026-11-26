@@ -994,48 +994,58 @@ def annotation_mode(document: SourceDocument) -> str:
     return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
 
 
-def page_layout(document: SourceDocument, registry: Mapping):
-    """The `layout-` names the document's `main` and the boxes under it that can be its
-    Layout's carry (`layout-column` is `column`), space-separated, or None.
+def shown_children(parent) -> list:
+    """The elements directly in `parent` that the page doesn't hide."""
+    return [
+        child
+        for child in parent.children
+        if isinstance(child, turbohtml.Element) and "hidden" not in child.attrs
+    ]
+
+
+def layout_names(box) -> list[str]:
+    """The `layout-` names a box carries, without the prefix (`layout-column` is
+    `column`)."""
+    return [
+        token.removeprefix("layout-")
+        for token in box.attrs.get("class", [])
+        if token.startswith("layout-")
+    ]
+
+
+def layout_boxes(document: SourceDocument, registry: Mapping) -> list:
+    """The document's `main` and the shown boxes under it that can carry its Layout.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
     or on the child of each part of such a `main`'s parts (`views.parts`,
-    layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
-    painting the body, so delivery repeats them on the root for the Layout's own body
-    rules to read before the first paint. Which part opens is the browser's, so every
-    part's names go across. A child the page hides is not the page's shape, so its names
-    stay off. Every other name goes across, since a block's own (`layout-tiles`) can
-    stand beside the page's and the body rules read only the page Layouts' names."""
+    layouts.css, `--lf-layout-box`). Which part opens is the browser's, so every part's
+    box is one. A child the page hides is not the page's shape, so it is none."""
     main = document.tree.select_one("body > main")
     if main is None:
-        return None
-
-    def shown(parent):
-        return [
-            child
-            for child in parent.children
-            if isinstance(child, turbohtml.Element) and "hidden" not in child.attrs
-        ]
-
-    def carried(box):
-        return [
-            token.removeprefix("layout-")
-            for token in box.attrs.get("class", [])
-            if token.startswith("layout-")
-        ]
-
-    boxes = [main, *shown(main)]
-    if not carried(main):
+        return []
+    boxes = [main, *shown_children(main)]
+    if not layout_names(main):
         boxes += [
             child
-            for holder in shown(main)
+            for holder in shown_children(main)
             if registry.get(holder.tag, {}).get("views", {}).get("parts")
-            for part in shown(holder)
-            for child in shown(part)
+            for part in shown_children(holder)
+            for child in shown_children(part)
         ]
+    return boxes
+
+
+def page_layout(document: SourceDocument, registry: Mapping):
+    """The `layout-` names the document's Layout boxes carry (`layout_boxes`),
+    space-separated, or None.
+
+    The parser reaches those boxes after it has begun painting the body, so delivery
+    repeats their names on the root for the Layout's own body rules to read before the
+    first paint. Every name goes across, since a block's own (`layout-tiles`) can stand
+    beside the page's and the body rules read only the page Layouts' names."""
     names = []
-    for box in boxes:
-        for name in carried(box):
+    for box in layout_boxes(document, registry):
+        for name in layout_names(box):
             if name not in names:
                 names.append(name)
     return " ".join(names) or None

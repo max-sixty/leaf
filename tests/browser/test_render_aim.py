@@ -3581,10 +3581,10 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
 ):
     """Decoration omitted from a contour still belongs to its semantic part.
 
-    The posted comment opens from the line inside the registered element, while the
-    package-selected rectangle alone draws the contour its open thread raises. A second
-    draft on the same part wears the pending contour, since the posted comment draws
-    none at rest.
+    The package-selected rectangle alone draws the contour the posted comment's open
+    thread raises, while an Alt-click on the line inside the registered element still
+    aims at the part. That second draft on the part wears the pending contour, since the
+    posted comment draws none at rest.
     """
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -3620,14 +3620,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
         }"""
         )
 
-    point = midpoint(decoration)
-    page.mouse.move(point["x"], point["y"])
-    page.wait_for_function(
-        "({x, y}) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
-        " === 'pointer'",
-        arg=point,
-    )
-    page.mouse.click(point["x"], point["y"])
+    page.locator(".lf-margin-marker").first.click()
     expect(
         page.locator(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'

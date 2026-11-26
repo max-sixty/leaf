@@ -5,17 +5,15 @@ layer can change (`layer.merge_layer_declarations`), `$passages` is how a page r
 as text, `$marks` the declarations painted for stylesheets, `$names` the widget and
 attribute name grammars, and `$authored` the page-wide declarations `page check` holds
 an author to. A layer that declares any of these differently is told the layer's
-value has no effect (`layer.kernel_fact_advice`). All are read
-from the running Leaf's kernel registry, which the browser reads too
-(`runtime/state/kernel-facts.js`), rather than from a page's composed vocabulary, which may
-be another Leaf's at the same `protocol` (`kernel_protocol`). Reading them needs no schema validator, and this module
-imports none: the page service sorts every event by these kinds, including in a harness
-hook that validates nothing."""
+value has no effect (`layer.kernel_fact_advice`). All are read from the running Leaf's
+kernel registry, which the browser reads too (`runtime/state/kernel-facts.js`), rather
+than from a page's composed vocabulary, which may be another Leaf's at the same
+`protocol` (`state.kernel_protocol`). Reading them needs no schema validator, and this
+module imports none: the page service sorts every event by these kinds, including in a
+harness hook that validates nothing."""
 
-import json
 from functools import cache
 
-from leaf.base.state import KERNEL_REGISTRY
 from leaf.base.state import kernel_registry as _kernel
 
 
@@ -41,25 +39,6 @@ def title_limit() -> int:
     `thread_title` event's."""
     return kernel_event_kinds()["thread_title"]["record"]["properties"]["title"][
         "maxLength"
-    ]
-
-
-def kernel_protocol() -> int:
-    """The page protocol: the number of the contract between a page and the Leaf
-    serving it, which a page's layer record names in its `format`
-    (`registry.storage.LAYER`). It versions the other records Leaf keeps outside a
-    page too (`state.Record`)."""
-    return _kernel_events()["protocol"]
-
-
-def installed_protocol() -> int:
-    """The protocol of the kernel registry on disk now. It moves past
-    `kernel_protocol` when the checkout a long-running process loaded moves on under
-    it, as a worktree's does when its branch is updated: the process still speaks the
-    protocol it loaded, and the newer Leaf the session's hooks now run reads that
-    process's leases as no one's (`leases.lease_speaks_here`)."""
-    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))["$events"][
-        "protocol"
     ]
 
 

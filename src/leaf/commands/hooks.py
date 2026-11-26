@@ -83,6 +83,8 @@ from leaf.base.state import (
     flocked,
     held_claims,
     installed_copy,
+    installed_protocol,
+    kernel_protocol,
     prompt_turn,
     session_lock_path,
     session_record,
@@ -517,13 +519,11 @@ def cmd_pages(payload: dict) -> None:
 
 def _moved_on() -> bool:
     """Whether the tree this process runs from has moved on under it: a checkout
-    moved to another page protocol (`registry.kernel.installed_protocol`), or the
+    moved to another page protocol (`state.installed_protocol`), or the
     tree removed, as Claude Code may remove a copy it replaced. The module then
     starts the follower again from the same launcher; where the tree is gone, none
     starts until `/reload-plugins`. A registry read mid-write reads as unmoved until
     it settles."""
-    from leaf.source.registry.kernel import installed_protocol, kernel_protocol
-
     if not os.access(PLUGIN_ROOT / "bin" / "leaf", os.X_OK):
         return True
     try:

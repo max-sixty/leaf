@@ -1,4 +1,5 @@
-"The surfaces that name keys, the command reference and ARIA, and the passing words\nthe panel says: every key a surface names is one that works, every key the runtime\nbinds is named somewhere, news keeps its order, and a page at rest repaints nothing."
+"""The passing words the panel says: news from the user's own act takes the seat from
+background news, which comes back once the user's has passed."""
 
 import re
 
@@ -11,7 +12,7 @@ from render_harness import (
     panel_field,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

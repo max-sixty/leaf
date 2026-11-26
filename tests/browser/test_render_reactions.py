@@ -62,10 +62,10 @@ from render_harness import (
 from browser.margin.test_pins import FOLDING_PAGE
 from browser.test_render_outbox import undo_offered
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -774,9 +774,9 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 
 
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
-    """The response choice shares the comment field's solid accent focus ring. Read in
-    the dark scheme, where a ring stated as a literal value rather than the token would
-    show: `--lf-accent` states both schemes in one `light-dark()`."""
+    """The response choice shares the comment field's solid focus ring. Read in the dark
+    scheme, where a ring stated as a literal value rather than the token would show: the
+    ring's ink (`--lf-ok`) states both schemes in one `light-dark()`."""
     page = open_page(browser, serve(PANEL_PAGE), color_scheme="dark")
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -790,19 +790,19 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     expect(suggest).to_be_focused()
     ring = suggest.evaluate("""node => {
       const ink = document.createElement('span');
-      ink.style.color = 'var(--lf-accent)';
+      ink.style.color = 'var(--lf-ok)';
       node.append(ink);
-      const accent = getComputedStyle(ink).color;
+      const here = getComputedStyle(ink).color;
       ink.remove();
       const band = getComputedStyle(document.documentElement)
         .getPropertyValue('--lf-focus-ring-w').trim();
       const style = getComputedStyle(node);
       return {outline: style.outlineStyle, color: style.outlineColor,
-              width: style.outlineWidth, accent, band};
+              width: style.outlineWidth, here, band};
     }""")
     assert (ring["outline"], ring["color"], ring["width"]) == (
         "solid",
-        ring["accent"],
+        ring["here"],
         ring["band"],
     ), ring
 
@@ -874,7 +874,7 @@ FIELD_BOX = """(t) => {
 }"""
 
 # The band a float may stand in, in viewport terms: the window the page shows, from its
-# head to the panel's row (geometry.js, `shownWindow`), inside the gutters.
+# head to the panel's row (dom/geometry.js, `shownWindow`), inside the gutters.
 FLOAT_ROOM = """async () => {
   const shown = (await window.__lfWidgetApi()).shownWindow();
   return {top: shown.top, bottom: shown.bottom,
@@ -888,8 +888,8 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
     narrow screen the same room caps the bar and the field spans it, since words take
-    the picker trigger out of its corner. The sent message spans the card as its reply
-    does."""
+    the picker trigger out of its corner. The sent message spans the card's padding,
+    which its reply box runs over to the card's sides."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -966,9 +966,12 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     expect(card).to_have_css("opacity", "1")
     message = card.locator(".lf-msg-body").first.bounding_box()
     reply = card.locator(".lf-compose-field").bounding_box()
-    assert message["x"] + message["width"] == pytest.approx(
+    padding = card.evaluate(
+        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-thread-pad'))"
+    )
+    assert message["x"] + message["width"] + padding == pytest.approx(
         reply["x"] + reply["width"], abs=1
-    ), (message, reply)
+    ), (message, reply, padding)
 
 
 def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
@@ -1519,7 +1522,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     expect(part).to_have_attribute("data-lf-proxied", "")
-    assert_drawn_in(part, token_colour(page, "--lf-accent"), 2)
+    assert_drawn_in(part, token_colour(page, "--lf-ok"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
@@ -1541,10 +1544,10 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
     page.evaluate(
-        """() => {
+        """async () => {
           const visual = document.querySelector('#flow');
           visual.parts.find(part => part.id === 'outer').label = 'Outer revised';
-          visual.visualRegistration.update();
+          visual.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -1562,10 +1565,10 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     page.evaluate("() => window.lfRetainedVisualControl.focus()")
 
     page.evaluate(
-        """() => {
+        """async () => {
           const visual = document.querySelector('#flow');
           visual.parts.reverse();
-          visual.visualRegistration.update();
+          visual.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     page.wait_for_function(
@@ -1617,8 +1620,7 @@ diff --git a/value.txt b/value.txt
             picture.setAttribute('viewBox', '0 0 20 20');
             root.append(picture);
           }
-          const { layoutChanged } = await window.__lfWidgetApi();
-          layoutChanged(document.querySelector('#patch'));
+          document.querySelector('#patch').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     controls = page.locator(".lf-visual-action")
@@ -1630,8 +1632,7 @@ diff --git a/value.txt b/value.txt
 
     page.evaluate(
         """async () => {
-          const { layoutChanged } = await window.__lfWidgetApi();
-          layoutChanged(document.querySelector('#patch'));
+          document.querySelector('#patch').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     expect(second).to_be_focused()
@@ -1708,11 +1709,11 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     # The registered provider declares geometry changes inside the same SVG host.
     # That publication invalidates the native attachment without a scroll callback.
     before_part, before_field = start.bounding_box(), bar.bounding_box()
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
       const diagram = document.querySelector('#flow');
       const part = diagram.visualParts.get('node:S').element;
       part.setAttribute('transform', (part.getAttribute('transform') ?? '') + ' translate(0 60)');
-      return diagram.visualPartRegistration.update();
+      diagram.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }""")
     rendered(page)
     after_part, after_field = start.bounding_box(), bar.bounding_box()
@@ -2063,8 +2064,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     """Reaction belongs to its own header, including an agent-authored root, and
     stands clear of the view's Resolve. It stands on the head's line, and a control
     that ends the line may hang into the room the transcript keeps at its end
-    (floating-panel.css, `.lf-msg-control-room`) but no further. Both actions stay
-    reachable, and a touch trigger reaches its floor without its face covering the
+    (floating-panel.css, `.lf-fp-messages .lf-msg-head`) but no further. Both actions
+    stay reachable, and a touch trigger reaches its floor without its face covering the
     message's first line."""
     url = serve(PANEL_PAGE)
     text = (
@@ -2245,7 +2246,7 @@ def test_a_held_reaction_says_its_word_and_a_tap_reacts(browser, serve):
             rendered(page)
             expect(preview).to_be_hidden()
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-held'))
+            .filter((chip) => chip.hasAttribute('data-lf-touch-held'))
             .map((chip) => [chip.dataset.lfToken,
                             document.getElementById('lf-preview').innerText])""")
 

@@ -11,11 +11,12 @@ from interact_support import (
     state_json,
 )
 
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as event_log_model
-from leaf import harness as harness_model
-from leaf import service as service_model
-from leaf import thread as thread_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.log import event_log as event_log_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import event_endpoint as endpoint_model
 
 
 def _post(server, event):
@@ -51,7 +52,9 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
     assert status == 200, answer
     assert _unread(answer["state"], original) == {}
     assert answer["state"]["pending"] == 0
-    assert service_model.unacknowledged(event_log_model.read_events(page_dir), 0) == []
+    assert (
+        transaction_model.unacknowledged(event_log_model.read_events(page_dir), 0) == []
+    )
 
     [edit] = thread_model.cmd_edit(page_dir, original, "Revised answer.")
     status, answer = _post_read(server, {"message": original, "version": original})
@@ -158,7 +161,7 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
 
     harness = harness_model.HARNESSES["claude-code"]
     monkeypatch.setattr(harness, "nudge", nudge)
-    monkeypatch.setattr(harness, "title_generator", lambda self: None)
+    monkeypatch.setattr(harness, "inference", None)
     status, answer = endpoint_model.accept_event(
         page_dir,
         {

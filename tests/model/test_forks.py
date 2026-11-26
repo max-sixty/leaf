@@ -9,33 +9,32 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
-    append_command,
     page_packages,
     serving,
     stamp,
 )
 
-from leaf import clerk as clerk_model
-from leaf import delivery as delivery_model
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import file_changes as file_changes_model
-from leaf import forks as forks_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import page_memory as page_memory_model
-from leaf import presence as presence_model
-from leaf import revision_artifact as revision_artifact_model
-from leaf import server_rows as server_rows_model
-from leaf import service as service_model
-from leaf import session_runtime as session_runtime_model
-from leaf import state as state_model
-from leaf import thread as thread_model
-from leaf.interaction_log import read_interactions
-from leaf.registry import kernel as kernel_model
-from leaf.served_state.context import read_page
-from leaf.service import PageTransaction
+from leaf.agents import clerk as clerk_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import forks as forks_model
+from leaf.agents import presence as presence_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import page_memory as page_memory_model
+from leaf.base import service as service_model
+from leaf.base import state as state_model
+from leaf.commands import hooks as hooks_model
+from leaf.log import event_log as events_model
+from leaf.log import file_changes as file_changes_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records import transaction as transaction_model
+from leaf.records.transaction import PageTransaction
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving import server_rows as server_rows_model
+from leaf.serving.served_state.context import read_page
+from leaf.source import revision_artifact as revision_artifact_model
+from leaf.source.registry import kernel as kernel_model
 
 # What Leaf's Claude Code hooks module gives the pages follower of session s1
 # (`hooks.cmd_pages`).
@@ -45,7 +44,7 @@ FOLLOWER = {"session_id": "s1"}
 @pytest.fixture
 def lane(claimed):
     """Session s1's forks lane, held as its pages follower holds it."""
-    held = forks_model.take_lane("s1")
+    held = leases_model.take_lane("s1")
     yield held
     if not held.closed:
         leases_model.release_lease(held)
@@ -95,17 +94,18 @@ def agents_words(page_dir) -> list[str]:
 
 def on_it(page_dir) -> list[str]:
     """The inputs the served workflows of the page, which has a document, read as the
-    agent's work in hand, which the page words On it while their delivery stands."""
+    agent's work in hand (`running`), which the page words On it while their delivery
+    stands."""
     work = read_page(page_dir, events_model.read_events(page_dir)).work
-    return sorted(item["input"] for item in work.workflows if item["at_work"])
+    return sorted(
+        item["input"] for item in work.workflows if item["state"] == "running"
+    )
 
 
 class _Untitled:
     """A harness that names no thread, so admission starts no title request."""
 
-    @staticmethod
-    def title_generator():
-        return None
+    inference = None
 
 
 def test_a_thread_message_reaches_the_session_at_once_and_its_line_goes_in_beside_it(
@@ -171,6 +171,41 @@ def test_a_thread_message_reaches_the_session_at_once_and_its_line_goes_in_besid
 
     thread_model.post_reply(claimed, {"responds": asked}, "It matches the lease.")
     assert on_it(claimed) == []
+
+
+def test_a_line_after_a_newer_message_leaves_one_its_turn_left_stopped(claimed):
+    """The line is no start, so it covers no other message of its thread. Where a turn
+    took in a message and ended without answering it, and a line then stands after a
+    newer message there, the newer one reads On it by the line alone and the older
+    still reads stopped."""
+    assert stamp(claimed).exit_code == 0
+    asked = said(claimed, "Why a 2-second poll?")
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    with PageTransaction(claimed) as page:
+        delivery_model.record_pickup(
+            page, [asked], session=claim["id"], turn=claim["turn"]
+        )
+    state_model.close_session_turn(claim["id"])
+    again = said(claimed, "And why not a watch?", asked["id"])
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "parent": asked["id"],
+            "author": "agent",
+            "text": "checking why the poll is 2 s",
+            "ephemeral": True,
+        },
+    )
+
+    work = read_page(claimed, events_model.read_events(claimed)).work
+    assert {
+        item["input"]: (item["state"], item["reason"]) for item in work.workflows
+    } == {
+        asked["id"]: ("blocked", "stopped"),
+        again["id"]: ("running", None),
+    }
 
 
 @pytest.mark.parametrize("joins", ["reply", "edit"])
@@ -554,28 +589,14 @@ def test_a_failed_summary_fork_hands_the_range_to_the_agent(claimed):
     assert summaries_written(claimed) == []
 
 
-@pytest.mark.parametrize("meanwhile", ["summary", "edit"])
-def test_a_change_in_its_range_meanwhile_drops_the_forks_summary(claimed, meanwhile):
-    """The fork summarizes the range as it read when Leaf asked, so Leaf writes nothing
-    where that summary would no longer be in force by the rules that cancel any
-    summary: one written in the thread since replaces it, and the user's edit of a
-    message in its range cancels it."""
-    _, later, _, summary = summary_beside(claimed)
-    if meanwhile == "summary":
-        basis_ = summary["basis"]
-        thread_model.cmd_summarize(
-            claimed, basis_["from"], basis_["through"], "The agent's."
-        )
-    else:
-        append_command(
-            claimed,
-            {
-                "kind": "edit",
-                "author": "user",
-                "message": later[1]["id"],
-                "text": "Follow-up 1, put another way?",
-            },
-        )
+def test_a_summary_written_meanwhile_drops_the_forks_summary(claimed):
+    """Leaf writes nothing where the fork's summary would no longer be in force, as
+    when one written in the thread since replaces it."""
+    *_, summary = summary_beside(claimed)
+    basis_ = summary["basis"]
+    thread_model.cmd_summarize(
+        claimed, basis_["from"], basis_["through"], "The agent's."
+    )
     answer = {
         "from": summary["basis"]["from"],
         "through": summary["basis"]["through"],
@@ -638,7 +659,7 @@ def test_the_pages_follower_lists_a_line_fork_for_each_round_newer_than_itself(
             return True
         if asked:
             raise Stopped
-        assert forks_model.lane_up("s1")
+        assert leases_model.lane_up("s1")
         heard, generation = file_changes_model.page_changes(claimed.resolve())
         assert heard in [changes for changes, _generation in marks]
         # Notifications of the fixture's own writes may still arrive.
@@ -653,7 +674,7 @@ def test_the_pages_follower_lists_a_line_fork_for_each_round_newer_than_itself(
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
         hooks_model.cmd_pages(FOLLOWER)
-    assert not forks_model.lane_up("s1")
+    assert not leases_model.lane_up("s1")
     assert older["id"] in [round_["thread"] for round_ in listed(claimed)]
     shown = [json.loads(line)["do"] for line in capsys.readouterr().out.splitlines()]
     new = asked[0]["id"]
@@ -667,15 +688,14 @@ def test_the_pages_follower_lists_a_line_fork_for_each_round_newer_than_itself(
     ]
 
 
-@pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])
-def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
+@pytest.mark.parametrize("moved", ["protocol", "removed"])
+def test_the_follower_ends_once_its_tree_moves_on_under_it(
     claimed, monkeypatch, capsys, moved
 ):
-    """A follower runs as long as its session, while the session's hooks hand
-    themselves to whichever Leaf delivers for it now: another copy or checkout, its
-    own checkout moved past a protocol bump, or another Leaf once its own is removed.
-    The follower then ends, giving up the lane, with EX_TEMPFAIL for the module to
-    start it again under that Leaf."""
+    """A follower runs as long as its session, while the tree it runs from can move
+    on under it: a checkout Claude Code loads in place moved past a protocol bump, or
+    a tree removed. The follower then ends, giving up the lane, with EX_TEMPFAIL for
+    the module to start it again from the tree as it stands."""
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
     monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
@@ -686,30 +706,24 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
         return True
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
-    if moved == "selected":
-        own = session_runtime_model.own_launcher()
-        monkeypatch.setattr(
-            session_runtime_model,
-            "delivering_launcher",
-            lambda _sid: own.with_name("other") if waited else own,
-        )
-    elif moved == "protocol":
+    if moved == "protocol":
         monkeypatch.setattr(
             kernel_model,
             "installed_protocol",
             lambda: kernel_model.kernel_protocol() + len(waited),
         )
     else:
-        own = session_runtime_model.own_launcher()
+        launcher = state_model.PLUGIN_ROOT / "bin" / "leaf"
+        access = os.access
         monkeypatch.setattr(
-            session_runtime_model,
-            "own_launcher",
-            lambda: own.with_name("removed") if waited else own,
+            hooks_model.os,
+            "access",
+            lambda path, mode: not (waited and path == launcher) and access(path, mode),
         )
     with pytest.raises(SystemExit) as ended:
         hooks_model.cmd_pages(FOLLOWER)
     assert ended.value.code == os.EX_TEMPFAIL
-    assert not forks_model.lane_up("s1")
+    assert not leases_model.lane_up("s1")
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert listed["do"] == []
 
@@ -723,7 +737,7 @@ def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
     that it would otherwise close its own subscriptions and wake at once, pass
     after pass."""
     for n in range(page_memory_model.PageMemories.LIMIT):
-        service_model.claim_page(
+        transaction_model.claim_page(
             initialized_page(tmp_path / f"more-{n}", page_packages())
         )
 

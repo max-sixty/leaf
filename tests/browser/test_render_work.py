@@ -10,7 +10,7 @@ from render_harness import (
     told,
 )
 
-from leaf import cli as cli_model
+from leaf.commands import cli as cli_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -93,21 +93,24 @@ def test_public_work_roles_preserve_scope_remit_and_reports(browser, serve):
     told(page)
     assert reading(page, "outer")["done"] == 1
     assert ["leaf", "done", "Leaf work"] in reading(page, "outer")["goals"]
+    # Any element of a scope reads the scope's work, and a goal outside every scope
+    # reads the page's, which no scope's goals join.
+    assert reading(page, "worker") == reading(page, "outer")
+    page.evaluate(
+        "() => document.getElementById('outer').after(document.getElementById('other'))"
+    )
+    assert reading(page, "other")["leaves"] == ["other"]
 
 
 def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
     schema = {
         "description": "A local milestone.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
                 "phase": {"enum": ["blocked", "done"]},
-                "overruled": {"type": "boolean"},
             },
             "required": ["id", "phase"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "owners": ["lf-test-plan"],
@@ -132,7 +135,8 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
             }
         },
     }
-    module = """import {LeafElement, keeps} from "/runtime/widget-api.js";
+    module = """import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-project-milestone", class extends LeafElement {
   render() { keeps(this, "phase", this.state.phase.value); }
 });"""

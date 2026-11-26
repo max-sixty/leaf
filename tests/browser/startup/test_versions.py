@@ -22,7 +22,6 @@ from render_harness import (
     RELEASE_FOCUS,
     close_panel_menu,
     compare_with,
-    draft_control,
     expect_preview_words,
     leaf_page,
     open_page,
@@ -30,6 +29,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    press_draft_control,
     round_trip,
     show_resolved,
     stamp_page,
@@ -41,8 +41,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -138,7 +138,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), DRAFT_EDITED)
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
     # Both actions must be in the log before the next version publishes, and the

@@ -23,8 +23,8 @@ from render_harness import (
 )
 
 from browser.widgets import PLAYGROUND_PAGE
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -317,8 +317,8 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
 
     page = open_page(browser, serve(named_source("notification-playground")))
     # Without a Controls label or a Starting points label over them, the list fits
-    # at 700px tall; 600 still runs it past the rail's foot.
-    resized(page, 1100, 600)
+    # at 600px tall; 530 still runs it past the rail's foot.
+    resized(page, 1100, 530)
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls-region > aside")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")

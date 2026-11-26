@@ -18,6 +18,7 @@ from render_harness import (
 )
 
 from journeys.widgets.test_pressed_controls import open_served, press_each_control
+from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import authored_sources
 
 # A view of the panel and the actions on what it shows, such as a thread's Resolve,
@@ -37,7 +38,8 @@ def open_on_me(page):
 
 def open_thread(page, key):
     """The thread `key`'s view, from its row in Threads, folded under Resolved once it
-    is resolved."""
+    is resolved, with the panel chosen for threads about a passage."""
+    choose_threads_in_panel(page)
     open_threads(page)
     row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{key}"]')
     if not row.count():

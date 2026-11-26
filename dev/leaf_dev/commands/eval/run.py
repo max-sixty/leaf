@@ -60,7 +60,7 @@ import click
 import yaml
 from click.core import ParameterSource
 
-from leaf.harness import ClaudeCodeHarness, claude_code_config
+from leaf.base.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT, state_home
 from leaf_dev.arms import (
     HARNESSES,
@@ -440,8 +440,8 @@ def prepare(
                     prompt = f"It is now {now}.\n\n{prompt}"
                 if not authoring and "page" in metadata:
                     # Each column's probe finds the case's page at the same path
-                    # under its working directory, with the packages the case names,
-                    # named for nothing in the case.
+                    # under its working directory, with Leaf's reading theme and the
+                    # packages the case names, named for nothing in the case.
                     page = Path("pages") / secrets.token_hex(4)
                     for label in labels:
                         config = providers[label]["config"]
@@ -451,7 +451,10 @@ def prepare(
                             Path(state["XDG_STATE_HOME"]),
                             "page",
                             "init",
-                            *(f"--package={name}" for name in metadata["page"]),
+                            *(
+                                f"--package={name}"
+                                for name in ("reading", *metadata["page"])
+                            ),
                             str(Path(config["working_dir"]) / page),
                             check=True,
                         )
@@ -507,11 +510,30 @@ def promptfoo_config(
                         "model": JUDGE_MODELS[ClaudeCodeHarness.name],
                         "apiKeyRequired": False,
                         "persist_session": False,
+                        # The judge returns its verdict as the SDK's structured
+                        # output, which Promptfoo grades as the object it is. From a
+                        # text answer Promptfoo grades the first braced span it
+                        # parses, which can be a template the judge quotes before its
+                        # verdict, such as `${row.deployedAt}`.
+                        "output_format": {"type": "json_schema", "schema": VERDICT},
                     },
                 }
             }
         },
     }
+
+
+# The fields Promptfoo reads from a rubric judge's verdict.
+VERDICT = {
+    "type": "object",
+    "properties": {
+        "reason": {"type": "string"},
+        "pass": {"type": "boolean"},
+        "score": {"type": "number", "minimum": 0, "maximum": 1},
+    },
+    "required": ["reason", "pass", "score"],
+    "additionalProperties": False,
+}
 
 
 def saved_config(

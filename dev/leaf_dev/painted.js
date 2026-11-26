@@ -232,7 +232,7 @@
       revision: () =>
         Number(document.querySelector('meta[name="lf-revision"]')?.content),
       // Every trip the runtime's ledger counts, its event posts and state reads, has
-      // ended (runtime/traffic.js).
+      // ended (runtime/transport/traffic.js).
       quiet() {
         const trips = ledger();
         return (

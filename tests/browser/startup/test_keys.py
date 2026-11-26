@@ -4,7 +4,9 @@ controls waiting for saved history, and the help overlay."""
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
+from render_cases_interaction import live_url
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
     PANEL,
@@ -26,8 +28,9 @@ from browser.startup import (
     _hold_startup,
     first_frame,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import asked_again, rendered, wait_until_ready
+from browser.startup.test_readiness import answer_as_another_runtime
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -819,6 +822,116 @@ def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
     expect(page.locator("leaf-text:focus")).to_have_js_property("value", "hi x")
 
 
+# A page whose frames each take a while once Leaf takes the held keys, so the keys run
+# one per slow frame and the user can act between them.
+SLOW_REPLAY_PAGE = leaf_page(
+    "Held keys",
+    "<h1>Held keys</h1><p id='said'>A sentence the user commented on.</p>"
+    """<script>
+      document.addEventListener("lf-held-keys", () => {
+        if (window.slowFrames) return;
+        window.slowFrames = true;
+        const slow = () => {
+          const start = performance.now();
+          while (performance.now() - start < 250) {}
+          requestAnimationFrame(slow);
+        };
+        requestAnimationFrame(slow);
+      });
+    </script>""",
+)
+
+# The held keys the tab keeps for the page (bootstrap.js, `holdEarlyKeys`).
+STORED_KEYS = """() => {
+  const key = Object.keys(sessionStorage).find((key) => key.endsWith("lf-held-keys"));
+  return key ? JSON.parse(sessionStorage.getItem(key)) : null;
+}"""
+
+
+def test_held_keys_still_to_run_go_when_the_user_steps_back(browser, serve):
+    """Keys the user typed while the page started run one at a time once Leaf takes
+    them. A step Back the user takes meanwhile leaves the entry they typed them at, so
+    the keys still to run go, rather than run at the entry the step reached."""
+    url = serve(SLOW_REPLAY_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.goto(url)
+    wait_until_ready(page)
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#said'")
+    page.wait_for_url(re.compile("#said$"))
+    page.wait_for_function("navigation.transition === null")
+    held, release = _hold_startup(page, "module")
+    with page.expect_navigation(wait_until="commit"):
+        page.evaluate("setTimeout(() => location.reload())")
+    holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
+    for key in ["c", "h", "e", "l", "l", "o"]:
+        page.keyboard.press(key)
+    expect(page.locator(".lf-held-key")).to_have_count(6)
+    release()
+    page.wait_for_function("window.slowFrames === true")
+    page.go_back(wait_until="commit")
+    assert page.evaluate(STORED_KEYS) is None
+    expect(page.locator(".lf-held-key")).to_have_count(0)
+
+
+# A document that hears of steps Back and Forward only through `popstate`, as a live
+# sample's opaque frame does, whose Navigation API holds no entries.
+POPSTATE_ONLY = """Object.defineProperty(navigation, "currentEntry", {
+  get: () => null,
+  configurable: true,
+});"""
+
+
+@pytest.mark.parametrize(
+    "reload", ["the user's", "Leaf's, handing back a place", "heard by popstate alone"]
+)
+def test_held_words_outlast_a_step_the_page_takes_itself(browser, serve, reload):
+    """Keys the user typed while the page started stay held through a step Back the
+    page's own script takes, which the user didn't ask for, and land once Leaf starts:
+    `c` opens the comment box and the rest are its words. So they do after a reload
+    Leaf asked for, which hands back where the user was, and where the page hears of
+    steps only through `popstate`, which can't say who took one."""
+    url = live_url(serve(HELD_KEYS_PAGE))
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    if reload == "heard by popstate alone":
+        page.add_init_script(POPSTATE_ONLY)
+    page.goto(url)
+    wait_until_ready(page)
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#said'")
+    page.wait_for_url(re.compile("#said$"))
+    page.wait_for_function("navigation.transition === null")
+    held, release = _hold_startup(page, "module")
+    if reload.startswith("Leaf's"):
+        answer_as_another_runtime(page)
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+    else:
+        with page.expect_navigation(wait_until="commit"):
+            page.evaluate("setTimeout(() => location.reload())")
+    holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
+    if reload.startswith("Leaf's"):
+        assert page.evaluate("window.lfStorage.placesUser()")
+    for key in ["c", "h", "i"]:
+        page.keyboard.press(key)
+    expect(page.locator(".lf-held-key")).to_have_text(["c", "h", "i"])
+    page.evaluate("history.back()")
+    page.wait_for_function("location.hash === ''")
+    expect(page.locator(".lf-held-key")).to_have_text(["c", "h", "i"])
+    release()
+    expect(page.locator("leaf-text:focus")).to_have_js_property("value", "hi")
+    if reload.startswith("Leaf's"):
+        page.unroute("**/api/**")
+        page.unroute("**/registry.json")
+
+
 @pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])
 def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     """A held run is printed keys. Enter or a chord acts where focus stands, which a
@@ -897,10 +1010,9 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           document.body.lfCommands = { title: 'On a draft', rows: [{ id: 'test.project-widget', keys: ['F2'],
                   title: 'a project widget using the same heading' }] };
-          commandsChanged(document.body);
+          document.body.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
     page.keyboard.press("?")

@@ -1,9 +1,9 @@
 # Scores threads.md, "Progress messages", its paragraph that sends a correction of
 # the agent's own unanswered reply into that reply by `leaf thread edit`. The
-# deliveries are real, frozen by `leaf.delivery` from a scratch page at the commit
-# that adds this case, with the page path rewritten and the handling the kernel
-# registry gives at 850e0bfb36c6; regenerate them to score a change to the handling
-# they carry. The default context is the correction the
+# deliveries are real, frozen by `leaf.agents.delivery` from a scratch page at the
+# commit that adds this case, with the page path rewritten and the handling the
+# kernel registry gives at 850e0bfb36c6; regenerate them to score a change to the
+# handling they carry. The default context is the correction the
 # paragraph is for, where an agent can post a new reply instead; `promised-result`
 # and `delivered-update` are the two cases it keeps as new replies.
 description: correction-edits-the-standing-reply

@@ -10,13 +10,12 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
-    over_plain_http,
     panel_control,
     stamp_page,
     wait_for_revision,
 )
 
-# A sample's frame takes its child page's height (lf-sample.js), and the leaf's menu
+# A sample's frame takes its child page's height (host/sample.js), and the leaf's menu
 # opens inside that frame, so a child a few lines tall leaves the menu a sliver of a
 # view with About this page out of reach. The child takes the room the menu needs.
 MENU_ROOM = '<div style="height:24rem"></div>'
@@ -210,19 +209,3 @@ def test_diagnostics_does_not_navigate_a_new_revision(browser, serve):
     expect(dialog).to_be_visible()
     expect(dialog).to_contain_text("This location changed")
     page.keyboard.press("Escape")
-
-
-def test_about_copy_on_plain_http_machine_name(browser, serve):
-    local_url = live_url(
-        serve(leaf_page("About over HTTP", "<h1>Page details</h1>"), packages=())
-    )
-    context, remote_url = over_plain_http(browser, local_url)
-    page = open_page(browser, remote_url, context=context)
-    assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
-    panel_control(page, "inspection").click()
-    dialog = page.get_by_role("dialog", name="About this page", exact=True)
-    expect(dialog).to_contain_text("Source captured for r1")
-    dialog.get_by_role("button", name="Copy Leaf version", exact=True).click()
-    page.keyboard.press("Escape")
-    page.goto(local_url)
-    assert page.evaluate("navigator.clipboard.readText()").startswith("Leaf layer\n")

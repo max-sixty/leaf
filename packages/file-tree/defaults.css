@@ -22,7 +22,7 @@ lf-file-tree {
   --trees-bg-muted-override: var(--lf-chip);
   --trees-selected-bg-override: var(--lf-accent-tint);
   --trees-selected-fg-override: var(--lf-ink);
-  --trees-focus-ring-color-override: var(--lf-accent);
+  --trees-focus-ring-color-override: var(--lf-ok);
   --trees-font-family-override: var(--lf-mono);
   --trees-font-size-override: var(--lf-code-size);
   --trees-git-added-color-override: var(--lf-ok-ink);

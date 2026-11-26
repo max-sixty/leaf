@@ -1,6 +1,5 @@
 """Ownership discovery must not mutate a claim that a new page has acquired."""
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
@@ -9,10 +8,11 @@ import pytest
 from click.testing import CliRunner
 from interact_support import STATED_TIMEOUT, record_claim
 
-from leaf import cli as cli_model
-from leaf import service, state
-from leaf.service import claim_path, claim_records, page_claim
-from leaf.state import held_claims
+from leaf.base import service, state
+from leaf.base.service import claim_path, claim_records, page_claim
+from leaf.base.state import held_claims
+from leaf.commands import cli as cli_model
+from leaf.records.transaction import PageTransaction
 
 
 def test_session_discovery_reads_only_its_canonical_claim_partition(
@@ -34,14 +34,13 @@ def test_session_discovery_reads_only_its_canonical_claim_partition(
     read = service.CLAIM.read
 
     def own_read(path):
-        assert path.parent == service.session_claims("own"), path
-        reads.append(path)
+        reads.append(path.name)
         return read(path)
 
     with monkeypatch.context() as measured:
         measured.setattr(service.CLAIM, "read", own_read)
         assert {Path(record["page"]) for record in claim_records("own")} == set(pages)
-    assert len(reads) == 4
+    assert set(reads) == {claim_path(page).name for page in pages}
     record_claim(pages[0], id="successor")
     assert {Path(record["page"]) for record in claim_records("own")} == set(pages[1:])
     assert claim_records("successor")[0]["page"] == str(pages[0])
@@ -51,11 +50,11 @@ def test_resident_flat_claim_updates_preserve_session_discovery(page_dir):
     """Resident HTTP writers atomically replace the same canonical payload."""
     page = page_dir
     record_claim(page, id="prior")
-    canonical = claim_path(page)
+    canonical = service.CLAIM.file(claim_path(page))
     prior_locator = service.session_claims("prior") / canonical.name
     assert canonical.is_file() and not canonical.is_symlink()
     assert prior_locator.is_symlink()
-    with service.PageTransaction(page) as transaction:
+    with PageTransaction(page) as transaction:
         transaction.note_messaged("idle-turn-ending")
     assert claim_records("prior")[0]["messaged_ending"] == "idle-turn-ending"
     assert prior_locator.is_symlink()
@@ -107,20 +106,19 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
             successor_written.set()
         assert scan.result(timeout=STATED_TIMEOUT) == []
 
-    assert claim_path(page).exists()
+    assert service.CLAIM.file(claim_path(page)).exists()
     assert page_claim(page) == successor
     assert claim_records(successor["id"]) == [successor]
 
 
-def test_a_claim_on_a_page_that_is_gone_retires_whichever_leaf_wrote_it(tmp_path):
+def test_a_claim_on_a_page_that_is_gone_retires_with_its_locator(tmp_path):
     """A session's own scan removes its claim on a deleted page, with its locator,
     so the session holds nothing and its hooks and files can end with it. A page
     the scan can't reach, behind a folder it may not read, still stands."""
     page = tmp_path / "deleted"
     page.mkdir()
     record_claim(page, id="owner")
-    payload = claim_path(page)
-    payload.write_text(json.dumps({**json.loads(payload.read_text()), "format": "x"}))
+    payload = service.CLAIM.file(claim_path(page))
     assert held_claims("owner")
     tmp_path.chmod(0)
     try:
@@ -144,4 +142,6 @@ def test_initializing_a_recreated_page_releases_its_old_claimant(tmp_path):
     assert result.exit_code == 0, result.output
     assert page_claim(page) is None
     assert not held_claims("prior")
-    assert not (service.session_claims("prior") / claim_path(page).name).is_symlink()
+    assert not (
+        service.session_claims("prior") / service.CLAIM.file(claim_path(page)).name
+    ).is_symlink()

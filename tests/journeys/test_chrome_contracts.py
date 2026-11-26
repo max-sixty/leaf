@@ -28,7 +28,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
+from leaf_dev.browser import choose_threads_in_panel
 
 
 # Each scheme and each pointer once: the faces compared are the same scheme's, and a
@@ -113,6 +114,9 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
+    # Reading the thread in the panel chose the panel for threads, so the tab opens
+    # them beside their passages again before the marker opens the card.
+    choose_threads_in_panel(page, on=False)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     write(
         margin.get_by_role("textbox", name="Reply", exact=True), "Sent beside the page."
@@ -140,7 +144,7 @@ from render_harness import (
     page_comment,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

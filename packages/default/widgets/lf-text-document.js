@@ -1,13 +1,17 @@
 /* A document owns one text and its source/preview readings. The text is its `value`,
  * which Leaf sets from a bound source or widget output, or from the `<pre>` the page
- * wrote when the markup binds neither (element-data.js, "Bound values"). Optional
+ * wrote when the markup binds neither (host/element-data.js, "Bound values"). A value
+ * may name its file beside the text, which the caption shows and the readings' identity
+ * carries (`mark`). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, which keeps its scroll place independent, and switching keeps the page
  * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
- * tall. A Markdown preview of written text instead takes its rendered height, which
- * its first paint already holds (`prepaint`), and its Source tab takes the same
- * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
+ * tall. A Markdown preview of written text instead takes its rendered height, up to
+ * that bound, and its Source tab takes the same height (`holdSource`). A document
+ * drawn on its Source tab, as after a reload, has not drawn its preview, so its Source
+ * tab keeps the box the page first painted, the written source's, and switching to
+ * the preview then takes the preview's height. Where the Source tab's height cuts the
  * source, a press shows every line (`cut`), as a quote's label opens a thread's whole
  * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
  * one way to the rest, and stays at the box's foot rather than scrolling off with the
@@ -30,45 +34,44 @@
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
 import {
-  codeLanguage,
-  failSoft,
-  ensureSyntaxLanguage,
-  keeps,
-  LeafElement,
   whileConnected,
-  keepsText,
   setRenderedChildren,
   setChildLists,
   setChildren,
   focusDestination,
-  keepsHidden,
-  generatedElement,
-  offer,
-  offerAction,
-  loadMarkdown,
-  renderMarkdown,
-  reportFailure,
-  sizeObserver,
-  layoutPx,
-  syntax,
-  textWidth,
-  nextFrame,
-  MAX_EDIT_LENGTH,
   afterPresentation,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { failSoft } from "/runtime/lib/failure.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
+import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
+import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import {
+  codeLanguage,
+  ensureSyntaxLanguage,
+  syntax,
+} from "/runtime/lib/syntax-tokens.js";
+import { textWidth } from "/runtime/lib/text-width.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
+
+/** @typedef {import("../../../browser/types/contract.js").DataTextDocument} DocumentValue */
 
 // A Markdown preview of text written in the page, whose rendering sets the box both
 // tabs share (text-document.css).
 const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
 // Each reading shows the same document whatever text its source holds, so its key is
-// also its identity (projection/data.js). A comment on a passage then follows the
-// passage's words across replacements, and stays marked while they still stand.
-/** @param {HTMLElement} node @param {string} key */
-const mark = (node, key) => {
+// also its identity (records/projection/data.js), with the file's where the value names
+// one, since one document can show several files in turn, as an editor's open file. A
+// comment on a passage then follows the passage's words across replacements, stays
+// marked while they still stand, and stays with the file it was made on.
+/** @param {HTMLElement} node @param {string} key @param {string | null} file */
+const mark = (node, key, file) => {
   keeps(node, "data-lf-datum", key);
-  keeps(node, "data-lf-identity", key);
+  keeps(node, "data-lf-identity", file ? `${key}:${file}` : key);
 };
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
@@ -773,12 +776,12 @@ class RunColours {
 
 // First draws the page doesn't show, as in a closed tab, made once it has presented, one
 // a task in the order their updates asked (`show`). Until a document draws, a comment on
-// its data stands on the document (anchor-resolution.js).
-/** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
+// its data stands on the document (readings/anchor-resolution.js).
+/** @type {{doc: TextDocument, value: DocumentValue | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */
 let drawingAfterPresentation = null;
-/** @param {TextDocument} doc @param {string | null} value @param {number} rendering */
+/** @param {TextDocument} doc @param {DocumentValue | null} value @param {number} rendering */
 function drawLater(doc, value, rendering) {
   drawingLater.push({ doc, value, rendering });
   drawingAfterPresentation ??= afterPresentation(async () => {
@@ -840,12 +843,13 @@ class TextDocument extends LeafElement {
   // the press that shows the rest where that height cuts the source.
   /** @type {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement} | null} */
   cut = null;
-  // The Source tab takes the preview's height, so switching to it moves nothing below
-  // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
-  // the height is read while the preview shows, after each of its resizes. A document
-  // drawn on Source, as after a reload, never showed its preview; it keeps the box the
-  // page first painted (`firstBox`), which holds the preview's rendering
-  // (`prepaint`). Either reaches the Source tab before the frame paints.
+  // The Source tab takes the preview's height once the preview has shown, so switching
+  // to it moves nothing below the document. A closed tab skips its contents' layout
+  // (`hidden="until-found"`), so the height is read while the preview shows, after
+  // each of its resizes. A document drawn on Source, as after a reload, never showed
+  // its preview; it keeps the box the page first painted (`firstBox`), the written
+  // source's (text-document.css), so the draw moves nothing either. Either reaches the
+  // Source tab before the frame paints.
   /** @param {number | null} [firstBox] */
   holdSource(firstBox = null) {
     const preview = this.view?.preview;
@@ -866,9 +870,9 @@ class TextDocument extends LeafElement {
   measureCut() {
     if (!this.cut) return;
     const { panel, box } = this.cut;
-    keepsHidden(
-      box,
-      panel.hidden ||
+    box.toggleAttribute(
+      "hidden",
+      panel.hasAttribute("hidden") ||
         panel.hasAttribute("data-lf-all") ||
         panel.scrollHeight <= panel.clientHeight + 1,
     );
@@ -975,7 +979,7 @@ class TextDocument extends LeafElement {
       },
       { capture: true },
     );
-    /** @type {string | null} */
+    /** @type {DocumentValue | null} */
     this.value = null;
   }
 
@@ -1008,11 +1012,14 @@ class TextDocument extends LeafElement {
     return result;
   }
 
-  /** @param {string | null} value @param {boolean} [presented] whether this draw waited for the page to present */
+  /** @param {DocumentValue | null} value @param {boolean} [presented] whether this draw waited for the page to present */
   async show(value, presented = false) {
     const rendering = this.rendering + 1;
     this.rendering = rendering;
-    const source = value ?? "";
+    const source = typeof value === "string" ? value : (value?.text ?? "");
+    const name = typeof value === "string" ? null : (value?.name ?? null);
+    // The file's identity: its stable key where the value gives one, else its name.
+    const file = typeof value === "string" ? null : (value?.key ?? name);
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
@@ -1040,16 +1047,23 @@ class TextDocument extends LeafElement {
         this.colours?.clear();
         this.colours = language
           ? new RunColours(language, (error) => {
-              if (this.isConnected) reportFailure(this, error);
+              if (this.isConnected)
+                this.dispatchEvent(
+                  new ErrorEvent("error", { error, bubbles: true, composed: true }),
+                );
             })
           : null;
       }
       const view = (this.view ??= this.build(preview));
       const label =
         this.getAttribute("label") ??
+        name ??
         this.getAttribute("source") ??
         this.getAttribute("for");
       keepsText(view.caption, value == null ? `${label} · no data` : label);
+      // An HTML preview's frame is named by the same label, the file's name included.
+      if (view.preview instanceof HTMLIFrameElement)
+        keeps(view.preview, "title", `${label} preview`);
       const previous = this.lines;
       this.lines = next;
       if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);
@@ -1108,7 +1122,7 @@ class TextDocument extends LeafElement {
       const previewNode = view.preview;
       if (previewNode instanceof HTMLDivElement) {
         const template = document.createElement("template");
-        template.innerHTML = renderMarkdown(source, false);
+        template.innerHTML = renderMarkdown(source, pageLinks, false);
         setRenderedChildren(previewNode, template.content.childNodes);
       } else if (
         previewNode instanceof HTMLIFrameElement &&
@@ -1140,9 +1154,9 @@ class TextDocument extends LeafElement {
       // turn that announces them (`drawn`), so on a Leaf page comments on them anchor to
       // the document's data.
       if (view.preview) {
-        mark(this.sourceView.pre, "source");
-        mark(view.preview, "preview");
-      } else mark(view.figure, "document");
+        mark(this.sourceView.pre, "source", file);
+        mark(view.preview, "preview", file);
+      } else mark(view.figure, "document", file);
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
@@ -1173,7 +1187,7 @@ class TextDocument extends LeafElement {
     const tabs = document.createElement("lf-tabs");
     tabs.id = `${this.id}--views`;
     // Its members are this document's data readings, not authored page content.
-    generatedElement(tabs, { says: false });
+    keeps(tabs, "data-lf-gen", "1");
     const bound = this.getAttribute("data-lf-bound") ?? "start";
     const rendered = document.createElement("lf-tab");
     rendered.id = `${this.id}--preview`;
@@ -1188,10 +1202,8 @@ class TextDocument extends LeafElement {
         ? document.createElement("iframe")
         : document.createElement("div");
     drawn.className = "lf-text-document-preview";
-    if (drawn instanceof HTMLIFrameElement) {
-      drawn.title = `${this.getAttribute("label") ?? this.getAttribute("source") ?? this.getAttribute("for")} preview`;
+    if (drawn instanceof HTMLIFrameElement)
       drawn.setAttribute("sandbox", "allow-scripts");
-    }
     rendered.append(drawn);
     literal.append(listing);
     if (this.matches(WRITTEN)) {
@@ -1201,7 +1213,7 @@ class TextDocument extends LeafElement {
       // The press goes once it has shown the lines, so focus moves to the listing.
       press.addEventListener("click", () => {
         literal.toggleAttribute("data-lf-all", true);
-        keepsHidden(box, true);
+        box.toggleAttribute("hidden", true);
         if (this.sourceView) focusDestination(this.sourceView.pre, "return");
       });
       box.append(press);

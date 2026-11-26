@@ -37,12 +37,12 @@ from browser.threads import (
     seed_reply,
     thread_row,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -103,7 +103,7 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
 
 def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     """A press in a commented section opens its thread, but one on a field or button
-    inside it keeps its own meaning (composing/surface.js), so the hand stands over the
+    inside it keeps its own meaning (annotations/composing/surface.js), so the hand stands over the
     section's words and the field keeps its own cursor."""
     source = leaf_page(
         "Commented form",
@@ -170,7 +170,7 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
 def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
     """A press means one thing. A press on an option card picks it and one on a gloss
     pins its card, so neither opens the thread on the question they stand in, whose
-    reply box would take the user's focus (composing/surface.js, the page's click). A
+    reply box would take the user's focus (annotations/composing/surface.js, the page's click). A
     gloss in a label leaves the press to the label, which ticks its box. A press on the
     question's own words still opens that thread."""
     source = leaf_page(
@@ -360,7 +360,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     words no item holds, a draft's item at rest, and a mark in the chrome, which neither
     press takes. Where the aim's press takes an item, its hand covers any cursor the page
     gives the item. Each place's cursor is read where the pointer is, since each hand is
-    painted on the element under it (anchor-paint.js, page-geometry.js); a mark of the
+    painted on the element under it (annotations/anchor-paint.js, panel/page-geometry.js); a mark of the
     arm on `body` made Firefox visit every element of the page as ⌥ went down or up."""
     url = serve(
         ARMED_PAGE,
@@ -427,7 +427,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
         found[name].append(seen(point))
     # The mode's own key leaves it. Escape would first put away a preview the readings
     # left standing, as a slow machine's rest on the link does
-    # (browser/runtime/keyboard/AGENTS.md, "Escape").
+    # (browser/runtime/dom/keyboard/AGENTS.md, "Escape").
     page.keyboard.press("l")
     expect_design_mode(page, on=False)
     assert {name: tuple(each) for name, each in found.items()} == ARMED_CURSORS
@@ -536,7 +536,7 @@ def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
     }""")
 
     # One transaction, so the page reads both records in one state answer.
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         for event in (
             {
                 "kind": "reply",
@@ -586,13 +586,12 @@ def test_a_target_a_reply_widget_redraws_keeps_its_mark(browser, serve):
     # Read once the pass the signal asked for has painted, and before anything else
     # (the clock's next tick) would paint the targets again.
     remarked = page.evaluate("""async () => {
-      const { layoutChanged } = await window.__lfWidgetApi();
       const { whenDocumentPresented } = await window.__lfCheckApi();
       const old = document.querySelector('.lf-fp-view #tv-redis');
       const replacement = old.cloneNode(true);
       replacement.classList.remove('lf-mark-el');
       old.replaceWith(replacement);
-      await layoutChanged(document.querySelector('.lf-fp-view #tv-decision'));
+      await document.querySelector('.lf-fp-view #tv-decision').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
       await whenDocumentPresented();
       await new Promise((resolve) => requestAnimationFrame(() => resolve()));
       return replacement.classList.contains('lf-mark-el');
@@ -772,18 +771,14 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     else:
         stamp_page(d, replacement, "Rewrote the plan")
     wait_for_revision(page, 2)
+    choose_threads_in_panel(page)
     card = open_from_threads(page, root["id"])
     quote = card.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
     if not removed:
         expect(card.locator(".lf-anchor-status")).to_have_text("Changed")
-    # A margin card's quote returns to the passage where it still stands; the panel's
-    # names no jump.
-    in_panel = card.evaluate("node => node.matches('.lf-fp-view')")
-    if removed or in_panel:
-        expect(quote).not_to_have_attribute("role", "button")
-    else:
-        expect(quote).to_have_attribute("role", "button")
+    # The panel's quote names no jump; Show on page takes the user to the passage.
+    expect(quote).not_to_have_attribute("role", "button")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = card.locator(".lf-quote-label").get_by_role("button")
     expect(disclosure).to_be_visible()
@@ -906,6 +901,8 @@ def test_a_thread_s_head_names_the_headings_over_its_words(browser, serve):
     )
     on_heading = panel_comment(serve.page_dir, "Rename this?", {"section": "rollout"})
     page = open_page(browser, url)
+    # The head is the panel view's: a card beside words no revision changed draws none.
+    choose_threads_in_panel(page)
     for thread, label in (
         (on_words, "Release plan › Rollout › Canary hosts"),
         (on_lede, "Release notes"),
@@ -954,7 +951,7 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     old = "The original requirement keeps a human review before release. " * 12
     module = """
 import { html } from '/vendor/lit.js';
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-quote-subject', class extends LeafElement {
   static properties = {label: {attribute: false}, words: {attribute: false}};
   setup() {
@@ -985,14 +982,11 @@ customElements.define('lf-quote-subject', class extends LeafElement {
             "lf-quote-subject": {
                 "description": "A named subject whose wording changes.",
                 "attributes": {
-                    "type": "object",
                     "properties": {
-                        "id": {"type": "string"},
                         "data-words": {"type": "string"},
                         "source": {"type": "string"},
                     },
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "inputs": {

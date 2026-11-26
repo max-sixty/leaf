@@ -22,8 +22,8 @@
 # installed plugin are the same tree — and this runs that project: uv keeps one
 # environment per installed version, and `uv run` syncs it from the lock before
 # each run where the lock or project has changed, so an update needs no step here.
-# A harness session's copy hands its hooks and commands on to the session's
-# delivering Leaf (`src/leaf/session_runtime.py`).
+# Every launcher runs the tree it sits in, so a harness session runs the copy it
+# loaded (`src/leaf/session-lifetime.md`, "Which Leaf runs a session").
 # `--no-dev` because the project's dev group is the test suite and the
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
 # install. `-q` because an agent reads stderr back and an ordinary sync has
@@ -66,7 +66,7 @@
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
 # (`bridge.py`). `-I` keeps the agent's directory off the module path.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-state="$root/src/leaf/state.py"
+state="$root/src/leaf/base/state.py"
 python="$root/.venv/bin/python"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
@@ -80,29 +80,14 @@ fi
 # Once Claude Code installs a newer copy, it marks the one a running session loaded
 # orphaned and may delete its files while the session still runs this launcher.
 # Without the project, uv runs whatever `python` the caller has, which has no
-# `leaf` or another tree's, so a copy that has lost it runs the copy
-# `installed_plugins.json` records instead, as `session_runtime.installed_launcher`
-# chooses one, since that Python can no longer run here.
+# `leaf` or another tree's, so a copy that has lost it refuses, naming the reload
+# that loads the installed copy.
 if [ ! -f "$root/pyproject.toml" ]; then
-    case $root in
-    */plugins/cache/*/leaf/*)
-        plugins=$(dirname -- "$(dirname -- "$(dirname -- "$(dirname -- "$root")")")")
-        name="leaf@$(basename -- "$(dirname -- "$(dirname -- "$root")")")"
-        while IFS= read -r install <&3; do
-            case $install in /*) ;; *) continue ;; esac
-            [ -x "$install/bin/leaf" ] && [ ! "$install/bin/leaf" -ef "$0" ] &&
-                exec "$install/bin/leaf" "$@" 3<&-
-        done 3<<EOF
-$(jq -r --arg name "$name" '.plugins[$name][]?.installPath // empty' \
-    "$plugins/installed_plugins.json" 2>/dev/null)
-EOF
-        ;;
-    esac
-    echo "leaf: $root has lost its files and records no installed Leaf to run instead; run /reload-plugins to load the installed copy" >&2
+    echo "leaf: $root has lost its files; run /reload-plugins to load the installed copy" >&2
     exit 1
 fi
 if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$python" ]; then
-    exec "$python" -I -m leaf.bridge run "$@"
+    exec "$python" -I -m leaf.base.bridge run "$@"
 fi
 if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
     payload=$(cat)

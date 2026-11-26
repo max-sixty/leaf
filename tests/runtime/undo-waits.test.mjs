@@ -6,8 +6,8 @@
    this drives the one withdrawal door through both orders. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applicationState } from "/runtime/semantic-state.js";
-import { createUndo } from "/runtime/undo.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
+import { createUndo } from "/runtime/records/undo.js";
 import { servedState } from "../served.mjs";
 
 const spec = { unit: "widget" };

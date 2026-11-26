@@ -1,4 +1,4 @@
-/* Semantic presentation above widget defaults and Layouts (layer.py, CASCADE_LAYERS).
+/* Semantic presentation above widget defaults and Layouts (layer.py, PART_LAYERS).
  * A decision in force retires the slots its registry relation names, regardless of
  * their package's default display. Inline widget motion may keep a slot visible
  * until it settles; authored unlayered styles retain the page's final say. */
@@ -18,7 +18,7 @@
      The two halves are not written alike, because a duration is a way of keeping an
      animation and no way at all of keeping a transition. An animation is declared and
      named, and `animationend` is how the layer knows one has run — a control takes its
-     agent-arrival mark off that way (contribution-controls.js) — so the near-zero
+     agent-arrival mark off that way (features/contribution-controls.js) — so the near-zero
      duration keeps that event and spends no time on it. It runs once, since an endless
      animation at that duration repeats on every frame: a pulse becomes a flicker, and
      the page never rests. A transition is declared by nobody: `transition-property` is
@@ -36,7 +36,7 @@
       transition: none;
     }
     /* Leaf's own interface states some rules unlayered, above every layer
-       (runtime/stylesheets.js), so it takes the guard at importance. */
+       (runtime/base/stylesheets.js), so it takes the guard at importance. */
     :where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *),
     :where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *)::before,
     :where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *)::after {
@@ -54,7 +54,7 @@
      the box states below it, none unless it pads its scroll edge. A box that sticks is
      not marked, since it reads the slot for its own `top`; one that scrolls what it
      holds restarts all three itself (a column's sidebar, layouts.css).
-     A box the user scrolls only sideways (`across`, reach.js) lands nothing down, so
+     A box the user scrolls only sideways (`across`, dom/reach.js) lands nothing down, so
      what it holds stays under the headers standing over the box: the slot less what is
      covered, which a landing's margin reads (surfaces.css), has to count them there. It
      restarts the slot only for what it holds, so the box itself still reads them and
@@ -86,7 +86,7 @@
      widget's own important print rule (threads, controls.css). What stays is a control
      whose label is words the page keeps: one it speaks (data-lf-said, a pick mark
      reading "selected") or one it echoes off another element (data-lf-echo, a roster
-     row's name), keyed on the declaration each label makes (control-labels.js) rather than on
+     row's name), keyed on the declaration each label makes (dom/control-labels.js) rather than on
      .lf-ui, whose question is anchoring's. Those give up the shape that promises a
      press; colour stays, being part of what the control says. */
   @media print {

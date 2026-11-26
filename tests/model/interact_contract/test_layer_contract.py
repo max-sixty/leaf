@@ -1,5 +1,6 @@
-"""The layer's `$` contract: how layers merge its members, the event handling and routes
-each delivery tells the agent, and the docs held to it."""
+"""The layer's `$` contract: how layers merge its members, the work roles a layer maps
+its tags onto, the event handling and routes each delivery tells the agent, and the
+docs held to it."""
 
 import itertools
 import json
@@ -12,7 +13,10 @@ from typing import cast
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
+    ROOT,
+    SHIPPED_PACKAGES,
     Json,
     Prose,
     command_findings,
@@ -27,22 +31,23 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf.findings import Finding
-from leaf.json_block import read_json_block
-from leaf.registry import contract as registry_contract
-from leaf.registry import layer as registry_layer
-from leaf.registry import storage as registry_storage
-from leaf.registry import validation as registry_validation
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.base.json_block import read_json_block
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import layer as registry_layer
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry import validation as registry_validation
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -141,6 +146,119 @@ def test_one_check_names_each_missing_layer_fact():
         "'$languages' is a required property",
         "'$tones' is a required property",
     ]
+
+
+_GOAL = {"role": "goal", "state": "status", "done": ["done"], "stopped": ["blocked"]}
+_WORKER = {
+    "role": "worker",
+    "state": "state",
+    "running": ["working"],
+    "retired": ["done"],
+    "on": "on",
+}
+
+
+@pytest.mark.parametrize(
+    ("tag", "entry", "code", "at", "values"),
+    [
+        (
+            "lf-test-worker",
+            {**{k: v for k, v in _WORKER.items() if k != "on"}, "On": "on"},
+            "layer-facts",
+            "",
+            {
+                "keyword": "additionalProperties",
+                "path": ["$work", "widgets", "lf-test-worker"],
+            },
+        ),
+        (
+            "lf-test-tree",
+            {"role": "readings"},
+            "layer-facts",
+            "",
+            {"keyword": "enum", "path": ["$work", "widgets", "lf-test-tree", "role"]},
+        ),
+        (
+            "lf-test-task",
+            {k: v for k, v in _GOAL.items() if k != "done"},
+            "layer-facts",
+            "",
+            {"keyword": "required", "path": ["$work", "widgets", "lf-test-task"]},
+        ),
+        (
+            "lf-ghost",
+            {"role": "scope"},
+            "unknown-declarations",
+            "",
+            {"key": "$work.widgets", "names": ["lf-ghost"]},
+        ),
+        (
+            "lf-test-task",
+            {**_GOAL, "stoppedAt": "halted-at"},
+            "undeclared-attributes",
+            "<lf-test-task>",
+            {"key": "$work.widgets.lf-test-task.stoppedAt", "names": ["halted-at"]},
+        ),
+        (
+            "lf-test-worker",
+            {**_WORKER, "on": "overruled"},
+            "work-reference",
+            "<lf-test-worker>",
+            {"attr": "overruled"},
+        ),
+        (
+            "lf-test-task",
+            {**_GOAL, "state": "owner"},
+            "work-state",
+            "<lf-test-task>",
+            {"attr": "owner"},
+        ),
+        (
+            "lf-test-task",
+            {**_GOAL, "done": ["finished"]},
+            "work-value",
+            "<lf-test-task>",
+            {"key": "done", "attr": "status", "values": ["finished"]},
+        ),
+    ],
+)
+def test_composition_holds_each_work_role_to_its_tags_declaration(
+    page_dir, tag, entry, code, at, values
+):
+    """`runtime/host/work.js` reads `$work.widgets` as given, so composition refuses an
+    entry it would misread, naming the tag and the key: one its role doesn't take or
+    needs, a tag the layer doesn't declare, an attribute the tag lacks, an assignment
+    that isn't a reference, a state no single widget value verb records, and a value
+    the state can't take. The work fixture's own map holds."""
+    registry = vocabulary(page_dir)
+    registry_validation.validate_registry(registry, "test registry")
+    registry["$work"]["widgets"][tag] = entry
+
+    finding = registry_refusal(
+        lambda: registry_validation.validate_registry(registry, "test registry")
+    )
+    assert found([finding], code, at, **values), finding
+
+
+def test_a_work_role_s_state_verb_may_name_the_property_that_holds_it(page_dir):
+    """A role's state is the value record on its attribute, whichever property of the
+    element holds that value in the browser."""
+    registry = vocabulary(page_dir)
+    (spec,) = (
+        spec
+        for spec in registry["lf-test-task"]["verbs"].values()
+        if spec.get("record") == {"kind": "value", "attr": _GOAL["state"]}
+    )
+    spec["record"]["property"] = "status"
+    registry_validation.validate_registry(registry, "test registry")
+
+
+def test_the_command_hub_example_maps_its_tags_onto_work_roles():
+    """The worked example of `$work.widgets` composes over the shipped layer."""
+    registry = registry_validation.incoming_registry(
+        [*SHIPPED_PACKAGES, ROOT / "examples" / "command-hub.page"]
+    )
+    assert registry["$work"]["widgets"]["lf-atlas-worker"]["role"] == "worker"
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
@@ -291,7 +409,7 @@ def test_init_advises_on_instructions_for_a_kind_no_batch_carries(
     assert advice.values["registry"] == str(overlay / "registry.json")
 
 
-@pytest.mark.parametrize("path", [("verbs", "decide", "unit")], ids="-".join)
+@pytest.mark.parametrize("path", [("verbs", "decide", "detail")], ids="-".join)
 def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
     page_dir, tmp_path, path
 ):
@@ -326,7 +444,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     from markdown_it import MarkdownIt
 
     kinds = cleanup_model.kernel_registry()["$events"]["kinds"]
-    text = Path(schema_model.__file__).with_name("events.md").read_text()
+    text = (Path(schema_model.__file__).parents[1] / "events.md").read_text()
     tokens = MarkdownIt("commonmark").enable("table").parse(text)
     start = next(
         index for index, token in enumerate(tokens) if token.type == "table_open"
@@ -579,6 +697,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "deleted message": {"kind": "edit", "text": "", **titled, **owes("reply")},
+        "rewritten message in a summarized thread": {
+            "kind": "edit",
+            "text": "Tuesdays, after the report run",
+            "thread": {"title": "Tuesday backfill", "summaries": [{"covers": ["m1"]}]},
+            **owes("reply"),
+        },
         "rewritten suggestion": {
             "kind": "edit",
             "text": "moves to Wednesdays",
@@ -665,7 +789,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # wait's complete delivery, acknowledged by its reader.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     posted = {
         "kind": "comment",
@@ -884,15 +1008,16 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     assert session_model.cmd_wait(page_dir) == 0
     waited = capsys.readouterr().out
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session)
+    hooks_run_this_tree(session)
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # The adapter's queue route: collect the batch, then offer its pointer.
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         append_batch_result = codex_model.append_batch(
             "codex-queue-task",
             page_dir,
             transaction,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
         )
         assert append_batch_result is not None
         path, _, _ = append_batch_result
@@ -915,7 +1040,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
 
     # Claude Code: the native watcher wakes the session after its turn closes,
     # and the next prompt hook hands the delivery over.
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     cleanup_model.close_session_turn(session)
     harness_2 = harness_model.session_harness()
     assert harness_2 is not None

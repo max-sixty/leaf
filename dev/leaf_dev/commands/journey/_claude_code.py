@@ -22,11 +22,11 @@ change what is under test: Claude Code then holds admission's nudge, which reach
 the session as a message from another session (`crossSessionInbound`), unread.
 
 As in every Claude Code session, Leaf hands each comment to the session as it does
-any input, while a line fork posts the agent's working line on it (`leaf.forks`),
+any input, while a line fork posts the agent's working line on it (`leaf.agents.forks`),
 and the session decides who does its work: itself, or a subagent that would answer
 in its place. So each delivery step's comment asks for a change to the page, which
 the session makes itself, and the step tests the session's own delivery from then
-on; `withdrawn`'s comment needs none, since the user resolves it at once. The fork
+on; `withdrawn`'s comment needs none, since the user takes it back at once. The fork
 steps run right after `release`. Whether a message is worth a fork is the session's
 call, and it does a one-step lookup itself, so both fork steps send their message
 while the session runs the user's own turn, and the first asks for the work beside
@@ -72,8 +72,10 @@ Then the delivery steps:
   comment's wake runs its prompt hooks, and Escape lands once Leaf's has handed the
   comment over, so Claude Code drops what Leaf's hook returned. It submits the wake
   again, whose prompt hook hands the comment over anew, and a turn answers it;
-- `withdrawn`: the same for an update that owes nothing, a resolve of a thread whose
-  comment had no answer yet, which must still reach a hook's context after Escape;
+- `withdrawn`: the same for an update that owes nothing, the user taking back a
+  comment that had no answer yet, which must still reach a hook's context after
+  Escape. A resolve of that thread would not do: it leaves the comment owed and
+  reaches no hook;
 - `boundary`: a comment that arrives while a wake's turn answers another, handed over
   at the tool boundary after that answer, whose other hook sleeps, and Escape then
   ends that turn with neither comment half done. Another hook before each shell
@@ -127,18 +129,22 @@ from pathlib import Path
 import click
 import psutil
 
-from leaf.delivery import DELIVERY, delivery_pointer_prompt
-from leaf.event_log import read_events
-from leaf.harness import (
+from leaf.agents.delivery import DELIVERY, delivery_pointer_prompt
+from leaf.agents.server import running_server
+from leaf.base.harness import (
     NUDGE_WORDS,
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
 )
-from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, inline_delivery
-from leaf.server import running_server
-from leaf.service import page_claim
-from leaf.state import turn_open
+from leaf.base.service import page_claim
+from leaf.base.state import turn_open
+from leaf.commands.hook_transport import (
+    ATTENTION_OPENING,
+    INLINE_OPENING,
+    inline_delivery,
+)
+from leaf.log.event_log import read_events
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, PageClient, claude_environment, claude_home
 from leaf_dev.commands.journey._journey import (
@@ -575,7 +581,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         escaped = (
             f"after Escape: turn {'closed' if closed(turn) else 'open'}, "
             f"{'a' if cc.listening() else 'no'} watch running, the page reads "
-            f"{activity(page)}"
+            f"{' and '.join(activity(page))}"
         )
         # The stopped turn never read the comment, so the watch after Escape wakes for
         # it, and a turn of its own answers it.
@@ -629,13 +635,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         started = time.monotonic()
         url = require(running_server(page), "the page has no server")["url"]
         comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
-        resolved = PageClient(url).post(
-            {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
+        taken_back = PageClient(url).post(
+            {"kind": "undo", "undoes": comment, "attempt": attempt("undo")}
         )["id"]
-        held = drop(resolved)
+        held = drop(taken_back)
         cc.until(
-            lambda: delivery_ended(since(held), resolved),
-            "withdrawn: the resolve Escape dropped never reached the agent",
+            lambda: delivery_ended(since(held), taken_back),
+            "withdrawn: the take-back Escape dropped never reached the agent",
             120,
         )
         step("withdrawn", started)

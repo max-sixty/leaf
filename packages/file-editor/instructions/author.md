@@ -4,7 +4,7 @@ stands. Bind each file explicitly; the browser receives each file's label and
 contents, never its absolute path.
 
 ```bash
-leaf page init --package file-editor PAGE
+leaf page init --package reading --package file-editor PAGE
 leaf file bind PAGE notes ./research-notes.md
 ```
 
@@ -20,7 +20,7 @@ puts the caret at the start of that line, so a note can point at the line it is
 about.
 
 ```bash
-leaf page init --package file-editor --package file-tree PAGE
+leaf page init --package reading --package file-editor --package file-tree PAGE
 leaf file bind PAGE values deploy/values.yaml
 leaf file bind PAGE alerts deploy/alerts.yaml
 leaf file bind PAGE runbook docs/runbook.md
@@ -34,6 +34,24 @@ leaf file bind PAGE runbook docs/runbook.md
 Each file is labelled by its path below the deepest folder holding every file the
 page binds, here `deploy/values.yaml`, `deploy/alerts.yaml` and `docs/runbook.md`;
 `leaf file bind` prints the label it gives.
+
+The editor holds the open file's name and text, as last read or saved, as its `text`
+output. A reading bound to it with `for`, such as a Markdown preview, shows each save,
+about half a second after the reader stops typing, and a comment on it names the file. A Markdown file beside its rendered copy, where the reader comments on passages or
+suggests new wording, takes two elements, each in a pane of a workspace so both fill
+the window's height:
+
+```html
+<lf-file-editor id="readme-editor" binding="readme"></lf-file-editor>
+<lf-text-document
+  id="readme-rendered"
+  for="readme-editor"
+  preview="markdown"
+></lf-text-document>
+```
+
+The editor's own lines take no comments, since typing changes them under the comment;
+the reader comments on the rendered copy, or on the numbered lines of its Source tab.
 
 Tell the reader that edits save automatically. The editor saves as the reader types
 and saves a file the moment the reader opens another. It shows a change written

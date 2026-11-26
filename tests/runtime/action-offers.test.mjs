@@ -2,9 +2,8 @@
  * every surface (browser/AGENTS.md, "Controls are few and quiet"). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nameAction } from "/runtime/control-labels.js";
-import { offerAction, offeredAction } from "/runtime/widget-elements.js";
-import { html, render } from "/runtime/framework.js";
+import { nameAction, offerAction, offeredAction } from "/runtime/lib/controls.js";
+import { html, render } from "/vendor/lit.js";
 
 const symbolOf = (control) =>
   [...control.querySelectorAll(":scope > svg")].map((svg) => svg.dataset.lfIcon);
@@ -25,7 +24,7 @@ test("a symbol shows its action's symbol and says its name unless its label says
   assert.deepEqual(symbolOf(retry), ["retry"]);
   assert.equal(retry.getAttribute("aria-label"), "Retry");
   // On Leaf the preview says its word on every route, so it writes no title, which the
-  // browser would show to a pointer instead (preview.js); off Leaf the title is the
+  // browser would show to a pointer instead (annotations/preview.js); off Leaf the title is the
   // only reading a pointer gets.
   assert.equal(retry.getAttribute("title"), null);
   const plain = offLeaf(() =>
@@ -48,7 +47,9 @@ test("a press can't show a symbol without naming one of Leaf's actions", () => {
   assert.throws(() => offerAction("symbol", "", "Retry"), /names the action/);
   assert.throws(
     () => offerAction("symbol", "", undefined, { action: "spin" }),
-    /Unknown Leaf action/,
+    // The refusal names the choices, so a module that guessed a name finds the one
+    // it meant.
+    /Unknown Leaf action: spin\. Leaf's actions are accept, .*\bretry\b/,
   );
   assert.throws(
     () => offerAction("word", "", "Go", { action: "next" }),

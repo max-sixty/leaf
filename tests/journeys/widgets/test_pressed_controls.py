@@ -12,22 +12,21 @@ import pytest
 from known_widget_findings import PACKAGES
 from render_harness import Traffic, round_trip
 
-from leaf.layer import checked_layer_inputs, compose_layer
-from leaf.packages import package_layer_inputs
-from leaf.render_checks import (
-    RENDER_VIEWPORT,
-    rendered,
-    wait_for_probe,
-    wait_until_ready,
-)
-from leaf.render_gate.scheme import served
-from leaf.render_gate.widget_quality import (
+from leaf.pages.render_gate.scheme import served
+from leaf.pages.render_gate.widget_quality import (
     WRAPPERS,
     example_pages,
     own_tags,
     served_examples,
 )
-from leaf.structure import SourceDocument
+from leaf.source.layer import checked_layer_inputs, compose_layer, package_layer_inputs
+from leaf.source.render_checks import (
+    RENDER_VIEWPORT,
+    rendered,
+    wait_for_probe,
+    wait_until_ready,
+)
+from leaf.source.structure import SourceDocument
 
 # What a reader presses: a button, or a control that holds a choice.
 CONTROL = (
@@ -109,9 +108,8 @@ UNRESOLVED = """async () => {
   const boot = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry,
     location.href);
   const api = await import(new URL('runtime/check-api.js', boot));
-  const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
-    declarationFor(document.getElementById(event.widget))?.verbs?.[event.action]
+    api.declarationFor(document.getElementById(event.widget))?.verbs?.[event.action]
       ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);
@@ -127,7 +125,7 @@ STATES = {
 
 # The packages with widgets whose worked examples show no control to press, by
 # directory, so a sweep that finds none anywhere else has lost its controls.
-UNPRESSABLE = {"diagram", "file-tree", "motion", "visual-review"}
+UNPRESSABLE = {"diagram", "file-tree", "motion"}
 
 # The widgets whose presses could flicker, which the sweep must reach sending.
 REACHED = {"lf-playground", "lf-options", "lf-suggestion"}

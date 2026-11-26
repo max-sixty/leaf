@@ -11,7 +11,7 @@ from typing import TypedDict
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -34,21 +34,24 @@ from interact_support import (
     refused_on,
     response_reference,
     served_updates,
+    state_json,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.refusals import Refused
-from leaf.thread_context import logged_fragment
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.log.thread_context import logged_fragment
+from leaf.records import revisioning as revisioning_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
 
 
 class ResponseOptions(TypedDict, total=False):
@@ -108,28 +111,6 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     assert events_model.read_events(page_dir)[-1]["responds"] == second["id"]
 
 
-def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
-    """An agent writing a widget from memory can leave out the attribute that makes
-    it ask, and satisfying the refusal with `--obligation` would leave the widget
-    asking nothing. So the refusal names the attribute the widget's registry entry
-    asks with."""
-    asked = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which wording?"}
-    )
-    shown = '<lf-draft id="wording">\n<pre>\nShip on Monday.</pre></lf-draft>'
-    refused = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", response_reference(page_dir, asked)]
-        + ["--text", f"Edit it?\n\n{shown}"],
-    )
-
-    assert refused_on(refused.stdout).values == {
-        "tag": "lf-draft",
-        "id": "wording",
-        "needs": "`required`",
-    }
-
-
 def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
     page_dir,
 ):
@@ -182,7 +163,8 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
     assert f"`leaf thread reply {ref}` answers it" in owed_note()
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
-    assert service_model.claim_page(claimed)
+    hooks_run_this_tree("s2")
+    assert transaction_model.claim_page(claimed)
     noted = owed_note()
     assert ref not in noted
     assert f"`leaf wait {claimed}` delivers for {asked['id']}" in noted
@@ -268,7 +250,7 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
         asked = append_carried_log_record(
             page, {"kind": "comment", "id": "same-id", "author": "user", "text": "Why?"}
         )
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             batches.append(delivery_model.batch_data(page, transaction, [asked]))
     payload = delivery_model.freeze_delivery(batches)
     refs = [batch["events"][0]["answer"]["ref"] for batch in payload["batches"]]
@@ -340,7 +322,7 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_d
     assert reply("--done", "--text", "Rebuilt it.") == delivered
     assert events_model.read_events(page_dir) == events
     # With the to-do ended, another answer to the update is refused.
-    todos_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
+    tasks_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
     [refused] = command_findings(
         "thread", "reply", reference, "--done", "--text", "Rebuilt it again."
     )
@@ -530,11 +512,11 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
             sys.executable,
             "-c",
             (
-                "from click.testing import CliRunner; from leaf.cli import cli; import sys; "
-                "assert 'leaf.delivery' not in sys.modules; "
+                "from click.testing import CliRunner; from leaf.commands.cli import cli; import sys; "
+                "assert 'leaf.agents.delivery' not in sys.modules; "
                 "result = CliRunner().invoke(cli, ['thread', 'reply', '--help']); "
                 "assert result.exit_code == 0, result.output; "
-                "assert 'leaf.delivery' not in sys.modules"
+                "assert 'leaf.agents.delivery' not in sys.modules"
             ),
         ],
         capture_output=True,
@@ -561,6 +543,7 @@ def test_delegated_response_survives_its_coordinators_end_without_a_competing_cl
     reference = response_reference(page_dir, comment)
     cleanup_model.end_session("coordinator")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     result = CliRunner().invoke(
         cli_model.cli,
@@ -595,7 +578,7 @@ def test_superseded_response_stays_refused_after_successor_ends(claimed):
         },
     )
     reference = response_reference(claimed, comment)
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("successor", "Successor", os.getpid())
         )
@@ -625,7 +608,7 @@ def test_delegated_author_write_survives_same_owner_process_restart(claimed):
     original = service_model.page_claim(claimed)
     assert original is not None
     cleanup_model.ensure_session(original["id"], {"pid": os.getppid()})
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert original is not None
         page.take_claim(
             harness_model.EmbeddedHarness(original["id"], "Coordinator", os.getpid())
@@ -890,7 +873,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     before = cleanup_model.session_record("codex-thread")
     cleanup_model.ensure_session("codex-thread", {"pid": os.getppid()})
     if reacquired:
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(
                 harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
@@ -1029,14 +1012,25 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     prepared = _codex_delivery(page_dir)
     identity = prepared.payload["id"]
     path = codex_model.record_path("codex-thread", identity)
-    record = files_model.read_json(path)
-    if obsolete == "record":
-        record["format"] = "leaf-codex-delivery-v2"
-    else:
-        payload = dict(prepared.payload, format="leaf-delivery-v4")
-        cleanup_model.write_json(delivery_model.delivery_path(identity), payload)
+    record = files_model.read_json(codex_model.RECORD.file(path))
     record.update(state="queued", pending=[0])
-    cleanup_model.write_json(path, record)
+    if obsolete == "record":
+        # The record is one a Leaf of another shape wrote.
+        file = path.with_name(f"{path.stem}@999{path.suffix}")
+        codex_model.RECORD.remove(path)
+        record["format"] = "leaf-codex-delivery/999"
+    else:
+        # The envelope this Leaf's record addresses is one a Leaf of another shape
+        # froze.
+        envelope = delivery_model.delivery_path(identity)
+        delivery_model.DELIVERY.remove(envelope)
+        cleanup_model.write_json(
+            envelope.with_name(f"{envelope.stem}@999{envelope.suffix}"),
+            dict(prepared.payload, format="leaf-delivery/999"),
+        )
+        file = codex_model.RECORD.file(path)
+    cleanup_model.write_json(file, record)
+    held = file.read_bytes()
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
     assert acknowledged_through(page_dir) == 0
@@ -1048,7 +1042,8 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     assert fresh.payload["batches"][0]["events"][0]["answer"]["ref"].startswith(
         fresh.payload["id"]
     )
-    assert path.exists()  # another checkout's record is not ours to retire
+    # Another checkout's record is not ours to retire.
+    assert file.read_bytes() == held
 
 
 def test_explicit_rich_reply_is_committed_before_later_invalid_source(page_dir):
@@ -1077,7 +1072,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Another thread"},
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [newer])
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)
@@ -1215,11 +1210,11 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
             thread_model.post_response(reference, "This is not a revision.", **options)
         assert refused_on(refused.value).code == "not-a-reply"
         assert events_model.read_events(page_dir) == before
-    started = todos_model.cmd_start(
+    started = tasks_model.cmd_start(
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         delivery_model.record_pickup(
             page, [action], phase="failed", failure="turn_failed"
         )
@@ -1227,7 +1222,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
     [workflow] = state["workflows"]
     [record] = served_updates(state["browser"])
     assert (workflow["obligation"], record["next_actor"]) == (record["id"], "user")
-    assert workflow["condition"]["kind"] == "failed"
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "failed")
     assert owed_answers(page_dir) == []
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
@@ -1242,7 +1237,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     comment = append_command(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "Why?"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
@@ -1332,11 +1327,29 @@ def test_failure_reply_is_refused_while_provider_still_owns_the_answer(page_dir)
     )
 
 
+def test_a_final_into_a_thread_the_user_resolved_leaves_it_closed(page_dir, capfd):
+    """A provider's final message goes into a thread the user resolved without
+    reopening it, as an answer by command does. Leaf says nothing beside it: no
+    agent reads what a provider's process prints, so the note a command prints of a
+    thread that stayed closed would reach nobody."""
+    comment, _target, _delivery_id, stream = _reserved_author_response(page_dir)
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": comment["id"]}
+    )
+    capfd.readouterr()
+    assert stream.finish("completed", "No badge exists.") is None
+    final = events_model.read_events(page_dir)[-1]
+    assert (final["responds"], final["unannounced"]) == (comment["id"], True)
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] == "user"
+    assert "stays-closed" not in capfd.readouterr().err
+
+
 @pytest.mark.parametrize("settled", [False, True])
 def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, settled):
     comment, _target, _delivery_id, old = _reserved_author_response(page_dir)
     # A later delivery reserves the same captured input under a different attempt.
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [comment])
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)

@@ -4,7 +4,7 @@ the suite's sessions, and the demo recording's own (`commands/site/demo.py`)."""
 import threading
 from contextlib import contextmanager
 
-from leaf import carrier, completions
+from leaf.agents import carrier, completions
 
 
 @contextmanager

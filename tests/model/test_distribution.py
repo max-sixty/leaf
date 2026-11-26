@@ -5,10 +5,10 @@ import shutil
 
 import pytest
 
-from leaf import layer as layer_model
-from leaf import runtime_selection
-from leaf.refusals import Refused
-from leaf.revision_artifact import Resource
+from leaf.base.refusals import Refused
+from leaf.source import layer as layer_model
+from leaf.source import runtime_selection
+from leaf.source.revision_artifact import Resource
 from leaf_dev.commands.site._distribution import bundle_runtime
 
 
@@ -32,7 +32,7 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     runtime = runtime_selection.read_runtime()
     files = runtime.resources({}, {})
     assert files["/leaf.js"].data == (kernel / "leaf.js").read_bytes()
-    assert "/runtime/context.js" not in files
+    assert "/runtime/state/context.js" not in files
     assert any(path.startswith("/runtime/bundle-") for path in files)
     assert "/vendor/signals-core.js" not in files
     assert "/vendor/lit.js" in files
@@ -43,12 +43,16 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     # module, but not a runtime module, whatever the layer holds.
     own = Resource(b"export const own = 1;\n", "application/javascript")
     files = runtime.resources(
-        {"/vendor/lit.js": own, "/runtime/helper.js": own, "/runtime/media.js": own},
+        {
+            "/vendor/lit.js": own,
+            "/runtime/helper.js": own,
+            "/runtime/records/media.js": own,
+        },
         {},
     )
     assert files["/vendor/lit.js"] is own
     assert files["/runtime/helper.js"] is own
-    assert files["/runtime/media.js"] is not own
+    assert files["/runtime/records/media.js"] is not own
     assert files["/leaf.js"].data == (kernel / "leaf.js").read_bytes()
     # One that replaces a vendor module the kernel compiled in runs the source
     # modules, so its replacement is the one they load.
@@ -70,12 +74,12 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     assert files["/runtime/kernel-registry.json"].data == registry.read_bytes()
     registry.write_bytes(shipped)
 
-    module = assets / "runtime/context.js"
+    module = assets / "runtime/state/context.js"
     module.write_text(module.read_text() + "\n")
     stale = runtime_selection.read_runtime()
     files = stale.resources({}, {})
     assert files["/leaf.js"].data == (assets / "leaf.js").read_bytes()
-    assert files["/runtime/context.js"].data == module.read_bytes()
+    assert files["/runtime/state/context.js"].data == module.read_bytes()
     assert not any(path.startswith("/runtime/bundle-") for path in files)
     assert "/vendor/signals-core.js" in files
     assert stale.identity != runtime.identity
@@ -183,12 +187,12 @@ def test_runtime_identity_follows_package_browser_contributions(tmp_path, monkey
 @pytest.mark.parametrize("suffix", [".js", ".mjs"])
 def test_package_private_imports_are_refused(directory, suffix, tmp_path):
     """Every package browser directory shares the public kernel boundary."""
-    from leaf.layer import compose_layer, layer_inputs
+    from leaf.source.layer import compose_layer, layer_inputs
 
     custom = tmp_path / "custom"
     (custom / directory).mkdir(parents=True)
     (custom / directory / f"helper{suffix}").write_text(
-        'export { runtime } from "/runtime/context.js";\n'
+        'export { runtime } from "/runtime/state/context.js";\n'
     )
     with pytest.raises(Refused, match="imports private kernel module"):
         compose_layer([*layer_inputs(), custom])

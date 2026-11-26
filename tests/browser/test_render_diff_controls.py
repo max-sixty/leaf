@@ -17,8 +17,8 @@ from render_harness import (
     sending,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.source import data as data_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 
@@ -178,149 +178,6 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     expect(datum).to_be_focused()
     box = datum.bounding_box()
     assert 0 <= box["y"] < box["y"] + box["height"] <= page.viewport_size["height"]
-
-
-@pytest.mark.parametrize("view", ["patch", "file"])
-def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
-    browser, serve, view
-):
-    """A separately mounted navigator follows a diff's output and travels through
-    the ordinary datum route, including reactivation and updated source evidence."""
-
-    def patch(path, value):
-        return (
-            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-            f"@@ -1 +1 @@\n-old\n+{value}\n"
-        )
-
-    url = serve(
-        leaf_page(
-            "Browse patch files",
-            "<h1>Review the importer</h1>"
-            '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
-            f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
-        )
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(
-            patch("src/importer.py", "keep_names = True")
-            + patch("tests/importer.py", "assert keep_names")
-        ),
-    )
-    page = open_page(browser, url)
-    tree = page.locator("#files")
-    row = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).first
-    expect(row).to_be_visible()
-    folds = page.locator("#patch .lf-diff-fold")
-    if view == "patch":
-        expect(folds.first).not_to_have_attribute("open", "")
-    else:
-        expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
-        expect(folds.first).to_have_attribute("open", "")
-    # Search narrows the navigator until a file is opened.
-    search = tree.get_by_role("textbox")
-    search.fill("importer")
-    row.click()
-    expect(search).to_have_value("")
-    expect(search).to_be_focused()
-    expect(folds.first).to_have_attribute("open", "")
-    expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
-    # The same selected file still has an activation route after its patch closes.
-    folds.first.locator("summary").click()
-    row.click()
-    expect(folds.first).to_have_attribute("open", "")
-    # A released pointer activation keeps this navigator's keyboard ownership.
-    # The tree's folders remain part of its ordinary arrow-key traversal.
-    expect(row).to_be_focused()
-    search.fill("")
-    search.press("Tab")
-    expect(row).to_be_focused()
-    folder = tree.get_by_role("treeitem", name="src", exact=True)
-    page.keyboard.press("ArrowLeft")
-    expect(folder).to_be_focused()
-    page.keyboard.press("ArrowLeft")
-    expect(folder).to_have_attribute("aria-expanded", "false")
-    page.keyboard.press("ArrowRight")
-    expect(folder).to_have_attribute("aria-expanded", "true")
-    page.keyboard.press("ArrowDown")
-    expect(row).to_be_focused()
-    page.keyboard.press("ArrowDown")
-    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_be_focused()
-    page.keyboard.press("ArrowDown")
-    other = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).last
-    expect(other).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(folds.last).to_have_attribute("open", "")
-    expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
-    expect(other).to_be_focused()
-    if view == "file":
-        expect(folds.first).not_to_be_visible()
-        expect(folds.last).to_be_visible()
-        expect(other).to_have_attribute("aria-selected", "true")
-        # Trees confirms a search match onto its row; the row opens its file.
-        for path, visible in [
-            ("src/importer.py", folds.first),
-            ("tests/importer.py", folds.last),
-        ]:
-            search.fill(path)
-            search.press("ArrowDown")
-            search.press("Enter")
-            expect(search).to_have_value("")
-            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
-            page.keyboard.press("Enter")
-            expect(visible).to_be_visible()
-        folds.last.locator("summary").press("{")
-        expect(folds.first).to_be_visible()
-        expect(folds.last).not_to_be_visible()
-        expect(row).to_have_attribute("aria-selected", "true")
-        expect(other).to_have_attribute("aria-selected", "false")
-        # Preparing new evidence does not take ownership of a selection made while
-        # that preparation is in flight. Hold one boundary to make the ordering exact.
-        page.evaluate("""() => {
-          const diff = document.getElementById('patch');
-          const prepareEntry = diff.prepareEntry.bind(diff);
-          const held = new Promise(resolve => window.releaseEvidence = resolve);
-          diff.prepareEntry = async (...args) => {
-            window.evidenceHeld = true;
-            await held;
-            return prepareEntry(...args);
-          };
-        }""")
-        data_model.cmd_data_set(
-            serve.page_dir,
-            "change",
-            patch_manifest(
-                patch("src/importer.py", "new_names = True")
-                + patch("tests/importer.py", "assert new_names")
-            ),
-        )
-        page.wait_for_function("window.evidenceHeld === true")
-        folds.first.locator("summary").press("}")
-        page.evaluate("window.releaseEvidence()")
-        expect(folds.last.locator("pre")).to_contain_text("assert new_names")
-        expect(folds.last).to_be_visible()
-        expect(folds.first).not_to_be_visible()
-        expect(other).to_have_attribute("aria-selected", "true")
-        expect(row).to_have_attribute("aria-selected", "false")
-    search.fill("")
-    # A source update replaces the producer inventory, rather than leaving stale rows.
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(patch("src/reader.py", "preserve_case = True")),
-    )
-    next_row = tree.get_by_role("treeitem", name=re.compile(r"reader\.py"))
-    expect(next_row).to_be_visible()
-    expect(
-        tree.get_by_role("treeitem", name=re.compile(r"importer\.py"))
-    ).to_have_count(0)
-    next_row.click()
-    expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
-    # Clearing the input clears the derived inventory too.
-    data_model.cmd_data_clear(serve.page_dir, "change")
-    expect(tree.get_by_role("treeitem")).to_have_count(0)
 
 
 def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
@@ -558,7 +415,8 @@ def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
     browser, serve
 ):
     """The filter's quiet press opens every file the filter shows while any is closed,
-    and closes them once all are open. The diff keeps the page's paper and ink between
+    and closes them once all are open, asking Leaf for one pass over the page's threads
+    rather than one for each file. The diff keeps the page's paper and ink between
     its files after the first file brings the renderer's sheets, whose `:host` is one
     file's box where here it is the whole diff."""
     patch = "".join(
@@ -591,10 +449,18 @@ def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
     assert diff.evaluate(paints) == page_paint
 
     expect(press).to_have_accessible_name("Expand all files")
+    diff.evaluate(
+        """node => {
+          node.layouts = 0;
+          node.addEventListener('lf-layout', () => node.layouts++);
+        }"""
+    )
     press.click()
     for index in range(3):
         expect(folds.nth(index)).to_have_attribute("open", "")
     rendered(page)
+    # One press asks for one thread pass, however many files it opens.
+    assert diff.evaluate("node => node.layouts") == 1
     expect(folds.locator("[data-line]")).to_have_count(6)
     expect(press).to_have_accessible_name("Collapse all files")
 

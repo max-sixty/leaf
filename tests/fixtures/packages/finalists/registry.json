@@ -1,0 +1,18 @@
+{
+  "lf-finalists": {
+    "description": "The picked candidates of a shortlist another widget holds, by name, each with a control that drops it from that shortlist. Use it to keep the finalists in view beside or away from the full list.",
+    "attributes": {
+      "required": ["id", "for"]
+    },
+    "content": "empty",
+    "inputs": {
+      "shortlist": {
+        "contract": "shortlist",
+        "reference": "for",
+        "property": "value"
+      }
+    },
+    "example": "<lf-finalists id=\"finalists\" for=\"candidates\"></lf-finalists>",
+    "instructions": "Set `for` to the id of a widget that holds a `shortlist`. The finalists keep no picks of their own: each Drop asks that widget to drop the candidate."
+  }
+}

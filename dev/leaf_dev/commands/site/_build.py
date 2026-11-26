@@ -49,18 +49,19 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
-from leaf.event_log import initialized
-from leaf.files import latest_revision, list_revisions, revision_path
-from leaf.live_shell import write_live_shell
-from leaf.registry.kernel import kernel_protocol
-from leaf.schema import (
+from leaf.base.files import latest_revision, list_revisions, revision_path
+from leaf.base.schema import (
     BROWSER_DIRS,
     DATA_DIR,
     LAYER_TOP_FILES,
     PAGE_STATE_FILES,
     SESSION_ROUTE_DIRS,
 )
-from leaf.structure import FRAME_ANCESTORS_CSP
+from leaf.base.state import record_name
+from leaf.log.event_log import initialized
+from leaf.serving.live_shell import write_live_shell
+from leaf.source.registry.kernel import kernel_protocol
+from leaf.source.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import ROOT, docs
 from leaf_dev.arms import run_leaf
 from leaf_dev.commands.site._distribution import prepare
@@ -274,7 +275,7 @@ def deduplicate_tree(
     for path in sorted(
         candidate for candidate in root.rglob("*") if candidate.is_file()
     ):
-        if path.name in mutable_names or path.parent.name in mutable_names:
+        if record_name(path.name) in mutable_names or path.parent.name in mutable_names:
             continue
         body = path.read_bytes()
         identity = (len(body), hashlib.sha256(body).digest())
@@ -462,7 +463,7 @@ def bundle_published_runtime(out: Path) -> None:
 def build_site(out: Path, assets: Path | None = None) -> None:
     """Build the site into `out` from a freshly prepared installation and bundle its
     published runtime, holding the lock a reader of `out` takes (`site_lock`)."""
-    from leaf.state import flocked
+    from leaf.base.state import flocked
 
     out.parent.mkdir(parents=True, exist_ok=True)
     # One destination is one publication; independent builds use separate outputs.

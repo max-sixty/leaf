@@ -17,14 +17,14 @@ to put to the maintainer, with what the feature costs beside it.
   record this Leaf reads. A record at another shape, an older Leaf's or a newer
   one's, counts as none, where `page init` would refuse the newer one.
 - **Commands**: each command a person ran, by key or by press, from the `command`
-  observations a tab writes (`browser/runtime/interaction-log.js`), with the sessions
+  observations a tab writes (`browser/runtime/transport/interaction-log.js`), with the sessions
   and pages it ran in. A session whose browser calls itself headless is a check or a
   probe driving the page, not a person, and is left out. Only commands that ran are
   listed: the runtime registers them as each page's widgets load, so no file lists
   them all. A widget that registers a command per element, as `lf-options` does per
   option, shows as one row ending `-*`.
 - **`leaf` commands**: each command the CLI declares, with the runs agents made
-  against a page (`leaf.interaction_log.record_command`). A command that names no
+  against a page (`leaf.log.interaction_log.record_command`). A command that names no
   page, such as `leaf wait` over a session's pages, records nothing.
 
 `--since` bounds the observations and `leaf` commands by host time; widgets and
@@ -32,7 +32,6 @@ packages describe each page as it stands.
 """
 
 import json
-import re
 from collections import Counter, defaultdict
 from datetime import datetime
 from html.parser import HTMLParser
@@ -40,11 +39,11 @@ from pathlib import Path
 
 import click
 
-from leaf.interaction_log import interaction_time, read_interactions
-from leaf.registry.storage import LAYER
-from leaf.schema import LAYER_FILE
-from leaf.state import state_home
-from leaf_dev import ROOT
+from leaf.base.state import state_home
+from leaf.log.interaction_log import interaction_time, read_interactions
+from leaf.source.registry.contract import is_element_name
+from leaf.source.registry.storage import layer_packages
+from leaf_dev.docs import registries
 
 
 class _Tags(HTMLParser):
@@ -59,19 +58,17 @@ class _Tags(HTMLParser):
 def declared_widgets() -> dict[str, str]:
     """Each element a bundled registry declares, with the package that declares it.
     A registry also keys layer facts under `$` and idioms under a selector."""
-    registries = [ROOT / "browser" / "registry.json"]
-    registries += sorted((ROOT / "packages").glob("*/registry.json"))
     return {
         key: "kernel" if path.parent.name == "browser" else path.parent.name
-        for path in registries
+        for path in registries()
         for key in json.loads(path.read_text())
-        if re.fullmatch(r"[a-z][a-z0-9]*(-[a-z0-9]+)+", key)
+        if is_element_name(key)
     }
 
 
 def declared_leaf_commands() -> list[str]:
     """Every command `leaf` shows in its help, as an agent types it."""
-    from leaf.cli import cli
+    from leaf.commands.cli import cli
 
     def walk(group: click.Group, prefix: str) -> list[str]:
         names = []
@@ -122,9 +119,9 @@ def survey(pages: list[Path], since: datetime | None) -> dict:
                 if tag in widgets:
                     held[tag].add(page.name)
                     uses[tag] += count
-        if record := LAYER.read(page / LAYER_FILE):
+        if (packages := layer_packages(page)) is not None:
             layered += 1
-            for package in record["packages"]:
+            for package in packages:
                 selected[Path(package).name] += 1
         rows = read_interactions(
             page, since=since, types=("session_start", "command", "leaf_command")

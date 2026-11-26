@@ -11,7 +11,7 @@ from render_harness import (
     resized,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 @pytest.mark.shifts_unsurveyed
@@ -41,8 +41,8 @@ def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
     box = thread.locator("leaf-text")
     # The box's foot just past the landing band's, where the first keystroke lands it.
     box.evaluate(
-        """box => scrollBy({top: box.getBoundingClientRect().bottom - innerHeight
-          + parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom)
+        """async box => scrollBy({top: box.getBoundingClientRect().bottom - innerHeight
+          + (await window.__lfWidgetApi()).landingInsets(document.documentElement).bottom
           - 12, behavior: 'instant'})"""
     )
     rendered(page)

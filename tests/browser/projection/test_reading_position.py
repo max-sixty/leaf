@@ -33,7 +33,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -440,7 +440,8 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     declarations["lf-shadow-reading"]["shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
-        """import { once, shadowStage } from "/runtime/widget-api.js";
+        """import { shadowStage } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -754,7 +755,7 @@ def test_a_panes_scroll_behavior_change_keeps_the_reading_after_scrolling_past_f
         page.evaluate("""async () => {
           const regions = await window.__lfCheckApi();
           const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
-            if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
+            if (phase !== 'shift' || !shifted.some(({region}) => region?.host.id === 'reading'))
               return;
             stop();
             document.body.dispatchEvent(new WheelEvent('wheel', {deltaY: 500, bubbles: true}));
@@ -838,12 +839,8 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
     entry = {
         "description": "A test-owned reading scroller.",
         "attributes": {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-            },
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "example": '<lf-owned-scroll id="example">'
@@ -851,16 +848,11 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "</lf-owned-scroll>",
     }
     module = """
-import {registerReadingRegion} from '/runtime/widget-api.js';
 customElements.define('lf-owned-scroll', class extends HTMLElement {
-  #stop = null;
   connectedCallback() {
-    const body = this.querySelector(':scope > [data-scroll-body]');
-    this.#stop = registerReadingRegion({id: this.id, host: this, body});
-  }
-  disconnectedCallback() {
-    this.#stop?.();
-    this.#stop = null;
+    this.setAttribute('data-lf-scroll-host', 'body');
+    this.querySelector(':scope > [data-scroll-body]')
+      .setAttribute('data-lf-scroll', 'body');
   }
 });
 """
@@ -1030,7 +1022,7 @@ second line of the notes document, also long enough to quote as a place
     moved = page.evaluate(
         """async () => {
           const entry = new URL(document.querySelector("script[data-lf-entry]").dataset.lfEntry, location.href);
-          const R = await import(new URL("runtime/reading-place.js", entry).href);
+          const R = await import(new URL("runtime/readings/reading-place.js", entry).href);
           const chart = document.getElementById("chart");
           scrollTo(0, chart.getBoundingClientRect().top + scrollY + 100);
           await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

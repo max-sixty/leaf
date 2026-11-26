@@ -2,6 +2,8 @@
 
 import pytest
 from render_harness import (
+    leaf_page,
+    open_page,
     open_threads,
     panel_settled,
 )
@@ -117,3 +119,49 @@ def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
         "close => close.focus({preventScroll: true})"
     )
     _read_by_the_sample(page, child)
+
+
+def test_a_turned_sample_reads_the_part_of_its_window_the_user_sees(browser, serve):
+    """A sample turned a quarter shows down what its window holds across, so with the
+    window's top cutting its frame in half the user sees the far half of the sample's
+    window, its whole height, and that is the part the sample reads as shown, in its
+    window's own coordinates (dom/geometry.js, `frameView`)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Turned sample",
+                """<h1>Turned sample</h1>
+<div id="turn"><lf-sample id="turned" label="practice" window>
+  <template id="turned-page" data-sample><h1>Practice</h1></template>
+</lf-sample></div>
+<div style="height: 2000px"></div>""",
+                head="<style>#turn { rotate: 90deg; margin-block: 150px; }</style>",
+            )
+        ),
+    )
+    page.evaluate("document.querySelector('#turned').ready")
+    frame = page.locator("#turned iframe")
+    child = frame.element_handle().content_frame()
+    child.wait_for_function("() => document.body?.hasAttribute('data-lf-presented')")
+    box = frame.evaluate("""frame => {
+      const shown = frame.getBoundingClientRect();
+      scrollTo({ top: scrollY + shown.top + shown.height / 2, behavior: 'instant' });
+      return { cut: -frame.getBoundingClientRect().top, width: frame.offsetWidth,
+               height: frame.offsetHeight, left: frame.clientLeft, top: frame.clientTop };
+    }""")
+    reading = child.evaluate(
+        "async () => (await window.__lfCheckApi()).readSampleVisibility()"
+    )
+    assert reading["visible"], reading
+    assert [reading[edge] for edge in ("left", "top", "right", "bottom")] == (
+        pytest.approx(
+            [
+                box["cut"] - box["left"],
+                -box["top"],
+                box["width"] - box["left"],
+                box["height"] - box["top"],
+            ],
+            abs=1,
+        )
+    ), (reading, box)

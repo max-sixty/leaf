@@ -12,8 +12,8 @@ vars:
     An existing Leaf package widget owns a classifier with passButton and keepButton,
     canClassify(), and classify(verdict) called by its button click handlers. Add its keyboard integration:
     Left/Right act only inside the classifier, while 1/2 also work at its
-    associated thread or margin representative. The classifier also works
-    standalone. Disabled actions must retain their numbers, and typing digits in
+    associated thread or margin representative. The classifier is also used where
+    it has neither. Disabled actions must retain their numbers, and typing digits in
     an editor must remain native. Show a concise JavaScript registration snippet.
     Both controls need inline hints. Leaf must own dispatch, forwarding, and hint
     visibility. Only shipped references are available; runtime source and execution
@@ -23,15 +23,17 @@ assert:
     metric: judgment
     value: |
       Pass only if the snippet declares the classifier's commands through the public
-      API, its `lfCommands` with `commandsChanged` or a `commandScope` value imported
-      from /runtime/widget-api.js, and declares one command per existing action.
+      interface: the scope is an object set as the classifier's `lfCommands`, and an
+      `lf-commands` event is dispatched on the classifier. It declares one command per
+      existing action.
       Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
       ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
       controls, requested bindingBadge seats or explicit null, canClassify availability,
       and direct invocation of classify("pass") / classify("keep") from run. The command
       declaration owns native button clicks and disabled state, so the response removes
       the separate click listeners and disabled painters instead of calling click(). It attaches the
-      declaration to the classifier and calls commandsChanged when availability changes.
+      declaration to the classifier and dispatches `lf-commands` on it when availability
+      changes.
       It does not attach the complete local-arrow scope to the section around it, assign numbers
       from live actions, duplicate callbacks into a second row list, install
       keydown listeners, or calculate focus/hint visibility itself. It leaves native

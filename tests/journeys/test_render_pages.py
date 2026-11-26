@@ -32,18 +32,19 @@ from render_harness import (
 )
 
 from journeys import detached_threads, listed_threads
-from leaf import event_log as events_model
-from leaf import events as thread_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.hosting import TemporaryPageServer
-from leaf.passages import enclosing_ids, page_passages
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import evaluate_probe, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.thread_context import logged_fragment
+from leaf.log import event_log as events_model
+from leaf.log import events as thread_model
+from leaf.log.thread_context import logged_fragment
+from leaf.pages.hosting import TemporaryPageServer
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import structure as structure_model
+from leaf.source.passages import enclosing_ids, page_passages
+from leaf.source.registry import storage as registry_storage
+from leaf.source.render_checks import evaluate_probe, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
-from leaf_dev.example_data import authored_sources, named_source
+from leaf_dev.example_data import authored_sources, named_source, seed_log
+from leaf_dev.page_fixtures import read_event_lines
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -149,15 +150,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 
     for example in seeded:
         url = serve(example)
-        # The log's grammar is events joined by "\n" — never splitlines(), whose
-        # wider class reads a U+2028 inside a comment's text as a break.
-        events = [
-            json.loads(line)
-            for line in example.with_suffix(".jsonl")
-            .read_text(encoding="utf-8")
-            .split("\n")
-            if line.strip()
-        ]
+        events = read_event_lines(seed_log(example))
         assert events, f"{example.stem}: the shipped log is empty"
 
         page = open_page(browser, url)
@@ -175,7 +168,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 f"{example.stem}: duplicate {event['id']}"
             )
             previous.add(event["id"])
-        assert {event["id"] for event in events} <= previous
+        # A seed may leave an event's id to admission; each id it names survives.
+        assert {event["id"] for event in events if "id" in event} <= previous
         by_id = {event["id"]: event for event in logged}
 
         def thread_of(event_id, by_id=by_id):
@@ -504,10 +498,8 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
     entry = {
         "description": "A project package's compound review surface.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "space": "available",
@@ -743,7 +735,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     parent is the shell it is placed in. A column whose box is a child of `main` takes
     the same column, contents map and breakouts as one on `main`
     itself, at a width where the shell must shift the column for its sidebar, and a
-    root workspace fills the window while a child keeps document end room. A `main` the
+    root workspace fills the window. A `main` the
     page narrows, borders or gives scrollbar gutters is the shell the child column
     measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
@@ -819,8 +811,8 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     } == {k: v for k, v in without_main(on_main).items() if k not in ("box", "regions")}
     for key in ("box", "regions"):
         assert in_child[key][:3] == on_main[key][:3]
-        assert in_child[key][3] < on_main[key][3]
-    assert on_main["regions"][3] == 800, on_main
+    # The root workspace ends at the window's foot less its 8px end gap.
+    assert on_main["regions"][3] == 792, on_main
 
     narrowed = "<style>main { max-width: 900px; margin-inline: auto; }</style>"
     _, in_child = measured(column_body, "column", 1440, head=narrowed)

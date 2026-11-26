@@ -45,7 +45,7 @@
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be
- * (`CACHE_CONTROL`, `src/leaf/http.py`).
+ * (`CACHE_CONTROL`, `src/leaf/serving/http.py`).
  */
 
 import * as z from "zod/mini";
@@ -55,6 +55,12 @@ import type {
   ServedNewsAnswer,
   ServedState,
 } from "../../browser/types/contract.js";
+import { hex } from "./routing";
+
+// The lowercase hex SHA-256 of `bytes`: a chunk's name and a publication's identity.
+async function sha256Hex(bytes: BufferSource): Promise<string> {
+  return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+}
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -207,13 +213,7 @@ export class PageStore {
             )
           : value,
     );
-    const identity = Array.from(
-      new Uint8Array(
-        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(descriptor)),
-      ),
-    )
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
+    const identity = await sha256Hex(new TextEncoder().encode(descriptor));
     return this.storage.transactionSync(() => {
       const root = publication.root;
       this.erase(root, true);
@@ -250,11 +250,7 @@ export class PageStore {
     digest.parse(name);
     if (bytes.byteLength > CHUNK_BYTES)
       throw new Error("page storage chunk exceeds 1 MiB");
-    const actual = Array.from(
-      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-    )
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
+    const actual = await sha256Hex(bytes);
     if (actual !== name)
       throw new Error("page storage chunk digest does not match bytes");
     if (!this.references(true).includes(name)) {
@@ -457,7 +453,7 @@ export class PageStore {
     const response = rows[0];
     const headers = new Headers(JSON.parse(response.headers));
     // Served while the container is stopped, so the tab reads that its next write
-    // waits for the container to launch (`writeLaunchesAgent` in `layer-client.js`).
+    // waits for the container to launch (`writeLaunchesAgent` in `transport/layer-client.js`).
     headers.set("Leaf-State-Source", "durable");
     const drafts =
       path === "api/drafts" || path === "api/news" ? this.drafts(root) : null;

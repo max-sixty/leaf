@@ -19,8 +19,8 @@ from render_harness import (
     watched,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -243,7 +243,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
 
 def about_this_page(page):
     """Open About this page from the leaf's menu and return the dialog; it alone shows
-    the session reference (page-about.js, the `about` group)."""
+    the session reference (panel/page-about.js, the `about` group)."""
     panel_control(page, "inspection").click()
     about = page.get_by_role("dialog", name="About this page", exact=True)
     expect(about).to_be_visible()
@@ -398,200 +398,91 @@ def test_a_sample_the_reader_would_see_arrive_holds_presentation(browser, serve)
     assert page.evaluate("presentedAtSampleReady") is False
 
 
-def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
-    browser, serve
-):
-    """A block sample below the window but near it starts loading before the reader
-    reaches it, and the page presents and takes keys without it, reading as arriving
-    until it has. A reader who scrolls
-    to it while it loads sees its frame keep its loading height as the child arrives,
-    so what follows stays put, until the frame leaves their sight or the tab is
-    hidden. A wheel over the frame scrolls past it and claims nothing. Once they click
-    inside it, its growth is theirs: a disclosure they open, and growth the child makes
-    of its own accord afterwards, apply at once.
+# A sample document's registry, which its upgrade reads after the document loads.
+SAMPLE_REGISTRY = re.compile(r"/api/samples/[^/]+/revisions/[^/]+/registry\.json$")
 
-    The inner window sample, in view in the child, keeps the child arriving until the
-    final step, which checks that completing arrival does not release later
-    unsolicited growth."""
+# A board sample whose recorded moves, which its page applies after upgrading, take two
+# of the four cards in its taller column to the other, so the page arrives shorter than
+# it upgrades.
+MOVED_BOARD = (
+    '<script id="moves" type="application/json">['
+    + ",".join(
+        '{"kind": "action", "author": "user", "widget": "board", "action": "move",'
+        f' "detail": {{"unit": "card-{card}", "value": "done", "rank": "{rank}"}}}}'
+        for card, rank in ((1, "a"), (2, "b"))
+    )
+    + "]</script>"
+    + live_sample(
+        "practice",
+        content='<lf-board id="board"><lf-column id="ready" label="Ready">'
+        + "".join(
+            f'<lf-card id="card-{card}" label="Card {card}">Card {card}</lf-card>'
+            for card in range(1, 5)
+        )
+        + '</lf-column><lf-column id="done" label="Done">'
+        '<lf-card id="card-5" label="Card 5">Card 5</lf-card></lf-column></lf-board>',
+    ).replace("data-sample>", 'data-sample data-sample-events="moves">')
+)
+
+
+def held_block_sample(browser, serve):
+    """A page with `MOVED_BOARD` half a window below the window's foot, within a window
+    of it, so it starts off screen, its page loaded and its registry held so that page
+    doesn't upgrade. Returns the page, the frame, its page and the held requests."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
-    passing = set()
-
-    def hold(request_route):
-        match_3 = SAMPLE_DOCUMENT.search(request_route.request.url)
-        assert match_3 is not None
-        if match_3.group(1) in passing:
-            request_route.continue_()
-        else:
-            held.append(request_route)
-
-    page.route(SAMPLE_DOCUMENT, hold)
+    page.route(SAMPLE_REGISTRY, lambda request_route: held.append(request_route))
     page.goto(
         serve(
             leaf_page(
-                "Sample gesture",
-                # Half a window below the window's foot, within a window of it.
+                "Sample below",
                 '<h1>Containing page</h1><div style="height: 150vh"></div>'
-                + live_sample(
-                    "practice",
-                    content='<p id="top">Practice</p>'
-                    + live_sample("inner", " window", "<p>Inner</p>")
-                    + '<details id="more"><summary>More</summary>'
-                    '<div style="height: 400px"></div></details>'
-                    '<div id="room" style="height: 1200px"></div>',
-                )
-                + "<p><button id=after>After the sample</button></p>"
-                '<div style="height: 300vh"></div>',
+                + MOVED_BOARD
+                + "<p id=after>After the sample</p>",
             )
         ),
         wait_until="commit",
     )
-    holding(page, held, 1, "the sample's document")
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    assert readiness(page) == "arrived"
+    holding(page, held, 1, "the sample's registry")
     frame = page.locator("#practice iframe")
-    frame.scroll_into_view_if_needed()
-    loading = frame.bounding_box()["height"]
-    after = page.locator("#after").bounding_box()
-    # The sample's document goes on; the inner sample's, once asked for, waits.
-    first = held.pop(0)
-    match_4 = SAMPLE_DOCUMENT.search(first.request.url)
-    assert match_4 is not None
-    passing.add(match_4.group(1))
-    first.continue_()
-    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
-    holding(page, held, 1, "the inner sample's document")
-    assert frame.bounding_box()["height"] == loading
-    assert page.locator("#after").bounding_box() == after
-
-    child = frame.content_frame
-    child_document = frame.element_handle().content_frame()
-    height = "frame => frame.clientHeight"
-    body = "body => Math.ceil(body.getBoundingClientRect().height)"
-
-    def grows_to(expected):
-        page.wait_for_function(
-            "h => document.querySelector('#practice iframe').clientHeight === h",
-            arg=expected,
-        )
-
-    def child_grows(room):
-        child.locator("#room").evaluate(
-            f"room => {{ room.style.height = '{room}px'; }}"
-        )
-        return child.locator("body").evaluate(body)
-
-    def child_grows_unseen(room):
-        before = frame.evaluate(height)
-        child_grows(room)
-        rendered(child_document)
-        rendered(page)
-        assert frame.evaluate(height) == before
-
-    child_grows_unseen(1400)
-    # Off the frame, so the wheel is the containing page's alone.
-    assert page.evaluate("!document.elementFromPoint(5, 450).closest('lf-sample')")
-    page.mouse.move(5, 450)
-    page.mouse.wheel(0, -20000)
-    grows_to(child.locator("body").evaluate(body))
-
-    frame.scroll_into_view_if_needed()
-    child_grows_unseen(1600)
-    # Over the frame, so the child's document hears the wheel too.
-    on_frame = frame.bounding_box()
-    x, y = on_frame["x"] + 20, max(on_frame["y"], 0) + 20
-    assert page.evaluate(
-        "([x, y]) => document.elementFromPoint(x, y)?.localName === 'iframe'", [x, y]
-    )
-    page.mouse.move(x, y)
-    before = frame.evaluate(height)
-    page.mouse.wheel(0, 40)
-    rendered(child_document)
+    child = frame.element_handle().content_frame()
+    assert child is not None
+    child.wait_for_load_state("load")
     rendered(page)
-    assert frame.evaluate(height) == before
-    page.evaluate("""() => {
-      Object.defineProperty(document, 'visibilityState', {
-        configurable: true, get: () => 'hidden',
-      });
-      document.dispatchEvent(new Event('visibilitychange'));
-    }""")
-    grows_to(child.locator("body").evaluate(body))
-    page.evaluate("""async () => {
-      window.continuity = await window.__lfCheckApi();
-      delete document.visibilityState;
-      document.dispatchEvent(new Event('visibilitychange'));
-    }""")
-    # The reading resumes once the returning page's first refreshed reading lands.
-    page.wait_for_function("continuity.readingReturn() === null")
+    return page, frame, child, held
 
-    page.unroute(SAMPLE_DOCUMENT)
+
+def test_a_block_sample_out_of_view_keeps_the_page_arriving_until_it_has_its_height(
+    browser, serve
+):
+    """A block sample that starts just below the window takes its page's height as that
+    page arrives, moving what follows it, so the containing page reads as arriving
+    until then though the frame is off screen, and a reader that waits for the page
+    finds the frame at the height the page arrived at, not the one it upgraded at."""
+    page, frame, child, held = held_block_sample(browser, serve)
+    assert readiness(page) == "arrived"
+    page.unroute(SAMPLE_REGISTRY)
     for each in held:
         each.continue_()
     wait_until_ready(page)
-    child_grows_unseen(1800)
-    child.locator("#more > summary").click()
-    expect(child.locator("#more")).to_have_attribute("open", "")
-    grows_to(child.locator("body").evaluate(body))
-    grows_to(child_grows(2000))
+    body = "() => Math.ceil(document.body.getBoundingClientRect().height)"
+    assert frame.evaluate("frame => frame.clientHeight") == child.evaluate(body)
 
 
-def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it(
-    browser, serve
-):
-    """A sample's page gets no rendering while its frame is off screen, so a chart in
-    a sample out of view draws only once its frame shows, and the page reads as ready
-    without it. A check that reads every document the page can show brings each such
-    frame into view, a sample's own samples included, waits for its chart, and puts
-    back every box it scrolled, leaving nothing to move after it returns. One a scroll
-    can't show, as in a box clipped to nothing, stays as the page has it."""
-    chart = (
-        '<lf-chart id="line" data-height="120"><pre>'
-        '{ariaLabel: "A rising line", marks: [Plot.lineY([1, 3, 2, 4])]}'
-        "</pre></lf-chart>"
-    )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    page.goto(
-        serve(
-            leaf_page(
-                "Charts",
-                "<h1>Charts</h1>"
-                + live_sample("shown", " window", chart)
-                + '<div id="box" style="height: 200px; overflow: auto">'
-                + '<div style="height: 1200px"></div>'
-                + live_sample("boxed", " window", chart)
-                + "</div>"
-                + '<div style="max-height: 0; overflow: hidden">'
-                + live_sample("clipped", " window", chart)
-                + "</div>"
-                + '<div style="height: 900px"></div>'
-                + live_sample(
-                    "outer",
-                    "",
-                    '<div style="height: 1600px"></div>'
-                    + live_sample("inner", " window", chart),
-                ),
-            )
-        )
-    )
-
-    def drawn(*samples):
-        frame = page
-        for sample in samples:
-            frame = frame.locator(f"#{sample} iframe").content_frame
-        return frame.locator("lf-chart.lf-rendered").count()
-
-    wait_until_ready(page)
-    assert (drawn("shown"), drawn("boxed")) == (1, 0)
-    start_near_work(page)
-    assert (drawn("boxed"), drawn("outer", "inner"), drawn("clipped")) == (1, 1, 0)
-    places = """() => [scrollY, document.querySelector('#box').scrollTop,
-        document.querySelector('#outer iframe').getBoundingClientRect().height]"""
-    after = page.evaluate(places)
-    assert after[:2] == [0, 0]
+def test_a_check_asking_for_near_work_takes_over_a_block_sample_s_wait(browser, serve):
+    """A check that asks for all near work brings each frame whose page the containing
+    page stopped counting into view itself (`start_near_work`), so once it asks, the
+    page stops waiting for an off-screen block sample's height and marks its frame for
+    the check."""
+    page, frame, _, held = held_block_sample(browser, serve)
+    evaluate_probe(page, "startNearWork")
     rendered(page)
-    assert page.evaluate(places) == after
+    assert readiness(page) is None
+    assert frame.evaluate("frame => frame.hasAttribute('data-lf-unseen')")
+    page.unroute(SAMPLE_REGISTRY)
+    for each in held:
+        each.continue_()
 
 
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
@@ -645,65 +536,58 @@ def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
     assert page.evaluate(places) == before
 
 
-def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
-    """A live sample far below the window, or in a closed disclosure, loads nothing,
-    and the page reads ready without it while its `ready` waits. Scrolled to within a
-    window's height of the window, it starts before the reader sees it, so by the time
-    they reach it the frame stands at its child's height. Opening the disclosure starts
-    the sample in it, and a page module's Reset starts one still waiting."""
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
+# Hold each command the page sends a sample's document over the private port the
+# host publishes on the entry script (host/sample.js, `connect`), so the document's own
+# arrival lands before any answer: `heldCommands` sends them on.
+HOLD_COMMANDS = """entry => {
+  window.heldCommands = [];
+  const binding = Object.getOwnPropertyDescriptor(
+    HTMLScriptElement.prototype, 'lfDocumentPort');
+  Object.defineProperty(entry, 'lfDocumentPort', {
+    configurable: true,
+    get() { return binding.get.call(this); },
+    set(port) {
+      binding.set.call(this, port);
+      const post = port.postMessage;
+      port.postMessage = function (message, ...rest) {
+        if (message?.method === undefined) return post.call(this, message, ...rest);
+        heldCommands.push(() => post.call(this, message, ...rest));
+      };
+    },
+  });
+}"""
+
+
+def test_a_reset_sample_has_drawn_its_new_page_once_the_page_reads_arrived(
+    browser, serve
+):
+    """A sample the reader resets in view draws its new page's arrival, Reset
+    available again and its status clear, before the page reads arrived, however
+    late the child answers a command the containing page sends it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sample reset", "<h1>Containing page</h1>" + live_sample("practice")
+            )
+        ),
+    )
+    page.locator("script[data-lf-entry]").evaluate(HOLD_COMMANDS)
     allocated = []
     page.on(
         "request",
         lambda request: (
             request.method == "POST"
             and request.url.endswith("/api/samples")
-            and allocated.append(request.post_data_json["template"])
+            and allocated.append(request)
         ),
     )
-    page.goto(
-        serve(
-            leaf_page(
-                "Samples far down",
-                '<h1>Containing page</h1><div style="height: 400vh"></div>'
-                + live_sample(
-                    "far", content='<p>Far</p><div style="height: 700px"></div>'
-                )
-                + '<details id="fold"><summary>More</summary>'
-                + live_sample("folded")
-                + '</details><div style="height: 400vh"></div>'
-                + live_sample("last"),
-            )
-        )
-    )
+    sample = page.locator("#practice")
+    sample.get_by_role("button", name="Reset").click()
     wait_until_ready(page)
-    assert allocated == []
-    waiting = """sample => {
-        let settled = false;
-        sample.ready.then(() => { settled = true; }, () => { settled = true; });
-        return new Promise(done => requestAnimationFrame(() => setTimeout(() => done(settled))));
-    }"""
-    assert page.locator("#last").evaluate(waiting) is False
-
-    far = page.locator("#far iframe")
-    # Half a window below the window's foot.
-    page.evaluate(
-        """() => scrollBy(0, document.querySelector('#far iframe')
-            .getBoundingClientRect().top - 1.5 * innerHeight)"""
-    )
-    page.locator("#far").evaluate("sample => sample.ready")
-    assert allocated == ["far-source"]
-    drawn = far.content_frame.locator("body").evaluate(
-        "body => Math.ceil(body.getBoundingClientRect().height)"
-    )
-    assert drawn > 700
-    far.scroll_into_view_if_needed()
-    assert far.evaluate("frame => frame.clientHeight") == drawn
-
-    page.locator("#fold > summary").click()
-    page.locator("#folded").evaluate("sample => sample.ready")
-    assert allocated == ["far-source", "folded-source"]
-
-    page.locator("#last").evaluate("sample => sample.reset()")
-    assert allocated == ["far-source", "folded-source", "last-source"]
+    drawn = sample.evaluate("""sample => [
+        sample.querySelector('.lf-sample-action').getAttribute('aria-disabled'),
+        sample.querySelector('.lf-sample-status').textContent]""")
+    page.evaluate("() => heldCommands.forEach(send => send())")
+    assert len(allocated) == 1
+    assert drawn == [None, ""]

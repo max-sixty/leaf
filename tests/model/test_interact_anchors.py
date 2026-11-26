@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     DRAFTED,
     FLOW_PAGE,
@@ -22,6 +23,7 @@ from interact_support import (
     edit,
     found,
     obligations_on_user,
+    owed_answers,
     page_state,
     publish,
     published,
@@ -34,16 +36,21 @@ from interact_support import (
     with_modules,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hook_transport as hook_transport_model
-from leaf import passages as passages_model
-from leaf import structure as structure_model
-from leaf.delivery import current_responses
-from leaf.events import build_threads
-from leaf.revisioning import activate_source
-from leaf.thread_context import logged_fragment
+from leaf.agents.delivery import current_responses
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.log import event_log as events_model
+from leaf.log.events import build_threads
+from leaf.log.thread_context import logged_fragment
+from leaf.pages.render_gate import browser as browser_model
+from leaf.records import render_reading as render_reading_model
+from leaf.records.revisioning import activate_source
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.anchor_capture import Drawing, drawn_part
+from leaf.source.data import read_data
+from leaf.source.revision_artifact import read_artifact, read_revision
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -94,7 +101,7 @@ def test_a_quote_resolves_where_the_browser_resolves_it(case):
     """A stored quote resolves to the passage the browser's `findQuote` resolves it to,
     told by how many of its section's letters stand before it
     (`tests/quote_cases.json`)."""
-    from leaf.anchor_capture import resolve_quote
+    from leaf.source.anchor_capture import resolve_quote
 
     passages = passages_model.page_passages(
         structure_model.SourceDocument(f"<main>{case['markup']}</main>"),
@@ -108,7 +115,7 @@ def test_a_quote_resolves_where_the_browser_resolves_it(case):
 
 def test_an_empty_quote_neighbour_is_an_exact_boundary():
     """The browser treats a missing side as the page edge, never a wildcard."""
-    from leaf.anchor_capture import resolve_quote
+    from leaf.source.anchor_capture import resolve_quote
 
     anchor = {"section": "labels", "quote": "Alpha", "suffix": "Beta Alpha Beta"}
     previous = passages_model.page_passages(
@@ -140,7 +147,7 @@ def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
 
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
     """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
-    from leaf.anchor_capture import resolve_quote
+    from leaf.source.anchor_capture import resolve_quote
 
     repeated = "<p>Repeated passed text.</p>"
     unique = "<p>Unique passed text.</p>"
@@ -430,8 +437,105 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     assert "--for" not in mistaken.output
 
 
-def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
-    """An agent should know why its delivered reply became unnecessary."""
+def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
+    """The user's resolve takes the thread off their list and leaves the request
+    owed, so the reply the delivery addressed still answers it, in the thread the
+    user closed. The thread stays closed for what the agent says in it, until the
+    agent reopens it or asks the user something."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
+    )
+    reference = response_reference(page_dir, root["id"])
+    append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+    assert [item["input"] for item in owed_answers(page_dir)] == [root["id"]]
+    misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "answers it" in misplaced.output
+    assert "resolved the thread" not in misplaced.output
+
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", "--done", reference, "--text", "I checked it."],
+    )
+
+    assert answered.exit_code == 0, answered.output
+    events = events_model.read_events(page_dir)
+    assert events[-1]["responds"] == root["id"]
+    assert owed_answers(page_dir) == []
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] == "user"
+
+    def says(*flags):
+        said = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), root["id"], "--text", "More.", *flags],
+        )
+        assert said.exit_code == 0, said.output
+        [thread] = state_json(page_dir)["threads"]
+        return thread["resolved"], events_model.read_events(page_dir)[-1].get(
+            "unannounced"
+        )
+
+    assert says() == ("user", True)
+    # The agent's own resolve on top of the user's changes nothing for a later
+    # message, which still goes in unannounced.
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    assert says() == ("agent", True)
+    # A question brings the thread back by itself.
+    assert says("--obligation") == (None, None)
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    # A message that stays closed says so beside its record, with the command that
+    # brings the thread back, which is the agent's call.
+    quiet = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), root["id"], "--text", "It can't be done."],
+    )
+    said = events_model.read_events(page_dir)[-1]
+    assert said["unannounced"]
+    assert f"leaf thread reopen {page_dir} {said['id']}" in quiet.output
+    reopened = CliRunner().invoke(
+        cli_model.cli, ["thread", "reopen", str(page_dir), said["id"]]
+    )
+    assert reopened.exit_code == 0, reopened.output
+    [thread] = state_json(page_dir)["threads"]
+    assert (thread["resolved"], thread["unread"]) == (None, [said["id"]])
+    assert says() == (None, None)
+
+
+def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_dir):
+    """The agent answers a request the user resolved its thread over with a promise,
+    and later with the result at the same reference, which names no input. Both go
+    into the thread without reopening it."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
+    )
+    reference = response_reference(page_dir, root["id"])
+    append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+    for text, flags in (("On it.", ["--todo", "Check it"]), ("Checked.", ["--done"])):
+        said = CliRunner().invoke(
+            cli_model.cli, ["thread", "reply", reference, "--text", text, *flags]
+        )
+        assert said.exit_code == 0, said.output
+        [thread] = state_json(page_dir)["threads"]
+        assert thread["resolved"] == "user"
+    assert "responds" not in events_model.read_events(page_dir)[-1]
+
+
+def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_dir):
+    """The agent's own resolve answers for its thread, and an agent whose delivered
+    reply became unnecessary should know why."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -439,7 +543,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
     reference = response_reference(page_dir, root["id"])
     resolution = append_carried_log_record(
         page_dir,
-        {"kind": "resolve", "author": "user", "parent": root["id"]},
+        {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
 
     refused = CliRunner().invoke(
@@ -448,12 +552,19 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
     )
 
     assert refused.exit_code != 0
-    assert "the user resolved the thread" in refused.output
+    assert "the agent resolved the thread" in refused.output
     assert resolution["ts"] in refused.output
     assert "leaf thread reply" not in refused.output
     misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
-    assert "the user resolved the thread" in misplaced.output
+    assert "the agent resolved the thread" in misplaced.output
     assert "leaf thread reply" not in misplaced.output
+    # The user closing the thread after the agent leaves the agent's resolve
+    # answering for it, and the refusal still names that one.
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    again = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "the agent resolved the thread" in again.output
     assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
 
 
@@ -568,32 +679,137 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": "flow"}
 
 
-def test_a_comment_may_name_a_visual_inventory_part(page_dir):
-    (page_dir / "index.html").write_text(
-        FLOW_PAGE.replace(
-            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-        )
-    )
-    published(page_dir)
+# A diagram whose boxes a thread may name, and two of them as a reading lists them.
+PARTS_FLOW_PAGE = FLOW_PAGE.replace(
+    '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
+)
+BOX_A = {"id": "node:A", "label": "A"}
+BOX_B = {"id": "node:B", "label": "B"}
 
-    result = comment(
-        page_dir,
-        "--section",
-        "flow",
-        "--part",
-        "node:A",
-        "--text",
-        "where does this retry?",
+
+def leave_drawing(page_dir: Path, visuals: dict[str, dict]) -> None:
+    """The render reading a check of the live version leaves, with the data the page
+    holds and what each visual drew (`visuals`)."""
+    revision = files_model.latest_revision(page_dir)
+    assert revision is not None
+    data = read_data(page_dir, read_revision(page_dir, revision).registry)
+    render_reading_model.write_reading(
+        page_dir, read_artifact(page_dir, revision).digest, data["version"], [], visuals
     )
+
+
+def noted(result) -> list[str]:
+    """What a command that succeeded said beside its record."""
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output)["anchor"] == {
-        "section": "flow",
-        "visual": "node:A",
-    }
+    return [found["text"] for found in json.loads(result.output).get("findings", [])]
+
+
+def test_a_part_is_one_its_visual_drew(page_dir):
+    """`--part` takes a box the page's last render check saw the diagram draw. A
+    diagram shows a thread on a box it didn't draw nowhere, so a box it lacks is
+    refused, naming the boxes it drew and the way to put the thread on the whole
+    diagram."""
+    (page_dir / "index.html").write_text(PARTS_FLOW_PAGE)
+    published(page_dir)
+    leave_drawing(page_dir, {"flow": {"parts": [BOX_A, BOX_B], "whole": False}})
+
+    named = comment(
+        page_dir, "--section", "flow", "--part", "node:A", "--text", "this retry?"
+    )
+    assert noted(named) == []
+    assert json.loads(named.output)["anchor"] == {"section": "flow", "visual": "node:A"}
+
+    undrawn = comment(page_dir, "--section", "flow", "--part", "node:C", "--text", "x")
+    assert undrawn.exit_code != 0
+    assert (
+        "§ flow drew no part 'node:C' when the page was last checked; it drew node:A,"
+        " node:B. Name one of those, or leave out --part to put the thread on the whole"
+        " visual"
+    ) in undrawn.output
 
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0
     assert "--part needs --section" in unseated.output
+
+
+CHECKED = "when the page was last checked"
+
+
+@pytest.mark.parametrize(
+    ("parts", "whole", "part", "said"),
+    [
+        pytest.param([BOX_A, BOX_B], False, "node:A", None, id="drawn"),
+        pytest.param(
+            [BOX_A],
+            True,
+            "node:C",
+            "§ flow drew no part 'node:C' when the page was last checked, so the"
+            " thread stands on the whole visual until the visual draws that part; it"
+            " drew node:A",
+            id="on-the-whole",
+        ),
+        pytest.param([], True, "node:C", None, id="lists-none-and-finds-by-id"),
+        pytest.param(
+            [BOX_A, BOX_B],
+            False,
+            "node:C",
+            "refused: § flow drew no part 'node:C' when the page was last checked; it"
+            " drew node:A, node:B. Name one of those, or leave out --part to put the"
+            " thread on the whole visual",
+            id="nowhere",
+        ),
+        pytest.param(
+            [],
+            False,
+            "node:C",
+            "refused: § flow drew no part 'node:C' when the page was last checked; it"
+            " drew no part at all. Leave out --part to put the thread on the whole"
+            " visual",
+            id="nowhere-and-drew-none",
+        ),
+    ],
+)
+def test_a_part_is_judged_by_where_the_page_would_show_its_thread(
+    parts, whole, part, said
+):
+    """A part the visual drew takes the thread. One it didn't takes it where the page
+    would show it: on the whole visual, for a visual that draws a part on request or
+    once it can (`whole`), with a note naming the parts it drew, or without one where
+    it lists none, as a chart lists none of the points it finds by id; and nowhere,
+    for any other visual, so the part is refused with the way to put the thread on the
+    whole visual."""
+    drawing = Drawing({"flow": {"parts": parts, "whole": whole}}, CHECKED)
+    try:
+        found = drawn_part("flow", part, drawing)
+    except ValueError as refusal:
+        outcome = f"refused: {refusal}"
+    else:
+        outcome = None if found is None else str(found)
+    assert outcome == said
+
+
+def test_a_part_no_browser_could_check_is_taken_with_a_note(
+    page_dir, monkeypatch, tmp_path
+):
+    """Where no render check has read the version the page shows, `--part` draws the
+    page to see what its visual draws. Where no browser can, the command takes any part
+    the visual declares, which it may draw, and says it didn't check it."""
+    for variable in browser_model.VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv(browser_model.VARIABLE, str(tmp_path / "not-a-browser"))
+    (page_dir / "index.html").write_text(PARTS_FLOW_PAGE)
+    published(page_dir)
+
+    unchecked = comment(
+        page_dir, "--section", "flow", "--part", "node:C", "--text", "x"
+    )
+    assert noted(unchecked) == [
+        "Leaf couldn't read what § flow draws, so it didn't check part 'node:C'"
+    ]
+    assert json.loads(unchecked.output)["anchor"] == {
+        "section": "flow",
+        "visual": "node:C",
+    }
 
 
 def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):
@@ -642,7 +858,7 @@ def test_a_revision_moves_a_comment_on_a_formatted_label_to_its_section(page_dir
     """The browser captures a passage's context as the page shows it, a chip's label
     apart from the formatted title beside it, so the file reads the revision's
     predecessor the same way and sees the passage leave."""
-    from leaf.revisioning import activate_source
+    from leaf.records.revisioning import activate_source
 
     labels = (
         '<div id="labels"><small>MARK</small><strong><em>one</em></strong>'
@@ -676,7 +892,7 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     """The server activates a valid save before anyone checks it, so the moves are
     in the log by then. `page check` still names every thread the active revision
     moved, and so does the reply, except the one it moves itself."""
-    from leaf.revisioning import activate_source
+    from leaf.records.revisioning import activate_source
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
@@ -740,7 +956,7 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
 def test_page_check_names_no_move_of_a_withdrawn_reaction(page_dir):
     """A reaction the user took back opens no thread, so a save that moved it
     before the undo leaves `page check` nothing to name."""
-    from leaf.revisioning import activate_source
+    from leaf.records.revisioning import activate_source
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
@@ -777,7 +993,7 @@ def test_page_check_names_no_move_of_a_withdrawn_reaction(page_dir):
 
 
 def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
-    from leaf.events import build_threads
+    from leaf.log.events import build_threads
 
     original = SUGGESTED.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>'
@@ -898,8 +1114,8 @@ def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
 def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     page_dir, monkeypatch
 ):
-    from leaf import revisioning
-    from leaf.service import PageTransaction
+    from leaf.records import revisioning
+    from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
@@ -945,8 +1161,8 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
 def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     page_dir, monkeypatch
 ):
-    from leaf import revisioning
-    from leaf.service import PageTransaction
+    from leaf.records import revisioning
+    from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
     (page_dir / "index.html").write_text(original)
@@ -995,7 +1211,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
 def test_an_interrupted_activation_finishes_all_anchor_transitions(
     page_dir, monkeypatch
 ):
-    from leaf import revisioning
+    from leaf.records import revisioning
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
@@ -1659,6 +1875,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     session's voice — which is the whole of how a user learns a thread they did not
     close was closed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
+    hooks_run_this_tree("s-7")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     published(page_dir)
     root = append_carried_log_record(
@@ -1990,44 +2207,6 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
         assert "document-declaration" in refused.output, refused.output
     handled = '<p onclick="this.hidden = true">Hide me</p>\n\n' + widget
     assert comment(page_dir, "--text", f"look:\n\n{handled}").exit_code == 0
-
-
-def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
-    """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
-    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
-    so the code loses its blank lines, indents and marks while the HTML stays well
-    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
-    published(page_dir)
-    code = "def a():\n    return 1\n\ndef b():\n    return 2"
-    for split in (code, "steps:\n\n- build\n- ship"):
-        refused = comment(
-            page_dir,
-            "--text",
-            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
-        )
-        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
-    for kept in (
-        f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
-        f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',
-    ):
-        assert code in passages_model.message_markup(kept)
-        assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
-
-
-def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
-    page_dir,
-):
-    """A widget whose opening tag shares its line with its content is inline HTML, so
-    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
-    refusal names that repair alone, not the widget the parser emptied, which the
-    agent wrote whole."""
-    published(page_dir)
-    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
-    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
-    assert refused.exit_code != 0
-    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
-    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
-    assert kept.exit_code == 0, kept.output
 
 
 def test_data_widget_prose_members_are_quotable_without_admitting_source():

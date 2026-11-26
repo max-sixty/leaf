@@ -1,7 +1,7 @@
 /* One browser transport draws tab-local playback state.
  * Authored media and illustrations remain native light-DOM siblings of the transport. */
 import { html, live, nothing } from "/vendor/lit.js";
-import { offered, offeredAction } from "/runtime/portable-api.js";
+import { offered, offeredAction } from "/runtime/lib/controls.js";
 
 /** @param {HTMLElement} host
  * @param {{time: number, rate: number, label: string, playing: boolean, playable: boolean, failure: string | null}} state */

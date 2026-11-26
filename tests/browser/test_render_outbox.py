@@ -83,11 +83,11 @@ from render_harness import (
 
 from browser.test_render_application_boundary import long_thread
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import schema as schema_model
-from leaf.registry.contract import RANK
-from leaf.render_checks import rendered
-from leaf.render_gate.scheme import console_finding
+from leaf.base import schema as schema_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.scheme import console_finding
+from leaf.source.registry.contract import RANK
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, panel_view, threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
@@ -545,7 +545,7 @@ def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser,
     expect(picks).to_be_in_viewport()
 
 
-# Whether the options with id `arg` are taking the tint of a change now (motion.js,
+# Whether the options with id `arg` are taking the tint of a change now (dom/motion.js,
 # `backgroundFlash`), rows and all: each row paints its own ground over the box's.
 TINTED = """(id) => [document.getElementById(id), ...document.querySelectorAll(`#${id} > lf-option`)]
   .every((box) => box.getAnimations().some((played) =>
@@ -705,13 +705,26 @@ def test_undo_takes_a_comment_back_without_opening_its_thread(browser, serve):
 def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, serve):
     """The age Undo's row says, at its end and whole in its hover, is read where the
     menu paints, so a page left open keeps it true: a gesture made just now reads
-    minutes old once minutes pass, with no new reading of the log."""
+    minutes old once minutes pass, with no new reading of the log. The agent has
+    answered the thread the user resolves, so nothing is owed whose next change the
+    page would ask the server about instead."""
     url = serve(UNDO_PAGE, comments=1)
     [comment] = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": comment,
+            "responds": comment,
+            "text": "Done.",
+        },
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1370,7 +1383,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
             page.keyboard.press(key)
         # The drop lands while the card still slides from where it stood, outside the
         # board that shrank under it: a slide held paused carries the user nowhere
-        # (user-place.js, `carried`), so it runs, too slowly to end before the refusal.
+        # (readings/user-place.js, `carried`), so it runs, too slowly to end before the refusal.
         page.evaluate(
             "() => __lfHeld.forEach(motion => {"
             " motion.playbackRate = 1e-6; motion.play(); })"
@@ -1517,7 +1530,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     declarations["lf-column"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { LeafElement } from "/runtime/widget-api.js";
+        """import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-outer-board", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -2926,10 +2939,8 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
             "lf-preparation": {
                 "description": "A reply whose presentation waits for its content.",
                 "attributes": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
@@ -2937,13 +2948,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         },
         layer_widgets={
             "lf-preparation.js": """
-import {once, widgetController} from '/runtime/widget-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    widgetController(this).present(fetch('/preparation-content').then(() => {
+    this.dispatchEvent(new PendingTaskEvent(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
-    }));
+    })));
   }
 });
 """

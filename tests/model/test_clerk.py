@@ -6,18 +6,18 @@ import json
 import pytest
 from interact_support import DRAFTED, PAGE, append_carried_log_record, edit
 
-from leaf import clerk as clerk_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import state as state_model
-from leaf import todos as todos_model
-from leaf.agent_state import cmd_page_state
-from leaf.files import require_revision
-from leaf.interaction_log import read_interactions
-from leaf.refusals import Refused
-from leaf.registry.kernel import title_limit
-from leaf.revisioning import activate_source
+from leaf.agents import clerk as clerk_model
+from leaf.base import harness as harness_model
+from leaf.base import state as state_model
+from leaf.base.files import require_revision
+from leaf.base.refusals import Refused
+from leaf.commands import hooks as hooks_model
+from leaf.commands import tasks as tasks_model
+from leaf.commands.agent_state import cmd_page_state
+from leaf.log import event_log as events_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records.revisioning import activate_source
+from leaf.source.registry.kernel import title_limit
 
 
 def hook(capsys, event: str, prompt_id: str = "p1") -> str:
@@ -287,7 +287,7 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
             "text": "Before I pick, how stale can a result get?",
         },
     )
-    assert choice()["status"] == "open"
+    assert choice()["state"] == "waiting"
 
 
 def test_a_choice_leaf_refuses_is_handed_to_the_agent(claimed, capsys):
@@ -355,15 +355,76 @@ def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
     records = {o["message"]: o for o in state["obligations"]}
-    assert records[first["id"]]["status"] == "answered"
-    assert (records[again["id"]]["source"]["kind"], records[again["id"]]["status"]) == (
+    assert records[first["id"]]["answered"]
+    assert (records[again["id"]]["source"]["kind"], records[again["id"]]["state"]) == (
         "widget",
-        "open",
+        "waiting",
     )
     assert (
         f"On Me again, with your message {again['id']} in the thread of {question} "
         f"on {page}, which reopens the thread if it was closed:"
     ) in hook(capsys, "PostToolBatch")
+
+
+def test_a_choice_the_user_answered_with_a_question_stays_asked(claimed, capsys):
+    """The user answers a choice with a question of their own, which hands the
+    choice to the agent until it answers them, so On Me lists nothing. The next fork
+    sees the choice as still open, which keeps it from asking the choice again when
+    the agent restates it in chat. An ask that names the choice anyway posts nothing:
+    the agent hears that the thread waits on its reply. The user's question is
+    theirs, not one the page asked them, so the fork never sees it among the
+    questions it may ask again."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    [first] = clerk_model.take_answer(
+        "s1", reply(page, "LRU or TTL", choice=caches()), asked()["basis"]
+    )["wrote"]
+    asked_back = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": first["id"],
+            "text": "How stale can a result get?",
+        },
+    )
+    hook(capsys, "PostToolBatch")
+    prompt = asked()["prompt"]
+    assert "On Me, what the page lists as waiting on the user:\n(none)" in prompt
+    assert (
+        "ask none of these again:\n- decision in the agent's message in \"LRU or "
+        'TTL": LRU or TTL: which would you like?' in prompt
+    )
+    answer = reply(
+        page, "LRU or TTL", again=f"message:{first['id']}", choice=caches("again")
+    )
+    assert clerk_model.take_answer("s1", answer, asked()["basis"])["wrote"] == []
+    context = hook(capsys, "PostToolBatch")
+    assert (
+        f"in the thread of message:{first['id']} on {page}, but that thread waits on "
+        "your reply" in context
+    )
+    assert "leaf thread reply" in context
+
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
+            "parent": first["id"],
+            "responds": asked_back["id"],
+            "text": "Up to 41 minutes with LRU, five with TTL.",
+        },
+    )
+    prompt = asked()["prompt"]
+    assert (
+        "On Me, what the page lists as waiting on the user:\n- decision in the "
+        'agent\'s message in "LRU or TTL"' in prompt
+    )
+    assert "ask none of these again" not in prompt
+    assert asked_back["id"] not in prompt
 
 
 @pytest.mark.parametrize("words", [False, True], ids=["choice", "words"])
@@ -399,7 +460,7 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(claimed, capsys, 
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
     [record] = [o for o in state["obligations"] if o["message"] == again["id"]]
-    assert (record["status"], record["next_actor"]) == ("open", "user")
+    assert (record["state"], record["next_actor"]) == ("waiting", "user")
     # The agent hears the id the question now stands under: the reply's own where it
     # asks the choice's question anew in words.
     assert (
@@ -500,8 +561,8 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     them each item the agent has started with its line, which tells the fork what the
     page shows under way."""
     hook(capsys, "UserPromptSubmit")
-    todo = todos_model.cmd_create(claimed, "page", "Revise the plan")
-    todos_model.cmd_start(claimed, todo["id"], "revising the plan")
+    todo = tasks_model.cmd_create(claimed, "page", "Revise the plan")
+    tasks_model.cmd_start(claimed, todo["id"], "revising the plan")
     prompt = asked()["prompt"]
     assert clerk_model.REFERENCE.read_text().strip() in prompt
     # The asks follow the guidance the agent reads, each paragraph sent whole.

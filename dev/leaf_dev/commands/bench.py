@@ -127,8 +127,8 @@ import psutil
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
-from leaf.data import source_file
-from leaf.render_checks import OUTSTANDING, wait_until_ready
+from leaf.source.data import PUBLICATION, source_file
+from leaf.source.render_checks import OUTSTANDING, wait_until_ready
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     Arm,
@@ -1225,6 +1225,23 @@ def write_comment(tab: Tab, nth: int = 0) -> Goals:
     }
 
 
+def open_draft(tab: Tab) -> Goals:
+    """Open a comment on the third passage holding words that fill the box's least
+    width, so each key `draft` types widens the box, as each key of a long first line
+    does (placement-rules.json, `size-width`)."""
+    write_comment(tab, nth=2)
+    tab.page.keyboard.insert_text(" Its words fill the least width ")
+    tab.quiet(600)
+    return {}
+
+
+def drop_draft(tab: Tab) -> None:
+    """Take the draft's words out and close its box, so it leaves no draft behind."""
+    tab.page.keyboard.press("ControlOrMeta+a")
+    tab.page.keyboard.press("Backspace")
+    tab.page.keyboard.press("Escape")
+
+
 def aim_at_line(tab: Tab) -> Goals:
     """Put away the comment box an earlier sample opened, and rest the mouse over the
     comment control of one of `PATCH`'s lines, another line each sample."""
@@ -1458,7 +1475,7 @@ def agent_data(tab: Tab) -> float:
     source = tab.target["source"]
     return tab.bench.written(
         "data", "set", tab.bench.directory, source, "--file", tab.target["value"],
-        file=source_file(tab.bench.served.directory, source),
+        file=PUBLICATION.file(source_file(tab.bench.served.directory, source)),
     )  # fmt: skip
 
 
@@ -1570,6 +1587,9 @@ INPUTS: dict[str, Input] = {
         whole=True,
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
+    "draft": Input(
+        type_letter, 20, open_draft, leave=drop_draft, each=False, after=60, needs="h1"
+    ),
     "open": Input(press, 4, aim_at_line, paints=True, after=400, needs="#patch"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
     "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),
@@ -2640,9 +2660,9 @@ def server_pages(
     begin with a smaller page's, they are activated once, on a page each size copies
     before its values and log are written, so the pages of every size together
     activate each version once."""
-    from leaf.data import cmd_data_set
-    from leaf.revisioning import activate_source
-    from leaf.vendoring import cmd_init
+    from leaf.pages.vendoring import cmd_init
+    from leaf.records.revisioning import activate_source
+    from leaf.source.data import cmd_data_set
     from leaf_dev.page_fixtures import DEFAULT_PACKAGES
 
     # The packages the browser's bench builds the same pages with
@@ -2683,9 +2703,9 @@ def write_log(page: Path, commands: list[dict]) -> None:
     cost the square of the log to build one. Admission derives the same fields for
     events that differ only in the ids and numbers they name, so a copy of what it
     made of the first stands for the rest."""
-    from leaf.event_contracts import append_admitted
-    from leaf.event_log import jsonl_line, new_event_id, read_events
-    from leaf.service import PageTransaction
+    from leaf.log.event_log import jsonl_line, new_event_id, read_events
+    from leaf.records.event_contracts import append_admitted
+    from leaf.records.transaction import PageTransaction
 
     admitted: dict[str, tuple[dict, dict]] = {}
     last = {shape(command): index for index, command in enumerate(commands)}
@@ -2793,12 +2813,17 @@ def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], objec
     """Each of `SERVER_PATHS` on `page`, whose log `events` built, as a call;
     `append` only where the log holds an event to send again, and `thread` only where
     it opens one."""
-    from leaf.agent_state import cmd_page_state
-    from leaf.delivery import batch_data, deliverable, delivery_reading, freeze_delivery
-    from leaf.event_contracts import append_admitted
-    from leaf.revisioning import activate_source
-    from leaf.served_state.service import PageStateService
-    from leaf.service import PageTransaction
+    from leaf.agents.delivery import (
+        batch_data,
+        deliverable,
+        delivery_reading,
+        freeze_delivery,
+    )
+    from leaf.commands.agent_state import cmd_page_state
+    from leaf.records.event_contracts import append_admitted
+    from leaf.records.revisioning import activate_source
+    from leaf.records.transaction import PageTransaction
+    from leaf.serving.served_state.service import PageStateService
 
     source = page / "index.html"
     authored = source.read_text()
@@ -2866,7 +2891,7 @@ def measure_server(
     appends first, as a click does before its reading, and its versions come after
     every round, since a new one leaves the appended events on an earlier
     revision."""
-    from leaf.event_log import read_events
+    from leaf.log.event_log import read_events
 
     # The pages' claims, deliveries and presence stay out of the machine's own.
     state = directory / "state"

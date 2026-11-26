@@ -18,12 +18,12 @@ from render_harness import (
     sending,
 )
 
-from leaf import cli as cli_model
-from leaf import exporting as exporting_model
-from leaf import server as server_model
-from leaf import state as cleanup_model
-from leaf.render_checks import wait_until_ready
-from leaf.served_state.service import LivePage
+from leaf.agents import server as server_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.pages import exporting as exporting_model
+from leaf.serving.served_state.service import LivePage
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -79,7 +79,7 @@ def requested_documents(page):
 
 OFFLINE_WIDGET = """\
 import { html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
@@ -89,14 +89,12 @@ customElements.define("lf-offline-test", class extends LeafElement {
   }
 
   choose() {
-    return this.controller.dispatch({
-      kind: "action", verb: "choose", detail: {value: "chosen"},
-    });
+    return this.record("choose", {value: "chosen"});
   }
 
   render() {
-    const {state, actions} = this.reading;
-    const action = actions.choose;
+    const {state} = this;
+    const action = state.choose;
     const unavailable = action.unavailable;
     return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
@@ -108,6 +106,7 @@ customElements.define("lf-offline-test", class extends LeafElement {
         Choose on host
       </button>
       <output id="choice">${state.choose.value}</output>
+      <lf-age id="chosen-at" datetime="2026-11-20T02:10:00Z"></lf-age>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
     `;
   }
@@ -118,14 +117,10 @@ OFFLINE_REGISTRY = {
     "lf-offline-test": {
         "description": "A page-owned offline export test widget.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "choice": {"type": "string"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {

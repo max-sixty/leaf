@@ -59,10 +59,10 @@ from render_harness import (
 )
 
 from journeys import expect_showing
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import server as server_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.agents import server as server_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, show_resolved
 from leaf_dev.example_data import named_source, published_sources
 
@@ -100,7 +100,6 @@ QUICK_KEYS_PAGE = leaf_page(
 </div>
 """,
     head="""<script type="module">
-import { commandsChanged } from "/runtime/widget-api.js";
 const note = document.querySelector("#shortcut-note");
 document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sample", rows: [{
   id: "note.focus",
@@ -111,7 +110,7 @@ document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sa
   description: "Focus the sample note",
   run: () => note.focus(),
 }] };
-commandsChanged(document.querySelector("#local-shortcuts"));
+document.querySelector("#local-shortcuts").dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
 </script>""",
 )
 
@@ -322,7 +321,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
     it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
-    and announced it with `layoutChanged`. A box the window grows out of scrolling gives
+    and announced it with an `lf-layout` event. A box the window grows out of scrolling gives
     all three back. The window's case asks its height, which no box's size follows. A
     table first drawn when its disclosure opens is read in the size delivery that draws
     it, and a script announcing from a size delivery is heard, both without a
@@ -364,20 +363,19 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     page.evaluate(
         """async () => {
         document.getElementById('holder').style.width = '400px';
-        const { layoutChanged } = await window.__lfWidgetApi();
         const box = document.getElementById('by-script');
         new ResizeObserver((entries, observer) => {
             observer.disconnect();
             box.classList.add('scrolls');
-            layoutChanged(box);
+            box.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
         inserted.className = 'lf-scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
-        layoutChanged(inserted);
-        layoutChanged(document.getElementById('meter'));
+        inserted.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
+        document.getElementById('meter').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }"""
     )
     boxes["insert"] = page.locator("#by-insert")
@@ -583,7 +581,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.press("a")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-live")).to_contain_text("Press Enter to choose")
+    expect(page.locator(".lf-live")).to_contain_text("Enter choose target")
     expect(page.locator(".lf-live")).not_to_contain_text("Hint ")
     native_target = page.locator('[data-lf-hint-native="Enter"]')
     expect(native_target).to_be_visible()
@@ -748,7 +746,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         },
     )
     _the_atlas_shows_every_margin_entry_face_in_its_treatment(page)
-    _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page)
+    _a_pin_on_a_wide_figure_hides_with_the_annotations_while_the_rail_stays(page)
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
@@ -762,9 +760,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         has_text="Which map should the sample team carry?"
     )
     expect(map_obligation).to_have_count(1)
-    expect(map_obligation).to_have_attribute(
-        "data-lf-key", '["widget","widget:bg-choice"]'
-    )
+    expect(map_obligation).to_have_attribute("data-lf-key", "widget:bg-choice")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     gallery_tab("tab", name="Decisions").click()
@@ -774,7 +770,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     assert reading["id"] == "widget:bg-choice"
     assert reading["source"]["id"] == "bg-choice"
     assert reading["prompt"]["target"] == "bg-choice-ask"
-    assert reading["status"] == "open"
+    assert (reading["state"], reading["next_actor"]) == ("waiting", "user")
 
     gallery_tab("tab", name="Threads").click()
     open_threads(page)
@@ -959,7 +955,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     expect(sample("my turn")).to_have_attribute("data-lf-turn", "user")
-    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "delivered")
     expect(picked_up).to_have_css(
         "border-top-color",
         resting.evaluate("node => getComputedStyle(node).borderTopColor"),
@@ -1010,7 +1006,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "data-lf-target-selected", re.compile(".*")
     )
     expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-ok"))
     expect(selected).to_have_css(
         "border-top-width",
         not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
@@ -1073,10 +1069,10 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
 
-def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
+def _a_pin_on_a_wide_figure_hides_with_the_annotations_while_the_rail_stays(page):
     """The gallery's rail-and-pins sample: a comment on the schedule, which is wider
     than the column, stands on it as a pin while the prose beside it keeps the rail, and
-    `o` hides the pin while the rail stays. The quiet-status example starts with
+    `g H` hides the pin while the rail stays. The quiet-status example starts with
     a visible receipt, without requiring a practice gesture to create it."""
     resized(page, 1440, 900)
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
@@ -1086,10 +1082,12 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
     assert rail.count() > 0
     page.keyboard.press("Escape")
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(pin).to_be_hidden()
     expect(rail.first).to_be_visible()
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(pin).to_be_visible()
 
     sample = page.locator("#bg-margin-layer-status")
@@ -1220,17 +1218,20 @@ def _stale_keys(page):
     """What a forced repaint of every element's keys changes, once the page has
     rendered what the input so far asked for: each change is an attribute that was
     stale. A control a send or a load holds unavailable is ready again once that
-    finishes, so the reading waits for both: for the page's readiness, which includes
-    every live sample's arrival, and for every send to come back. It waits too for
-    every fullscreen request the input made, which moves focus when the browser
-    answers it, and for finite motion: a closing card hides its reply box at the
-    fade's end, changing which keys apply."""
-    wait_until_ready(page)
+    finishes, so the reading waits for both: for every live sample's arrival and for
+    every send to come back. The page's readiness counts what a sample's page draws
+    only while its frame shows, and a Reset pressed at the window's foot can leave the
+    frame below it, so the reading shows each frame still arriving out of view, as a
+    check does (`start_near_work`).
+    It waits too for every fullscreen request the input made, which moves focus when
+    the browser answers it, and for finite motion: a closing card hides its reply box
+    at the fade's end, changing which keys apply."""
+    start_near_work(page)
     round_trip(page)
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
-    # `paintKeys` reads every element's keys again (keyboard/scopes.js). Saying an
+    # `paintKeys` reads every element's keys again (dom/keyboard/scopes.js). Saying an
     # element's commands changed reads only that element's, and `body` declares none.
     page.evaluate("async () => (await window.__lfCheckApi()).paintKeys()")
     rendered(page)
@@ -1244,7 +1245,7 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
     rows, and a reflection is a tracked effect: it reads again when a signal it read
     moves. So a module's own state that a row's `when` reads must be a signal
-    (`keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
+    (`dom/keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
     reader announces keys that no longer apply, until something else repaints them.
 
     The sweep presses or fills a random visible control, in an order seeded by the
@@ -1657,7 +1658,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is
     # told the window opened and what it holds.
     expect(page.locator(".lf-live")).to_contain_text("visible targets")
-    expect(page.locator(".lf-live")).to_contain_text("type a hint")
+    expect(page.locator(".lf-live")).to_contain_text("letters visible target")
 
     # A panel mnemonic completes the sequence and leaves the user on that view's first
     # row, where its own scoped keys are immediately available.
@@ -2086,7 +2087,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     # A card the page has carried half past the window's top, Reply with it, is as
     # unseen there as one scrolled off: a landing in it brings it back all the same.
     # The box goes more than the pixel of slack past the top that reads a card held
-    # flush at the edge as shown (off-flow.js, `unseen`).
+    # flush at the edge as shown (readings/off-flow.js, `unseen`).
     reply.evaluate(
         """async (box) => {
           const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

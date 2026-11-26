@@ -3,7 +3,7 @@
  * bootstrap stands after `body` and the panel takes over as it mounts).
  *
  * The row is the panel's own first drawing (`panelTemplate`, `initial`, in
- * floating-panel.js), drawn here by the panel's module in the document the runtime's
+ * panel/floating-panel.js), drawn here by the panel's module in the document the runtime's
  * Node tests run in (`tests/runtime/dom.mjs`), so the panel has one drawing of its row
  * and the served copy is its projection. An edit to the row, or to the faces and
  * symbols its controls wear, takes `pnpm run build:browser` to reach the first paint,
@@ -33,7 +33,7 @@ if (process.argv[1] === self && process.argv[2] === "--draw") {
   // The document the tests' world registers on the global object.
   const { document, NodeFilter } = globalThis;
   const { createFloatingPanel } = await import(
-    new URL("../browser/runtime/floating-panel.js", import.meta.url).href
+    new URL("../browser/runtime/panel/floating-panel.js", import.meta.url).href
   );
   const unused = () => {
     throw new Error("The panel's first drawing reads none of its owners");
@@ -58,7 +58,7 @@ if (process.argv[1] === self && process.argv[2] === "--draw") {
   for (const comment of nodesOf(NodeFilter.SHOW_COMMENT)) comment.remove();
   host.normalize();
   // The template's indentation, which the row draws as one space or none wherever it
-  // stands, so a reformatted floating-panel.js draws the same row.
+  // stands, so a reformatted panel/floating-panel.js draws the same row.
   for (const text of nodesOf(NodeFilter.SHOW_TEXT))
     if (/^\s*\n\s*$/.test(text.data)) text.data = "\n";
   const row = document.createElement("div");

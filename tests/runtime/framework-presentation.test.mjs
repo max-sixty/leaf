@@ -4,9 +4,9 @@ import { effect } from "/vendor/signals-core.js";
 import {
   createPresentationCoordinator,
   createPresentationSchedule,
-} from "../../browser/runtime/framework/presentation.js";
+} from "../../browser/runtime/base/presentation.js";
 
-import { describeFailure } from "../../browser/runtime/exception.js";
+import { describeFailure } from "../../browser/runtime/lib/exception.js";
 
 // Complete a region immediately.
 const presented = (handle) => {
@@ -732,7 +732,7 @@ test("a paint creating a child presentation does not subscribe to completion cha
   }
 });
 
-test("dependent DOM waits for native commit, independently of semantic completion", async () => {
+test("dependent DOM waits for a commit, independently of semantic completion", async () => {
   const { coordinator } = setup();
   const publication = coordinator.begin();
   const schedule = createPresentationSchedule((callback) => callback);
@@ -741,16 +741,9 @@ test("dependent DOM waits for native commit, independently of semantic completio
   const drawn = [];
   const widget = coordinator.attach("widget").present();
   widget.resolve(held.promise);
-  const producer = schedule.enqueue(
-    () => [],
-    () => {
-      drawn.push("widget");
-    },
-    () => committed.promise,
-  );
   const consumer = schedule.presenter({
     attach: () => coordinator.attach("projection"),
-    after: () => [producer.committed],
+    after: () => [committed.promise],
     paint: () => drawn.push("projection"),
   });
   const unrelated = schedule.presenter({
@@ -760,11 +753,11 @@ test("dependent DOM waits for native commit, independently of semantic completio
   void consumer.sync(1);
   void unrelated.sync(1);
   coordinator.seal(publication);
-  await producer.ready;
-  assert.deepEqual(drawn, ["widget", "independent"]);
+  await flushed();
+  assert.deepEqual(drawn, ["independent"]);
   committed.resolve();
   await schedule.passed();
-  assert.deepEqual(drawn, ["widget", "independent", "projection"]);
+  assert.deepEqual(drawn, ["independent", "projection"]);
   assert.deepEqual(coordinator.read().pending, ["widget"]);
   held.resolve();
   await widget.ready;
@@ -779,29 +772,19 @@ test("DOM dependents follow replacement and disconnect releases an obsolete wait
   const second = Promise.withResolvers();
   let drawn = "nothing";
   const seen = [];
-  let producer = schedule.enqueue(
-    () => [],
-    () => {
-      drawn = "first";
-    },
-    () => first.promise,
-  );
+  let commit = first.promise;
+  drawn = "first";
   const consumer = schedule.presenter({
     attach: () => coordinator.attach("consumer"),
-    after: () => [producer.committed],
+    after: () => [commit],
     paint: () => seen.push(drawn),
   });
   void consumer.sync(1);
-  await producer.ready;
-  producer = schedule.enqueue(
-    () => [],
-    () => {
-      drawn = "second";
-    },
-    () => second.promise,
-  );
+  await flushed();
+  commit = second.promise;
+  drawn = "second";
   first.resolve();
-  await producer.ready;
+  await flushed();
   assert.deepEqual(seen, [], "the predecessor is not the replacement's DOM commit");
   second.resolve();
   await consumer.committed();

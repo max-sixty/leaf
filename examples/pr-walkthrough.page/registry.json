@@ -111,13 +111,7 @@
   "lf-pr-brief": {
     "description": "The review packet\u2019s live author brief and observed checks.",
     "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "source": { "type": "string" }
-      },
-      "required": ["id", "source"],
-      "additionalProperties": false
+      "required": ["id", "source"]
     },
     "content": "empty",
     "inputs": {

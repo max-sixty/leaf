@@ -1,0 +1,20 @@
+lf-select {
+  display: block;
+  /* Hold the control's line before its module defines the tag. */
+  min-block-size: var(--lf-line);
+}
+/* Until then the select it holds is no listbox, so its options' words stay off the
+   page. */
+lf-select:not(:defined) > * {
+  display: none;
+}
+lf-level {
+  display: block;
+  /* Hold the range's line before the module builds it. */
+  min-block-size: var(--lf-line);
+}
+lf-chosen {
+  display: block;
+  /* Hold the words' line while the choice is none. */
+  min-block-size: var(--lf-line);
+}

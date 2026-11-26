@@ -4,13 +4,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
-import { loadMarkdown } from "/runtime/markdown.js";
-import { adoptRegistry } from "/runtime/registry.js";
+import { loadMarkdown } from "/runtime/lib/markdown.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   islandChange,
   messageHolding,
   prepareAuthoredMessage,
-} from "/runtime/thread/messages.js";
+} from "/runtime/records/thread/messages.js";
 
 // Keep the browser loader's real import boundary without putting fixture modules in
 // the shipped widget tree. Every test removes its resolver after the import settles.

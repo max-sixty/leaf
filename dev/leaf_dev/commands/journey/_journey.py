@@ -93,20 +93,22 @@ from urllib.parse import urljoin
 import click
 import psutil
 from playwright.sync_api import BrowserContext, Locator, Page
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf import inference, thread_titles
-from leaf.event_log import read_events
-from leaf.events import build_threads
-from leaf.files import revision_path
-from leaf.findings import Finding
-from leaf.interaction_log import read_interactions
-from leaf.leases import wait_is_live
-from leaf.server import running_server
-from leaf.service import claim_is_active, page_claim
-from leaf.state import session_live, session_record, turn_open
-from leaf.structure import SourceDocument
-from leaf.thread import successful_replies
+from leaf.agents import inference, thread_titles
+from leaf.agents.server import running_server
+from leaf.agents.thread import successful_replies
+from leaf.base.files import revision_path
+from leaf.base.findings import Finding
+from leaf.base.leases import wait_is_live
+from leaf.base.service import claim_is_active, page_claim
+from leaf.base.state import session_live, session_record, turn_open
+from leaf.log.event_log import read_events
+from leaf.log.events import build_threads
+from leaf.log.interaction_log import read_interactions
+from leaf.source.render_checks import open_render_context, open_render_page
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT, state_home
 from leaf_dev.arms import (
     PAYLOAD,
@@ -145,11 +147,8 @@ from leaf_dev.website import (
 # raising it means raising `publish-site.yaml`'s `timeout-minutes` too.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
-# The reload after the turn gets this long to present, then as long again to follow
-# the published revision: its container may take seconds to answer the first read.
-TURN_PRESENTATION = 120_000
 # How long the page gets to draw a reply the container has admitted; the runtime's own
-# quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
+# quiet-stream bound (`SILENCE_MS` in `runtime/host/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
 # How long a reply first shown by its notice gets for its own message to come into
 # view, which in an open thread is the next frame or two.
@@ -207,12 +206,12 @@ class Session(NamedTuple):
 
 
 def still_answering(state: dict, event_id: str) -> bool:
-    """Whether the page's `activity` says a turn is working while the comment's own
-    obligation is still on the agent, which a wall clock cannot tell."""
+    """Whether the page's `activity` says a turn is at work, or held on a dialog in
+    its own window, while the comment's own obligation is still on the agent, which
+    a wall clock cannot tell."""
     activity = state.get("activity") or {}
-    return activity.get("kind") == "working" and f"update:{event_id}" in (
-        activity.get("obligations") or ()
-    )
+    at_work = activity.get("state") == "running" or activity.get("reason") == "terminal"
+    return at_work and f"update:{event_id}" in (activity.get("obligations") or ())
 
 
 class TurnReading(NamedTuple):
@@ -255,7 +254,7 @@ class AgentProfile:
 
     def observe(self, state: dict) -> None:
         activity = state.get("activity") or {}
-        reading = (activity.get("kind") or "unknown", activity.get("detail") or "")
+        reading = (activity.get("state") or "unknown", activity.get("detail") or "")
         if self.activities and self.activities[-1][1:] == reading:
             return
         self.activities.append((time.monotonic() - self.started, *reading))
@@ -311,8 +310,8 @@ def agent_profile(profile: AgentProfile, milestones: dict) -> dict:
         },
         "responseShownBy": profile.visible_reply_by,
         "activity": [
-            {"atMs": at * 1000, "kind": kind, "detail": detail}
-            for at, kind, detail in profile.activities
+            {"atMs": at * 1000, "state": state, "detail": detail}
+            for at, state, detail in profile.activities
         ],
     }
 
@@ -336,7 +335,7 @@ def check_turn_answered(
     that never names the marker."""
     state, published, replies, answer = turn
     tried = f" to {asks} asks" if asks > 1 else ""
-    reading = (state.get("activity") or {}).get("kind") or "no activity"
+    reading = (state.get("activity") or {}).get("state") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
     published = check(
         published,
@@ -506,7 +505,6 @@ def send_written(
         session.context.request,
         session.state_url,
         headers=session.headers,
-        timeout=120_000,
     ).json()
     profile.observe(accepted)
     assert posted.request.post_data_json is not None
@@ -599,14 +597,18 @@ def open_news(page: Page, thread: str) -> None:
     """Open the news `thread` holds back, if it shows any, as a reader waiting on it
     does: in the floating panel's view of the thread or on its card at its passage.
     The page times what it then shows, so when this runs changes no reading."""
-    news = page.locator(
+    # The notice as it stands now, held by its node rather than a locator: the runtime
+    # removes the notice with the news it held, and a click on a node that has left
+    # the document fails at once, where a locator's would wait for a match that never
+    # comes, holding up the session's prompts the journey answers between looks.
+    news = page.query_selector(
         f':is(.lf-page-thread, [data-lf-thread-view])[data-lf-thread="{thread}"]'
         " .lf-thread-news"
     )
-    if news.count() and news.first.is_visible():
+    if news is not None and news.is_visible():
         try:
-            news.first.click(timeout=1000)
-        except PlaywrightTimeout:
+            news.click()
+        except PlaywrightError:
             # The notice went, its news shown, between the look and the click.
             pass
 
@@ -818,7 +820,21 @@ class Terminal:
         steps besides."""
         comments = comments or {}
         self.counted |= comments
-        settled(page, self.session, self.counted)
+
+        def holds() -> bool:
+            try:
+                settled(page, self.session, self.counted)
+            except click.ClickException:
+                return False
+            return True
+
+        # A watch's wake can open a turn just after the session goes idle, so this
+        # holds only through a quiet spell (`settle`), and fails naming what didn't.
+        try:
+            self.settle(holds, f"{name}: the session did not settle")
+        except click.ClickException:
+            settled(page, self.session, self.counted)
+            raise
         # A watch may start a moment after the turn that answered ends, as Claude
         # Code's background Stop hook starts one.
         self.until(self.listening, f"{name}: Leaf does not listen for the session", 60)
@@ -921,10 +937,11 @@ class Terminal:
             claimed(page)["turn"] == turn,
             "escape: a turn opened after Escape with no new input",
         )
-        reading = activity(page)
+        presence, state = activity(page)
         require(
-            reading == "listening",
-            f"escape: the page reads {reading}, not listening, after Escape",
+            presence == "here" and state in {"waiting", "done"},
+            f"escape: the page reads {presence} and {state}, not here and idle, "
+            "after Escape",
         )
         stayed = turn_open(page_claim(page), turn)
         user.comment("escape")
@@ -977,7 +994,7 @@ def stop_left_running(state: Path) -> list[str]:
     journey's session and what it started have, and name each. One outlives the
     session by design: the sandbox bridge, which Claude Code's hooks start and
     which retires on its next sweep after the last session it serves ends
-    (`leaf.bridge`), writing the state home as it goes. Each gets 10 s to exit on
+    (`leaf.base.bridge`), writing the state home as it goes. Each gets 10 s to exit on
     SIGTERM before SIGKILL. The system hides its own binaries' environments, such
     as `sleep`'s, but not Leaf's Python or a harness's, which are what write the
     state home."""
@@ -1180,14 +1197,11 @@ class BrowserEnd:
             self.session.context.request,
             self.session.state_url,
             headers=self.session.headers,
-            timeout=120_000,
         ).json()
 
     def names(self, active: dict, marker: str) -> bool:
         """Whether the served revision's authored board names `marker`."""
-        document = self.session.context.request.get(
-            urljoin(self.url, active["url"]), timeout=120_000
-        )
+        document = self.session.context.request.get(urljoin(self.url, active["url"]))
         return document.ok and board_names_release(document.text(), marker)
 
     def ask(self, marker: str, profile: AgentProfile, ask: int) -> dict:
@@ -1202,12 +1216,12 @@ class BrowserEnd:
         return the reloaded page's profile."""
         with capture_script_responses(self.session.page):
             page, url, failures = self.session.page, self.url, self.session.failures
-            reloaded = page.reload(wait_until="load", timeout=120_000)
+            reloaded = page.reload(wait_until="load")
             check(
                 reloaded is not None and reloaded.ok,
                 f"{url} did not reload after its agent turn",
             )
-            await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
+            await_presentation(page, url, failures)
             startup = startup_reading(page)
             # Startup can present the offline authored fallback when its first read
             # fails; the wait above then lasts until a later answer is applied. The
@@ -1217,9 +1231,7 @@ class BrowserEnd:
             followed_at = time.monotonic()
             try:
                 page.wait_for_function(
-                    "window.__leafVerifier.revisionAtLeast",
-                    arg=published["revision"],
-                    timeout=TURN_PRESENTATION,
+                    "window.__leafVerifier.revisionAtLeast", arg=published["revision"]
                 )
             except PlaywrightTimeout:
                 pass
@@ -1243,7 +1255,7 @@ class BrowserEnd:
                 f"{url} reached revision {shown} but did not finish presenting it, "
                 f"with its status reading ‘{status}’",
             )
-            # The page is body less Leaf's own elements (passages.js, `inPage`).
+            # The page is body less Leaf's own elements (readings/passages.js, `inPage`).
             rendered = page.evaluate(
                 "() => [...document.body.children]"
                 ".filter((el) => !el.matches('.lf-chrome, [data-lf-runtime]'))"
@@ -1314,7 +1326,7 @@ class User:
     the release ask, each later step's comment, and how long each step took. A
     harness module drives the steps and checks them; `events` reads the page's log,
     `forks` the `fork_outcome` records its forks left in the page's diagnostics
-    (`leaf.forks.route`), and `terminal` is the session, where the journey runs
+    (`leaf.agents.forks.route`), and `terminal` is the session, where the journey runs
     them."""
 
     def __init__(
@@ -1480,7 +1492,7 @@ class User:
         return {"userEnd": self.end.name, "case": self.case, **release, "steps": steps}
 
 
-# What a sample keeps of a fork's `fork_outcome` record (`leaf.forks.route`).
+# What a sample keeps of a fork's `fork_outcome` record (`leaf.agents.forks.route`).
 FORK_READING = ("outcome", "why", "elapsedMs", "usage")
 # The usage counts a fork reports, as a step prints them.
 FORK_TOKENS = (
@@ -1525,8 +1537,8 @@ def local_session(browser, url: str) -> Session:
     """A user's session, in a MacBook's window, on the page a local server serves at
     its keyed `url`."""
     width, height = WINDOWS["macbook"].size
-    context = browser.new_context(viewport={"width": width, "height": height})
-    page = context.new_page()
+    context = open_render_context(browser, viewport={"width": width, "height": height})
+    page = open_render_page(context)
     failures, _ = load_presented(page, url)
     state_url = PageClient(url).state_url
     state = read_state(context.request, state_url).json()

@@ -2,6 +2,7 @@
 has, failed redraws, and inspecting a merge film by touch and keyboard."""
 
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
@@ -23,14 +24,16 @@ from render_harness import (
     long_press,
     names,
     open_page,
+    panel_says,
     plant_quiet_word,
     resized,
     sending,
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
+from browser.widgets import hear_walks, walks_said
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -191,7 +194,7 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
     )
     assert (
         page.evaluate(
-            "() => document.querySelectorAll('#c-bars g[data-lf-part=bar]').length"
+            "() => document.querySelectorAll('#c-bars g[data-lf-plot=bar]').length"
         )
         > 0
     )
@@ -282,11 +285,11 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     hangs on the chart, a child of the element, survives it."""
     page = open_page(browser, serve(CHART_PAGE))
     ticks = page.locator(
-        '#c-stack [data-lf-part="y-axis tick label"] text'
+        '#c-stack [data-lf-plot="y-axis tick label"] text'
     ).all_text_contents()
     assert ticks and all(tick.endswith("h") for tick in ticks), ticks
     assert page.evaluate(CHART_MARKS, "c-rows")["room"] > 500
-    expect(page.locator('#c-rows [data-lf-part="x-axis label"]')).to_contain_text(
+    expect(page.locator('#c-rows [data-lf-plot="x-axis label"]')).to_contain_text(
         "open issues"
     )
     before = page.evaluate(CHART_MARKS, "c-bars")
@@ -688,7 +691,7 @@ def waited_out(page):
 
 def column(page, chart, week, height=0.15):
     """A point over `week`'s column of `chart`, `height` of the way down its drawing."""
-    ticks = page.locator(f"#{chart} [data-lf-part='x-axis tick label'] text")
+    ticks = page.locator(f"#{chart} [data-lf-plot='x-axis tick label'] text")
     box = ticks.get_by_text(week, exact=True).bounding_box()
     drawing = page.locator(f"#{chart} svg[role=img]").bounding_box()
     return box["x"] + box["width"] / 2, drawing["y"] + drawing["height"] * height
@@ -751,6 +754,7 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(chart).to_be_focused()
     expect(preview).to_have_attribute("data-lf-route", "focus")
     assert said(page) == ["week w1", "kind features", "hours 21"]
+    hear_walks(page)
     for key, words in (
         ("ArrowRight", ["week w2", "kind features", "hours 18"]),
         ("ArrowDown", ["week w2", "kind fixes", "hours 14"]),
@@ -761,6 +765,14 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
         page.keyboard.press(key)
         expect(preview.locator(".lf-preview-detail")).to_have_text(words[1:])
         assert said(page) == words, key
+    # Each step said its point's place in its series to the page.
+    assert walks_said(page) == [
+        "Point 2 of 2",
+        "Point 2 of 2",
+        "Point 1 of 2",
+        "Point 1 of 2",
+        "Point 2 of 2",
+    ]
 
     # Focus arriving on a point the pointer reads takes it over: the pointer leaving
     # leaves it, and the arrows step on from it.
@@ -819,6 +831,127 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(ring).to_be_hidden()
     assert chart.evaluate("el => el.lfPreview()") is None
     page.mouse.move(2, 2)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_s_place_goes_as_the_pointer_takes_the_reader_to_another_point(
+    engine, request, serve
+):
+    """A key's step on a chart whose rows run past the window says its place in Leaf's
+    panel, "Point 2 of 12", for the step's moment. The pointer reaching another point
+    takes the reader off the point that step landed on, and the chart says so, so the
+    panel stops saying the place at once, where it would otherwise name a point the
+    reader has left for the rest of the moment. The page's clock stands still from the
+    step on, so the moment can't end the place here."""
+    body = """{
+  ariaLabel: "Deploys by month, over twelve months",
+  marks: [
+    Plot.barX(
+      [14, 18, 11, 22, 27, 19, 24, 30, 26, 21, 33, 29].map((deploys, i) => ({
+        month: `M${String(i + 1).padStart(2, "0")}`,
+        deploys,
+      })),
+      {y: "month", x: "deploys"},
+    ),
+  ],
+}"""
+    source = leaf_page(
+        "chart rows",
+        '<h1 id="t">Deploys</h1><button id="before">Before</button>'
+        + chart_markup("deploys", body).replace(
+            '<lf-chart id="deploys">', '<lf-chart id="deploys" data-height="1600">'
+        ),
+    )
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(source))
+    chart = page.locator("#deploys")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    render_checks_model.rendered(page)
+
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ArrowDown")
+    page.clock.run_for(100)
+    assert "Point 2 of 12" in panel_says(page)
+    chart.locator("[data-lf-plot=bar] rect").nth(3).hover()
+    page.clock.run_for(100)
+    assert "Point 2 of 12" not in panel_says(page), (
+        "the panel names the point the keys left the reader on, "
+        "with the pointer on another"
+    )
+
+
+def queue_line(chart_id, depths):
+    """A line chart of a queue's depth by hour, one point an hour."""
+    body = f"""{{
+  ariaLabel: "Queue depth by hour",
+  marks: [
+    Plot.line(
+      {depths}.map((depth, hour) => ({{hour, depth}})),
+      {{x: "hour", y: "depth"}},
+    ),
+  ],
+}}"""
+    return chart_markup(chart_id, body)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_line_chart_s_step_says_its_place_while_its_series_runs_past_the_window(
+    engine, request, serve
+):
+    """A key's step on a line chart says its place in Leaf's panel unless the series'
+    first and last points both stand in the window, where the ring on the point shows
+    the place among points the user sees. A line draws no shape of each point's own, so
+    its points, and not the drawing holding them, decide it: on a chart taller than the
+    window, scrolled so its drawing fills the window, the series runs past both edges
+    and a step says "Point 2 of 12", while on a short chart in view it says nothing.
+    The page's clock stands still from the first step on, so no step's moment ends."""
+    source = leaf_page(
+        "line charts",
+        '<h1 id="t">Queues</h1>'
+        + queue_line("short", [3, 9, 14, 22, 30, 41])
+        + '<p id="between">Between the charts.</p>'
+        + queue_line("tall", [3, 5, 8, 12, 17, 23, 30, 38, 47, 57, 68, 80]).replace(
+            '<lf-chart id="tall">', '<lf-chart id="tall" data-height="1600">'
+        ),
+    )
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(source))
+    expect(page.locator("#short svg[role=img]")).to_be_visible()
+    expect(page.locator("#tall svg[role=img]")).to_be_visible()
+    hear_walks(page)
+    drawing = """el => { const r = el.querySelector('svg[role=img]').getBoundingClientRect();
+                         return [r.top, r.bottom, innerHeight]; }"""
+
+    tall = page.locator("#tall")
+    tall.evaluate(
+        """el => { const r = el.querySelector('svg[role=img]').getBoundingClientRect();
+                   scrollBy(0, r.top + r.height / 2 - innerHeight / 2);
+                   el.focus({preventScroll: true}); }"""
+    )
+    top, bottom, height = tall.evaluate(drawing)
+    assert top < 0 and bottom > height, (
+        "the tall chart's drawing doesn't fill the window"
+    )
+    render_checks_model.rendered(page)
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ArrowRight")
+    page.clock.run_for(100)
+    assert walks_said(page)[-1] == "Point 2 of 12"
+    assert "Point 2 of 12" in panel_says(page), (
+        "a step along a series running past the window said no place"
+    )
+
+    short = page.locator("#short")
+    short.evaluate("el => { el.scrollIntoView(); el.focus({preventScroll: true}); }")
+    top, bottom, height = short.evaluate(drawing)
+    assert 0 <= top and bottom <= height, "the short chart isn't whole in the window"
+    page.keyboard.press("ArrowRight")
+    page.clock.run_for(100)
+    assert walks_said(page)[-1] == "Point 2 of 6"
+    assert "Point 2 of" not in panel_says(page), (
+        "a step along a series standing in the window said its place"
+    )
 
 
 def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
@@ -946,7 +1079,7 @@ def test_a_longer_reading_at_the_next_point_grows_away_from_it(engine, request, 
     chart = page.locator("#titled")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -983,7 +1116,7 @@ def test_a_reading_stays_as_the_pointer_crosses_empty_drawing_toward_it(
     chart = page.locator("#titled")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -1051,7 +1184,7 @@ def test_a_finger_that_slides_onto_a_point_after_the_long_press_presses_nothing(
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(leaf_page("titled", TITLED)), context=context)
     preview = page.locator(PREVIEW)
-    dots = page.locator("#titled [data-lf-part=dot] > *")
+    dots = page.locator("#titled [data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     page.evaluate(
         "() => { window.lfClicks = 0;"
@@ -1117,7 +1250,7 @@ def test_a_reading_the_kept_side_cannot_hold_whole_stands_afresh(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => { el.scrollIntoView({block: 'start'}); scrollBy(0, -6); }")
 
@@ -1168,7 +1301,7 @@ def test_the_pointer_reads_the_point_its_preview_stands_over(engine, request, se
     )
     chart = page.locator("#close")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(4)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -1220,7 +1353,7 @@ def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1286,7 +1419,7 @@ def test_a_reading_stays_over_words_its_chart_shares_a_box_with(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box_ = dots.nth(1).bounding_box()
@@ -1330,7 +1463,7 @@ def test_a_reading_holds_a_pointer_that_slides_onto_it_over_one_paragraph(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1376,7 +1509,7 @@ def test_a_card_s_words_beneath_a_reading_reach_the_card(engine, request, serve)
     )
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1428,7 +1561,7 @@ def test_a_reading_keeps_clear_of_the_card_its_chart_stands_in(engine, request, 
     )
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1465,7 +1598,7 @@ def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in
     )
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     page.locator("#box").evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1476,7 +1609,7 @@ def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in
     shown = page.evaluate(
         """() => {
           const box = document.getElementById('box');
-          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          const dot = document.querySelectorAll('#tall [data-lf-plot=dot] > *')[1];
           box.scrollTop += dot.getBoundingClientRect().bottom
             - box.getBoundingClientRect().top + 20;
           const chart = document.getElementById('tall').getBoundingClientRect();
@@ -1510,7 +1643,7 @@ def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    expect(chart.locator("[data-lf-part=dot] > *")).to_have_count(2)
+    expect(chart.locator("[data-lf-plot=dot] > *")).to_have_count(2)
     page.locator("#before").focus()
     page.keyboard.press("Tab")
     expect(chart).to_be_focused()
@@ -1520,7 +1653,7 @@ def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
     page.evaluate(
         """() => {
           const box = document.getElementById('box');
-          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          const dot = document.querySelectorAll('#tall [data-lf-plot=dot] > *')[1];
           box.scrollTop += dot.getBoundingClientRect().bottom
             - box.getBoundingClientRect().top + 20;
         }"""
@@ -1553,7 +1686,7 @@ def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -1750,7 +1883,7 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
     expect(page.locator("#picked svg[role=img]")).to_be_visible()
     expect(page.locator("#picked title")).to_have_count(0)
     # `tip: true` is Plot's nearest point in both axes, so the pointer comes to the dot.
-    dot = page.locator("#picked [data-lf-part=dot] circle").bounding_box()
+    dot = page.locator("#picked [data-lf-plot=dot] circle").bounding_box()
     page.mouse.move(dot["x"] + 12, dot["y"] + 12)
     page.mouse.move(dot["x"] + dot["width"] / 2, dot["y"] + dot["height"] / 2)
     expect(preview).to_be_visible()
@@ -2014,8 +2147,8 @@ POINT_IDS = {
     "p-bins": "point:0;x1=10;y1=0;x2=20;y2=3",
 }
 POINT_SHAPES = {
-    "p-dots": "[data-lf-part=dot] circle",
-    "p-bins": "[data-lf-part=rect] rect",
+    "p-dots": "[data-lf-plot=dot] circle",
+    "p-bins": "[data-lf-plot=rect] rect",
 }
 # Where a chart's point stands in its drawing, from what Plot drew for it: the dot's or
 # bin's middle and box, or the frontend line's second vertex; and the box of the mark
@@ -2029,7 +2162,7 @@ DATUM_AT = """([chart, shapes, index]) => {
     const box = [...svg.querySelectorAll(shapes)][index].getBBox();
     [at, size] = [middle(box), [box.width, box.height]];
   } else {
-    const [, frontend] = svg.querySelectorAll('[data-lf-part=line] path');
+    const [, frontend] = svg.querySelectorAll('[data-lf-plot=line] path');
     at = frontend.getAttribute('d').match(/-?[\\d.]+,-?[\\d.]+/g)[1].split(',').map(Number);
   }
   const marks = [...el.querySelectorAll('.lf-chart-marks > :not(.lf-chart-aim)')];
@@ -2261,7 +2394,7 @@ def test_c_on_a_chart_takes_the_keys_point_and_hands_focus_back_to_it(
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
     expect(chart).to_be_focused()
-    # A focus handed back previews nothing (preview.js), and the ring stands on the point.
+    # A focus handed back previews nothing (annotations/preview.js), and the ring stands on the point.
     assert chart.evaluate("el => el.lfPreview()?.name") == "week 2"
     expect(chart.locator(".lf-chart-at")).to_be_visible()
 

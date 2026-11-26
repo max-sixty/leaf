@@ -99,17 +99,10 @@
       }
     </style>
     <script type="module">
-      import {
-        generatedElement,
-        keeps,
-        keepsText,
-        layoutChanged,
-        offer,
-        offerAction,
-        once,
-        setChildren,
-        whileInterfaceConnected,
-      } from "/runtime/widget-api.js";
+      import { setChildren, whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { offer, offerAction } from "/runtime/lib/controls.js";
+      import { once } from "/runtime/lib/once.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const RELEASES = [
         { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
@@ -215,9 +208,11 @@
             tableFrame.append(table);
             // The module writes every word here: the filter rows label controls, and the
             // rest is the explorer speaking.
-            for (const box of [toolbar, this.#count, tableFrame])
-              generatedElement(box, { says: true });
-            generatedElement(this.#rows, { says: false });
+            for (const box of [toolbar, this.#count, tableFrame]) {
+              keeps(box, "data-lf-gen", "1");
+              box.toggleAttribute("data-lf-said", true);
+            }
+            keeps(this.#rows, "data-lf-gen", "1");
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
@@ -389,7 +384,9 @@
               this.#count,
               `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
             );
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           }
         },
       );

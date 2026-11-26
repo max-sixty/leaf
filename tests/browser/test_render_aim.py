@@ -92,15 +92,15 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import anchor_capture as anchor_capture_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.scheme import collect_page_exceptions
-from leaf.served_state import context as served_context
+from leaf.base import service as service_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.scheme import collect_page_exceptions
+from leaf.serving.served_state import context as served_context
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import data as data_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
@@ -162,7 +162,7 @@ def open_compact_comment(page, text=None):
     return field
 
 
-# The top of the window the page shows (geometry.js, `shownWindow`): what a float the
+# The top of the window the page shows (dom/geometry.js, `shownWindow`): what a float the
 # page places stands below.
 SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
 
@@ -182,7 +182,14 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "node => ({family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize})"
     )
-    assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box()["height"] == 32
+    # One line of words and the frame's padding on either side, inside its one-pixel
+    # edge (browser/AGENTS.md, "Shared containers determine control dimensions").
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    assert box.bounding_box()["height"] == box.evaluate(
+        """box => { const style = getComputedStyle(box);
+          return parseFloat(style.getPropertyValue('--lf-line'))
+            + 2 * parseFloat(style.getPropertyValue('--lf-thread-pad')) + 2; }"""
+    )
     write(field, "Carry this comment into its thread.")
     page.evaluate(
         """() => {
@@ -355,8 +362,9 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate("scrollY") == before_scroll
-    # It opens at the full measure, so it grows only downward as words arrive.
-    assert expanded["width"] == compact["width"]
+    # It widens with its words as far as its room on that side, and grows downward
+    # past that (`test_a_box_widens_with_its_words_and_send_keeps_their_lines`).
+    assert expanded["width"] >= compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
     assert expanded["y"] >= 0 and expanded["y"] + expanded["height"] <= 900
@@ -375,7 +383,8 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
 def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
     """The stable vertical choice reads both the visible band and scroll travel. Growing
     past the room shown above, the box slides over its passage rather than scrolling the
-    page, and a scroll then carries it with the passage."""
+    page, and a scroll then holds it inside the window, as it holds the card, until the
+    paragraph it stands over leaves (comment-placement.js)."""
     passage = (
         "A passage near the end of its page has more reachable room above it. "
         + "Its full block must keep the same room while the viewport clips it. " * 5
@@ -424,9 +433,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-start")
     assert page.evaluate("scrollY") == before_scroll
-    offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top
-      - document.getElementById('passage').getBoundingClientRect().top"""
-    grown = page.evaluate(offset)
+    grown = bar.bounding_box()["y"]
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
@@ -441,9 +448,12 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         assert moved > last_scroll
         expect(bar).to_be_visible()
         last_scroll = moved
-    assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-plane", "page")
-    assert page.evaluate(offset) == pytest.approx(grown, abs=1)
+    assert paragraph.evaluate(
+        "node => node.getBoundingClientRect().top < 48"
+        " && node.getBoundingClientRect().bottom > 0"
+    )
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    assert bar.bounding_box()["y"] == pytest.approx(grown, abs=1)
     expect(field).to_be_focused()
 
 
@@ -704,7 +714,7 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
 
 # Where the side comment's outline is drawn, its top and its foot, and its first line
 # of words and its Send's foot: its surface draws the outline, a pixel outside the cut
-# of its fill (box-motion.js).
+# of its fill (dom/box-motion.js).
 SIDE_COMMENT_DRAWN = r"""() => {
   const ground = document.querySelector('.lf-fab-ground');
   const at = ground.getBoundingClientRect();
@@ -734,7 +744,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     """A line the comment box gains at the window's foot shifts it up in the frame the
     key lands, its words and Send with its edges, as a textarea's would; a line
     removed carries the words back down with the top edge over the floating boxes'
-    tween while Send rides the foot (box-motion.js, "Whose change it is"). A new line
+    tween while Send rides the foot (dom/box-motion.js, "Whose change it is"). A new line
     that travelled too would hide the word being typed until the edge reached it."""
     page = open_page(
         browser,
@@ -770,7 +780,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     )
     # Lines until one more takes the box past the window's foot.
     lines = 1
-    while (box := bar.bounding_box())["y"] + box["height"] + 21 < foot:
+    while (box := bar.bounding_box())["y"] + box["height"] + 21 <= foot:
         page.keyboard.press("Shift+Enter")
         page.keyboard.type(f"Line {lines}")
         lines += 1
@@ -829,12 +839,53 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     assert rest["top"] > stood["top"] + 0.5, (stood, rest)
 
 
-def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
-    """A comment box keeps its width as it takes its first lines and grows downward, so
-    a key that takes it a new line stands it at its new height in the frame the key lands, as a
-    textarea sized to its words does (box-motion.js, "Whose change it is"). A tween
-    each key started would trail the caret, and the field's cut would hide what was
-    just typed until the tween caught up. A line taken at the window's foot is
+def test_a_ring_the_comment_box_comes_to_wear_mid_tween_waits_for_its_end(
+    browser, serve
+):
+    """The comment box wears its ring on a box laid over its field, its ::after
+    (annotation-chrome.css), which exists only while the focus paint marks the box. Focus
+    coming back to the box while a line it gave up still travels makes that ::after
+    anew, and its ring waits for the tween's end as one the box wore from its start
+    does (dom/box-motion.js): drawn at once, it would stand at the box's rest size over an
+    outline still travelling."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator("#p2").click(modifiers=["Alt"])
+    field = open_compact_comment(page, "Line 0")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("x")
+    rendered(page)
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    ring = "node => getComputedStyle(node, '::after').outlineColor"
+    worn = box.evaluate(ring)
+    assert worn != "rgba(0, 0, 0, 0)", worn
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.effect?.target?.matches?.('.lf-fab-ground'))"
+    )
+    page.keyboard.press("Tab")
+    expect(field).not_to_be_focused()
+    assert box.evaluate("node => getComputedStyle(node, '::after').content") == "none"
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(field).to_be_focused()
+    assert page.evaluate("() => __lfHeld.some(motion => motion.playState === 'paused')")
+    assert box.evaluate(ring) == "rgba(0, 0, 0, 0)"
+    page.evaluate("() => __lfHeld.splice(0).forEach(motion => motion.finish())")
+    assert box.evaluate(ring) == worn
+
+
+@pytest.mark.parametrize("change", ["widens", "takes-a-line"])
+def test_a_key_that_changes_the_comment_box_draws_it_at_once(browser, serve, change):
+    """A comment box widens with its first line's words and grows downward as it takes
+    more lines, and the key that widens it or takes it a new line stands it at its new
+    size in the frame the key lands, as a textarea sized to its words does
+    (dom/box-motion.js, "Whose change it is"). A tween each key started would trail the
+    caret, and the field's cut would hide what was just typed until the tween caught up.
+    A line taken at the window's foot is
     `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
         browser,
@@ -846,20 +897,34 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
         ),
     )
     page.emulate_media(reduced_motion="no-preference")
-    # Wide enough for the box to stand right of the passage, at the card's least width.
+    # Wide enough for the box to stand right of the passage, with room to widen.
     resized(page, 1728, 800)
     page.locator("#passage").click(modifiers=["Alt"])
-    open_compact_comment(page, "The first line")
-    rendered(page)
     box = page.locator(".lf-fab-bar .lf-compose-field")
-    tall = box.bounding_box()["height"]
+    if change == "widens":
+        open_compact_comment(page)
+        least = box.bounding_box()["width"]
+        # Words until the box has begun to widen past its least width.
+        for word in "the window is too short for what we see in practice".split():
+            page.keyboard.type(f"{word} ")
+            rendered(page)
+            if box.bounding_box()["width"] > least + 0.5:
+                break
+        else:
+            pytest.fail(f"the box never widened past {least}px")
+        edge, size, keys = "right", "width", ["m"]
+    else:
+        open_compact_comment(page, "The first line")
+        rendered(page)
+        edge, size, keys = "bottom", "height", ["Shift+Enter", "m"]
+    was = box.bounding_box()[size]
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("m")
+    for key in keys:
+        page.keyboard.press(key)
     page.wait_for_function(
-        "tall => document.querySelector('.lf-fab-bar .lf-compose-field')"
-        ".getBoundingClientRect().height > tall + 0.5",
-        arg=tall,
+        """([size, was]) => document.querySelector('.lf-fab-bar .lf-compose-field')
+          .getBoundingClientRect()[size] > was + 0.5""",
+        arg=[size, was],
     )
     # A reading of the box follows its size change before the frame after it paints.
     page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
@@ -870,17 +935,19 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
             .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
             .trim().split(/\s+/).map(Number.parseFloat);
           const host = document.querySelector('.lf-fab-input');
+          const at = ground.getBoundingClientRect();
           return {
-            bottom: ground.getBoundingClientRect().bottom - bottom,
+            right: at.right - right,
+            bottom: at.bottom - bottom,
             cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
           };
         }"""
     )
-    stands = box.bounding_box()
-    assert drawn["bottom"] == pytest.approx(stands["y"] + stands["height"], abs=1.5), (
-        drawn,
-        stands,
+    stands = page.evaluate(
+        "() => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().toJSON()"
     )
+    assert drawn[edge] == pytest.approx(stands[edge], abs=1.5), (drawn, stands)
     assert drawn["cut"] in ("", "none"), drawn
 
 
@@ -2261,7 +2328,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Pick this passage." in said.text_content():
                 break
         else:
@@ -2340,7 +2407,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Volume ·" in said.text_content():
                 break
         else:
@@ -2373,7 +2440,7 @@ def test_a_design_part_is_a_repeat_only_among_its_own_owner_s_parts(browser, ser
     """A part's name is its owner's own: a control inside an item the owner holds is
     that item's part, so a twin there leaves the owner's control unrepeated, and its
     name says no more than a lone control's would. Naming a part reads only what its
-    owner holds as its own (anchor-resolution.js, `namedParts`): a side tab list's tabs
+    owner holds as its own (readings/anchor-resolution.js, `namedParts`): a side tab list's tabs
     stand beside every document its panels hold, which the press and the picker's
     announcement each read in full (#4781)."""
     page = open_page(
@@ -2427,7 +2494,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     )
     if generated:
         page.evaluate("""async () => {
-          const {offer} = await window.__lfWidgetApi();
+          const {offer} = await import("/runtime/lib/controls.js");
           for (const row of document.querySelectorAll('#rows p')) {
             const button = offer('button', '', 'Remove');
             button.setAttribute('aria-label', 'Delete row');
@@ -2464,11 +2531,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if (
-                f": {inventory[1]['label']}. Press Enter to choose."
-                in said.text_content()
-            ):
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {inventory[1]['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The middle control lost its spoken context")
@@ -2758,7 +2822,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     browser, serve, subtests
 ):
     """What varies by shape is which target Design mode reads. One reader decides it
-    (anchor-resolution.js, `designTargetAt`), and the press and the picker both go through
+    (readings/anchor-resolution.js, `designTargetAt`), and the press and the picker both go through
     it (`claimPress`, `chooseTarget`), so this reads each shape on one page, walks the
     picker's map to hear each announced as captured, and presses each shape with a default
     or a handler of its own, by each pointer route, up to the comment opening on it.
@@ -2887,7 +2951,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             previous = live.text_content()
             page.keyboard.press("Tab")
             expect(live).not_to_have_text(previous)
-            expect(live).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(live).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             heard.append(live.text_content())
         missing = [
             target["label"]
@@ -2895,7 +2959,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             for target in got
             if "part" in target["anchor"]
             and not any(
-                f": {target['label']}. Press Enter to choose." in said for said in heard
+                f": {target['label']}. Enter choose target" in said for said in heard
             )
         ]
         assert not missing, (missing, heard)
@@ -3178,7 +3242,7 @@ def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
     """A legend box takes the corners of what it names, read once the element shows.
     Chromium answers a style read inside a closed tab by styling everything the tab
     holds, so on a page of text documents in closed tabs entering Design mode could
-    take seconds (design.js, `paintLegend`). The box of what the tab holds
+    take seconds (annotations/design.js, `paintLegend`). The box of what the tab holds
     takes its corners once the tab opens."""
     page = open_page(
         browser,
@@ -3221,7 +3285,7 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
     beside it, and a control's own words after its name, said once. A picture says none
     of its own words, since its name describes it: over a text document Design mode
     aims at its view, a picture of the whole document, whose name would otherwise read
-    all of it twice at each move of the pointer (anchor-resolution.js,
+    all of it twice at each move of the pointer (readings/anchor-resolution.js,
     `controlContext`)."""
     filler = " ".join(f"word{n}" for n in range(400))
     lines = "".join(f"line {n} of the document\n" for n in range(3000))
@@ -3356,7 +3420,7 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
             )
         ),
     )
-    accent = token_colour(page, "--lf-accent")
+    ring_ink = token_colour(page, "--lf-ok")
     fill = "(text) => getComputedStyle(text).fill"
     outline = "(part) => [getComputedStyle(part).outlineStyle, getComputedStyle(part).outlineColor]"
     drawer = page.locator("#fig-drawer rect")
@@ -3364,13 +3428,13 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-drawer")
-    assert_drawn_in(page.locator("#fig-drawer"), accent, 2)
+    assert_drawn_in(page.locator("#fig-drawer"), ring_ink, 2)
     assert page.locator("#fig-drawer text").evaluate(fill) == "rgb(51, 51, 51)"
     page.keyboard.up("Alt")
     page.locator("#fig-key text").hover()
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-key")
-    assert page.locator("#fig-key").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-key").evaluate(outline) == ["solid", ring_ink]
     assert page.locator("#fig-key text").evaluate(fill) == "rgb(51, 51, 51)"
     page.keyboard.up("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_count(0)
@@ -3378,7 +3442,7 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
     page.locator("#fig-dot use").hover()
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-dot")
-    assert page.locator("#fig-dot").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-dot").evaluate(outline) == ["solid", ring_ink]
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
@@ -3417,13 +3481,13 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
-    accent = token_colour(page, "--lf-accent")
-    assert_drawn_in(page.locator("#outer-surface"), accent, 2)
+    ring_ink = token_colour(page, "--lf-ok")
+    assert_drawn_in(page.locator("#outer-surface"), ring_ink, 2)
     assert (
         page.locator("#outer-decoration").evaluate(
             "line => getComputedStyle(line).stroke"
         )
-        != accent
+        != ring_ink
     )
     page.keyboard.up("Alt")
 
@@ -3431,7 +3495,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The inner part, with no surface of its own, draws it along all it holds.
     expect(page.locator("[data-lf-aimed]")).to_have_id("inner")
-    assert_drawn_in(page.locator("#inner"), accent, 2)
+    assert_drawn_in(page.locator("#inner"), ring_ink, 2)
     page.keyboard.up("Alt")
 
 
@@ -3662,7 +3726,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     page.keyboard.down("Alt")
     aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
-    assert_drawn_in(aimed, token_colour(page, "--lf-accent"), 2)
+    assert_drawn_in(aimed, token_colour(page, "--lf-ok"), 2)
     assert (
         rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
         == "none"
@@ -3890,7 +3954,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
         assert pending["ring"] == aimed["ring"], (aimed, pending)
 
 
-# A box drawing the target painter's focus state as its ring (visual-mark-paint.js).
+# A box drawing the target painter's focus state as its ring (annotations/visual-mark-paint.js).
 FOCUS_MARK = '[data-lf-mark~="focus"]'
 
 
@@ -4316,6 +4380,10 @@ def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
     if reopen == "reload":
         page.reload()
         wait_until_ready(page)
+        # The reload leaves the box the user put away shut; Resume writing opens it.
+        expect(page.locator(".lf-fab-input")).to_be_hidden()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
     elif reopen == "comment":
         page.keyboard.press("c")
     else:
@@ -4408,7 +4476,7 @@ def _design_mode(page):
 
 
 # A long page whose paragraphs stand under a header stuck at the window's head, which cuts
-# paint over them in the window's plane (geometry.js, `headerInset`).
+# paint over them in the window's plane (dom/geometry.js, `headerInset`).
 HEADED_PAGE = LONG_PAGE.replace(
     "<p id='p0'>",
     "<section style='--lf-top: calc(var(--lf-safe-top) + 40px)'>"
@@ -4487,7 +4555,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
 ):
     """Paint over what the page shows, a mode's names, chips and marks, stands where
     what it names is carried, anchored to it in the frames that cut it
-    (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
+    (readings/target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
     it with the scroll and writes none of it on the scroll's frames. What the scroll
     changes, the map's members and a chip the window's head holds in, is read once it
     settles, and a legend's tags step inside their boxes as they cross a cut. A design
@@ -4559,7 +4627,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
 
 def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, serve):
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
-    (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
+    (readings/key-badges/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
     chrome at the foot shared its column, such a chip would stand still mid-page
     through a scroll and jump once it settled."""
@@ -4681,7 +4749,7 @@ OFF_FLOW_PAGE = leaf_page(
 
 def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, serve):
     """A paragraph's tag scrolls past the tag a sticky bar keeps still, and the two
-    step apart as they meet, with no legend pass between (design.js, `placeTags`):
+    step apart as they meet, with no legend pass between (annotations/design.js, `placeTags`):
     a scroll that left every tag on the same side of its box doesn't keep the steps it
     found, though the tags it had stepped apart now stand elsewhere."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
@@ -4714,7 +4782,7 @@ def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, s
 def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     """Each legend box is anchored to its own element, so it stays on a sticky bar the
     page scrolls under and on an element a transform moves, with no pass to place it
-    again (design.js, `paintLegend`); a fixed bar and a popover's content, which no
+    again (annotations/design.js, `paintLegend`); a fixed bar and a popover's content, which no
     frame cuts, stand beside it."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
     resized(page, 1280, 720)
@@ -4936,7 +5004,7 @@ def test_design_hint_faces_follow_controls_and_their_native_labels(browser, serv
         before = said.text_content()
         page.keyboard.press("Tab")
         expect(said).not_to_have_text(before)
-        expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+        expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
         heard.append(said.text_content())
         name = next(
             (
@@ -5003,8 +5071,8 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if f": {target['label']}. Press Enter to choose." in said.text_content():
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {target['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The Choice B control was not offered")
@@ -5463,3 +5531,58 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect_design_mode(page, on=False)
+
+
+def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, so the aim on an
+    item, or on the paragraph that opens one, reaches over a marker that fits the
+    list's inset rather than running between it and the words, where it would cross
+    a number's full stop."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul><li id="i">An item.</li><li><p id="p">A paragraph in an item.</p></li></ul>
+<ol start="9"><li id="n">A numbered item.</li></ol>
+""",
+            )
+        ),
+    )
+
+    def beside(target):
+        clip = page.evaluate(
+            """(id) => {
+              const box = document.getElementById(id).getBoundingClientRect();
+              return { x: box.left - 48, y: box.top, width: 48, height: 18 };
+            }""",
+            target,
+        )
+        rgb = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        data = rgb.tobytes()
+        return [
+            (i // 3 % rgb.width, data[i], data[i + 1], data[i + 2])
+            for i in range(0, len(data), 3)
+        ]
+
+    for target in ("i", "p", "n"):
+        page.locator(f"#{target}").hover(position={"x": 4, "y": 4})
+        before = beside(target)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(target)
+        after = beside(target)
+        page.keyboard.up("Alt")
+        # The marker is the text's near-black before the aim. The band is the
+        # user's green the aim adds (`--lf-ok`), so the coloured edges of text that a
+        # subpixel-smoothed font draws, green before as after, aren't band.
+        marker = [x for x, r, g, b in before if max(r, g, b) < 110]
+        band = [
+            x
+            for (x, r, g, _), (_, r0, g0, _) in zip(after, before, strict=True)
+            if g - r > 40 and g0 - r0 <= 40
+        ]
+        assert band and marker, f"#{target}: no band or no marker beside the item"
+        assert max(band) < min(marker), (
+            f"#{target}: the aim's band runs across the list marker"
+        )

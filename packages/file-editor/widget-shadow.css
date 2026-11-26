@@ -89,12 +89,8 @@
 :host(lf-file-editor) .lf-file-editor-choices:popover-open {
   display: flex;
 }
-:host(lf-file-editor) .lf-file-editor-choices .lf-btn {
+:host(lf-file-editor) .lf-file-editor-choices > [role^="menuitem"] {
   text-align: left;
-}
-/* A row is packed against the menu's edge, so its ring is drawn inset. */
-:host(lf-file-editor) .lf-file-editor-choices .lf-btn {
-  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 :host(lf-file-editor) .lf-file-editor-edit {
   min-width: 0;
@@ -134,8 +130,7 @@
  * on the content and the cue never receives pointer input. */
 :host(lf-file-editor) .cm-content {
   --lf-focus-box: .cm-editor;
-  /* The room a full-height allocation keeps for Leaf's panel (defaults.css). */
-  padding-block-end: calc(4px + var(--lf-file-editor-end-room, 0px));
+  padding-block-end: 4px;
 }
 :host(lf-file-editor) .cm-content[data-lf-focus-visible] {
   outline: none;

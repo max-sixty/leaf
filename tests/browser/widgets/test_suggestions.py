@@ -37,14 +37,14 @@ from render_harness import (
 )
 
 from browser.widgets import expect_accept_all
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def expect_no_notice(page, words):
     """Read that no passing notice says `words`: the panel says one in its empty
-    field's place (floating-panel.js), so a decision the live region alone announces
+    field's place (panel/floating-panel.js), so a decision the live region alone announces
     leaves the field saying something else."""
     expect(panel_field(page)).not_to_have_attribute("placeholder", re.compile(words))
 

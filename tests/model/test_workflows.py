@@ -1,5 +1,5 @@
-"""Workflows and thread attention: each user input's response obligation, its
-stage and who acts next, the order surfaces show them in, and the attention a
+"""Workflows and thread attention: each user input's response obligation, where it
+stands and who acts next, the order surfaces show them in, and the attention a
 thread reads from them."""
 
 import json
@@ -30,26 +30,27 @@ from interact_support import (
     state_json,
 )
 
-from leaf import activity as activity_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import obligations as obligations_model
-from leaf import projection as projection_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf.event_meaning import AdmissionReadings
-from leaf.registry import storage as registry_storage
-from leaf.served_state import browser as browser_served_model
-from leaf.served_state import work as work_served_model
-from leaf.thread_context import ThreadStructure
-from leaf.workflows import attention_reading
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as cleanup_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.log import obligations as obligations_model
+from leaf.log import projection as projection_model
+from leaf.log.thread_context import ThreadStructure
+from leaf.records import activity as activity_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.records.event_meaning import AdmissionReadings
+from leaf.records.workflows import attention_reading
+from leaf.serving.served_state import work as work_served_model
+from leaf.source.registry import storage as registry_storage
 
 
 @pytest.mark.parametrize(
@@ -134,40 +135,58 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
     [workflow] = state["workflows"]
     assert (
         workflow["input"],
-        workflow["stage"],
         workflow["obligation"],
-        workflow["condition"],
-    ) == (
-        source["id"],
-        "answered",
-        f"update:{source['id']}",
-        {"kind": "failed", "operation": "response"},
-    )
+        workflow["state"],
+        workflow["reason"],
+        workflow["ts"],
+    ) == (source["id"], f"update:{source['id']}", "blocked", "failed", failure["ts"])
     [record] = served_updates(state["browser"])
-    assert (record["id"], record["status"], record["next_actor"]) == (
-        f"update:{source['id']}",
-        "open",
-        "user",
-    )
-    assert workflow["activity"] == [
-        {
-            "kind": "response",
-            "detail": None,
-            "ts": failure["ts"],
-            "session": failure.get("session"),
-            "turn": failure.get("turn"),
-        }
-    ]
+    assert (
+        record["id"],
+        record["next_actor"],
+        record["state"],
+        record["reason"],
+    ) == (f"update:{source['id']}", "user", "blocked", "failed")
     assert owed_answers(page_dir) == []
     # The move is the user's to resend, so the panel counts nothing as saved for
     # the agent to pick up.
     assert set(state["activity"]["counts"].values()) == {0}
     [thread] = served_thread(state["browser"])["threads"]
-    assert thread["attention"] == {
-        "kind": "needs_user",
-        "reason": "resend",
-        "workflow": source["id"],
-    }
+    assert thread["attention"] == record["id"]
+
+
+@pytest.mark.parametrize("resolved_first", [True, False])
+def test_a_failure_in_a_resolved_thread_is_still_handed_back(page_dir, resolved_first):
+    """The user's resolve leaves a request owed, so a harness that then gives up on
+    it hands it back to the user as in an open thread: nothing else would say that no
+    answer is coming. Resolving over a failure the user already has retires it."""
+    publish(page_dir)
+    source = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "A"}
+    )
+    resolve = {"kind": "resolve", "author": "user", "parent": source["id"]}
+    if resolved_first:
+        append_carried_log_record(page_dir, resolve)
+    thread_model.post_reply(
+        page_dir,
+        {"parent": source["id"], "responds": source["id"]},
+        "The agent's turn ended without an answer. Send it again to retry.",
+        failure="turn_failed",
+    )
+    if not resolved_first:
+        append_carried_log_record(page_dir, resolve)
+
+    state = page_state(page_dir)
+    [thread] = served_thread(state["browser"])["threads"]
+    assert thread["resolved"]
+    assert owed_answers(page_dir) == []
+    handed_back = [
+        (record["id"], record["next_actor"], record["reason"])
+        for record in served_updates(state["browser"])
+    ]
+    assert handed_back == (
+        [(f"update:{source['id']}", "user", "failed")] if resolved_first else []
+    )
 
 
 def test_user_resend_clears_terminal_failure_recovery(page_dir):
@@ -198,11 +217,9 @@ def test_user_resend_clears_terminal_failure_recovery(page_dir):
         (resent["id"], f"update:{resent['id']}")
     ]
     [thread] = served_thread(state["browser"])["threads"]
-    assert thread["attention"] == {
-        "kind": "waiting",
-        "reason": "workflow",
-        "workflow": resent["id"],
-    }
+    [record] = served_updates(state["browser"])
+    assert thread["attention"] == record["id"] == f"update:{resent['id']}"
+    assert (record["next_actor"], record["workflow"]) == ("agent", resent["id"])
 
 
 def test_answering_an_older_input_leaves_the_newer_response_obligation(page_dir):
@@ -320,11 +337,64 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
     [thread] = served_thread(browser)["threads"]
     [owed] = served_obligations(browser)["user"]
     assert owed["message"] == question["id"]
-    assert thread["attention"] == {
-        "kind": "needs_user",
-        "reason": "obligation",
-        "workflow": None,
-    }
+    assert thread["attention"] == owed["id"]
+
+
+def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
+    """The user's resolve takes a thread off their list and leaves the request in it
+    owed: its record stays the agent's, on the agent's list, and the answer goes into
+    the thread, which stays closed. The agent's own resolve answers for the thread,
+    whatever the user closes after it, until the thread reopens."""
+    publish(page_dir)
+    asked = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Say so in CLAUDE.md."},
+    )
+
+    def reading():
+        state = state_json(page_dir)
+        [thread] = state["threads"]
+        return (
+            thread["resolved"],
+            [(item["input"], item["obligation"]) for item in owed(state)],
+            [row["id"] for row in state["queues"]["on_agent"]],
+        )
+
+    request = f"update:{asked['id']}"
+    stands = [(asked["id"], request)]
+    assert reading() == (None, stands, [request])
+    closing = append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    assert reading() == ("user", stands, [request])
+    browser = page_state(page_dir)["browser"]
+    [thread] = served_thread(browser)["threads"]
+    [update] = served_updates(browser)
+    assert (thread["attention"], update["thread"], update["next_actor"]) == (
+        None,
+        asked["id"],
+        "agent",
+    )
+
+    thread_model.cmd_resolve(page_dir, asked["id"])
+    assert reading() == ("agent", [], [])
+    # The user closing a thread the agent already closed revives nothing.
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    assert reading() == ("user", [], [])
+    append_carried_log_record(
+        page_dir, {"kind": "unresolve", "author": "user", "parent": asked["id"]}
+    )
+    assert reading() == (None, stands, [request])
+
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": closing["parent"]}
+    )
+    thread_model.post_reply(
+        page_dir, {"parent": asked["id"], "responds": asked["id"]}, "It says so now."
+    )
+    assert reading() == ("user", [], [])
 
 
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
@@ -334,7 +404,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     [before] = served_thread(browser)["threads"]
     [owed] = served_obligations(browser)["user"]
     assert owed["message"] == question["id"]
-    assert before["attention"]["kind"] == "needs_user"
+    assert before["attention"] == owed["id"]
 
     append_carried_log_record(
         page_dir,
@@ -399,20 +469,18 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
     workflow = next(
         item for item in state["workflows"] if item["input"] == answered["id"]
     )
-    assert (workflow["subject"], workflow["stage"]) == (
+    assert (workflow["subject"], workflow["state"]) == (
         {"kind": "widget", "id": "thread-region"},
-        "working",
+        "running",
     )
     thread = next(
         item
         for item in served_thread(state["browser"])["threads"]
         if item["id"] == asked["id"]
     )
-    assert thread["attention"] == {
-        "kind": "waiting",
-        "reason": "workflow",
-        "workflow": answered["id"],
-    }
+    [record] = served_updates(state["browser"])
+    assert thread["attention"] == record["id"] == f"update:{answered['id']}"
+    assert (record["next_actor"], record["workflow"]) == ("agent", answered["id"])
 
     # A harness that gives up answers the move with a failure reply, which hands it
     # back to the user rather than settling it.
@@ -429,20 +497,62 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
     )
     state = page_state(page_dir)
     [workflow] = state["workflows"]
-    assert (workflow["input"], workflow["obligation"], workflow["condition"]) == (
-        answered["id"],
-        f"update:{answered['id']}",
-        {"kind": "failed", "operation": "response"},
-    )
+    assert (
+        workflow["input"],
+        workflow["obligation"],
+        workflow["state"],
+        workflow["reason"],
+    ) == (answered["id"], f"update:{answered['id']}", "blocked", "failed")
     [record] = served_updates(state["browser"])
-    assert record["id"] == f"update:{answered['id']}"
+    assert (record["id"], record["next_actor"]) == (f"update:{answered['id']}", "user")
     assert owed_answers(page_dir) == []
     [thread] = served_thread(state["browser"])["threads"]
-    assert thread["attention"] == {
-        "kind": "needs_user",
-        "reason": "resend",
-        "workflow": answered["id"],
-    }
+    assert thread["attention"] == record["id"]
+
+    # Closing the thread over the move handed back retires it.
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    state = page_state(page_dir)
+    assert state["workflows"] == []
+    assert served_updates(state["browser"]) == []
+
+
+def test_an_owed_pick_in_a_thread_outlives_the_users_resolve(page_dir):
+    """A pick the agent owes a reply, made on a widget in a thread message, stays
+    owed when the user resolves the thread, as a message does. The agent's own
+    resolve answers for it."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    asked = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which region?\n\n" + '<lf-options id="thread-region">'
+            '<lf-option id="thread-east" label="East"><strong>East</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-region",
+            "action": "choose",
+            "detail": {"value": ["thread-east"]},
+        },
+    )
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    [owed] = owed_answers(page_dir)
+    assert (owed["input"], owed["answer"]["parent"]) == (answered["id"], asked["id"])
+    thread_model.cmd_resolve(page_dir, asked["id"])
+    assert owed_answers(page_dir) == []
 
 
 def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
@@ -494,11 +604,12 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
 
     state, attention = reading()
     [workflow] = state["workflows"]
-    assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
-        moved["id"],
-        {"kind": "widget", "id": "feeder-board"},
-        "sent",
-    )
+    assert (
+        workflow["input"],
+        workflow["subject"],
+        workflow["state"],
+        workflow["seen"],
+    ) == (moved["id"], {"kind": "widget", "id": "feeder-board"}, "waiting", False)
     assert workflow["obligation"] is None
     assert owed_answers(page_dir) == []
     assert attention is None
@@ -512,7 +623,7 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     assert claimed.exit_code == 0, claimed.output
     state, attention = reading()
     [workflow] = state["workflows"]
-    assert workflow["stage"] == "working"
+    assert workflow["state"] == "running"
     assert attention is None
 
     # Moving the card again supersedes that move, whose receipt goes with it; the
@@ -531,8 +642,8 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     renewed = _start(page_dir, moved["id"], "Moving it on")
     assert renewed.exit_code == 0, renewed.output
     state, attention = reading()
-    assert [(item["input"], item["stage"]) for item in state["workflows"]] == [
-        (moved["id"], "working")
+    assert [(item["input"], item["state"]) for item in state["workflows"]] == [
+        (moved["id"], "running")
     ]
 
     # A mark is no turn; the agent's next spoken turn takes the move in.
@@ -570,11 +681,12 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     )
     state, attention = reading()
     [workflow] = state["workflows"]
-    assert (workflow["input"], workflow["stage"], workflow["obligation"]) == (
-        later["id"],
-        "sent",
-        None,
-    )
+    assert (
+        workflow["input"],
+        workflow["state"],
+        workflow["seen"],
+        workflow["obligation"],
+    ) == (later["id"], "waiting", False, None)
     assert attention is None
 
 
@@ -632,143 +744,123 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     assert attention_reading(AdmissionReadings(page, log, page.registry(1))) == working
 
 
-def test_thread_attention_names_the_workflow_the_thread_waits_on():
-    """A thread's status reads the records open in it, and names the strongest
-    workflow serving the one it waits on. An input a newer one covers serves the newer
-    one's record, so its pickup or a reply streaming to it keeps reading on the thread;
-    a thread move that owes nothing serves none, so its further stage never stands in
-    for the owed reply's."""
+def test_thread_attention_names_the_record_the_thread_waits_on():
+    """A thread's attention is the record that speaks for it (`standing.leading`), an
+    update ahead of a to-do, and an update's record stands where the strongest
+    workflow serving it does, which it names. An input a newer one covers serves the
+    newer one's record, so its pickup or a reply streaming to it keeps reading on the
+    thread; a thread move that owes nothing serves none, so how far it got never
+    stands in for the owed reply's."""
 
-    def workflow(id, seq, subject, stage, obligation=None):
+    def workflow(id, seq, state, reason=None, *, seen=False, obligation=None):
         return {
             "id": id,
             "input": id,
             "seq": seq,
-            "subject": subject,
-            "stage": stage,
+            "state": state,
+            "reason": reason,
+            "seen": seen,
             "obligation": obligation,
-            "condition": None,
         }
 
-    thread = {"id": "root", "kind": "thread"}
-    board = {"kind": "widget", "id": "board"}
+    thread = {"kind": "thread", "id": "root"}
     owed = obligations_model.update_obligation(
         "newer", thread, "root", "newer", next_actor="agent"
     )
+    serves = owed["id"]
     cases = [
         (
             [
-                workflow("older", 1, thread, "replying", owed["id"]),
-                workflow("newer", 2, thread, "sent", owed["id"]),
+                workflow(
+                    "older", 1, "running", "replying", seen=True, obligation=serves
+                ),
+                workflow("newer", 2, "waiting", obligation=serves),
             ],
-            "older",
+            ("older", "running", "replying", True),
         ),
         (
             [
-                workflow("older", 1, thread, "picked_up", owed["id"]),
-                workflow("newer", 2, thread, "sent", owed["id"]),
+                workflow("older", 1, "waiting", seen=True, obligation=serves),
+                workflow("newer", 2, "waiting", obligation=serves),
             ],
-            "older",
+            ("older", "waiting", None, True),
         ),
         (
             [
-                workflow("newer", 1, thread, "sent", owed["id"]),
-                workflow("card-move", 2, board, "picked_up"),
+                workflow("newer", 1, "waiting", obligation=serves),
+                workflow("card-move", 2, "running", seen=True),
             ],
-            "newer",
+            ("newer", "waiting", None, False),
         ),
     ]
-    # Only which thread the board widget stands in matters here.
-    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
-    thread_reading = projection_model.ThreadMarkupReading(
-        ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {"board": "root"}, empty
-    )
-    todos = [
-        {
-            "id": "t1",
-            "subject": {"kind": "thread", "id": "root"},
-            "title": "Rebuild",
-            "thread": "root",
-            "running": None,
-        }
-    ]
-    thread = {"id": "root", "resolved": None}
-    records = obligations_model.collection([owed])
     for workflows, expected in cases:
-        assert browser_served_model._thread_attention(
-            thread,
-            [owed],
-            work_served_model.served_workflows(
-                workflows, thread_reading, records, frozenset()
-            ),
-            todos,
-        ) == {
-            "kind": "waiting",
-            "reason": "workflow",
-            "workflow": expected,
-        }
-    # With no record open in it, an open task keeps the thread on the agent.
-    assert browser_served_model._thread_attention(thread, [], [], todos) == {
-        "kind": "waiting",
-        "reason": "todo",
-        "workflow": None,
-        "todo": "t1",
+        [record] = activity_model._stand_records([owed], workflows)
+        assert (
+            record["workflow"],
+            record["state"],
+            record["reason"],
+            record["seen"],
+        ) == expected
+    todo = {
+        "id": "t1",
+        "source": {"kind": "todo", "id": "t1", "subject": thread},
+        "thread": "root",
+        **standing_model.on("agent"),
     }
+    # With no record open in it, an open to-do keeps the thread on the agent; an
+    # owed update there speaks ahead of it.
+    assert standing_model.leading([todo]) is todo
+    assert standing_model.leading([todo, owed]) is owed
 
 
 def test_served_workflows_list_the_strongest_first():
     """Every surface that shows one workflow of several shows the first, so the served
-    order is the one comparator: a move handed back to the user, then work under way,
-    then an uncertain one, then plain delivery by stage, then the newer input. A
-    failed response is the furthest stage a move reaches."""
+    order is the one comparator: a move handed back to the user, then where it stands
+    (work under way, then stopped, then waiting, a seen one ahead of an unseen one),
+    then the newer input."""
 
-    def workflow(id, seq, stage, condition=None, obligation=None):
+    def workflow(id, seq, state, reason=None, *, seen=True, obligation=None):
         return {
             "id": id,
             "input": id,
             "seq": seq,
             "subject": {"kind": "thread", "id": "root"},
-            "stage": stage,
+            "state": state,
+            "reason": reason,
+            "seen": seen,
             "obligation": obligation,
-            "condition": condition,
         }
 
     handed_back = obligations_model.update_obligation(
         "back", {"kind": "thread", "id": "root"}, "root", "back", next_actor="user"
     )
 
-    stale = {"kind": "stale", "operation": "work"}
-    failed = {"kind": "failed", "operation": "response"}
     cases = [
         (
-            [workflow("stale", 1, "picked_up", stale), workflow("work", 2, "working")],
+            [workflow("stale", 1, "blocked", "quiet"), workflow("work", 2, "running")],
             ["work", "stale"],
         ),
         (
-            [workflow("older", 1, "working"), workflow("newer", 2, "working")],
+            [workflow("older", 1, "running"), workflow("newer", 2, "running")],
             ["newer", "older"],
         ),
         (
-            [workflow("fresh", 1, "working"), workflow("stale", 2, "working", stale)],
+            [workflow("fresh", 1, "running"), workflow("stale", 2, "blocked", "quiet")],
             ["fresh", "stale"],
         ),
         (
             [
-                workflow("work", 1, "working"),
-                workflow("back", 2, "answered", failed, handed_back["id"]),
+                workflow("work", 1, "running"),
+                workflow("back", 2, "blocked", "failed", obligation=handed_back["id"]),
             ],
             ["back", "work"],
         ),
         (
-            [workflow("queued", 1, "queued"), workflow("sent", 2, "sent")],
-            ["queued", "sent"],
-        ),
-        (
             [
-                workflow("working", 1, "working", stale),
-                workflow("back", 2, "answered", failed),
+                workflow("opened", 1, "waiting"),
+                workflow("sent", 2, "waiting", seen=False),
             ],
-            ["back", "working"],
+            ["opened", "sent"],
         ),
     ]
     empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
@@ -777,9 +869,7 @@ def test_served_workflows_list_the_strongest_first():
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
-        served = work_served_model.served_workflows(
-            workflows, thread_reading, records, frozenset()
-        )
+        served = work_served_model.served_workflows(workflows, thread_reading, records)
         assert [item["id"] for item in served] == expected
 
 
@@ -789,7 +879,7 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
     assert _start(page_dir, "c1", "reading the traces").exit_code == 0
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     append_carried_log_record(
         page_dir,
@@ -803,13 +893,13 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
     )
 
     interactions = page_state(page_dir)["workflows"]
-    assert [(item["input"], item["stage"]) for item in interactions] == [
-        ("c1", "working"),
-        ("c2", "sent"),
+    assert [(item["input"], item["state"], item["seen"]) for item in interactions] == [
+        ("c1", "running", True),
+        ("c2", "waiting", False),
     ]
 
 
-def test_quiet_exact_workflow_has_a_stale_work_condition(claimed):
+def test_quiet_exact_workflow_reads_blocked_quiet(claimed):
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "new input"}
     )
@@ -821,32 +911,34 @@ def test_quiet_exact_workflow_has_a_stale_work_condition(claimed):
     )
 
     [workflow] = page_state(claimed)["workflows"]
-    assert workflow["stage"] == "working"
-    assert workflow["condition"] == {"kind": "stale", "operation": "work"}
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "quiet")
 
 
-def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
+def test_fresh_exact_reply_supersedes_an_older_quiet_start():
     now = datetime.now().astimezone()
+    started = (now - timedelta(minutes=20)).isoformat()
     workflow = {
         "id": "input-1",
         "input": "input-1",
         "seq": 1,
         "coordinate": ["thread", "input-1"],
         "obligation": "update:input-1",
-        "stage": "working",
-        "ts": (now - timedelta(minutes=20)).isoformat(),
+        "pickup": "opened",
+        "ts": started,
+        "delivery_seq": None,
+        "delivery_session": "session-1",
+        "delivery_turn": "turn-1",
         "detail": "Old work",
         "agent": "Leaf guide",
         "session": "session-1",
-        "activity": [],
-        "condition": None,
         "response": None,
+        "handed_back": False,
         "held_by": {
             "id": "start-1",
             "item": "input-1",
             "text": "Old work",
-            "seq": 1,
-            "ts": (now - timedelta(minutes=20)).isoformat(),
+            "seq": 2,
+            "ts": started,
             "agent": "Leaf guide",
             "session": "session-1",
             "turn": "turn-1",
@@ -889,10 +981,10 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         updates=obligations_model.collection([record]),
     )
     [projected] = activity["workflows"]
-    assert (projected["stage"], projected["condition"]) == ("replying", None)
+    assert (projected["state"], projected["reason"]) == ("running", "replying")
 
 
-def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
+def test_pickup_from_an_older_turn_reads_blocked_quiet(claimed, capsys):
     serving(claimed, 1)
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "new input"}
@@ -903,14 +995,17 @@ def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
     assert old is not None
     cleanup_model.close_session_turn(old["id"])
     cleanup_model.prompt_turn("s1")
-    assert service_model.claim_page(claimed)
+    assert transaction_model.claim_page(claimed)
     claim_record = service_model.page_claim(claimed)
     assert claim_record is not None
     assert claim_record["turn"] != old["turn"]
 
     [workflow] = page_state(claimed)["workflows"]
-    assert workflow["stage"] == "picked_up"
-    assert workflow["condition"] == {"kind": "stale", "operation": "work"}
+    assert (workflow["state"], workflow["reason"], workflow["seen"]) == (
+        "blocked",
+        "quiet",
+        True,
+    )
 
 
 def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
@@ -1004,7 +1099,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
     assert [item["widget"] for item in obligations_on_user(selecting)] == ["regions"]
     assert owed(selecting) == []
     assert selecting["workflows"] == []
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 

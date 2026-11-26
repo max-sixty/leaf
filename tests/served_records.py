@@ -10,14 +10,15 @@ reading the browser holds, each beside that reading and the whole answer;
 `obligation_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
-holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
+holds served readings whose premise is the case under test, each its threads, workflows
+and obligation records. `served.mjs` reads this output directly, so its
 assertions always consume this checkout's server rather than a recorded copy.
 """
 
 import json
 from pathlib import Path
 
-from interact_support import model_layer, served_thread
+from interact_support import model_layer
 from model_folds import (
     NOW,
     UNCLAIMED,
@@ -27,26 +28,30 @@ from model_folds import (
     served_reading,
 )
 
-from leaf.event_log import EventRefused
-from leaf.passages import SourceReading
-from leaf.projection import (
+from leaf.log.event_log import EventRefused
+from leaf.log.projection import (
     AuthoredOrders,
     StateProjection,
     attribute_marks,
     authored_rank,
     obligation_value,
 )
-from leaf.registry.contract import state_definition
-from leaf.structure import SourceDocument
+from leaf.source.passages import SourceReading
+from leaf.source.registry.contract import state_definition
+from leaf.source.structure import SourceDocument
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 
 
 def _served(events: tuple[dict, ...]) -> dict:
+    """The threads, workflows and obligation records one log's reading serves, so a
+    thread's `attention`, the id of the record that speaks for it, joins its record."""
     state = served_reading(PAGE, events)
+    [view] = state["browser"]["views"].values()
     return {
-        "threads": served_thread(state["browser"])["threads"],
+        "threads": view["thread"]["threads"],
         "workflows": state["workflows"],
+        "obligations": view["obligations"],
     }
 
 
@@ -478,7 +483,6 @@ def obligation_value_cases():
         initial=None,
         actions=(),
         answered=False,
-        selected_unit=None,
     ):
         spec = {"unit": unit, **({"record": record} if record else {})}
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
@@ -520,7 +524,6 @@ def obligation_value_cases():
             AuthoredOrders(source.document.by_id, registry),
             projection,
             answered=answered,
-            unit=selected_unit,
         )
         state = {"value": initial}
         if unit != "widget":
@@ -538,7 +541,6 @@ def obligation_value_cases():
                 "authored": state,
                 "entries": entries,
                 "answered": answered,
-                **({"unit": selected_unit} if selected_unit is not None else {}),
                 "expected": {"value": value, "present": present},
             }
         )
@@ -609,14 +611,6 @@ def obligation_value_cases():
         body='<lf-container id="left"><lf-part id="a">A</lf-part></lf-container><lf-container id="right"></lf-container>',
         actions=[("a", {"value": "right", "rank": "1"})],
     )
-    for selected_unit in ("a", "b", "missing"):
-        add(
-            f"selected custom unit {selected_unit}",
-            unit="part",
-            initial={},
-            selected_unit=selected_unit,
-            actions=[("a", {"approved": True}), ("b", {"approved": False})],
-        )
     return cases
 
 
@@ -810,9 +804,7 @@ def tail_cases() -> list[dict]:
         **model_layer(),
         "lf-value-ask": {
             "attributes": {
-                "type": "object",
                 "properties": {
-                    "id": {"type": "string"},
                     "active": {"type": "boolean"},
                     "value": {
                         "type": ["boolean", "integer", "array", "object"],
@@ -820,7 +812,6 @@ def tail_cases() -> list[dict]:
                     },
                 },
                 "required": ["id"],
-                "additionalProperties": False,
             },
             "content": "none",
             "awaits": {

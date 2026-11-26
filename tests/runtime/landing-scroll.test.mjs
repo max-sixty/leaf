@@ -2,18 +2,21 @@
    pressed during it acts where it lands. A destination the glide will leave shown keeps
    the glide going to its goal, and one it will carry out of view is brought back from
    that goal, whether or not it shows now. An instant landing lands the glide, and a
-   sideways reveal on the way leaves it going. Asked over boxes this file states, since
-   happy-dom lays nothing out. */
+   sideways reveal on the way leaves it going. A box held at the band's foot as it grows
+   travels only whole pixels, so the browser's snapping never carries it past; a reveal
+   travels the fraction it asked for, so the browser's snapping never leaves its target
+   clipped. Asked over boxes this file states, since happy-dom lays nothing out. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { scrollIntoView } from "/runtime/landing-scroll.js";
-import { glideTo, scrollGoal, stopGlide } from "/runtime/scrolling.js";
+import { keepInBand, scrollIntoView } from "/runtime/readings/landing-scroll.js";
+import { glideTo, scrollGoal, stopGlide } from "/runtime/dom/scrolling.js";
 
-// A scroller 300px wide and 400px tall over content 1000px wide and 5000px tall,
-// holding one box at `contentTop` and `contentLeft`, 100px tall and as wide as `width`;
-// the box's viewport place is its content place less the scroller's scroll.
+// A scroller 300px wide and 400px tall, with no border or scrollbar, over content
+// 1000px wide and 5000px tall, holding one box at `contentTop` and `contentLeft`, 100px
+// tall and as wide as `width`; the box's viewport place is its content place less the
+// scroller's scroll.
 function laidOut(contentTop, contentLeft = 0, width = 300) {
   const scroller = document.createElement("div");
   scroller.style.overflow = "auto";
@@ -37,6 +40,8 @@ function laidOut(contentTop, contentLeft = 0, width = 300) {
     scrollWidth: { get: () => 1000 },
     clientHeight: { get: () => 400 },
     clientWidth: { get: () => 300 },
+    offsetHeight: { get: () => 400 },
+    offsetWidth: { get: () => 300 },
   });
   scroller.scrollTo = ({ top = scrollTop, left = scrollLeft }) => {
     scrollTop = top;
@@ -107,4 +112,51 @@ test("a sideways reveal during a glide leaves the glide going", () => {
   assert.equal(scrollGoal(aside.scroller), 2000, "the reveal across stopped the glide");
   stopGlide(aside.scroller);
   aside.scroller.remove();
+});
+
+test("a box held at the band's foot travels only whole pixels", () => {
+  // 450.578..550.578, so its foot is 150.578px below the scroller's 400px; the browser
+  // would snap a move of that fraction to 151 and carry the foot a pixel past the band.
+  const growing = laidOut(450.578);
+  keepInBand(growing.box);
+  assert.equal(growing.scroller.scrollTop, 150, "the held box travelled a fraction");
+  growing.scroller.remove();
+});
+
+test("a reveal in an inner scrollport travels the fraction it asks for", () => {
+  // A 200px scrollport that only a script scrolls, at the top of the reading scroller,
+  // stands at 100 with its box's foot 1.75px past its own foot. Cut to the whole pixel,
+  // the reveal would leave 0.75px clipped, which a retry is too short to move
+  // (dom/arrivals.js, `setScroll`).
+  const { scroller } = laidOut(0);
+  const inner = document.createElement("div");
+  inner.style.overflow = "hidden";
+  let scrollTop = 100;
+  Object.defineProperties(inner, {
+    scrollTop: {
+      get: () => scrollTop,
+      set: (value) => {
+        scrollTop = value;
+      },
+    },
+    scrollLeft: { get: () => 0, set: () => {} },
+    scrollHeight: { get: () => 1000 },
+    scrollWidth: { get: () => 300 },
+    clientHeight: { get: () => 200 },
+    clientWidth: { get: () => 300 },
+    offsetHeight: { get: () => 200 },
+    offsetWidth: { get: () => 300 },
+  });
+  inner.scrollTo = ({ top = scrollTop }) => {
+    scrollTop = top;
+  };
+  inner.getBoundingClientRect = () => new DOMRect(0, 0, 300, 200);
+  const box = document.createElement("section");
+  box.tabIndex = 0;
+  box.getBoundingClientRect = () => new DOMRect(0, 201.75 - scrollTop, 300, 100);
+  inner.append(box);
+  scroller.append(inner);
+  scrollIntoView(box, { block: "nearest", behavior: "instant" });
+  assert.equal(inner.scrollTop, 101.75, "the reveal stopped short of the box's foot");
+  scroller.remove();
 });

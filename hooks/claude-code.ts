@@ -8,13 +8,18 @@
  * working line on a thread's waiting messages, and completions on the session's
  * model, such as a thread's title. Leaf's Python decides each one and what its
  * result means, as instructions the module runs and reports on
- * (`src/leaf/carrier.py`, whose header holds that contract), so a change to Leaf's
+ * (`src/leaf/agents/carrier.py`, whose header holds that contract), so a change to Leaf's
  * forks needs no change here. The module adds what only it sees: the tool calls the
  * main thread is running (`running`), the main thread's last request (`lastStep`)
  * and a main-loop turn's end (`turnEnded`). A subagent the session spawns runs these
  * hooks too, naming itself (`agentId`), and they leave its calls and turns alone, but
  * for starting the pages follower after a `leaf` command, as any session's does.
- * Claude Code loads the module from the installed plugin (measured at 2.1.305).
+ * Claude Code loads the module from the copy of Leaf the session's process loaded,
+ * whose `bin/leaf` its hooks run (`$.plugin.root`, measured at 2.1.305). A
+ * `/reload-plugins` that loads another copy retires this instance, which ends its
+ * pages follower, and raises session.start on a new instance from that copy; a reload
+ * that leaves the copy as it was keeps the instance and its follower (measured at
+ * 2.1.330).
  * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
@@ -83,7 +88,7 @@
  * --if-claimed --pages`) prints that list, with the instructions Leaf has for the
  * module, whenever either changes, and exits once the session holds no page; the
  * launcher answers it without starting uv in a session holding none. It is also the
- * session's forks lane (`src/leaf/forks.py`), listing a line fork for each thread
+ * session's forks lane (`src/leaf/agents/forks.py`), listing a line fork for each thread
  * message as it is admitted. The session takes a page only through a `leaf`
  * command, so the
  * module starts the follower as the session starts, after each Bash call that
@@ -130,10 +135,15 @@ type Leaf = {
   title: string;
   on_user: number;
   threads: { open: number; unread: number };
-  activity: { kind: string; detail: string };
+  activity: {
+    presence: string;
+    state: string;
+    reason: string | null;
+    detail: string;
+  };
 };
 
-// An instruction Leaf gives the module (`src/leaf/carrier.py`, whose header holds the
+// An instruction Leaf gives the module (`src/leaf/agents/carrier.py`, whose header holds the
 // contract): its id, unique among the session's; what to run (`do`); the basis the
 // module hands back untouched with each report of it; and the `request` the module
 // passes as it stands to the call `do` names.
@@ -150,29 +160,28 @@ type Answer = { do?: Instruction[]; log?: string } | undefined;
 // and the instructions Leaf has for the module.
 type Listing = { pages: Leaf[]; do: Instruction[] };
 
-// The color the word Leaf wears for each activity kind, in Claude Code's theme: the
-// tone the page's Leaf panel paints its leaf (`.lf-dot` in chrome.css), muted for the
-// rest.
-const TONES: Record<string, string> = {
-  working: "suggestion",
-  listening: "success",
-  stalled: "warning",
-  away: "warning",
-};
+// The color the word Leaf wears for where the agent's side of a page stands
+// (`activity.py`), in Claude Code's theme: the tone the page's Leaf panel paints its
+// leaf (`.lf-dot` in chrome.css, `toneOf` in state/activity-words.js), muted where no
+// session holds the page or the agent closed it.
+function toneOf({ presence, state, reason }: Leaf["activity"]) {
+  if (state === "running" || reason === "terminal") return "suggestion";
+  if (presence === "here") return state === "blocked" ? "warning" : "success";
+  return presence === "away" ? "warning" : "inactive";
+}
 
 /** What a line says of the agent's work, in the band's own few words: the agent's
  * sentence while it works, Quiet or Away when it has gone silent, and nothing while
  * it is ready, the usual case, which the tone already says. An All pages row
- * (`leafRow` in activity-words.js) says more, such as when the agent last checked
+ * (`leafRow` in state/activity-words.js) says more, such as when the agent last checked
  * in; this module can't import it, since its graph reaches the page's framework and
  * Lit by the server's absolute paths, which no module loader here resolves. */
-function statusOf({ kind, detail }: Leaf["activity"]) {
+function statusOf({ presence, state, reason, detail }: Leaf["activity"]) {
   const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
   // The agent's own sentence, or none: the tone of the word Leaf says it works.
-  if (kind === "working") return detail;
-  if (kind === "stalled") return stated("Quiet");
-  if (kind === "away") return "Away";
-  return "";
+  if (state === "running" || reason === "terminal") return detail;
+  if (presence === "here") return state === "blocked" ? stated("Quiet") : "";
+  return presence === "away" ? "Away" : "";
 }
 
 // The follower's last list, how to stop the follower while one runs, and whether
@@ -184,9 +193,9 @@ let followAgain = false;
 // What the first hook after a load or reload reads once, which every later one awaits.
 let initialized: Promise<void> | undefined;
 
-/** The session's id, once Claude Code's process is known. A module loaded or reloaded
- * mid-session sees no session.start, so whichever hook comes first reads it, and
- * hooks that start meanwhile wait for that one read. */
+/** The session's id, once Claude Code's process is known. A resumed or cleared
+ * session raises no session.start, so whichever hook comes first reads it, and hooks
+ * that start meanwhile wait for that one read. */
 async function sessionOf($: EngineInterface) {
   initialized ??= (async () => {
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
@@ -335,8 +344,8 @@ function follow($: EngineInterface, session: string) {
   void (async () => {
     let line = "";
     let stderr = "";
-    // Whether it ended to be started again under the Leaf the session's delivery
-    // runs now, which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
+    // Whether it ended to be started again from its tree as that tree now stands,
+    // which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
     let renewed = false;
     try {
       for await (const chunk of stream) {
@@ -483,7 +492,7 @@ let endedAgain = false;
 
 /** Tell Leaf that a main-loop turn the model answered has ended, and carry what it
  * answers with, such as the fork its turn-end check asks of the conversation
- * (`src/leaf/clerk.py`, whose header says what it writes and why). It runs off the
+ * (`src/leaf/agents/clerk.py`, whose header says what it writes and why). It runs off the
  * turn's path, one at a time, and a turn that ends while one runs reports once more
  * after it. */
 async function turnEnded($: EngineInterface, session: string) {
@@ -607,7 +616,7 @@ const running = new Map<string, { tool: string; input: Record<string, string> }>
 const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
 
 /** Make the completion `request`, as Leaf wrote it, on the session's own model client
- * (`src/leaf/completions.py`, whose header says how the request reaches the module),
+ * (`src/leaf/agents/completions.py`, whose header says how the request reaches the module),
  * and what it came to: the text or why there is none, with its usage and time. */
 async function complete(
   $: EngineInterface,
@@ -733,11 +742,7 @@ export const register: Register = (on) => {
     const line = (page: Leaf, index: number) => {
       const { url, title, on_user, threads, activity } = page;
       const status = statusOf(activity);
-      const leaf = h(
-        Text,
-        { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
-        "Leaf",
-      );
+      const leaf = h(Text, { color: toneOf(activity), weight: "semibold" }, "Leaf");
       const counts = [
         ...(on_user
           ? [dim(" · "), h(Text, { color: "warning" }, `On Me ${on_user}`)]

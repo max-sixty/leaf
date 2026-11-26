@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   obligationsByRegion,
-  obligationsIn,
   obligationPlace,
-  regionsAwaiting,
+  readObligations,
   subjectPlace,
-} from "/runtime/obligations/place.js";
-import { obligationAt, obligationHolding } from "/runtime/current-target.js";
-import { applicationState } from "/runtime/semantic-state.js";
+} from "/runtime/records/obligations/place.js";
+import { obligationAt, obligationHolding } from "/runtime/records/current-target.js";
+import { pageReadingVersion } from "/runtime/readings/passages.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
 import { servedState } from "../served.mjs";
 
 test("shared context keeps placement and containment specific to each obligation", () => {
@@ -95,8 +95,11 @@ test("the obligation at a node costs as much on a page of 64 obligations as of 8
       message: null,
       prompt: { text: `Choose ${id}.`, target: id },
       answer: null,
-      status: "open",
+      end: null,
       next_actor: "user",
+      state: "waiting",
+      reason: null,
+      outcome: null,
     }));
     applicationState.adopt(servedState({ browser: { views: { 1: { obligations } } } }));
     const button = document.querySelector("#w3 button");
@@ -124,61 +127,155 @@ test("the obligation at a node costs as much on a page of 64 obligations as of 8
 test("a region holds the live widget obligations whose source is it or stands under it", () => {
   document.body.innerHTML =
     '<section id="queue"><div id="item"><div id="first"></div><div id="gone"></div></div></section><div id="outside"></div>';
-  const item = (id, status = "open", kind = "widget") => ({
+  // Where each stands (`standing.py`): open, withdrawn, or answered.
+  const OPEN = { state: "waiting", outcome: null };
+  const WITHDRAWN = { state: "done", outcome: "dropped" };
+  const ANSWERED = { state: "done", outcome: "done" };
+  const item = (id, standing = OPEN, kind = "widget") => ({
     id: `${kind}:${id}`,
     thread: null,
     message: null,
-    status,
+    ...standing,
     source: { kind, id },
     prompt: { target: id },
   });
   const items = [
     item("first"),
-    item("gone", "withdrawn"),
-    item("outside", "answered"),
+    item("gone", WITHDRAWN),
+    item("outside", ANSWERED),
     item("missing"),
-    item("item", "answered"),
-    item("first", "open", "reply"),
+    item("item", ANSWERED),
+    item("first", OPEN, "reply"),
   ];
-  const ids = (region) =>
-    obligationsIn(document.getElementById(region), items).map((held) => held.id);
+  const regions = ["queue", "item", "first", "outside"].map((id) =>
+    document.getElementById(id),
+  );
   try {
-    assert.deepEqual(ids("queue"), ["widget:first", "widget:item"]);
-    assert.deepEqual(ids("item"), ["widget:first", "widget:item"]);
-    assert.deepEqual(ids("first"), ["widget:first"]);
-    assert.deepEqual(ids("outside"), ["widget:outside"]);
-    const regions = ["queue", "item", "first", "outside"].map((id) =>
-      document.getElementById(id),
+    const held = obligationsByRegion(regions, items);
+    assert.deepEqual(
+      Object.fromEntries(
+        regions.map((region) => [region.id, held.get(region).map((item) => item.id)]),
+      ),
+      {
+        queue: ["widget:first", "widget:item"],
+        item: ["widget:first", "widget:item"],
+        first: ["widget:first"],
+        outside: ["widget:outside"],
+      },
     );
-    const byRegion = obligationsByRegion(regions, items);
-    for (const region of regions)
-      assert.deepEqual(
-        byRegion.get(region).map((held) => held.id),
-        ids(region.id),
-      );
   } finally {
     document.body.replaceChildren();
   }
 });
 
-test("placing an inventory in many regions reads each obligation's place once", () => {
-  // A side list of tabs or a deck counts every panel or card in one render, so its
-  // cost is the obligations, not the obligations times the regions. Counted in the
-  // ids the placement looks up.
+// The page's published obligations, as the server serves them.
+/** @param {readonly object[]} obligations */
+function publish(obligations) {
+  applicationState.identify(1);
+  assert.ok(
+    applicationState.adopt(
+      servedState({ browser: { views: { 1: { obligations } } } }),
+      {
+        ...applicationState.read().document,
+        registry: { $states: {} },
+        authored: new Map(),
+        descriptors: new Map(),
+      },
+    ),
+  );
+}
+// A served widget obligation waiting on `next_actor`, in a message's markup where
+// `thread` names one.
+const served = (
+  id,
+  {
+    thread = null,
+    next_actor = "user",
+    state = "waiting",
+    outcome = state === "done" ? "done" : null,
+  } = {},
+) => ({
+  id: `widget:${id}`,
+  source: { kind: "widget", id, tag: "lf-probe" },
+  thread,
+  message: thread && "m-1",
+  prompt: { text: `Choose ${id}.`, target: id },
+  answer: null,
+  end: null,
+  next_actor,
+  state,
+  reason: null,
+  outcome,
+});
+
+test("a region's reading is the page's, holding what the region holds in the page's order", () => {
+  // A message's widget can stand in a region too, as a thread drawn in a page's reader
+  // does, and keeps its place in the inventory's order among the page's own. A
+  // withdrawn one, which the page's reading still lists, stands in no region.
+  document.body.innerHTML =
+    '<section id="queue"><div id="a"></div><div id="sent"></div><div id="gone"></div>' +
+    '<div id="c"></div></section><div id="outside"></div>';
+  publish([
+    served("a"),
+    served("sent", { thread: "t-1" }),
+    served("outside"),
+    served("gone", { next_actor: null, state: "done", outcome: "dropped" }),
+    served("c", { next_actor: null, state: "done" }),
+  ]);
+  try {
+    const page = readObligations();
+    const queue = readObligations(document.getElementById("queue"));
+    const ids = (/** @type {readonly {id: string}[]} */ items) =>
+      items.map((item) => item.id);
+    assert.equal(queue.phase, page.phase);
+    assert.ok(ids(page.all).includes("widget:gone"));
+    assert.deepEqual(ids(queue.all), ["widget:a", "widget:sent", "widget:c"]);
+    assert.deepEqual(ids(queue.user), ["widget:a", "widget:sent"]);
+    assert.deepEqual(ids(queue.unanswered), ["widget:a", "widget:sent"]);
+    // Each list holds the page's list's members that the region holds, in its order.
+    for (const list of /** @type {const} */ (["all", "user", "unanswered"]))
+      assert.deepEqual(
+        ids(queue[list]),
+        ids(page[list].filter((item) => queue.all.includes(item))),
+      );
+    assert.deepEqual(ids(readObligations(document.getElementById("sent")).all), [
+      "widget:sent",
+    ]);
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
+test("a region's reading follows a widget moved to another region", () => {
+  // The page's filing is kept for the inventory, which a move leaves as it is, and for
+  // the page's reading, which the move changes.
+  document.body.innerHTML =
+    '<section id="first"><div><div id="ask"></div></div></section><section id="second"></section>';
+  publish([served("ask")]);
+  const held = (/** @type {string} */ region) =>
+    readObligations(document.getElementById(region)).all.map((item) => item.id);
+  try {
+    assert.deepEqual([held("first"), held("second")], [["widget:ask"], []]);
+    document
+      .getElementById("second")
+      .append(document.getElementById("ask").parentElement);
+    assert.deepEqual([held("first"), held("second")], [[], ["widget:ask"]]);
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
+test("reading every region of a page reads each obligation's place once", () => {
+  // A side list of tabs or a deck reads every panel or card in one render, so its cost
+  // is the obligations, not the obligations times the regions. Counted in the ids the
+  // placement looks up.
   /** @param {number} n */
   const lookups = (n) => {
     const ids = Array.from({ length: n }, (_, k) => `r${k}`);
     document.body.innerHTML = ids
       .map((id) => `<section id="${id}"><div id="${id}-ask"></div></section>`)
       .join("");
-    const items = ids.map((id) => ({
-      id: `widget:${id}-ask`,
-      thread: null,
-      message: null,
-      status: "open",
-      source: { kind: "widget", id: `${id}-ask` },
-      prompt: { target: `${id}-ask` },
-    }));
+    publish(ids.map((id) => served(`${id}-ask`)));
     const regions = ids.map((id) => document.getElementById(id));
     const lookup = document.getElementById;
     let count = 0;
@@ -187,10 +284,9 @@ test("placing an inventory in many regions reads each obligation's place once", 
       return lookup.call(this, id);
     };
     try {
-      const held = obligationsByRegion(regions, items);
       assert.deepEqual(
-        regions.map((region) => held.get(region).map((item) => item.id)),
-        items.map((item) => [item.id]),
+        regions.map((region) => readObligations(region).all.map((item) => item.id)),
+        ids.map((id) => [`widget:${id}-ask`]),
       );
     } finally {
       document.getElementById = lookup;
@@ -218,7 +314,7 @@ test("a subject stands at the element it names, or nowhere", () => {
   }
 });
 
-test("which regions ask the user is read from the captured widgets, not the regions' elements", () => {
+test("whether a region asks the user is read from the captured widgets, not its elements", () => {
   // A side list keeps room on a panel's row for the answer to what its markup asks,
   // from before the first reading lists the obligation, in the page or in a message's
   // markup. A panel can hold a text document of 100,000 rows, so the answer comes from
@@ -261,6 +357,9 @@ test("which regions ask the user is read from the captured widgets, not the regi
   const regions = ["page", "asks", "notes", "message"].map((id) =>
     document.getElementById(id),
   );
+  // The page's watcher reads what the rows' insertion added, once, for every reading of
+  // the page; what is counted is the reading of the regions.
+  pageReadingVersion();
   const search = Element.prototype.querySelectorAll;
   let searched = 0;
   Element.prototype.querySelectorAll = function (...selector) {
@@ -268,11 +367,10 @@ test("which regions ask the user is read from the captured widgets, not the regi
     return search.apply(this, selector);
   };
   try {
-    assert.deepEqual([...regionsAwaiting(regions)].map((region) => region.id).sort(), [
-      "asks",
-      "message",
-      "page",
-    ]);
+    assert.deepEqual(
+      regions.filter((region) => readObligations(region).asks).map(({ id }) => id),
+      ["page", "asks", "message"],
+    );
   } finally {
     Element.prototype.querySelectorAll = search;
     document.body.replaceChildren();

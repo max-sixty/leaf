@@ -1,4 +1,4 @@
-# The turn-end check (`src/leaf/clerk.py`), replayed on a short conversation written
+# The turn-end check (`src/leaf/agents/clerk.py`), replayed on a short conversation written
 # for each decision its prompt asks about, each with a guardrail whose right answer
 # names nothing. Run every case with `uv run leaf-dev eval run 'turn-end-check*'
 # --harness claude-code`; inputs, labels and rubrics are in
@@ -48,6 +48,10 @@ variants:
     metadata:
       scenario: ask-on-me
       purpose: A question the reply asks, which an On Me item already holds, isn't asked again.
+  ask-held:
+    metadata:
+      scenario: ask-held
+      purpose: A choice the user answered with a question, which the agent restates in chat, isn't asked again, since the page still holds it for the agent's answer.
   ask-answered:
     metadata:
       scenario: ask-answered

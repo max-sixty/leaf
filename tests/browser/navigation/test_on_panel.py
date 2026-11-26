@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
+    PREVIEW,
     expect_obligations_answered,
     expect_panel_says,
     field_press,
@@ -28,13 +29,13 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position, walk_position
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-# What waits on the user, as On Me counts it (floating-panel.js, `onUserCount`): the
+# What waits on the user, as On Me counts it (panel/floating-panel.js, `onUserCount`): the
 # queue's own reading, since a gesture's next step can stand in the marks' place.
 ON_ME = """async () => {
   const {readQueues} = await window.__lfWidgetApi();
@@ -227,7 +228,7 @@ UNDER_PANEL_PAGE = leaf_page(
     '<p id="tail">The notes go out with the build.</p>',
 )
 
-# How much of an element the user sees, as the runtime reads it (geometry.js,
+# How much of an element the user sees, as the runtime reads it (dom/geometry.js,
 # `seenRect`), the open view taken away from what it stands over.
 SEEN_SHARE = """async (selector) => {
   const {seenRect} = await window.__lfCheckApi();
@@ -306,7 +307,7 @@ def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, s
 
 
 def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):
-    """Travel shows the place it takes the user to (floating-panel.js, `clearFor`). `m`
+    """Travel shows the place it takes the user to (panel/floating-panel.js, `clearFor`). `m`
     from a thread the panel opened to a place the landing brings clear above the view
     leaves the thread open, and the field names the stop rather than the thread's turn;
     to one at the page's foot, which the view would stand over, it puts the view away."""
@@ -417,7 +418,7 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
 def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     """On Me stays open over a place `m` reaches, whose card it rings, and gives way to
     one it doesn't list: `t` to a thread at the page's foot, which On Me would stand
-    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On Me stands on
+    over, puts it away (panel/floating-panel.js, `clearFor`). Opened by a key, On Me stands on
     its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
@@ -436,6 +437,70 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     panel_settled(page, open=False)
     scroll_settled(page)
     assert page.evaluate(SEEN_SHARE, "#tail") > 0.99
+
+
+def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serve):
+    """`o` presses the leaf, which names it, so with a question waiting it opens On Me
+    with the question's card under the user, and a second `o` puts the view away,
+    leaving the user on the page rather than on nothing. ← and → turn the view's tabs
+    round from either end, landing on each list as a key opening it lands, or, from the
+    tab strip, on the tab, stepping from the tab focus stands on. A tab the view
+    doesn't show names the door that opens its list. `g A` opens the agent's list as
+    `g M` opens the user's, and closes it again."""
+    page = open_page(browser, serve(QUEUE_PAGE))
+    shown = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    tab = page.locator('.lf-fp-tab[aria-pressed="true"]')
+    agent = re.compile(r"On (?!Me\b)\w")
+    on_page = "() => document.activeElement?.closest('main') !== null"
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute("aria-keyshortcuts", "o")
+    page.locator("#h").click()
+    page.keyboard.press("o")
+    expect(tab).to_contain_text("On Me")
+    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
+    for name, route in (
+        (agent, "queue"),
+        ("Threads", "threads"),
+        ("Menu", "menu"),
+        ("On Me", "queue"),
+    ):
+        page.keyboard.press("ArrowRight")
+        expect(tab).to_contain_text(name)
+        expect(shown).to_have_attribute("data-lf-route", route)
+        expect(page.locator(f"{PANEL} .lf-fp-tab:focus")).to_have_count(0)
+    page.keyboard.press("ArrowLeft")
+    expect(tab).to_contain_text("Menu")
+    menu_row = page.locator(f"{panel_view('menu')} .lf-fp-item:not(:disabled)")
+    expect(menu_row.first).to_be_focused()
+    page.keyboard.press("o")
+    expect(shown).to_have_count(0)
+    # Escape's landing, on the page, so Tab goes on from what is read there rather than
+    # from the panel's row.
+    page.keyboard.press("Tab")
+    page.wait_for_function(on_page)
+    # A tab pressed keeps the user on it; Tab moves to the next tab, On Me, without
+    # turning to it, and → turns to the tab after the one focus stands on.
+    page.keyboard.press("o")
+    page.locator(".lf-fp-tab", has_text="Menu").click()
+    expect(tab).to_contain_text("Menu")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-tab", has_text="On Me")).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(tab).to_contain_text(agent)
+    expect(tab).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowLeft")
+    expect(tab).to_contain_text("Menu")
+    expect(tab).to_be_focused()
+    # A tab the view doesn't show names the door that opens its list from anywhere.
+    page.mouse.move(2, 2)
+    page.locator(".lf-fp-tab", has_text=agent).hover()
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys kbd")).to_have_text(["g", "A"])
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(tab).to_contain_text(agent)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(shown).to_have_count(0)
 
 
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
@@ -695,12 +760,12 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
           const item = reading.all.find(q => q.id === 'widget:only');
           return {
             value: item.answer.value,
-            status: item.status,
+            state: item.state,
             unanswered: reading.unanswered.some(q => q.id === item.id),
           };
         }"""
     )
-    assert pending == {"value": ["first"], "status": "open", "unanswered": True}
+    assert pending == {"value": ["first"], "state": "waiting", "unanswered": True}
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -726,7 +791,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
             source: item.source,
             prompt: item.prompt,
             value: item.answer.value,
-            status: item.status,
+            answered: item.answered,
           };
         }"""
     )
@@ -735,7 +800,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         "source": {"kind": "widget", "id": "only", "tag": "lf-options"},
         "prompt": {"text": "Pick one", "target": "only-decision"},
         "value": ["first"],
-        "status": "answered",
+        "answered": True,
     }
 
     page.keyboard.press("g")
@@ -881,7 +946,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
 
 
 # The motion the panel's leaf plays, named by the turn it reaches first
-# (floating-panel.js, `MOTIONS`).
+# (panel/floating-panel.js, `MOTIONS`).
 LEAF_MOTIONS = {
     "rotate(-12deg) scale(1.15)": "nod",
     "translateX(-3px) rotate(-5deg)": "shake",
@@ -952,7 +1017,7 @@ def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On Me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
-    (floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
+    (panel/floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
     key, On Me stands on its first row, the suggestion, so `m` steps on to the first

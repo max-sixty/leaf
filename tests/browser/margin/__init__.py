@@ -16,8 +16,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 COMMENT_ON_OBLIGATION = {
     "kind": "comment",
@@ -203,7 +203,7 @@ LOW_PASSAGE_PAGE = leaf_page(
 )
 
 
-# Whether the margin card's motion has ended (box-motion.js): no finite animation on
+# Whether the margin card's motion has ended (dom/box-motion.js): no finite animation on
 # the document's clock runs in it. A scroll-driven one, as a transcript's head
 # annotations ride their message's exit, follows the scroll and never ends, and Firefox
 # gives it a finite end time.
@@ -220,7 +220,7 @@ CARD_RELEASED = (
 )
 
 
-# The card's outline as its surface's ring is cut (box-motion.js): its top and its foot.
+# The card's outline as its surface's ring is cut (dom/box-motion.js): its top and its foot.
 CARD_OUTLINE = """card => {
   const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
   const ground = card.querySelector('.lf-margin-preview-ground').getBoundingClientRect();

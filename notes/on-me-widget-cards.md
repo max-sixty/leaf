@@ -1,17 +1,16 @@
 # Widgets drawing their own On Me cards
 
 Parked on 24 October 2026. On Me's card for a widget obligation (`onItemCard` in
-`browser/runtime/floating-panel.js`) is the panel's: it copies each of the widget's
+`browser/runtime/panel/floating-panel.js`) is the panel's: it copies each of the widget's
 `decision: true` command controls onto a plain button, and a press clicks the real
-control (`choicesOf`, `browser/runtime/obligations/view.js`). So a widget decides
+control (`choicesOf`, `browser/runtime/records/obligations/view.js`). So a widget decides
 only which controls are copied. Max asked for a widget to decide how its obligation
 shows there, and chose to prototype design C below.
 
 A widget in an unopened thread message got only Discuss and Show until 15 November
 2026, when the card took design A for it (#5404): it draws the widget's message aside
 from the conversation, which holds the widget's one instance only while no thread on
-the page shows the message. A record's obligation (`lf-visual-review`'s) in a thread
-message still gets only Discuss and Show.
+the page shows the message.
 
 ## Designs compared
 
@@ -43,7 +42,7 @@ opts in with `static seats = ["card"]` and styles `[data-lf-seat="card"]`.
   open. axe reports `duplicate-id`.
 - **Local state diverges.** Digit keys number a user-added option differently in
   the card; `lf-draft`'s editor and `lf-playground`'s unsent values would diverge
-  the same way. Per-record obligations (`lf-visual-review`) can't be seated.
+  the same way.
 - **Size.** 210 runtime lines added; converting every widget would let 53 lines
   of the copied-button path go. Taller cards show about 3½ per phone screen
   instead of 4.
@@ -58,7 +57,6 @@ replies carried a widget in a thread message, the case design A now covers.
 
 Keep the card's copy out of id space: mount it where no lookup reaches. A thread
 widget's single instance already moves into the card while nothing else shows its
-message (design A above). B suits
-per-record obligations and touches no ids, at the cost of a second render path
+message (design A above). B touches no ids, at the cost of a second render path
 per widget. The prototype's tests are in its
 `tests/browser/widgets/test_on_panel.py`.

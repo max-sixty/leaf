@@ -3,7 +3,7 @@
    actions withdrawn by undo, member-unit records and complete position maps. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { foldWidgetStates, obligationValue } from "/runtime/projection/model.js";
+import { foldWidgetStates, obligationValue } from "/runtime/state/projection/model.js";
 
 import { servedObligationValues } from "../served.mjs";
 
@@ -25,7 +25,7 @@ for (const fixture of cases) {
     };
     const widgets = foldWidgetStates(authored, projection);
     assert.deepEqual(
-      obligationValue(widgets.get("owner"), "set", fixture.answered, fixture.unit),
+      obligationValue(widgets.get("owner"), "set", fixture.answered),
       fixture.expected,
     );
   });

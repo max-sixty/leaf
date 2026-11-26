@@ -42,8 +42,8 @@ from browser.threads import (
     PANEL_REPLY,
     open_panel_thread,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -248,6 +248,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_visible()
     resolve.scroll_into_view_if_needed()
+    entries = page.evaluate("history.length")
     with page.expect_request("**/api/event"):
         resolve.click()
     expect_open_threads(page, 0)
@@ -260,9 +261,11 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
         json={"ok": False, "final": True, "error": "Please retry."},
     )
     expect_open_threads(page, 1)
-    # The margin card the resolve closed opens again, with the user back in it.
+    # The margin card the resolve closed opens again, with the user back in it: a
+    # return, which adds no Back step.
     thread = page.locator(".lf-margin-thread")
     expect(thread.locator(".lf-page-thread")).to_be_focused()
+    assert page.evaluate("history.length") == entries
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
@@ -295,7 +298,7 @@ def expect_focus_in(page, locator):
     page.wait_for_function(FOCUS_IN, arg=locator.element_handle())
 
 
-# The ways back from a settlement (undo.js header; folding.js): ⌘Z right after its
+# The ways back from a settlement (records/undo.js header; folding.js): ⌘Z right after its
 # landing; ⌘Z where its place is in view after the user did something else; the
 # notice's Undo; the log refusing it; and ⌘Z where the user has left its place.
 # "away" runs last on a shared page, since it leaves the page scrolled and a disclosure
@@ -386,8 +389,8 @@ def card_surface(browser, serve, gesture):
 
 
 def panel_surface(browser, serve, gesture):
-    """The floating panel's view of a thread about a passage, which a route to the
-    thread would open in a card beside it. A Reopen there lands in the panel's field,
+    """The floating panel's view of a thread about a passage, where the user chose the
+    panel for threads (`open_panel_thread`). A Reopen there lands in the panel's field,
     which keeps the notice out of sight while the caret stands in it."""
     url, root = anchored_long_page(serve, gesture)
     page = open_page(browser, url)
@@ -497,7 +500,7 @@ def seat_surface(browser, serve, gesture):
 def reader_surface(browser, serve, gesture):
     """A package's primary reader, which draws the thread as a seat does. Its workspace
     holds other open threads, so a Resolve there offers the next one, not its Undo, in
-    the notice (thread/folding.js, `nextStep`)."""
+    the notice (records/thread/folding.js, `nextStep`)."""
     url = package_workspace(serve, before_reader=FILLER)
     if gesture == "reopen":
         append_carried_log_record(
@@ -558,11 +561,10 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
 ):
     """A settlement takes the user's view of its thread away, and every way back gives
     that view back on the surface the user had it on: ⌘Z pressed on it, beside it or
-    away from it, the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
-    choose would choose for the thread as it stood at the way back: it would put a
-    thread resolved in its card in the panel, where resolved threads open, one resolved
-    in the panel's view in a card, and one resolved in a seat in the panel, then a
-    card."""
+    away from it, the notice's Undo and the log's refusal (records/undo.js, folding.js). Each
+    way back opens the thread by the route every opening takes, so a card, the panel
+    the user chose for threads, a seat and a package's reader each come back as the
+    route draws the thread once the withdrawal stands."""
     s = surface(browser, serve, gesture)
     page = s.page
     page.evaluate(OPEN_THREAD_COUNT)

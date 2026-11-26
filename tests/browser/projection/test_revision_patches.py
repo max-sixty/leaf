@@ -22,7 +22,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -179,7 +179,7 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     since it loaded makes the page differ from any source, so a patch that reconciled
     the live tree against the arriving revision would take all of it back. Four owners,
     none of them the author, on one page: the user's open disclosure, the tokenizer's
-    spans in a code block, a tab stop `focus.js` lends to land the keyboard somewhere,
+    spans in a code block, a tab stop `dom/focus.js` lends to land the keyboard somewhere,
     and what a page module built inside an authored container. The revision rewrites one
     paragraph and mentions none of them.
 
@@ -309,7 +309,7 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
 
 
 def test_a_revision_that_rewrites_a_code_block_boxes_its_new_lines(browser, serve):
-    """A code block's lines stand in boxes the runtime made (code-lines.js), so the
+    """A code block's lines stand in boxes the runtime made (readings/code-lines.js), so the
     patch takes the block whole: one the revision leaves alone keeps its boxes, and one
     whose code it rewrites arrives as authored and is boxed again, its text the new
     source."""
@@ -974,10 +974,8 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
                     "lf-drawn-data": {
                         "description": "Text its module draws once, at upgrade.",
                         "attributes": {
-                            "type": "object",
-                            "properties": {"id": {"type": "string"}},
+                            "properties": {},
                             "required": ["id"],
-                            "additionalProperties": False,
                         },
                         "content": "data",
                     }
@@ -991,6 +989,72 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
     stamp_page(serve.page_dir, source("two"), "new data")
     wait_for_revision(page, 2)
     expect(page.locator("#dd output")).to_have_text("two")
+
+
+GRIPPED = """import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
+customElements.define('lf-gripped', class extends LeafElement {
+ static shadow = true;
+ render() {
+  return html`<button data-lf-carry="grip">Move</button><slot></slot>`;
+ }
+});"""
+
+
+def test_a_replaced_widget_gives_focus_back_to_the_grip_its_module_drew(browser, serve):
+    """A revision that rewrites a widget replaces it, and a user on a control the
+    widget's module drew is on the replacement's control of the same `data-lf-carry`
+    key. The control may stand in the widget's declared shadow root, where focus read
+    only in the page's own tree is the host's and the host would take it back. A board
+    keys each card's grip, so rewording one card leaves the user on the grip of
+    another."""
+
+    def source(words, card="First."):
+        return leaf_page(
+            "Gripped",
+            f'<h1>Gripped</h1><lf-gripped id="held"><p>{words}</p></lf-gripped>'
+            f'<lf-board id="work"><lf-column id="doing" label="Doing">'
+            f'<lf-card id="card-a" label="A"><strong>A</strong> {card}</lf-card>'
+            '<lf-card id="card-b" label="B"><strong>B</strong> Second.</lf-card>'
+            "</lf-column></lf-board>",
+        )
+
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source("One."),
+                layer_registry={
+                    "lf-gripped": {
+                        "description": "Words beside a control its module draws.",
+                        "attributes": {
+                            "properties": {"id": {"type": "string"}},
+                            "required": ["id"],
+                        },
+                        "content": "markup",
+                        "shadow": True,
+                    }
+                },
+                layer_widgets={"lf-gripped.js": GRIPPED},
+            )
+        ),
+    )
+    page.locator("#held button").focus()
+    page.evaluate("() => { window.__held = document.getElementById('held'); }")
+
+    stamp_page(serve.page_dir, source("Two."), "reword")
+    wait_for_revision(page, 2)
+    expect(page.locator("#held p")).to_have_text("Two.")
+    assert page.evaluate("window.__held !== document.getElementById('held')")
+    expect(page.locator("#held button")).to_be_focused()
+
+    page.locator("#card-b > .lf-grip").focus()
+    page.evaluate("() => { window.__card = document.getElementById('card-b'); }")
+    stamp_page(serve.page_dir, source("Two.", "First, reworded."), "reword a card")
+    wait_for_revision(page, 3)
+    expect(page.locator("#card-a")).to_contain_text("First, reworded.")
+    assert page.evaluate("window.__card !== document.getElementById('card-b')")
+    expect(page.locator("#card-b > .lf-grip")).to_be_focused()
 
 
 @pytest.mark.parametrize("departure", ["focused", "link", "selection"])
@@ -1231,7 +1295,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
 
     def asked():
         return page.locator(cards).evaluate_all(
-            "nodes => nodes.map(node => JSON.parse(node.dataset.lfKey)[1])"
+            "nodes => nodes.map(node => node.dataset.lfKey)"
         )
 
     assert identities("main > lf-group", "id") == [

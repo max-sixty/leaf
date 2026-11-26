@@ -2,20 +2,18 @@
   "lf-file-editor": {
     "description": "An editor for the bound UTF-8 files on the machine serving the page, one open at a time, saving as the user types.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "binding": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)*$"
         }
       },
-      "required": ["id", "binding"],
-      "additionalProperties": false
+      "required": ["id", "binding"]
     },
     "content": "empty",
     "outputs": {
-      "files": { "contract": "file-list" }
+      "files": { "contract": "file-list" },
+      "text": { "contract": "text-document" }
     },
     "shadow": true,
     "height": true,

@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     acknowledged_through,
@@ -18,13 +19,14 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
@@ -39,7 +41,7 @@ def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
     silent = tmp_path / "silent"
     for page in (second, silent):
         shutil.copytree(claimed, page)
-        service_model.claim_page(page)
+        transaction_model.claim_page(page)
     pages = (claimed, second, silent)
     claim_record = service_model.page_claim(claimed)
     assert claim_record is not None
@@ -55,7 +57,7 @@ def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
     arrivals = [tmp_path / f"sweep-{number}" for number in range(2)]
     probe = """\
 import sys
-from leaf import delivery
+from leaf.agents import delivery
 
 original_lock = delivery.flocked
 def synchronized_lock(*args, **kwargs):
@@ -101,7 +103,10 @@ delivery.receive_delivery(os.environ["DELIVERY"])
             if event["kind"] == "pickup"
         ]
         assert pickup["phase"] == "opened"
-        assert owed_answers(page)[0]["stage"] == "picked_up"
+        assert (owed_answers(page)[0]["state"], owed_answers(page)[0]["seen"]) == (
+            "waiting",
+            True,
+        )
     assert acknowledged_through(silent) == 0
 
 
@@ -147,8 +152,9 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     assert waiting.poll() is None
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    hooks_run_this_tree("successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     append_carried_log_record(
         other,
         {"kind": "comment", "id": "second", "author": "user", "text": "two"},

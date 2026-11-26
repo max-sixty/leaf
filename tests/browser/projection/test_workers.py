@@ -24,12 +24,14 @@ from render_cases_interaction import (
 from render_cases_navigation import source_revision
 from render_harness import (
     compare_with,
+    comparison_view,
     draft_control,
     holding,
     leaf_page,
     open_page,
     panel_field,
     panel_menu,
+    press_draft_control,
     refuse,
     sending,
     stamp_page,
@@ -39,9 +41,9 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -163,9 +165,9 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         else:
             route.continue_()
 
-    page.route("**/api/view*", hold_first_view)
+    page.route(comparison_view, hold_first_view)
     try:
-        with page.expect_request("**/api/view*"):
+        with page.expect_request(lambda request: comparison_view(request.url)):
             compare_with(page, 1)
         holding(page, held, 1, "the first comparison view")
         assert held, "the first comparison view was not held"
@@ -185,7 +187,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         told(page)
         expect(page.locator("#t-parser")).to_have_attribute("status", "done")
 
-        with page.expect_request("**/api/view*"):
+        with page.expect_request(lambda request: comparison_view(request.url)):
             held[0][0].fulfill(response=held[0][1])
             held[0][2] = True
         holding(page, requests, 2, "the retried comparison view")
@@ -197,13 +199,13 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             "v2"
         )
         expect(
-            versions.get_by_role("button", name=re.compile(r"^Compare with v1\b"))
+            versions.get_by_role("button", name=re.compile(r"\bCompare with v1\b"))
         ).to_have_attribute("aria-pressed", "true")
         page.keyboard.press("Escape")
     finally:
         if held and not held[0][2]:
             held[0][0].fulfill(response=held[0][1])
-        page.unroute("**/api/view*")
+        page.unroute(comparison_view)
 
 
 def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serve):
@@ -389,7 +391,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     told(page)
 
     reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).readReports().reports"
     )
     by_source = {report["source"]: report for report in reports}
     assert set(by_source) == {"report"}
@@ -412,10 +414,10 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
         """async () => {
             const feed = await window.__lfWidgetApi();
             return {
-                widget: feed.reportSequence(document.querySelector('#ag-wren')),
-                thread: feed.reportSequence({kind: 'thread', id: 'ag-wren'}),
+                widget: feed.readReports(document.querySelector('#ag-wren')).reports,
+                thread: feed.readReports({kind: 'thread', id: 'ag-wren'}).reports,
                 bare: (() => {
-                    try { feed.reportSequence('ag-wren'); }
+                    try { feed.readReports('ag-wren'); }
                     catch (error) { return `${error.name}: ${error.message}`; }
                 })(),
             };
@@ -442,7 +444,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     wait_for_revision(page, 2)
 
     reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).readReports().reports"
     )
     by_source = {report["source"]: report for report in reports}
     assert by_source["report"]["disposition"] == "settled"
@@ -480,17 +482,33 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
-          const {projectionRegionsPresented, readApplicationPresentation} =
-            await window.__lfCheckApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
+          const {
+            projectionRegionsPresented,
+            readApplicationPresentation,
+            whenApplicationRegionsPresented,
+          } = await window.__lfCheckApi();
           const {noChange} = await window.__lfVendorImport('lit.js');
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          customElements.define('lf-report-proof', class extends api.LeafElement {
+          customElements.define('lf-report-proof', class extends LeafElement {
             render() {
-              if (!this.whenReady(() => projectionRegionsPresented([owner.id]))) return noChange;
+              // The watcher draws nothing until the owner's own drawing is in, and
+              // asks to draw again once it is.
+              if (!projectionRegionsPresented([owner.id])) {
+                this.waiting ??= whenApplicationRegionsPresented([
+                  'projection:chrome',
+                  `widget:${owner.id}:render`,
+                  `widget:${owner.id}:preparation`,
+                ]).then(() => {
+                  this.waiting = null;
+                  this.requestUpdate();
+                });
+                return noChange;
+              }
               api.clockValue(() => window.__proofClock);
-              window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+              window.__proofReads.push(api.readReports({kind: 'widget', id: owner.id}).reports.map(report => report.text));
               return noChange;
             }
           });
@@ -500,22 +518,27 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
-            return api.reportSequence(owner).some(report => report.text === 'held report') &&
+            return api.readReports({kind: 'widget', id: owner.id}).reports.some(report => report.text === 'held report') &&
               proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
               !proof.pending.includes('projection:chrome');
           };
           // The watcher gets its first clock reading before the held publication.
           await Promise.resolve();
-          const other = api.widgetController(document.getElementById('ag-finch'));
-          other.present(new Promise(resolve => { window.__proofOtherResume = resolve; }));
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          // Said from inside a worker, the work is that worker's preparation.
+          const prepare = (worker, promise) =>
+            worker.querySelector('strong').dispatchEvent(new PendingTaskEvent(promise));
+          prepare(
+            document.getElementById('ag-finch'),
+            new Promise(resolve => { window.__proofOtherResume = resolve; }),
+          );
           window.__proofOtherPending = () =>
             readApplicationPresentation().pending.includes('widget:ag-finch:preparation');
-          const controller = api.widgetController(owner);
           if (holding === 'defer') {
-            window.__proofResume = controller.defer();
+            window.__proofResume = owner.defer();
           } else {
             let resolve;
-            controller.present(new Promise(done => { resolve = done; }));
+            prepare(owner, new Promise(done => { resolve = done; }));
             window.__proofResume = resolve;
           }
         }""",
@@ -638,7 +661,6 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
 
-    expect(goal).to_have_attribute("data-lf-held")
     roots = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]
@@ -735,7 +757,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
         "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42",
     )
     with sending(page, "the saved edit"):
-        draft_control(page, "save", "ledger-cargo").click()
+        press_draft_control(page, "save", "ledger-cargo")
 
     edit = next(
         event

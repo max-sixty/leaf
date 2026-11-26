@@ -17,7 +17,14 @@ import click
 from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
+from leaf.source.render_checks import (
+    one_frame,
+    open_render_context,
+    open_render_page,
+    rendered,
+    wait_for_probe,
+    wait_until_ready,
+)
 from leaf_dev import ROOT
 
 
@@ -186,10 +193,18 @@ def launch(engine: str, scheme: str = "light"):
             yield browser
 
 
-@cache
 def shell_executable() -> str:
-    """Ask the installed Playwright registry for its pinned headless shell.
+    """The installed Playwright registry's pinned headless shell."""
+    return playwright_executable("chromium-headless-shell")
 
+
+@cache
+def playwright_executable(name: str) -> str:
+    """Ask the installed Playwright registry for its pinned build of browser `name`.
+
+    `leaf-dev setup` installs only Python Playwright's builds, and Node's Playwright
+    pins its own, which can be a different build. A Node tool that must see what
+    Python sees launches this path (`evals/ui-review-detection/provider.mjs`).
     A subprocess works even while the caller already holds sync_playwright open.
     """
     from playwright._impl._driver import compute_driver_executable
@@ -201,9 +216,10 @@ def shell_executable() -> str:
             "-e",
             (
                 "console.log(require(process.argv[1]).registry.registry"
-                ".findExecutable('chromium-headless-shell').executablePathOrDie('python'))"
+                ".findExecutable(process.argv[2]).executablePathOrDie('python'))"
             ),
             str(Path(cli).parent / "lib/coreBundle.js"),
+            name,
         ],
         check=True,
         stdout=subprocess.PIPE,
@@ -225,7 +241,8 @@ def tab(
     drawing `scale` device pixels to a CSS pixel. It keeps where a mouse last moved over
     it (`POINTER`), for `settle`. A caller listens on it before it `load`s."""
     width, height = window.size
-    context = browser.new_context(
+    context = open_render_context(
+        browser,
         viewport={"width": width, "height": height},
         device_scale_factor=scale,
         color_scheme=scheme,
@@ -235,9 +252,7 @@ def tab(
     )
     context.add_init_script(POINTER)
     try:
-        page = context.new_page()
-        page.set_default_timeout(15_000)
-        yield page
+        yield open_render_page(context)
     finally:
         context.close()
 
@@ -312,7 +327,7 @@ def screenshot(page) -> bytes:
       (build 2370) fades it in and out, and its Firefox (build 1555) draws none.
       Both declarations are inherited, so they reach the caret inside Leaf's text
       field, whose closed shadow root takes the caret's colour from its host
-      (`runtime/composing/text-field.js`).
+      (`runtime/annotations/composing/text-field.js`).
     - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
       box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
       passes over it and leaves, as a reader sees it while scrolling; Playwright's
@@ -367,10 +382,18 @@ def load(page: Page, address: str) -> None:
 
 def settle(page: Page) -> None:
     """Wait until the page is ready, its fonts have loaded, the runtime reports it
-    settled, and its hover is on the element under the pointer (`catch_up_hover`)."""
+    settled, and its hover is on the element under the pointer (`catch_up_hover`).
+
+    Readiness is read once the page has heard what could start more work: the input
+    before this, and then the motion `pageSettled` waits out. A scroll that brings a
+    live sample near starts it in the next rendering update, as the sample's observer
+    reports, so each read waits for that update first (runtime/base/rendering.js)."""
+    one_frame(page)
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
     wait_for_probe(page, "pageSettled")
+    one_frame(page)
+    wait_until_ready(page)
     if catch_up_hover(page):
         settle(page)
 
@@ -504,12 +527,12 @@ def scroll_settled(page, scroller=None, axis="y"):
 
 # The floating panel's row ends in the leaf, which counts what waits on the user
 # on a badge over its corner (`.lf-fp-badge`) and dots a thread with news, and opens the On view on the tab those
-# marks point at (floating-panel.js, `leafOpens`). While a stance or search stands, its
+# marks point at (panel/floating-panel.js, `leafOpens`). While a stance or search stands, its
 # way out (`.lf-fp-row > .lf-fp-exit`) stands before it. A view's Close
 # (`.lf-fp-exit.lf-fp-close`) ends a list's tabs or another view's head line instead.
 LEAF = ".lf-fp-leaf"
 
-# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the
+# The floating panel (runtime/panel/floating-panel.js) is Leaf's one chrome: a row of the
 # field and the leaf, with a view opened above it, the leaf's menu among them. Its state
 # stands on its host as attributes: `data-lf-open` names the open view (menu, versions,
 # group, errors, threads, thread, queue, leaves) and `data-lf-rest="mark"` the panel
@@ -517,8 +540,8 @@ LEAF = ".lf-fp-leaf"
 PANEL = ".lf-floating-panel"
 
 # The words in the panel's one seat for what passes, such as a notice or a walk's
-# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
-# open view, else an error standing over the field's words (composing/input.js), else
+# position (panel/floating-panel.js, `passing`): the leaf's peek while it shows one over an
+# open view, else an error standing over the field's words (annotations/composing/input.js), else
 # the empty field's placeholder.
 PANEL_SAYS = """() => {
   const peek = document.querySelector('.lf-fp-peek');
@@ -542,6 +565,25 @@ def panel_view(name: str) -> str:
 PANEL_THREAD = panel_view("thread")
 
 
+def choose_threads_in_panel(page: Page, on: bool = True) -> None:
+    """Have this tab open threads about a passage in the panel, or with `on` false
+    beside their passages, as for a user who chose that on an earlier visit
+    (records/thread/threads-in-panel.js): the choice stored for the tab and read again, which
+    says nothing in the panel's field, as a reload doesn't. It imports the check API
+    from the page's own entry, so it works on a page the harness doesn't watch, which
+    has no `window.__lfCheckApi` (tests/render_harness.py, the sensors)."""
+    page.evaluate(
+        """async (on) => {
+          const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+          const api = await import(
+            new URL('runtime/check-api.js', new URL(boot, location.href)).href);
+          api.tabStore.set(api.THREADS_IN_PANEL_KEY, on ? "panel" : null);
+          api.restoreThreadsInPanel();
+        }""",
+        on,
+    )
+
+
 def panel_tab(page: Page | FrameLocator, name: str):
     """The On view's tab `name` at the foot of the menu, On and Threads, each one of
     its tabs: `Menu`, `On Me`, `On <agent>`, `Threads` and, while a plan exists,
@@ -549,16 +591,28 @@ def panel_tab(page: Page | FrameLocator, name: str):
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 
+def unfold(page: Page | FrameLocator, press=None):
+    """Unfold a panel folded to the leaf, by `.` or where focus landed on a place its
+    row alone would hide (panel/floating-panel.js, `giveWay`), with a press on the leaf, which
+    then opens no view. `press` presses a control, a click by default."""
+    host = page.locator(PANEL)
+    if host.get_attribute("data-lf-rest") == "mark":
+        (press or (lambda control: control.click()))(page.locator(LEAF))
+        expect(host).to_have_attribute("data-lf-rest", "row")
+
+
 def on_tab(page: Page | FrameLocator, name: str):
-    """Stand the On view open and return its tab `name` (`panel_tab`). From the row the
-    leaf opens the view on the tab its marks point at; another view, stance or search is
-    closed first by its exit. `page` may be a live sample's frame."""
+    """Stand the On view open and return its tab `name` (`panel_tab`). A folded panel is
+    unfolded first (`unfold`). From the row the leaf opens the view on the tab its marks
+    point at; another view, stance or search is closed first by its exit. `page` may be
+    a live sample's frame."""
     # A stance's exit goes in the repaint frame. Read the controls only after the
     # previous input has rendered, before choosing a pointer route.
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
     host = page.locator(PANEL)
+    unfold(page)
     if host.get_attribute("data-lf-open") not in ("menu", "queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
@@ -579,9 +633,7 @@ def open_menu(page: Page | FrameLocator, press=None):
     host = page.locator(PANEL)
     leaf = page.locator(LEAF)
     on_view = re.compile("^(menu|queue|threads)$")
-    if host.get_attribute("data-lf-rest") == "mark":
-        press(leaf)
-        expect(host).to_have_attribute("data-lf-rest", "row")
+    unfold(page, press)
     if host.get_attribute("data-lf-open") != "menu":
         back = page.locator(".lf-fp-head").get_by_role(
             "button", name="Back to Menu", exact=True
@@ -669,7 +721,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
-    # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
+    # Completing `g T` again closes the view (panel/page-keys/go-to-sequence.js).
     if within.locator(PANEL).get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own

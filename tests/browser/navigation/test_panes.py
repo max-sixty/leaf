@@ -35,8 +35,8 @@ from browser.navigation import (
 )
 from browser.startup import _hold_startup
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -316,7 +316,7 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     for where a walk starts. Focus on the body read as standing in the page would have
     `j` scroll a page a workspace keeps still and `m` walk from the page's top.
 
-    Each body holds a control, so neither is a tab stop a click would focus (reach.js),
+    Each body holds a control, so neither is a tab stop a click would focus (dom/reach.js),
     which would answer through focus and leave the body's route unread. The rail holds
     the most to scroll, so a pane chosen for the user would be the rail and not the
     detail pane the wheel names."""
@@ -673,7 +673,7 @@ def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
-    """A pane body with nothing in it to Tab to is a stop of its own (reach.js), and the
+    """A pane body with nothing in it to Tab to is a stop of its own (dom/reach.js), and the
     layer's ring stands outside the box it names. Panes stand flush with the scrollport
     of the workspace body that holds them, so that ring lost its right and bottom sides
     to the scrollport's edge and ran over the pane's header rule at the top."""
@@ -834,7 +834,7 @@ def test_a_split_drag_keeps_a_panes_reading(engine, request, serve):
       }
     }""")
     page_at_rest(page)
-    # Within the pixel the engine rounds a scroll offset to (scrolling.js,
+    # Within the pixel the engine rounds a scroll offset to (dom/scrolling.js,
     # `moveScrollerBy`); a lost reading leaves it lines away.
     assert page.evaluate(landmark) == pytest.approx(before, abs=1)
 
@@ -1432,6 +1432,44 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve, na
     )
     assert left.evaluate("el => el.scrollTop") > 0
     assert right.evaluate("el => el.scrollTop") > 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_revision_that_replaces_a_pane_returns_the_reader_to_their_place_in_it(
+    engine, request, serve
+):
+    """A revision that changes a pane's own attribute replaces the pane whole, so the
+    body the reader had scrolled is gone and the new one starts at its top. The new body
+    takes the region the old one held within the revision's own handoff, which puts the
+    passage the reader was on back where it stood."""
+    page = open_page(
+        request.getfixturevalue(engine), live_url(serve(READING_REGIONS_PAGE))
+    )
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
+    body = page.locator("#left-reading > :not(header, footer)")
+    body.evaluate("el => el.scrollTop = 300")
+    scroll_settled(page, "#left-reading > :not(header, footer)")
+    landmark = """() => {
+      const landmark = document.getElementById('left-landmark');
+      return landmark.getBoundingClientRect().top
+        - landmark.closest('lf-pane > :not(header, footer)').getBoundingClientRect().top;
+    }"""
+    before = page.evaluate(landmark)
+    replaced = body.element_handle()
+
+    stamp_page(
+        serve.page_dir,
+        READING_REGIONS_PAGE.replace(
+            'label="Left reading"', 'label="Left reading, renamed"'
+        ),
+        "rename the left pane",
+    )
+    wait_for_revision(page, 2)
+    assert not replaced.evaluate("el => el.isConnected"), (
+        "the pane was patched in place"
+    )
+    assert page.evaluate(landmark) == pytest.approx(before, abs=2)
+    assert body.evaluate("el => el.scrollTop") > 0
 
 
 def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(

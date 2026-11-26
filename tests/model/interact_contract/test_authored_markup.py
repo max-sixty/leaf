@@ -17,9 +17,9 @@ from interact_support import (
     styled,
 )
 
-from leaf import passages as passages_model
-from leaf import structure as structure_model
-from leaf.findings import Finding
+from leaf.base.findings import Finding
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
 
 
 def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
@@ -74,7 +74,7 @@ def test_check_requires_an_initialized_page(tmp_path):
     (d / "index.html").write_text(PAGE)
     result = check(d)
     assert result.exit_code == 1
-    assert f"run `leaf page init {d}`" in result.output
+    assert f"{d} is not an initialized page" in result.output
 
 
 def test_check_rejects_an_invalid_bound_and_advises_on_loose_pane_text(page_dir):
@@ -98,6 +98,45 @@ def test_check_rejects_an_invalid_bound_and_advises_on_loose_pane_text(page_dir)
     )
     (pane,) = found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
     assert pane.severity == "advice"
+
+
+@pytest.mark.parametrize(
+    "items,advised",
+    [
+        ("<section id=open-items>{}</section>", True),
+        ("<section id=open-items hidden=until-found>{}</section>", True),
+        ("<section id=open-items hidden>{}</section>", False),
+        ("<dialog id=open-items open>{}</dialog>", False),
+    ],
+)
+def test_check_advises_a_workspace_to_keep_one_body(page_dir, items, advised):
+    """A workspace's bodies share the window's height evenly, so a list written between
+    its header and its regions halves them and leaves blank space under its own lines,
+    with nothing out of reach for the render check to see. A body that takes no room
+    takes no share, as a script, a dialog or one the page hides does, while one hidden
+    until found keeps its box."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<main>",
+            '<main class="layout-workspace"><header><h1>Plan</h1></header>'
+            + items.format("<ul><li>Merge it</li></ul>")
+            + "<script>void 0</script>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    tag = items[1 : items.index(" ")]
+    assert [
+        (f.at, f.values["line"], f.values["bodies"], f.severity)
+        for f in found(findings, "workspace-bodies")
+    ] == [
+        (
+            "<main>",
+            7,
+            [f"<{tag} id=open-items>", "<lf-group id=plan-questions>"],
+            "advice",
+        )
+    ] * advised
 
 
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
@@ -134,49 +173,6 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
         value="full",
         allowed=["wide", "available"],
     )
-
-
-def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
-    """An allocation means something only where the kernel's `$marks` say it does,
-    and delivery paints none elsewhere, so the page would show no sign of it: a width
-    on `main`, which would size the page, and a stated height on a block no module
-    draws into. `page check` names each so the author can move it. A width on a table
-    in the question's group, and a height on a chart, mean what they say. A tab set
-    draws no box of its own only where
-    it is written `flow="page"`, so a width there means nothing and on a boxed set it
-    holds."""
-    tabs = (
-        '<lf-tabs id="{id}"{flow} data-width="wide">'
-        '<lf-tab id="{id}-one" label="One"><p>One.</p></lf-tab></lf-tabs>'
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main data-width="wide">')
-        .replace(
-            "</section>",
-            "</section>"
-            + tabs.format(id="page-tabs", flow=' flow="page"')
-            + tabs.format(id="boxed-tabs", flow=""),
-        )
-        .replace(PAGE_GROUP, '<lf-options id="plan-choice">')
-        .replace(
-            "</lf-options>\n  </lf-group>",
-            "</lf-options>\n"
-            '<table id="kept" data-width="wide"><tr><td>A</td></tr></table>\n'
-            '<div id="sized" data-height="200">box</div>\n'
-            '<lf-chart id="c" data-height="240"><pre>{ariaLabel: "x", marks: []}</pre>'
-            "</lf-chart>\n  </lf-group>",
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 0
-    assert [
-        (f.at, f.values["attr"], f.values["holds"], f.severity)
-        for f in found(findings, "inert-allocation")
-    ] == [
-        ("<main>", "data-width", "content", "advice"),
-        ("<div id=sized>", "data-height", "declared", "advice"),
-        ("<lf-tabs id=page-tabs>", "data-width", "flow", "advice"),
-    ]
 
 
 def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
@@ -581,8 +577,8 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     root's included, and refuses with its words. A nested rule in a style attribute
     parses as a block's contents but not as the declaration list delivery reads,
     and unasked would pass every check only for delivery to refuse it."""
-    from leaf.revision_artifact import ArtifactError
-    from leaf.revision_delivery import DeliveryAddress, rebase_document
+    from leaf.serving.revision_delivery import DeliveryAddress, rebase_document
+    from leaf.source.revision_artifact import ArtifactError
 
     markup = holder.format(f'<p style="{style}">Shown</p>')
     source = styled("", markup)
@@ -669,9 +665,9 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     again on that one revision: an answer the parent no longer counts leaves the
     child's copy of its thread open too, and the action it had superseded, which
     answered nothing, decides the widget there as it does in the parent."""
-    from leaf.events import build_threads
-    from leaf.passages import enclosing_ids
-    from leaf.thread_context import sample_events
+    from leaf.log.events import build_threads
+    from leaf.log.thread_context import sample_events
+    from leaf.source.passages import enclosing_ids
 
     document = structure_model.SourceDocument(
         '<main><lf-suggestion id="sug-a" resolves="c1">'

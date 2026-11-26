@@ -15,7 +15,7 @@
  * Threads are the open ones, each at the element its anchor names, as a heading's link
  * preview counts them. On Me items are the obligations waiting on the user that the
  * outline's document holds, by the rule every count of a region's obligations reads
- * (`obligationsIn`), each at the widget that asks it; a question answered in words
+ * (`readObligations(region)`), each at the widget that asks it; a question answered in words
  * stands nowhere on the page, so it counts here only as its thread. A change counts once
  * in each section its blocks stand in, and a removal in the section it was taken from,
  * by where its gap stands: a paragraph taken from a section's end, whose gap stands
@@ -27,7 +27,8 @@
  * question in a different row from the map's.
  *
  * Each item costs a binary search over the rows, comparing positions in the document. */
-import { elementById, under } from "/runtime/widget-api.js";
+import { elementById } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 
 /** @typedef {{threads: number, onMe: number, changes: number}} SectionMarks */
 /** @typedef {{heading: Element | null, destination: Element}} MarkedSection */
@@ -39,7 +40,7 @@ import { elementById, under } from "/runtime/widget-api.js";
 
 /** Each section's marks, by its heading (the start row's may be null), for those that
  *  hold any: from the page's threads (`readThreads().threads`), the obligations waiting
- *  on the user its document holds (`obligationsIn(scope, readObligations().user)`), and
+ *  on the user its document holds (`readObligations(scope).user`), and
  *  the comparison's changes in it (`comparisonChanges(scope)`).
  * @param {Element} scope the document the outline covers
  * @param {readonly MarkedSection[]} sections the outline's rows, the start row first

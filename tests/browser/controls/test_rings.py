@@ -37,8 +37,8 @@ from browser.controls import (
     RING_NEW_STOP,
 )
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf.render_checks import rendered
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -120,16 +120,14 @@ def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
     page.keyboard.press("Shift+Tab")
     expect(code).to_be_focused()
     rendered(page)
-    accent = tuple(
-        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
-    )
+    ring_ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-ok")))
     for scrolled in (False, True):
         if scrolled:
             page.keyboard.press("ArrowRight")
             page.wait_for_function(
                 "document.querySelector('#patch').shadowRoot.querySelector('code').scrollLeft > 0"
             )
-        edges = mark_edges(page, "diff-viewport", accent)
+        edges = mark_edges(page, "diff-viewport", ring_ink)
         assert all(min(widths) >= 1 for widths in edges.values()), edges
     # Entering a hunk transfers the ring from the whole viewport to its first row.
     # The parent still contains visible focus, so its frame must also respond to
@@ -138,7 +136,7 @@ def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
     expect(row).to_be_focused()
     rendered(page)
     assert row.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
-    edges = mark_edges(page, "diff-viewport", accent)
+    edges = mark_edges(page, "diff-viewport", ring_ink)
     assert min(edges["left"]) == min(edges["right"]) == 0, edges
 
 
@@ -183,9 +181,7 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
         "id => document.getElementById(id).scrollTop > 100", arg=ident
     )
     scroll_settled(page, f"#{ident}")
-    accent = tuple(
-        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
-    )
+    ring_ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-ok")))
     # A page's tabs hang their panel's ring from the strip's rule and stand it a region's
     # room out on its other three sides (tabs.css), clear of the text's first letter; a
     # boxed set's panel is padded inside its frame, and its ring stays inside.
@@ -199,7 +195,7 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
         if reading == "page-tab"
         else {}
     )
-    edges = mark_edges(page, ident, accent, outset)
+    edges = mark_edges(page, ident, ring_ink, outset)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
@@ -235,10 +231,8 @@ def test_a_side_lists_open_panel_rings_its_whole_cell(browser, serve):
     )
     assert reach["hit"] == "words-0", reach
     assert reach["panel"] == pytest.approx(reach["list"], abs=1), reach
-    accent = tuple(
-        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
-    )
-    edges = mark_edges(page, "item-0", accent)
+    ring_ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-ok")))
+    edges = mark_edges(page, "item-0", ring_ink)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
@@ -273,10 +267,8 @@ def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
     box = page.locator("#first").bounding_box()
     clip = {"x": round(box["x"]), "y": round(box["y"] + 40), "width": 4, "height": 1}
     shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-    accent = tuple(
-        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
-    )
-    assert rgb_pixel(shot, (0, 0)) == accent, [
+    ring_ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-ok")))
+    assert rgb_pixel(shot, (0, 0)) == ring_ink, [
         rgb_pixel(shot, (x, 0)) for x in range(4)
     ]
 
@@ -304,7 +296,8 @@ def _button_pairs(serve):
         },
         layer_widgets={
             "lf-button-pairs.js": """
-import {offerAction, once} from '/runtime/widget-api.js';
+import {offerAction} from '/runtime/lib/controls.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-button-pairs', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -424,7 +417,8 @@ def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, se
 
 def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, serve):
     """High-contrast mode keeps a real outline on the focused comment frame, the box
-    the runtime rings for the focused field (focus.js, `ringBox`)."""
+    the runtime rings for the focused field (dom/focus.js, `ringBox`), which draws it on
+    its `::after` over what the frame holds (surfaces.css)."""
     context = browser.new_context(
         viewport={"width": 420, "height": 800}, forced_colors="active"
     )
@@ -432,7 +426,8 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
     box = page_comment(page)
     focus = box.evaluate(
         """async el => {
-          const s = getComputedStyle((await window.__lfCheckApi()).ringBox(el));
+          const s = getComputedStyle(
+            (await window.__lfCheckApi()).ringBox(el), '::after');
           return {style: s.outlineStyle, width: s.outlineWidth};
         }"""
     )
@@ -672,7 +667,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
       if (how === 'an inset wash')
         box.style.boxShadow = 'inset var(--lf-focus-shadow)';
       if (how === 'a wider band')
-        box.style.boxShadow = '0 0 0 calc(var(--lf-focus-ring-w) + 1px) var(--lf-accent)';
+        box.style.boxShadow = '0 0 0 calc(var(--lf-focus-ring-w) + 1px) var(--lf-ok)';
       if (how === 'the band itself')
         box.style.boxShadow = 'var(--lf-focus-shadow)';
       const cs = getComputedStyle(box);
@@ -1083,7 +1078,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
         """() => {
       const control = document.getElementById('ring-control');
       control.style.cssText = `--lf-focus-ring-w: 4px;
-        outline: var(--lf-focus-ring-w) solid var(--lf-accent);
+        outline: var(--lf-focus-ring-w) solid var(--lf-ok);
         outline-offset: calc(-1 * var(--lf-focus-ring-w)); padding: 12px 24px;`;
       control.focus();
       const s = getComputedStyle(control);
@@ -1174,6 +1169,40 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
 
 
+def test_the_ring_reading_passes_over_a_reach_inside_the_control_that_paints_nothing(
+    browser, serve
+):
+    """A box inside a control can take the hits over its ring and paint nothing there,
+    as the reach an option's mark lays back over its row's inset ring does. Hit testing
+    names a pseudo-element by its host, whose styles can't say what the pseudo-element
+    paints, so the screenshot answers: the clear reach covers nothing, and the same
+    reach painted is reported."""
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    page.evaluate("""() => {
+      const sheet = document.createElement('style');
+      document.head.append(sheet);
+      sheet.textContent = `
+        #ring-control {
+          position: relative; padding: 12px 24px;
+          outline: var(--lf-focus-ring);
+          outline-offset: calc(-1 * var(--lf-focus-ring-w));
+        }
+        #ring-reach { position: absolute; left: 12px; top: 0; bottom: 0; width: 4px; }
+        #ring-reach::after {
+          content: ''; position: absolute; inset-block: 0; inset-inline: -12px 100%;
+        }
+        #ring-reach.lf-painted::after { background: red; }`;
+      const control = document.getElementById('ring-control');
+      control.append(Object.assign(document.createElement('span'), { id: 'ring-reach' }));
+      control.focus();
+    }""")
+    clear = current_location_ring(page)
+    assert clear and clear["covers"] == [], clear
+
+    page.locator("#ring-reach").evaluate("reach => reach.classList.add('lf-painted')")
+    assert any("left edge" in c for c in current_location_ring(page)["covers"])
+
+
 def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, serve):
     """A marker's quiet target trace cannot paint over the current obligation's ring."""
     page = open_page(
@@ -1205,7 +1234,6 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
     else:
         pytest.fail("Tab did not reach the obligation's margin marker")
     rendered(page)
-    expect(page.locator("[data-lf-traced]")).to_have_count(0)
     expect(decision).to_have_attribute("data-lf-projected-location", "")
     drawn = rings_drawn(page)
     assert any(ring["who"] == decision.evaluate(NAMED) for ring in drawn), drawn

@@ -14,12 +14,12 @@ from pathlib import Path
 
 import click
 
-from leaf.agent_state import cmd_page_state
-from leaf.delivery import pickup_receipts
-from leaf.event_log import read_events
-from leaf.service import page_claim
-from leaf.state import turn_closed
-from leaf.thread import successful_replies
+from leaf.agents.delivery import pickup_receipts
+from leaf.agents.thread import successful_replies
+from leaf.base.service import page_claim
+from leaf.base.state import turn_closed
+from leaf.commands.agent_state import cmd_page_state
+from leaf.log.event_log import read_events
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
 from leaf_dev.eval_cases import definition
@@ -32,7 +32,7 @@ REQUEST = definition("delivery_eval")["prompts"]["initial"]
 # of the claude-code journey's delivery steps asks to reword one phrase, and so do
 # `mid-turn` and `escape` on the other harnesses, which share them. A rewording keeps
 # the page's meaning and shape, which leaves the session and Claude Code's turn-end
-# check (`leaf.clerk`) nothing more to raise with the user. Each quotes words found
+# check (`leaf.agents.clerk`) nothing more to raise with the user. Each quotes words found
 # once in its section of `examples/triage-board.html`, and no two steps touch the
 # same words.
 COMMENTS = {
@@ -128,7 +128,7 @@ USER_TURN = (
 
 def prepare(arm: Path, state: Path, page: Path) -> None:
     """Prepare the same release-review starting state using the harness's Leaf arm."""
-    run_leaf(arm, state, "page", "init", str(page), check=True)
+    run_leaf(arm, state, "page", "init", "--package", "reading", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
     run_leaf(
         arm, state, "page", "stamp", str(page),
@@ -183,9 +183,11 @@ def claimed(page: Path) -> dict:
     return require(page_claim(page), "the page has no claim")
 
 
-def activity(page: Path) -> str:
-    """What the page's status reads: its activity's kind (`leaf.activity`)."""
-    return cmd_page_state(page)["activity"]["kind"]
+def activity(page: Path) -> tuple[str, str]:
+    """What the page's status reads (`leaf.records.activity`): whether anyone is there to
+    take input, and where the agent's work stands."""
+    reading = cmd_page_state(page)["activity"]
+    return reading["presence"], reading["state"]
 
 
 def settled(page: Path, session: str, sent: dict[str, str]) -> dict:

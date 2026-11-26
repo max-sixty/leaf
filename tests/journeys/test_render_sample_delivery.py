@@ -22,8 +22,8 @@ from render_harness import (
     write,
 )
 
-from leaf import interaction_log as interaction_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS
+from leaf.log import interaction_log as interaction_model
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS
 
 
 @pytest.mark.parametrize("surface", ["panel", "page"])
@@ -64,7 +64,8 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
         "aria-label", "Page menu · Loading comments and choices…"
     )
     # The page's own panel floats over the window's foot, where the sample's stands
-    # too until the page is scrolled to the foot room it keeps clear of its chrome.
+    # too until the page is scrolled to its end, which the column's end padding keeps
+    # above the page's panel.
     page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
     scroll_settled(page)
     outer_box = page_comment(page)

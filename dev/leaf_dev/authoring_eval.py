@@ -1,8 +1,9 @@
 """Short cases that author a real Leaf page with native tools.
 
 Each call owns a scratch cwd, credential home, temp directory and Leaf state.
-The arm's launcher initializes a writable page, so registry discovery and media
-registration use the same boundary as a real authoring run. The agent may edit,
+The author initializes the page with the arm's launcher, as in a real authoring
+run, so the packages the page selects, its theme among them, are the author's
+choice and a case can score it. The agent may edit,
 run commands and check rendering; this executor independently checks the final
 page, plain and with `--render`, without repairing it. Existing assertions read
 the authored HTML, not a claim in the reply. Authors' render checks follow the
@@ -22,13 +23,13 @@ The shared authoring prompt lives in `evals/workflows/authoring_eval.yaml`.
 import hashlib
 import json
 import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
 
-from leaf.data import read_data
-from leaf.media import media_name
-from leaf.registry.storage import load_registry
-from leaf.render_gate import command as render_command_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.serving.media import media_name
 from leaf_dev.arms import (
     author_failure,
     blocks,
@@ -131,6 +132,31 @@ def check_log(trace: list[dict]) -> list[dict]:
     return log
 
 
+def bound_sources(page: Path, state: Path) -> dict:
+    """What each of `page`'s sources holds, judged against the page's layer. A child
+    process reads it under the run's state home `state`, where the run installed its
+    packages (`metadata.installed`), so a layer that selects one of them composes.
+    Read in this process, such a page's layer names a package this machine lacks. A
+    read that fails raises with what the child wrote to stderr."""
+    code = (
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        "from leaf.source.data import read_data\n"
+        "from leaf.source.registry.storage import load_registry\n"
+        "page = Path(sys.argv[1])\n"
+        'print(json.dumps(read_data(page, load_registry(page))["sources"]))\n'
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(page)],
+        env=environment(XDG_STATE_HOME=str(state)),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode:
+        raise RuntimeError(f"reading {page}'s bound data failed:\n{result.stderr}")
+    return json.loads(result.stdout)
+
+
 def execute(
     prompt: str,
     payload: Path,
@@ -170,10 +196,9 @@ def execute(
         )
         if leaf:
             # Packages the user installed on this machine, as `metadata.installed`
-            # names them, before the page the agent writes.
+            # names them, before the page the agent creates and writes.
             for package in metadata.get("installed", ()):
                 run_leaf(payload, state, "package", "install", package, check=True)
-            run_leaf(payload, state, "page", "init", str(page), check=True)
         else:
             page.mkdir()
         setup_seconds = time.monotonic() - started
@@ -254,9 +279,7 @@ def execute(
             # doesn't hold, so a rubric can read a patch or a code view as the
             # reader sees it.
             sources = (
-                read_data(page, load_registry(page))["sources"]
-                if page_valid and is_leaf(condition)
-                else {}
+                bound_sources(page, state) if page_valid and is_leaf(condition) else {}
             )
             page_data = {
                 source: reading.get("value", reading.get("error"))

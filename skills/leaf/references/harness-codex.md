@@ -1,7 +1,6 @@
 # Codex handoff and delivery
 
 Use this reference for Codex in the desktop app, an IDE, a terminal or leaf.page.
-Follow each event's `handling` and, for a thread reply, its `answer.writer`.
 
 ## Full Leaf handoff
 
@@ -19,7 +18,8 @@ that starts the task, such as leaf.page, has already handed the page over.
 `leaf server start` and `leaf server run` start, or join, a background adapter that
 watches every page this task owns, and keeps running when a turn ends. Serving a page
 again restarts an adapter that stopped. To connect delivery for a page you claim
-without serving it, run `leaf page claim <page>`.
+without serving it, run `leaf page claim <page>`, which prepares the adapter before
+it takes ownership.
 
 While your turn runs, Leaf's hooks offer new input between steps. The hook carries
 the complete delivery as a block of JSON, or a pointer when it exceeds Codex's
@@ -61,9 +61,13 @@ changed anchor, use
 checks the reply and posts it at once, and your final message then posts nothing.
 
 If the user resolves the thread before the turn completes, the reserved reply still
-posts and reopens it. Your final message publishes your saved page edits with it,
-so end the turn without running `leaf page check` first. If Leaf refuses to post it,
-as it does over a saved edit with errors, it starts a correction turn with the error
+posts, into the thread, which stays resolved. A final message prints nothing back to
+you, so post news they would want to stop and read, such as that you could not do
+what they asked, with `leaf thread reply <answer.ref>`: the record that command
+prints says whether the thread stayed closed, and `threads.md` says when to reopen it.
+
+Your final message publishes your saved page edits with it, so end the turn without
+running `leaf page check` first. If Leaf refuses to post it, as it does over a saved edit with errors, it starts a correction turn with the error
 and the same reply address; fix the problem and complete the answer. Leaf also
 withholds the final message of a turn that carries a message the user sent in Codex,
 since that answer was written for the user's message too, and starts a correction

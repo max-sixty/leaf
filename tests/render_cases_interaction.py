@@ -52,7 +52,7 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 
 # The panel's Threads view, in the order its rows stand: each thread by its id. A row is
 # keyed by the thread's key, which for a thread this tab started is the attempt that
-# sent it (thread/model.js, `threadKey`), so the page's own reading names its id.
+# sent it (state/thread/model.js, `threadKey`), so the page's own reading names its id.
 LIST_ORDER = """async () => {
   const {readThreads} = await window.__lfWidgetApi();
   const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
@@ -457,8 +457,14 @@ HOLD_MOTION = """
   Element.prototype.animate = function (...args) {
     const motion = inner.apply(this, args);
     // A scroll timeline owns its progress; assigning an absolute time to it throws.
-    // The hold is for gesture animations on the document timeline.
-    if (motion.timeline !== document.timeline) return motion;
+    // The hold is for gesture animations on the document timeline that end. An endless
+    // one has no last frame to step to or finish, as a glide's hold on scroll anchoring
+    // has none (dom/scrolling.js, `holdBox`).
+    if (
+      motion.timeline !== document.timeline ||
+      motion.effect?.getComputedTiming().endTime === Infinity
+    )
+      return motion;
     motion.pause();
     motion.currentTime = 0;
     window.__lfHeld.push(motion);
@@ -646,13 +652,12 @@ MESSAGE_ROOM_PAGE = leaf_page(
 
 
 # What each item of the panel's On view says, as On Me's card or On <agent>'s line: its
-# obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
-# "agent" or "done"), its title, its prompt where its card is open, and what it says of
-# its ending (such as "Answered: …"), each null where the item has none, and its box.
+# obligation's id, the list it stands in ("you", "agent" or "done"), its title, its
+# prompt where its card is open, and what it says of its ending (such as "Answered: …"),
+# each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
     '.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving]) .lf-fp-on-item')].map((c) => ({
-  kind: JSON.parse(c.dataset.lfKey)[0],
-  id: JSON.parse(c.dataset.lfKey)[1],
+  id: c.dataset.lfKey,
   list: c.dataset.lfList,
   title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent
     ?? null,
@@ -913,7 +918,7 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# The location ring round the decision `el` (target-paint.js, `paintLocation`), which
+# The location ring round the decision `el` (readings/target-paint.js, `paintLocation`), which
 # `el` draws as its own outline while it wears `data-lf-projected-location`, read as RING
 # reads an outline: its band's style, width and colour, or "none" where `el` stands in
 # no ring.
@@ -1065,7 +1070,6 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-visual-review id="ab-visual" source="ab-run"></lf-visual-review>
 """,
 )
 
@@ -1089,11 +1093,6 @@ ACTIONS_IN_FORCE = [
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}),
     ("ab-triage", "answer", {}),
-    (
-        "ab-visual",
-        "review",
-        {"case": "status-column", "approved": True},
-    ),
     ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
     (
         "ab-card",
@@ -1183,7 +1182,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
 # A suggestion whose losing slot holds a widget. lf-old takes prose, and prose takes
 # widgets, so a generated label can sit inside the half a decision removes.
 # `settled`, because that is the shape that bites: the summary a retired group collapses
-# to is written by the module and declares its words the page's (`says: true`), which is
+# to is written by the module and declares its words the page's (`data-lf-said`), which is
 # what lets a quote land on them. A pick mark is not that shape — it names the option for
 # a listening user and says nothing the page speaks — so a group offering a live pick
 # would leave this case unexercised.
@@ -1305,23 +1304,17 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "description": "A proposal the user settles with one press and may talk over first in a seat "
     "of its own. `asks` opens the decision; the press settles it.",
     "attributes": {
-        "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "asks": {"type": "boolean"},
-            "restated": {"type": "boolean"},
         },
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "verbs": {
         "settle": {
             "detail": {
-                "type": "object",
                 "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
                 "required": ["answer"],
-                "additionalProperties": False,
             },
             "unit": "widget",
         }

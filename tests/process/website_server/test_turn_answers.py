@@ -24,12 +24,14 @@ from interact_support import (
 from interact_support import append_carried_log_record as append_event
 
 import leaf_website as website_server
-from leaf.codex import delivery_records
-from leaf.delivery import current_responses
-from leaf.event_log import read_events
-from leaf.hosting import LeafHTTPServer
-from leaf.service import PageTransaction, read_stream
-from leaf.state import session_record
+from leaf.agents.codex import delivery_records
+from leaf.agents.delivery import current_responses
+from leaf.base.service import read_stream
+from leaf.base.state import session_record
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.records.transaction import PageTransaction
 from process.website_server import (
     accept_in_turn,
     get,
@@ -196,7 +198,7 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
         [reply] = [event for event in events if event["kind"] == "reply"]
         assert (reply["responds"], reply["failure"]) == (move["id"], "turn_failed")
     [workflow] = returned
-    assert workflow["condition"] == {"kind": "failed", "operation": "response"}
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "failed")
     [record] = [
         item
         for item in state["browser"]["views"][str(state["active"]["revision"])][
@@ -306,7 +308,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         },
     )
     with website_server.PageTransaction(page_dir) as page:
-        page.set_status("idle")
+        set_status(page, "idle")
     harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(
         harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
@@ -564,7 +566,7 @@ def test_a_harness_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     phase,
     owed_move,
 ):
-    from leaf.delivery import record_pickup
+    from leaf.agents.delivery import record_pickup
 
     move = owed_move(page_dir)
     harness = website_server.website_harness("hosted-thread", os.getpid())

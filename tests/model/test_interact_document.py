@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     FLOW_PAGE,
     OPTIONS,
@@ -49,6 +49,7 @@ from interact_support import (
     lock_contention,
     model_layer,
     obligations_on_user,
+    open_todos,
     publish,
     read_page_data,
     refused_on,
@@ -60,45 +61,49 @@ from interact_support import (
     write_revision,
 )
 
-from leaf import agent_state as agent_state_model
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import leases as leases_model
-from leaf import page_memory as page_memory_model
-from leaf import passages as passages_model
-from leaf import projection as projection_model
-from leaf import publishing as publishing_model
-from leaf import reports as reports_model
-from leaf import revision_artifact as artifact_model
-from leaf import revision_delivery as revision_delivery_model
-from leaf import revisioning as revisioning_model
-from leaf import samples as samples_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf.refusals import Refused
-from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema, stamp_words
-from leaf.registry.schema import schema_error
-from leaf.registry.storage import (
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import page_memory as page_memory_model
+from leaf.base import schema as schema_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import agent_state as agent_state_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log import projection as projection_model
+from leaf.pages.render_gate import readings as render_gate_readings
+from leaf.records import publishing as publishing_model
+from leaf.records import reports as reports_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.admission import message_markup_findings
+from leaf.records.authored_checks.source import check_source
+from leaf.records.authored_checks.source_history import predecessor_reading
+from leaf.serving import revision_delivery as revision_delivery_model
+from leaf.serving import samples as samples_model
+from leaf.serving.served_state.context import read_page
+from leaf.serving.served_state.page import read_served_page
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source import passages as passages_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import structure as structure_model
+from leaf.source.registry.contract import (
+    DECLARED_WORDS,
+    RANK,
+    detail_schema,
+    stamp_words,
+)
+from leaf.source.registry.schema import schema_error
+from leaf.source.registry.storage import (
     load_registry,
     read_page_registry,
-    require_registry,
 )
-from leaf.render_gate import readings as render_gate_readings
-from leaf.runtime_selection import executing
-from leaf.served_state.context import read_page
-from leaf.served_state.page import read_served_page
-from leaf.validation import composition as validation_model
-from leaf.validation.admission import message_markup_findings
-from leaf.validation.source import check_source
-from leaf.validation.source_history import predecessor_reading
+from leaf.source.registry.validation import incoming_registry
+from leaf.source.runtime_selection import executing
 from leaf_dev.example_data import captured_value, patch_manifest
 
 # PAGE's group asking, and the same group once the author settles it.
@@ -897,9 +902,8 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     registry: dict[str, dict] = with_modules(
         {
             "lf-draft": {
-                "content": "data",
+                "content": "markdown",
                 "verbatim": True,
-                "text-format": "markdown",
             }
         },
         "lf-draft",
@@ -964,22 +968,15 @@ def construction_nodes(content):
 
 
 def folded(page_dir, board="b1"):
-    """Each column of `board` in the order the page draws it: the position fold over
-    the revision `page state` activates."""
-    revision = state_json(page_dir)["active"]["revision"]
-    _, reading, _ = read_served_page(
-        read_page(page_dir, events_model.read_events(page_dir))
+    """Each column of `board` in the order the page draws it, as `leaf page state`
+    gives it on the board's element, so an agent rewriting a column copies the order
+    rather than rebuilding it from the moves in force."""
+    (element,) = (
+        element
+        for element in state_json(page_dir)["elements"]
+        if element["id"] == board and element["thread"] is None
     )
-    assert reading is not None
-    document = reading.documents[revision]
-    registry = require_registry(page_dir)
-    return projection_model.folded_positions(
-        board,
-        "move",
-        registry["lf-board"]["verbs"]["move"]["record"],
-        projection_model.AuthoredOrders(document.document.by_id, registry),
-        document.projection,
-    )
+    return element["order"]["move"]
 
 
 def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
@@ -1019,7 +1016,7 @@ RANK_CASES = json.loads((Path(__file__).parents[1] / "rank_cases.json").read_tex
 
 def test_rank_rules_match_the_browser_cases():
     """`tests/runtime/board-order.test.mjs` reads the same cases against
-    `projection/model.js`, so the two runtimes rank authored units alike and the
+    `lib/rank.js`, so the two runtimes rank authored units alike and the
     append door admits what a widget computes."""
     assert RANK == RANK_CASES["pattern"]
     for index, rank in RANK_CASES["authored"]:
@@ -1100,7 +1097,7 @@ def test_a_moves_revision_is_read_under_its_own_vocabulary():
     the wrapper's tag a position declaration of its own. The board authors `c` the
     same way in both, so a move made on revision 1 stands; reading revision 1 under
     revision 2's vocabulary would hand `c` to the wrapper and absorb the move."""
-    from leaf.registry.contract import state_definition
+    from leaf.source.registry.contract import state_definition
 
     record = {"kind": "position", "within": "lf-column"}
     then = model_layer()
@@ -1340,7 +1337,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
 
 def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
     """An unfinished declaration remains author feedback, not a broken state read."""
-    from leaf.revision_artifact import read_revision
+    from leaf.source.revision_artifact import read_revision
 
     registry = page_dir / "page" / "registry.json"
     registry.parent.mkdir(exist_ok=True)
@@ -1401,13 +1398,14 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored = data_model.source_file(page_dir, "builds")
     state = state_json(page_dir)
     assert stored == page_dir / state["data"]["dir"] / "builds.json"
-    assert json.loads(stored.read_text())["value"] == ["passing"]
+    file = data_model.PUBLICATION.file(stored)
+    assert json.loads(file.read_text())["value"] == ["passing"]
     [consumer] = state["data_bindings"]["builds"]["consumers"]
     assert consumer["widget"] == "test-data"
     assert state["data"]["errors"] == []
 
-    publication = json.loads(stored.read_text())
-    stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
+    publication = json.loads(file.read_text())
+    file.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
     _, findings = check_findings(page_dir)
@@ -1612,9 +1610,10 @@ def test_check_rejects_widget_violations(page_dir):
 
 
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
-    """A data widget's text is its <pre> or its bound input, never both, so text
-    written under a binding, which the widget would never show, is refused. Written
-    text names its origin with a label, as a bound document names its file."""
+    """A data widget's text is its <pre> or its bound `value` input, never both, so
+    text written under a binding, which the widget would never show, is refused. An
+    input with another property, as a code block's playhead, leaves the <pre> its text.
+    Written text names its origin with a label, as a bound document names its file."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1625,7 +1624,8 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
             '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
             '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
             "</lf-text-document>"
-            '<lf-code id="bare-code"></lf-code>',
+            '<lf-code id="bare-code"></lf-code>'
+            '<lf-code id="following" for="written"><pre>x = 1</pre></lf-code>',
         )
     )
     _, findings = check_findings(page_dir)
@@ -1635,38 +1635,6 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
     ]
     assert [f.at for f in found(findings, "attribute-schema")] == ["<lf-text-document>"]
     assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
-
-
-def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
-    """Every block of code names its language one way, a `language-…` class, and one
-    check reads every such class, a widget's as a native block's: a name the layer
-    can't colour, a misspelling or a language it has no grammar for, is reported
-    beside the page and refuses nothing, since the class still names the code truly.
-    A grammar's alias, such as `py`, colours as its name does, and `math` names a
-    formula, which the browser typesets."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2>\n"
-            '<pre><code class="language-pythn">x = 1</code></pre>\n'
-            '<pre><code class="language-py">y = 2</code></pre>\n'
-            '<p>Its area is <code class="language-math">\\pi r^2</code>.</p>\n'
-            '<lf-code id="walk-bad"><pre><code class="language-pythn">z = 3\n'
-            "</code></pre></lf-code>\n"
-            '<lf-text-document id="notes" source="notes" class="language-haskell">'
-            "</lf-text-document>",
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 0
-    assert [
-        (f.at, f.values["language"], f.severity)
-        for f in found(findings, "uncoloured-language")
-    ] == [
-        ("<code>", "pythn", "advice"),
-        ("<code>", "pythn", "advice"),
-        ("<lf-text-document>", "haskell", "advice"),
-    ]
 
 
 def test_check_advises_on_markdown_the_page_shows_as_typed(page_dir):
@@ -1699,7 +1667,8 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     day it landed, so the floor ratchets: the next declared attribute joins the
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
-    holds, which a one-version corpus cannot earn.
+    holds, which a one-version corpus cannot earn — and `id`, which composition
+    gives every element and no declaration lists.
 
     Live samples are example pages too; their child documents contribute the
     attributes the reader can exercise there.
@@ -1708,7 +1677,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     here, which is how it followed lf-diagram and lf-diff into their own packages.
     Widening it that way brought pr-review's two widgets under the floor for the
     first time and found one uncovered attribute, exempted below."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     used = {}
 
     def read(document):
@@ -1727,7 +1696,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         if not tag.startswith("lf-"):
             continue
         for attr, spec in entry["attributes"].get("properties", {}).items():
-            if attr in {"restated", "overruled", "resolves"}:
+            if attr in {"id", "restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
@@ -1751,13 +1720,10 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
     zone = {
         "description": "A project package's differently named pane.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
             },
             "required": ["id", "label"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "reading-role": "pane",
@@ -1993,6 +1959,102 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     assert errors(markup.replace('resolves="plan"', 'resolves="c1"')) == []
 
 
+def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
+    """A wrong `commandfor` or `command` leaves a button doing nothing, with no error
+    from the browser, so a dead button would reach the user. A message's button may
+    name the page's widget, and a duplicate id, which the browser would resolve to
+    whichever element comes first, is refused before it can misdirect one."""
+    registry = load_registry(page_dir)
+    page = structure_model.SourceDocument(
+        PAGE.replace(
+            "</main>",
+            '<lf-code id="film"><pre>1</pre></lf-code><dialog id="more"></dialog></main>',
+        )
+    )
+
+    def message(markup):
+        return message_markup_findings(
+            page_dir,
+            structure_model.SourceDocument(markup),
+            events_model.read_events(page_dir),
+            registry,
+            page,
+            set(),
+            [],
+            {},
+            None,
+        )
+
+    def errors(target, command):
+        return message(f'<button commandfor="{target}" command="{command}">Go</button>')
+
+    assert errors("film", "--seek") == []
+    assert errors("more", "show-modal") == []
+    assert errors("more", "SHOW-MODAL") == []
+    assert found(
+        errors("flim", "--seek"), "unknown-reference", attr="commandfor", target="flim"
+    )
+    assert found(errors("film", "seek"), "unknown-command", command="seek")
+    assert found(
+        message('<button commandfor="film">Go</button>'), "unknown-command", command=""
+    )
+    assert found(
+        message(
+            '<lf-code id="film"><pre>1</pre></lf-code>'
+            '<button commandfor="film" command="--seek">Go</button>'
+        ),
+        "ids-taken",
+        ids=["film"],
+    )
+
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>", '<button commandfor="nowhere" command="seek">Go</button></main>'
+        )
+    )
+    assert found(
+        check_findings(page_dir)[1],
+        "unknown-reference",
+        attr="commandfor",
+        target="nowhere",
+    )
+
+
+def test_a_message_names_only_its_own_document_and_the_page(page_dir):
+    """A reference reads the message's document and then the page, so one naming an id
+    in another message would draw nothing; it is refused where the agent writes it."""
+    registry = load_registry(page_dir)
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "agent",
+            "revision": 1,
+            "text": 'Here\n\n<lf-code id="earlier"><pre>1</pre></lf-code>',
+        },
+    )
+
+    assert found(
+        message_markup_findings(
+            page_dir,
+            structure_model.SourceDocument(
+                '<lf-tally id="count" for="earlier"></lf-tally>'
+            ),
+            events_model.read_events(page_dir),
+            registry,
+            structure_model.SourceDocument(PAGE),
+            set(),
+            [],
+            {},
+            None,
+        ),
+        "unknown-reference",
+        attr="for",
+        target="earlier",
+    )
+
+
 def test_a_reply_carrying_a_suggestion_posts_and_says_what_deciding_it_changes(
     page_dir,
 ):
@@ -2032,8 +2094,8 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2084,8 +2146,8 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
                 },
             )
         )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2128,8 +2190,8 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2420,8 +2482,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         "thread", "reply", "t-store", "--text", "Weighing it.", "--todo", "Weigh"
     )
     assert promised.exit_code == 0, promised.output
-    [task] = json.loads(run("page", "state").output)["todos"]
-    assert (task["id"], task["subject"]) == (
+    [task] = open_todos(json.loads(run("page", "state").output))
+    assert (task["id"], task["source"]["subject"]) == (
         json.loads(promised.output)["id"],
         {"kind": "thread", "id": opened["id"]},
     )
@@ -2492,6 +2554,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     sent = _report(page_dir, "t-parser", "status", "value=review")
     assert sent.exit_code == 0, sent.output
@@ -2519,7 +2582,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     _tasks_version(page_dir, "review")
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_record = service_model.PageTransaction._append_record
+    original_append_record = transaction_model.PageTransaction._append_record
 
     def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
@@ -2530,7 +2593,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         return original_append_record(page, event)
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "_append_record", held_append_record
+        transaction_model.PageTransaction, "_append_record", held_append_record
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
@@ -2823,7 +2886,9 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert written.exit_code == 0, written.output
     served = state_json(page_dir)
     first = read_page_data(page_dir)
-    stored = data_model.source_file(page_dir, "deployments")
+    stored = data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "deployments")
+    )
     assert first["sources"]["deployments"] == {
         "contract": "deployment-rows",
         "revision": hashlib.sha256(
@@ -3012,9 +3077,11 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
         **{key: source[key] for key in ("contract", "revision", "run", "updated")},
     }
     assert source["value"] == {"main": "passing"}
-    assert json.loads(data_model.source_file(page_dir, "builds").read_text())[
-        "value"
-    ] == {"main": "passing"}
+    assert json.loads(
+        data_model.PUBLICATION.file(
+            data_model.source_file(page_dir, "builds")
+        ).read_text()
+    )["value"] == {"main": "passing"}
 
 
 def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
@@ -3036,7 +3103,9 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
 
     data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
-    assert data_model.source_file(page_dir, "project-feed").exists()
+    assert data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "project-feed")
+    ).exists()
 
 
 def test_a_source_bound_only_by_reply_html_can_be_set(page_dir):
@@ -3298,11 +3367,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "resolved": None,
             "unread": [answered["id"]],
             # The reply names no `responds`, so the comment is still owed an answer.
-            "attention": {
-                "kind": "waiting",
-                "reason": "workflow",
-                "workflow": opened["id"],
-            },
+            "attention": f"update:{opened['id']}",
         }
     ]
     history = CliRunner().invoke(
@@ -3942,7 +4007,7 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
     theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
-    look = (schema_model.BUNDLED_PACKAGES / "reading/defaults.css").read_text()
+    look = (schema_model.BUNDLED_PACKAGES / "reading/theme.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
@@ -3974,10 +4039,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     def declare(registry):
         registry["lf-label"] = {
             "description": "An inline label.",
-            "attributes": {
-                "type": "object",
-                "properties": {},
-            },
+            "attributes": {"properties": {}},
             "content": "markup",
             "owners": ["lf-column"],
         }
@@ -4201,7 +4263,9 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     )
     with fresh_process():
         state = agent_state_model.cmd_page_state(page_dir)
-    assert [item["status"] for item in state["obligations"]] == ["withdrawn"]
+    assert [(item["state"], item["outcome"]) for item in state["obligations"]] == [
+        ("done", "dropped")
+    ]
     assert set(authored) == {active.read_text()}
 
 
@@ -4213,7 +4277,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     A history larger than the parse cache doesn't parse every predecessor on every
     read. Count parses rather than time, so contention cannot change the result.
     """
-    from leaf.work_reading import WorkReading
+    from leaf.records.work_reading import WorkReading
 
     source = PAGE.replace(PAGE_GROUP, ASKING)
     for edit in range(4):
@@ -4257,7 +4321,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     with fresh_process():
         initial = read()
         assert len(parsed) == 4
-        assert initial["all"][0]["status"] == "withdrawn"
+        assert initial["all"][0]["outcome"] == "dropped"
         parsed.clear()
         assert read() == initial
         assert len(parsed) <= 1  # the first read's history parses evicted the active
@@ -4453,7 +4517,7 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
 
 
 def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
-    from leaf.registry.contract import state_definition
+    from leaf.source.registry.contract import state_definition
 
     registry: dict[str, dict] = {
         "lf-draft": {
@@ -4564,7 +4628,7 @@ def test_projected_verbatim_includes_generated_children():
         "seq": 1,
     }
 
-    from leaf.registry.contract import state_definition
+    from leaf.source.registry.contract import state_definition
 
     event["meaning"]["state"] = state_definition(
         "lf-list", registry["lf-list"], registry["lf-list"]["verbs"]["add"]
@@ -4600,8 +4664,7 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     )
     registry: dict[str, dict] = {
         "lf-draft": {
-            "content": "data",
-            "text-format": "markdown",
+            "content": "markdown",
             "verbatim": True,
         }
     }
@@ -4628,7 +4691,7 @@ def test_message_html_lands_where_the_browser_draws_it(case):
     whose HTML changes what it draws holds HTML."""
     import turbohtml
 
-    # A <br> parts the words around it, as Leaf reads them (markdown.js,
+    # A <br> parts the words around it, as Leaf reads them (lib/markdown.js,
     # `renderedWords`), whatever formatting text each parser writes after it.
     def words(node):
         if isinstance(node, turbohtml.Text):
@@ -4774,7 +4837,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     [item] = [
         item for item in reading["obligations"] if item["source"]["kind"] == "widget"
     ]
-    assert item["status"] == "answered"
+    assert (item["state"], item["outcome"], item["end"]) == ("done", "done", None)
     assert item["answer"]["event"]["id"] == picked["id"]
 
 

@@ -1,10 +1,10 @@
 /* A key pressed at a control the user has scrolled out of sight lets go of it first and
-   acts from the page; typing and Escape keep the control (keyboard/controller.js). */
+   acts from the page; typing and Escape keep the control (panel/page-keys/controller.js). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mountKeyboard } from "../../browser/runtime/keyboard/controller.js";
-import { keys } from "../../browser/runtime/keyboard/scopes.js";
-import { focused } from "../../browser/runtime/focus.js";
+import { mountKeyboard } from "../../browser/runtime/panel/page-keys/controller.js";
+import { keys } from "../../browser/runtime/dom/keyboard/scopes.js";
+import { focused } from "../../browser/runtime/dom/focus.js";
 
 mountKeyboard({
   goToSequenceActive: () => false,
@@ -66,12 +66,12 @@ test("a key at a control the user scrolled away from lets go of it first", () =>
     press(widget, "2");
     assert.notEqual(focused(), widget, "a key acted at a control out of sight");
     // The key that lets go reaches no listener past the document's capture, and Leaf's
-    // own command for a key that is not a character still runs. Escape reached the
-    // widget's own listener and then Leaf's command for it, which the page's listener
-    // on the document comes after.
+    // own command for it still runs. In sight, `2` and Escape reached the widget's own
+    // listener and then Leaf's command for them, which the page's listener on the
+    // document comes after.
     widget.focus();
     press(widget, "Enter");
-    assert.deepEqual(heard, ["widget Escape"]);
+    assert.deepEqual(heard, ["widget 2", "widget Escape"]);
     // Back in view, the control is no longer where the user is.
     standAt(widget, 0);
     press(document.body, "2");

@@ -1,14 +1,9 @@
 /* A seated obligation whose press paints optimistically before dispatching settlement. */
 import { nothing } from "/vendor/lit.js";
-import {
-  keeps,
-  keepsHidden,
-  keepsText,
-  offer,
-  offerAction,
-  threadSurface,
-  LeafElement,
-} from "/runtime/widget-api.js";
+import { threadSurface } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 export function defineSeatedObligation() {
   customElements.define(
@@ -18,11 +13,7 @@ export function defineSeatedObligation() {
         this.press = offer("button", "lf-settle", "Accept");
         this.press.onclick = () => {
           this.settled();
-          this.controller.dispatch({
-            kind: "action",
-            verb: "settle",
-            detail: { answer: "yes" },
-          });
+          this.record("settle", { answer: "yes" });
         };
         // The threads about the verdict, and the comment box that starts one, stand
         // under its press.
@@ -54,7 +45,10 @@ export function defineSeatedObligation() {
           keepsText(this.press, "Accept");
           keeps(this.press, "aria-pressed", false);
         }
-        keepsHidden(this.comment, this.writing || !threadSurface(this).open);
+        this.comment.toggleAttribute(
+          "hidden",
+          this.writing || !threadSurface(this).open,
+        );
         return nothing;
       }
     },

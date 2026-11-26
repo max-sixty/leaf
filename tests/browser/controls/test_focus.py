@@ -35,8 +35,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
 
@@ -72,7 +72,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
         if arrivals == 2:
             break
     assert arrivals == 2, "Tab never came back round to the reference's first stop"
-    # Tab reads Close's preview, which the first Escape puts away (keyboard/AGENTS.md,
+    # Tab reads Close's preview, which the first Escape puts away (dom/keyboard/AGENTS.md,
     # "Escape"); the next closes the reference.
     put_preview_away(page)
     page.keyboard.press("Escape")
@@ -108,11 +108,10 @@ def test_tab_from_the_pages_last_control_reaches_the_panel_s_row(
 def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, serve):
     """`g T` from the page stands Threads on its first row, which wears a ring, and
     Escape from a thread's reply in the panel stands the user on the thread's view,
-    which wears none (floating-panel.css, `.lf-fp-view:focus`)."""
+    which wears none (floating-panel.css, `.lf-fp-view:focus`). A thread about the
+    whole page opens in the panel whatever the user chose for threads."""
     url = serve(PANEL_PAGE)
-    panel_comment(
-        serve.page_dir, "Where should this explanation go?", {"section": "lede"}
-    )
+    panel_comment(serve.page_dir, "Where should this explanation go?")
     page = open_page(browser, url)
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("g")
@@ -728,7 +727,7 @@ def test_a_walk_in_a_box_no_reading_region_moves_shows_the_ring(
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.
 HAND_BACK = """async (step) => {
-  const {handBack} = await window.__lfWidgetApi();
+  const {handBack} = await window.__lfCheckApi();
   const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
   const main = document.querySelector('main');
   const made = (tag, id, parent = main, hidden = false) => {

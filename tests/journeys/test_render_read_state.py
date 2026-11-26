@@ -24,10 +24,10 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import (
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import (
     PROBE_POLL_MS,
     SERVED_TIMEOUT_MS,
     rendered,
@@ -242,7 +242,9 @@ def _read_by_the_sample(page, child):
     """The control: the child sends the message read, and its server holds it read."""
     _expect_news(child, False)
     round_trip(child)
-    state = page.request.get(f"{child.url}api/state").json()
+    state = page.request.get(
+        child.evaluate("new URL('api/state', document.baseURI).href")
+    ).json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
     assert thread["unread"] == {}
@@ -518,6 +520,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         " .lf-msg-body"
     )
     expect(body).to_have_count(1)
+    # The answer is drawn while it stands below the window's foot, so its layout has
+    # its own frame before the scroll brings it into view.
+    rendered(page)
     # The answer's foot 20px under the open view's top edge, or 20px above it.
     page.evaluate(
         """([body, card, under]) => scrollBy(0, body.getBoundingClientRect().bottom

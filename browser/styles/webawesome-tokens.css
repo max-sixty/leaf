@@ -3,7 +3,7 @@
    inheritance, including declared shadow stages. Map Leaf tokens at that same root so
    upstream's derived tokens resolve against them, and on controls so local Leaf
    palettes still apply. A page without Leaf takes both at its root
-   (`leaf.layer.portable_sheet`), as it takes tokens.css, so the faces Leaf takes from
+   (`leaf.source.layer.portable_sheet`), as it takes tokens.css, so the faces Leaf takes from
    the library (controls.css) look the same in its widgets. Public parts carry Leaf's
    logical focus, rather than a second native focus ring (components/webawesome.css). */
 :where(:root),
@@ -50,7 +50,7 @@ wa-input {
      Components own which state uses the pair, through their upstream tokens. */
   --wa-color-brand-fill-loud: var(--lf-accent);
   --wa-color-brand-on-loud: light-dark(var(--lf-card), var(--lf-paper));
-  --wa-color-focus: var(--lf-accent);
+  --wa-color-focus: var(--lf-ok);
   /* Upstream's corner scale is Leaf's (tokens.css, `--lf-r`); one home for both. */
   --wa-border-radius-s: var(--lf-r-s);
   --wa-border-radius-m: var(--lf-r);

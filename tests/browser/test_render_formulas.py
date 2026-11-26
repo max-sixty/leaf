@@ -5,9 +5,9 @@ from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_harness import consume_browser_errors, open_page, select
 
-from leaf import anchor_capture as anchor_capture_model
-from leaf import passages as passages_model
-from leaf import structure as structure_model
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
 
 LONG = " + ".join(f"a_{{{n}}} x^{{{n}}}" for n in range(1, 31))
 FORMULAS = leaf_page(
@@ -19,7 +19,7 @@ FORMULAS = leaf_page(
     f'<p id="series">The series runs <code class="language-math">{LONG}</code>.</p>',
 )
 
-# What the page's comment capture reads of the selection (native-selection.js,
+# What the page's comment capture reads of the selection (dom/native-selection.js,
 # `pageRange`): the anchor it would quote, or null where the selection is a caret.
 SELECTED = """async () => {
   const { anchorForRange, pageRange } = await window.__lfCheckApi();

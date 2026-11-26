@@ -25,15 +25,15 @@ from interact_support import (
 )
 from model.interact_contract import _value_verb
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage
+from leaf.agents import thread as thread_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -182,21 +182,15 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     assert found(findings, "withdraws-outcome", "<lf-trial>", outcome="missing")
 
 
-@pytest.mark.parametrize(
-    ("arrangement", "refusal"),
-    [
-        ("own-verb", None),
-        ("recording-column-value", None),
-        ("recording-column-position", "'card' is not owned by action widget 'board'"),
-    ],
-)
+@pytest.mark.parametrize("arrangement", ["own-verb", "recording-column-value"])
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
-    server, page_dir, arrangement, refusal
+    server, page_dir, arrangement
 ):
     """A card's place belongs to the nearest ancestor recording that position slot.
 
     Scalar records on the card or its column coexist with the board's position
-    record. A column recording positions takes that slot from the board."""
+    record. A nearer widget recording the same slot takes it from the board
+    (`test_nested_member_records_refuse_foreign_selection_and_position`)."""
     card_verbs = {"flag": _value_verb("flag")}
     recorders = {"lf-card": ("flag", card_verbs)}
     if arrangement.startswith("recording-column"):
@@ -210,15 +204,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             entry = registry[tag]
             entry["attributes"]["properties"] |= {
                 attr: {"type": "string"},
-                "restated": {"type": "boolean"},
             }
             entry["verbs"] = verbs
             (widgets / f"{tag}.js").write_text("export default class {}\n")
-        if arrangement == "recording-column-position":
-            registry["lf-column"]["verbs"]["move"] = {
-                "unit": "unit",
-                "record": {"kind": "position", "within": "lf-column"},
-            }
 
     declare_on_page(page_dir, record)
     result = check(page_dir)
@@ -246,11 +234,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             }
         ).encode(),
     )
-    if refusal is None:
-        assert status == 200, body
-    else:
-        assert status == 400, body
-        assert refusal in json.loads(body)["error"]
+    assert status == 200, body
 
 
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):

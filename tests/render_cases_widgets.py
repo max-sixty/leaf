@@ -9,42 +9,43 @@ from render_harness import (
     leaf_page,
 )
 
-from leaf import anchor_capture as anchor_capture_model
-from leaf import passages as passages_model
-from leaf.registry import storage as registry_storage
-from leaf.structure import SourceDocument
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import passages as passages_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.structure import SourceDocument
 
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
 # controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
-import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";
+import { layerFact } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
-    return this.attachShadow({mode: "open"});
+    return this.shadowRoot ?? this.attachShadow({mode: "open"});
   }
 
   setup() {
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
     const held = globalThis.__heldLocalPresentations?.get(this.id);
-    if (held) this.controller.present(held);
+    // Said from inside the widget, the work is its preparation, which holds the page
+    // apart from the widget's own drawing.
+    if (held) this.createRenderRoot().dispatchEvent(new PendingTaskEvent(held));
   }
 
   // The gesture writes its own result into the output, which a deferral holds the
   // widget's drawing over.
   choose() {
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
-    const sent = this.controller.dispatch({
-      kind: "action",
-      verb: "choose",
-      detail: { value: "chosen" },
-    });
-    if (!sent) return;
-    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
+    const delivery = this.record("choose", { value: "chosen" });
+    if (!delivery) return;
+    this.renderRoot.querySelector("output").value = this.state.choose.value;
     keeps(this, "data-delivery", "pending");
-    sent.delivery.then(accepted => {
+    delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
   }
@@ -55,10 +56,10 @@ customElements.define("lf-local", class extends LeafElement {
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
-    const {state, actions} = this.reading;
+    const {state} = this;
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
+    return html`<button ?disabled=${!state.choose.available} @click=${this.choose}>Choose</button>
       <output .value=${live(state.choose.value)}></output>`;
   }
 });
@@ -69,14 +70,10 @@ PAGE_DECLARATION = {
     "lf-local": {
         "description": "A page-owned local widget.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "choice": {"type": "string"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {
@@ -178,13 +175,10 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "visual": {"parts": "parts"},
@@ -232,7 +226,7 @@ def prefixed_visual_layer(*prefixes):
             **entry,
             "attributes": {
                 **entry["attributes"],
-                "properties": {"id": entry["attributes"]["properties"]["id"]},
+                "properties": {},
                 "required": ["id"],
             },
             "visual": {"prefixes": list(prefixes)},
@@ -252,13 +246,10 @@ SHADOW_VISUAL_LAYER = {
     "lf-test-shadow-visual": {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,
@@ -582,10 +573,10 @@ CHART_MARKS = """(id) => {
     });
     probe.remove();
     const marks = {};
-    for (const g of svg.querySelectorAll('g[data-lf-part]')) {
+    for (const g of svg.querySelectorAll('g[data-lf-plot]')) {
         const shapes = [...g.querySelectorAll('rect, path, circle')];
         if (!shapes.length) continue;
-        const part = g.dataset.lfPart;
+        const part = g.dataset.lfPlot;
         (marks[part] ??= []).push(...shapes.map((shape) => {
             const paint = getComputedStyle(shape);
             return [shape.tagName.toLowerCase(), paint.fill, paint.stroke];
@@ -1067,10 +1058,9 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# The room the document leaves at each end for chrome standing over it, beside the
-# floating panel's footprint at the window's foot: from its row's top edge down. The
-# room is in the flow, so the reading is the flow's own: what stands above the page's
-# first block and what is left under its last.
+# The room the document leaves at each end beyond `main`, beside the floating panel's
+# footprint at the window's foot: from its row's top edge down. The reading is the
+# flow's own: what stands above the page's first block and what is left under its last.
 CHROME_ROOM = """() => {
     const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();

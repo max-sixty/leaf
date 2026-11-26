@@ -17,8 +17,9 @@ from interact_support import (
     running_http_server,
 )
 
-from leaf.cli import cli
-from leaf.file_bindings import (
+from leaf.base.locations import PATH_LOCKS, path_lock_key
+from leaf.commands.cli import cli
+from leaf.source.file_bindings import (
     BINDINGS,
     MAX_FILE_BYTES,
     FileBindingError,
@@ -29,8 +30,7 @@ from leaf.file_bindings import (
     read_file,
     save_file,
 )
-from leaf.locations import PATH_LOCKS, path_lock_key
-from leaf.served_state.reading import page_reading
+from leaf.source.page_inputs import page_reading
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
@@ -223,7 +223,7 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
             save_file(page_dir, "notes", body)
     assert target.read_bytes() == b"original\n"
     with pytest.raises(FileBindingError):
-        bind_file(page_dir, "grants", page_dir / "files.json")
+        bind_file(page_dir, "grants", BINDINGS.file(page_dir / "files.json"))
     substitute = tmp_path / "other.txt"
     substitute.write_bytes(b"private\n")
     target.unlink()
@@ -263,7 +263,7 @@ def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(
 
 
 def test_two_pages_share_one_target_write_lock(tmp_path, monkeypatch):
-    from leaf import file_bindings
+    from leaf.source import file_bindings
 
     target = tmp_path / "shared.txt"
     target.write_text("original\n")
@@ -353,11 +353,11 @@ def test_http_file_door_requires_key_origin_and_current_revision(
         assert json.loads(raw)["error"].startswith("Could not access the bound file:")
         assert str(target.parent).encode() not in raw
 
-    from leaf.files import latest_revision
-    from leaf.hosting import LeafHTTPServer
-    from leaf.http import page_endpoint
-    from leaf.page_snapshot import capture_page_snapshot
-    from leaf.revision_artifact import read_artifact, read_revision
+    from leaf.base.files import latest_revision
+    from leaf.pages.hosting import LeafHTTPServer
+    from leaf.pages.page_snapshot import capture_page_snapshot
+    from leaf.serving.http import page_endpoint
+    from leaf.source.revision_artifact import read_artifact, read_revision
 
     revision = latest_revision(page_dir)
     assert revision is not None

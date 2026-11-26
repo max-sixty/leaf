@@ -9,12 +9,12 @@ export {};
 /** @typedef {import("./domain.js").Event} Event */
 /** @typedef {import("./domain.js").Command} Command */
 /** @typedef {import("./domain.js").Thread} Thread */
-/** @typedef {typeof import("../runtime/framework/application.js").createSemanticApplication} CreateApplication */
-/** @typedef {typeof import("../runtime/thread/model.js").discussed} Discussed */
-/** @typedef {typeof import("../runtime/thread/model.js").threadNames} ThreadNames */
-/** @typedef {typeof import("../runtime/projection/model.js").foldProjection} FoldProjection */
-/** @typedef {typeof import("../runtime/application.js").post} Post */
-/** @typedef {typeof import("../runtime/application.js").dispatchWidget} DispatchWidget */
+/** @typedef {typeof import("../runtime/state/semantic-application.js").createSemanticApplication} CreateApplication */
+/** @typedef {typeof import("../runtime/state/thread/model.js").discussed} Discussed */
+/** @typedef {typeof import("../runtime/state/thread/model.js").threadNames} ThreadNames */
+/** @typedef {typeof import("../runtime/state/projection/model.js").foldProjection} FoldProjection */
+/** @typedef {typeof import("../runtime/host/application.js").post} Post */
+/** @typedef {typeof import("../runtime/host/application.js").dispatchWidget} DispatchWidget */
 
 /** @template T @typedef {0 extends 1 & T ? true : false} IsAny */
 /** @type {IsAny<Event>} */
@@ -34,8 +34,8 @@ const projectionIsChecked = false;
  * @param {ReturnType<CreateApplication>} app
  * @param {Event} event
  * @param {Thread} thread
- * @param {ReturnType<typeof import("../runtime/pending/dispatch.js").createCommandDispatch>} dispatch
- * @param {typeof import("../runtime/pending/model.js").actionForWidget} actionForWidget
+ * @param {ReturnType<typeof import("../runtime/records/pending/dispatch.js").createCommandDispatch>} dispatch
+ * @param {typeof import("../runtime/state/pending/model.js").actionForWidget} actionForWidget
  * @param {Post} post
  */
 function boundary(app, event, thread, dispatch, actionForWidget, post) {
@@ -91,7 +91,7 @@ function boundary(app, event, thread, dispatch, actionForWidget, post) {
 }
 void boundary;
 
-/** @param {typeof import("../runtime/semantic-state.js").applicationPresenter} presenter
+/** @param {typeof import("../runtime/state/semantic-state.js").applicationPresenter} presenter
  * @param {boolean} enabled */
 function presenterBoundary(presenter, enabled) {
   presenter({
@@ -109,11 +109,11 @@ function presenterBoundary(presenter, enabled) {
 }
 void presenterBoundary;
 
-/** @param {typeof import("../runtime/activity-words.js").pageStatus} pageStatus
- * @param {typeof import("../runtime/activity-words.js").statusModel} statusModel
- * @param {Parameters<typeof import("../runtime/activity-words.js").pageStatus>[0]} state
- * @param {Parameters<typeof import("../runtime/activity-words.js").statusModel>[1]} queues
- * @param {typeof import("../runtime/thread/workflow.js").workflowWord} workflowWord */
+/** @param {typeof import("../runtime/state/activity-words.js").pageStatus} pageStatus
+ * @param {typeof import("../runtime/state/activity-words.js").statusModel} statusModel
+ * @param {Parameters<typeof import("../runtime/state/activity-words.js").pageStatus>[0]} state
+ * @param {Parameters<typeof import("../runtime/state/activity-words.js").statusModel>[1]} queues
+ * @param {typeof import("../runtime/records/thread/workflow.js").workflowWord} workflowWord */
 function wordingBoundary(pageStatus, statusModel, state, queues, workflowWord) {
   // @ts-expect-error The server's status detail is text, not an unchecked value.
   pageStatus({ ...state, activity: { ...state.activity, detail: 123 } });

@@ -50,9 +50,14 @@ from playwright.sync_api import (
 )
 from playwright.sync_api import Error as PlaywrightError
 
-from leaf.findings import Finding
-from leaf.render_checks import PageNotReady, wait_until_ready
-from leaf.render_gate.scheme import collect_page_errors
+from leaf.base.findings import Finding
+from leaf.pages.render_gate.scheme import collect_page_errors
+from leaf.source.render_checks import (
+    PageNotReady,
+    open_render_context,
+    open_render_page,
+    wait_until_ready,
+)
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     codex_home,
@@ -186,7 +191,7 @@ def observe_startup(page: Page) -> list[Finding]:
 
 
 def await_presentation(
-    page, url: str, failures: list[Finding], timeout: int = 30_000
+    page, url: str, failures: list[Finding], timeout: int | None = None
 ) -> None:
     """Wait until the page has presented the state it read (`wait_until_ready`
     through `presented`); a page that never does names the readiness stage it
@@ -207,7 +212,7 @@ def load_presented(
     failing with `unloaded`, and its state to present (`await_presentation`).
     Returns the errors the page raised and the document's response."""
     failures = observe_startup(page)
-    response = page.goto(url, wait_until="load", timeout=120_000)
+    response = page.goto(url, wait_until="load")
     check(response is not None and response.ok, unloaded or f"{url} did not load")
     assert response is not None
     await_presentation(page, url, failures)
@@ -308,7 +313,7 @@ def activation_url(page_url: str, state: dict) -> str:
 
 def activation_read(context, activation: str) -> APIResponse:
     """The read that allocates this session's container, held to being an answer."""
-    return answered(context.request.get(activation, timeout=120_000), activation)
+    return answered(context.request.get(activation), activation)
 
 
 def host_addresses() -> dict[str, frozenset]:
@@ -355,10 +360,10 @@ def user_session(
     direct_agent: bool = False,
 ) -> AgentSession | str:
     """One activated user session, or why this allocation cannot admit a turn."""
-    context = browser.new_context()
-    page = context.new_page()
+    context = open_render_context(browser)
+    page = open_render_page(context)
     failures, _ = load_presented(page, url, f"{url} did not load for its agent")
-    passive = read_state(context.request, state_url, timeout=120_000)
+    passive = read_state(context.request, state_url)
     if direct_agent:
         reached = passive.json().get("release")
         if release is not None and reached != release:
@@ -381,9 +386,7 @@ def user_session(
         f"{activation} did not activate a private container for its agent",
     )
     headers = {"Leaf-Release": release} if release is not None else None
-    state_response = read_state(
-        context.request, state_url, headers=headers, timeout=120_000
-    )
+    state_response = read_state(context.request, state_url, headers=headers)
     check(
         state_response.headers.get("leaf-session") == "active",
         f"{state_url} did not reach a private container for its agent",
@@ -425,7 +428,7 @@ def start_direct_agent(context, url: str, comment: dict) -> None:
     endpoint = urljoin(url, "_leaf/agent/")
     event = {"event": comment["id"]}
     started = answered(
-        context.request.post(urljoin(endpoint, "start"), data=event, timeout=120_000),
+        context.request.post(urljoin(endpoint, "start"), data=event),
         f"{endpoint}start",
     )
     reading = started.json()
@@ -704,7 +707,7 @@ def local_worker() -> Generator[LocalWorker]:
                 ],
                 context,
             )
-            from leaf.state import flocked
+            from leaf.base.state import flocked
 
             with flocked(site_lock(SITE)):
                 shutil.copytree(SITE, context / ".tmp" / "site")

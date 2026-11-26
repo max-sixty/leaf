@@ -31,9 +31,9 @@ from browser.threads import (
     seed_panel_threads,
     stream_reply,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -80,6 +80,15 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
 
 
+# Where a panel thread's message stands: its offset within the view, the view's scroll,
+# and the view's and the message's tops in the window.
+MESSAGE_PLACE = """m => {
+  const view = m.closest('.lf-fp-view');
+  const top = m.getBoundingClientRect().top, viewTop = view.getBoundingClientRect().top;
+  return {offset: top - viewTop, scroll: view.scrollTop, view_top: viewTop, top};
+}"""
+
+
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("reply_size", ["short", "tall"])
 def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_size):
@@ -94,13 +103,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     page.evaluate(RELEASE_FOCUS)
     message = thread.locator(".lf-msg").first
     rendered(page)
-    before = {
-        "offset": message.evaluate(
-            "m => m.getBoundingClientRect().top"
-            " - m.closest('.lf-fp-view').getBoundingClientRect().top"
-        ),
-        "scroll": thread.evaluate("view => view.scrollTop"),
-    }
+    before = message.evaluate(MESSAGE_PLACE)
     words = "The answer arrived without another click."
     if reply_size == "tall":
         words = "\n\n".join([words] * 30)
@@ -109,12 +112,16 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     expect(thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"]')).to_be_visible()
     expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
     rendered(page)
-    # The view grows to hold the answer, the message keeping its place within it.
-    assert message.evaluate(
-        "m => m.getBoundingClientRect().top"
-        " - m.closest('.lf-fp-view').getBoundingClientRect().top"
-    ) == pytest.approx(before["offset"], abs=0.5)
-    assert thread.evaluate("view => view.scrollTop") == before["scroll"]
+    # The view grows to hold the answer, the message keeping its place within it. The
+    # growth carries the message up from where it stood on screen to that place
+    # (dom/box-motion.js), so the place is read where the panel's motion ends.
+    panel_settled(page, view="thread")
+    after = message.evaluate(MESSAGE_PLACE)
+    # One comparison of the whole reading, so a failure shows whether the view
+    # scrolled, moved on screen, or the message moved within it.
+    assert after["offset"] == pytest.approx(before["offset"], abs=0.5) and (
+        after["scroll"] == before["scroll"]
+    ), {"before": before, "after": after}
 
 
 def test_walking_the_threads_lands_each_on_its_latest_message(browser, serve):
@@ -198,8 +205,9 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     """A double click, or ↑ from the thread's empty reply box, opens the user's own
     words in place. Enter sends the rewrite; Escape and Cancel leave the message as it
     was and discard the words, so one Escape undoes the ↑ (the user's decision).
-    Words a rewrite still holds when the page goes, as on a reload, wait
-    for the next opening, which Resume writing reaches.
+    Words a rewrite still holds when the page goes wait for the next opening, which
+    Resume writing reaches, on a visit that isn't a return to the entry (a reload's is
+    in tests/browser/navigation/test_arrival_record.py).
 
     The rewrite draws on the message in the gesture, labelled edited, and reaches the
     log as one `edit` naming the message. The agent's words offer no rewrite, and the
@@ -272,12 +280,15 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     expect(editor).to_have_js_property("value", "Fit the south bracket.")
     page.keyboard.type(" Or the east.")
     # Words a rewrite holds when the page goes wait for its next opening.
-    page.reload()
+    page.goto(page.url)
     wait_until_ready(page)
     open_panel_thread(page, mine["id"])
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
-    # The thread opens with the caret in its reply; Escape stands on the thread.
+    # The address names the thread, so the arrival opens it standing on its view; with
+    # the caret in its reply, Escape stands on the thread, which stays open in the panel.
+    panel_field(page).focus()
     page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(editor).to_be_focused()

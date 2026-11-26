@@ -10,17 +10,15 @@ from browser.test_widget_quality import (
     gallery_page_files_fixture,  # noqa: F401 (fixtures)
     keyed,
 )
-from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import wait_for
+from interact_support import add_test_widget, wait_for
 from known_widget_findings import KNOWN, PACKAGES
 from model_folds import leaf_page
 from playwright.sync_api import expect
 
-from leaf import cli as cli_model
-from leaf import event_log
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.widget_quality import widget_findings
+from leaf.log import event_log
+from leaf.pages.render_gate.widget_quality import widget_findings
+from leaf.source.render_checks import wait_until_ready
 
 
 @pytest.mark.parametrize("package", PACKAGES, ids=lambda package: package.name)
@@ -56,10 +54,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         "lf-keyed",
         "lf-badged",
     ):
-        made = CliRunner().invoke(
-            cli_model.cli, ["package", "init", str(package), "--widget", widget]
-        )
-        assert made.exit_code == 0, made.output
+        add_test_widget(package, widget, upgrade=True)
     widgets = package / "widgets"
     (widgets / "lf-keyed.js").write_text(keyed("lf-keyed", ""))
     (widgets / "lf-badged.js").write_text(keyed("lf-badged", ", bindingBadge: null"))
@@ -202,11 +197,7 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
 def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browser):
     """A generated view needs its first box; an equal reserved box is a control."""
     package = tmp_path / "package"
-    made = CliRunner().invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-first-box"],
-    )
-    assert made.exit_code == 0, made.output
+    add_test_widget(package, "lf-first-box", upgrade=True)
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-first-box"]["example"] = (
@@ -219,7 +210,7 @@ def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browse
     )
     (package / "widgets/lf-first-box.js").write_text("""\
 import { html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-first-box", class extends LeafElement {
   render() { return html`<div style="block-size:40px">Drawn view</div>`; }
 });

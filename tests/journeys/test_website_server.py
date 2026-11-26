@@ -21,11 +21,11 @@ from render_harness import (
 )
 
 import leaf_website as website_server
-from leaf.delivery import current_responses
-from leaf.event_log import read_events
-from leaf.leases import take_wait_lease, waiter_lease_path
-from leaf.render_checks import rendered
-from leaf.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf.agents.delivery import current_responses
+from leaf.agents.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf.base.leases import take_wait_lease, waiter_lease_path
+from leaf.log.event_log import read_events
+from leaf.source.render_checks import rendered
 from leaf_dev import website
 from leaf_dev.browser import PANEL_THREAD
 

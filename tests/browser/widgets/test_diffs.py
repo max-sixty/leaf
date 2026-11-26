@@ -44,11 +44,13 @@ from browser.threads import append_agent_reply
 from browser.widgets import (
     _bound_diff,
     expect_walk_says,
+    hear_walks,
+    walks_said,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -434,6 +436,53 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         assert read[box]["scrolled"] == 400, read
         assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
     assert read["root"] == "40px" and read["panel"] == read["root"], read
+
+
+def test_a_pinned_file_name_stands_under_a_page_box_stuck_at_the_same_edge(
+    browser, serve
+):
+    """The z-indexes that stand a diff's pinned file name over its own rows order only
+    the diff's boxes. A page control that sticks at the same edge, as the detail dial
+    does at the column's end, stays on top of the stuck name, so a press on it reaches
+    the control and leaves the file open rather than folding it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Control over a diff",
+                '<h1>Control over a diff</h1><button id="control" type="button" '
+                "onclick=\"this.dataset.pressed = 'yes'\">Control</button>"
+                + long_diff("patch")
+                + "<p>Filler.</p>" * 40,
+                head="<style>#control { position: sticky; top: var(--lf-top);"
+                " z-index: 1; display: block; margin-inline-start: auto; }</style>",
+            )
+        ),
+    )
+    page.wait_for_function(
+        "() => document.querySelector('#patch').shadowRoot?.querySelector('.lf-diff-line')"
+    )
+    page.evaluate(
+        """() => scrollBy({ behavior: 'instant',
+            top: document.querySelector('#patch').getBoundingClientRect().top + 400 })"""
+    )
+    box = page.locator("#control").bounding_box()
+    head = page.evaluate(
+        """() => document.querySelector('#patch').shadowRoot
+            .querySelector('.lf-diff-file > details > summary').getBoundingClientRect().top"""
+    )
+    assert abs(head - box["y"]) < box["height"], (
+        f"the file's name is not stuck beside the control: {head}, {box}"
+    )
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    # The click's handlers have run by the time the press returns.
+    assert page.locator("#control").get_attribute("data-pressed") == "yes", (
+        "the press missed the control"
+    )
+    assert page.evaluate(
+        """() => document.querySelector('#patch').shadowRoot
+            .querySelector('.lf-diff-file > details').open"""
+    ), "the press folded the file under the control"
 
 
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
@@ -1431,6 +1480,7 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     )
     page.evaluate("() => window.scrollTo(0, 0)")
 
+    hear_walks(page)
     page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     first = page.evaluate(DIFF_LANDING)
@@ -1454,6 +1504,13 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect_walk_says(page, "File 2 of 2")
     page.keyboard.press("{")
     expect_walk_says(page, "File 1 of 2")
+    # Each step said its place to the page too, from inside the diff's shadow tree.
+    assert walks_said(page) == [
+        "Hunk 1 of 3",
+        "Hunk 2 of 3",
+        "File 2 of 2",
+        "File 1 of 2",
+    ]
 
 
 def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve):
@@ -1526,8 +1583,8 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
 
 
 def test_a_diff_conversation_s_reply_rests_as_the_margin_card_s_field(browser, serve):
-    """A conversation in a diff ends in the reply field a margin card ends in: framed,
-    one response line tall and offering the microphone, on the code's own ground. `c`
+    """A conversation in a diff ends in the reply field a margin card ends in: a rule
+    over its words rather than a frame, as tall as a card's reply box and offering the microphone, on the code's own ground. `c`
     from the conversation puts the caret in it, and a draft left there stays."""
     datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
     page = open_page(
@@ -1552,8 +1609,10 @@ def test_a_diff_conversation_s_reply_rests_as_the_margin_card_s_field(browser, s
       const box = field.parentElement, style = getComputedStyle(box);
       return {
         height: box.getBoundingClientRect().height,
-        line: parseFloat(style.getPropertyValue('--lf-line')),
+        line: parseFloat(style.getPropertyValue('--lf-line'))
+          + 2 * parseFloat(style.getPropertyValue('--lf-thread-pad')),
         framed: style.borderTopColor !== 'rgba(0, 0, 0, 0)',
+        rule: style.backgroundImage,
         mic: getComputedStyle(box.querySelector('.lf-compose-dictate')).display,
         card: getComputedStyle(field.closest('.lf-page-thread')).backgroundColor,
         code: getComputedStyle(field.closest('pre')).backgroundColor,
@@ -1561,7 +1620,8 @@ def test_a_diff_conversation_s_reply_rests_as_the_margin_card_s_field(browser, s
     }"""
     expect(reply).to_be_visible()
     resting = reply.evaluate(face)
-    assert resting["height"] == resting["line"] and resting["framed"], resting
+    assert resting["height"] == resting["line"], resting
+    assert not resting["framed"] and "gradient" in resting["rule"], resting
     assert resting["mic"] != "none" and resting["card"] == resting["code"], resting
     thread.locator(".lf-msg-body").first.click()
     page.keyboard.press("c")
@@ -1972,7 +2032,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     touch("touchStart")
     long_press(page, point)
     expect(preview).to_be_visible()
-    expect(head).to_have_attribute("data-lf-held", "")
+    expect(head).to_have_attribute("data-lf-touch-held", "")
     held = head.evaluate(read)
     assert (held["word"], held["open"], held["above"]) == (path, True, True), held
     touch("touchEnd")
@@ -2007,8 +2067,8 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
 
 def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, serve):
     """Author prose is independent of patch data, including when its line disappears."""
-    from leaf import anchor_capture, passages, structure
-    from leaf.registry.storage import read_page_registry
+    from leaf.source import anchor_capture, passages, structure
+    from leaf.source.registry.storage import read_page_registry
 
     source = leaf_page(
         "Annotated patch",

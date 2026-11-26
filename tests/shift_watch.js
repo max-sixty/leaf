@@ -101,17 +101,17 @@
 // the runtime declares one in any IntersectionObserver delivery while the input's
 // rendering is open and no news has landed: the delivery reports that rendering. The
 // case it serves is a tab, a link or a jump bringing a live sample's frame near the
-// window, where the sample's page starts (presentation.js, `whenNear`) and its landing
+// window, where the sample's page starts (readings/presentation.js, `whenNear`) and its landing
 // is the frame fitting that page. Like any landing, it owns every move from the task
 // that settles it until the loop settles again, so a page script's move in the task
 // after the fit is the input's too; one after the landing settles is reported.
 // Native effects it began retain their sampled displacement within their subtree.
 // An effect a ResizeObserver delivery begins in the frame its rendering first draws,
 // news still unlanded, is one it began, from that moment: a box that follows its own
-// layout starts there, after the frame's tick, as box-motion.js carries a floating
+// layout starts there, after the frame's tick, as dom/box-motion.js carries a floating
 // box's parts, and a long frame can end that effect, or news land, before the next
 // tick reads it. The runtime holds news that arrives while the gesture is unresolved
-// until that frame paints (state-application.js), so its delivery carries no news.
+// until that frame paints (host/state-application.js), so its delivery carries no news.
 // A native size animation also credits a later box when its size change travels
 // through the layout path to that box and matches its movement, and a node inside its
 // own box, such as the label a growing button centres, by an amount between the moves
@@ -151,7 +151,7 @@
 //
 // Carries of a step. A box that follows its own layout draws a step its layout took as
 // travel: once it reads the step, in the ResizeObserver delivery after it or where a
-// placed box's placement lands, box-motion.js begins a carry that draws each part it
+// placed box's placement lands, dom/box-motion.js begins a carry that draws each part it
 // moved where the part was and slides it to where it stands, including a step news
 // made. The sensor reads as such a carry a translation begun while no input's rendering
 // is open whose last keyframe draws its target where its layout puts it and whose first
@@ -265,7 +265,7 @@
 // VERIFY = 1, which checks every frame.
 //
 // Skipped content. The browser draws nothing in the content it skips (`skipped`,
-// shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
+// lib/shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
 // an off-screen `content-visibility: auto` box. Nothing there can move on screen, and
 // asking any box there for its style or rect makes the browser style and lay out the
 // whole skipped subtree first. So a complete reading leaves skipped content out, as
@@ -1653,11 +1653,12 @@
         nativeClosures.delete(node);
         continue;
       }
-      if (
-        closure.settledAt === null &&
-        at >= closure.until &&
-        parseFloat(getComputedStyle(node, "::details-content").blockSize) === 0
-      )
+      if (closure.settledAt !== null || at < closure.until) continue;
+      // The size can read 0 before a discrete `content-visibility` transition ends
+      // and the browser skips the content, which changes the population with no
+      // event to announce it, so the closure lasts until both have settled.
+      const content = getComputedStyle(node, "::details-content");
+      if (parseFloat(content.blockSize) === 0 && content.contentVisibility === "hidden")
         closure.settledAt = at;
     }
     const timed = animations.filter(
@@ -2054,10 +2055,10 @@
   const renderings = [];
   const inputRenderings = new WeakMap();
   let open = null;
-  // Each frame's tick is counted, and the open rendering notes the frame it first
-  // draws in while news has not sealed it (`drawsIn`). A ResizeObserver delivery
-  // follows that tick in the same frame, so the effects it begins are the
-  // rendering's own as they begin (`deliveredBy`).
+  // Each frame's tick is counted, and the open rendering, like each preparation's
+  // landing, notes the frame it first draws in while news has not sealed it
+  // (`drawsIn`). A ResizeObserver delivery follows that tick in the same frame, so the
+  // effects it begins are the rendering's own as they begin (`deliveredBy`).
   let frameCount = 0;
   let delivering = 0;
   const NativeResizeObserver = window.ResizeObserver;
@@ -2074,7 +2075,12 @@
     }
   };
   const deliveredBy = () =>
-    delivering > 0 && open && !open.told && open.drawsIn === frameCount ? open : null;
+    delivering > 0
+      ? [open, ...landing].filter(
+          (rendering) =>
+            rendering && !rendering.told && rendering.drawsIn === frameCount,
+        )
+      : [];
   // A carry draws its target back to where its layout puts it: a translation whose last
   // keyframe moves the target by nothing and whose first moves it by something.
   const carriesBack = (animation) => {
@@ -2103,7 +2109,7 @@
   };
   // An effect no rendering owns, begun while no input's rendering or preparation's
   // landing is open, that carries its target back to its layout place (`carriesBack`)
-  // draws a layout step the page took without input, as box-motion.js carries what news
+  // draws a layout step the page took without input, as dom/box-motion.js carries what news
   // moved, in the ResizeObserver delivery after the step or where a placed box's
   // placement lands. An effect a rendering owned that resumes is still that rendering's.
   // Each keeps when it began, and when the frame before the latest reading was read, the
@@ -2115,9 +2121,10 @@
     const continuedStep = continuedSteps.get(animation);
     continuedSteps.delete(animation);
     if (!moves(animation)) return;
-    const owner = deliveredBy();
-    if (owner) owner.own.add(animation);
-    else if (
+    const owners = deliveredBy();
+    for (const owner of owners) owner.own.add(animation);
+    if (owners.length) return;
+    if (
       !(open && !open.told) &&
       !landing.size &&
       !renderings.some((rendering) => rendering.own.has(animation)) &&
@@ -2244,6 +2251,7 @@
     frameCount++;
     if (open?.first && !open.told) open.drawsIn = frameCount;
     for (const rendering of landing) {
+      if (rendering.first && !rendering.told) rendering.drawsIn = frameCount;
       if (!rendering.told)
         for (const animation of begun(rendering.start)) rendering.own.add(animation);
       if (rendering.last && settled()) landing.delete(rendering);
@@ -2525,9 +2533,11 @@
   // during its rendering. A scroll the call starts, a smooth one too, is the gesture's
   // through the rendering, on the boxes the call scrolls: the one it names, or for a
   // reveal or focus every box holding its target.
+  // A reading that scrolls a box and puts it back before the task ends scrolls nothing
+  // the user sees (dom/arrivals.js, `readScrolled`).
   const scrollCalled = (target, holders = false) => {
     const aim = open?.aim;
-    if (!aim) return;
+    if (!aim || /\breadScrolled\b.*arrivals\.js/.test(new Error().stack)) return;
     const source = window.lfInputWork.current();
     const owner = source && inputRenderings.get(source.event);
     if (!owner || (owner !== open && owner.own !== open.own)) {
@@ -2567,7 +2577,7 @@
     });
   }
   // A command that takes the user somewhere declares it on its register row
-  // (`travels`, keyboard/bindings.js), which the dispatcher announces as it runs it.
+  // (`travels`, dom/keyboard/bindings.js), which the dispatcher announces as it runs it.
   listen(document, "lf-command-invoked", ({ detail }) => {
     if (detail?.travels && open) open.aim = null;
   });
@@ -2653,7 +2663,7 @@
     if (source?.carried && !inputRenderings.has(source.event))
       begin(nativePerformance.now(), null, new Set(), source.event);
   });
-  // Each finding goes to the fixture as a record (`leaf/findings.py` words it),
+  // Each finding goes to the fixture as a record (`leaf/base/findings.py` words it),
   // once per `key`, with every node in it named.
   const reported = new Set();
   const report = (key, finding) => {
@@ -2682,7 +2692,7 @@
   // Widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
   // page before it is presented runs until the second frame after the runtime stamps
-  // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the
+  // `data-lf-presented` on a page that has one (runtime/readings/presentation.js). Fixing the
   // defect deletes this.
   let presented = null;
   new MutationObserver(() => {
@@ -2766,7 +2776,7 @@
     // Each declaration owns its actual box. Nested regions keep every enclosing
     // guarantee, without borrowing a valid boundary to excuse an invalid one.
     for (const region of regions) {
-      // Runtime ownership follows passages.js `leafSurface`, including inline threads.
+      // Runtime ownership follows readings/passages.js `leafSurface`, including inline threads.
       if (
         !around.every(({ at }) =>
           ancestryAt(region, at).some((owner) => paintAt(owner, at)?.runtime),
@@ -2850,10 +2860,10 @@
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
   // more. This is the one place news may carry what is read without a gesture (the
-  // user's choices, recorded at `answersAtOnce` in `floating-panel.js`, where an answer
+  // user's choices, recorded at `answersAtOnce` in `panel/floating-panel.js`, where an answer
   // the user waits for grows the panel's thread view, and in thread-preview.js's header,
-  // where news lifts a margin card's head as it holds its foot or rises beside its
-  // subject).
+  // where news lifts a margin card's head as it holds its foot or its reply box's top,
+  // or rises beside its subject).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
@@ -3270,6 +3280,42 @@
     (selection.edges[axis] === axis
       ? 0
       : selection.size[axis === "left" ? "width" : "height"]);
+  // How far `anchor` travelled by scrolling alone while `node`, a box it carries, kept
+  // its offset from it between `from` and `to`. Chrome applies an anchor's scroll to
+  // what it carries after the frame's callbacks, where the watch reads, so a reading
+  // that finds the anchor scrolled can find the box where the anchor stood at the
+  // reading before, whatever a script wrote to the box meanwhile. So the node at each
+  // end may stand by the anchor as it stood then, or as it stood before a reading
+  // moved it: the reading at that end, or the one that last placed the node, which
+  // precedes the end where the anchor scrolled again before the node caught up. The
+  // first pairing that keeps the node's offset, the anchor keeping its layout place,
+  // answers; null where the node or the anchor moved otherwise.
+  const laggedTravel = (node, anchor, from, to, axis) => {
+    const ends = (at) => {
+      const samples = placed.get(anchor) ?? [];
+      const times = [at];
+      for (const read of new Set([at, readingAt(node, at)?.at ?? at])) {
+        const i = samples.findLastIndex((item) => item.at <= read);
+        const before = Math.max(samples[i - 1]?.at, retainedFrom);
+        if (samples[i]?.at === read && before < read) times.push(before);
+      }
+      return times;
+    };
+    const offset = (at, by) => boxAt(node, at)?.[axis] - boxAt(anchor, by)?.[axis];
+    const place = (at) => layoutAt(anchor, at)?.[axis];
+    for (const end of ends(to))
+      for (const start of ends(from))
+        if (
+          Math.abs(offset(to, end) - offset(from, start)) < 1 &&
+          Math.abs(place(end) - place(start)) < 1
+        )
+          return {
+            start,
+            end,
+            amount: boxAt(anchor, end)[axis] - boxAt(anchor, start)[axis],
+          };
+    return null;
+  };
   const scrollMotion = (node, from, to, animations = []) => {
     const motion = nativeScrollMotion(node, from, to);
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
@@ -3372,7 +3418,8 @@
         next = paintAt(owner, to);
       const anchor = prior?.anchor;
       if (!anchor || anchor !== next?.anchor) continue;
-      // Native anchor layout can follow its scroller in the next frame. Credit
+      // Native anchor layout can follow its scroller in the next frame. Credit the
+      // anchor's travel the node kept its place by (`laggedTravel`), and failing that,
       // source scrolling since this retained portal pose was first observed.
       const start = poseAt(owner, from);
       const before = boxAt(anchor, start),
@@ -3397,6 +3444,11 @@
       ]) {
         if (!prior[held] || !next[held] || anchored[axis]) continue;
         anchored[axis] = true;
+        const lag = laggedTravel(node, anchor, from, to, axis);
+        if (lag) {
+          credit(motion, "native_anchor", owner, axis, lag.amount, { anchor, ...lag });
+          continue;
+        }
         const layoutStable =
           Math.abs(afterLayout[axis] - beforeLayout[axis] - translated[axis]) < 1;
         credit(
@@ -3710,7 +3762,7 @@
   // at that line, a change of the inset moves it by that change within its containing
   // block; while it stands short of the line, not at all. So an animated inset credits
   // the box's move within that block where the move lies between none and the inset's
-  // change. box-motion.js's ride relies on this: it carries a scroller's children and
+  // change. dom/box-motion.js's ride relies on this: it carries a scroller's children and
   // moves their sticky heads' insets against the carry, so a stuck head holds its line
   // and one short of it rides with its message. The box's static place, which would
   // say which of the two it is, is not readable, so another move within that span is
@@ -4801,7 +4853,7 @@
       // over the frame's own viewport while it waits, since the root's box can scroll
       // out of that viewport, as a live page's does. Its first entry reports the
       // present state. The runtime instead asks the page holding the frame
-      // (runtime/frame-visibility.js), which no page's own styles can mislead; the
+      // (runtime/base/frame-visibility.js), which no page's own styles can mislead; the
       // watch runs in every frame, Leaf's or not, before that runtime, and has no
       // holder to ask. A page whose styles transform `html` carries this box off
       // screen with its root, so the watch judges it as hidden.

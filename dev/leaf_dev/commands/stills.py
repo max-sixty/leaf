@@ -73,8 +73,10 @@ from PIL import Image
 from playwright.sync_api import Page, expect
 from selenium.webdriver.remote.webdriver import WebDriver
 
-from leaf.revision_artifact import resource_type
-from leaf.runtime_selection import read_runtime
+from leaf.base.schema import DEFAULT_PACKAGE
+from leaf.source.render_checks import open_render_context, open_render_page
+from leaf.source.revision_artifact import resource_type
+from leaf.source.runtime_selection import read_runtime
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
 from leaf_dev.browser import (
@@ -92,7 +94,7 @@ from leaf_dev.visits import Visit, said, visits
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "packages" / "default" / "widgets" / "image-difference.js"
+DIFFERENCE = DEFAULT_PACKAGE / "widgets" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 # The computed properties `style_changes` compares: the faces, boxes and flow a rule
@@ -204,7 +206,12 @@ SCALE = 2
 def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
     """Screenshot the tab `visit` brought to `state` to `folder/ARM.png`, and read
     into the visit the state's region in the screenshot, if it names one, its
-    elements' styles (`STYLES`)."""
+    elements' styles (`STYLES`).
+
+    The styles are read before the screenshot. The screenshot's style on the root
+    (`browser.HELD`) changes the root's style, and after a change there Chromium can
+    report an auto margin as 0px though the box stands where it did, as `main`'s did
+    on page-comment-photo in some captures and not others."""
     page = visit.page
     if state.region:
         target = page.locator(state.region)
@@ -222,11 +229,11 @@ def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
             "height": min(window["height"], bounds["y"] + bounds["height"] + room) - y,
         }
         visit.reading["region"] = {key: value * SCALE for key, value in clip.items()}
-    (folder / f"{arm}.png").write_bytes(screenshot(page))
     reading = page.evaluate(STYLES, STYLED)
     visit.reading["styles"] = {
         key: reading["faces"][face] for key, face in reading["elements"].items()
     }
+    (folder / f"{arm}.png").write_bytes(screenshot(page))
 
 
 def style_changes(
@@ -364,13 +371,13 @@ def differences(out: Path, browser):
     so a state's unreadable image or failed crop leaves the other pairs available.
     """
 
-    # The module imports the public package API, as a widget does, so the tab answers
+    # The module imports from the runtime's library, as a widget may, so the tab answers
     # with this tree's runtime under the package's own vendored modules.
     runtime = read_runtime().source
 
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
-        package = ROOT / "packages" / "default" / path.lstrip("/")
+        package = DEFAULT_PACKAGE / path.lstrip("/")
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/") and package.is_file():
@@ -385,10 +392,10 @@ def differences(out: Path, browser):
     with (
         headless_shell() if isinstance(browser, WebDriver) else nullcontext(browser)
     ) as browser:
-        context = browser.new_context()
+        context = open_render_context(browser)
         try:
             context.route(f"{ORIGIN}/**", serve)
-            page = context.new_page()
+            page = open_render_page(context)
             page.goto(f"{ORIGIN}/")
             compare_images = page.evaluate_handle(
                 "async () => (await import('/image-difference.js')).compareImages"

@@ -19,13 +19,13 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.registry.storage import read_page_registry
-from leaf.render_checks import rendered
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.registry.storage import read_page_registry
+from leaf.source.render_checks import rendered
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
@@ -967,8 +967,12 @@ DATA_PROJECTION_PAGE = leaf_page(
 
 DATA_PROJECTION_MODULE = """
 import { nothing } from '/vendor/lit.js';
-import { keeps, offer, LeafElement, setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-feed', class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     this.show(this.value);
     return nothing;
@@ -998,13 +1002,10 @@ def data_projection_page(serve):
     feed = {
         "description": "A project-supplied live feed.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {

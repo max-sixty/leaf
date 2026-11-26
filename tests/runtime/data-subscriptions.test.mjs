@@ -3,10 +3,11 @@
    browser journeys; these cases exercise the publisher and its real DOM owners. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adoptRegistry } from "/runtime/registry.js";
-import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";
 import { nothing, html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import "/runtime/host/element-integration.js";
 
 let fixtureSequence = 0;
 async function scene() {
@@ -57,6 +58,7 @@ async function feed(
   customElements.define(
     tag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       constructor() {
         super();
         this.value = null;
@@ -86,7 +88,7 @@ async function feed(
 
 test("a widget reads its own binding, captured at its first read", async () => {
   await scene();
-  const { runtime } = await import("/runtime/context.js");
+  const { runtime } = await import("/runtime/state/context.js");
   const current = [];
   const bound = await feed((value) => current.push(value?.[0].value ?? null));
   bound.remove();
@@ -116,7 +118,7 @@ test("a widget reads its own binding, captured at its first read", async () => {
 
 test("a Lit renderer follows conditional clock reads and its owner lifetime", async () => {
   await scene();
-  const { clockValue, tickClock } = await import("/runtime/presence.js");
+  const { clockValue, tickClock } = await import("/runtime/state/presence.js");
   let clock = 0;
   let calls = 0;
   let trackClock = false;
@@ -182,8 +184,8 @@ test("a Lit renderer follows conditional clock reads and its owner lifetime", as
 test("a superseded async data render cannot stamp the newer version", async () => {
   await scene();
   const result = await (async () => {
-    const { acceptData, notifyDataSubscribers } = await import("/runtime/data.js");
-    const { runtime } = await import("/runtime/context.js");
+    const { acceptData, notifyDataSubscribers } = await import("/runtime/host/data.js");
+    const { runtime } = await import("/runtime/state/context.js");
     const taken = 1;
     const releases = new Map();
     const widget = await feed((rows) => {
@@ -230,7 +232,7 @@ test("a superseded async data render cannot stamp the newer version", async () =
 
 test("an unchanged source waits for its inflight drawing", async () => {
   await scene();
-  const { runtime } = await import("/runtime/context.js");
+  const { runtime } = await import("/runtime/state/context.js");
   let release;
   let calls = 0;
   const widget = await feed(() => {
@@ -303,9 +305,9 @@ test("a return redraws delivered data after interrupted or completed drawing", a
 test("data readiness does not wait for an unrelated widget region", async () => {
   await scene();
   const result = await (async () => {
-    const { notifyDataSubscribers } = await import("/runtime/data.js");
+    const { notifyDataSubscribers } = await import("/runtime/host/data.js");
     const { attachApplicationPresentation } =
-      await import("/runtime/semantic-state.js");
+      await import("/runtime/state/semantic-state.js");
     const unrelated = attachApplicationPresentation("widget:unrelated:render");
     const held = unrelated.present();
     let ready = false;
@@ -323,7 +325,8 @@ test("data readiness does not wait for an unrelated widget region", async () => 
   assert.equal(result, true);
 });
 
-// Mounted outputs use the same LeafElement reader and presentation region as sources.
+// A widget holds an output as a property and says `change`; its readers use the same
+// LeafElement reader and presentation region as sources.
 let outputScenes = 0;
 function outputScene(draw) {
   const suffix = ++outputScenes;
@@ -336,19 +339,14 @@ function outputScene(draw) {
     },
     [consumerTag]: {
       inputs: {
-        rows: {
-          reference: "for",
-          output: "rows",
-          contract: "rows",
-          property: "value",
-        },
+        rows: { reference: "for", contract: "rows", property: "value" },
       },
-      refers: { for: {} },
     },
   });
   customElements.define(
     consumerTag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       render() {
         return nothing;
       }
@@ -366,10 +364,13 @@ function outputScene(draw) {
   return { producerTag, consumerTag };
 }
 const settleOutput = async () => new Promise((resolve) => setTimeout(resolve));
+const holdRows = (producer, rows) => {
+  producer.rows = rows;
+  producer.dispatchEvent(new Event("change"));
+};
 
-test("typed output readers retain authored scope and producer instance identity", async () => {
-  const { dataReader } = await import("/runtime/data.js");
-  const { publishOutput } = await import("/runtime/widget-output.js");
+test("an output's readers follow the element under their bound id, in their own document", async () => {
+  const { dataReader } = await import("/runtime/host/data.js");
   const readings = new Map();
   const { producerTag, consumerTag } = outputScene((element, value) => {
     const history = readings.get(element.id) ?? [];
@@ -382,35 +383,46 @@ test("typed output readers retain authored scope and producer instance identity"
   const pageConsumer = document.querySelector("#page");
   await settleOutput();
   const current = dataReader(pageConsumer, "rows");
-  assert.throws(
-    () => publishOutput(pageProducer, "undeclared", { rows: [] }),
-    /output is not declared/,
-  );
-  const unnamed = document.createElement(producerTag);
-  assert.throws(() => publishOutput(unnamed, "rows", null), /requires a widget id/);
   const pageValue = { rows: ["page"] };
-  publishOutput(pageProducer, "rows", pageValue);
-  pageValue.rows[0] = "mutated";
-  publishOutput(messageProducer, "rows", { rows: ["message"] });
+  holdRows(pageProducer, pageValue);
+  holdRows(messageProducer, { rows: ["message"] });
   await settleOutput();
   assert.deepEqual(readings.get("page"), [null, { rows: ["page"] }]);
   assert.deepEqual(readings.get("message").at(-1), { rows: ["message"] });
   assert.deepEqual(current().value, { rows: ["page"] });
-  publishOutput(pageProducer, "rows", { rows: ["page"] });
+  const equal = { rows: ["page"] };
+  holdRows(pageProducer, equal);
   await settleOutput();
-  assert.equal(readings.get("page").length, 2, "same complete value does not repaint");
+  assert.equal(readings.get("page").length, 2, "an equal value does not repaint");
   readings.get("page").at(-1).rows[0] = "consumer mutation";
   assert.deepEqual(
     current().value,
     { rows: ["page"] },
     "consumer copies are independent",
   );
+  // A producer holds a new value to change one: the object it already held reads as
+  // unchanged, whatever was done to it.
+  equal.rows[0] = "edited in place";
+  holdRows(pageProducer, equal);
+  await settleOutput();
+  assert.equal(readings.get("page").length, 2, "the same object is not read again");
+  holdRows(pageProducer, { rows: ["edited"] });
+  await settleOutput();
+  assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });
+  // A control inside the producer says `change` for itself, not for the producer.
+  const control = pageProducer.appendChild(document.createElement("input"));
+  pageProducer.rows = { rows: ["unsaid"] };
+  control.dispatchEvent(new Event("change", { bubbles: true }));
+  await settleOutput();
+  assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });
+  control.remove();
+  // Markup owns the binding, captured at the first read.
   const otherProducer = document.createElement(producerTag);
   otherProducer.id = "other";
   document.querySelector("main").append(otherProducer);
-  publishOutput(otherProducer, "rows", { rows: ["other"] });
+  holdRows(otherProducer, { rows: ["other"] });
   pageConsumer.setAttribute("for", "other");
-  publishOutput(pageProducer, "rows", { rows: ["changed first"] });
+  holdRows(pageProducer, { rows: ["changed first"] });
   await settleOutput();
   const captured = {
     contract: "rows",
@@ -419,10 +431,12 @@ test("typed output readers retain authored scope and producer instance identity"
   };
   assert.deepEqual(readings.get("page").at(-1), captured.value);
   assert.deepEqual(current(), captured);
+  // A replacement under the same id is read as it stands, with no `change` said to
+  // the reader: what it holds was set before it arrived.
   const replacement = document.createElement(producerTag);
   replacement.id = "feed";
+  replacement.rows = { rows: ["replacement"] };
   pageProducer.replaceWith(replacement);
-  publishOutput(replacement, "rows", { rows: ["replacement"] });
   await settleOutput();
   assert.deepEqual(readings.get("page").at(-1), { rows: ["replacement"] });
   replacement.remove();
@@ -431,15 +445,72 @@ test("typed output readers retain authored scope and producer instance identity"
   document.querySelector("main").append(replacement);
   await settleOutput();
   assert.deepEqual(readings.get("page").at(-1), { rows: ["replacement"] });
-  publishOutput(replacement, "rows", null);
+  holdRows(replacement, null);
   await settleOutput();
   assert.equal(readings.get("page").at(-1), null);
+  // A reader that arrives after its producer last said `change` reads what it holds.
+  holdRows(replacement, { rows: ["held"] });
+  const late = document.createElement(consumerTag);
+  late.id = "late";
+  late.setAttribute("for", "feed");
+  document.querySelector("main").append(late);
+  await settleOutput();
+  assert.deepEqual(readings.get("late").at(-1), { rows: ["held"] });
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
+test("a reader that read before its producer's class was defined reads what the class holds", async () => {
+  const readings = [];
+  const { producerTag, consumerTag } = outputScene((element, value) =>
+    readings.push(value),
+  );
+  document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} for="feed"></${consumerTag}></main>`;
+  await settleOutput();
+  assert.deepEqual(readings, [null]);
+  // The class holds a value from its construction and says no `change` for it, as a
+  // form control says none for its first value.
+  customElements.define(
+    producerTag,
+    class extends HTMLElement {
+      rows = { rows: ["held"] };
+    },
+  );
+  await settleOutput();
+  assert.deepEqual(readings, [null, { rows: ["held"] }]);
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
+test("a producer arriving or leaving under another name leaves a reader's reading alone", async () => {
+  const { producerTag, consumerTag } = outputScene(() => {});
+  document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} for="feed"></${consumerTag}></main>`;
+  const main = document.querySelector("main");
+  const feed = document.querySelector("#feed");
+  let reads = 0;
+  Object.defineProperty(feed, "rows", { get: () => (reads++, { rows: ["feed"] }) });
+  feed.dispatchEvent(new Event("change"));
+  await settleOutput();
+  const read = reads;
+  assert.ok(read > 0, "the reader reads what its producer holds");
+  const other = document.createElement(producerTag);
+  other.id = "other";
+  main.append(other);
+  await settleOutput();
+  other.remove();
+  await settleOutput();
+  assert.equal(reads, read, "another producer's arrival reaches only its own readers");
+  // The same move under the reader's own name is read again.
+  feed.remove();
+  await settleOutput();
+  main.prepend(feed);
+  await settleOutput();
+  assert.ok(reads > read);
   document.body.replaceChildren();
   await settleOutput();
 });
 
 test("source readiness includes asynchronous LeafElement output consumers", async () => {
-  const { publishOutput } = await import("/runtime/widget-output.js");
   let release;
   let started;
   const begun = new Promise((resolve) => (started = resolve));
@@ -453,12 +524,13 @@ test("source readiness includes asynchronous LeafElement output consumers", asyn
   customElements.define(
     producerTag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       render() {
         return nothing;
       }
       updated(changed) {
         super.updated(changed);
-        publishOutput(this, "rows", this.value ?? null);
+        holdRows(this, this.value ?? null);
       }
     },
   );

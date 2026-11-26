@@ -6,10 +6,10 @@ from interact_support import (
     append_carried_log_record,
 )
 
-from leaf import codex_adapter as codex_adapter_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import session as session_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
@@ -28,7 +28,7 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
     append_carried_log_record(
         page, {"kind": "comment", "id": "later", "author": "user", "text": "and this"}
     )
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,

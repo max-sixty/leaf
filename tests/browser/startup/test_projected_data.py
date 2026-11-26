@@ -43,10 +43,10 @@ from browser.threads import (
     open_panel_thread,
     thread_row,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -147,13 +147,10 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     feed = {
         "description": "A live deployment feed.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -190,8 +187,10 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     }
     module = """
 import { nothing } from '/vendor/lit.js';
-import { LeafElement, setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-feed', class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     setChildren(this, (this.value?.rows ?? []).map(row => {
       const node = document.createElement('p');
@@ -443,13 +442,10 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     entry = {
         "description": "A project-supplied derived feed.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -464,7 +460,9 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
 import { nothing } from '/vendor/lit.js';
-import { LeafElement, offer, setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
+import { offer } from '/runtime/lib/controls.js';
 customElements.define('lf-derived', class extends LeafElement {
   render() { return nothing; }
   firstUpdated() {
@@ -903,7 +901,9 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
         told(page)
         return page.evaluate("window.publications")
 
-    publication_file = data_model.source_file(serve.page_dir, "deployments")
+    publication_file = data_model.PUBLICATION.file(
+        data_model.source_file(serve.page_dir, "deployments")
+    )
     original = json.loads(publication_file.read_text())
     first = page.evaluate("window.publications")[0]
     datum = page.locator('[data-lf-datum="api"]')
@@ -950,13 +950,10 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         return {
             "description": "An instrumented data reader.",
             "attributes": {
-                "type": "object",
                 "properties": {
-                    "id": {"type": "string"},
                     "source": {"type": "string"},
                 },
                 "required": ["id", "source"],
-                "additionalProperties": False,
             },
             "content": "empty",
             "inputs": {
@@ -971,8 +968,9 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
 
     def module(tag):
         return """import { nothing } from '/vendor/lit.js';
-        import { LeafElement } from '/runtime/widget-api.js';
+        import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define(TAG, class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     window.dataDeliveries ??= [];
     window.dataDeliveries.push({id: this.id, value: this.value});
@@ -1083,9 +1081,10 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
     result = page.evaluate(
         """async () => {
           const api = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {noChange} = await window.__lfVendorImport('lit.js');
           const settle = () => new Promise((resolve) => setTimeout(resolve));
-          customElements.define('lf-projection-probe', class extends api.LeafElement {
+          customElements.define('lf-projection-probe', class extends LeafElement {
             render() {
               this.work = undefined;
               return this.paint?.() ?? noChange;
@@ -1168,9 +1167,10 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
     result = page.evaluate(
         """async () => {
           const api = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {noChange} = await window.__lfVendorImport('lit.js');
           const settle = () => new Promise((resolve) => setTimeout(resolve));
-          customElements.define('lf-held-probe', class extends api.LeafElement {
+          customElements.define('lf-held-probe', class extends LeafElement {
             render() {
               shown = held.hold(current);
               return noChange;
@@ -1301,7 +1301,7 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
-          const {failSoft} = await window.__lfWidgetApi();
+          const {failSoft} = await window.__lfLibImport('failure.js');
           const widget = document.querySelector('lf-feed');
           function widgetProjection() { throw new TypeError('projection rejected'); }
           let error;
@@ -1345,7 +1345,7 @@ def test_data_written_while_a_fresh_revision_starts_shows_once_it_has_started(
     the current document cannot take on, so it is followed into a fresh document and
     there is a startup to write data during. Nothing can paint the update before then:
     the test holds the revision's registry, and widgets import their modules only after
-    it arrives (widget-loader.js).
+    it arrives (records/widget-loader.js).
     """
     activation_probe = """
       window.__lfRevisionRegistryBlocked = false;

@@ -8,11 +8,11 @@ import {
   setChildLists,
   setChildren,
   setRenderedChildren,
-} from "/runtime/dom-children.js";
-import { under } from "/runtime/shadow-tree.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
-import { failSoftUnreported, placesFailure } from "/runtime/widget-upgrade.js";
-import { createRef, html, ref, render } from "/runtime/framework.js";
+} from "/runtime/dom/dom-children.js";
+import { under } from "/runtime/lib/shadow-tree.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
+import { placesFailure, showFailure } from "/runtime/lib/failure.js";
+import { createRef, html, ref, render } from "/vendor/lit.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");
@@ -20,17 +20,17 @@ test("failure replacement releases directives and supports native and template r
   const paint = (text) => render(html`<p ${ref(reference)}>${text}</p>`, host);
   paint("Before failure");
   assert.equal(reference.value.textContent, "Before failure");
-  failSoftUnreported(host, new Error("first failure"));
+  showFailure(host, new Error("first failure"));
   assert.equal(reference.value, undefined);
   assert.equal(host.textContent, "<test-widget> failed: first failure");
   paint("Recovered template");
   assert.equal(host.textContent, "Recovered template");
-  failSoftUnreported(host, new Error("second failure"));
+  showFailure(host, new Error("second failure"));
   const native = document.createElement("p");
   native.textContent = "Recovered native reading";
   setChildren(host, [native]);
   assert.equal(host.textContent, "Recovered native reading");
-  failSoftUnreported(host, new Error("third failure"));
+  showFailure(host, new Error("third failure"));
   paint("Final template");
   assert.equal(host.textContent, "Final template");
 });
@@ -44,7 +44,7 @@ test("an owner that registers its failure placer on every connection keeps one",
       host.append(box);
       return true;
     });
-  failSoftUnreported(host, new Error("failed"));
+  showFailure(host, new Error("failed"));
   assert.deepEqual(asked, ["second"]);
 });
 
@@ -60,7 +60,7 @@ test("a staged widget shows each failure in its stage and its next stage replace
   // losing the renderer's face or accumulating copies on later draws.
   host.shadowRoot.adoptedStyleSheets = [rendererSheet];
   for (const message of ["first failure", "second failure"]) {
-    failSoftUnreported(host, new Error(message));
+    showFailure(host, new Error(message));
     const errors = host.shadowRoot.querySelectorAll(".lf-error");
     assert.deepEqual(
       [...errors].map((box) => box.textContent),

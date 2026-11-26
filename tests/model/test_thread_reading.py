@@ -21,14 +21,14 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import hook_transport as hook_transport_model
-from leaf import page_view as page_view_model
-from leaf import session as session_model
-from leaf import thread as thread_model
-from leaf import thread_context as thread_context_model
-from leaf.refusals import Refused
+from leaf.agents import thread as thread_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import thread_context as thread_context_model
+from leaf.records import page_view as page_view_model
 
 
 def test_thread_read_is_exact_and_paginated(page_dir):
@@ -579,11 +579,11 @@ def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
         pytest.param("Short.", True, id="older-run-too-short"),
     ],
 )
-def test_a_summary_hint_takes_in_the_run_a_retired_summary_left(
+def test_a_summary_hint_takes_in_a_run_left_in_full_above_a_summary(
     page_dir, reply_text, widened
 ):
-    """A hint never leaves older discussion in full above a summary. The user's rewrite that
-    retires a summary leaves its run uncovered above a later one. Where that run is
+    """A hint never leaves older discussion in full above a summary, though the agent
+    may summarize a later run and keep an earlier one in full. Where that run is
     long enough, the hint names it and the later summary. Where it is too short, the
     hint names the next long-enough run widened over it, so a short stretch left above
     a summary doesn't stop every later hint. Either way the hint replaces the later
@@ -600,17 +600,7 @@ def test_a_summary_hint_takes_in_the_run_a_retired_summary_left(
 
     reply = say("agent", reply_text)
     folded = [say("agent", "z") for _ in range(2)]
-    thread_model.cmd_summarize(page_dir, root["id"], reply["id"], "The opening.")
     later = thread_model.cmd_summarize(page_dir, folded[0]["id"], folded[-1]["id"], "")
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "edit",
-            "author": "user",
-            "message": root["id"],
-            "text": "x" * 1000 + " Revised.",
-        },
-    )
     newer = [
         say(author, "Next?")
         for author in ("agent", "user", "agent", "agent", "user", "agent", "user")
@@ -745,20 +735,9 @@ def test_a_summary_hint_replaces_whole_the_summaries_it_reaches_into(page_dir):
     m = [root, first, *(say(author) for author in ("user", "agent", "user", "agent"))]
     m.append(say("user"))
     progress = say("agent", "Checking.", ephemeral=True)
-    thread_model.cmd_summarize(page_dir, root["id"], first["id"], "The opening.")
+    # The agent keeps the opening's two long messages in full, leaving them to suggest.
     thread_model.cmd_summarize(page_dir, m[2]["id"], m[5]["id"], "The middle.")
     thread_model.cmd_summarize(page_dir, m[6]["id"], progress["id"], "")
-    # The user's rewrite retires the opening summary, leaving its two long messages
-    # to suggest.
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "edit",
-            "author": "user",
-            "message": root["id"],
-            "text": root["text"] + " Revised.",
-        },
-    )
 
     [digest] = thread_context_model.batch_threads(
         events_model.read_events(page_dir),

@@ -7,6 +7,7 @@ from copy import deepcopy
 
 import model_folds as model
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -27,19 +28,19 @@ from interact_support import (
     with_modules,
 )
 
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import passages as passages_model
-from leaf import schema as schema_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf.findings import Finding
-from leaf.projection import page_reading, retirement_outcomes
-from leaf.registry import contract as registry_contract
-from leaf.registry.layer import stamp_composition
-from leaf.registry.validation import validate_registry
-from leaf.validation.instances import widget_errors
+from leaf.agents import thread as thread_model
+from leaf.base import schema as schema_model
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.log.projection import page_reading, retirement_outcomes
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records.markup_checks.instances import widget_errors
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry.layer import stamp_composition
+from leaf.source.registry.validation import validate_registry
 
 # One question quoted back and the same question live. The pair is what makes the
 # exhibit refusal below the exhibit's doing: the two groups are the same markup
@@ -777,6 +778,7 @@ def test_an_empty_agent_name_uses_the_harness_default(
 ):
     published(page_dir)
     monkeypatch.setenv("LEAF_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "")
 
     result = comment(page_dir, "--text", "Which worker said this?")
@@ -909,7 +911,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     server, page_dir
 ):
     """Recorded identities become dependencies and keep their admitted fold and effect."""
-    from leaf.files import latest_revision
+    from leaf.base.files import latest_revision
 
     source = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">')
     (page_dir / "index.html").write_text(source)
@@ -979,3 +981,18 @@ def test_created_ids_cannot_collide_across_page_and_thread_content():
                 ],
             )
         assert refused_on(refused.value).code == "created-exists"
+
+
+def test_several_events_land_together_or_not_at_all(page_dir):
+    """`append_all_admitted` admits each event after the ones before it and writes
+    none of them where any is refused, a retry naming another payload included."""
+    from leaf.records.transaction import PageTransaction
+
+    publish(page_dir)
+    before = events_model.read_events(page_dir)
+    asked = {"kind": "comment", "author": "user", "revision": 1, "attempt": "a" * 16}
+    with PageTransaction(page_dir) as page, pytest.raises(events_model.AttemptConflict):
+        event_contracts_model.append_all_admitted(
+            page, [{**asked, "text": "One"}, {**asked, "text": "Two"}]
+        )
+    assert events_model.read_events(page_dir) == before

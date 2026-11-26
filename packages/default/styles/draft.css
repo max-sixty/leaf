@@ -96,11 +96,22 @@ lf-draft > pre {
      code block's lone Copy takes, inside the box's top-right corner: Edit and Copy at
      rest, Save, Discard and Copy while editing, Copy keeping the last seat, and a
      refused save's status before them. A pointer sees it while over the box or a key
-     is in it, and the open editor and a draft that asks for an edit (`required`) always,
-     since there Edit is the way to answer. While it shows it covers the first line's
-     last words, the editor's too: the user chose one seat for every block's marks
-     over keeping the edited line clear by standing the toolbar on the top border. A
-     finger sees it always, so it stands on the bottom border there: in the
+     is in it, and the open editor and a draft that asks for an edit (`required`)
+     always, since there Edit is the way to answer, until the user types. While it
+     shows it covers the first line's last words, the editor's too: the user chose one
+     seat for every block's marks over keeping the edited line clear by standing the
+     toolbar on the top border. So typing puts it away at once (`:state(typing)`,
+     lf-draft.js), as a document editor's block handles go, since the user asked that
+     it not cover the words they type. The pointer coming to its corner shows it again
+     (`:state(pointed)`), and it takes presses once the pointer has rested there, as a
+     composer's Send over its last line does, so a press aimed at the first line's end
+     places the caret rather than pressing a Discard that has only begun to show. Focus
+     leaving the editor, or a refused save's status, shows it and gives its presses
+     back. Rejected: the open editor showing it always, which covered the first line's
+     end through all the typing; showing it again at any pointer move over the box,
+     which a nudge of the mouse brought back over the line being typed, standing there
+     before it took presses; and taking presses as soon as the pointer moves, which
+     pressed Discard under a press meant for the words. A finger sees it always, so it stands on the bottom border there: in the
      corner, its finger-wide reach would take every press meant for the first line's
      end. */
   .lf-draft-tools {
@@ -119,12 +130,25 @@ lf-draft > pre {
     font: var(--lf-font-ui);
     white-space: nowrap;
   }
-  .lf-draft-status:empty {
-    display: none;
-  }
-  lf-draft:is(:hover, [data-lf-focus-within], [required], :has(> .lf-draft-edit))
-    .lf-draft-tools {
+  lf-draft:not(:state(typing)):is(
+      :hover,
+      [data-lf-focus-within],
+      [required],
+      :has(> .lf-draft-edit)
+    )
+    .lf-draft-tools,
+  lf-draft:state(pointed) .lf-draft-tools,
+  .lf-draft-tools[data-lf-focus-within],
+  .lf-draft-tools:has(> .lf-draft-status:not([hidden])) {
     opacity: 1;
+  }
+  @media (hover: hover) {
+    lf-draft:state(typing) .lf-draft-tools {
+      pointer-events: none;
+    }
+    lf-draft:state(typing):not(:state(pointed)) .lf-draft-tools {
+      transition: none;
+    }
   }
   /* A mark's reach stands half a finger's floor above the border it is centred on,
      which the box's padding keeps clear of words, so a press on the last line puts

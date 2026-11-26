@@ -33,17 +33,18 @@ from interact_support import (
     woken,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import thread as thread_model
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import schema as schema_model
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.commands.session import set_status
+from leaf.log import event_log as events_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import storage as registry_storage
 from model.interact_contract import _stateful_page_declaration
 
 
@@ -92,7 +93,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     ):
         append_carried_log_record(page_dir, event)
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     envelope, header, shown = delivered(capsys)
     handling = header["handling"]
@@ -116,9 +117,9 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     # A drawn comment is told everything a plain one is, and how to read its drawing.
     assert reading_a_drawing in drawn
     assert [clause for clause in drawn if clause != reading_a_drawing] == plain
-    # A thread the user closed before capture owes nothing, so it is told nothing
-    # about answering.
-    assert not set(replying) & set(closed)
+    # A request the user resolved before capture is still owed its answer, so it is
+    # told what any comment is.
+    assert closed == plain
     assert resolved == [declared["handling"]["resolve"][0]["text"]]
     # Neither pick lands on a widget either document holds, so neither owes an
     # answer; the page's own clauses reach only the page pick.
@@ -154,7 +155,7 @@ def test_active_handling_survives_a_broken_page_declaration(page_dir, capsys):
     session_model.cmd_waiting(page_dir)
     append_carried_log_record(page_dir, comment)
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, batch, [shown] = delivered(capsys)
     assert active and [batch["handling"][ref] for ref in shown["handling"]] == [
@@ -180,7 +181,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         },
     ):
         append_carried_log_record(page_dir, {"author": "user", **event})
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         selected = transaction.events[:3]
         append_batch_result = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
@@ -228,16 +229,18 @@ def test_delivery_without_a_layer_has_no_handling(page_dir):
     assert "handling" not in batch["events"][0]
 
 
-def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(page_dir):
-    """The same resolve/unresolve kinds can withdraw work or merely tidy a thread.
-    Changes remain deliverable after pickup and after the work they changed ends.
+def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_dir):
+    """The user's resolve takes a thread off their list and leaves a request in it
+    owed, with the work started on it, so closing or reopening the thread wakes
+    nobody. It does retire a question the agent asked there, and the agent is told
+    of that after pickup and after the work the question followed has ended.
     """
     publish(page_dir)
 
     def write(kind, **fields):
         event = append_command(page_dir, {"kind": kind, "author": "user", **fields})
         log = events_model.read_events(page_dir)
-        selected = service_model.unacknowledged(log, event["seq"] - 1)
+        selected = transaction_model.unacknowledged(log, event["seq"] - 1)
         assert selected == ([event] if event["attention"] else [])
         return event
 
@@ -247,14 +250,13 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert newest["attention"]
     receive_through(page_dir, newest["seq"])
     assert _start(page_dir, question["id"], "Revising").exit_code == 0
-    withdrawal = write("resolve", parent=question["id"])
-    assert withdrawal["attention"]
-    # Repeated closure has neither an answer nor a started move left to change.
     assert not write("resolve", parent=question["id"])["attention"]
-    reopened = write("unresolve", parent=question["id"])
-    assert reopened["attention"]
-    assert write("undo", undoes=reopened["id"])["attention"]
-    assert write("unresolve", parent=question["id"])["attention"]
+    [owed] = owed_answers(page_dir)
+    assert owed["input"] == newest["id"]
+    assert [start["item"] for start in owed["started_by"]] == [question["id"]]
+    assert not write("unresolve", parent=question["id"])["attention"]
+    assert not write("resolve", parent=question["id"])["attention"]
+    # The answer asks, so it reopens the thread, and its question waits on the user.
     answered = append_command(
         page_dir,
         {
@@ -262,10 +264,14 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
             "author": "agent",
             "parent": newest["id"],
             "responds": newest["id"],
-            "text": "The plan is revised.",
+            "text": "The plan is revised. Ship it on Friday?",
+            "obligation": True,
         },
     )
-    assert not write("resolve", parent=question["id"])["attention"]
+    assert owed_answers(page_dir) == []
+    retired = write("resolve", parent=question["id"])
+    assert retired["attention"]
+    # Reopening the thread brings back none of the questions the resolve ended.
     assert not write("unresolve", parent=question["id"])["attention"]
     # A task begun after the answer is separate work, with no pending response, and
     # it stands through the user closing and reopening the thread.
@@ -283,12 +289,10 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
         ],
     )
     assert opened.exit_code == 0, opened.output
-    assert not write("resolve", parent=question["id"])["attention"]
-    assert not write("unresolve", parent=question["id"])["attention"]
     assert owed_answers(page_dir) == []
-    with service_model.PageTransaction(page_dir) as page:
-        page.set_status("idle")
-    assert withdrawal in service_model.unacknowledged(
+    with transaction_model.PageTransaction(page_dir) as page:
+        set_status(page, "idle")
+    assert retired in transaction_model.unacknowledged(
         events_model.read_events(page_dir), newest["seq"]
     )
     assert not write(
@@ -320,7 +324,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
 
     composing = action("choice", "choose", {"value": ["flag-first"]})
     assert not composing["attention"]
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     completed = action("choice", "answer", {})
     assert completed["attention"]
     receive_through(page_dir, completed["seq"])
@@ -360,7 +364,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
         == 0
     )
     assert action("draft", "edit", {"value": "Orange room."})["attention"]
-    selected = service_model.unacknowledged(
+    selected = transaction_model.unacknowledged(
         events_model.read_events(page_dir), completed["seq"]
     )
     assert quiet not in selected
@@ -370,15 +374,12 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
 def test_recordless_requests_wake_without_user_obligations(
     page_dir, sessionless, capsys
 ):
-    from leaf.files import latest_revision
-    from leaf.served_state.context import read_page
+    from leaf.base.files import latest_revision
+    from leaf.serving.served_state.context import read_page
 
     (page_dir / "page").mkdir(exist_ok=True)
     declaration = _stateful_page_declaration(page_dir, "lf-archive")
-    verb = {
-        "unit": "widget",
-        "detail": {"type": "object", "properties": {}, "additionalProperties": False},
-    }
+    verb = {"unit": "widget", "detail": {}}
     declaration["verbs"] = {
         "archive": {**verb, "attention": True},
         "edit": verb,
@@ -441,7 +442,7 @@ def test_recordless_requests_wake_without_user_obligations(
     assert undone["attention"]
     fresh = action("archive")
     assert fresh["attention"]
-    assert service_model.unacknowledged(
+    assert transaction_model.unacknowledged(
         events_model.read_events(page_dir), first["seq"]
     ) == [repeated, undone, fresh]
 
@@ -519,7 +520,7 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
             "text": "The task view failed.",
         },
     )
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == [
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == [
         done,
         undo,
         report,
@@ -553,7 +554,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(page_dir
         ],
     )
     assert named.exit_code == 0, named.output
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exit_code == 0, waited.output
     _, header, shown = woken(waited.output)
@@ -759,7 +760,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
         },
     )
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [chose["id"]]
@@ -849,7 +850,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "detail": {},
         },
     )
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, _, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [answered["id"]]
@@ -901,7 +902,7 @@ def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
             "detail": {},
         },
     )
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, _, [shown] = delivered(capsys)
     assert shown["id"] == answered["id"]
@@ -1213,7 +1214,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
         {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
     )
     assert quiet["attention"] is False
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     answer = append_command(
         page_dir,
         {"kind": "reply", "author": "user", "parent": question["id"], "token": "keep"},
@@ -1248,7 +1249,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 
 
 def test_successful_replies_require_an_exact_agent_answer():
-    from leaf.thread import successful_replies
+    from leaf.agents.thread import successful_replies
 
     comment = {
         "kind": "comment",
@@ -1298,8 +1299,8 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
     `freeze_delivery`."""
     import yaml
 
-    from leaf.json_block import read_json_block
-    from leaf.registry.schema import schema_error, with_leaf_resources
+    from leaf.base.json_block import read_json_block
+    from leaf.source.registry.schema import schema_error, with_leaf_resources
 
     def strings(value):
         if isinstance(value, str):

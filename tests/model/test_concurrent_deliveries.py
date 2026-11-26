@@ -1,17 +1,17 @@
 """State-home records every installed Leaf shares: their readers share one shape
-boundary, and a record whose pages are gone retires whichever Leaf wrote it."""
+boundary, and a record of this Leaf's shape whose pages are gone retires."""
 
 from copy import deepcopy
 
 from interact_support import append_carried_log_record, published
 
-from leaf import codex as codex_model
-from leaf.delivery import batch_data, freeze_delivery, retire_gone_deliveries
-from leaf.service import PageTransaction
-from leaf.state import state_home, write_json
+from leaf.agents import codex as codex_model
+from leaf.agents.delivery import batch_data, freeze_delivery
+from leaf.base.state import write_json
+from leaf.records.transaction import PageTransaction
 
 
-def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
+def test_live_and_archived_readers_ignore_other_shapes_and_unknown_states(
     tmp_path, page_dir
 ):
     page = published(page_dir)
@@ -40,22 +40,29 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
             }
         ],
     }
+
+    def another_shape(path):
+        """Where a Leaf of another `RECORD` shape keeps the record `path` names."""
+        return path.with_name(f"{path.stem}@999{path.suffix}")
+
+    # Each record this Leaf reads none of, by the file it is in: another shape's,
+    # and one of this shape in a state this Leaf doesn't know.
     unreadable = [
-        {**accepted, "format": "another-format"},
-        {**accepted, "state": "a-later-state"},
-        {"format": "another-format"},
+        (another_shape, {**accepted, "format": "leaf-codex-delivery/999"}),
+        (codex_model.RECORD.file, {**accepted, "state": "a-later-state"}),
     ]
     collecting: dict = deepcopy(accepted)
     collecting["state"] = "collecting"
     collecting.pop("pending")
     collecting["batches"] = [deepcopy(captured)]
 
-    for index, record in enumerate(unreadable):
+    for index, (file, record) in enumerate(unreadable):
         identity = f"{index:016x}"
         freeze_delivery([captured], delivery_id=identity)
         live = codex_model.record_path("concurrent-task", identity)
         archived = live.parent / "history" / live.name
         archived.parent.mkdir(parents=True, exist_ok=True)
+        live, archived = file(live), file(archived)
         write_json(live, record)
         write_json(archived, record)
         assert codex_model.read_task_delivery("concurrent-task", identity) is None
@@ -68,28 +75,25 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
         )
         assert live.exists() and archived.exists()
         gone: dict = deepcopy(record)
-        if gone.get("batches") and "page" in gone["batches"][0]:
-            gone["batches"][0]["page"] = str(tmp_path / "gone")
+        gone["batches"][0]["page"] = str(tmp_path / "gone")
         write_json(live, gone)
         write_json(archived, gone)
 
-    # A record whose pages are gone goes whether this Leaf reads it or not; one
-    # that names no page stays.
+    # A record of this shape whose pages are gone goes though this Leaf reads none
+    # of it; another shape's stays as its Leaf left it.
+    directory = codex_model.delivery_dir("concurrent-task")
+    other = another_shape(directory / "0000000000000000.json")
+    held = {
+        path: path.read_bytes() for path in (other, directory / "history" / other.name)
+    }
     assert codex_model.delivery_records("concurrent-task") == []
     assert not codex_model.recover_codex_receipt("concurrent-task")
     codex_model.retire_gone_task_records()
-    pageless = {
-        f"{index:016x}.json"
-        for index, record in enumerate(unreadable)
-        if "page" not in (record.get("batches") or [{}])[0]
-    }
-    assert pageless
-    live = codex_model.record_path("concurrent-task", "0000000000000000").parent
-    assert {path.name for path in live.glob("*.json")} == pageless
-    assert {path.name for path in live.joinpath("history").glob("*.json")} == pageless
+    assert set(directory.rglob("*.json")) == set(held)
+    assert {path: path.read_bytes() for path in held} == held
 
     missing_envelope = codex_model.record_path("concurrent-task", "fffffffffffffffd")
-    write_json(missing_envelope, accepted)
+    write_json(codex_model.RECORD.file(missing_envelope), accepted)
     assert codex_model.read_record(missing_envelope) is None
 
     freeze_delivery([captured], delivery_id="ffffffffffffffff")
@@ -112,17 +116,3 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
     assert codex_model.read_record(current) == codex_model.Collecting(
         1, (collecting["batches"][0],)
     )
-
-
-def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
-    """The sweep a page server runs as it starts retires every envelope whose pages
-    are gone, whichever Leaf wrote it."""
-    page = published(page_dir)
-    deliveries = state_home() / "deliveries"
-    deliveries.mkdir(parents=True, exist_ok=True)
-    envelopes = {name: deliveries / f"{name}.json" for name in ("gone", "standing")}
-    for name, on in (("gone", tmp_path / "gone"), ("standing", page)):
-        write_json(envelopes[name], {"format": "x", "batches": [{"page": str(on)}]})
-    retire_gone_deliveries()
-    assert not envelopes["gone"].exists()
-    assert envelopes["standing"].exists()

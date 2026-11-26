@@ -4,15 +4,9 @@
  * page-authored layout selectors read. A native details wrapper would reparent them,
  * so this disclosure owns their hidden state without changing that boundary. */
 import { html, nothing, render } from "/vendor/lit.js";
-import {
-  DISCLOSE,
-  comparisonChanges,
-  keeps,
-  generated,
-  selectableOffer,
-  tabStore,
-  commandsChanged,
-} from "/runtime/widget-api.js";
+import { comparisonChanges, tabStore } from "/runtime/widget-api.js";
+import { selectableOffer } from "/runtime/lib/controls.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 const SETTLED_KEY = "lf-settled:";
 
@@ -40,23 +34,9 @@ export class SettledOptions {
 
   #build() {
     this.#row.setAttribute("aria-expanded", "false");
+    // The row wears a button's role and `aria-expanded`, so Leaf answers its keys as it
+    // does every disclosure's (module-input.md, "How scopes compose").
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
-    // The command row runs nothing: it names the settled row's keys in the group's
-    // words, as a diff's file row does. On a page the disclosure scope's `disclosure.toggle`
-    // (keyboard/page.js) answers Enter, Space and the arrows; in a message, where that
-    // scope does not reach, Enter and Space press the span as a button
-    // (role-button-press.js).
-    this.#row.lfCommands = {
-      title: "In settled options",
-      rows: [
-        {
-          id: "option.toggle-settled",
-          keys: () => DISCLOSE(this.#row),
-          title: () => (this.#isOpen ? "close" : "open"),
-        },
-      ],
-    };
-    commandsChanged(this.#row);
     this.#host.prepend(this.#row);
     this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
     this.#host.classList.toggle("lf-rendered", true);
@@ -89,7 +69,7 @@ export class SettledOptions {
     // alternatives are inside. The user chose this over a right-aligned
     // count of the options.
     render(
-      html`<span ${generated({ says: true })}
+      html`<span data-lf-gen="1" data-lf-said
           >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
         >${changes ? html`<span class="lf-settled-diff lf-chip lf-change-count">Δ${changes}</span>` : nothing}`,
       this.#row,

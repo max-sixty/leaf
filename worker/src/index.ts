@@ -18,7 +18,7 @@
  * container captured it, which the store serves only to that release. A session's
  * containers run the deployed image from the deploy's first request on (`LeafSession`),
  * so a tab reloads onto the deployed release at its first answer after the deploy
- * (`layer-client.js`).
+ * (`transport/layer-client.js`).
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -70,7 +70,7 @@ import {
   isPageSessionFileRequest,
   isPrivatePageRequest,
   needsPageSlash,
-  newSessionId,
+  hex,
   pageRoute,
   releaseAssetRoute,
   sessionCookie,
@@ -379,7 +379,7 @@ export class LeafSession extends DurableObject<Env> {
       await this.running();
     } catch (error) {
       // One the platform couldn't place is a wait the tab sits out; one that ran and
-      // exited is a fault the tab shows (`state-feed.js`).
+      // exited is a fault the tab shows (`host/state-feed.js`).
       const status = exitCode(error) === undefined ? 503 : 500;
       return lostAttempt("start", "Failed to start container", error, status);
     }
@@ -407,7 +407,7 @@ export class LeafSession extends DurableObject<Env> {
     // the request, so a request Python answers the same way twice gets one more
     // attempt, once the container answers its health route again or a new one has
     // started, rather than showing the visitor a 500: a read, or a view report,
-    // which replaces only an older report of its session (`leaf.user_views`).
+    // which replaces only an older report of its session (`leaf.serving.user_views`).
     // Any other write may already have reached Python, so its loss reaches the
     // caller instead.
     const replay =
@@ -565,7 +565,7 @@ export class SessionOutbound extends WorkerEntrypoint<Env, OutboundProps> {
 }
 
 function randomSessionId(): string {
-  return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
+  return hex(crypto.getRandomValues(new Uint8Array(16)));
 }
 
 // What a visitor's record is readable by: Leaf's page protocol for the page files, and
@@ -664,7 +664,7 @@ async function passiveEvent(
   return parsed.success ? parsed.data : null;
 }
 
-// The runtime sends no read until its session is active (`thread/read.js`), so this
+// The runtime sends no read until its session is active (`records/thread/read.js`), so this
 // answers one that arrives anyway, as from a tab whose runtime predates that rule. It
 // is refused as final, which the runtime takes as "don't send it again this visit", and
 // under a 200, since a browser logs a failed fetch as a console error.
@@ -853,7 +853,7 @@ async function staticState(
   const state = (await response.json()) as ServedState;
   prepareStateDelivery(state, request);
   // Stored and asked for again before each reuse, as every Leaf server's state answer
-  // is (`CACHE_CONTROL`, `src/leaf/http.py`), so it names the request headers its body
+  // is (`CACHE_CONTROL`, `src/leaf/serving/http.py`), so it names the request headers its body
   // turns on.
   const answer = Response.json(state, {
     headers: {

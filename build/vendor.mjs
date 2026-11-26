@@ -132,7 +132,7 @@ const bindTo = (filter, target) => ({
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
-  // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
+  // Leaf captures without `reconcile` (`runtime/host/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
   //
@@ -378,13 +378,12 @@ const bundles = {
 
   // One CodeMirror 6 core for runtime composers and optional file editors.
   //
-  // One bundle holds the editor core and the GFM Markdown language, exporting the
-  // names composers and the file-editor adapter import. Optional autocomplete and
-  // merge live in the file-editor package and import this same state/view/language
-  // implementation. The runtime owns the live-preview decorations and reads a draft
-  // with markdown-it alone; only the file editor highlights with the language. It
-  // comes without `markdown()`, whose HTML-block support would carry the HTML, CSS
-  // and JavaScript grammars into the bundle for syntax a file never highlights.
+  // One bundle holds the editor core, exporting the names composers and the
+  // file-editor adapter import. Optional autocomplete and merge live in the
+  // file-editor package and import this same state/view/language implementation.
+  // The runtime owns the live-preview decorations and reads a draft with markdown-it
+  // alone, and the file editor colours every language with the syntax module, so the
+  // core carries no language of its own.
   codemirror: () => ({
     out: `${assets}/vendor/codemirror.esm.js`,
     entryPoints: [input("entries/codemirror/entry.mjs")],
@@ -410,7 +409,7 @@ const bundles = {
       // in one. A fixed box whose containing block is an ancestor, as a transform or
       // paint containment makes one, has that ancestor for its `offsetParent` and
       // moves with that ancestor's scrollers, so the walk passes it. Walking on from
-      // the chrome, which stands after `body` (runtime/chrome.js), the walk would reach
+      // the chrome, which stands after `body` (runtime/base/chrome.js), the walk would reach
       // the root, whose own box moves up as the page scrolls: a press whose pointer
       // drifted a pixel would read the pointer as far below that box and scroll the
       // page to its end. Ending the walk at the root would give these editors the
@@ -461,20 +460,14 @@ const bundles = {
     ],
   }),
 
-  // File editing extensions sharing the runtime's CodeMirror implementation. Merge
-  // and autocomplete live in this optional package, and each language the editor
-  // highlights beyond the core's Markdown in a module of its own, loaded when a file
-  // of it opens (file-editor's editor.js). Their state/view/language and Lezer
-  // imports bind to the core Leaf's composers use, so extensions never mix
-  // CodeMirror identities: a second Lezer tree would read none of the core's node
-  // props, and a language parsed with it would highlight nothing.
+  // File editing extensions sharing the runtime's CodeMirror implementation: merge
+  // and autocomplete, which live in this optional package. The editor colours every
+  // language with the syntax module (file-editor's editor.js). Their
+  // state/view/language and Lezer imports bind to the core Leaf's composers use, so
+  // extensions never mix CodeMirror identities.
   "file-editor": () => ({
     out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entryPoints: {
-      "extensions.esm": input("entries/file-editor/entry.mjs"),
-      "codemirror-yaml.esm": input("entries/file-editor/yaml.mjs"),
-    },
-    outdir: packageVendor("file-editor"),
+    entryPoints: [input("entries/file-editor/entry.mjs")],
     platform: "browser",
     target: "es2022",
     plugins: [
@@ -527,7 +520,7 @@ const bundles = {
   }),
 
   // Temml typesets the LaTeX in a page's `<code class="language-math">` as MathML the
-  // browser draws itself (`runtime/formulas.js`). Its sheet travels in the module as
+  // browser draws itself (`runtime/readings/formulas.js`). Its sheet travels in the module as
   // text, as PhotoSwipe's does, so only a page that shows a formula loads it, and the
   // font that sheet names for primes and script capitals travels inside the sheet, so
   // an export needs no file beside the module.
@@ -863,7 +856,7 @@ const bundles = {
         edit: patchTransitions,
       },
       // A radio group's arrow moves focus to the next radio in its row, which the user
-      // already sees. Leaf places focus without scrolling (focus.js, `focusDestination`),
+      // already sees. Leaf places focus without scrolling (dom/focus.js, `focusDestination`),
       // and the focused-control landing margin made the native scroll move the chooser
       // under the arrow wherever a landing had left it at the window's top edge.
       {
@@ -960,13 +953,15 @@ async function bundle(spec) {
 }
 
 /**
- * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
- * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a `language-…` class names, read here so that identifying a
- * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
- * names too, as the one line of JSON `syntaxLanguageNames` is written on
- * (`leaf.validation.markup.COLOURED_LANGUAGES`).
+ * The table of the grammars `syntax` bundles, a library module
+ * (`runtime/lib/syntax-languages.js`): a literal import for each, so an export binds
+ * it, and each name and alias Shiki gives a grammar, which a `language-…` class names,
+ * read here so that identifying a block loads no grammar. Both come from this build,
+ * which a page's grammars need anyway, so the browser doesn't read `$languages.names`
+ * itself. `page check` reads the names too, as the one line of JSON
+ * `syntaxLanguageNames` is written on (`leaf.records.markup_checks.markup.COLOURED_LANGUAGES`).
+ * Beside them stands the shipped extension table, which `base/language-paths.js` starts
+ * from until a page installs its composed one.
  */
 async function syntaxLoaders() {
   const names = languages();
@@ -988,18 +983,19 @@ async function syntaxLoaders() {
         .join("") +
       "};\n" +
       `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n` +
-      `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
+      "/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s, in the package API.\n" +
+      ` * @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
   );
 }
 
-/** Every bundle's outputs, and the runtime's syntax table, keyed by repository path. */
+/** Every bundle's outputs, and the library's syntax table, keyed by repository path. */
 export async function vendorOutputs() {
   const built = await Promise.all(
     Object.values(bundles).map(async (spec) => bundle(await spec())),
   );
   return new Map([
     ...built.flatMap((outputs) => [...outputs]),
-    [`${assets}/runtime/syntax-languages.js`, await syntaxLoaders()],
+    [`${assets}/runtime/lib/syntax-languages.js`, await syntaxLoaders()],
   ]);
 }
 

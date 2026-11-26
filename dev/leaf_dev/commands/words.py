@@ -5,7 +5,7 @@ panel says in passing and what a listener hears after each press.
 
 The panel's field has one seat for words that pass: a notice, a walk's position, the
 Go-to filter's word, and where the user stands before the agent's status
-(floating-panel.js, `fieldReading`). Each of those answers a press, so the survey reads
+(panel/floating-panel.js, `fieldReading`). Each of those answers a press, so the survey reads
 them press by press. On each page of `PAGES`, or each `--page`, it presses every page
 command a key reaches at rest, twice, since a second press walks on or toggles back;
 runs `JOURNEYS`, the sequences whose later presses mean something only after the first,
@@ -98,7 +98,12 @@ JOURNEYS = (
     ("page.search.open", ("/", "type:the", "Enter", "n", "n", "Shift+n")),
     ("command.reference.open", ("?", "ArrowDown", "ArrowDown", "End")),
     ("target.picker.open", ("s", "ArrowDown", "ArrowDown")),
-    ("changes.toggle", ("v", "h", "h", "Shift+h", "v")),
+    # Versions' Compare of the version the user last saw, by its key, its changes
+    # walked, and the same keys taking the marks off.
+    (
+        "navigation.go-to.open",
+        ("g", "Shift+v", "v", "h", "h", "Shift+h", "g", "Shift+v", "v"),
+    ),
     ("queue.next", ("m", "ArrowDown", "ArrowDown")),
     ("thread.next", ("t", "Escape", "t")),
 )
@@ -108,7 +113,7 @@ WALK_KEYS = ("ArrowDown", "ArrowRight", "End")
 TAB_STOPS = 150
 
 # How long a press is given to paint before the seat is read, in real time, and how far
-# the page's clock then runs past a notice's moment (notifications.js, `NOTICE_MS`).
+# the page's clock then runs past a notice's moment (transport/notifications.js, `NOTICE_MS`).
 SETTLE_MS = 300
 LATER_MS = 4500
 
@@ -215,7 +220,9 @@ class Survey:
         if key.startswith("type:"):
             self.page.keyboard.type(key.removeprefix("type:"))
         else:
-            self.page.keyboard.press(key)
+            # A binding's `Mod` is the platform's own modifier (bindings.js), which
+            # Playwright spells ControlOrMeta.
+            self.page.keyboard.press(key.replace("Mod+", "ControlOrMeta+"))
 
     def observe(self, step: str) -> dict:
         """Read the seat after `step`, then again once a notice's moment has passed."""

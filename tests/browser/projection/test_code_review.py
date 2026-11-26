@@ -31,11 +31,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import state as cleanup_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import scroll_settled
 from leaf_dev.example_data import patch_manifest
 
@@ -93,7 +93,10 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         assert consumer["widget"] == identity
         stored = data_model.source_file(serve.page_dir, source)
         assert stored == serve.page_dir / inspection["data"]["dir"] / f"{source}.json"
-        assert json.loads(stored.read_text())["value"] == value
+        assert (
+            json.loads(data_model.PUBLICATION.file(stored).read_text())["value"]
+            == value
+        )
         widget = page.locator(f"#{identity}")
         expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
@@ -392,7 +395,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         held.pop(0).continue_()
         page.evaluate(
             """async () => {
-              const {loadMarkdown} = await window.__lfWidgetApi();
+              const {loadMarkdown} = await import("/runtime/lib/markdown.js");
               await loadMarkdown();
             }"""
         )
@@ -1171,7 +1174,14 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     # document scrolls inside its box, so the card may open over that box or under it.
     # Under it, the card stands a mark's room and a gap clear (`place-clear`).
     reopened = card.bounding_box()
-    clear = page.evaluate("async () => (await window.__lfOverlayApi()).subjectGap()")
+    clear = page.evaluate(
+        """async () => {
+          const {COMMENT_GAP, markRoom, subjectGap} = await window.__lfOverlayApi();
+          const datum = document.querySelector('#source [data-lf-datum]');
+          const box = datum.getBoundingClientRect();
+          return subjectGap(markRoom(datum, box, COMMENT_GAP), 'bottom');
+        }"""
+    )
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
     assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + clear + 2

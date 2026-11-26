@@ -28,7 +28,7 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
-from leaf.render_checks import one_frame, rendered
+from leaf.source.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -183,7 +183,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     assert first_code
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, Migration plan. Press Enter to go there."
+        f"Hint {first_code}: Link, Migration plan. Enter go to target"
     )
     prepare_link = links.nth(1)
     prepare_href = prepare_link.get_attribute("href")
@@ -199,7 +199,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     """Every opaque route's chip fits at viewport edges, including one cut by the
     window's top. A link showing one pixel at the foot, where the panel's band leaves
     its chip no seat beside it, has its chip withheld rather than stood above the
-    panel, and its code still takes it (keyboard/hints.js, `seatHints`)."""
+    panel, and its code still takes it (readings/key-badges/hints.js, `seatHints`)."""
     page = open_page(
         browser,
         serve(
@@ -273,7 +273,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     for _ in range(under_index + 1):
         page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {under_code}: Link, Over the top. Press Enter to go there."
+        f"Hint {under_code}: Link, Over the top. Enter go to target"
     )
     page.keyboard.press("Enter")
     expect(over_top).to_have_attribute("data-activated", "true")
@@ -355,19 +355,30 @@ def test_adjacent_footnote_markers_keep_their_codes_without_chips(browser, serve
     page.wait_for_url(re.compile(r"#s1$"))
 
 
-def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve):
+@pytest.mark.parametrize(
+    "drawing",
+    [
+        '<svg id="drawing" width="400" height="120"><foreignObject x="80" y="40" '
+        'width="200" height="40"><div xmlns="http://www.w3.org/1999/xhtml">'
+        '<a id="run" href="#top">$ wt merge</a></div></foreignObject></svg>',
+        # Drawn at twice its viewBox, the link in the far half of its foreignObject.
+        '<svg id="drawing" width="400" height="120" viewBox="0 0 200 60">'
+        '<foreignObject x="40" y="20" width="100" height="20"><div '
+        'xmlns="http://www.w3.org/1999/xhtml" style="padding-left: 60px; font-size: 8px">'
+        '<a id="run" href="#top">merge</a></div></foreignObject></svg>',
+    ],
+    ids=["drawn", "scaled"],
+)
+def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve, drawing):
     """Chromium resolves no anchor to an element inside a foreignObject, so the chip
-    anchored to a link there stood off the window while its code still followed it."""
+    anchored to a link there stood off the window while its code still followed it. A
+    drawing scaled by its viewBox draws its HTML at that scale, and the foreignObject
+    shows all of it there (dom/geometry.js, `drawnViewport`), so a link in the far half of
+    one still has its chip."""
     page = open_page(
         browser,
         serve(
-            leaf_page(
-                "Drawn terminal",
-                '<h1 id="top">Drawn terminal</h1><svg id="drawing" width="400" '
-                'height="120"><foreignObject x="80" y="40" width="200" height="40">'
-                '<div xmlns="http://www.w3.org/1999/xhtml"><a id="run" '
-                'href="#top">$ wt merge</a></div></foreignObject></svg>',
-            )
+            leaf_page("Drawn terminal", f'<h1 id="top">Drawn terminal</h1>{drawing}')
         ),
     )
     page.keyboard.press("g")
@@ -522,7 +533,7 @@ def test_a_map_armed_as_a_walk_lands_names_what_the_landed_page_shows(browser, s
     task that landed the glide, the card still stood where the glide had carried it, a
     frame behind the scroll, and the map named the entry, which Tab then walked to first;
     read again as that scroll ended, before the frame that moved the card, it named it
-    again (arrivals.js, `scrollDrawn`)."""
+    again (dom/arrivals.js, `scrollDrawn`)."""
     source = LONG_PAGE.replace(
         "<p id='p20'>Paragraph 20.", "<p id='p20'>Paragraph 20. <a href='#p20'>Mid</a>"
     ).replace(
@@ -576,11 +587,10 @@ def test_a_generated_hint_is_never_drawn_on_the_panel(browser, serve):
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
 
-    # Swept rather than asked once. The panel's room is reserved at the document's foot,
-    # so the end of the page is exactly where this cannot happen; what puts a member under
-    # it is an ordinary scroll position with a link resting on the bottom edge. Each
-    # step waits for the runtime's own paint frame, since the chips follow a scroll on a
-    # frame of their own and boxes read in the same turn are the positions it just left.
+    # Swept rather than asked once: what puts a member under the panel is a scroll
+    # position with a link resting on the bottom edge. Each step waits for the runtime's
+    # own paint frame, since the chips follow a scroll on a frame of their own and boxes
+    # read in the same turn are the positions it just left.
     room = page.evaluate(
         "() => document.scrollingElement.scrollHeight"
         " - document.scrollingElement.clientHeight"
@@ -872,7 +882,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     # Every hint stands on screen, the heard one marked, so the walk says no position.
     expect_walk_position(page, None)
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, First destination. Press Enter to go there."
+        f"Hint {first_code}: Link, First destination. Enter go to target"
     )
     expect(page.locator(f'{CHIPS}[data-lf-go-to-target="first"]')).to_have_class(
         re.compile(r"\blf-current\b")
@@ -892,7 +902,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, serve):
     """A revision moves the page under an armed Go-to map with no scroll. Each chip rides
     its target, and every letter the user has read and the target the walk stands on
-    stay, so the letter they just read takes what they read it on (keyboard/hints.js)."""
+    stay, so the letter they just read takes what they read it on (readings/key-badges/hints.js)."""
     links = "".join(
         f'<p><a id="l{n}" href="#top">Destination {n}</a></p>' for n in range(1, 6)
     )

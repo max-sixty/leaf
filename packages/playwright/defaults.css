@@ -9,7 +9,7 @@ lf-trace {
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */
   --lf-trace-stage-height: max(
     320px,
-    calc(100dvh - var(--lf-top) - var(--lf-foot-room) - 2 * var(--lf-landing-room))
+    calc(100dvh - var(--lf-top) - 2 * var(--lf-landing-room))
   );
   --lf-block-frame: 1;
   display: flex;
@@ -140,6 +140,8 @@ lf-trace[hidden="until-found"] {
   --lf-trace-capture-h: 14px;
   --lf-trace-mark: color-mix(in srgb, var(--lf-ink) 55%, var(--lf-paper));
   --lf-trace-input: var(--lf-accent);
+  /* The band around the selected mark's name, which reaches past the label holding it. */
+  --lf-trace-word-band: 2px;
   /* The overview, beside the scroller, follows its pan. */
   timeline-scope: --lf-trace-pan;
   position: relative;
@@ -209,11 +211,16 @@ lf-trace[hidden="until-found"] {
   cursor: crosshair;
   overflow: hidden;
 }
-/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
-   every lane, as the playhead does. */
+/* The axis's ticks and gridlines (`timeAxis`, runtime/lib/time-axis.js) each stand in
+   a box as wide as the axis: the ticks in the ruler, and the gridlines in a layer
+   from the ruler's foot down every lane, as the playhead runs. */
+.lf-trace-ruler {
+  position: relative;
+}
 .lf-trace-grid {
   position: absolute;
   inset: var(--lf-trace-ruler-h) 0 0;
+  pointer-events: none;
 }
 .lf-trace-lane {
   position: relative;
@@ -264,7 +271,9 @@ lf-trace[hidden="until-found"] {
   background: var(--lf-trace-input);
   cursor: pointer;
 }
-/* A label sits above its first call's bar, its left edge on that bar's start. */
+/* A label sits above its first call's bar, its left edge on that bar's start. Its
+ * clip, which ends a long name in an ellipsis, leaves the selected name's band whole
+ * (Safari can't widen a clip, so there the band stays cut at the label's edge). */
 .lf-trace-input-label {
   inset-block-start: 3px;
   padding: 2px 4px 2px 0;
@@ -272,7 +281,8 @@ lf-trace[hidden="until-found"] {
   color: var(--lf-ink);
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: clip;
+  overflow-clip-margin: var(--lf-trace-word-band);
   text-overflow: ellipsis;
   box-sizing: border-box;
   cursor: pointer;
@@ -338,7 +348,7 @@ lf-trace[hidden="until-found"] {
   border-radius: var(--lf-r-s);
   background: var(--lf-accent);
   color: var(--lf-paper);
-  box-shadow: 0 0 0 2px var(--lf-accent);
+  box-shadow: 0 0 0 var(--lf-trace-word-band) var(--lf-accent);
 }
 /* A moment flag shows its selection on its staff and pill instead. */
 .lf-trace-moment-flag .lf-trace-word[data-lf-current] {
@@ -485,14 +495,17 @@ lf-trace[hidden="until-found"] {
 }
 /* Point metadata owns its scroll. Frame gaps and disclosure cannot shrink the
  * surrounding page or pull a control out from under a reader during playback. Its
- * ring stands one band inside its edge (below), so its words start a ring's room in,
- * clear of the band; the scrollbar's gutter keeps the other side clear. */
+ * ring stands one band inside its edge (below), so its rows stand a ring's room in
+ * from either side, clear of the band. The room is padding on both sides because a
+ * scrollbar gutter is no room at all where scrollbars overlay the content, as on macOS
+ * and in headless browsers, and the sticky "Saved elements" row would paint over the
+ * ring's right edge there. */
 .lf-trace-metadata {
   margin-block-start: var(--lf-sp-3);
   block-size: 14rem;
   overflow: auto;
   scrollbar-gutter: stable;
-  padding-inline-start: var(--lf-focus-ring-room);
+  padding-inline: var(--lf-focus-ring-room);
   --lf-top: 0px;
   --lf-holds-height: 1;
 }
@@ -709,10 +722,6 @@ lf-trace-bookmark {
   flex: 0 0 auto;
   min-inline-size: var(--lf-trace-control-size);
   block-size: var(--lf-trace-control-size);
-}
-/* These adjacent targets keep the shared ring inside their own allocation. */
-.lf-trace-transport-button {
-  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 .lf-trace-play {
   inline-size: var(--lf-trace-control-size);

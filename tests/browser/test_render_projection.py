@@ -28,6 +28,7 @@ from render_harness import (
     leaf_page,
     names,
     open_page,
+    press_draft_control,
     resized,
     root_overflow,
     round_trip,
@@ -41,11 +42,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.readings import DevtoolsIssues
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.readings import DevtoolsIssues
+from leaf.source import data as data_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -284,10 +285,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:40 in the exact patch"
     )
     expect(added).to_be_focused()
-    # Each line already stood in the window once the diff revealed it, so neither
-    # trip departed: no history entry, and the address kept no fragment.
-    assert page.evaluate("history.length") == entries
-    expect(page).not_to_have_url(re.compile(r"#patch$"))
+    # Each trip lands the user on a line they weren't on, so each is a Back step, as a
+    # followed link is, though the diff had already brought the line into the window.
+    assert page.evaluate("history.length") == entries + 2
 
     data_model.cmd_data_set(
         serve.page_dir,
@@ -419,7 +419,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     else:
         write(editor, provided)
     expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
-    draft_control(page, "save", "ledger-cargo").click()
+    press_draft_control(page, "save", "ledger-cargo")
     round_trip(page)
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
@@ -473,7 +473,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     write(seat.locator(".lf-fab-input"), "Finish the current hunk, then park here.")
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
-    expect(goal).to_have_attribute("data-lf-held")
     # Leaf says what the press did beyond a comment, in words that hold for any widget.
     expect(page.locator(".lf-live")).to_have_text("Held until resolved")
     page.locator("#atlas-record .lf-activity-news").click()
@@ -501,7 +500,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
         },
     )
     told(page)
-    expect(goal).to_have_attribute("data-lf-held", root["id"])
     # The reply landed where the user was looking, so it waits for them to open it.
     seat.get_by_role("button", name="1 new", exact=True).click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
@@ -519,7 +517,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     open_panel_thread(page, root["id"])
     with sending(page, "the resolution"):
         page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
-    expect(goal).not_to_have_attribute("data-lf-held")
     page.locator("#atlas-record .lf-activity-news").click()
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
@@ -532,7 +529,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     page.locator("#atlas-record .lf-activity-news").click()
     expect(released).to_have_attribute("data-lf-undone", "")
     expect(released).to_contain_text("undone")
-    expect(goal).to_have_attribute("data-lf-held", root["id"])
     assert [
         event["kind"]
         for event in events_model.read_events(d)

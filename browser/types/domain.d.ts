@@ -9,11 +9,10 @@ import type {
   MessageKind,
   ServedState,
   ServedVerb,
-  ServedAttention,
   WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
-import type { Immutable } from "../runtime/framework/snapshot.js";
+import type { Immutable } from "../runtime/base/snapshot.js";
 export type StateRecord = NonNullable<ServedVerb["record"]>;
 export interface ActionSpec {
   unit: string;
@@ -79,7 +78,9 @@ export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
   addressable?: boolean;
   plainText?: string;
 };
-export type Attention = ServedAttention;
+/** The id of the obligation record that speaks for a thread (`standing.leading`), or
+ * null where nobody owes a move there. */
+export type Attention = string | null;
 export interface Thread {
   id: string;
   root: Message;
@@ -139,7 +140,7 @@ export type PendingProjection =
       localOrder: number;
     };
 // A widget event or undo in the log, at the coordinate its view classifies it at, an
-// undo at its target's, or null (`logCoverage` in `framework/application.js`).
+// undo at its target's, or null (`logCoverage` in `state/semantic-application.js`).
 export interface Coverage {
   event: Event;
   coordinate: readonly string[] | null;

@@ -12,6 +12,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -19,10 +20,11 @@ from interact_support import (
     serving,
 )
 
-from leaf import harness as harness_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf.refusals import Refused
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base.refusals import Refused
+from leaf.commands import session as session_model
+from leaf.records import transaction as transaction_model
 
 DRIVER = Path(__file__).parents[1].joinpath("pi_driver.mjs")
 
@@ -144,8 +146,10 @@ def start_pi_fixture(page_dir, monkeypatch, spawn, sessionless):
         driven = Pi(spawn, "pi-s1", mode)
         started.append(driven)
         monkeypatch.setenv("PI_SESSION_ID", driven.session)
+        hooks_run_this_tree(driven.session)
         monkeypatch.setenv("LEAF_PI_PID", str(driven.pid))
-        service_model.claim_page(page_dir)
+        hooks_run_this_tree(driven.session)
+        transaction_model.claim_page(page_dir)
         serving(page_dir, 1)
         session_model.cmd_waiting(page_dir)
         driven.emit("session_start", idle=True, reason="startup")
@@ -186,7 +190,9 @@ def test_pi_and_claude_code_nested_either_way_rank_by_process(monkeypatch):
     Code run from Pi's; the extension's LEAF_PI_PID is what ranks Pi's process
     against CLAUDE_PID."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "outer-claude")
+    hooks_run_this_tree("outer-claude")
     monkeypatch.setenv("PI_SESSION_ID", "inner-pi")
+    hooks_run_this_tree("inner-pi")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     monkeypatch.setenv("CLAUDE_PID", str(os.getppid()))
     harness = harness_model.session_harness()
@@ -210,6 +216,7 @@ def test_a_pi_session_without_the_leaf_extension_is_refused(
     Leaf's extension states that, so without it there is no lifetime to claim
     a page for."""
     monkeypatch.setenv("PI_SESSION_ID", "pi-bare")
+    hooks_run_this_tree("pi-bare")
     with pytest.raises(Refused, match="extension"):
-        service_model.claim_page(page_dir)
+        transaction_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir) is None

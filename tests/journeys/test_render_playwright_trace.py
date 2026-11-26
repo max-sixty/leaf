@@ -29,17 +29,17 @@ from render_harness import (
     told,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.pages import exporting as exporting_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 
 
 def said_by_marks(scope):
     """Write what each mark under `scope` says when pointed at (its `lfPreview()`,
-    preview.js) into its `data-test-tip`, its name and each line of detail on a line of
+    annotations/preview.js) into its `data-test-tip`, its name and each line of detail on a line of
     its own, so a locator can find a mark by its words. An element whose declaration
     adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
@@ -392,7 +392,14 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # to the checkpoint that owns its saved tree.
     user.keyboard.press("Escape")
     body = widget.locator(".lf-trace-body")
-    body.hover()
+    # The pointer goes where the body already shows, as a user's does: `hover` would
+    # first scroll the body by Chromium's reveal rule, a scroll no user makes.
+    shown = body.bounding_box()
+    window = user.viewport_size["height"]
+    user.mouse.move(
+        shown["x"] + shown["width"] / 2,
+        (max(shown["y"], 0) + min(shown["y"] + shown["height"], window)) / 2,
+    )
     user.mouse.wheel(0, 80)
     rendered(user)
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -974,8 +981,11 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     expect_after_checkpoint(
         phone, (stop_time(record, actions[0]["phases"]["after"]) - origin) / 1000
     )
+    # The reader scrolls the tools up the window. Playwright's own reveal stops with
+    # them at the window's foot, under the floating panel, and scrolling by whole
+    # pixels leaves a third of a pixel of them past it.
     tools = phone.locator(".lf-trace-image-tools")
-    tools.scroll_into_view_if_needed()
+    tools.evaluate("tools => tools.scrollIntoView({block: 'center'})")
     expect(tools).to_be_in_viewport(ratio=1)
     stage_box = phone.locator(".lf-trace-stage").bounding_box()
     metadata_box = phone.locator(".lf-trace-metadata").bounding_box()
@@ -2104,7 +2114,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     shared, solo = pins.nth(0), pins.nth(1)
     docs_time = (stop_time(record, clicks[0]["phases"]["after"]) - origin) / 1000
     api_time = (stop_time(record, clicks[1]["phases"]["after"]) - origin) / 1000
-    # What a flag says to a resting pointer is its preview (preview.js).
+    # What a flag says to a resting pointer is its preview (annotations/preview.js).
     tip = user.locator("#lf-preview")
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
@@ -2112,7 +2122,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         expect(tip).to_be_visible()
         # The flag names its count and each moment's words on a line of its own. The
         # lanes around it leave room above for its first line, so the rest is cut
-        # there, as any preview held to a room is (preview.js, `fit`), and says
+        # there, as any preview held to a room is (annotations/preview.js, `fit`), and says
         # itself whole where the room allows.
         expect(tip.locator(".lf-preview-word")).to_be_visible()
         expect(tip.locator(".lf-preview-word, .lf-preview-detail")).to_have_text(
@@ -2122,7 +2132,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
                 f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
             ]
         )
-        # Its face is what is drawn, ink on its ground (preview.js).
+        # Its face is what is drawn, ink on its ground (annotations/preview.js).
         reading = tip.locator(".lf-preview-face").evaluate(
             """node => {
               const canvas = document.createElement('canvas');

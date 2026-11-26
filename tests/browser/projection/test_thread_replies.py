@@ -19,6 +19,7 @@ from render_harness import (
     http_error_console,
     open_page,
     post_event,
+    press_draft_control,
     refuse,
     round_trip,
     stamp_page,
@@ -29,8 +30,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import one_frame
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -131,13 +132,8 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                 tag: {
                     "description": "A body normalized by an asynchronous renderer.",
                     "attributes": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "string"},
-                            "restated": {"type": "boolean"},
-                        },
+                        "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "data",
                     "verbatim": True,
@@ -152,13 +148,17 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {LeafElement, keepsText} from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
+import { PendingTaskEvent } from '/runtime/lib/pending-task.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 customElements.define('lf-delayed-body', class extends LeafElement {
   setup() {
-    this.controller.present(new Promise(resolve => requestAnimationFrame(() => {
-      this.querySelector('pre').textContent = 'Presentation-only rewrite.';
-      resolve();
-    })));
+    this.dispatchEvent(new PendingTaskEvent(
+      new Promise(resolve => requestAnimationFrame(() => {
+        this.querySelector('pre').textContent = 'Presentation-only rewrite.';
+        resolve();
+      })),
+    ));
   }
   render() { keepsText(this.querySelector('pre'), this.state.edit.value); }
 });
@@ -310,7 +310,7 @@ def test_crossed_responses_wait_for_the_same_thread_widget_module(browser, serve
     )
     draft_control(page, "edit", "crossed-draft").click()
     write(widget.locator("leaf-text"), "A user's exact words.\n")
-    draft_control(page, "save", "crossed-draft").click()
+    press_draft_control(page, "save", "crossed-draft")
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
     # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
@@ -611,7 +611,7 @@ def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
     with it. The group is still there to read in the Resolved state, and still holds no
     answer — what went is the page's claim on the user, who would otherwise carry a
-    decision in force for the life of the page and have `d` step them into a closed
+    decision in force for the life of the page and have `m` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_OBLIGATIONS[0])

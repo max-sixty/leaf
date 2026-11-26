@@ -17,7 +17,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 
 
 def test_motion_views_seek_together_and_play_only_while_requested(browser, serve):
@@ -42,7 +42,7 @@ def test_motion_views_seek_together_and_play_only_while_requested(browser, serve
             packages=("motion",),
             page_files={
                 "draw.js": """
-import { keeps } from '/runtime/widget-api.js';
+import { keeps } from '/runtime/lib/keeps.js';
 await customElements.whenDefined('lf-motion');
 const study = document.getElementById('study');
 const forward = study.querySelector('#forward');

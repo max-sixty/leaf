@@ -22,20 +22,20 @@ from interact_support import (
     styled,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import page_view as page_view_model
-from leaf import passages as passages_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf import vendoring as vendoring_model
-from leaf.registry import contract as registry_contract
-from leaf.registry import layer as registry_layer
-from leaf.registry import page as registry_page
-from leaf.registry import storage as registry_storage
-from leaf.registry import validation as registry_validation
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import page_view as page_view_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import layer as registry_layer
+from leaf.source.registry import page as registry_page
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry import validation as registry_validation
 from model.interact_contract import (
     _stateful_page_declaration,
 )
@@ -208,9 +208,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
     with the layer's, an unstated writer as the user's."""
     layer = registry_storage.load_registry(page_dir)
     declaration = element_declaration("lf-local", upgrade=True)
-    declaration["attributes"]["properties"] |= {
-        name: {"type": "boolean"} for name in ("overruled", "restated")
-    } | {"reading": {"type": "string"}}
+    declaration["attributes"]["properties"]["reading"] = {"type": "string"}
     declaration["verbs"] = {
         "set": {
             "unit": "widget",
@@ -426,7 +424,7 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     """An old tab validates under its capture and changes the current page's
     obligations and requested input. The page's own widget changes between the two
     revisions, as its author's declarations do."""
-    from leaf.state import write_json
+    from leaf.base.state import write_json
 
     def publish_choice(needs_attention):
         pick = _stateful_page_declaration(page_dir, "lf-pick")
@@ -470,7 +468,7 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     assert ("answer" in action["meaning"]) is (
         not active_attention and declaration == "obligation"
     )
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == (
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == (
         [action] if active_attention else []
     )
 
@@ -496,7 +494,7 @@ def test_wakeup_uses_the_recorded_identity_after_an_undo(page_dir):
     )
     assert fresh["id"] != reaction["id"]
     assert fresh["attention"]
-    assert service_model.unacknowledged(
+    assert transaction_model.unacknowledged(
         events_model.read_events(page_dir), fresh["seq"] - 1
     ) == [fresh]
 
@@ -546,8 +544,8 @@ def test_page_registry_cache_does_not_outlive_a_page_at_the_same_path(tmp_path):
 
 def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page_dir):
     """A superseded action can become the winner again if the later action is undone."""
-    from leaf.projection import page_reading
-    from leaf.revision_artifact import read_artifact
+    from leaf.log.projection import page_reading
+    from leaf.source.revision_artifact import read_artifact
 
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir)
@@ -612,8 +610,8 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
 
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
     """A retracted action on a removed sender is interpreted only in its old revision."""
-    from leaf.projection import page_reading
-    from leaf.revision_artifact import read_revision
+    from leaf.log.projection import page_reading
+    from leaf.source.revision_artifact import read_revision
 
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir)
@@ -678,7 +676,7 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     declaring its own widget has the revision's own composition validated once under
     this Leaf's layer, though its candidate's authored entry is unstamped where the
     revision's composed one is stamped."""
-    from leaf import revision_artifact, styles
+    from leaf.source import revision_artifact, styles
 
     if declares:
         (page_dir / "page").mkdir(exist_ok=True)
@@ -720,8 +718,8 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
 ):
     from interact_support import state_json
 
-    from leaf.projection import page_reading
-    from leaf.revision_artifact import read_revision
+    from leaf.log.projection import page_reading
+    from leaf.source.revision_artifact import read_revision
 
     declaration = _stateful_page_declaration(page_dir)
     declaration["attributes"]["properties"]["value"] = {
@@ -811,7 +809,7 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     ids=lambda case: case["id"],
 )
 def test_state_definition_identity_ignores_only_annotations(case):
-    from leaf.registry.contract import same_state_definition, state_definition
+    from leaf.source.registry.contract import same_state_definition, state_definition
 
     definitions = [
         state_definition("lf-local", {}, {"unit": "widget", "detail": case[key]})

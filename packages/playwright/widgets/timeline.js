@@ -17,21 +17,18 @@
  * milliseconds from the recording's origin.
  */
 import { html, keyed, nothing, render, repeat } from "/vendor/lit.js";
+import { frameFor, whileConnected } from "/runtime/widget-api.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { layoutPx } from "/runtime/lib/keeps.js";
+import { textWidth as measure } from "/runtime/lib/text-width.js";
 import {
-  setScroll,
-  frameFor,
-  sizeObserver,
-  whileConnected,
-  layoutPx,
-  pressIsKeyboardActivation,
   assignRows,
-  axisTicks,
-  textWidth as measure,
+  timeAxis,
   AXIS_EDGE as EDGE,
   AXIS_LABEL_CHROME as LABEL_CHROME,
   AXIS_LABEL_GAP as LABEL_GAP,
   AXIS_TICK_SPACING as TICK_SPACING,
-} from "/runtime/widget-api.js";
+} from "/runtime/lib/time-axis.js";
 
 /** @typedef {{name: string, detail: string[]}} Tip */
 /** @typedef {{id: string, label: string, tip: Tip, current: boolean}} NamedMark */
@@ -50,7 +47,7 @@ import {
 const CLUSTER_WIDTH = 168;
 
 // What a mark says to a pointer resting on it or a finger holding it, as its preview
-// (`lfPreview`, module-input.md, "Previews"): its name, then its time and what else the
+// (`lfPreview`, module-previews.md): its name, then its time and what else the
 // recording says of it. A time keeps its unit on its line. It is about the lane the mark
 // stands in, which the user reads along, so the preview keeps clear of the whole lane.
 // The lane's marks are thinner than the preview owner's hit tests are apart, so naming
@@ -284,7 +281,7 @@ export class RecordingTimeline {
     this.#start = this.#pxToTime(target);
     if (target === Math.round(scroller.scrollLeft)) return;
     this.#expectedScroll = target;
-    setScroll(scroller, { left: target });
+    scroller.scrollTo({ left: target, behavior: "instant" });
   }
   // A new zoom or width moves the window, so the scroll goes to `left`, a pixel offset
   // on the new track, before anything is drawn: the marks, the ruler and its grid are
@@ -508,8 +505,8 @@ export class RecordingTimeline {
               @pointerdown=${(/** @type {PointerEvent} */ event) => this.#press(event)}
               @click=${(/** @type {PointerEvent} */ event) => this.#tap(event)}
             >
-              <div class="lf-trace-ruler lf-axis-ruler"></div>
-              <div class="lf-trace-grid lf-axis-grid" aria-hidden="true"></div>
+              <div class="lf-trace-ruler"></div>
+              <div class="lf-trace-grid" aria-hidden="true"></div>
               ${
                 model.moments.length
                   ? html`<div class="lf-trace-lane lf-trace-lane-moments">
@@ -692,40 +689,14 @@ export class RecordingTimeline {
     const grid = this.#part(".lf-trace-grid");
     const scroller = this.scroller;
     if (!ruler || !grid || !scroller?.clientWidth || !this.#model) return;
-    const ticks = axisTicks(
+    const axis = timeAxis(
       this.#pxToTime(scroller.scrollLeft - TICK_SPACING),
       this.#pxToTime(scroller.scrollLeft + scroller.clientWidth + TICK_SPACING),
       this.#recording.duration,
       this.#pxPerMs(),
     );
-    render(
-      repeat(
-        ticks,
-        (tick) => `${tick.step}:${tick.time}`,
-        (tick) =>
-          html`<span
-            class="lf-axis-tick"
-            ?data-lf-major=${tick.major}
-            ?data-lf-flip=${tick.flip}
-            style="--lf-axis-at: ${this.#fraction(tick.time)}"
-            >${tick.label ?? nothing}</span
-          >`,
-      ),
-      ruler,
-    );
-    render(
-      repeat(
-        ticks.filter((tick) => tick.major),
-        (tick) => `${tick.step}:${tick.time}`,
-        (tick) =>
-          html`<span
-            class="lf-axis-gridline"
-            ?data-lf-flip=${tick.flip}
-            style="--lf-axis-at: ${this.#fraction(tick.time)}"
-          ></span>`,
-      ),
-      grid,
-    );
+    render(axis.ruler, ruler);
+    render(axis.grid, grid);
   }
 
   // Gestures -------------------------------------------------------------------------
@@ -880,7 +851,7 @@ export class RecordingTimeline {
       return;
     }
     // A mouse press already scrubbed; a tap seeks once.
-    if (event.pointerType === "touch" || pressIsKeyboardActivation(event))
+    if (event.pointerType === "touch" || event.detail === 0)
       this.#options.onSeek(this.#eventTime(event), true);
   }
 

@@ -11,18 +11,14 @@
 // only when the page asks for it, and `core-independent-of-overlay` keeps every other
 // owner from reaching it. Site-absolute `/vendor/` and `/checks/` specifiers, which the
 // browser resolves and Node does not, are excluded by name; every other unresolvable
-// specifier is a missing module and an error. So is the framework's facade by its
-// served path, `/runtime/framework.js`: like Lit beneath it, the framework is a
-// dependency every owner may hold, not one of the owners whose routes these rules
-// read. Its own modules, under `framework/`, are checked as any owner is. JSON, such as
-// the kernel registry `kernel-facts.js` imports, is excluded too: data holds no route
-// between owners.
+// specifier is a missing module and an error. JSON, such as the kernel registry
+// `state/kernel-facts.js` imports, is excluded too: data holds no route between owners.
 
 import fs from "node:fs";
 
 const assets = "browser/";
 const runtime = `${assets}runtime/`;
-const overlay = `${runtime}annotation-overlay/`;
+const overlay = `${runtime}annotations/annotation-overlay/`;
 const owners = `^${runtime}`;
 
 const escaped = (name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -32,137 +28,160 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // Each root reaches these modules and nothing else. The pure record folds take values
 // and return values; the keyboard dispatcher resolves a key against the register and
 // the focused scope. If one of them reached a painter or an application service, every
-// caller would acquire that owner's initialization graph.
+// caller would acquire that owner's initialization graph. A module of the library of
+// shared web code (`lib/`) is no owner, and lint keeps each clear of every owner
+// (`eslint.config.mjs`), so a root may reach one without naming it here.
+const library = `^${runtime}lib/`;
+// A reader of the application state reaches the publisher and the record folds it
+// composes.
+const applicationState = [
+  "state/semantic-state.js",
+  "state/version-signal.js",
+  "state/semantic-application.js",
+  "base/snapshot.js",
+  "base/presentation.js",
+  "state/obligations/source.js",
+  "state/pending/model.js",
+  "state/projection/model.js",
+  "state/thread/model.js",
+  "state/thread/identity.js",
+  "state/kept.js",
+  "state/kernel-facts.js",
+  "state/registry-contract.js",
+  "base/anchor-coordinate.js",
+];
 const exactClosures = {
-  "queued-work.js": [],
-  "control-selectors.js": ["inputs.js", "document-inputs.js"],
-  "shadow-tree.js": [],
-  "contribution-model.js": ["icon-paths.js", "words.js", "kernel-facts.js"],
-  "margin-model.js": [
-    "contribution-model.js",
-    "icon-paths.js",
-    "words.js",
-    "kernel-facts.js",
-    "thread/workflow.js",
-    "voice.js",
+  "base/ui-marks.js": [],
+  "dom/control-selectors.js": ["base/inputs.js", "base/document-inputs.js"],
+  "base/contribution-model.js": [],
+  "features/margin-model.js": [
+    "base/contribution-model.js",
+    "records/thread/workflow.js",
+    "base/voice.js",
   ],
-  "margin-map-model.js": [
-    "margin-model.js",
-    "contribution-model.js",
-    "icon-paths.js",
-    "words.js",
-    "kernel-facts.js",
-    "thread/workflow.js",
-    "voice.js",
+  "features/margin-map-model.js": [
+    "features/margin-model.js",
+    "base/contribution-model.js",
+    "records/thread/workflow.js",
+    "base/voice.js",
   ],
-  "projection/model.js": ["kernel-facts.js", "kept.js"],
-  "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
-  "thread/model.js": [
-    "anchor-coordinate.js",
-    "kept.js",
-    "thread/identity.js",
-    "thread/workflow.js",
-    "voice.js",
+  "state/projection/model.js": ["state/kept.js"],
+  "records/projection/state.js": applicationState,
+  "state/thread/model.js": [
+    "base/anchor-coordinate.js",
+    "state/kept.js",
+    "state/thread/identity.js",
   ],
-  "thread/state.js": [
-    "semantic-state.js",
-    "version-signal.js",
-    "queued-work.js",
-    "thread/model.js",
-    "anchor-coordinate.js",
-    "kept.js",
-    "thread/identity.js",
-    "thread/workflow.js",
-    "voice.js",
-  ],
-  "thread/workflow.js": ["voice.js"],
-  "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
-  "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
-  "keyboard/dispatch.js": [
-    "context.js",
-    "semantic-state.js",
-    "version-signal.js",
-    "queued-work.js",
-    "focus.js",
-    "dom-move.js",
-    "control-selectors.js",
-    "inputs.js",
-    "document-inputs.js",
-    "control-keys.js",
-    "language-paths.js",
-    "syntax-languages.js",
-    "shadow-tree.js",
-    "scroll-containers.js",
-    "keeps.js",
-    "keyboard/bindings.js",
-    "keyboard/layer-stack.js",
-    "keyboard/register.js",
-    "keyboard/scopes.js",
-    "keyboard/text-entry.js",
-    "role-button-press.js",
-    "keeps.js",
-    "pointer.js",
-    "user-intent.js",
-    "registry.js",
-    "registry-contract.js",
-    "kernel-facts.js",
-    "rendering.js",
-    "frame-visibility.js",
-    "repaint.js",
-    "shadow.js",
-    "arrivals.js",
-    // A widget's declared commands arrive by the event it dispatches, and a malformed
-    // declaration is reported as its failure.
-    "widget-upgrade.js",
-    "exception.js",
-    "page-paint.js",
-    "kept.js",
+  "records/thread/state.js": applicationState,
+  "records/thread/workflow.js": ["base/voice.js"],
+  "state/pending/model.js": ["state/thread/identity.js", "state/kernel-facts.js"],
+  "records/pending/state.js": applicationState,
+  "dom/keyboard/dispatch.js": [
+    ...applicationState,
+    "state/context.js",
+    "dom/focus.js",
+    "dom/dom-move.js",
+    "dom/control-selectors.js",
+    "base/inputs.js",
+    "base/document-inputs.js",
+    "dom/keyboard/bindings.js",
+    "dom/keyboard/layer-stack.js",
+    "dom/keyboard/register.js",
+    "dom/keyboard/scopes.js",
+    "dom/keyboard/text-entry.js",
+    "base/pointer.js",
+    "base/rendering.js",
+    "base/frame-visibility.js",
+    "dom/repaint.js",
+    "dom/arrivals.js",
   ],
 };
 
 const applicationOwners = [
-  "application.js",
-  "delivery.js",
-  "keyboard/go-to-sequence.js",
-  "keyboard/controller.js",
-  "pending/state.js",
-  "undo.js",
-  "state-application.js",
-  "state-feed.js",
+  "host/application.js",
+  "host/delivery.js",
+  "panel/page-keys/go-to-sequence.js",
+  "panel/page-keys/controller.js",
+  "records/pending/state.js",
+  "records/undo.js",
+  "host/state-application.js",
+  "host/state-feed.js",
 ];
 
 // The renderers. Each receives the semantic commands it uses; one that reaches an
 // application owner, through however many helpers, owns state instead of drawing it.
 // The geometry and paint group adds the thread's own presenter, which composes
-// them and must stay above them.
+// them and must stay above them. A renderer in a layer below every module it must
+// not reach needs no entry, since `layering` already keeps it from them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "thread/folding.js",
-    "thread/inline.js",
-    "thread/landing.js",
-    "thread/messages.js",
-    "thread/placement.js",
-    "thread/presentation.js",
-    "thread/reaction-strips.js",
-    "thread/replies.js",
-    "thread/surfaces.js",
-    "thread/thread-card.js",
-    "projection/data.js",
-    "projection/presentation.js",
+    "records/thread/folding.js",
+    "records/thread/inline.js",
+    "records/thread/landing.js",
+    "records/thread/messages.js",
+    "records/thread/placement.js",
+    "records/thread/presentation.js",
+    "records/thread/reaction-strips.js",
+    "records/thread/replies.js",
+    "records/thread/surfaces.js",
+    "records/thread/thread-card.js",
+    "records/projection/data.js",
+    "records/projection/presentation.js",
   ].map((root) => [root, applicationOwners]),
   ...[
-    "addressable-names.js",
-    "anchor-resolution.js",
-    "anchor-controls.js",
-    "anchor-paint.js",
-    "anchor-travel.js",
-    "page-layout.js",
-    "annotation-overlay/composing/drawing-paint.js",
-    "annotation-overlay/margin-layout.js",
-    "page-geometry.js",
-    "target-paint.js",
-  ].map((root) => [root, [...applicationOwners, "thread/presentation.js"]]),
+    "annotations/anchor-controls.js",
+    "annotations/anchor-paint.js",
+    "features/anchor-travel.js",
+    "panel/page-layout.js",
+    "annotations/annotation-overlay/composing/drawing-paint.js",
+    "annotations/annotation-overlay/margin-layout.js",
+    "panel/page-geometry.js",
+  ].map((root) => [root, [...applicationOwners, "records/thread/presentation.js"]]),
 ]);
+
+// The runtime's import layers, top first. A module imports only modules of its own
+// layer and of the layers listed after it. The entry points form the top layer and stay
+// at the runtime's top level, since pages, packages, the server and the render checks
+// load them by served path. Each other layer is a directory of the runtime. The library
+// of shared web code (`lib/`) keeps its served path and belongs to the bottom layer.
+// A module anywhere else at the top level fails `layering-unplaced`: move it into a
+// layer no higher than any module that imports it and no lower than any module it
+// imports.
+//
+// When a `layering` rule fails, make the import point down, by passing the value or
+// callback in or by moving what it needs to a layer below both. Where the module itself
+// stands in the wrong layer, move the module instead.
+const layers = [
+  {
+    name: "Entry points and diagnostics",
+    paths: [
+      "bootstrap.js",
+      "prepaint.js",
+      "check-api.js",
+      "validation.js",
+      "widget-api.js",
+      "portable-api.js",
+      "stage-integration.js",
+      "age.js",
+    ],
+  },
+  { name: "Floating panel, page dialogs and page keys", paths: ["panel/"] },
+  { name: "Annotation presentation and composing", paths: ["annotations/"] },
+  { name: "Application and widget host", paths: ["host/"] },
+  {
+    name: "Page features: annotation inventory, contributions, version travel",
+    paths: ["features/"],
+  },
+  { name: "Records, history and undo", paths: ["records/"] },
+  { name: "Page readings, places and paint", paths: ["readings/"] },
+  { name: "Transport, errors and notices", paths: ["transport/"] },
+  { name: "DOM, geometry, focus and the key register", paths: ["dom/"] },
+  { name: "State and registry", paths: ["state/"] },
+  { name: "Primitives and the library", paths: ["base/", "lib/"] },
+];
+// A path names a file exactly and a directory by everything under it.
+const inLayers = (paths) =>
+  `^${runtime}(?:${paths.map((path) => escaped(path) + (path.endsWith("/") ? "" : "$")).join("|")})`;
 
 // A rule naming a module that no longer exists matches nothing and passes, so the
 // declarations above are checked against the directory before they become rules.
@@ -175,6 +194,12 @@ for (const name of new Set(
     throw new Error(
       `.config/dependency-cruiser.mjs names a missing runtime module: ${name}`,
     );
+for (const { paths } of layers)
+  for (const path of paths)
+    if (!fs.existsSync(new URL(`../${runtime}${path}`, import.meta.url)))
+      throw new Error(
+        `.config/dependency-cruiser.mjs names a missing runtime module: ${path}`,
+      );
 
 export default {
   forbidden: [
@@ -186,18 +211,27 @@ export default {
       severity: "error",
       from: {
         path: owners,
-        pathNot: isOneOf(["widget-api.js", "widget-controller.js"]),
+        pathNot: isOneOf(["widget-api.js", "host/widget-controller.js"]),
       },
-      to: { path: isModule("application.js") },
+      to: { path: isModule("host/application.js") },
+    },
+    {
+      name: "one-application-publisher",
+      comment:
+        "Only state/semantic-state.js constructs the application publisher, so a page " +
+        "holds one application state.",
+      severity: "error",
+      from: { path: owners, pathNot: isModule("state/semantic-state.js") },
+      to: { path: isModule("state/semantic-application.js") },
     },
     {
       name: "page-keyboard-from-boot-only",
       comment:
-        "keyboard/page.js declares the page's own keys as it evaluates and exports " +
+        "panel/page-keys/page.js declares the page's own keys as it evaluates and exports " +
         "nothing; only leaf.js imports it, for that effect.",
       severity: "error",
-      from: { path: owners, pathNot: isModule("keyboard/page.js") },
-      to: { path: isModule("keyboard/page.js") },
+      from: { path: owners, pathNot: isModule("panel/page-keys/page.js") },
+      to: { path: isModule("panel/page-keys/page.js") },
     },
     {
       name: "core-independent-of-overlay",
@@ -220,7 +254,7 @@ export default {
       comment: `${root} reaches only: ${allowed.join(", ") || "itself"}.`,
       severity: "error",
       from: { path: isModule(root) },
-      to: { reachable: true, pathNot: isOneOf([root, ...allowed]) },
+      to: { reachable: true, pathNot: [isOneOf([root, ...allowed]), library] },
     })),
     ...Object.entries(forbiddenClosures).map(([root, forbidden]) => ({
       name: `no-reach-from-${root}`,
@@ -229,21 +263,30 @@ export default {
       from: { path: isModule(root) },
       to: { reachable: true, path: isOneOf(forbidden) },
     })),
+    ...layers.slice(1).map(({ name, paths }, at) => ({
+      name: "layering",
+      comment: `${name} imports only its own layer and the layers after it in \`layers\`.`,
+      severity: "error",
+      from: { path: inLayers(paths) },
+      to: { path: inLayers(layers.slice(0, at + 1).flatMap((layer) => layer.paths)) },
+    })),
+    {
+      name: "layering-unplaced",
+      comment:
+        "Each runtime module is an entry point or stands in a layer's directory.",
+      severity: "error",
+      from: { path: owners, pathNot: inLayers(layers.flatMap((layer) => layer.paths)) },
+      to: {},
+    },
   ],
   options: {
     moduleSystems: ["es6"],
     // /checks probes are supplied by the Python server, outside the runtime graph.
     exclude: {
-      path: [
-        `^${assets}(?!runtime/)`,
-        "^/vendor/",
-        "^/checks/",
-        "^/runtime/framework\\.js$",
-        "\\.json$",
-      ],
+      path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/", "\\.json$"],
     },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
-    // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
+    // `./repaint` finds `dom/repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },
   },
 };

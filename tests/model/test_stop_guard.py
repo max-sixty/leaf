@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -55,29 +56,31 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf.json_block import read_json_block
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import read_json_block
+from leaf.base.service import PREVIEW
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import activity as activity_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import storage as registry_storage
 
 
 def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differs():
     obligation = {
         "input": "widget-action",
         "seq": 1,
-        "stage": "picked_up",
+        "queued": False,
         "answer": {
             "kind": "reply",
             "writer": "turn",
@@ -117,8 +120,9 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
     try:
         assert page_state(page_dir)["listening"]
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "harness-owner")
+        hooks_run_this_tree("harness-owner")
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-        assert service_model.claim_page(page_dir)
+        assert transaction_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
         assert claim is not None
         lease_path_4 = leases_model.waiter_lease_path(page_dir, claim["id"])
@@ -184,7 +188,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     """
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)
-    assert service_model.claim_page(second)
+    assert transaction_model.claim_page(second)
     deliveries = {}
     for page, comment, label in (
         (claimed, "c1", "first"),
@@ -264,7 +268,9 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(
     # Presence is the whole reading. The serve path's user raises on a preview
     # file it cannot parse, and this guard fails open by saying nothing, so a
     # user here would take every page the session holds down without a word.
-    (claimed / schema_model.PREVIEW_FILE).write_text("{not json", encoding="utf-8")
+    PREVIEW.file(claimed / schema_model.PREVIEW_FILE).write_text(
+        "{not json", encoding="utf-8"
+    )
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -409,7 +415,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
 
     # A bound move can be answered by its provider final or an explicit addressed
     # reply. The proactive thread writer still refuses an owed move.
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert session is not None
         page.reserve_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -424,7 +430,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     with pytest.raises(delivery_model.Refused) as refused:
         thread_model.post_response(ref, "gave up", failure="turn_failed")
     assert f"with `leaf thread reply {ref}`" in str(refused.value)
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert session is not None
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
@@ -537,11 +543,10 @@ def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     record = registry_storage.layer_record(claimed)
-    layer = claimed / schema_model.LAYER_FILE
-    layer.unlink()
+    (claimed / schema_model.LAYER_FILE).unlink()
     assert record is not None
-    registry_storage.LAYER.write(
-        layer, {**record, "packages": [*record["packages"], "./moved-package"]}
+    registry_storage.write_layer(
+        claimed, {**record, "packages": [*record["packages"], "./moved-package"]}
     )
     # Without this the test passes for the wrong reason: it has to be a page
     # whose layer the current Leaf really does refuse.
@@ -658,7 +663,7 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
 
     def pickup(phase: str) -> None:
         with (
-            service_model.PageTransaction(claimed) as page,
+            transaction_model.PageTransaction(claimed) as page,
             delivery_model.receive_batch(page, batch, session_id="s1") as delivered,
         ):
             delivery_model.record_pickup(
@@ -700,9 +705,9 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     events = open(page_dir / "events.jsonl", "a+b")
     fcntl.flock(events, fcntl.LOCK_EX)
     probe = """\
-from leaf import service as service_model
+from leaf.records import transaction as transaction_model
 
-original_flocked = service_model.flocked
+original_flocked = transaction_model.flocked
 events = Path(os.environ["EVENTS"]).resolve()
 marker = Path(os.environ["MARKER"])
 
@@ -713,7 +718,7 @@ def observed_flocked(path, **kwargs):
     with original_flocked(path, **kwargs) as stream:
         yield stream
 
-service_model.flocked = observed_flocked
+transaction_model.flocked = observed_flocked
 sys.argv = ["leaf", "page", "close", os.environ["PAGE"]]
 cli_model.cli()
 """
@@ -850,11 +855,11 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} lapsed when its turn ended"
+        f"your start on {asked['id']} lapsed: no agent of yours carried it"
         in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
+    assert f"your start on {asked['id']} lapsed: no agent of yours carried it" in reason
     assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
@@ -880,7 +885,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
-    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
+    assert f"your start on {asked['id']} lapsed: no agent of yours carried it" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 
@@ -976,7 +981,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
     assert claim_record_5["turn_closed"]
     assert [
         event["id"]
-        for event in service_model.unacknowledged(
+        for event in transaction_model.unacknowledged(
             events_model.read_events(claimed),
             acknowledged_through(claimed),
         )
@@ -987,6 +992,32 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
     )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert resolve["id"] in context["additionalContext"]
+    leases_model.release_lease(lease)
+
+
+def test_a_stop_holds_for_a_request_the_user_resolved(claimed, printing, capsys):
+    """The user's resolve takes the thread off their list and leaves the request
+    owed, so the turn that took it in holds for its answer, and the answer lets the
+    turn end."""
+    lease = _watched(claimed)
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "why?"}
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "resolve",
+            "author": "user",
+            "parent": asked["id"],
+            "attention": False,
+        },
+    )
+    assert delivered_ref(claimed, asked["id"]) in _stop(capsys)
+    thread_model.post_reply(
+        claimed, {"parent": asked["id"], "responds": asked["id"]}, "Because."
+    )
+    assert _stop(capsys) is None
     leases_model.release_lease(lease)
 
 
@@ -1020,7 +1051,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         if history == "lost-pointer":
             receive_through(page_dir, latest["seq"])
         else:
-            with service_model.PageTransaction(page_dir) as page:
+            with transaction_model.PageTransaction(page_dir) as page:
                 page.take_claim(
                     harness_model.EmbeddedHarness("prior", "Prior owner", os.getpid())
                 )
@@ -1127,13 +1158,19 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     )
     edited = state_json(claimed)
     [receipt] = edited["workflows"]
-    assert (receipt["input"], receipt["stage"], receipt["obligation"]) == (
-        edit["id"],
-        "sent",
-        None,
-    )
+    assert (
+        receipt["input"],
+        receipt["state"],
+        receipt["seen"],
+        receipt["obligation"],
+    ) == (edit["id"], "waiting", False, None)
     assert edited["activity"]["obligations"] == []
-    assert edited["activity"]["counts"]["total"] == 0
+    assert edited["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 0,
+    }
     picked = append_command(
         claimed,
         {
@@ -1148,7 +1185,12 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     state = state_json(claimed)
     [workflow] = owed(state)
     assert workflow["answer"] == {"kind": "markup", "action": picked["id"]}
-    assert state["activity"]["counts"]["total"] == 1
+    assert state["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 1,
+    }
 
     delivery = delivery_through(claimed, last_deliverable_seq(claimed))
     [batch] = delivery_model.read_delivery(delivery)["batches"]
@@ -1305,10 +1347,14 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     ticked = state_json(claimed)
     assert [item["widget"] for item in obligations_on_user(ticked)] == ["choice"]
     assert ticked["workflows"] == []
-    assert ticked["activity"]["counts"]["total"] == 0
-    assert ticked["activity"]["counts"]["pending"] == 0
+    assert ticked["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 0,
+    }
 
-    assert service_model.unacknowledged(events_model.read_events(claimed), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(claimed), 0) == []
     assert _stop(capsys) is None
 
     done = append_command(

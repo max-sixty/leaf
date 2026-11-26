@@ -20,7 +20,7 @@ from render_harness import (
     sending,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import slow_cpu
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -120,9 +120,10 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
     Observe `defaultPrevented` on real key events instead of asserting that Chrome
     happened to scroll: scrolling depends on viewport and focus geometry, while
     canceling the event is the runtime decision under test. `?` is the positive
-    control proving the capture observer sees a key the dispatcher intentionally
-    consumes. Observe the navigation keys in bubble, after focused content has had
-    a chance to cancel them."""
+    control proving the observer sees a key the dispatcher intentionally consumes,
+    read on the root element after Leaf's own listener there, since the consumed key
+    goes no further. Observe the navigation keys in bubble, after focused content has
+    had a chance to cancel them."""
     page = open_page(browser, serve(KEYS_PAGE))
     keys = [
         "Space",
@@ -143,9 +144,9 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
           pageContent.tabIndex = -1;
           pageContent.focus();
           window.lfObservedKeys = {};
-          document.addEventListener("keydown", event => {
+          document.documentElement.addEventListener("keydown", event => {
             if (event.key === "?") window.lfObservedKeys["?"] = event.defaultPrevented;
-          }, {capture: true});
+          });
           document.addEventListener("keydown", event => {
             const key = event.key === " "
               ? (event.shiftKey ? "Shift+Space" : "Space") : event.key;
@@ -304,15 +305,15 @@ def reading_keys_walk(page, down, up):
         60
         if down == "j"
         else page.evaluate(
-            "() => { const s = getComputedStyle(document.scrollingElement); return ("
+            "async () => { const s = getComputedStyle(document.scrollingElement); return ("
             " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-            " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+            " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
         )
     )
 
     def land(top):
         """Where a glide aimed at `top` rests: every glide's goal is a whole pixel
-        (scrolling.js, `glideTo`), and each press adds its step to that goal."""
+        (dom/scrolling.js, `glideTo`), and each press adds its step to that goal."""
         return math.floor(top + 0.5)
 
     def rests_at(act, expected):
@@ -400,9 +401,9 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
     slow_cpu(page, 20)
     step = page.evaluate(
-        "() => { const s = getComputedStyle(document.scrollingElement); return ("
+        "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     start = round(step * 2)
     page.evaluate("""() => {
@@ -445,9 +446,9 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
             60
             if down == "j"
             else page.evaluate(
-                "() => { const s = getComputedStyle(document.scrollingElement); return ("
+                "async () => { const s = getComputedStyle(document.scrollingElement); return ("
                 " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-                " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+                " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
             )
         )
         page.keyboard.press(down)

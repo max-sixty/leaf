@@ -1,0 +1,9 @@
+/* The faces of the author's own elements: markup's reading face (components/reading.css),
+ * the faces it gives the page's own controls (vendor/page-controls.css), and the marks
+ * and focus band Leaf draws on any element (components/element-marks.css). In the
+ * document they are a theme's defaults for the author's content, so they stand in
+ * `lf-theme`, below the page's `base` layer (layer.py, `composed_sheets`). A
+ * declared tree reads them first in its shared sheet (shadow.css). */
+@import "./components/reading.css";
+@import "./components/element-marks.css";
+@import "./vendor/page-controls.css";

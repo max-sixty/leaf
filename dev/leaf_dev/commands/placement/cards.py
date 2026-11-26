@@ -47,8 +47,8 @@ measured in the tab:
   its contents take unwrapped, the measure (`cardMeasure`), its room, which runs
   from the card's inner edge to the far edge of the placement boundary
   (`commentBoundary`) beside its subject, and is the boundary's width above or below,
-  or, for a card that declares it stands slim (`data-lf-widens`), the least width
-  (`cardMinimum`);
+  or, for a card that declares it stands slim (`data-lf-widens`), the width it starts
+  at: the least width (`cardMinimum`), or the comment box's where Send opened it;
 - how much wider the card stands than its contents take unwrapped;
 - the part of its subject's block it covers, and whether it covers the quoted words,
   a fault where card and block would fit in the boundary together, side by side for a
@@ -68,8 +68,8 @@ from pathlib import Path
 import click
 from playwright.sync_api import Page
 
-from leaf.event_log import read_events
-from leaf.render_checks import wait_until_ready
+from leaf.log.event_log import read_events
+from leaf.source.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import (
     PageClient,
@@ -88,7 +88,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.states import OPEN_CARD, State, open_card
+from leaf_dev.states import OPEN_THREAD, State, open_card
 from leaf_dev.visits import said, visits
 
 OUT = ROOT / ".tmp" / "cards"
@@ -449,7 +449,7 @@ READ = """async () => {
     location.href);
   const runtime = (path) => import(new URL(`runtime/${path}`, entry));
   const [api, anchors, placement] = await Promise.all([runtime('widget-api.js'),
-    runtime('anchor-resolution.js'), runtime('annotation-overlay/comment-placement.js')]);
+    runtime('readings/anchor-resolution.js'), runtime('annotations/annotation-overlay/comment-placement.js')]);
   const [thread] = api.readThreads().threads;
   const target = anchors.resolveAnchor(thread.anchor);
   const quote = (target.segments ?? []).flatMap((segment) => {
@@ -478,9 +478,12 @@ READ = """async () => {
     boundary: box(placement.commentBoundary()),
     card: box(shown(card)?.getBoundingClientRect()),
     natural: shown(card) && natural(card),
-    // A card at the least width declares it (`data-lf-widens`) until a message it shows
+    // A card at the width it starts at, the least width or the box's Send opened it
+    // from (`by_comment`), declares it (`data-lf-widens`) until a message it shows
     // stands tall enough to widen it.
-    least: shown(card)?.hasAttribute('data-lf-widens') ? placement.cardMinimum() : null,
+    least: shown(card)?.hasAttribute('data-lf-widens')
+      ? Math.max(placement.cardMinimum(), window.lfSentBoxWidth ?? 0)
+      : null,
     side: shown(card)?.getAttribute('data-lf-thread-placement') ?? null,
     panel: box(shown(panel)?.getBoundingClientRect()),
     block: box((target.element ?? target.place).getBoundingClientRect()),
@@ -505,19 +508,15 @@ def centre(page: Page, case: Case) -> None:
 
 
 # Each route returns the page's scroll just before the input that opens the card,
-# which a finger presses in a touch window and a mouse in any other.
-
-# A card the route opened, or on a phone the floating panel's view of its thread.
-OPENED = (
-    "() => document.querySelector('.lf-margin-preview:not([hidden]), .lf-fp-opened')"
-)
+# which a finger presses in a touch window and a mouse in any other, once the card, or
+# on a phone the floating panel's view of its thread, has opened (`OPEN_THREAD`).
 
 
 def by_walk(page: Page, case: Case, window: Window) -> float:
     page.locator("body").focus()
     before = page.evaluate("scrollY")
     page.keyboard.press("m")
-    page.wait_for_function(OPEN_CARD)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -529,7 +528,7 @@ def by_marker(page: Page, case: Case, window: Window) -> float:
     settle(page)
     before = page.evaluate("scrollY")
     marker.tap()
-    page.wait_for_function(OPENED)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -545,7 +544,7 @@ def by_tap(page: Page, case: Case, window: Window) -> float:
         page.touchscreen.tap(*at)
     else:
         page.mouse.click(*at)
-    page.wait_for_function(OPENED)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -561,9 +560,14 @@ def by_comment(page: Page, case: Case, window: Window) -> float:
     )
     page.keyboard.press("c")
     page.keyboard.insert_text(case.typed)
+    # The box's width, which the card Send opens starts at (the reading's `least`).
+    page.evaluate(
+        "() => { window.lfSentBoxWidth ="
+        " document.querySelector('.lf-fab-bar').getBoundingClientRect().width; }"
+    )
     before = page.evaluate("scrollY")
     page.keyboard.press("ControlOrMeta+Enter")
-    page.wait_for_function(OPEN_CARD)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -580,7 +584,11 @@ def answer(words: str, leaves: str) -> None:
     """The agent answers the reader's message as an agent does: from its delivery,
     declaring what the answer leaves (`--done` or `--obligation`)."""
     served = served_page.get()
-    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    delivery = json.loads(
+        served.leaf(
+            "wait", str(served.directory), timeout=SERVED_TIMEOUT_MS / 1000
+        ).stdout
+    )
     ref = next(
         event["answer"]["ref"]
         for batch in delivery["batches"]
@@ -705,7 +713,7 @@ def findings(reading: dict) -> dict:
         }.get(side, boundary["right"] - boundary["left"]),
     }
     if reading["least"]:
-        limits["the least width, until a message stands tall"] = reading["least"]
+        limits["the width it starts at, until a message stands tall"] = reading["least"]
     limit = min(limits, key=lambda name: limits[name])
     window = {
         "left": 0,

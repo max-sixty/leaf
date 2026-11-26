@@ -1512,3 +1512,17 @@ returns false and deletes nothing in Firefox; standing the chrome inside `body`
 would cure both, at the cost of the isolation it has after `body`. Recheck by
 appending `<div contenteditable>` after `body` in Firefox, typing "abcd" into it and
 pressing Backspace twice.
+
+### Pretty line breaking in Firefox
+
+The reading face breaks a paragraph's lines with `text-wrap-style: pretty`
+(`browser/styles/components/reading.css`, `p`), so a paragraph doesn't end on one
+word alone. Firefox doesn't accept the value and breaks greedily, as it did before,
+so a paragraph there can still end on one word. On
+2026-11-26 the installed Firefox 160.0.1 and Playwright Firefox 159.0 (build 1572)
+both answered `CSS.supports("text-wrap-style", "pretty")` with false, and the
+`review-a-plan` example at 1280×800 ended its lede on "Codex." and its close on
+"harnesses."; Playwright Chromium 159.0.8154.6 and WebKit 27.2 ended neither on one
+word. Left as it is: nothing breaks, and Firefox takes the value once it ships it.
+Recheck with `uv run leaf-dev probe review-a-plan --browser firefox --viewport
+desktop --js "CSS.supports('text-wrap-style', 'pretty')"`.

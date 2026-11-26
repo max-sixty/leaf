@@ -281,7 +281,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token")
+        if event.get("emoji")
     ]
     page.keyboard.press("Escape")  # out of the panel's field
     expect(panel_field(page)).not_to_be_focused()

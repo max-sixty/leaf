@@ -1,7 +1,8 @@
 import { isHTML } from "../../lib/shadow-tree.js";
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus.
-   The strip below a reply's words holds its reactions; its trigger stands with the
+   The strip below a reply's words holds its reactions, each a toggle whose emoji is its
+   face and, read by its Unicode name, its accessible name; its trigger stands with the
    message's other controls at its head (messages.js), which draws `trigger`. */
 import { html, ref, render, repeat } from "/vendor/lit.js";
 import { offeredAction } from "../../lib/controls.js";
@@ -39,16 +40,15 @@ export class ReactionStripView {
       html`
         ${repeat(
           model.choices,
-          (choice) => choice.name,
+          (choice) => choice.emoji,
           (choice) =>
             html` <button
               ${offeredAction("reaction", "lf-react")}
-              data-lf-token=${choice.name}
-              aria-label=${choice.label}
+              data-lf-emoji=${choice.emoji}
               aria-pressed=${String(Boolean(choice.inForce))}
               @click=${() => this.#press(model, choice)}
             >
-              <span class="lf-react-glyph">${choice.glyph}</span>
+              <span class="lf-react-glyph">${choice.emoji}</span>
             </button>`,
         )}
       `,
@@ -84,7 +84,7 @@ export class ReactionStripView {
             .some(
               (node) =>
                 node instanceof HTMLButtonElement &&
-                node.matches(".lf-react[data-lf-token]"),
+                node.matches(".lf-react[data-lf-emoji]"),
             )
         )
           return;
@@ -99,7 +99,7 @@ export class ReactionStripView {
     void this.#commands.actions.setReaction(
       model.thread,
       model.message,
-      choice.name,
+      choice.emoji,
       !choice.inForce,
     );
   }

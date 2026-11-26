@@ -32,6 +32,7 @@ from playwright.sync_api import Locator, Page, expect
 from leaf.source.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
+    CHECK_API,
     PANEL,
     QUOTE_RANGE,
     WINDOWS,
@@ -446,6 +447,23 @@ def panel_status_hover(page: Page) -> None:
     preview_shown(page)
 
 
+def panel_tab_hover(page: Page) -> None:
+    """The On view on On Me while the pointer rests over the Threads tab, whose preview
+    names the list and the Go-to keys that open it."""
+    go_to_threads(page)
+    page.locator(".lf-fp-tab", has_text="On Me").click()
+    page.locator(".lf-fp-tab", has_text="Threads").hover()
+    preview_shown(page)
+
+
+def message_copy_hover(page: Page) -> None:
+    """A message's Copy at its head's end, beside its Edit and Copy link, while the
+    pointer rests over it, whose preview names it."""
+    floating_thread(page)
+    page.locator(f"{panel_view('thread')} .lf-msg-copy").first.hover()
+    preview_shown(page)
+
+
 def panel_status_cut(page: Page) -> None:
     """The panel's field cutting the agent's long status short under a resting pointer,
     which reads the status whole (panel/floating-panel.js, `pageEditor`). A runtime that
@@ -468,8 +486,7 @@ def panel_status_cut(page: Page) -> None:
     )
     wait_until_ready(page, client.state(), through="state")
     page.locator(".lf-fp-field leaf-text").hover()
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def panel_errors(page: Page) -> None:
@@ -655,6 +672,33 @@ def reaction_pressed(page: Page) -> None:
     settle(page)
 
 
+def reaction_resting(page: Page) -> None:
+    """The reply's open reactions under a pointer resting on the first past a preview's
+    dwell. A reaction is its emoji, which its face shows whole, so it previews nothing
+    (annotations/preview.js)."""
+    reaction_palette(page)
+    strip = page.locator(f"{panel_view('thread')} .lf-react-strip").first
+    strip.locator(".lf-react").first.hover()
+    rest_past_dwell(page)
+
+
+def reaction_thread(page: Page) -> None:
+    """The thread the agent's answer to the user's reaction on a passage opens, from
+    Threads: its first message is the reaction, drawn as its emoji."""
+    as_agent(
+        "thread",
+        "reply",
+        "0f47b3ce",
+        "--text",
+        "Good to hear the stalls all recovered; the workaround stays documented.",
+        "--title",
+        "Forced stalls",
+    )
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    open_thread(page, "0f47b3ce")
+    settle(page)
+
+
 MARGIN_SUGGESTION = '.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]'
 
 
@@ -761,9 +805,15 @@ def preview_shown(page: Page) -> None:
     )
 
 
-# Longer than a preview's dwell (annotations/preview.js, `DWELL`), so a runtime that previews what
-# the pointer rests on has shown it, and one that doesn't shows the page as it stands.
-PREVIEW_DWELL_MS = 400
+def rest_past_dwell(page: Page) -> None:
+    """Wait out the dwell before a resting pointer's preview shows, as the page's own
+    runtime sets it (annotations/preview.js, `DWELL`), and settle, so a runtime that
+    previews what the pointer rests on has shown it, and one that doesn't shows the
+    page as it stands."""
+    page.wait_for_timeout(
+        page.evaluate(f"async () => (await {CHECK_API}).PREVIEW_TIMERS.DWELL")
+    )
+    settle(page)
 
 
 def word_lines(page: Page, words: str) -> list[dict]:
@@ -790,8 +840,7 @@ def thread_preview(page: Page) -> None:
     line = word_lines(page, STOP_PASSAGE)[0]
     page.mouse.move(line["left"] - 20, line["top"] - 20)
     page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def passage_reaction(page: Page) -> None:
@@ -825,8 +874,7 @@ def age_preview(page: Page) -> None:
     # pointer moves.
     page.mouse.move(box["x"] - 30, box["y"] + box["height"] + 30)
     age.hover()
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def link_preview(page: Page) -> None:
@@ -3569,6 +3617,8 @@ STATES = (
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("panel-tab-hover", "ship-review", panel_tab_hover),
+    State("message-copy-hover", "ship-review", message_copy_hover),
     State("panel-status-cut", "review-a-plan", panel_status_cut),
     State("panel-errors", "review-a-plan", panel_errors, region=".lf-floating-panel"),
     State(
@@ -4022,6 +4072,8 @@ STATES = (
     State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
+    State("reaction-resting", "ship-review", reaction_resting),
+    State("reaction-thread", "ship-review", reaction_thread),
     State(
         "margin-reaction-choices",
         "release-notes",

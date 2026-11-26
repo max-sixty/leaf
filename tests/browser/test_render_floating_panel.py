@@ -368,7 +368,7 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    assert events_model.read_events(serve.page_dir)[-1]["token"]
+    assert events_model.read_events(serve.page_dir)[-1]["emoji"]
     expect(pressed).to_have_count(1)
     expect(thread.locator(".lf-msg")).to_have_count(2)
 
@@ -4974,8 +4974,12 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     on_mark.click()
     queue = page.locator(panel_view("queue"))
     expect(queue).to_be_focused()
-    expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
-    expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text("2")
+    # Each tab is named for its list and described by its count.
+    on_me = page.get_by_role("button", name="On Me", exact=True)
+    expect(on_me).to_have_accessible_description("2")
+    threads = page.get_by_role("button", name="Threads", exact=True)
+    expect(threads).to_have_accessible_description("2")
+    expect(threads.locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
     page.keyboard.press("ArrowDown")

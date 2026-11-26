@@ -38,7 +38,7 @@ export function obligationWord(item) {
 export function answerWords(item) {
   if (item.answer === null) return "";
   if (answeredInWords(item))
-    return item.answer.value.text ?? item.answer.value.token ?? "";
+    return item.answer.value.text ?? item.answer.value.emoji ?? "";
   if (!hasObligationSource(item, "widget")) return "";
   const source = addressableAt(item.source.id);
   const formatter = customElements.get(item.source.tag)?.answerWords;

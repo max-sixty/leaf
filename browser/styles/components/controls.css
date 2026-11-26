@@ -52,12 +52,12 @@
     display: none !important;
   }
 }
-/* The reaction face (control-faces.js, `ACTION_FACES`): a reaction's token in a
+/* The reaction face (control-faces.js, `ACTION_FACES`): a reaction's emoji in a
    message's strip, at the chip's compact metrics. A reaction elsewhere wears its
    seat's role: the margin's entry (below) and the response bar's choice, whose
    reactions are its toggles (`aria-pressed`). What every reaction shares wherever it
-   stands, its glyph laid out and its word held up under a press, keys on the token's
-   own class (`.lf-react`, below), and draws no face. A strip's reactions stand 4px
+   stands, its emoji laid out, keys on the reaction's own class (`.lf-react`, below),
+   and draws no face. A strip's reactions stand 4px
    apart, closer than a control's ring reaches, and an open list's stand 4px inside
    its edge, so the ring stands one band inside a reaction's edge, as a press's does
    (base.css, "Where it stands"). */
@@ -73,13 +73,14 @@
 }
 
 .lf-react {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
   min-width: max(26px, var(--lf-aim-floor));
 }
-/* A reaction's states, wherever one shows them: a strip's token, and a reaction among
+/* A reaction's states, wherever one shows them: a strip's emoji, and a reaction among
    the response bar's choices, whose role keeps only its own resting ground (the
    response face, below). The margin draws a reaction as an entry (below). A reaction
    is named first at no weight, and the list after it keeps the rule's weight
@@ -114,18 +115,7 @@
   ) {
   background: color-mix(in srgb, var(--lf-ink-2) 20%, var(--lf-card));
 }
-/* A reaction says its word through its preview (runtime/annotations/preview.js), which a finger
-   reads by holding the choice, so the press owns the gesture: it neither scrolls nor
-   opens the platform's long-press menu. A reaction offered in the margin is a margin
-   entry, which, like every entry, lets a finger that starts on it scroll the page. */
-.lf-react {
-  touch-action: none;
-  -webkit-touch-callout: none;
-  user-select: none;
-  -webkit-user-select: none;
-  position: relative;
-}
-/* A reaction surface offers one quiet trigger. A token in force remains visible
+/* A reaction surface offers one quiet trigger. A reaction in force remains visible
    in a closed message strip as the user's receipt and eraser. */
 .lf-react-palette {
   display: inline-flex;
@@ -964,20 +954,26 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   background: none;
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
-   of words of its own; the button inside fills the face and takes the press. The host
-   stretches the vendor's unparted wrapper, which would otherwise shrink to the icon
-   and take the button with it. */
+   of words of its own; the button inside fills the face out to its edge, the face's
+   border included, and takes the press. So the box a press, a hover's preview and the
+   focus ring take is the face's whole box, as each symbol beside it is its own. The
+   host stretches the vendor's unparted wrapper, which would otherwise shrink to the
+   icon and take the button with it, and the button stands out from the wrapper, which
+   the vendor positions (its `.copy-button__trigger`), by the face's border
+   (styles/vendor/webawesome-native.css). */
 wa-copy-button.lf-icon-action {
   place-items: stretch;
   font-size: 0;
   line-height: 0;
 }
 .lf-icon-action.lf-ui::part(button) {
-  position: relative;
+  position: absolute;
+  inset: calc(-1 * max(1px, var(--wa-form-control-border-width)));
+  inline-size: auto;
+  block-size: auto;
+  aspect-ratio: auto;
   display: grid;
   place-items: center;
-  inline-size: 100%;
-  block-size: 100%;
   padding: 0;
   border: 0;
   background: none;

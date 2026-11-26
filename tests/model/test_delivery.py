@@ -1214,19 +1214,19 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     quiet = append_command(
         page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
+        {"kind": "comment", "author": "user", "revision": 1, "emoji": "✂️"},
     )
     assert quiet["attention"] is False
     assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     answer = append_command(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": question["id"], "token": "keep"},
+        {"kind": "reply", "author": "user", "parent": question["id"], "emoji": "👍"},
     )
     assert answer["attention"] is True
     assert session_model.cmd_wait(page_dir) == 0
     payload, _, events = printed(capsys.readouterr().out)
     [shown] = events
-    assert shown["id"] == answer["id"] and shown["token"] == "keep"
+    assert shown["id"] == answer["id"] and shown["emoji"] == "👍"
     assert "answer" not in shown
     assert page_state(page_dir)["pending"] == 1
     delivery_ack_model.receive_delivery(payload["id"])
@@ -1246,7 +1246,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     )
     mark = append_command(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": ordinary["id"], "token": "keep"},
+        {"kind": "reply", "author": "user", "parent": ordinary["id"], "emoji": "👍"},
     )
     assert mark["attention"] is False
 

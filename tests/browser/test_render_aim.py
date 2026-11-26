@@ -3144,7 +3144,7 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
         )
     )
     for anchor, extra in (
-        ("reacted", {"token": "keep"}),
+        ("reacted", {"emoji": "👍"}),
         ("commented", {"text": "Why?"}),
     ):
         append_carried_log_record(

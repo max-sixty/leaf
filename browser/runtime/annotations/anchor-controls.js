@@ -45,7 +45,6 @@ import {
 import { pageUpgraded } from "../base/page-paint.js";
 import { kept } from "../state/kept.js";
 import { readPart } from "../state/semantic-state.js";
-import { tokenEntry } from "../state/registry.js";
 import { isElement, shadowHost, upFrom } from "../lib/shadow-tree.js";
 import {
   targetElement,
@@ -66,7 +65,7 @@ const MSG_REF = '.lf-msg-body a[href^="#"]';
 const missingReference = (id) => `§ ${id} isn't in the version shown`;
 
 /** @typedef {import("../../types/domain.js").Anchor} Anchor */
-/** @typedef {import("../records/thread/thread-card.js").ThreadRecord["root"] & {token: string}} ReactionRoot */
+/** @typedef {import("../records/thread/thread-card.js").ThreadRecord["root"] & {emoji: string}} ReactionRoot */
 /** @typedef {{before: ReactionRoot[], inside: ReactionRoot[]}} ReactionGroup */
 /** @typedef {{anchor: Anchor, label: string, key: string}} VisualAction */
 /** @typedef {HTMLButtonElement & {lfAnchor: Anchor}} VisualActionControl */
@@ -333,8 +332,8 @@ export function createAnchorControls({
           entries: this.roots.flatMap((root) => [
             {
               key: `reaction:${root.id}:open`,
-              glyph: tokenEntry(root.token)?.glyph ?? root.token,
-              label: `${root.token} reaction actions`,
+              glyph: root.emoji,
+              label: `${root.emoji} reaction actions`,
               behavior: "disclosure",
               rank: "secondary",
               scope: this.scope,
@@ -347,7 +346,7 @@ export function createAnchorControls({
             {
               key: `reaction:${root.id}:remove`,
               action: "undo",
-              label: `Undo ${root.token} reaction`,
+              label: `Undo ${root.emoji} reaction`,
               rank: "secondary",
               scope: this.scope,
               visible: this.expanded === root.id,
@@ -355,7 +354,7 @@ export function createAnchorControls({
           ]),
           readings: this.roots.map((root) => ({
             id: `reaction:${root.id}`,
-            text: `${root.token} reaction actions`,
+            text: `${root.emoji} reaction actions`,
             activate: () => this.margin.focus(`reaction:${root.id}:open`, "move"),
           })),
         }),
@@ -397,7 +396,7 @@ export function createAnchorControls({
         roots.some(
           (root, index) =>
             root.id !== record.roots[index]?.id ||
-            root.token !== record.roots[index]?.token,
+            root.emoji !== record.roots[index]?.emoji,
         );
       record.roots = roots;
       if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;

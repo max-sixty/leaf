@@ -24,7 +24,7 @@ test("Threads reads newest first by each thread's latest turn or its closing", (
     // A reaction is no turn; a rewrite is one, where the log holds it.
     thread("reacted", [
       { id: "b", seq: 4 },
-      { id: "b2", seq: 10, token: "+1" },
+      { id: "b2", seq: 10, emoji: "👍" },
     ]),
     thread("rewritten", [{ id: "c", seq: 2, edited: { seq: 8, ts: "" } }]),
     thread("replied", [

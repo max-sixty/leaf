@@ -3204,7 +3204,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "fig"},
         },
     )

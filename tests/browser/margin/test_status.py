@@ -1298,13 +1298,13 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     reactions = bar.locator(":scope > .lf-response-options")
     expect(reactions).to_be_visible()
 
-    with sending(page, "the keep reaction"):
-        reactions.locator('.lf-react[data-lf-token="keep"]').click()
+    with sending(page, "the 👍 reaction"):
+        reactions.locator('.lf-react[data-lf-emoji="👍"]').click()
     expect(bar).to_be_hidden()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-cluster").filter(
-        has=page.get_by_role("button", name="keep reaction actions", exact=True)
+        has=page.get_by_role("button", name="👍 reaction actions", exact=True)
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
@@ -1312,7 +1312,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     # finish replacing it before testing the disclosure gesture.
     told(page)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
-    reaction = receipt.get_by_role("button", name="keep reaction actions", exact=True)
+    reaction = receipt.get_by_role("button", name="👍 reaction actions", exact=True)
     reaction.click()
     expect(reaction).to_have_attribute("aria-expanded", "true")
     expect(reaction).to_have_css("border-top-color", token_colour(page, "--lf-accent"))

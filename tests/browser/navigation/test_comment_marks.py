@@ -284,7 +284,7 @@ def _point_at(page, passage):
 
 
 def _comment_on(passage, **fields):
-    """The user's comment on a passage's words, or with `token` their reaction to them."""
+    """The user's comment on a passage's words, or with `emoji` their reaction to them."""
     section, quote = passage
     return {
         "kind": "comment",

@@ -1,4 +1,4 @@
-"""Reactions: one-press tokens on a passage, an item, or a reply."""
+"""Reactions: one-press emoji on a passage, an item, or a reply."""
 
 import re
 
@@ -20,8 +20,10 @@ from leaf.log import event_log as events_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):
-    """Keyboard target choosing opens Comment. Choosing a token puts an
+def test_a_target_hint_opens_comment_and_a_reaction_seats_only_its_glyph(
+    browser, serve
+):
+    """Keyboard target choosing opens Comment. Choosing a reaction puts an
     element anchor in the log, which paints a glyph seated at the element's first line.
     The returned focus rings the element until focus leaves; the reaction itself
     leaves only its seated glyph, with no wash or persistent contour."""
@@ -32,14 +34,14 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(bar.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
-    reaction = bar.locator('.lf-react[data-lf-token="prioritize"]')
+    reaction = bar.locator('.lf-react[data-lf-emoji="🎯"]')
     reaction.focus()
     expect(reaction).to_be_focused()
-    with sending(page, "the prioritize reaction"):
+    with sending(page, "the 🎯 reaction"):
         page.keyboard.press("Space")
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
-    shown = painted(page, [["prose", "prioritize"]])
+    assert sent["emoji"] == "🎯" and sent["anchor"] == {"section": "prose"}
+    shown = painted(page, [["prose", "🎯"]])
     assert shown["washed"] == "", shown
     expect(page.locator("#prose")).to_be_focused()
     prose = page.locator("#prose")
@@ -49,4 +51,4 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     assert shown["projected"] == 1, shown
     page.evaluate(RELEASE_FOCUS)
     expect(page.locator("[data-lf-mark]")).to_have_count(0)
-    assert painted(page, [["prose", "prioritize"]])["washed"] == ""
+    assert painted(page, [["prose", "🎯"]])["washed"] == ""

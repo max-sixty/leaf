@@ -32,7 +32,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/52",
+     "format": "leaf-delivery/58",
      "id": "483d8a07",
      "created_at": 1793155375.4377432,
      "acknowledge": null,
@@ -577,7 +577,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/58",
          "id": "7b924a8e",
          "created_at": 1793137004.122991,
          "acknowledge": null,

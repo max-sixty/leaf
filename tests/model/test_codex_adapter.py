@@ -669,7 +669,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
                 "kind": "comment",
                 "id": event_id,
                 "author": "user",
-                "token": "mark",
+                "emoji": "👍",
             },
         )
         delivered = events_model.read_events(page)[-1]

@@ -12,7 +12,7 @@ import { MESSAGE_KINDS } from "../kernel-facts.js";
 export const isThreadEvent = (event) => MESSAGE_KINDS.has(event.kind);
 
 /** @param {import("../../../types/domain.js").Command} event */
-export const isMessageEvent = (event) => isThreadEvent(event) && !event.token;
+export const isMessageEvent = (event) => isThreadEvent(event) && !event.emoji;
 
 // A gesture that speaks in a thread, so hands it to the agent: words, or the user
 // rewriting words of theirs (`events.exchange`). `tests/turn_cases.json` holds this and

@@ -587,26 +587,13 @@
     "example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },
   "$reactions": {
-    "tokens": {
-      "keep": {
-        "glyph": "\ud83d\udc4d",
-        "settles": true
-      },
-      "change": {
-        "glyph": "\u274c"
-      },
-      "clarify": {
-        "glyph": "\ud83e\udd14"
-      },
-      "shorten": {
-        "glyph": "\u2702\ufe0f"
-      },
-      "support": {
-        "glyph": "\ud83d\udd0e"
-      },
-      "prioritize": {
-        "glyph": "\ud83c\udfaf"
-      }
+    "emoji": {
+      "👍": { "settles": true },
+      "❌": {},
+      "🤔": {},
+      "✂️": {},
+      "🔎": {},
+      "🎯": {}
     }
   }
 }

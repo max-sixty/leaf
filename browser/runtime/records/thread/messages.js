@@ -52,7 +52,7 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { declarationFor, tokenEntry } from "../../state/registry.js";
+import { declarationFor } from "../../state/registry.js";
 import {
   isCanonicalMediaUrl,
   readAttachedMedia,
@@ -170,13 +170,10 @@ function proseReading(message) {
 // What a deleted message reads in its place, in Leaf's voice, as what the user did.
 const DELETED = leafSays("Deleted");
 
-/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
+/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly emoji?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
 export function messageText(message) {
   if (message.body?.kind === "authored") return message.body.text;
-  if (message.token) {
-    const token = tokenEntry(message.token);
-    return `${token?.glyph ?? ""} ${message.token}`.trim();
-  }
+  if (message.emoji) return message.emoji;
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
@@ -660,7 +657,6 @@ export function messageReading(
   { authoredRank = 0, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = message.token ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
     : deleted(message)
@@ -716,8 +712,7 @@ export function messageReading(
         ? message.body.text
         : (prose?.plainText ?? message.text ?? ""),
       drawing: Boolean(message.drawing),
-      token: message.token ?? null,
-      glyph: token?.glyph ?? "",
+      emoji: message.emoji ?? "",
       authored,
     }),
     // The message as its Copy control copies it: its Markdown as written, any HTML in
@@ -1153,7 +1148,7 @@ export class MessageView {
       </div>`;
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
-        <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
+        <span class="lf-react-said">${body.emoji}</span>
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;

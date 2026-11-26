@@ -66,7 +66,7 @@ MARGIN_ACTIONS_EVENTS = (
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "token": "prioritize",
+        "emoji": "🎯",
         "anchor": {"section": "s-crowded"},
     },
 )
@@ -214,8 +214,8 @@ def _seed_card_threads(page_dir):
             "anchor": {"section": "crowded"},
         }
     )
-    for token in ("keep", "change"):
-        comment({"author": "user", "token": token, "anchor": {"section": "crowded"}})
+    for emoji in ("👍", "❌"):
+        comment({"author": "user", "emoji": emoji, "anchor": {"section": "crowded"}})
     return text["id"], crowded["id"]
 
 
@@ -764,14 +764,14 @@ def test_a_pin_unfolds_from_the_seat_it_was_pressed_in(browser, serve):
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "token": "keep",
+        "emoji": "👍",
         "anchor": {"section": "editing-guide"},
     }
     page = open_page(
         browser, serve(MARGIN_ACTIONS_PAGE, events=[keep]), context=context
     )
     margins_laid_out(page)
-    reaction = page.get_by_role("button", name="keep reaction actions", exact=True)
+    reaction = page.get_by_role("button", name="👍 reaction actions", exact=True)
     cluster = page.locator(".lf-margin-cluster").filter(has=reaction)
     expect(cluster).to_have_attribute("data-lf-place", "pin")
     reaction.scroll_into_view_if_needed()
@@ -817,18 +817,16 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     reaction = next(
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token") == "prioritize"
+        if event.get("emoji") == "🎯"
     )
     reaction_actions = dialog.locator(
         '[data-lf-margin-entry-owner="reactions"]'
         f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
     )
-    expect(reaction_actions).to_have_attribute(
-        "aria-label", "prioritize reaction actions"
-    )
+    expect(reaction_actions).to_have_attribute("aria-label", "🎯 reaction actions")
     reaction_actions.click()
     expect(dialog).to_be_visible()
-    remove = dialog.get_by_role("button", name="Undo prioritize reaction", exact=True)
+    remove = dialog.get_by_role("button", name="Undo 🎯 reaction", exact=True)
     expect(remove).to_be_focused()
     page.keyboard.press("Escape")
     expect(remove).to_be_hidden()

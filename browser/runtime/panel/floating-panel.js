@@ -4940,7 +4940,9 @@ export function createFloatingPanel({
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
   // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
   // On <agent>'s, where they would press it from where the user is, so the user meets
-  // the key where they reach for the list.
+  // the key where they reach for the list. A tab is named for its list alone and
+  // described by its count, so a screen reader hears "Threads", then "2", and its
+  // preview's keys follow "Threads", not "Threads 2".
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count @param {(name: T) => string | null} door */
@@ -4954,6 +4956,8 @@ export function createFloatingPanel({
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
+            aria-label=${label(name)}
+            aria-description=${counted === null ? nothing : String(counted)}
             .lfPreview=${() => {
               const steps = opens && current !== name ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;

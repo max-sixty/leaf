@@ -212,7 +212,7 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
             "author": "user",
             "revision": 1,
             "anchor": roots["Alpha"]["anchor"],
-            "token": "shorten",
+            "emoji": "✂️",
         },
     )
     before = state_json(page_dir)["activity"]["obligations"]

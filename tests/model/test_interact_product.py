@@ -1425,7 +1425,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     reaction = append_command(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
+        {"kind": "reply", "author": "user", "parent": answer["id"], "emoji": "👍"},
     )
     before = events_model.read_events(page_dir)
     for target, refusal in [
@@ -1865,9 +1865,8 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
 def test_page_state_reads_reactions_as_marks(page_dir):
     """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
-    reaction back in once someone answers it, as the panel does. Its durable token
-    is enough; packages may add an explanation, but the default layer does not
-    prescribe one."""
+    reaction back in once someone answers it, as the panel does. Its emoji is all it
+    carries; the agent reads it as the user meant it."""
     published(page_dir)
     bare = append_carried_log_record(
         page_dir,
@@ -1875,13 +1874,13 @@ def test_page_state_reads_reactions_as_marks(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
     answered = append_carried_log_record(
         page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
+        {"kind": "comment", "author": "user", "revision": 1, "emoji": "❌"},
     )
     # A bare reaction owes no response; adding speech to it is proactive.
     posted = CliRunner().invoke(
@@ -1909,9 +1908,9 @@ def test_page_state_reads_reactions_as_marks(page_dir):
         answered["id"],
         reply["id"],
     ]
-    assert [(r["token"], r["thread"]) for r in state["reactions"]] == [
-        ("shorten", bare["id"]),
-        ("change", answered["id"]),
+    assert [(r["emoji"], r["thread"]) for r in state["reactions"]] == [
+        ("✂️", bare["id"]),
+        ("❌", answered["id"]),
     ]
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
@@ -1929,7 +1928,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
@@ -1959,7 +1958,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "author": "user",
             "revision": 1,
             "parent": answer["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
     kept = reply(nod["id"], "Keeping that part.")
@@ -1970,7 +1969,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "author": "user",
             "revision": 1,
             "parent": kept["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
     # The agent closes the thread by the reaction it acted on, as its instructions say.
@@ -1997,9 +1996,9 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
         nod["id"],
         kept["id"],
     ]
-    for gesture, undo, said in ((mark, undos[2], "shorten"), (nod, undos[1], "keep")):
+    for gesture, undo, said in ((mark, undos[2], "✂️"), (nod, undos[1], "👍")):
         placed = next(m for m in thread["msgs"] if m["id"] == gesture["id"])
-        assert "token" not in placed and placed["text"] == ""
+        assert "emoji" not in placed and placed["text"] == ""
         assert placed["withdrawn"] == {"id": undo["id"], "ts": undo["ts"], "was": said}
     assert not event_folds_model.bare_reaction(thread)
     assert event_folds_model.unanswered_turns(thread) == []

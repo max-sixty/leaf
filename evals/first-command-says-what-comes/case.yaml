@@ -4,7 +4,7 @@
 # page, with nothing in the thread until the final reply. The delivery's handling
 # is read from each arm's own registry, since that clause is what a real delivery
 # hands the agent. The envelope is frozen with `freeze_delivery`: answers name
-# `parent` and `responds`, the format is `leaf-delivery/52`, and ids, page, claim
+# `parent` and `responds`, the format is `leaf-delivery/58`, and ids, page, claim
 # and times are substituted. The handling is left empty: the prompt reads it from
 # each arm's registry.
 description: first-command-says-what-comes
@@ -21,7 +21,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/52",
+     "format": "leaf-delivery/58",
      "id": "7f20c3d9",
      "created_at": 1791448199.576215,
      "acknowledge": null,

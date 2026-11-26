@@ -59,7 +59,7 @@ from leaf.source.registry.kernel import (
     kinds_declaring,
     verb_writers,
 )
-from leaf.source.registry.reactions import reaction_tokens
+from leaf.source.registry.reactions import reaction_emoji
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
 from leaf.source.structure import quoted_in
@@ -545,13 +545,13 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
 
 
 def _reaction_error(event: dict, registry: dict) -> Finding | None:
-    if not event.get("token"):
+    if not event.get("emoji"):
         return None
-    tokens = reaction_tokens(registry)
-    if event["token"] not in tokens:
+    declared = reaction_emoji(registry)
+    if event["emoji"] not in declared:
         return Finding(
             "unknown-reaction",
-            values={"token": event["token"], "tokens": sorted(tokens)},
+            values={"emoji": event["emoji"], "declared": list(declared)},
         )
     return None
 

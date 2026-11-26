@@ -56,6 +56,7 @@ from leaf.base import leases as leases_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.detached import StartRefused
+from leaf.base.state import kernel_protocol
 from leaf.commands import cli as cli_model
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
@@ -64,7 +65,6 @@ from leaf.log.interaction_log import read_interactions
 from leaf.pages import hosting as hosting_model
 from leaf.pages import vendoring as vendoring_model
 from leaf.records import transaction as transaction_model
-from leaf.source.registry.kernel import kernel_protocol
 
 
 def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(

@@ -67,6 +67,7 @@ import leaf_website as website_server
 from journeys import expect_showing
 from leaf.base import files as files_model
 from leaf.base import schema as schema_model
+from leaf.base.state import kernel_protocol
 from leaf.log.event_log import read_events
 from leaf.log.events import bare_reaction, build_threads
 from leaf.pages import hosting as hosting_model
@@ -76,7 +77,6 @@ from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.passages import enclosing_ids
-from leaf.source.registry.kernel import kernel_protocol
 from leaf.source.registry.storage import layer_packages, layer_record, selected
 from leaf.source.render_checks import rendered, wait_until_ready
 from leaf.source.revision_artifact import read_artifact

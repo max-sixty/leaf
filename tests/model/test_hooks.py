@@ -2308,7 +2308,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
     """Have session s1's hooks last run another Leaf, one at `protocol`, and return
-    its root (`leases.mark_skill`, `registry.kernel.installed_protocol`)."""
+    its root (`leases.mark_skill`, `state.installed_protocol`)."""
     root = tmp_path / f"leaf at {protocol}"
     registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
         cleanup_model.PLUGIN_ROOT

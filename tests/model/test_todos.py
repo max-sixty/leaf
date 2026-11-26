@@ -995,7 +995,8 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
 def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_dir):
     """A to-do may name what its work waits on, opened by a reply or by `task
     create`, and carries it until a start takes the work up: a start that lapses or
-    is put down later leaves it a to-do still to do, not waiting again. Only a to-do
+    is put down later leaves it a to-do still to do, not waiting again, and an ended
+    one, or the plan step naming it, waits on nothing. Only a to-do
     waits on something, and words too long to stand in a status are fitted rather
     than refused."""
     publish(page_dir)
@@ -1060,11 +1061,22 @@ def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_di
         CliRunner().invoke(
             cli_model.cli,
             ["task", "plan", str(page_dir)],
-            input=json.dumps([{"depth": 0, "item": held["id"]}]),
+            input=json.dumps(
+                [{"depth": 0, "item": held["id"]}, {"depth": 0, "item": created["id"]}]
+            ),
         )
     )
-    [step] = state_json(page_dir)["plan"]["steps"]
-    assert (step["state"], step["waiting_on"]) == ("waiting", "Whose Words")
+
+    def steps() -> dict:
+        return {
+            step["item"]["id"]: (step["state"], step["waiting_on"])
+            for step in state_json(page_dir)["plan"]["steps"]
+        }
+
+    assert steps() == {
+        held["id"]: ("waiting", "Whose Words"),
+        created["id"]: ("waiting", "its review by the release…"),
+    }
 
     written(leaf("task", "start", page_dir, held["id"], "--text", "Building it"))
     written(leaf("page", "open", page_dir))
@@ -1072,6 +1084,16 @@ def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_di
         held["id"]: None,
         created["id"]: "its review by the release…",
     }
+
+    written(leaf("task", "end", page_dir, held["id"], "done"))
+    written(leaf("task", "end", page_dir, created["id"], "dropped"))
+    state = state_json(page_dir)
+    assert {
+        record["id"]: (record["state"], record["waiting_on"])
+        for record in state["obligations"]
+        if record["source"]["kind"] == "todo"
+    } == {held["id"]: ("done", None), created["id"]: ("done", None)}
+    assert steps() == {held["id"]: ("done", None), created["id"]: ("done", None)}
 
 
 @pytest.fixture

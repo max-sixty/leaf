@@ -35,7 +35,7 @@ A to-do may name, in the agent's words, what its work waits on that the agent do
 control (`waiting_on`), such as the user's pick elsewhere on the page or another
 change landing. The record carries it until the first start on the to-do, which
 says the agent has taken the work up, so a later lapse reads stalled rather than
-waiting again. Leaf reads nothing from the words: it shows them, and never decides
+waiting again, or until the to-do ends. Leaf reads nothing from the words: it shows them, and never decides
 the wait is over. They are words rather than the id of a record on the page, since
 what work waits on is as often off the page, such as a review or another session's
 change.
@@ -201,7 +201,7 @@ class TodoReading:
 
 def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
     """Every to-do the log opened, as the obligation record it is: its title as the
-    prompt, what it waits on until a start takes it up (`waiting_on`), the start in
+    prompt, what it waits on until a start takes it up or it ends (`waiting_on`), the start in
     force on an open one as its `line`, and how it ended, by its
     `todo_end` in force (`ends`) or by the first stamped version whose `--completes`
     names it, whichever came first. Its `thread` is the one it was opened on; a reader
@@ -247,6 +247,8 @@ def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
             todo["end"] = _end(closed, closed["detail"])
         if is_open(todo) and todo["id"] in starts:
             todo["line"] = running(starts[todo["id"]])
+        if not is_open(todo):
+            todo["waiting_on"] = None
     return list(todos.values())
 
 

@@ -1220,7 +1220,7 @@
           "type": ["string", "null"]
         },
         "waiting_on": {
-          "description": "On a to-do: what its work waits on, in the agent's words, until a start takes it up (`todos`), or null.",
+          "description": "On a to-do: what its work waits on, in the agent's words, until a start takes it up or it ends (`todos`), or null.",
           "type": ["string", "null"]
         },
         "line": {

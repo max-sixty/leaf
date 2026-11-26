@@ -76,7 +76,6 @@ from leaf.serving.server_lifetime import (
     stop_when_service_ends,
 )
 from leaf.source.layer import other_serving_leaf, payload_provenance
-from leaf.source.registry.storage import layer_metadata
 
 if TYPE_CHECKING:
     from leaf.base.record_types import ServiceRecord
@@ -550,6 +549,8 @@ def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | N
     A server another Leaf started keeps serving a page this Leaf cannot write, so the
     page is judged here as a fresh bind judges it (`http.page_endpoint`), before its
     URL is handed out as this Leaf's."""
+    from leaf.source.registry.storage import layer_metadata
+
     existing = running_server(page_dir)
     if not existing:
         return None

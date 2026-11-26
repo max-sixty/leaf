@@ -51,12 +51,6 @@ from pathlib import Path
 
 from leaf.base.schema import INTERACTIONS_FILE
 from leaf.base.state import aware_instant, kernel_protocol, now_iso
-from leaf.log.event_log import (
-    initialized,
-    jsonl_line,
-    read_stored_events,
-    session_context,
-)
 
 BATCH_SCHEMA = json.loads(
     Path(__file__).with_name("interaction-batch.schema.json").read_text()
@@ -69,6 +63,8 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
     Diagnostics are best effort across a process crash; unlike admitted user
     decisions they do not claim disk durability in the HTTP response.
     """
+    from leaf.log.event_log import jsonl_line
+
     stamp = now_iso()
     records = [{"ts": stamp, **record} for record in records]
     data = "".join(jsonl_line(record) + "\n" for record in records).encode()
@@ -119,6 +115,7 @@ def record_command(command: str, *, refused: str | None = None) -> None:
     import psutil
 
     from leaf.base.harness import session_harness
+    from leaf.log.event_log import initialized, session_context
 
     try:
         started = launched()
@@ -233,6 +230,8 @@ def read_interactions(
     filter; an unsent tail leaves no evidence. Server/developer records have
     no browser session association.
     """
+    from leaf.log.event_log import read_stored_events
+
     lines: list[dict] = [
         {
             "source": "semantic",

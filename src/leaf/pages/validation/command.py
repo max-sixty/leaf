@@ -21,13 +21,11 @@ from leaf.base.findings import Finding
 from leaf.base.leases import page_locked
 from leaf.base.schema import DRAFTS_FILE
 from leaf.log.event_log import read_events
-from leaf.pages.render_gate.page_code import needs_browser
 from leaf.records.authored_checks.source import (
     check_source,
     moved_threads,
     source_advice,
 )
-from leaf.serving.drafts import DRAFTS
 from leaf.serving.handover_pass import remember_reading
 from leaf.source.layer import selected_layer
 from leaf.source.registry.contract import RegistryError
@@ -48,6 +46,8 @@ def other_version_drafts(page_dir: Path) -> list[Finding]:
     directory, which this Leaf reads none of (`state.Record.others`): the user's
     unsent words, which only the user can say are no longer wanted. The page's other
     records of other shapes are disposable, so `page check` names none of them."""
+    from leaf.serving.drafts import DRAFTS
+
     return [
         Finding(
             "other-version-drafts", values={"page": str(page_dir), "file": str(file)}
@@ -90,6 +90,7 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         ]
         if result.errors:
             return reported(1, found), None
+        from leaf.pages.render_gate.page_code import needs_browser
 
         assert result.artifact is not None
         runs_code = needs_browser(result.document, result.artifact)

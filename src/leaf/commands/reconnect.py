@@ -41,7 +41,6 @@ from leaf.base.findings import Finding
 from leaf.base.harness import Harness
 from leaf.base.refusals import Refused
 from leaf.base.schema import PREVIEW_FILE
-from leaf.base.server import read_service, running_server
 from leaf.base.service import PREVIEW, claim_is_active, claim_records, prepare_claim
 from leaf.log.event_log import initialized
 
@@ -98,6 +97,8 @@ def _deadline(started: float) -> float:
 def to_serve(harness: Harness) -> list[Path]:
     """The pages `harness`'s session still means to serve whose ownership or server
     is down, by the rules the module header gives."""
+    from leaf.base.server import read_service, running_server
+
     pages = []
     for claim in claim_records(harness.session):
         page_dir = Path(claim["page"])

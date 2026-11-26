@@ -195,8 +195,7 @@ def test_command_recording_includes_output_and_excludes_help(monkeypatch):
         cli_model, "_print_result", lambda result: sequence.append("output")
     )
     monkeypatch.setattr(
-        cli_model,
-        "record_command",
+        "leaf.log.interaction_log.record_command",
         lambda command, **_: sequence.append(command),
     )
     runner = CliRunner()

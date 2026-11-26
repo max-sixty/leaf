@@ -74,7 +74,6 @@ from leaf.base.files import (
 )
 from leaf.base.refusals import Refused
 from leaf.pages.page_snapshot import capture_page_snapshot
-from leaf.pages.render_gate.command import NoBrowser, run_in_browser
 from leaf.records.revisioning import activate_source
 from leaf.records.transaction import PageTransaction
 from leaf.serving.revision_delivery import (
@@ -515,6 +514,7 @@ def static_document(package: str) -> str:
     serializes what it drew (`static-export.js`).
     Refused where the host has no browser, or the page cannot start, since there is
     then no drawing to keep."""
+    from leaf.pages.render_gate.command import NoBrowser, run_in_browser
 
     def draw(browser) -> str:
         page = open_render_page(browser, viewport=RENDER_VIEWPORT)

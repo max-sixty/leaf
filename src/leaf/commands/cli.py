@@ -28,19 +28,9 @@ from typing import NamedTuple, TextIO
 
 import click
 
-from leaf.base.findings import hold, note, release, with_held
-from leaf.base.locations import canonical_path
 from leaf.base.machine import sandbox_refusal
-from leaf.base.refusals import Refused
 from leaf.base.schema import WAIT_BATCH_OUTPUT_INSTRUCTION
 from leaf.base.state import PLUGIN_ROOT, main
-from leaf.log.event_log import cmd_events, initialized, jsonl_line
-from leaf.log.interaction_log import (
-    acting_on,
-    interaction_time,
-    read_interactions,
-    record_command,
-)
 from leaf.pages.render_gate.browser import VARIABLES as BROWSER_VARIABLES
 from leaf.source.registry.kernel import title_limit
 
@@ -55,6 +45,9 @@ class Reported(NamedTuple):
 def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     """The page a command names. A write may renew an older layer for its owning
     session (`vendoring.renew_layer`); reads and service stops leave it alone."""
+    from leaf.log.event_log import initialized
+    from leaf.log.interaction_log import acting_on
+
     page_dir = page_path(dir_arg)
     if page_dir.is_file():
         raise click.ClickException(
@@ -67,6 +60,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     acting_on(page_dir)
     if not renew:
         return page_dir
+    from leaf.base.findings import note
     from leaf.base.harness import session_harness
     from leaf.pages.vendoring import renew_layer
 
@@ -77,6 +71,8 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
 
 def page_path(dir_arg: str) -> Path:
     """The directory a page argument spells, whether or not it holds a page yet."""
+    from leaf.base.locations import canonical_path
+
     return canonical_path(Path(dir_arg).expanduser())
 
 
@@ -138,6 +134,9 @@ def _print_result(result: dict | None) -> None:
     """Print what a command returned, with what it noted (`findings.with_held`), as
     one JSON line; a command that returned nothing and noted nothing prints
     nothing."""
+    from leaf.base.findings import with_held
+    from leaf.log.event_log import jsonl_line
+
     record = with_held(result or {})
     if result is not None or record:
         click.echo(jsonl_line(record))
@@ -206,11 +205,15 @@ class LeafGroup(click.Group):
             f"{ctx.command_path} {name}".removeprefix(f"{ctx.find_root().info_name} ")
         )
         if isinstance(command, PrintsItself):
+            from leaf.base.findings import release
+
             ctx.obj["prints_itself"] = True
             release()
         return name, command, remaining
 
     def invoke(self, ctx: click.Context):
+        from leaf.base.refusals import Refused
+
         try:
             return super().invoke(ctx)
         except Refused as error:
@@ -235,12 +238,16 @@ class LeafGroup(click.Group):
         try:
             self._run_standalone(args, prog_name, complete_var, **extra)
         finally:
+            from leaf.log.interaction_log import record_command
+
             record_command(
                 invocation.get("leaf_command", ""),
                 refused=invocation.get("refused"),
             )
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
+        from leaf.base.findings import hold, note, release
+
         hold()
         try:
             self._run_held(args, prog_name, complete_var, **extra)
@@ -250,6 +257,8 @@ class LeafGroup(click.Group):
             note(*release())
 
     def _run_held(self, args, prog_name, complete_var, **extra) -> None:
+        from leaf.base.findings import with_held
+
         def refuse(said: dict, status: int):
             # Another protocol owns the stdout of a command that prints itself.
             to = sys.stderr if extra["obj"].get("prints_itself") else sys.stdout
@@ -848,6 +857,8 @@ def events(page_dir: Path, after: int, follow: bool) -> None:
     acknowledge user events. `page state PAGE MESSAGE_OR_WIDGET` reads one thread or
     widget.
     """
+    from leaf.log.event_log import cmd_events
+
     cmd_events(page_dir, after, follow=follow)
 
 
@@ -888,6 +899,8 @@ def interactions(
     Retries are deduplicated and sequence gaps remain visible even with a type
     filter. Stored timestamps use the host clock.
     """
+    from leaf.log.interaction_log import interaction_time, read_interactions
+
     try:
         start = interaction_time(since) if since else None
         stop = interaction_time(until) if until else None
@@ -895,6 +908,7 @@ def interactions(
         raise click.ClickException(str(error)) from error
     if start is not None and stop is not None and start >= stop:
         raise click.ClickException("--since must precede --until")
+    from leaf.log.event_log import jsonl_line
 
     for record in read_interactions(
         page_dir, session=session, since=start, until=stop, types=types

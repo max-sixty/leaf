@@ -69,7 +69,6 @@ from xml.etree import ElementTree
 
 from leaf.base.findings import Finding
 from leaf.base.json_block import json_block, read_json_block
-from leaf.base.leases import lane_up
 from leaf.base.refusals import Refused
 from leaf.base.service import may_receive
 from leaf.base.state import (
@@ -581,6 +580,7 @@ def batch_data(
     already read it. `whole` carries each thread whole
     (`thread_context.batch_threads`)."""
     from leaf.agents.presence import read_work
+    from leaf.base.leases import lane_up
     from leaf.log.obligations import (
         settled_by_message,
         waiting_about,

@@ -226,10 +226,6 @@ from html import escape
 from itertools import chain, islice
 from pathlib import Path
 
-from leaf.base.files import latest_revision, require_revision
-from leaf.base.findings import Rejected
-from leaf.base.leases import page_locked
-from leaf.base.refusals import Refused
 from leaf.base.schema import SKILL_FILE
 from leaf.base.state import (
     STRING,
@@ -241,8 +237,6 @@ from leaf.base.state import (
     session_lock_path,
     session_record,
 )
-from leaf.log.interaction_log import note
-from leaf.records.transaction import PageTransaction, owned_pages
 from leaf.source.registry.kernel import title_limit
 
 REFERENCES = SKILL_FILE.parent / "references"
@@ -407,6 +401,7 @@ def page_facts(page_dir: Path, state: dict, events: list) -> dict:
     with the line its start gives it (`todos.item_starts`), and last the page's words
     as the user reads them, a block to a line (`page_text`)."""
     from leaf.agents.thread import widget_question
+    from leaf.base.files import latest_revision
     from leaf.records.todos import item_starts
 
     threads = {thread["id"]: thread for thread in state["threads"]}
@@ -600,6 +595,7 @@ def read_answer(text: str, schema: dict = ANSWER) -> dict:
     """A fork's reply as an answer `schema` takes, the clerk's `ANSWER` unless
     another fork's, or `Refused` saying why not. A fenced or prefaced object is read
     from its first `{` to its last `}`."""
+    from leaf.base.refusals import Refused
     from leaf.source.registry.schema import json_validator
 
     start, end = text.find("{"), text.rfind("}")
@@ -645,6 +641,7 @@ def checked(session_id: str, payload: dict) -> dict:
     line for the module's debug log saying what came of it. An answer `ANSWER` refuses
     writes nothing, and says why (`refused`)."""
     from leaf.agents.carrier import run_facts
+    from leaf.base.refusals import Refused
 
     basis = payload["basis"]
     asked = (
@@ -692,6 +689,9 @@ def take_answer(
     `asked`, its `basis` (`apply_answer`); `run` holds the fork's usage and time, and
     why it failed where `text` is None. A fork that failed, or whose answer `ANSWER`
     refuses, writes only its note in each page's diagnostics."""
+    from leaf.base.refusals import Refused
+    from leaf.records.transaction import owned_pages
+
     run = run or {}
 
     def note(outcome: dict) -> None:
@@ -711,6 +711,8 @@ def take_answer(
 
 def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) -> None:
     """Note what came of a turn-end fork in `page_dir`'s diagnostics."""
+    from leaf.log.interaction_log import note
+
     note(
         page_dir,
         {
@@ -756,6 +758,8 @@ def apply_answer(
     didn't. Each page's diagnostics note what the fork named there and what came of
     it, with `run`."""
     from leaf.agents.presence import nudge_unwatched
+    from leaf.base.leases import page_locked
+    from leaf.records.transaction import PageTransaction, owned_pages
 
     wrote: list[dict] = []
     changed: list[dict] = []
@@ -860,6 +864,7 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     the question again, as where the id names no question, the ask is taken as one
     naming none."""
     from leaf.agents.thread import OwedAnswer, fit_title
+    from leaf.base.findings import Rejected
     from leaf.records.authored_checks.admission import checked_text
     from leaf.source.vocabulary import require_registry
 
@@ -886,6 +891,7 @@ def _ask_one(page_dir, page, title, text, passage, again, identity, registry) ->
     `passage` where the page shows it once. A refusal of its HTML reaches the caller
     from either thread (`_ask`)."""
     from leaf.agents.thread import ask_again, drawn_markup, markup_asks
+    from leaf.base.findings import Rejected
 
     if again and (record := ask_again(page, again, text, identity)):
         return record
@@ -931,6 +937,8 @@ def _fix(page_dir: Path, page, edit: dict) -> dict | None:
     """Make a stale passage's fix in `page`, an open transaction (`fixed_source`), and
     publish the page as an agent's save is checked and published; `{"old", "new"}`
     once made, or None, writing nothing, where Leaf can't make it."""
+    from leaf.base.files import require_revision
+    from leaf.base.refusals import Refused
     from leaf.records.publishing import authored_files, replaced_authored_files
     from leaf.records.revisioning import activate_source
 

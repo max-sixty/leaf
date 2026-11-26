@@ -60,7 +60,6 @@ from leaf.base.service import (
 from leaf.base.state import flocked, hooks_run_here, remove_claim
 from leaf.log.event_log import initialized, start_log
 from leaf.pages.hosting import check_servable, restarting_server
-from leaf.records.event_contracts import write_refusal
 from leaf.records.transaction import PageTransaction
 from leaf.source.layer import (
     checked_layer_inputs,
@@ -170,6 +169,8 @@ def renew_layer(
     older, may re-initialize the page or another session take it in between."""
 
     def renewable() -> bool:
+        from leaf.records.event_contracts import write_refusal
+
         refusal = write_refusal(page_dir)
         if refusal is None or refusal.code != "foreign-layer":
             return False

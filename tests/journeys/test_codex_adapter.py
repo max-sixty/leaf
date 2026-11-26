@@ -47,10 +47,10 @@ from leaf.agents import codex as codex_model
 from leaf.agents import codex_adapter as codex_adapter_model
 from leaf.agents import codex_state as codex_state_model
 from leaf.agents import delivery as delivery_model
-from leaf.agents import server as server_model
 from leaf.agents import thread as thread_model
 from leaf.base import files as files_model
 from leaf.base import leases as leases_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.commands import hooks as hooks_model
@@ -1174,7 +1174,7 @@ from leaf.agents import codex_adapter as adapter
 from leaf.records.activity import declaration
 from leaf.log.event_log import read_events
 from leaf.base.files import read_json
-from leaf.agents.server import SERVICE
+from leaf.base.server import SERVICE
 from leaf.base.state import write_json
 native_read = adapter.read_watch_pass
 passes = 0

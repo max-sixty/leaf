@@ -75,8 +75,8 @@ from render_harness import (
 )
 
 from leaf.agents import presence as presence_model
-from leaf.agents.server import SERVICE
 from leaf.base.schema import SERVICE_FILE
+from leaf.base.server import SERVICE
 from leaf.log import event_log as events_model
 from leaf.pages import hosting as hosting_model
 from leaf.source.render_checks import rendered, start_near_work, wait_until_ready

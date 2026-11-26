@@ -54,8 +54,8 @@ copy in place (`session-lifetime.md`, "Which Leaf runs a session"), deleting the
 one, environment included, so an adapter left running would load each module it
 imports later from the new copy, beside the old modules it already holds. So the
 adapter asks each pass which copy should run it now (`state.LoadedCopy.successor`),
-as a page server does (`server.stop_when_service_ends`), and once that names one,
-hands its task to an adapter from that copy (`_hand_over`). Only the Leaf the
+as a page server does (`server_lifetime.stop_when_service_ends`), and once that
+names one, hands its task to an adapter from that copy (`_hand_over`). Only the Leaf the
 task's hooks run claims for the task (`harness.session_harness`), so an adapter
 starts from that copy. One running Codex's copy moves to the copy Codex puts at its
 path, and one whose task's hooks have since run another installed copy moves to

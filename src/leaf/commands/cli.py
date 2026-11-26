@@ -1283,7 +1283,7 @@ def _serve(
 
     # Until the server commits its service, a SIGTERM or SIGHUP unwinds and
     # retires what preparation holds. From then on a stop signal ends the process
-    # through `exit_serving` (`server.exit_serving_on_signals`).
+    # through `exit_serving` (`server_lifetime.exit_serving_on_signals`).
     release_on_termination()
     with Handshake(handshake) as answer:
         cmd_serve(
@@ -1304,7 +1304,7 @@ def _serve(
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _follow(page_dir: Path, server_id: str, handshake: int) -> None:
     """Private child a page server starts through the launcher of the copy that
-    replaced its own (`server.stop_when_service_ends`)."""
+    replaced its own (`server_lifetime.stop_when_service_ends`)."""
     from leaf.base.detached import Handshake
     from leaf.pages.hosting import follow_copy
 

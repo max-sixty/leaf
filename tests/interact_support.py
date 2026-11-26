@@ -57,13 +57,13 @@ from leaf.agents import codex_adapter as codex_adapter_model
 from leaf.agents import codex_state as codex_state_model
 from leaf.agents import completions as completions_model
 from leaf.agents import delivery as delivery_model
-from leaf.agents import server as server_model
 from leaf.base import files as files_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
 from leaf.base import page_memory as page_memory_model
 from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.findings import Finding
@@ -1003,7 +1003,7 @@ def _page_records() -> dict:
     return {
         schema_model.STREAM_FILE: service_model.STREAM,
         schema_model.SERVICE_FILE: server_model.SERVICE,
-        schema_model.PREVIEW_FILE: server_model.PREVIEW,
+        schema_model.PREVIEW_FILE: service_model.PREVIEW,
         schema_model.USER_VIEWS_FILE: USER_VIEWS,
         schema_model.DRAFTS_FILE: DRAFTS,
     }

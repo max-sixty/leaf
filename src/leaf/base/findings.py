@@ -2364,7 +2364,7 @@ _TEXT = {
         " stays stopped."
     ),
     # `page check`'s advice on a page whose live server runs another Leaf
-    # (`server.other_serving_leaf`), named by the path and commit it records.
+    # (`layer.other_serving_leaf`), named by the path and commit it records.
     "another-leaf-serving": lambda at, v: (
         f"{v['page']}'s server runs the Leaf at {v['path']}"
         + (f" ({v['commit']})" if v["commit"] else "")

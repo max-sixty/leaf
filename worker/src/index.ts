@@ -248,7 +248,7 @@ export class LeafSession extends DurableObject<Env> {
     }
     const path = new URL(request.url).pathname;
     if (request.method === "GET" && path === "/records") {
-      return this.pages.records();
+      return this.pages.records(manifest);
     }
     if (request.method === "PUT" && path === "/prepare") {
       const publication = readPublication(await request.json());
@@ -465,12 +465,7 @@ export class LeafSession extends DurableObject<Env> {
         }
         // A response saved under another release names that release's files, so the
         // deployed release's container answers in its place.
-        const response = await this.pages.response(
-          route.root,
-          path,
-          request,
-          manifest.release,
-        );
+        const response = await this.pages.response(route.root, path, request, manifest);
         if (response !== null) return response;
       }
     }

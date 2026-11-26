@@ -2854,11 +2854,12 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     says this is about the box and not about being nested.
 
     Every other box here holds its widget by being no flow: only the column and the
-    sections, articles and disclosures in its flow hand their room on (layouts.css), so
-    a box that paints keeps what it holds whatever draws it. That reaches what no list
-    of tags could name: the page's own div, a nested task's rail drawn by
-    `.nested-frame > .nested-frame` only where it is nested, and a code note's box
-    drawn by `lf-code > pre > lf-note`, a rule on where the code block's module docks it.
+    sections, articles, disclosures and figures in its flow hand their room on
+    (layouts.css), so a box that paints keeps what it holds whatever draws it. That
+    reaches what no list of tags could name: the page's own div, a nested task's rail
+    drawn by `.nested-frame > .nested-frame` only where it is nested, and a code note's
+    box drawn by `lf-code > pre > lf-note`, a rule on where the code block's module
+    docks it.
 
     The row form is the declaration's limit, and the reason the sizing is asserted
     too. A row option is a table hugging its words, and legacy table sizing answers

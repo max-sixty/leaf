@@ -877,8 +877,8 @@ _TEXT = {
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — to widen"
         " the frame with it, put data-width on the frame; to hold it inside, draw the"
-        " frame on a div, since a section, article or details hands the page's room on"
-        " to what it holds"
+        " frame on a div, since a section, article, details or figure hands the page's"
+        " room on to what it holds"
     ),
     "past-room": lambda at, v: (
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
@@ -952,15 +952,15 @@ _TEXT = {
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
         + "; to let it break out with the words around it staying on the column, write"
-        " each unframed wrapper as a section, article or details, which hands the"
-        " page's room on, or drop it; to widen a frame around it, put data-width on"
-        " the frame"
+        " each unframed wrapper as a section, article, details or figure, which hands"
+        " the page's room on, or drop it; to widen a frame around it, put data-width"
+        " on the frame"
     ),
     "words-off-column": lambda at, v: (
         f"{at} reaches past the column's start edge and takes its words with it, so"
         " they no longer line up with the page's; move data-width to the block inside"
-        " that needs the room, which a section, article or details around it hands"
-        " the page's room"
+        " that needs the room, which a section, article, details or figure around it"
+        " hands the page's room"
     ),
     "squeezed-table": _squeezed,
     "broken-name": _broken_names,

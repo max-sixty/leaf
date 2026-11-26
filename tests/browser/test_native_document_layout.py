@@ -113,6 +113,43 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     )
 
 
+def test_a_figure_s_caption_keeps_the_column_beside_the_exhibit_it_captions(
+    browser, serve
+):
+    """A captioned exhibit, such as a diagram, takes the room it declares while its
+    caption reads on the column. Held to the column, a sequence diagram whose names
+    ran past it was drawn compact, each gap shut, a third narrower than the column.
+    A figure in a div stays inside the div, as any block there does."""
+    figure = (
+        '<figure id="{id}"><figcaption id="{id}-caption">A caption.</figcaption>'
+        '<div id="{id}-exhibit" data-width="available">Exhibit.</div></figure>'
+    )
+    source = leaf_page(
+        "Captioned exhibits",
+        '<h1>Captioned exhibits</h1><p id="prose">Prose sets the column.</p>'
+        + figure.format(id="loose")
+        + "<section>"
+        + figure.format(id="sectioned")
+        + "</section><div>"
+        + figure.format(id="kept")
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 900)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('main [id]')].map(el => {
+        const box = el.getBoundingClientRect();
+        return [el.id, [Math.round(box.left), Math.round(box.right)]];
+      }))""")
+    column = boxes["prose"]
+    for figure_id in ("loose", "sectioned"):
+        exhibit = boxes[f"{figure_id}-exhibit"]
+        assert exhibit[0] < 100 and exhibit[1] > 1628, (figure_id, boxes)
+        assert boxes[f"{figure_id}-caption"] == column, (figure_id, boxes)
+        assert boxes[figure_id] == exhibit, (figure_id, boxes)
+    assert boxes["kept-exhibit"] == boxes["kept-caption"] == column, boxes
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, direction):
     """Beside a contents map, a question or section written in the other direction from

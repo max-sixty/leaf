@@ -547,7 +547,7 @@ const bundles = {
     ],
   }),
 
-  // DOMPurify keeps to GitHub's list the HTML a Markdown file's preview draws
+  // DOMPurify takes the script out of the HTML a Markdown file's preview draws
   // (`markdownFileFragment` in runtime/lib/markdown.js), which loads it only for a file
   // that holds HTML.
   dompurify: () => ({

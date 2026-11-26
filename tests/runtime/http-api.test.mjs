@@ -82,6 +82,16 @@ test("a refused save resolves the server's reason and the newer file it holds", 
     async () => new Response("Bad gateway", { status: 502 }),
   );
   await assert.rejects(file.save(snapshot), /HTTP 502/);
+  // A fault in the server's words may come after the write, as when the host's store
+  // refuses to keep it.
+  fetch.mock.mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ error: "PageStoreRefused: 503" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+  );
+  await assert.rejects(file.save(snapshot), /PageStoreRefused/);
 });
 
 test("a file request without an answer retains its original cause", async (t) => {

@@ -1,5 +1,5 @@
-"""Dependency-free machine storage, the persisted record (`Record`), and the
-session lifecycle authority.
+"""Dependency-free machine storage, the persisted record (`Record`) and the page
+protocol that versions it (`kernel_protocol`), and the session lifecycle authority.
 
 The standalone SessionEnd entry runs on system Python 3.9 without a managed
 Leaf environment. One atomic record owns harness lifetime, generation, turn identity
@@ -465,10 +465,10 @@ def write_json(path: Path, obj) -> None:
     replace_bytes([(path, json_bytes(obj), not path.is_symlink())])
 
 
-# The running Leaf's kernel registry, the facts no layer changes, whose `$events`
-# state its page protocol (`registry.kernel`). It sits in the runtime, which the
-# browser reads it from too (`runtime/state/kernel-facts.js`), and composition lays each
-# layer over it (`registry.layer.merged_registry`).
+# The running Leaf's kernel registry, the facts no layer changes. Its `$events` state
+# the page protocol (`kernel_protocol`), and `registry.kernel` reads the rest. It sits
+# in the runtime, which the browser reads it from too (`runtime/state/kernel-facts.js`),
+# and composition lays each layer over it (`registry.layer.merged_registry`).
 KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
 
 
@@ -476,6 +476,25 @@ KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
 def kernel_registry() -> dict:
     """The kernel registry (`KERNEL_REGISTRY`), read once."""
     return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))
+
+
+def kernel_protocol() -> int:
+    """The page protocol: the number of the contract between a page and the Leaf
+    serving it, which a page's layer record names in its `format`
+    (`registry.storage.LAYER`). It versions the other records Leaf keeps outside a
+    page too (`Record`)."""
+    return kernel_registry()["$events"]["protocol"]
+
+
+def installed_protocol() -> int:
+    """The protocol of the kernel registry on disk now. It moves past
+    `kernel_protocol` when the checkout a long-running process loaded moves on under
+    it, as a worktree's does when its branch is updated: the process still speaks the
+    protocol it loaded, and the newer Leaf the session's hooks now run reads that
+    process's leases as no one's (`leases.lease_speaks_here`)."""
+    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))["$events"][
+        "protocol"
+    ]
 
 
 # Every declared `Record` by its kind, which names one shape.

@@ -17,6 +17,8 @@ picked up, or that the harness gave up on, records no opened pickup, and an open
 pickup a Claude Code hook handed over is not yet a receipt. The envelope's
 `acknowledge` says who confirms receipt: the hooks confirm their inline input, while
 the agent confirms Codex hook input and a pointer it read with `leaf delivery ack`.
+A hook hands its inline input over in the context `inline_context` writes, which
+`inline_delivery` reads back from a harness's record of the model's context.
 
 A Pi hook's context is in the session once the hook returns, so the hook records
 the receipt as it hands the delivery over. Claude Code reads a hook's output only
@@ -67,6 +69,7 @@ from xml.etree import ElementTree
 
 from leaf.agents.codex_state import confirm_codex_pointer
 from leaf.base.harness import session_harness
+from leaf.base.json_block import json_block, read_json_block
 from leaf.base.refusals import Refused
 from leaf.base.service import may_receive
 from leaf.base.state import (
@@ -476,6 +479,32 @@ def delivery_pointer_prompt(delivery_id: str) -> str:
     )
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
+
+
+# The words that open a delivery's context inline.
+INLINE_OPENING = (
+    "Leaf has new input for your turn. Read this complete delivery before answering."
+)
+
+
+def inline_context(delivery: dict) -> str:
+    """The context that hands `delivery` over inline: its opening line
+    (`INLINE_OPENING`), a blank line and the delivery's block (`json_block`), which
+    `inline_delivery` reads back."""
+    return "\n\n".join([INLINE_OPENING, json_block(delivery)])
+
+
+def inline_delivery(context: str) -> tuple[dict, str] | None:
+    """The delivery a hook's `context` handed over inline (`inline_context`) and the
+    lines after its block, or None where it handed none over: a pointer, a reminder,
+    or a context cut short."""
+    opening, _, rest = context.partition("\n\n")
+    if opening != INLINE_OPENING:
+        return None
+    try:
+        return read_json_block(rest)
+    except ValueError:
+        return None
 
 
 def validate_delivery_id(delivery_id: str) -> str:
@@ -1257,7 +1286,6 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
-    from leaf.commands.hook_transport import INLINE_OPENING, inline_delivery
     from leaf.records.transaction import owned_pages
 
     entered = {

@@ -21,9 +21,8 @@ import json
 from pathlib import Path
 
 from leaf.agents import clerk, forks, inference, summary_fork, thread_titles
-from leaf.agents.delivery import DELIVERY, envelope, handled
+from leaf.agents.delivery import DELIVERY, envelope, handled, inline_context
 from leaf.base.state import kernel_registry
-from leaf.commands.hook_transport import inline_context
 
 # The values Leaf wrote each of its messages around in the 10:55 PT run of the
 # claude-code agent journey on 20 November 2026 (`leaf-dev journey run claude-code`),

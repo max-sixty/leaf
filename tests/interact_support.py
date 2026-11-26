@@ -2134,7 +2134,7 @@ def entered_contexts(event_ids) -> list[str]:
     """What a harness's record shows entered the model's context where the inputs
     `event_ids` did (`Harness.entered_context`): one inline handover of them."""
     events = [{"id": event_id} for event_id in sorted(event_ids)]
-    return [hook_transport_model.inline_context({"batches": [{"events": events}]})]
+    return [delivery_model.inline_context({"batches": [{"events": events}]})]
 
 
 class ContextRecord:
@@ -2851,8 +2851,8 @@ def continued(output: str | dict) -> str:
 
 def inlined(context: str) -> dict:
     """The delivery a hook's `context` handed over inline, as Leaf reads it back
-    (`hook_transport.inline_delivery`)."""
-    inline = hook_transport_model.inline_delivery(context)
+    (`delivery.inline_delivery`)."""
+    inline = delivery_model.inline_delivery(context)
     assert inline is not None, context
     return inline[0]
 

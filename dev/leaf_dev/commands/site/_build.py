@@ -57,10 +57,9 @@ from leaf.base.schema import (
     PAGE_STATE_FILES,
     SESSION_ROUTE_DIRS,
 )
-from leaf.base.state import record_name
+from leaf.base.state import kernel_protocol, record_name
 from leaf.log.event_log import initialized
 from leaf.serving.live_shell import write_live_shell
-from leaf.source.registry.kernel import kernel_protocol
 from leaf.source.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import ROOT, docs
 from leaf_dev.arms import run_leaf

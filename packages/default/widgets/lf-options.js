@@ -423,7 +423,7 @@ customElements.define(
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
-      this.#addition?.refresh();
+      this.#addition.refresh();
       this.#syncDone();
     }
 

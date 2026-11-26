@@ -110,7 +110,7 @@ function nameWithoutTooltip(drawing) {
   const id = drawing?.getAttribute("aria-labelledby");
   const title = id ? drawing?.querySelector(`:scope > title#${CSS.escape(id)}`) : null;
   if (!drawing || !title) return;
-  drawing.setAttribute("aria-label", title.textContent ?? "");
+  drawing.setAttribute("aria-label", title.textContent);
   drawing.removeAttribute("aria-labelledby");
   title.remove();
 }

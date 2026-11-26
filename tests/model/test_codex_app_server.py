@@ -1813,71 +1813,6 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     assert after["milestones"]["answered"]["event_id"] == replies[0]["id"]
 
 
-def test_a_stream_reply_an_answer_covered_leaves_the_thread_one_reply(page_dir):
-    """A turn streams its answer to the user's message, the user picks an option the
-    agent offered in the thread, and another writer answers the pick, which settles
-    the message too. The thread shows that answer alone, and the stream's final
-    message yields to it, so the user never sees the same answer twice."""
-    revisioning_model.activate_source(page_dir)
-    asked = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "text": 'File the issue?\n\n<lf-options id="file-issue">'
-            '<lf-option id="file" label="File it"><strong>File it</strong></lf-option>'
-            "</lf-options>",
-        },
-    )
-    message = append_carried_log_record(
-        page_dir,
-        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Please"},
-    )
-    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    target = {
-        "page": str(page_dir),
-        "parent": message["id"],
-        "responds": message["id"],
-        "ref": response_reference(page_dir, message),
-    }
-    stream = codex_model.AppServerReplyStream(
-        "codex-thread", "turn-1", "delivery-1", target
-    )
-    stream.update(
-        {
-            "message": {
-                "item": "answer",
-                "phase": "final_answer",
-                "text": "Filed (stream)",
-                "complete": True,
-            }
-        }
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "file-issue",
-            "action": "choose",
-            "detail": {"value": ["file"]},
-        },
-    )
-    [answer] = owed_answers(page_dir)
-    thread_model.post_reply(page_dir, answer["answer"], "Filed (posted)")
-
-    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert [message["text"] for message in thread["msgs"]][-1] == "Filed (posted)"
-    stream.finish("completed", "Filed (stream)")
-    assert [
-        event["text"]
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "reply" and event["author"] == "agent"
-    ] == ["Filed (posted)"]
-
-
 def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir):
     comment = append_carried_log_record(
         page_dir,
@@ -3953,45 +3888,6 @@ def test_observer_rejects_stale_running_snapshot(claimed):
     )
     assert observer.running is None
     assert cleanup_model.session_record("s1") == current
-
-
-def test_a_turn_recovering_after_a_failure_receipt_shows_its_draft(page_dir):
-    """Leaf gave up on a delivery it could not confirm and wrote the failure receipt,
-    and the provider turn turns out to be running. The thread shows the turn's draft
-    beside the receipt while it runs, and its answer in the draft's place once it
-    ends."""
-    revisioning_model.activate_source(page_dir)
-    prepared = _codex_delivery(page_dir)
-    assert codex_model.begin_delivery_start("codex-thread", prepared.payload["id"])
-    codex_model.abandon_uncertain_delivery("codex-thread", prepared.payload)
-    turn = {
-        "id": "late-turn",
-        "status": "inProgress",
-        "itemsView": "full",
-        "items": [
-            _delivery_item(prepared.payload),
-            {
-                "id": "late",
-                "type": "agentMessage",
-                "phase": "final_answer",
-                "text": "Recovered answer",
-            },
-        ],
-    }
-
-    def shown():
-        [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-        return [message["text"] for message in thread["msgs"]][1:]
-
-    connection = _observer()
-    connection._resume(
-        {"status": {"type": "active", "activeFlags": []}, "turns": [turn]}
-    )
-    assert shown() == [codex_model.UNCONFIRMED_TEXT, "Recovered answer"]
-    connection._resume(
-        {"status": {"type": "idle"}, "turns": [{**turn, "status": "completed"}]}
-    )
-    assert shown() == [codex_model.UNCONFIRMED_TEXT, "Recovered answer"]
 
 
 def test_observer_continues_after_a_recovered_provider_completion(claimed):

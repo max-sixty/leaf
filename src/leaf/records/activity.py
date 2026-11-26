@@ -26,7 +26,6 @@ import json
 from collections import Counter
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from operator import itemgetter
 from pathlib import Path
 from typing import NamedTuple
 
@@ -765,9 +764,8 @@ def canonical_activity(
     `obligations` are the answers the agent owes: for each update record whose next
     actor is the agent, the workflow of the input it names, carrying the record's id as
     `obligation`, whether a harness queue holds it (`queued`) and, as `answer`, the
-    operation that answers it (`obligations.response_address`), with `also`, the other
-    inputs whose workflows name the record, which the reply answers too, and the ref
-    its receipts give it (`_receipt_bindings`). `reservations` reserve automatic replies from the
+    operation that answers it (`obligations.response_address`) with what its receipts
+    give it (`_receipt_bindings`). `reservations` reserve automatic replies from the
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. `on_it` are the
@@ -823,35 +821,24 @@ def canonical_activity(
         for record in updates["all"]
         if record["next_actor"] == "agent"
     }
-    owed_records = {record["id"] for record in owing.values()}
     workflows, aging, sent = _stand_workflows(
         interaction_evidence,
         present,
         now,
         held=held,
         turn=turn,
-        owed=owed_records,
+        owed={record["id"] for record in owing.values()},
         on_it=on_it,
     )
     todos, todo_aging = _stand_todos(log.owed, present, now, held=held, turn=turn)
     bindings = _receipt_bindings(workflows, present)
     _bind_reply(workflows, reply)
 
-    # The inputs each record the agent owes answers, in log order: those whose
-    # workflow names it.
-    covering: dict[str, list[str]] = {}
-    for item in sorted(workflows, key=itemgetter("seq")):
-        if item["obligation"] in owed_records:
-            covering.setdefault(item["obligation"], []).append(item["input"])
-
     def owed_answer(item: dict) -> dict:
-        record = owing[item["input"]]
-        answer = response_address(record)
-        if answer["kind"] == "reply" and (
-            others := [each for each in covering[record["id"]] if each != item["input"]]
-        ):
-            answer["also"] = others
-        answer.update(bindings[item["input"]])
+        answer = {
+            **response_address(owing[item["input"]]),
+            **bindings[item["input"]],
+        }
         reservation = (reservations or {}).get(item["input"])
         if answer["kind"] == "reply" and reply_reservation_stands(
             reservation,

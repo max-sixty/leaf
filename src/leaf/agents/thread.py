@@ -27,8 +27,8 @@ from leaf.log.event_log import read_events
 from leaf.log.events import (
     active_summaries,
     build_threads,
-    covered,
     is_answer,
+    settle,
     taken_back,
     thread_structure,
 )
@@ -574,20 +574,24 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
     return asked
 
 
-def answered_already(events: list[dict], inputs: list) -> bool:
-    """Whether an answer in `events` covers each of `inputs`, so another answer to
-    them would be the second (`successful_replies`)."""
-    answered = {
-        identity for event in events if is_answer(event) for identity in covered(event)
-    }
-    return answered.issuperset(inputs)
+def settling_answer(page_dir: Path, events: list[dict], responds: str) -> dict | None:
+    """The agent's answer that settled the input `responds` names, by naming it or an
+    input after it in its thread (`events.settle`), where the input waits no more;
+    else None. A failure receipt is no answer."""
+    for thread in build_threads(events, active_enclosing(page_dir)).values():
+        settled = settle(thread)
+        if any(turn["id"] == responds for turn in settled.waiting):
+            return None
+        for each in reversed(settled.settlements):
+            if any(turn["id"] == responds for turn in each.turns):
+                return each.answer if is_answer(each.answer) else None
+    return None
 
 
-def successful_replies(events: list[dict], input_id: str) -> list[dict]:
-    """The agent's answers to the input `input_id` names, in log order: each that
-    covers it (`events.covered`), alone or with others in its thread."""
+def successful_replies(events: list[dict], responds: str) -> list[dict]:
+    """Agent answers to this exact input (`events.is_answer`)."""
     return [
-        event for event in events if is_answer(event) and input_id in covered(event)
+        event for event in events if is_answer(event) and event["responds"] == responds
     ]
 
 
@@ -603,9 +607,9 @@ class ProviderFinal:
     """A provider turn's final message, committed at the address its delivery
     reserved (`reserve_delivery_reply`), or its opening, posted there as progress.
 
-    It keeps that address after the user settled the update, but yields where answers
-    other writers gave already cover every input it covers (`answered_already`; a
-    failure receipt is no answer), so a turn's answer
+    It keeps that address after the user settled the update, but yields to an answer
+    another writer already gave it, to the update or to a newer input in its thread
+    (`settling_answer`; a failure receipt is no answer), so a turn's answer
     committed after its reservation lapsed never answers twice; and it writes nothing
     once another delivery holds the address."""
 
@@ -638,8 +642,6 @@ class _Obligation(NamedTuple):
     parent: str
     thread: str
     responds: str | None
-    # The other inputs an answer at `responds` answers (`events.covered`).
-    also: list[str]
     # The update a progress reply takes in hand, if it owes one.
     in_hand: str | None
     # What the command notes beside the reply once it is in.
@@ -681,13 +683,6 @@ def post_reply(
     answers nothing, so an answer its thread owes stays owed, which the command
     notes beside it (`owed-response`). ``input`` and ``claim``, which a delivery
     captured, fence it to that page log and delivery owner.
-
-    An answer and a failure receipt record as ``also`` the other inputs they answer
-    beside ``responds`` (`events.covered`): the address's ``also``, the inputs its
-    thread owed when the delivery was captured that the agent could read
-    (`delivery.batch_data`), or for an address no delivery captured, those the log
-    owes at it now. An input the thread has come to owe since
-    the capture, such as a pick an undo brought back, stays owed.
 
     A ``responds`` that no longer names the update owed refuses an answer, which
     would mark an unread newer message answered (`superseded-reply`), with two
@@ -902,7 +897,7 @@ def _resolve_obligation(
     if (
         isinstance(settlement, ProviderFinal)
         and responds is not None
-        and answered_already(events, [*address.get("also", ()), responds])
+        and settling_answer(page_dir, events, responds)
     ):
         return None
     responses = current_responses(page_dir, events)
@@ -925,22 +920,14 @@ def _resolve_obligation(
         and any(todo["id"] == address["parent"] for todo in TodoReading(events).owed)
         else None
     )
-    answering = None if ephemeral else responds
-    current = (
-        expected is not None
-        and expected["kind"] == "reply"
-        and expected["parent"] == parent
-    )
-    # The other inputs an answer covers: those its delivery captured, or for an
-    # address no delivery captured, those the log owes there now.
-    if "also" in address or "input" in address or not current:
-        also = address.get("also", [])
-    else:
-        assert expected is not None
-        also = expected.get("also", [])
+    answers = None if ephemeral else responds
     advice: list[Finding] = []
     if responds is not None:
-        if not current:
+        if (
+            expected is None
+            or expected["kind"] != "reply"
+            or expected["parent"] != parent
+        ):
             if isinstance(settlement, Receipt):
                 return None
             if not isinstance(settlement, ProviderFinal):
@@ -958,7 +945,7 @@ def _resolve_obligation(
                 if not (ephemeral or promised):
                     found = {"event": responds, "parent": parent, "held": held}
                     raise Rejected([Finding("superseded-reply", values=found)])
-                answering = None
+                answers = None
                 advice += [
                     Finding(
                         "promised-todo",
@@ -987,7 +974,7 @@ def _resolve_obligation(
                     reserved["attempt"],
                 ):
                     return None
-            elif answering is not None and (
+            elif answers is not None and (
                 address.get("input") is None or failure is not None
             ):
                 assert expected is not None
@@ -1003,7 +990,7 @@ def _resolve_obligation(
                         )
                     ]
                 )
-    if answering is None and not (ephemeral and responds):
+    if answers is None and not (ephemeral and responds):
         # A message that answers nothing, other than progress on an update, leaves
         # what its thread owes owed.
         owed = thread_obligation(events, responses, thread_id)
@@ -1025,7 +1012,7 @@ def _resolve_obligation(
         or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
-    return _Obligation(parent, thread_id, answering, also, in_hand, tuple(advice))
+    return _Obligation(parent, thread_id, answers, in_hand, tuple(advice))
 
 
 def _compose_and_append(
@@ -1061,7 +1048,7 @@ def _compose_and_append(
     and the delivery's request for one goes unread by an agent that reads the delivery
     through a filter, as `jq` with a field list does."""
     page_dir, events = page.page_dir, page.events
-    parent, thread_id, responds, also, in_hand, _advice = obligation
+    parent, thread_id, responds, in_hand, _advice = obligation
     markup = drawn_markup(text)
     event = {
         "kind": "reply",
@@ -1070,7 +1057,6 @@ def _compose_and_append(
         "parent": parent,
         "text": text,
         **({"responds": responds} if responds is not None else {}),
-        **({"also": also} if responds is not None and also else {}),
     }
     opening = _messages(events)[thread_id]
     # Admission refuses a reply whose thread is taken back, so where the thread is
@@ -1338,7 +1324,6 @@ def fail_answer(
     failure: str,
     text: str,
     *,
-    also: tuple[str, ...] | list[str] = (),
     attempt: str,
     identity: dict,
     only_if_unclaimed: bool,
@@ -1358,32 +1343,21 @@ def fail_answer(
 
     An update with no answer outstanding writes nothing, except that a repeated reply
     receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves an update
-    some turn already picked up to the writer following that turn. The failure hands
-    back the update and `also`, the other inputs its failed delivery carried that the
-    answer would have covered, and nothing else: an input another delivery carried
-    stays with the turn that holds it, and one sent since stays owed. Where the user
-    has taken the update back since, the failure goes in at the newest of `also`
-    still owed an answer, so what the delivery carried is still handed back.
+    some turn already picked up to the writer following that turn.
     """
     with PageTransaction(page_dir) as page:
         if claimed_session is not None and page.claim_of(claimed_session) is None:
             raise ReceiptRefused(
                 f"page is no longer claimed by session {claimed_session!r}"
             )
-        responses = current_responses(page_dir, page.events)
-    answer = responses.get(responds)
+        answer = current_responses(page_dir, page.events).get(responds)
     if answer is not None and answer["kind"] == "markup":
         return _fail_markup_answer(
             page_dir, responds, failure, only_if_unclaimed, claimed_session
         )
-    carried = [*also, responds]
-    if answer is None:
-        responds = next(
-            (each for each in reversed(also) if each in responses), responds
-        )
     return post_reply(
         page_dir,
-        {"responds": responds, "also": [each for each in carried if each != responds]},
+        {"responds": responds},
         text,
         settlement=Receipt(only_if_unclaimed),
         attempt=attempt,

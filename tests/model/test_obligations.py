@@ -779,7 +779,6 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
         "author": "agent",
         "parent": "t",
         "responds": "r",
-        "also": ["t"],
         "text": "No C, sorry.",
     }
     document = page("settled")

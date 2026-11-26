@@ -1339,11 +1339,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         (
             edit["id"],
             asked["id"],
-            {
-                "kind": "reply",
-                "parent": asked["id"],
-                "responds": edit["id"],
-            },
+            {"kind": "reply", "parent": asked["id"], "responds": edit["id"]},
         )
     ]
     with transaction_model.PageTransaction(page_dir) as page:
@@ -1719,12 +1715,6 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
         rewrite("East.", west["id"])
 
     def answer(turn, text):
-        thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})
-        owed = [
-            each["id"]
-            for each in event_folds_model.unanswered_turns(thread[said["id"]])
-            if each["id"] != turn["id"]
-        ]
         append_command(
             page_dir,
             {
@@ -1733,7 +1723,6 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
                 "agent": "Codex",
                 "parent": said["id"],
                 "responds": turn["id"],
-                **({"also": owed} if owed else {}),
                 "text": text,
             },
         )

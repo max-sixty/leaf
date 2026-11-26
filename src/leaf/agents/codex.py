@@ -1952,7 +1952,7 @@ RECORD_SCHEMA = {
         ),
     ],
 }
-RECORD = Record("codex-delivery", RECORD_SCHEMA, since=58)
+RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
 
 
 def read_record(path: Path) -> DeliveryRecord | None:
@@ -2358,15 +2358,14 @@ UNCONFIRMED_TEXT = (
 
 
 def reply_target_answered(target: dict) -> bool | None:
-    """Whether answers already cover every input the reply target covers
-    (`thread.answered_already`), or None when its page no longer exists."""
-    from leaf.agents.thread import answered_already
+    """Whether an answer settled the reply target's input (`thread.settling_answer`),
+    or None when its page no longer exists."""
+    from leaf.agents.thread import settling_answer
 
     try:
         with PageTransaction(Path(target["page"])) as page:
-            return answered_already(
-                page.events, [*target.get("also", ()), target["responds"]]
-            )
+            answer = settling_answer(page.page_dir, page.events, target["responds"])
+            return answer is not None
     except FileNotFoundError:
         return None
 
@@ -2432,20 +2431,12 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
             receive_batch(page, batch, session_id=session_id) as events,
         ):
             captured = list(events)
-        # Each failure hands back what this batch carried of what its answer
-        # covered (`carried_with`): input an earlier delivery carried stays with
-        # the turn that holds it, and input sent since stays owed.
-        frozen = read_delivery(path.stem)["batches"][batch_index]
-        owed = {target["responds"]: target for target in carried_with(frozen)}
         for event in captured:
-            if (target := owed.get(event["id"])) is None:
-                continue
             fail_answer(
                 page_dir,
                 event["id"],
                 UNCONFIRMED_DELIVERY,
                 UNCONFIRMED_TEXT,
-                also=target["also"],
                 attempt=f"unconfirmed-{path.stem}-{event['id']}",
                 identity={"session": session_id},
                 only_if_unclaimed=False,
@@ -2473,27 +2464,15 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
         _receipt_completed(path, batch_index)
 
 
-def carried_with(batch: dict) -> list[dict]:
-    """Each update in one captured batch that was owed an answer, whatever answer it
-    takes, with `also`, the other inputs its answer covers that the batch carried."""
-    carried = {event["id"] for event in batch["events"]}
+def delivery_owed_updates(payload: dict) -> list[dict]:
+    """Every update in one delivery that was owed an answer when it was captured,
+    whatever answer it takes."""
     return [
-        {
-            "page": batch["page"],
-            "responds": event["id"],
-            "also": [
-                each for each in event["answer"].get("also", ()) if each in carried
-            ],
-        }
+        {"page": batch["page"], "responds": event["id"]}
+        for batch in payload["batches"]
         for event in batch["events"]
         if "answer" in event
     ]
-
-
-def delivery_owed_updates(payload: dict) -> list[dict]:
-    """Every update in one delivery that was owed an answer when it was captured,
-    with what its batch carried of the inputs that answer covers (`carried_with`)."""
-    return [target for batch in payload["batches"] for target in carried_with(batch)]
 
 
 def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | None:

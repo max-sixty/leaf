@@ -75,7 +75,6 @@ def test_thread_read_is_exact_and_paginated(page_dir):
         "kind": "reply",
         "parent": messages[2]["id"],
         "responds": messages[2]["id"],
-        "also": [root["id"]],
     }
     second_seq = reading["content"][1]["source"]["seq"]
     assert reading["history"]["next_after"] == second_seq

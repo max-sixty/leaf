@@ -136,7 +136,7 @@ from leaf.base.findings import Rejected
 from leaf.base.json_block import json_block
 from leaf.base.refusals import Refused
 from leaf.base.state import page_key
-from leaf.log.events import build_threads, turn_message, unanswered_turns, unlined
+from leaf.log.events import build_threads, unanswered_turns, unlined
 from leaf.log.interaction_log import note
 from leaf.records.transaction import PageTransaction
 from leaf.source.revision_artifact import active_enclosing
@@ -297,8 +297,8 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
     whether or not the agent has spoken in the thread since, as by its own progress,
     since the round's delivery left its work to that fork. None where neither is due,
     as for a repeated step once the line went in, where the page is no longer the
-    session's, or where the round's thread owes no reply, which only the session can
-    settle."""
+    session's, or where the round's newest turn owes no reply, which only the session
+    can settle."""
     page_dir = Path(basis["page"])
     try:
         with PageTransaction(page_dir) as page:
@@ -338,15 +338,32 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
     }
 
 
+def _owed(page: PageTransaction, thread: str, responses: dict) -> str | None:
+    """The input `thread`'s one owed reply is addressed to, among `responses`
+    (`delivery.current_responses`): the newest owed input waiting there, which may
+    be newer than the round's turns, as a pick on an option the agent sent in the
+    thread is (`workflows.handed_over`); None where the thread owes no reply."""
+    from leaf.log.events import settle
+
+    held = _threads(page).get(thread)
+    return next(
+        (
+            turn["id"]
+            for turn in reversed(settle(held).waiting if held else [])
+            if responses.get(turn["id"], {}).get("kind") == "reply"
+        ),
+        None,
+    )
+
+
 def _thread_data(page: PageTransaction, basis: dict) -> dict | None:
     """The round's waiting messages as Leaf delivers them (`delivery.batch_data`),
     with the thread whole, or None where its thread owes no reply."""
     from leaf.agents.presence import read_work
-    from leaf.records.authored_checks.admission import thread_obligation
 
     work = read_work(page.page_dir, page.events)
     responses = current_responses(page.page_dir, page.events, work)
-    if thread_obligation(page.events, responses, basis["thread"]) is None:
+    if _owed(page, basis["thread"], responses) is None:
         return None
     by_id = {event["id"]: event for event in page.events}
     return batch_data(
@@ -469,19 +486,22 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
     nothing."""
     try:
         with PageTransaction(Path(basis["page"])) as page:
-            [newest] = [
-                event for event in page.events if event["id"] == basis["inputs"][-1]
-            ]
-        # Progress beside the round's newest message, which answers nothing, so a
-        # newer input that joins the thread's answer, such as a pick, leaves it where
-        # it was; the fence alone decides whether the round still awaits it.
-        record = post_reply(
-            Path(basis["page"]),
-            {"parent": turn_message(newest)},
-            text,
-            settlement=Receipt(fence=lambda page: _awaits_line(page, basis)),
-            claimed_session=session_id,
-            ephemeral=True,
+            owed = _owed(
+                page,
+                basis["thread"],
+                current_responses(page.page_dir, page.events),
+            )
+        record = (
+            post_reply(
+                Path(basis["page"]),
+                {"responds": owed},
+                text,
+                settlement=Receipt(fence=lambda page: _awaits_line(page, basis)),
+                claimed_session=session_id,
+                ephemeral=True,
+            )
+            if owed is not None
+            else None
         )
     except (FileNotFoundError, ReceiptRefused) as error:
         return {"outcome": "dropped", "why": str(error), "text": text}

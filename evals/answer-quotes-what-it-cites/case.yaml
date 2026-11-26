@@ -30,7 +30,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/58",
+     "format": "leaf-delivery/52",
      "id": "3710e4d1",
      "created_at": 1794814489.3594618,
      "acknowledge": null,
@@ -209,7 +209,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/52",
          "id": "a81f2c07",
          "created_at": 1794814489.3594618,
          "acknowledge": null,
@@ -432,7 +432,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/52",
          "id": "4be02c19",
          "created_at": 1794814489.3594618,
          "acknowledge": null,

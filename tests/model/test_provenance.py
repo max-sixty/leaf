@@ -86,8 +86,7 @@ def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it(
     """A version names each message that waited while it was saved, with the event
     whose words it had then. Taking back a rewrite or the comment itself after the
     version went live changes nothing it says; taking either back before, or the agent
-    answering before, does. A failure that hands the message back ends its wait as an
-    answer does, and the turn that failed answering it later changes nothing."""
+    answering before, does."""
     comment = {"kind": "comment", "text": "Make it **blue**\nfor the header"}
     rewrite = {"kind": "edit", "message": "e2", "text": "Make it red"}
     saved = [live(1), comment, rewrite, live(2)]
@@ -131,9 +130,6 @@ def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it(
         **AGENT,
     }
     assert saved_after([live(1), comment, answered, live(2)], 1, 2) == []
-    failed = {**answered, "failure": "delivery_unconfirmed", "text": "Send it again."}
-    recovered = [live(1), comment, failed, live(2), answered, live(3)]
-    assert saved_after(recovered, 1, 3) == []
 
 
 def test_a_message_reads_as_it_did_at_the_latest_revision_it_waited_at():
@@ -218,14 +214,7 @@ def test_each_revision_is_judged_by_the_log_before_it():
         {"kind": "comment", "text": "Make it blue"},
         {"kind": "edit", "message": "e1", "text": "Make it red"},
         live(2),
-        {
-            "kind": "reply",
-            "parent": "e1",
-            "responds": "e2",
-            "also": ["e1"],
-            "text": "Red.",
-            **AGENT,
-        },
+        {"kind": "reply", "parent": "e1", "responds": "e2", "text": "Red.", **AGENT},
         {"kind": "undo", "undoes": "e2"},
         live(3),
     ]
@@ -473,16 +462,10 @@ def test_the_line_reads_each_revision_as_a_fold_up_to_it_would():
             elif move == "reply":
                 step = {"kind": "reply", "parent": thread["id"], "text": f"Reply {at}"}
             elif move == "answer" and (owed := unanswered_turns(thread)):
-                through = rng.randrange(len(owed)) + 1
                 step = {
                     "kind": "reply",
                     "parent": thread["id"],
-                    "responds": owed[through - 1]["id"],
-                    **(
-                        {"also": [turn["id"] for turn in owed[: through - 1]]}
-                        if through > 1
-                        else {}
-                    ),
+                    "responds": rng.choice(owed)["id"],
                     "text": f"Answer {at}",
                     **AGENT,
                 }

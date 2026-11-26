@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 
-from leaf.agents.thread import successful_replies
 from leaf.base.schema import agent_name
 from leaf.log.events import (
     active_summaries,
@@ -24,11 +23,9 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
     A provisional reply is reserved under a delivery attempt and addressed to a
     response, and the durable answer names itself by either. Reading only the response
     address would let an answer whose address has moved stand beside its own
-    placeholder, and the panel draw the draft rather than the answer the log holds. A
-    failure receipt is no answer (`is_answer`), so a turn recovering after one keeps
-    its draft on show.
+    placeholder, and the panel draw the draft rather than the answer the log holds.
     """
-    return is_answer(event) and any(
+    return any(
         event.get(named) == live_reply[named] for named in ("attempt", "responds")
     )
 
@@ -179,9 +176,6 @@ def browser_thread(
         live_reply is not None
         and live_reply["text"]
         and not any(_answers_live_reply(event, live_reply) for event in events)
-        # An answer that covers the reply's input with others in its thread is one
-        # the turn's final message will yield to (`thread.ProviderFinal`).
-        and not successful_replies(events, live_reply["responds"])
     ):
         target = next(
             (

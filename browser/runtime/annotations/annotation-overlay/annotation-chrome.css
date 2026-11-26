@@ -232,7 +232,7 @@
   }
   /* The box at rest beside a target (annotations/composing/surface.js, `restFab`) wears the field's
      face in the field's cell of the same frame, so opening it empty moves nothing; kept
-     words it shows on one line wrap once it opens, and its key's room goes. The user
+     words it cuts short wrap once it opens, and its key's room goes. The user
      doesn't carry it, so it shows no grip. */
   .lf-fab-bar > .lf-fab-rest {
     grid-column: 1;

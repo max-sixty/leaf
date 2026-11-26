@@ -38,49 +38,49 @@
         "../../build/entries/syntax/entry.mjs"
       ],
       "/vendor/syntax/bash.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/bash.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/bash.d.mts"
       ],
       "/vendor/syntax/css.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/css.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/css.d.mts"
       ],
       "/vendor/syntax/diff.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/diff.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/diff.d.mts"
       ],
       "/vendor/syntax/go.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/go.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/go.d.mts"
       ],
       "/vendor/syntax/html.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/html.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/html.d.mts"
       ],
       "/vendor/syntax/java.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/java.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/java.d.mts"
       ],
       "/vendor/syntax/javascript.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/javascript.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/javascript.d.mts"
       ],
       "/vendor/syntax/json.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/json.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/json.d.mts"
       ],
       "/vendor/syntax/markdown.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/markdown.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/markdown.d.mts"
       ],
       "/vendor/syntax/python.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/python.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/python.d.mts"
       ],
       "/vendor/syntax/rust.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/rust.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/rust.d.mts"
       ],
       "/vendor/syntax/sql.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/sql.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/sql.d.mts"
       ],
       "/vendor/syntax/toml.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/toml.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/toml.d.mts"
       ],
       "/vendor/syntax/typescript.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/typescript.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/typescript.d.mts"
       ],
       "/vendor/syntax/yaml.js": [
-        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/yaml.d.mts"
+        "../../node_modules/.pnpm/@shikijs+langs@4.6.0/node_modules/@shikijs/langs/dist/yaml.d.mts"
       ],
       "/vendor/temml.esm.js": [
         "../../build/entries/temml/entry.mjs"

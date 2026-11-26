@@ -582,6 +582,15 @@ def docker_command(*arguments: str, input: str | None = None, timeout: int = 30)
     return result.stdout
 
 
+def container_filter(name: str) -> str:
+    """The `docker ps` filter for the containers a local Worker named `name` runs.
+
+    Miniflare gives each `wrangler dev` session a hex id, and workerd names each
+    container `workerd-<session>-<actor key>`, whose key begins with the Worker's name.
+    """
+    return f"name=^workerd-[0-9a-f]+-{name}-"
+
+
 @dataclass(frozen=True)
 class LocalWorker:
     """One local Worker and only the Docker containers its private name owns."""
@@ -596,7 +605,7 @@ class LocalWorker:
             "ps",
             *(["--all"] if include_stopped else []),
             "--filter",
-            f"name=^workerd-{self.name}-",
+            container_filter(self.name),
             "--format",
             "{{json .}}",
         )
@@ -789,7 +798,7 @@ def local_worker() -> Generator[LocalWorker]:
                     raise
     finally:
         listed = subprocess.run(
-            ["docker", "ps", "--all", "--quiet", "--filter", f"name=^workerd-{name}-"],
+            ["docker", "ps", "--all", "--quiet", "--filter", container_filter(name)],
             capture_output=True,
             text=True,
             check=True,

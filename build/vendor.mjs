@@ -126,22 +126,19 @@ const bindTo = (filter, target) => ({
  * Each bundle, by name. A row's `out` is its first output, which names the bundle's
  * license notices. Rows give esbuild either `entry`, a module's source, or their own
  * entry points, and may add `adapt`ations, esbuild options, and a `place` for an
- * output committed outside the build's directory. A `copy` row takes a published
- * file as it stands instead, and may `finish` it.
+ * output committed outside the build's directory, and name in `inlined` the packages
+ * a prebuilt input carries inside it, which no input names (`bundledPackages`). A
+ * `copy` row takes a published file as it stands instead, and may `finish` it.
  */
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
-  //
-  // Leaf captures without `reconcile` (`runtime/host/page-image.js` says why), and
-  // SnapDOM then warns on the console that text may wrap differently. The capture's own
-  // `warnings` keep that notice; the console copy would read as a page problem.
   //
   // SnapDOM sends a resource's cookies when its origin is `location.origin`, which is
   // the URL's origin rather than the document's. In a live sample's sandboxed child the
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.7).
+  // Compare with the document's origin, `self.origin`, instead.
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entryPoints: [input("entries/snapdom/entry.mjs")],
@@ -150,15 +147,10 @@ const bundles = {
         file: /@zumer\/snapdom\/dist\/snapdom\.mjs$/,
         edit: (source) =>
           seam(
-            seam(
-              source,
-              'y.origin===location.origin?"include":"omit"',
-              'y.origin===self.origin?"include":"omit"',
-              "SnapDOM credentials origin",
-            ),
-            'O.warnedReconcile||(O.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "O.warnedReconcile=!0",
-            "SnapDOM reconcile console warning",
+            source,
+            '.origin===location.origin?"include":"omit"',
+            '.origin===self.origin?"include":"omit"',
+            "SnapDOM credentials origin",
           ),
       },
     ],
@@ -571,7 +563,7 @@ const bundles = {
   }),
 
   // Observable Plot, which lf-chart hands a page's author. Nothing published is
-  // loadable as it stands: `src/index.js` imports d3 by bare specifier,
+  // loadable as it stands: `dist/plot.js` imports d3 by bare specifier,
   // `dist/plot.umd.min.js` reads a `d3` global the page would have to load first, and
   // a CDN's prebuilt ESM (jsdelivr's `+esm`) is smaller only because it imports d3
   // from a second URL, while the layer loads nothing from the network so a chart
@@ -581,21 +573,25 @@ const bundles = {
   // Plot goes in, since an author writes the chart in Plot's own API.
   //
   // Which channels a tip says, how its `format` words each, and the lines it says
-  // them in are decided inside the tip mark's module, by functions it doesn't export.
-  // The chart's preview says a point by those decisions, so the module exports them
-  // (`tipSources` and `tipRows` in the entry), each line naming the channel it says.
-  // The installed module already carries the `src/marks/tip.js` hunk of
-  // `@observablehq__plot.patch`, Plot 0.6.18's fix for observablehq/plot#2237
-  // (#2239): a tip leaves out every channel whose values are all literal, not only
-  // colours, so a symbol channel naming its symbols says no "[object Object]". The
-  // patch applies to whichever Plot version is installed, and on 0.6.18 or later,
-  // which already has the fix, it fails the install until the hunk is deleted.
+  // them in are decided inside Plot's tip mark, by functions Plot doesn't export.
+  // The chart's preview says a point by those decisions, so Plot's published module,
+  // `dist/plot.js`, exports them (`tipSources` and `tipRows` in the entry), each line
+  // naming the channel it says.
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],
+    // Plot's, d3-array's and d3-delaunay's published modules carry these inside them.
+    inlined: [
+      "binary-search-bounds",
+      "delaunator",
+      "internmap",
+      "interval-tree-1d",
+      "isoformat",
+      "robust-predicates",
+    ],
     adapt: [
       {
-        file: /@observablehq\/plot\/src\/marks\/tip\.js$/,
+        file: /@observablehq\/plot\/dist\/plot\.js$/,
         edit: (source) =>
           seam(
             seam(
@@ -863,7 +859,7 @@ const bundles = {
           ),
       },
       {
-        file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
+        file: /webawesome\/dist\/chunks\/chunk\.M22PYPNQ\.js$/,
         edit: patchTransitions,
       },
       // A radio group's arrow moves focus to the next radio in its row, which the user
@@ -871,7 +867,7 @@ const bundles = {
       // and the focused-control landing margin made the native scroll move the chooser
       // under the arrow wherever a landing had left it at the window's top edge.
       {
-        file: /webawesome\/dist\/chunks\/chunk\.7YHRZ7G7\.js$/,
+        file: /webawesome\/dist\/chunks\/chunk\.G4XPRTJE\.js$/,
         edit: (source) =>
           seam(
             seam(
@@ -904,6 +900,7 @@ async function bundle(spec) {
     typeEntry: _typeEntry,
     finish = (source) => source,
     adapt: adaptations = [],
+    inlined = [],
     place = {},
     plugins = [],
     ...options
@@ -949,7 +946,7 @@ async function bundle(spec) {
       const name = path.relative(root, file.path).split(path.sep).join("/");
       outputs.set(place[name] ?? name, Buffer.from(file.contents));
     }
-    packages = bundledPackages(result.metafile, root);
+    packages = bundledPackages(result.metafile, root, inlined);
   }
   for (const [name, bytes] of outputs)
     if (name.endsWith(".js")) checkModule(bytes.toString(), name);

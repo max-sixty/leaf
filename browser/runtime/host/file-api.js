@@ -2,9 +2,10 @@
    This transport keeps their addresses within the current page, including samples,
    and applies the same delivery-generation gate as Leaf's other HTTP consumers.
    A captured document or export never gains write access to a live file. The state
-   answer names and stamps each binding (`file_bindings.bound_files`), so `label`
-   names a file before it is read and `watch` hears a file move on the page's own
-   news rather than by reading it on a timer. */
+   answer names each binding (`file_bindings.bound_files`), so `label` names a file
+   before it is read, and holds the file as the source under the binding's id
+   (`data.file_sources`), whose run moves with each write, so `watch` hears a file move
+   on the page's own news rather than by reading it on a timer. */
 import { offlineInteractive, pageUrl } from "../state/context.js";
 import { LayerRefused, RequestError, requestJson } from "../transport/layer-client.js";
 import { applicationState, readPart } from "../state/semantic-state.js";
@@ -80,15 +81,24 @@ export function boundFile(binding) {
         return { refused: error.message, current: error.current ?? null };
       }
     },
-    // Calls back each time an adopted state answer carries a different label or stamp
-    // for this binding, the tab's first answer included, until the returned function
-    // stops it. A stamp says only that the file may have moved; `read()`'s revision
-    // says whether it did.
+    // Calls back each time an adopted state answer carries a different label for this
+    // binding, or a different run of its source, the tab's first answer included,
+    // until the returned function stops it. A run says only that the file was
+    // written; `read()`'s revision says whether its text moved.
     /** @param {() => void} callback */
     watch(callback) {
       let subscribing = true;
       const stop = applicationState
-        .select((root) => root.authoritative?.files[binding])
+        .select((root) => {
+          // A source under the id is the file's only while the page grants it; a
+          // publication under an unbound id is not.
+          const name = root.authoritative?.files[binding]?.label;
+          if (!name) return "";
+          const file = Object.hasOwn(root.data.sources, binding)
+            ? root.data.sources[binding]
+            : null;
+          return `${name}\n${file?.run ?? ""}`;
+        })
         .subscribe(() => {
           if (!subscribing) callback();
         });

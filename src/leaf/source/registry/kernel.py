@@ -42,6 +42,15 @@ def title_limit() -> int:
     ]
 
 
+def wait_limit() -> int:
+    """The most characters a to-do's `waiting_on` holds, read off the `todo` event's.
+    The words stand in a status's place after "Waiting on", so they are kept shorter
+    than a title, which leaves a thread's name room beside them in a row."""
+    return kernel_event_kinds()["todo"]["record"]["properties"]["waiting_on"][
+        "maxLength"
+    ]
+
+
 def kernel_event_ownership() -> dict:
     """Fields derived at admission or discarded at browser ingress."""
     return _kernel_events()["ownership"]

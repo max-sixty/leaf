@@ -940,6 +940,7 @@
 
 @layer wa-theme {
   :where(:root), .wa-theme-default, .wa-light, .wa-dark .wa-invert, .wa-light .wa-theme-default, .wa-dark .wa-theme-default.wa-invert, .wa-dark .wa-theme-default .wa-invert {
+    --wa-color-scheme: light;
     --wa-color-surface-raised: white;
     --wa-color-surface-default: white;
     --wa-color-surface-lowered: var(--wa-color-neutral-95);
@@ -948,6 +949,7 @@
     --wa-color-text-quiet: var(--wa-color-neutral-40);
     --wa-color-text-link: var(--wa-color-brand-40);
     --wa-color-overlay-modal: color-mix(in oklab, var(--wa-color-neutral-05) 50%, transparent);
+    --wa-color-overlay-media: oklab(0% none none / .9);
     --wa-color-overlay-inline: color-mix(in oklab, var(--wa-color-neutral-80) 25%, transparent);
     --wa-color-shadow: color-mix(in oklab, var(--wa-color-neutral-05) calc(var(--wa-shadow-blur-scale) * 4% + 8%), transparent);
     --wa-color-focus: var(--wa-color-brand-60);
@@ -1001,6 +1003,7 @@
   }
 
   .wa-dark, .wa-invert, .wa-dark .wa-theme-default, .wa-light .wa-theme-default.wa-invert, .wa-light .wa-theme-default .wa-invert {
+    --wa-color-scheme: dark;
     --wa-color-surface-raised: var(--wa-color-neutral-10);
     --wa-color-surface-default: var(--wa-color-neutral-05);
     --wa-color-surface-lowered: color-mix(in oklab, var(--wa-color-surface-default), black 20%);
@@ -1009,6 +1012,7 @@
     --wa-color-text-quiet: var(--wa-color-neutral-60);
     --wa-color-text-link: var(--wa-color-brand-70);
     --wa-color-overlay-modal: oklab(0% none none / .6);
+    --wa-color-overlay-media: oklab(0% none none / .9);
     --wa-color-overlay-inline: color-mix(in oklab, var(--wa-color-neutral-50) 10%, transparent);
     --wa-color-shadow: color-mix(in oklab, var(--wa-color-surface-lowered) calc(var(--wa-shadow-blur-scale) * 32% + 40%), transparent);
     --wa-color-focus: var(--wa-color-brand-60);

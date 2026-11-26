@@ -124,12 +124,11 @@ def saved_after(
     found: dict[str, tuple[dict, dict, int]] = {}
     for thread in threads.values():
         latest_open = _latest_open(thread["closures"], at)
-        # Where each turn first stopped waiting: a failure that handed it back ends
-        # its wait as an answer does, whatever answers it later.
-        answered: dict[str, int] = {}
-        for settlement in settle(thread).settlements:
-            for turn in settlement.turns:
-                answered.setdefault(turn["id"], settlement.answer["seq"])
+        answered = {
+            turn["id"]: settlement.answer["seq"]
+            for settlement in settle(thread).settlements
+            for turn in settlement.turns
+        }
         said = {message["id"]: message for message in thread["msgs"]}
         for turn in thread["turns"]:
             # An action on a widget sent in the thread waits in its history beside

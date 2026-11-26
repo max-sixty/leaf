@@ -1242,11 +1242,13 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
 
     A settled thread input has already had its meaning answered, even when its
     delivery was never received. Unsettled inputs read their existing canonical
-    workflow. A completed receipt advances the cursor, so handed input is already
-    absent from this unreceived batch. An opened record without the completed
-    `receipt` does not prove delivery. Other admitted attention (including
-    reports, errors, reactions and widget actions) remains
-    transport input, independent of whether it carries a response obligation.
+    workflow. A completed receipt advances the cursor, so handed input is absent
+    from this unreceived batch, except an update still owed an answer whose owner
+    holds no usable `answer.ref`, as on a page that changed hands, which
+    `deliverable` hands over again (`unreferenced`). An opened record without the
+    completed `receipt` does not prove delivery. Other admitted attention (including
+    reports, errors, reactions and widget actions) remains transport input,
+    independent of whether it carries a response obligation.
     """
     from leaf.records.workflows import agent_inputs
     from leaf.serving.served_state.context import read_page

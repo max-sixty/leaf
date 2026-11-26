@@ -116,7 +116,7 @@ from leaf.base.state import (
     state_home,
     turn_closed,
 )
-from leaf.records.transaction import owned_pages
+from leaf.records.transaction import PageTransaction, owned_pages
 
 QUEUE_TIMEOUT = 20
 ADAPTER = Record(
@@ -809,16 +809,11 @@ def adapter_start_lock_path(session_id: str) -> Path:
     return session_file(session_id, "start")
 
 
-def capture_batch(session_id: str, reading) -> bool:
-    """Persist one watcher batch in the session's collecting record."""
-    lock = delivery_lock_path(session_id)
-    with flocked(lock):
-        captured = append_batch(
-            session_id,
-            reading.page_dir,
-            reading.transaction,
-            reading.batch,
-        )
+def capture_batch(session_id: str, page: PageTransaction, batch: list[dict]) -> bool:
+    """Persist `batch`, read under the page's transaction `page`, in the session's
+    collecting record."""
+    with flocked(delivery_lock_path(session_id)):
+        captured = append_batch(session_id, page.page_dir, page, batch)
     return captured is not None
 
 

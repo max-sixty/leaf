@@ -9,8 +9,8 @@ it starts. Both use this module's App Server
 connection, `start_app_server_delivery` to start a delivery's turn, `TurnFold` to
 turn a turn's notifications into page activity, a reply and an ending, and
 `CarriedTurn` to follow a turn on the connection that started it. Each client's
-header says how notifications reach its folds and what it does when a start or a
-connection fails.
+header, `codex_adapter.py`'s for `TaskConnection` and `leaf_website`'s, says how
+notifications reach its folds and what it does when a start or a connection fails.
 
 A delivery carries a batch of the user's updates to the task. Its content is an
 immutable envelope (`delivery.freeze_delivery`, read with `leaf delivery read <id>`).

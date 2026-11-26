@@ -573,17 +573,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     session_model.cmd_waiting(page_dir)
     successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     with transaction_model.PageTransaction(page_dir) as page:
-        reading = session_model.PageTick(
-            page_dir,
-            page.status,
-            [delivered],
-            True,
-            "watching",
-            False,
-            None,
-            page,
-        )
-        assert codex_adapter_model.capture_batch("original", reading)
+        assert codex_adapter_model.capture_batch("original", page, [delivered])
     epoch_path, epoch = current_codex_record("original")
     record_4 = codex_model.read_record(epoch_path)
     assert isinstance(record_4, (codex_model.Collecting, codex_model.Offering))
@@ -683,17 +673,9 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
         )
         delivered = events_model.read_events(page)[-1]
         with transaction_model.PageTransaction(page) as transaction:
-            reading = session_model.PageTick(
-                page,
-                transaction.status,
-                [delivered],
-                True,
-                "watching",
-                False,
-                None,
-                transaction,
+            assert codex_adapter_model.capture_batch(
+                "codex-thread", transaction, [delivered]
             )
-            assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
     record_5 = codex_model.read_record(epoch_path)
     assert isinstance(record_5, (codex_model.Collecting, codex_model.Offering))
@@ -1425,10 +1407,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
         {"kind": "comment", "author": "user", "text": "Change this before finishing"},
     )
     with transaction_model.PageTransaction(page_dir) as page:
-        reading = session_model.PageTick(
-            page_dir, page.status, [comment], True, "watching", False, None, page
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", page, [comment])
     queued = []
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
@@ -1512,10 +1491,7 @@ def _comment_before_the_first_tool_step(
         page_dir, {"kind": "comment", "author": "user", "text": "Rename the column"}
     )
     with transaction_model.PageTransaction(page_dir) as page:
-        reading = session_model.PageTick(
-            page_dir, page.status, [comment], True, "watching", False, None, page
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", page, [comment])
     queued = []
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)

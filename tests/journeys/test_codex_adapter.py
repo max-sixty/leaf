@@ -89,17 +89,9 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
     delivered = events_model.read_events(page)[-1]
     session_model.cmd_waiting(page)
     with transaction_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [delivered],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
+        assert codex_adapter_model.capture_batch(
+            "codex-thread", transaction, [delivered]
         )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, record = current_codex_record("codex-thread")
     record_2 = codex_model.read_record(record_path)
     assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
@@ -823,17 +815,9 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         {"kind": "comment", "id": "user-message", "author": "user", "text": "hi"},
     )
     with transaction_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [events_model.read_events(page)[-1]],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
+        assert codex_adapter_model.capture_batch(
+            "codex-thread", transaction, [events_model.read_events(page)[-1]]
         )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
 
     attempted = []
     observer = _observer()
@@ -1003,17 +987,9 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
             },
         )
     with transaction_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            events_model.read_events(page)[-2:],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
+        assert codex_adapter_model.capture_batch(
+            "codex-thread", transaction, events_model.read_events(page)[-2:]
         )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
 
     started = []
     connection = _observer()
@@ -1066,17 +1042,11 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     # Accepting the first delivery receipts it, so the second comment is collected
     # into a record of its own rather than joining the one already in a turn.
     with transaction_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            transaction_model.unacknowledged(transaction.events, transaction.cursor),
-            True,
-            "watching",
-            False,
-            None,
+        assert codex_adapter_model.capture_batch(
+            "codex-thread",
             transaction,
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
         )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, _ = current_codex_record("codex-thread")
     record_6 = codex_model.read_record(second_path)
     assert isinstance(record_6, (codex_model.Collecting, codex_model.Offering))
@@ -1100,17 +1070,9 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     delivered = events_model.read_events(page)[-1]
     session_model.cmd_waiting(page)
     with transaction_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [delivered],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
+        assert codex_adapter_model.capture_batch(
+            "codex-thread", transaction, [delivered]
         )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, queue = current_codex_record("codex-thread")
     record_7 = codex_model.read_record(record_path)
     assert isinstance(record_7, (codex_model.Collecting, codex_model.Offering))
@@ -1617,17 +1579,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     )
     first = events_model.read_events(page)[-1]
     with transaction_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [first],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", transaction, [first])
     first_path, _ = current_codex_record("codex-thread")
 
     queue_started = threading.Event()
@@ -1682,17 +1634,11 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
 
     assert not codex_model.recover_codex_receipt("codex-thread")
     with transaction_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            transaction_model.unacknowledged(transaction.events, transaction.cursor),
-            True,
-            "watching",
-            False,
-            None,
+        assert codex_adapter_model.capture_batch(
+            "codex-thread",
             transaction,
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
         )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, second_delivery = current_codex_record("codex-thread")
     assert second_path != first_path
     assert second_delivery["state"] == "collecting"

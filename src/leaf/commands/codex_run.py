@@ -65,7 +65,7 @@ from leaf.base.leases import (
 )
 from leaf.base.refusals import Refused
 from leaf.base.state import LoadedCopy, flocked
-from leaf.commands.session import Watch, read_watch_pass
+from leaf.commands.session import PageTick, Watch, read_watch_pass
 from leaf.records.transaction import owned_pages
 
 
@@ -114,6 +114,11 @@ def run_adapter(
                 adapter_log_path(harness.session).unlink(missing_ok=True)
             retire_gone_task_records()
 
+        def capture(tick: PageTick) -> bool:
+            """Capture the batch a pass found on one page into the task's collecting
+            record, which the next offer delivers."""
+            return capture_batch(harness.session, tick.transaction, tick.batch)
+
         if app_server is not None:
             connection = TaskConnection(app_server, harness.session)
             resources.callback(connection.stop)
@@ -155,18 +160,12 @@ def run_adapter(
                 continue
 
             mark = watch.mark()
-            reading = read_watch_pass(
-                watch, None, deliver=lambda tick: capture_batch(harness.session, tick)
-            )
+            reading = read_watch_pass(watch, None, deliver=capture)
             if reading.delivered:
                 continue
             if reading.outcome is not None or not reading.live:
                 with flocked(start_lock):
-                    reading = read_watch_pass(
-                        watch,
-                        None,
-                        deliver=lambda tick: capture_batch(harness.session, tick),
-                    )
+                    reading = read_watch_pass(watch, None, deliver=capture)
                     if reading.delivered or (reading.outcome is None and reading.live):
                         continue
                     if not owned_pages(harness.session):

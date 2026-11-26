@@ -11,7 +11,7 @@ touches:
 
 - `claude-code` (`commands/journey/_claude_code.py`): after a change to `hooks/hooks.json`,
   `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, the watch between turns in
-  `session.py`, `forks.py` or `carrier.py`. Add `--sandbox` after a
+  `session.py`, what wakes it (`delivery.wake_inputs`), `forks.py` or `carrier.py`. Add `--sandbox` after a
   change to `bridge.py`, the README's "Agent sandboxes" settings, or what a `leaf`
   command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`commands/journey/_codex.py`), both: after a change to
@@ -20,7 +20,7 @@ touches:
   `.codex-plugin/plugin.json`, or what a `leaf` command needs from outside its page
   directory.
 - `pi` (`commands/journey/_pi.py`): after a change to `hooks/pi.ts`, `PiHarness`, `hooks.py`, or
-  the watch between turns in `session.py`.
+  the watch between turns in `session.py` and what wakes it (`delivery.wake_inputs`).
 
 For the website, `tests/AGENTS.md`, "Run what the change needs", says which delivery
 checks CI runs, and `worker/README.md`, "Local development", how to reproduce a Worker

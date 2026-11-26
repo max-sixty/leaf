@@ -1506,7 +1506,8 @@ def test_a_threads_row_previews_its_thread(engine, request, serve):
     keyboard moving onto it, which hears the word the row's state already says once,
     and to a pointer resting on it."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
@@ -1577,7 +1578,8 @@ def test_the_row_back_from_a_thread_returns_focus_to_previews_nothing(
     previews nothing until they step onto it again. Threads about the whole page open
     in the panel whatever the user chose for threads."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?")
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
@@ -1608,7 +1610,8 @@ def test_a_tap_after_a_finger_read_a_threads_row_opens_its_thread(browser, serve
     The hold's release presses nothing, but Chromium counts it into a run of clicks
     with the tap, a run begun on the row the tap presses."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True

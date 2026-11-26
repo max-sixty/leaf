@@ -3,10 +3,10 @@
    and a module that stands in no layer. */
 
 import assert from "node:assert/strict";
-import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import config, { importLayersRule } from "../../eslint.config.mjs";
+import { ESLint } from "eslint";
+import { importLayersRule } from "../../eslint.config.mjs";
 import { ruleReports } from "./lint-rule.mjs";
 
 const at = (name) =>
@@ -35,6 +35,10 @@ test("a module that names a layer above its own is refused, however it names it"
     // Whitespace between the tokens, a line's break among them.
     '/** @param {import ("../annotations/preview.js").Target} target */\nexport const f = (target) => target;',
     '/** @param {import(\n *   "../annotations/preview.js"\n * ).Target} target */\nexport const f = (target) => target;',
+    // A type's specifier that names no file, which TypeScript tries with `.js`.
+    '/** @param {import("../widget-api").HeldReading<number>} held */\nexport const f = (held) => held;',
+    // A tag after an example names its type again.
+    '/** @example f(target)\n * @param {import("../annotations/preview.js").Target} target */\nexport const f = (target) => target;',
   ])
     assert.equal(reports(code), 1, code);
 });
@@ -54,6 +58,10 @@ test("a module names its own layer, the layers below it and what stands outside 
     // A comment that is no JSDoc names no type, whatever it says.
     "// Never import('../annotations/preview.js') here: the margin owns it.",
     '/* import("../annotations/preview.js") would load the overlay. */',
+    // An example holds code rather than types.
+    "/** Opens the preview.\n * @example\n * await import('../annotations/preview.js');\n */\nexport const f = () => {};",
+    // A specifier that doesn't parse names no module; the browser and the type check refuse it.
+    'export * from "//[";',
     // A specifier the code computes is the loaders' (eslint.config.mjs, `ownerBoundary`).
     "const load = (path) => import(path);",
   ])
@@ -74,25 +82,25 @@ test("a module that stands in no layer is refused", () => {
   assert.equal(reports("export const x = 1;", "widget-api.js"), 0);
 });
 
-// The rule eslint.config.mjs sets for `file`, as eslint composes its config objects:
-// the last that matches the file and sets the rule wins.
-const ruleFor = (file) => {
-  let setting;
-  for (const block of config)
-    if (
-      block.rules?.["architecture/import-layers"] !== undefined &&
-      (block.files ?? ["**/*"]).some((glob) => path.matchesGlob(file, glob)) &&
-      !(block.ignores ?? []).some((glob) => path.matchesGlob(file, glob))
-    )
-      setting = block.rules["architecture/import-layers"];
-  return setting;
-};
+// ESLint itself, as the hook runs it over the repository's config.
+const eslint = new ESLint({ cwd: fileURLToPath(new URL("../..", import.meta.url)) });
 
-test("every runtime module is linted for its layer, a .mjs one among them", () => {
+test("ESLint lints every runtime module for its layer, a .mjs one among them", async () => {
   for (const file of [
     "browser/runtime/records/current-target.js",
     "browser/runtime/stray.mjs",
     "browser/runtime/widget-api.js",
-  ])
-    assert.equal(ruleFor(file), "error", file);
+  ]) {
+    assert.equal(await eslint.isPathIgnored(file), false, file);
+    const { rules } = await eslint.calculateConfigForFile(file);
+    assert.equal(rules["architecture/import-layers"]?.[0], 2, file);
+  }
+  const [stray] = await eslint.lintText('export * from "./annotations/preview.js";', {
+    filePath: "browser/runtime/stray.mjs",
+  });
+  assert.equal(
+    stray.messages.filter(({ ruleId }) => ruleId === "architecture/import-layers")
+      .length,
+    1,
+  );
 });

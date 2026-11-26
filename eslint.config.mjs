@@ -398,7 +398,9 @@ const layerOf = (name) =>
 // The modules a module's JSDoc names, read as TypeScript reads them: from each `/** … */`
 // block, with each line's leading `*` set aside, every `import` `(` string `)`, with any
 // whitespace between the tokens, and every `@import … from "…"`, whose braces may span
-// lines. Other comments name nothing. The rule reads runtime modules alone, so the
+// lines. An `@example` holds code rather than types, up to the next tag, and other
+// comments name nothing. TypeScript resolves a type's specifier that names no file by
+// trying it with `.js` and with `.d.ts`. The rule reads runtime modules alone, so the
 // ambient declarations of `browser/types/` are outside what it reads, and a type a
 // global names, such as an element's `lfPreview` or a tag in `HTMLElementTagNameMap`,
 // may stand in any layer.
@@ -407,22 +409,30 @@ const JSDOC_IMPORTS = [
   /@import\b[^@]*?\bfrom\s*(["'])([^"'\n]*)\1/gu,
 ];
 /** @param {{type: string, value: string}} comment */
-const jsdocNames = (comment) =>
-  comment.type === "Block" && comment.value.startsWith("*")
-    ? JSDOC_IMPORTS.flatMap((pattern) =>
-        [...comment.value.replace(/^[ \t]*\*/gmu, "").matchAll(pattern)].map(
-          ([, , specifier]) => specifier,
-        ),
-      )
-    : [];
+const jsdocNames = (comment) => {
+  if (comment.type !== "Block" || !comment.value.startsWith("*")) return [];
+  const text = comment.value
+    .replace(/^[ \t]*\*/gmu, "")
+    .replace(/@example\b[\s\S]*?(?=\s@\S|$)/gu, "");
+  return JSDOC_IMPORTS.flatMap((pattern) =>
+    [...text.matchAll(pattern)].map(([, , specifier]) => specifier),
+  );
+};
+/** @param {string} name */
+const typeFile = (name) =>
+  [name, `${name}.js`, `${name}.d.ts`].find((candidate) =>
+    fs.existsSync(path.join(runtimeRoot, candidate)),
+  ) ?? name;
 // The runtime module a specifier names, by its path under `runtime/`, resolved as the
 // browser resolves it from the module's served URL (`/runtime/…`); null where it names
-// none. A bare specifier is an import map's to resolve, and a path outside `/runtime/`,
-// such as a `/vendor/` bundle, a `/checks/` probe or browser/types/, holds no runtime
-// module. JSON is data.
+// none. A bare specifier is an import map's to resolve, one that doesn't parse as a URL
+// is the browser's and the type check's to refuse, and a path outside `/runtime/`, such
+// as a `/vendor/` bundle, a `/checks/` probe or browser/types/, holds no runtime module.
+// JSON is data.
 const SERVED = new URL("https://page.invalid/runtime/");
 const servedName = (file, specifier) => {
-  if (!/^\.{0,2}\//u.test(specifier)) return null;
+  if (!/^\.{0,2}\//u.test(specifier) || !URL.canParse(specifier, new URL(file, SERVED)))
+    return null;
   const url = new URL(specifier, new URL(file, SERVED));
   if (url.origin !== SERVED.origin || !url.pathname.startsWith(SERVED.pathname))
     return null;
@@ -442,10 +452,10 @@ export const importLayersRule = {
     const here = layerOf(file);
     const placed = (name) => runtimeLayers[name].name;
     /** @param {{node?: unknown, loc?: unknown}} at @param {string} specifier */
-    const check = (at, specifier) => {
-      const target = here < 0 ? null : servedName(file, specifier);
-      if (target === null) return;
-      const there = layerOf(target);
+    const check = (at, specifier, type = false) => {
+      const served = here < 0 ? null : servedName(file, specifier);
+      if (served === null) return;
+      const there = layerOf(type ? typeFile(served) : served);
       if (there < 0 || there >= here) return;
       context.report({
         ...at,
@@ -473,7 +483,7 @@ export const importLayersRule = {
           });
         for (const comment of context.sourceCode.getAllComments())
           for (const specifier of jsdocNames(comment))
-            check({ loc: comment.loc }, specifier);
+            check({ loc: comment.loc }, specifier, true);
       },
       ImportDeclaration: named,
       ImportExpression: named,

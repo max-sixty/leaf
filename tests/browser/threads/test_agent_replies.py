@@ -30,6 +30,7 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    without_end_room,
     write,
 )
 
@@ -735,9 +736,7 @@ def test_a_new_step_shows_at_once_in_the_thread_being_written_in(browser, serve,
     )
     page = open_page(browser, url)
     if room == "short":
-        # The page keeps no room at its end, as one with no Layout keeps none
-        # (layouts.css).
-        page.add_style_tag(content="body { padding-bottom: 0 !important; }")
+        without_end_room(page)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
     words = thread.locator(".lf-thread-working-words")

@@ -17,9 +17,11 @@ const CLOSE = press("Close");
 const NEXT_ON_ME = press("Next On Me");
 const NEXT_THREAD = press("Next thread");
 
-// The page's field at rest: nothing of the user's stands, so the status claims it.
+// The page's field at rest under a keyboard: nothing of the user's stands, so the
+// status claims it.
 const facts = (over = {}) => ({
   thread: false,
+  keys: true,
   writing: false,
   error: null,
   held: null,
@@ -99,6 +101,24 @@ test("a walk's step takes the page field's words, and leaves a thread's Reply", 
   );
   const goTo = readField(facts({ ...step, thread: true, goTo: "No visible threads" }));
   assert.deepEqual([goTo.says, goTo.end], ["notice", "Reply…"]);
+});
+
+test("to a finger a thread's field says at rest what it says once tapped", () => {
+  const finger = {
+    thread: true,
+    keys: false,
+    destination: () => leafSays("Reply to reopen…"),
+  };
+  const rest = readField(facts(finger));
+  assert.deepEqual(
+    [rest.says, wordsText(rest.words), rest.offers],
+    ["turn", "Reply to reopen…", true],
+  );
+  assert.equal(said(facts({ ...finger, writing: true })), "Reply to reopen…");
+  // In a stance the box takes no reply, so it says nothing.
+  assert.equal(said(facts({ ...finger, still: true })), "");
+  // The page's field says the status to a finger as to a keyboard.
+  assert.equal(said(facts({ keys: false })), "Running the browser suite");
 });
 
 test("a notice leads with nothing, a walk's step with where the user stands", () => {

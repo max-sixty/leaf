@@ -42,7 +42,7 @@ from leaf.records.markup_checks.instances import attribute_slot_errors
 from leaf.records.page_view import CandidatePageView, PageView
 from leaf.records.plans import plan_error
 from leaf.records.read_state import read_contract_error
-from leaf.records.todos import todo_error
+from leaf.records.todos import start_reading, todo_error
 from leaf.records.work import widget_seat_error
 from leaf.records.workflows import agent_inputs, attention_reading
 from leaf.source.registry.contract import (
@@ -745,8 +745,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a declared widget, an element, or the page; a
     `todo_end` names an open to-do; and a start names explicit agent work or an owed
     update (`todos.todo_error`)."""
-    from leaf.records.todos import start_reading
-
     if start := start_reading(event):
         event = start
     elif event["kind"] not in {"todo", "todo_end"}:
@@ -774,7 +772,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
-        registry=readings.work.registry,
     )
 
 

@@ -129,11 +129,17 @@ import json
 from pathlib import Path
 
 from leaf.agents import summary_fork
+from leaf.agents.clerk import read_answer
+from leaf.agents.delivery import ReceiptRefused, batch_data, current_responses
+from leaf.agents.thread import Receipt, post_reply
+from leaf.base.findings import Rejected
 from leaf.base.json_block import json_block
+from leaf.base.refusals import Refused
 from leaf.base.state import page_key
-from leaf.log.events import unlined
+from leaf.log.events import build_threads, unanswered_turns, unlined
 from leaf.log.interaction_log import note
 from leaf.records.transaction import PageTransaction
+from leaf.source.revision_artifact import active_enclosing
 
 # The words that open the line fork's question, which the transcript carries.
 LINE_OPENING = "<leaf-line-fork>"
@@ -158,9 +164,6 @@ BESIDE = {"summary": summary_fork.take_answer}
 def _threads(page: PageTransaction) -> dict[str, dict]:
     """The page's threads as the fold builds them, with the page's containment
     (`events.build_threads`)."""
-    from leaf.log.events import build_threads
-    from leaf.source.revision_artifact import active_enclosing
-
     return build_threads(page.events, active_enclosing(page.page_dir))
 
 
@@ -195,8 +198,6 @@ def look(session_id: str, page_dir: Path, after: int | None) -> tuple[list[dict]
     beside its line fork are due all the same (`ask`), and a delivery leaves their
     work to them by the same reading. A follower's first look at the page passes
     None, and takes the log's last seq, so it lists no round older than itself."""
-    from leaf.log.events import unanswered_turns
-
     with PageTransaction(page_dir) as page:
         if after is None:
             return [], page.events[-1]["seq"] if page.events else 0
@@ -341,7 +342,6 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
     """The thread's waiting messages `inputs` as Leaf delivers them
     (`delivery.batch_data`), with the thread whole, or None where the newest owes
     no reply."""
-    from leaf.agents.delivery import batch_data, current_responses
     from leaf.agents.presence import read_work
 
     work = read_work(page.page_dir, page.events)
@@ -426,9 +426,6 @@ def route(
     reason), or its answer doesn't fit `ANSWER`. What came of it is recorded in the
     page's diagnostics, with what `carrier.run_facts` read of the fork's run
     (`run`)."""
-    from leaf.agents.clerk import read_answer
-    from leaf.base.refusals import Refused
-
     read = None
     if answer is not None:
         try:
@@ -471,11 +468,6 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
     still awaits one (`_awaits_line`, asked as the line is appended): `{"outcome":
     "posted", "text", "line"}` with the posted message's id, or why Leaf posted
     nothing."""
-    from leaf.agents.delivery import ReceiptRefused
-    from leaf.agents.thread import Receipt, post_reply
-    from leaf.base.findings import Rejected
-    from leaf.base.refusals import Refused
-
     try:
         record = post_reply(
             Path(basis["page"]),

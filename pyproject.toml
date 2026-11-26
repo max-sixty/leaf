@@ -290,6 +290,8 @@ backfil = "backfil"
 seeked = "seeked"
 # A simulator's device id, as `simctl` and safaridriver name it (leaf_dev/ios_safari.py).
 udid = "udid"
+# A variable in Pele's minified bundle that a seam in build/vendor.mjs names.
+ue = "ue"
 
 [tool.typos.default.extend-identifiers]
 # typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.

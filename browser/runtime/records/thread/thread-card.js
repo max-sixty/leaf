@@ -91,6 +91,7 @@ import { share } from "../../base/snapshot.js";
 import { turns, threadKey } from "../../state/thread/model.js";
 import {
   HOLDS,
+  LISTED_NAME,
   anchorPlace,
   messageReading,
   threadName,
@@ -242,9 +243,6 @@ const STOPPED = new Set(["stopped", "quiet", "interrupted"]);
 // key each is drawn under there.
 const WORKING = ".lf-thread-working";
 const FACE = "face:";
-// How much of the thread's name the card's own name says, as much as a preview listing
-// several threads says of each (messages.js, `threadPreview`).
-const NAMED = 60;
 // A first header's words, which a held-news notice stands after: everything it holds
 // but the message's own controls at its end.
 /** @param {HTMLElement} header @returns {HTMLElement[]} */
@@ -872,7 +870,7 @@ export class ThreadView {
     // thread's name, cut short: an untitled thread's name is its first message, which
     // the card reads next, and said whole in the name it was heard twice.
     keeps(this.node, "role", "group");
-    keeps(this.node, "aria-label", `Thread, ${excerptWords(model.name, NAMED)}`);
+    keeps(this.node, "aria-label", `Thread, ${excerptWords(model.name, LISTED_NAME)}`);
     // A thread whose reply stands elsewhere ends with its messages, so it grows only at
     // its foot, the growing tail of the region holding it, as the panel's view is
     // (tests/shift_watch.js).

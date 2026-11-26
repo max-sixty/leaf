@@ -93,8 +93,8 @@ The batch's `held` lists your open to-dos on the page whose work waits on someth
 you named with `--waiting-on` ([threads](threads.md)), each with its `id`, `text`
 and `waiting_on`. Leaf can't tell which input ends a wait, so it lists them with
 every batch. Where the batch's input ends what one waits on, whether or not it owes
-an answer, start that to-do with `leaf task start <page> <id>`, which ends its wait,
-and take its work up.
+an answer, start that to-do with `leaf task start <page> <id> --text "<the work, in
+a line>"`, which ends its wait, and take its work up.
 
 ## Delivery and acknowledgement
 

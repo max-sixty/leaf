@@ -191,10 +191,11 @@ assert:
       The user's Done on `who-pick` answers the "Whose words" choice, and the agent's
       to-do 32ea2e94, "Take up the card's top line", waits on "Whose words". Pass
       only if this turn starts that to-do (`leaf task start <page> 32ea2e94`, with
-      any line) as it takes up the top-line work. Fail if the answer leaves the top line
-      held or never mentions it, or if it ends that to-do with a `leaf task end` that
-      names no outcome (`done`, `failed` or `dropped`). How it records the pick in the
-      markup, and whether it also starts the pick's own event, don't matter.
+      any line) as it takes up the top-line work, and starts the Done event that owes
+      the markup answer too (`leaf task start <page> <that event's id>`). Fail if the
+      answer leaves the top line held or never mentions it, starts only one of the two,
+      or ends the to-do with a `leaf task end` that names no outcome (`done`, `failed`
+      or `dropped`). How it records the pick in the markup doesn't matter.
 variants:
   unrelated-input:
     metadata:

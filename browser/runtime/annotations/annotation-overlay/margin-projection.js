@@ -556,12 +556,12 @@ export function createMarginProjection({
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const userContext = spokenContext(choice);
-    const subject =
-      choice?.items.length === 1 && choice.items[0].workflowFace
-        ? choice.text
-        : entry.title;
+    const lone = choice?.items.length === 1 ? choice.items[0] : null;
+    // A workflow item says what the work is about, which its target's title doesn't,
+    // without the workflow's word, which the face says.
+    const subject = lone?.subject ?? entry.title;
     // A lone item's own words, such as a to-do's title, which its subject does not say.
-    const own = choice?.items.length === 1 ? choice.items[0].label : null;
+    const own = lone?.label ?? null;
     const said = own && !subject?.includes(own) ? `, ${own}` : "";
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`;
     const down =

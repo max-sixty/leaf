@@ -1522,9 +1522,9 @@ sequenceDiagram
               says how the records Leaf keeps carry the number.
             </p>
             <p id="leaf-copy-outlast">
-              Three things outlive the process, so a session can find one that another
-              copy of Leaf wrote. Leaf compares each one's record with the session's
-              copy, and brings it to that copy:
+              A session's pages and their servers outlive the process, so a session can
+              find one that another copy of Leaf wrote. Leaf compares each one's record
+              with the session's copy, and brings it to that copy:
             </p>
             <table id="leaf-copy-pieces">
               <thead>
@@ -1563,20 +1563,14 @@ sequenceDiagram
                     address. Open tabs reload where the browser runtime changed.
                   </td>
                 </tr>
-                <tr id="leaf-copy-skill">
-                  <th scope="row">The skill text the agent read</th>
-                  <td>
-                    The copy the session's last hook ran and a digest of the skill it
-                    ships, kept while the session lives or holds a page
-                  </td>
-                  <td>
-                    The first hook from another copy, or from an installed copy its
-                    harness updated, whose skill differs tells the agent to read
-                    <code>SKILL.md</code> again.
-                  </td>
-                </tr>
               </tbody>
             </table>
+            <p id="leaf-copy-skill">
+              The skill text the agent read outlives the process too, in its
+              conversation, and Leaf leaves it to the harness. After an update or a
+              merge changes the skill, Leaf tells the agent nothing; Claude Code's
+              <code>/reload-skills</code> picks up a skill changed on disk.
+            </p>
             <p id="leaf-copy-checkout">
               Developing Leaf works as developing any project does. A checkout of Leaf,
               run through its own <code>bin/leaf</code> from inside a session, acts for
@@ -3745,16 +3739,16 @@ flowchart TD
             Claude Code loads from Leaf's plugin, makes each with Claude Code's
             <code>$.model.fork</code> and hands back what came of it. It adds only what
             it alone sees, such as the tool calls the main thread is running and the end
-            of a main thread's turn. Claude Code keeps the module it loaded until
-            <code>/reload-plugins</code>, while a session whose hooks run a Leaf
-            checkout runs each hook from that checkout as it stands, so the session's
-            module can be older than its Python. That is why the module only carries out
-            Python's instructions: a change to what Leaf forks for, what it asks a fork
-            or what it does with the answer changes only the Python, and an older module
-            carries it out as it does any instruction. The module changes only for a
-            Claude Code call or event Leaf starts to use. The fork subagent is no
-            instruction of Leaf's: the main thread spawns it with Claude Code's Agent
-            tool, and the module leaves a subagent's calls and turns alone.
+            of a main thread's turn. Claude Code keeps the module it loaded until it
+            loads another copy or the module's own code changes, while a session whose
+            hooks run a Leaf checkout runs each hook from that checkout as it stands, so
+            the session's module can be older than its Python. That is why the module
+            only carries out Python's instructions: a change to what Leaf forks for,
+            what it asks a fork or what it does with the answer changes only the Python,
+            and an older module carries it out as it does any instruction. The module
+            changes only for a Claude Code call or event Leaf starts to use. The fork
+            subagent is no instruction of Leaf's: the main thread spawns it with Claude
+            Code's Agent tool, and the module leaves a subagent's calls and turns alone.
           </p>
 
           <section id="path">

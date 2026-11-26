@@ -42,7 +42,7 @@ import { leafSays, wordsText } from "../base/voice.js";
  * @typedef {{word: import("../base/voice.js").Words, reason: string}} UserAttention
  * @typedef {{id: string, text: string, owner?: string, marker?: boolean,
  * represents?: boolean, workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
- * carriesWorkflow?: boolean, state?: State, label?: string | null,
+ * carriesWorkflow?: boolean, state?: State, label?: string | null, subject?: string,
  * userAttention?: UserAttention | null, unread?: number, context?: import("../base/voice.js").Words | null,
  * mapContext?: import("../base/voice.js").Words | null, words?: import("../base/voice.js").Words, atWork?: boolean,
  * cardOpen?: boolean, draft?: string}} AnnotationBase

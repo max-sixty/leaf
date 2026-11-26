@@ -46,7 +46,6 @@ from leaf.base.detached import StartRefused
 from leaf.base.findings import Finding
 from leaf.base.refusals import Refused
 from leaf.commands import cli as cli_model
-from leaf.commands import hooks as hooks_model
 from leaf.pages import hosting as hosting_model
 from leaf.pages import vendoring as vendoring_model
 from leaf.records import transaction as transaction_model
@@ -307,7 +306,7 @@ def test_a_server_has_the_copy_its_session_runs_restart_it(
         elif number == 0 and copy in HOOKS_MOVE_TO:
             (hooks / "bin").mkdir(parents=True)
             (hooks / "bin" / "leaf").touch(mode=0o755)
-            leases_model.mark_skill("s1", f"{hooks}\nskill")
+            leases_model.mark_root("s1", hooks)
             replaced.append(copy)
         elif number == 0:
             (root / ".venv").rmdir()
@@ -320,7 +319,7 @@ def test_a_server_has_the_copy_its_session_runs_restart_it(
             again = tmp_path.joinpath(*HOOKS_MOVE_AGAIN[copy])
             (again / "bin").mkdir(parents=True)
             (again / "bin" / "leaf").touch(mode=0o755)
-            leases_model.mark_skill("s1", f"{again}\nskill")
+            leases_model.mark_root("s1", again)
         elif number == 3:
             service = server_model.read_service(claimed)
             assert service is not None
@@ -413,10 +412,12 @@ def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(
     finds another server in place of the one that asked and restarts nothing more.
     Where the session's hooks run another Leaf, the page stays at the protocol they
     read."""
-    mark = hooks_model.skill_mark()
-    if hooks_run == "another Leaf":
-        mark = mark.replace(str(cleanup_model.PLUGIN_ROOT), "/another/leaf", 1)
-    leases_model.mark_skill("s1", mark)
+    leases_model.mark_root(
+        "s1",
+        Path("/another/leaf")
+        if hooks_run == "another Leaf"
+        else cleanup_model.PLUGIN_ROOT,
+    )
     serving(claimed, available_loopback_port(), "session")
     claim = service_model.page_claim(claimed)
     assert claim is not None

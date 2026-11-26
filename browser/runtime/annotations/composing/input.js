@@ -13,7 +13,7 @@
 // face carries listening. Sending and explicit closing retire capture before the
 // draft can change; Escape keeps its existing close-and-keep-draft meaning.
 // Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too,
-// except in a one-line field (`aria-multiline="false"`), where Return sends everywhere.
+// except in a one-line field (`one-line`), where Return sends everywhere.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
 // accepts images, a paste or capture uploads bytes to page media; one that does not says
@@ -418,7 +418,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const inputError = computed(() => errorOver(ta));
     // A one-line field, such as an option's title, has no line for Return to break, so
     // Return sends it from every keyboard, a phone's included.
-    const oneLine = ta.getAttribute("aria-multiline") === "false";
+    const oneLine = ta.hasAttribute("one-line");
     const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
     const sendKey = () => sendBindings().slice(0, 1).map(spell).join("");
     // Where Return sends a box that holds lines, Shift+Return makes one.

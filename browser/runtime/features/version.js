@@ -353,7 +353,7 @@ function captureInitialDocument() {
   // Cloning transfers native dirty properties too. Read the initial condition from
   // the defaults, leaving markup and its exact text intact (reparsing drops a leading
   // newline in pre/textarea). Native setters apply each control's sanitization.
-  for (const input of source?.querySelectorAll("input") ?? []) {
+  for (const input of source.querySelectorAll("input")) {
     if (
       !["file", "checkbox", "radio"].includes(input.type) &&
       input.value !== input.defaultValue
@@ -361,13 +361,13 @@ function captureInitialDocument() {
       input.value = input.defaultValue;
     input.checked = input.defaultChecked;
   }
-  for (const textarea of source?.querySelectorAll("textarea") ?? [])
+  for (const textarea of source.querySelectorAll("textarea"))
     textarea.value = textarea.defaultValue;
   const pairs = pairSources(source, body, new SourcePairs());
   // Native disclosures can already have been used while modules were loading.
   // Their parse-time owner supplies the authored default for the source baseline;
   // the live node keeps the user's choice, as it does for every later revision.
-  for (const disclosure of source?.querySelectorAll("details") ?? []) {
+  for (const disclosure of source.querySelectorAll("details")) {
     const open = window.lfStorage.initialDisclosureOpen(pairs.require(disclosure));
     if (open !== undefined) disclosure.toggleAttribute("open", open);
   }
@@ -1332,10 +1332,7 @@ function diffWith(doc, baseAuthored, baseDocument) {
   /** @type {Set<Element>} */
   const marked = new Set();
   const mark = (/** @type {Element} */ target) => marked.add(target);
-  const source = pageDocument(doc);
-  if (!source)
-    throw new Error("A comparison revision must contain its authored document");
-  const base = paintedSource(source, baseWidgets);
+  const base = paintedSource(pageDocument(doc), baseWidgets);
   const current = currentSource();
   const { changed, kept, gapBefore, gapAfter, gapIn, order } = changedSince(
     base,
@@ -1697,10 +1694,7 @@ async function loadBase(base, wanted, shown = null) {
     // Typed authored state reads the source, which formatting leaves alone: it formats
     // a copy (`paintedSource`), with the renderer loaded here.
     const baseAuthored = stageAuthoredStates(doc);
-    const source = pageDocument(doc);
-    if (!source)
-      throw new Error("A comparison revision must contain its authored document");
-    await loadDeclaredMarkdown(source);
+    await loadDeclaredMarkdown(pageDocument(doc));
     return { doc, baseDocument, baseAuthored, savedAfter };
   }
 }
@@ -1783,8 +1777,13 @@ export function comparisonChanges(owner = null) {
 async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
-  const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-  return authoredMarkup(doc);
+  const doc = authoredMarkup(
+    new DOMParser().parseFromString(await response.text(), "text/html"),
+  );
+  // The parser always makes a body, but `authoredMarkup` drops one the answer marks as
+  // prepaint, and every reader of a revision reads its body.
+  if (!doc.body) throw new Error(`${url} holds no authored document`);
+  return doc;
 }
 // Preparing an activation of the same immutable revision again shares its document fetch.
 /** @type {Map<number, Promise<Document>>} */
@@ -2205,10 +2204,6 @@ export function createVersionController({
     const outgoing = authoredSource;
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const source = pageDocument(doc);
-    if (!live || !source || !outgoing)
-      throw new Error(
-        "A revision patch requires its captured and arriving authored documents",
-      );
     const carry = captureCarry(live, outgoing);
     const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
@@ -2421,8 +2416,6 @@ export function createVersionController({
     try {
       doc = await revisionDocument(target);
       source = pageDocument(doc);
-      if (!outgoing || !source)
-        throw new Error("A revision patch requires its authored documents");
       // Step 6 of the startup order, on the same background stretch as the document
       // itself: this revision may carry a tag the current document never held, and
       // insertion is where its element is constructed. Asked for here so the install
@@ -2462,11 +2455,7 @@ export function createVersionController({
   function captureHandoff() {
     const revision = reloadRevision ?? runtime.currentRevision;
     if (revision === null) return null;
-    const live = pageDocument();
-    const source = authoredSource;
-    if (!live || !source)
-      throw new Error("A revision handoff requires its authored document");
-    const records = captureCarry(live, source).records;
+    const records = captureCarry(pageDocument(), authoredSource).records;
     const content = {
       obligationCurrentLocation: null,
       comparison: selectedBase(),
@@ -2739,7 +2728,6 @@ export function createVersionController({
     if (boxOf(node) !== box) return "gone";
     const now = placeOffset(hold.reading, region);
     if (now === null) return settling ? null : "gone";
-    if (!box) return "gone";
     const scrolled = box.scrollTop - hold.top;
     const shifted = now - hold.offset;
     if (Math.abs(shifted) <= SCROLL_SLACK) {
@@ -2881,7 +2869,7 @@ export function createVersionController({
       // from concealment had no words in the box that carried it.
       if (returned) returning.add(to);
       touch(to);
-      if (from && from !== to && !returned) touch(to).add(idOf(from));
+      if (from !== to && !returned) touch(to).add(idOf(from));
     }
     for (const [box, before] of boxes) {
       const region = regionForBox(box);
@@ -2999,8 +2987,7 @@ export function createVersionController({
       standDown();
     };
     if (prepared()) wait();
-    const page = pageDocument();
-    if (page) reapply.observe(page);
+    reapply.observe(pageDocument());
     for (const hold of holds.values()) {
       const box = hold.box.deref();
       if (box && box !== pageScroller)

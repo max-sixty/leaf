@@ -56,6 +56,7 @@ from leaf.log import event_log as events_model
 from leaf.records import page_data as page_data_model
 from leaf.serving.media import store_uploaded_media
 from leaf.source.render_checks import rendered, wait_for_probe
+from leaf_dev.browser import text_field
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -150,7 +151,7 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
     face = preview.locator(".lf-margin-preview-card")
     thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-thread-reply")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     expect(reply).to_be_visible()
 
     for state in ("resting", "editing", "outside"):

@@ -295,9 +295,9 @@ async function boot() {
     targetPaint: createVisualMarkPaint(),
     pointer: pointerAt,
     currentLocationThreadId,
-    rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
-    threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
-    marginThread: () => app?.overlay?.pointedThread() ?? null,
+    rowThread: (under) => floatingPanel.hoveredThread(under) ?? null,
+    threadRow: (id) => floatingPanel.threadRow(id) ?? null,
+    marginThread: () => app.overlay?.pointedThread() ?? null,
     placedAt: (id) => anchorPlacement.placedAt(id),
     pendingAt: () => anchorPlacement.pendingAt(),
     settle: () => anchorPlacement.settle(),
@@ -355,7 +355,7 @@ async function boot() {
   // with `focusDestination`'s arguments.
   /** @type {typeof focusDestination} */
   const focusForNavigation = (node, cause, options) =>
-    app?.overlay?.focusForNavigation
+    app.overlay?.focusForNavigation
       ? app.overlay.focusForNavigation(node, cause, options)
       : focusDestination(node, cause, options);
   const anchorTravel = createAnchorTravel({
@@ -365,7 +365,7 @@ async function boot() {
     threadFocusTarget: (id, options) =>
       app.threadDestinations.threadFocusTarget(id, options),
     clearFor: (destination, landed) =>
-      floatingPanel?.clearFor(destination, landed) ?? null,
+      floatingPanel.clearFor(destination, landed) ?? null,
     announce,
   });
   declareThreadKeys(() => app.threadDestinations.threadHere() ?? null);
@@ -386,7 +386,7 @@ async function boot() {
   // Where the user is in the chrome's thread views, a margin card or entry and the
   // panel's thread, which a revision carries.
   const captureChrome = () => {
-    const margin = app?.overlay?.captureCurrentLocation() ?? null;
+    const margin = app.overlay?.captureCurrentLocation() ?? null;
     const panel = floatingPanel.captureCurrentLocation();
     return margin || panel ? { margin, panel } : null;
   };
@@ -409,7 +409,7 @@ async function boot() {
     restoreRetainedCurrentLocation: async (location) => {
       if (!location) return false;
       const panel = floatingPanel.restoreCurrentLocation(location.panel);
-      const margin = app?.overlay?.restoreCurrentLocation(location.margin) ?? false;
+      const margin = app.overlay?.restoreCurrentLocation(location.margin) ?? false;
       return (await margin) || (await panel);
     },
     captureObligationCurrentLocation: () => items.captureCurrentLocation(),
@@ -431,7 +431,7 @@ async function boot() {
 
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-    showTodo: (todo) => floatingPanel?.showTodo(todo),
+    showTodo: (todo) => floatingPanel.showTodo(todo),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
     goToObligation: (record) => queueWalk.goToObligation(record),
     createEngagement,
@@ -452,15 +452,15 @@ async function boot() {
     activeActionAnchor: () => responseSurface.fabAnchorAt(),
     compositionSurface: {
       active: () => {
-        const anchor = composerOpen ? responseSurface?.fabAnchorAt() : null;
+        const anchor = composerOpen ? responseSurface.fabAnchorAt() : null;
         return anchor ? { anchor, about: pendingAbout } : null;
       },
       node: () => fabBar,
       open: (...args) => responseSurface.commentOnTarget(...args),
-      outlet: () => responseSurface?.fabInlineOutlet() ?? null,
+      outlet: () => responseSurface.fabInlineOutlet() ?? null,
       seat: (...args) => responseSurface.seatFab(...args),
-      restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
-      finishPlacement: () => responseSurface?.finishPlacement(),
+      restore: (...args) => responseSurface.restoreFab(...args),
+      finishPlacement: () => responseSurface.finishPlacement(),
     },
     landInThread,
     landSent,
@@ -476,7 +476,7 @@ async function boot() {
       pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
       renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
       scrollThreadIntoView,
-      openInPanel: (id) => floatingPanel?.openThread(id),
+      openInPanel: (id) => floatingPanel.openThread(id),
       resumeDraft: (context, route) => writingResume.resumeDraft(context, route),
     },
     state: {
@@ -891,15 +891,15 @@ async function boot() {
   // The thread view standing open: the panel's, else a margin card's.
   /** @returns {import("./runtime/records/thread/address.js").OpenThread | null} */
   function openThreadView() {
-    const panel = floatingPanel?.shownThread() ?? null;
+    const panel = floatingPanel.shownThread() ?? null;
     if (panel) return { id: panel, reader: "primary" };
-    const card = app?.overlay?.threadPreview.shown() ?? null;
+    const card = app.overlay?.threadPreview.shown() ?? null;
     return card ? { id: card, reader: "card" } : null;
   }
   const threadAddress = createThreadAddress({
     shown: openThreadView,
     putAway: (list, from, intent) => {
-      app?.overlay?.threadPreview.close();
+      app.overlay?.threadPreview.close();
       floatingPanel.putThreadAway(list, from, intent);
     },
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),
@@ -920,12 +920,11 @@ async function boot() {
 
   async function presentPage() {
     // Saved state gates state-dependent interaction, not the commenting interface.
-    if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed)
-      return;
+    const presentable = () =>
+      applicationState.read().phase !== "waiting" && !pagePresented() && !startupFailed;
+    if (!presentable()) return;
     await whenApplicationPresented();
-    if (applicationState.read().phase === "waiting") return;
-    if (pagePresented()) return;
-    if (startupFailed) return;
+    if (!presentable()) return;
     markPagePresented();
     // Optional author context begins after the presented frame. It neither imports
     // checks nor takes geometry on the path that gives the reader the page.

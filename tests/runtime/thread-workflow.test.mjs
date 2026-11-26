@@ -485,9 +485,12 @@ test("taking back an answered reaction keeps its place as the log's answer will"
       { kind: "undo", undoes: "e1" },
     ],
   );
+  // The 👍 on the agent's message is a chip, which the agent's answer stands on.
   assert.deepEqual(folded.msgs.map(place), [
     { id: "e1", text: "", emoji: undefined, was: "❌", deleted: true },
     { id: "e2", text: "Which part?", emoji: undefined, was: undefined, deleted: false },
+    { id: "e3", text: "", emoji: undefined, was: "👍", deleted: true },
+    { id: "e4", text: "Keeping it.", emoji: undefined, was: undefined, deleted: false },
   ]);
   assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
   assert.deepEqual(place(folded.root), place(taken.root));

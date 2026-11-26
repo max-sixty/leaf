@@ -288,13 +288,18 @@ export function foldThreads(threads, gestures) {
   // threads this fold made, which a gesture may change in place.
   /** @type {Set<Thread>} */
   const owned = new Set();
+  // The press keeps the place of each message it takes back, a reaction included,
+  // as the log does where something stands on it. A chip nothing answers takes no
+  // place, so it comes off: the message naming it as its parent is what the log's
+  // answer keeps it for (`events.standing_withdrawn`).
   /** @param {Thread} thread @returns {Thread[]} */
   const without = (thread) => {
     if (thread.bare_reaction && withdrawn.has(thread.root.id)) return [];
+    const answered = new Set(thread.msgs.map((message) => message.parent));
     const msgs = thread.msgs.flatMap((message) =>
       !withdrawn.has(message.id) || message.withdrawn
         ? [unedited(thread, message, withdrawn)]
-        : chip(message, thread)
+        : chip(message, thread) && !answered.has(message.id)
           ? []
           : [takenBack(thread, message)],
     );

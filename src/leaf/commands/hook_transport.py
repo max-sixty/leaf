@@ -146,13 +146,13 @@ from leaf.agents.delivery import (
     deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
+    inline_context,
     reads_reference,
     receive_held,
     record_pickup,
 )
 from leaf.base.findings import Finding
 from leaf.base.harness import HOOK_TIMEOUT_S, Harness, claim_harness
-from leaf.base.json_block import json_block, read_json_block
 from leaf.base.schema import ANSWER_INSTRUCTION, PREVIEW_FILE
 from leaf.base.service import PREVIEW
 from leaf.base.state import (
@@ -497,32 +497,6 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
 # start and the interpreter's imports before it, and the receipt's writes and exit
 # after it.
 CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
-
-
-# The words that open a delivery's context inline.
-INLINE_OPENING = (
-    "Leaf has new input for your turn. Read this complete delivery before answering."
-)
-
-
-def inline_context(delivery: dict) -> str:
-    """The context that hands `delivery` over inline: its opening line
-    (`INLINE_OPENING`), a blank line and the delivery's block (`json_block`), which
-    `inline_delivery` reads back."""
-    return "\n\n".join([INLINE_OPENING, json_block(delivery)])
-
-
-def inline_delivery(context: str) -> tuple[dict, str] | None:
-    """The delivery a hook's `context` handed over inline (`inline_context`) and the
-    lines after its block, or None where it handed none over: a pointer, a reminder,
-    or a context cut short."""
-    opening, _, rest = context.partition("\n\n")
-    if opening != INLINE_OPENING:
-        return None
-    try:
-        return read_json_block(rest)
-    except ValueError:
-        return None
 
 
 def pointer_opening(delivery: dict) -> str:

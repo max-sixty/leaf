@@ -31,8 +31,8 @@
    - `mark`: a small symbol seated on the thing it acts on, at a corner or on a
      block's border toolbar, where a larger face would cover the thing. One riding a
      corner stands on a patch of its ground (`data-lf-corner`), and one standing alone
-     as its block's toolbar, as a code block's Copy does, wears the toolbar's frame
-     (`data-lf-bar`).
+     as its block's toolbar, as a code block's Copy and a thread's jumps to the start
+     and end of its messages do, wears the toolbar's frame (`data-lf-bar`).
    - `inline`: a press read as part of the line of words it stands in, such as a
      thread's held news, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with
@@ -64,9 +64,7 @@
      action is (`data-lf-kinds="change"`). One in force (`aria-pressed`), as a reaction the
      user left in the margin is, stands on the chip, and a row standing as a pin over
      its block (`data-lf-place="pin"`) fills its entries with the pin's attention
-     colour. A jump (`data-lf-jump`), a press over a thread's messages that goes to
-     their start or end (records/thread/thread-card.js), wears a pin's face, as it
-     stands over what it moves through.
+     colour.
    - `reaction`: a reaction's token in a message's strip, its own glyph rather than
      an action's symbol, quiet until hovered and kept in the accent while in force
      (`aria-pressed="true"`).

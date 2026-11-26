@@ -81,9 +81,12 @@
 
    Two jumps stand over that box, presses that glide it to the messages' start or end
    (`#jumps`), each shown by its container's rules while some of the messages stand
-   past its edge (surfaces.css), as chat apps float one at a conversation's foot. A press moves focus
-   to the thread, as New reply's does, so it doesn't fall to the page as the press
-   hides. The user chose them, in a pin's face, over a hairline across the card at each
+   past its edge (surfaces.css), as chat apps float one at a conversation's foot. A
+   press moves focus to the thread, as New reply's does, so it doesn't fall to the page
+   as the press hides. Each is a mark standing as its own toolbar, the face a code
+   block's Copy wears over its code (controls.css), since a jump stands over words as
+   Copy does. A pin's lifted face read too heavy among the card's other presses, none
+   of which is lifted. The user chose the jumps over a hairline across the card at each
    cut edge; over a bare chevron at the card's side, which looked unpolished to them;
    and over a column kept clear of words for the chevrons, which took its width from
    every message. */
@@ -128,8 +131,7 @@ import { browserScrolls, readerScrolls } from "../../dom/arrivals.js";
 import { scrollIntoView } from "../../readings/landing-scroll.js";
 import { scrollAxes } from "../../dom/element-axes.js";
 import { renderedOrder } from "../../lib/shadow-tree.js";
-import { actionTemplate, iconTemplate } from "../../lib/icons.js";
-import { actionName } from "../../lib/icon-paths.js";
+import { iconTemplate } from "../../lib/icons.js";
 import { threadNamed } from "./state.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
@@ -1020,13 +1022,11 @@ export class ThreadView {
       ([to, action]) =>
         html`<button
           type="button"
-          ${offeredAction("entry", "lf-thread-jump")}
+          ${offeredAction("mark", "lf-thread-jump", undefined, { action })}
+          data-lf-bar
           data-lf-jump=${to}
-          aria-label=${actionName(action)}
           @click=${() => this.#jump(to)}
-        >
-          ${actionTemplate(action, "lf-margin-entry-icon")}
-        </button>`,
+        ></button>`,
     );
   }
 

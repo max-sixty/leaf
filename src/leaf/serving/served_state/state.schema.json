@@ -1793,13 +1793,12 @@
       "additionalProperties": false
     },
     "FileSnapshot": {
-      "description": "One bound file as `GET` and a successful `POST /api/files/<binding>` answer it (`file_bindings`): its name, its text with LF line endings, the revision a save names, and, where the server answers them, the address of its bytes (`http._file_answer`).",
+      "description": "One bound file as `GET` and a successful `POST /api/files/<binding>` answer it (`file_bindings`): its name, its text with LF line endings, and the revision a save names.",
       "type": "object",
       "properties": {
         "label": { "type": "string" },
         "text": { "type": "string" },
-        "revision": { "type": "string" },
-        "url": { "type": "string" }
+        "revision": { "type": "string" }
       },
       "required": ["label", "text", "revision"],
       "additionalProperties": false

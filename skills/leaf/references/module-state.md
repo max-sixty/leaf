@@ -243,18 +243,17 @@ runs again only when that answer changes.
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `label` is the file's path below the deepest folder holding every
 file the page binds, or `null` until the page's state names it. `read()` returns
-`{label, text, revision, url}`, with `text` in LF line endings and `url` the address
-the page's own server answers the file's bytes at, which a path the text names, such
-as a picture beside a README, resolves from; a server that can't answer them, such as
-the website's, gives no `url`. `save({revision, text})` writes only if the
-file is still at `revision`, and resolves the saved file in the same form. Where the server refuses the save, which then wrote nothing,
+`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})` writes only if the
+file is still at `revision`, and resolves the saved `{label, text, revision}`. Where the server refuses the save, which then wrote nothing,
 it resolves `{refused, current}` instead: `refused` is the server's reason, and
 `current` the newer file where the file was no longer at `revision`, else `null`. It
 rejects where the page isn't `writable`, and where no reason from the server came, as
 when the request went unanswered or a proxy answered in the server's place; then the
 save may have reached the file. `watch(callback)` calls
 back whenever the file may have changed on disk or its label changed, the widget's own
-save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
+save included, so read it again then. `beside(path)` gives the address the page's own
+server answers a file at by its path from the bound file's folder, such as a picture
+a README names, `../` included. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
 package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
 travel with the page. A widget that only shows the file binds it as a source by its

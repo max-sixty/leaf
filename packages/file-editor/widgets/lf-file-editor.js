@@ -424,13 +424,12 @@ customElements.define(
         this.dispatchEvent(new Event("change"));
       };
       // The `text` output: the open file's name, its binding as the key that names it
-      // however the names of the page's files change, the address of its bytes, which
-      // the paths its text names resolve from, and its text as last read or saved, the
-      // version on disk where that differs from the draft's (`latest`), or `null` until
-      // it is read. It changes with each save rather than each key, since
+      // however the names of the page's files change, and its text as last read or
+      // saved, the version on disk where that differs from the draft's (`latest`), or
+      // `null` until it is read. It changes with each save rather than each key, since
       // a reading bound to it redraws from the whole text, and a keystroke's work would
       // otherwise grow with the file.
-      /** @type {{key: string, name: string, text: string, url?: string} | null} */
+      /** @type {{key: string, name: string, text: string} | null} */
       this.text = null;
       const holdText = () => {
         const read = file.latest ?? file.base;
@@ -440,19 +439,11 @@ customElements.define(
           read
             ? held?.text === read.text &&
               held.name === name &&
-              held.key === file.binding &&
-              held.url === read.url
+              held.key === file.binding
             : held === null
         )
           return;
-        this.text = read
-          ? {
-              key: file.binding,
-              name,
-              text: read.text,
-              ...(read.url ? { url: read.url } : {}),
-            }
-          : null;
+        this.text = read ? { key: file.binding, name, text: read.text } : null;
         this.dispatchEvent(new Event("change"));
       };
       // What follows each draw: the editor's own state, the host's, the menu, the news

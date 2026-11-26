@@ -29,7 +29,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
-from urllib.parse import parse_qs, quote
+from urllib.parse import parse_qs
 
 import anyio
 from starlette.concurrency import run_in_threadpool
@@ -322,11 +322,6 @@ CACHE_CONTROL = "no-cache"
 IMMUTABLE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
 
-# Where the keyed local server answers any file on the host, by its absolute path below
-# this address (`PageEndpoint._host_file`).
-HOST_FILES = "/api/host-files"
-
-
 class PageEndpoint:
     """One request against one page, from its arrival to the response it becomes.
 
@@ -389,7 +384,7 @@ class PageEndpoint:
         # Set by `authorized` when the key arrived in the query.
         self.set_cookie = False
         # Set by `authorized` when the request carried the page's key, as only the
-        # keyed local server's requests do (`_host_file`).
+        # keyed local server's requests do (`_file_beside`).
         self.keyed = False
         # A declared body no route will read. The answer closes the connection, so the
         # transport doesn't drain a body the peer may never finish sending.
@@ -790,27 +785,20 @@ class PageEndpoint:
         """
         return None
 
-    def _file_answer(self, binding: str, snapshot: dict | None) -> dict | None:
-        """A bound file as the browser reads it, with `url`, the address its bytes
-        answer at (`_host_file`), where this server answers them, so the paths its
-        text names resolve from it as a web page's do from the page, such as a README's
-        pictures beside it."""
-        path = bound_paths(self.page_dir).get(binding) if self.keyed else None
-        if snapshot is None or path is None or path_is_within(path, state_home()):
-            return snapshot
-        return {**snapshot, "url": HOST_FILES + quote(path.as_posix())}
-
-    def _host_file(self, file: Path) -> Response:
-        """A file on the host, by its absolute path (`HOST_FILES`), such as a
-        picture a bound README names beside it. A live page reads any file the server
-        can, as its own scripts already reach any address, but only through its key: a
-        sample's capability and the website's container answer none. Leaf's own state
-        stays unread, since it holds each page's connection credentials, which a page's
-        scripts never receive (http_connections.py). Text answers as plain text, so a linked file shows
-        rather than downloads, and every answer is sandboxed, so an SVG a README names,
-        opened on its own, runs no script as the page."""
+    def _file_beside(self, binding: str, name: str) -> Response:
+        """A file the bound file `binding` names by a path from its folder, as a README
+        names its pictures (`boundFile(binding).beside`). A live page reads any file
+        the server can this way, as its own scripts already reach any address, but only
+        through its key: a sample's capability and the website's container answer
+        none. Leaf's own state stays unread, since it holds each page's connection
+        credentials, which a page's scripts never receive (http_connections.py). Text
+        answers as plain text, so a linked file shows rather than downloads, and every
+        answer is sandboxed, so an SVG a README names, opened on its own, runs no
+        script as the page."""
+        bound = bound_paths(self.page_dir).get(binding) if self.keyed and name else None
+        file = bound.parent / name if bound else None
         if (
-            not self.keyed
+            file is None
             or not self.source.writable
             or not file.is_file()
             or path_is_within(file, state_home())
@@ -1269,13 +1257,11 @@ class PageEndpoint:
             if not self.source.writable:
                 return self._json(None)
             try:
-                return self._json(
-                    self._file_answer(match[1], read_file(self.page_dir, match[1]))
-                )
+                return self._json(read_file(self.page_dir, match[1]))
             except FileBindingError as error:
                 return self._refuse(str(error))
-        if path.startswith(HOST_FILES + "/"):
-            return self._host_file(Path(path.removeprefix(HOST_FILES)))
+        if match := re.fullmatch(r"/api/files/([^/]+)/beside", path):
+            return self._file_beside(match[1], self.query.get("path", [""])[0])
         if probe_source := serving_runtime().probes.get(path):
             return self._content(200, "text/javascript; charset=utf-8", probe_source)
         if path == "/":
@@ -1468,17 +1454,9 @@ class PageEndpoint:
 
     def _save_file(self, name: str) -> Response:
         try:
-            return self._json(
-                self._file_answer(name, save_file(self.page_dir, name, self.posted))
-            )
+            return self._json(save_file(self.page_dir, name, self.posted))
         except StaleFileError as error:
-            return self._json(
-                {
-                    "error": str(error),
-                    "current": self._file_answer(name, error.current),
-                },
-                409,
-            )
+            return self._json({"error": str(error), "current": error.current}, 409)
         except (FileBindingError, UnicodeEncodeError) as error:
             return self._refuse(str(error))
 

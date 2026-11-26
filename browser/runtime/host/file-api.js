@@ -54,6 +54,13 @@ export function boundFile(binding) {
     get label() {
       return label();
     },
+    // The address the page's own server answers a file at by its path from the bound
+    // file's folder, such as a picture a README names, `../` included.
+    /** @param {string} path */
+    beside: (path) =>
+      pageUrl(
+        `api/files/${encodeURIComponent(binding)}/beside?path=${encodeURIComponent(path)}`,
+      ),
     // The server answers a binding the page lacks as no file, keeping the console
     // clean for a designed state; the editor still shows it as unavailable.
     read: async () => {

@@ -50,6 +50,7 @@ import {
   dressCode,
   aimedAt,
   navigateToDatum,
+  boundFile,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -1207,12 +1208,12 @@ class TextDocument extends LeafElement {
   // (`markdownFileFragment`), and as GitHub's rendering of the file answers them, a
   // link the file makes to one of its own places names that place in the preview
   // (`filePlaces`), and a picture or a file it names by a path is the one beside the
-  // file, at the address the value gives the file (`url`). A link to another file opens
+  // file, where the page binds the file (`boundFile`). A link to another file opens
   // it in a new tab, as a link that leaves the page does (`pageLinks`). Any other
   // fragment names the page's own place. A fold the text changed inside stays as the
   // reader left it.
-  /** @param {string} source @param {string | null} file @param {string | null} address @param {number} rendering */
-  async preparePreview(source, file, address, rendering) {
+  /** @param {string} source @param {string | null} file @param {string | null} binding @param {number} rendering */
+  async preparePreview(source, file, binding, rendering) {
     const content = await markdownFileFragment(source, pageLinks);
     for (const element of content.querySelectorAll(
       '[id^="user-content-"], a[name^="user-content-"]',
@@ -1228,14 +1229,21 @@ class TextDocument extends LeafElement {
       if (this.id && name && places.has(slugWords(name)))
         link.setAttribute("href", `#${this.id}:${PLACE}${name}`);
     }
-    const base = address ? URL.parse(address, location.href) : null;
-    if (base) {
-      // A reference with no scheme of its own, as `docs/guide.md` or `../logo.svg`.
+    const files = binding ? boundFile(binding) : null;
+    if (files) {
+      // A reference with no scheme or root of its own, as `docs/guide.md` or
+      // `../logo.svg`, names a file by its path from the bound file's folder.
       /** @param {string | null} reference */
-      const beside = (reference) =>
-        reference === null || URL.parse(reference)
-          ? null
-          : (URL.parse(reference, base)?.href ?? null);
+      const beside = (reference) => {
+        if (reference === null || URL.parse(reference) || /^[/?#]/.test(reference))
+          return null;
+        const path = reference.split(/[?#]/)[0] ?? "";
+        try {
+          return path && files.beside(decodeURIComponent(path));
+        } catch {
+          return files.beside(path);
+        }
+      };
       for (const link of content.querySelectorAll("a[href]:not([href^='#'])")) {
         const href = beside(link.getAttribute("href"));
         if (!href) continue;
@@ -1318,7 +1326,9 @@ class TextDocument extends LeafElement {
     const name = typeof value === "string" ? null : (value?.name ?? null);
     // The file's identity: its stable key where the value gives one, else its name.
     const file = fileOf(value);
-    const address = typeof value === "string" ? null : (value?.url ?? null);
+    // The binding of a file the page binds, which a bound file's value and its
+    // editor's name by `key`.
+    const binding = typeof value === "string" ? null : (value?.key ?? null);
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
@@ -1344,7 +1354,7 @@ class TextDocument extends LeafElement {
       // change together in one task (`preparePreview`).
       const blocks =
         preview === "markdown"
-          ? await this.preparePreview(source, file, address, rendering)
+          ? await this.preparePreview(source, file, binding, rendering)
           : null;
       if (rendering !== this.rendering || !this.isConnected) return;
       const next = lines(source);

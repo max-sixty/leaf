@@ -359,23 +359,24 @@ export const widgetState = ({ state, actions }) =>
     Object.fromEntries(
       Object.entries(state).map(([verb, held]) => {
         const undoable = undoCandidates(actions[verb]);
+        const offered = {
+          available: actions[verb]?.available ?? false,
+          unavailable: actions[verb]?.unavailable ?? null,
+        };
         return [
           verb,
-          {
-            ...held,
-            ...("units" in held
-              ? {
-                  units: Object.fromEntries(
-                    Object.entries(held.units).map(([unit, at]) => [
-                      unit,
-                      { ...at, undoable: undoable.has(unit) },
-                    ]),
-                  ),
-                }
-              : { undoable: undoable.size > 0 }),
-            available: actions[verb]?.available ?? false,
-            unavailable: actions[verb]?.unavailable ?? null,
-          },
+          "units" in held
+            ? {
+                ...held,
+                units: Object.fromEntries(
+                  Object.entries(held.units).map(([unit, at]) => [
+                    unit,
+                    { ...at, undoable: undoable.has(unit) },
+                  ]),
+                ),
+                ...offered,
+              }
+            : { ...held, undoable: undoable.size > 0, ...offered },
         ];
       }),
     ),

@@ -102,10 +102,9 @@ import { coarsePointer } from "../../base/pointer.js";
 import { PRESS } from "../../lib/keys.js";
 import { restArming } from "../../lib/rest-arming.js";
 
-/** @import { BoxPress, InputOptions, InputSync } from "../../records/composition-input.js" */
+/** @import { BoxPress, InputField, InputOptions, InputSync } from "../../records/composition-input.js" */
 /** @typedef {import("../../../types/domain.js").DraftDrawing} Drawing
- * @typedef {import("./text-field.js").LeafTextElement} TextField
- * @typedef {TextField & {[INPUT_DRAFT]?: InputSync}} WiredInput
+ * @typedef {InputField & {[INPUT_DRAFT]?: InputSync}} WiredInput
  */
 
 const INPUT_DRAFT = Symbol("composition draft");

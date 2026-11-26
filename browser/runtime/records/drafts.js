@@ -149,7 +149,7 @@ import { signal } from "/vendor/signals-core.js";
  * @typedef {{where: Element | Range, input: () => DraftField | null,
  * frame?: () => Element | null, close?: () => void, open?: () => void | (() => void),
  * present?: () => unknown, hasContent?: boolean}} EditorDestination
- * @typedef {import('../dom/focus.js').Caret} Caret
+ * @typedef {import("../base/held-place.js").Caret} Caret
  * @typedef {{context: string, selection: Caret | null, generation: string}} WritingPlace
  * @typedef {{ctx: string, input: DraftField | (() => DraftField | null), mirrored: boolean,
  * resume: (() => EditorDestination | null) | null, closed: () => boolean,
@@ -1351,7 +1351,7 @@ function moveToPage(ctx) {
 // leaves the writing place where it was. Each travels to the draft, a Back step, except where the caller opens it
 // where the user stands (`travel: false`), as a press on its passage's margin marker
 // does (thread/destination.js).
-/** @typedef {{travel?: boolean, caret?: import("../dom/focus.js").Caret, control?: import("./carry.js").FocusKey,
+/** @typedef {{travel?: boolean, caret?: import("../base/held-place.js").Caret, control?: import("./carry.js").FocusKey,
  * intent?: ReturnType<typeof retainUserIntent>}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: (resolve: () => EditorDestination | null | undefined, options: {intent: ReturnType<typeof retainUserIntent>,
@@ -1503,7 +1503,7 @@ export function captureDraftEditing(at = focused()) {
 // names within the box (carry.js, `nameIn`). A reply's mirror is its thread's, which
 // history names by the thread. The words stay in the drafts store, which brings them
 // back with the box.
-/** @param {Element | null} [at] @returns {{draft: string, caret?: import("../dom/focus.js").Caret, box?: true, control?: import("./carry.js").FocusKey} | null} */
+/** @param {Element | null} [at] @returns {{draft: string, caret?: import("../base/held-place.js").Caret, box?: true, control?: import("./carry.js").FocusKey} | null} */
 export function draftFocus(at = focused()) {
   const editing = captureDraftEditing(at);
   if (editing && !editing.mirrored)

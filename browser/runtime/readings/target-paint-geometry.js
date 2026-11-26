@@ -32,7 +32,7 @@ import { move } from "../dom/dom-move.js";
 import { objectIds } from "../base/ids.js";
 import { keeps, layoutPx } from "../lib/keeps.js";
 
-/** @typedef {import("../dom/rect.js").Box} Box
+/** @typedef {import("../base/box.js").Box} Box
  * @typedef {import("../dom/geometry.js").ClipCache} ClipCache
  * @typedef {import("../dom/css-anchors.js").Anchor} Anchor
  * @typedef {import("../dom/css-anchors.js").PaintBox} PaintBox

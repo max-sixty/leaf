@@ -139,7 +139,7 @@ export function createCommandHints({ presentedControl, coveredEntry }) {
   // stands over a lent face to paint order would delete it: a thread card or a pin
   // covers the control as well as its face, so only a face under the page's own content,
   // such as a sticky bar, would go unseen instead of becoming a corner chip.
-  /** @param {Element} bindingBadge @param {Element} control @param {import("../../dom/rect.js").Box} visible */
+  /** @param {Element} bindingBadge @param {Element} control @param {import("../../base/box.js").Box} visible */
   function exposedBindingBadge(bindingBadge, control, visible) {
     const whole = bindingBadge.getBoundingClientRect();
     /** @type {readonly ("left" | "right" | "top" | "bottom")[]} */
@@ -322,7 +322,7 @@ export function createCommandHints({ presentedControl, coveredEntry }) {
     restoreBindingBadges(lent);
 
     // The chips read where each goes, then write their digits.
-    /** @type {{binding: string, presented: Element, corner: import("../../dom/rect.js").Box}[]} */
+    /** @type {{binding: string, presented: Element, corner: import("../../base/box.js").Box}[]} */
     const placed = [];
     for (const { binding, control, bindingBadge } of visualRoutes) {
       if (bindingBadge && worn.has(bindingBadge)) continue;

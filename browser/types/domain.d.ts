@@ -231,13 +231,17 @@ export type AuthoredMap = ReadonlyMap<string, Immutable<AuthoredWidget>>;
 export type WidgetState = Immutable<
   Record<
     string,
-    (ActionValue | UnitValue | PositionValue) &
-      (
-        | { units: Record<string, ActionValue & { undoable: boolean }> }
-        | { undoable: boolean }
-      ) & { available: boolean; unavailable: string | null }
+    | (UndoableAction & OfferedVerb)
+    | (Omit<UnitValue, "units"> & {
+        units: Record<string, UndoableAction>;
+      } & OfferedVerb)
+    | (Omit<PositionValue, "units"> & {
+        units: Record<string, UndoableAction>;
+      } & OfferedVerb)
   >
 >;
+type UndoableAction = ActionValue & { undoable: boolean };
+type OfferedVerb = { available: boolean; unavailable: string | null };
 
 export type ClassifiedEntry =
   | ProjectionEntry

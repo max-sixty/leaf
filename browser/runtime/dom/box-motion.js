@@ -143,7 +143,7 @@ import { contentRides, laidOutHeight } from "./scrolling.js";
 import { userScrollport } from "./geometry.js";
 import { shifted } from "./rect.js";
 
-/** @typedef {import('./rect.js').Box} Box
+/** @typedef {import("../base/box.js").Box} Box
  * @typedef {keyof Box} Edge
  * @typedef {[number, number]} Offset
  * @typedef {[number, number, number, number]} Insets

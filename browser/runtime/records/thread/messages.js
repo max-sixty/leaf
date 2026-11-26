@@ -292,7 +292,8 @@ export function saidTime(timestamp) {
  * thread's word, as a margin entry's name does to the keyboard, `said` is that word,
  * which its line leaves out, so a screen reader hears it once.
  * @param {readonly import("./workflow.js").ThreadRecord[]} threads
- * @param {string | null} [said] */
+ * @param {string | null} [said]
+ * @returns {import("../../base/preview-declaration.js").Preview | null} */
 export function threadPreview(threads, said = null) {
   const [only] = threads;
   if (!only) return null;
@@ -323,7 +324,7 @@ export function threadPreview(threads, said = null) {
           `${excerptWords(threadName(thread), LISTED_NAME)} · `,
         ),
       ),
-      more: (/** @type {number} */ count) =>
+      more: (count) =>
         voiced(leafSays(`and ${counted(count, "more thread", "more threads")}`)),
     },
   };
@@ -350,7 +351,8 @@ export const draftLine = (draft) => excerptWords(draftWords(draft), PREVIEWED_LI
 // one's words, a line of them, under what it is about where the place pointed at
 // doesn't already say it. What Send makes of it stands beside it on both.
 /** @param {readonly import("../drafts.js").ListedDraft[]} drafts
- * @param {import("../../base/voice.js").Words | null} [about] */
+ * @param {import("../../base/voice.js").Words | null} [about]
+ * @returns {import("../../base/preview-declaration.js").Preview | null} */
 export function draftPreview(drafts, about = null) {
   const [only] = drafts;
   if (!only) return null;
@@ -360,7 +362,7 @@ export function draftPreview(drafts, about = null) {
     name: counted(drafts.length, "draft"),
     list: {
       items: drafts.map(draftLine),
-      more: (/** @type {number} */ count) =>
+      more: (count) =>
         voiced(leafSays(`and ${counted(count, "more draft", "more drafts")}`)),
     },
   };

@@ -50,7 +50,7 @@ import { clamp, intersect, overlaps } from "../../dom/rect.js";
 import { renderedUnder, closestAcross } from "../../lib/shadow-tree.js";
 import { inChrome } from "../../base/ui-marks.js";
 
-/** @typedef {import("../../dom/rect.js").Box} Box
+/** @typedef {import("../../base/box.js").Box} Box
  * @typedef {NonNullable<ReturnType<typeof rect>>} VisibleBox
  * @typedef {{seat: HTMLElement, owner: Element, corner: Pick<Box, "left" | "top" | "right" | "bottom">}} BindingChip
  */

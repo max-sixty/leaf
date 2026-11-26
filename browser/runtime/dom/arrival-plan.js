@@ -8,7 +8,7 @@
 /** @import { UserIntent } from "./user-intent.js" */
 /** @typedef {Element | Range} Destination
  * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
- * @typedef {{where: Destination, focus?: import("./focus.js").FocusDestination | null | false, caret?: import("./focus.js").Caret | null,
+ * @typedef {{where: Destination, focus?: import("./focus.js").FocusDestination | null | false, caret?: import("../base/held-place.js").Caret | null,
  * selection?: {range: Range, backward: boolean} | null, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
  * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions

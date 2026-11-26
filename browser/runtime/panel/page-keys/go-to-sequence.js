@@ -120,7 +120,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * `words` names one target it keeps and many, as `counted` takes them (lib/words.js).
  * @typedef {Object} GoToOptions
  * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "agent" | "leaves">} doors
- * @property {{barriers: () => import("../../dom/rect.js").Box[]}} hintChrome
+ * @property {{barriers: () => import("../../base/box.js").Box[]}} hintChrome
  * @property {() => unknown} openPageMap
  * @property {() => readonly Command[]} directDestinations
  * @property {ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToElement"]} scrollToElement

@@ -171,7 +171,7 @@ fabBar.prepend(composer);
 /** @typedef {NonNullable<import("../../../types/contract.js").EventMap["comment"]["anchor"]>} Anchor
  * @typedef {import("../../records/drafts.js").ComposerDraft} ComposerDraft
  * @typedef {ComposerDraft & {text: string}} ComposerRecord
- * @typedef {ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>} ComposerFrame
+ * @typedef {import("../../records/thread/destination.js").SendFrame | null} ComposerFrame
  * @typedef {Object} ComposerOptions
  * @property {(on: boolean) => unknown} setReact
  * @property {typeof import("../reactions.js").reactionTokens} reactionTokens

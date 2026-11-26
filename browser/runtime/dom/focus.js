@@ -187,8 +187,8 @@ export const tabStops = (root) =>
 // playground's preview holds, belongs to another window's `Element`.
 export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
-/** @typedef {[start: number, end: number, direction?: "forward" | "backward" | "none"]} Caret
- * @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
+/** @import { Caret } from "../base/held-place.js" */
+/** @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
 /** The element a destination puts the user on. @param {FocusDestination} destination */
 export const focusElement = (destination) =>
   isElement(destination) ? destination : destination.element;

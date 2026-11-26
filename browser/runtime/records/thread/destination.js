@@ -137,13 +137,15 @@ import { awaitsDrawing } from "../../readings/anchor-resolution.js";
 /** @typedef {"thread" | "reply" | "message" | null} ThreadPart */
 /** @import { NavigationStep } from "../../dom/arrival-plan.js" */
 /** Where the comment box stood as Send was pressed, which the card Send opens grows from
- * (annotations/annotation-overlay/composing/floating-response.js, `frame`): its box, the
- * placement the card's placement adopts (annotations/annotation-overlay/comment-placement.js,
- * `CapturedPlacement`), the width the card starts at, the field it grows out of, and how
- * far the words stood above their end. A route carries it from the composer to the card.
- * @typedef {{box: DOMRect, placement: {side: import("@floating-ui/dom").Side | null,
- * boundary: readonly [number, number, number, number] | null, moved: boolean},
- * width: number, field: DOMRect, fromEnd: number}} SendFrame */
+ * (annotations/annotation-overlay/composing/floating-response.js, `frame`): its box, its
+ * placement as the comment box's placement captured it, which the card's adopts
+ * (annotations/annotation-overlay/comment-placement.js, `capture`, `adopt`), the width the
+ * card starts at, the field it grows out of, and how far the words stood above their end.
+ * A route carries it from the composer to the card.
+ * @typedef {{side: import("@floating-ui/dom").Side | null,
+ * boundary: readonly [number, number, number, number] | null, moved: boolean}} CapturedPlacement
+ * @typedef {{box: DOMRect, placement: CapturedPlacement, width: number, field: DOMRect,
+ * fromEnd: number}} SendFrame */
 /** The margin's thread card, where the overlay draws one
  * (annotations/annotation-overlay/margin-projection.js, `threadPreview`).
  * @typedef {{accompanied: () => Element | null,

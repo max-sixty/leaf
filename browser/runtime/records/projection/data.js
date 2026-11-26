@@ -134,9 +134,14 @@ const originPath = (who, key, text) => {
   return path;
 };
 
+/** Where a drawn value came from, which a stamp writes as `data-lf-origin`: the input,
+ * source, contract and revision a source's value came through, or the widgets whose
+ * output it is (host/data.js builds it).
+ * @typedef {{input: string, source: string, contract: string, revision: string}
+ *   | {derived: readonly {widget: string}[]}} DataOrigin */
 /** What a stamp reads of the snapshot that supplied a drawn value (host/data.js,
- * `DataSnapshot`): the source and revision it came from, and where in the data it stands.
- * @typedef {{source?: string, revision?: string, origin: object}} DrawnSnapshot */
+ * `DataSnapshot`): the source and revision it came from, and its origin.
+ * @typedef {{source?: string, revision?: string, origin: DataOrigin}} DrawnSnapshot */
 /** @type {{projectMarked: (root: Element, snapshot: DrawnSnapshot | null) => void} | null} */
 let constructed = null;
 /** Stamp the items a widget marked under `root` (`createDataProjection`).

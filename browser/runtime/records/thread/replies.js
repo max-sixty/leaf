@@ -74,6 +74,9 @@ import { tick } from "../../state/version-signal.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
 /** @import { WireInput } from "../composition-input.js" */
+/** A reply box's field, which the box puts the caret back in as it changes hands.
+ * @typedef {import("../composition-input.js").InputField & {setSelectionRange:
+ * (start: number, end: number, direction?: "none" | "forward" | "backward") => void}} ReplyField */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
  * wireInput: WireInput,
  * landSent: typeof import("./landing.js").landSent,
@@ -88,7 +91,7 @@ import { closestAcross } from "../../lib/shadow-tree.js";
  * editLast: ReplyOptions["editLast"], sending: ReplyOptions["sending"], sent: ReplyOptions["sent"],
  * give: () => () => void, take: (owner: Composition) => void, box: BoxOptions}} Binding */
 /** @typedef {{context: string, key: string, row: HTMLDivElement,
- * controls: {input: HTMLElementTagNameMap["leaf-text"], send: HTMLButtonElement | null},
+ * controls: {input: ReplyField, send: HTMLButtonElement | null},
  * send: import("../composition-input.js").Sender | null,
  * binding: Binding | null, changed: () => void, sync: ReturnType<WireInput>, retired?: boolean}} Composition */
 /** @typedef {{owner: Composition | null,
@@ -379,7 +382,7 @@ function sendReply(draftCtx, key, text, owns, actions, back) {
 // What the row does for a view, its actions, `onChange` and `editLast`, is the binding
 // of whichever view holds it now (`attach`).
 /** @param {string} key @param {HTMLDivElement} row
- * @param {HTMLElementTagNameMap["leaf-text"]} input
+ * @param {ReplyField} input
  * @param {ReplyCommands} commands
  * @param {BoxOptions} options */
 function wireReply(key, row, input, commands, options) {

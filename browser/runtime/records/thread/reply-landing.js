@@ -150,7 +150,7 @@ const headLine = (scroller) =>
 // (panel/floating-panel.js, `captureCurrentLocation`). A card holding its transcript through
 // one placement keeps the offset it reads and writes within that fit instead
 // (thread-preview.js), since the drawing it measures stays the same.
-/** @typedef {{offset: number} & ({message: string} | {summary: string})} ThreadReading */
+/** @import { ThreadReading } from "../../base/held-place.js" */
 /** @param {Element} held @returns {ThreadReading | null} */
 export function readingIn(held) {
   const transcript = held.querySelector(".lf-thread-transcript");

@@ -32,7 +32,7 @@ const SLOP = 3;
 /** @typedef {{pointerId: number, start: {x: number, y: number},
  * travel: {x: number, y: number}, box: DOMRect, moved: boolean, frame: number}} Carry */
 /** @param {{surface: HTMLElement,
- * bounds: () => import("../../dom/rect.js").Box & {across: (span: {left: number, right: number}) => import("../../dom/rect.js").Box},
+ * bounds: () => import("../../base/box.js").Box & {across: (span: {left: number, right: number}) => import("../../base/box.js").Box},
  * dropped: (box: DOMRect | null) => void}} options */
 export function surfaceGrip({ surface, bounds, dropped }) {
   const grip = el("div", "lf-ui lf-surface-grip");
@@ -54,7 +54,7 @@ export function surfaceGrip({ surface, bounds, dropped }) {
     const boundary = bounds();
     carry.moved ||= Math.hypot(travel.x, travel.y) >= SLOP;
     const now = surface.getBoundingClientRect();
-    /** @param {import("../../dom/rect.js").Box} room @param {number} at
+    /** @param {import("../../base/box.js").Box} room @param {number} at
      * @param {"left" | "top"} start @param {"right" | "bottom"} end @param {number} length */
     const within = (room, at, start, end, length) =>
       clamp(at, room[start], Math.max(room[start], room[end] - length));

@@ -48,7 +48,7 @@ import {
 import { shifted } from "../dom/rect.js";
 
 /** @typedef {import("../dom/css-anchors.js").Anchor} Anchor
- * @typedef {import("../dom/rect.js").Box} Box */
+ * @typedef {import("../base/box.js").Box} Box */
 
 /** @type {(node: Node | null | undefined) => Element} */
 let lookup = (node) => {

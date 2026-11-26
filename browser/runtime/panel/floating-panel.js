@@ -1260,7 +1260,7 @@ export function createFloatingPanel({
   // the news showed, where it showed one (`shown`, the messages drawn before it); and
   // reopened where the user had read it to (`reading`, records/thread/reply-landing.js,
   // `restoreCurrentLocation`).
-  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../records/thread/reply-landing.js").ThreadReading} | null} */
+  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../base/held-place.js").ThreadReading} | null} */
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -3582,7 +3582,7 @@ export function createFloatingPanel({
         ?data-lf-resolved=${thread.resolved}
         data-lf-turn=${attention?.turn === "user" ? "user" : nothing}
         .lfPreview=${(
-          /** @type {import("../annotations/preview.js").Route} */ route,
+          /** @type {import("../base/preview-declaration.js").Route} */ route,
         ) => {
           const read = threadPreview(
             [thread],
@@ -4551,7 +4551,7 @@ export function createFloatingPanel({
     /** @type {unknown} */
     let end = nothing;
     // The clock time behind the age the line's end shows, which its preview says.
-    /** @type {import("../annotations/preview.js").Line} */
+    /** @type {import("../base/preview-declaration.js").Line} */
     let ageSaid = null;
     const work = list === "agent" ? workOn(item) : null;
     if (work) {

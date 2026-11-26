@@ -147,7 +147,7 @@ import { objectIds } from "../base/ids.js";
 /** @typedef {import("./passages.js").Segment} Segment
  * @typedef {import("./passages.js").BlockRun} BlockRun
  * @typedef {import("./reading-regions.js").ReadingRegion} ReadingRegion
- * @typedef {import("../dom/rect.js").Box} Box
+ * @typedef {import("../base/box.js").Box} Box
  * @typedef {import("../dom/user-intent.js").UserIntent} UserIntent
  * @typedef {Partial<import("../../types/domain.js").Anchor> & {
  * y: number, scroller: string | undefined, width: number, revision: number | null,

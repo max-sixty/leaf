@@ -163,7 +163,7 @@ function wordsUnder(ink) {
  * @property {{aimTargetAt: (element: Element) => DrawingTarget | null, resolveAnchor: typeof import("../../readings/anchor-resolution.js").resolveAnchor}} anchors
  * @property {{refreshAim: () => unknown}} pageGeometry
  * @property {() => {x: number, y: number}} pointer
- * @property {() => readonly (DrawingTarget & {rect: import("../../dom/rect.js").Box & {width: number, height: number}})[]} visibleTargets
+ * @property {() => readonly (DrawingTarget & {rect: import("../../base/box.js").Box & {width: number, height: number}})[]} visibleTargets
  * @property {(anchor: Anchor) => Drawing | null} anchoredDrawing
  * @property {() => readonly HeldDrawing[]} heldDrawings
  * @property {(notify: () => unknown) => () => void} watchHeldDrawings

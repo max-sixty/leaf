@@ -3,7 +3,7 @@
    folds (`margin-placement.js`, `comment-placement.js`, the hint seating in
    `readings/key-badges/hints.js`) take it as readily as the passes that measure. */
 
-/** @typedef {{left: number, right: number, top: number, bottom: number}} Box */
+/** @import { Box } from "../base/box.js" */
 
 // Whether two boxes share any pixel.
 /** @param {Box} a @param {Box} b */

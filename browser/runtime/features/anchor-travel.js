@@ -103,7 +103,7 @@ export const fragmentShown = (address) =>
 
 /** @import { Destination, ScrollPlacement, Arrival, NavigationStep, ArrivalOptions } from "../dom/arrival-plan.js" */
 /** @import { UserIntent } from "../dom/user-intent.js" */
-/** @typedef {import("../dom/focus.js").Caret} Caret
+/** @typedef {import("../base/held-place.js").Caret} Caret
  * @typedef {{anchors: Pick<import("../records/thread/placement.js").ThreadPlacements, "placedAt">,
  * refreshThread: () => unknown, focusForNavigation: typeof import("../dom/focus.js").focusDestination,
  * threadFocusTarget: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["threadFocusTarget"],
@@ -249,7 +249,7 @@ export function createAnchorTravel({
   // the editor drops them (annotations/composing/surface.js, `commentOnTarget`), so the box is
   // where the user is and where `c` writes.
   /** @param {() => EditorDestination | null | undefined} resolve
-   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("../dom/focus.js").Caret | null, onFrame?: boolean, travel?: boolean}} options */
+   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("../base/held-place.js").Caret | null, onFrame?: boolean, travel?: boolean}} options */
   async function arriveEditor(
     resolve,
     { intent, caret, onFrame = false, travel = true },

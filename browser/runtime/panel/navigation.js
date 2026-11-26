@@ -314,7 +314,7 @@ const takesStep = (box, amount) => {
 };
 // The area of the box an element shows as (`shownBox`, the box `shownRect` clips) within
 // `view`, in whole pixels as the ranking counts it, or 0 where none of it is there.
-/** @param {Element} element @param {import("../dom/rect.js").Box} view */
+/** @param {Element} element @param {import("../base/box.js").Box} view */
 const areaWithin = (element, view) => {
   const within = intersect(shownBox(element), view);
   return hasArea(within)

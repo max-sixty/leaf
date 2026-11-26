@@ -202,10 +202,10 @@ import { pagePresented } from "../base/page-paint.js";
 import { aborted } from "../base/abort.js";
 import { reloadDocument } from "../transport/layer-client.js";
 
-/** @import { WorkingPlace } from "../base/page-controls.js" */
+/** @import { WorkingPlace } from "../base/held-place.js" */
 /** @typedef {NonNullable<WorkingPlace["ends"]>[number]} HeldSelectionEnd
  * @typedef {NonNullable<WorkingPlace["thread"]>} ThreadPlace
- * @typedef {import("./thread/reply-landing.js").ThreadReading & {reader: "primary" | "card"}} ViewReading
+ * @typedef {import("../base/held-place.js").ThreadReading & {reader: "primary" | "card"}} ViewReading
  * @typedef {(Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null})
  * | NonNullable<ReturnType<typeof draftFocus>>} RecordFocus
  * @typedef {{anchor: import("../readings/anchor-resolution.js").CapturedAnchor, ends: [number, number]}

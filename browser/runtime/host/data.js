@@ -51,9 +51,8 @@ import { reportPageError } from "../transport/layer-client.js";
 import { tick } from "../state/version-signal.js";
 
 /** @import { SourceReading } from "../../types/domain.js" */
+/** @import { DataOrigin } from "../records/projection/data.js" */
 /** @typedef {{contract: string, value: unknown}} OutputReading
- * @typedef {{input: string, source: string, contract: string, revision: string}
- *   | {derived: readonly {widget: string}[]}} DataOrigin
  * @typedef {(SourceReading & {source: string, origin: DataOrigin})
  *   | (OutputReading & {source?: never, revision?: never, origin: DataOrigin})} DataSnapshot
  */

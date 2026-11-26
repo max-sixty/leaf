@@ -154,7 +154,7 @@ import {
 } from "../../dom/css-anchors.js";
 import { inChrome } from "../../base/ui-marks.js";
 
-/** @typedef {import("../../dom/rect.js").Box} Box
+/** @typedef {import("../../base/box.js").Box} Box
  * @typedef {import("../../readings/resolved-target.js").ResolvedTarget} ResolvedTarget
  * @typedef {{able: () => boolean, controls: () => number, open: () => boolean, changed: () => void}} Fold
  * @typedef {{anchor: () => Element | null, point: () => Element | null, passage: () => ResolvedTarget | null, face: () => Element | null, order: number, fold: Fold}} RowOptions

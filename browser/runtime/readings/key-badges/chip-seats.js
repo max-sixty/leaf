@@ -81,7 +81,7 @@ export function chipSeats(root) {
     // Stands each seat over `target` so its chip takes `box`, read as `start` with the
     // seat at `at`, or where the window holds it where it is `held` by the window's edge
     // or the chrome, and puts away every seat not among them.
-    /** @param {readonly {seat: HTMLElement, target: Element | null, at: {left: number, top: number}, start: import("../../dom/rect.js").Box, box: import("../../dom/rect.js").Box, held?: boolean}[]} seated */
+    /** @param {readonly {seat: HTMLElement, target: Element | null, at: {left: number, top: number}, start: import("../../base/box.js").Box, box: import("../../base/box.js").Box, held?: boolean}[]} seated */
     place(seated) {
       set.place(
         seated.map(({ seat, target, at, start, box, held = false }) => ({

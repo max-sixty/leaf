@@ -24,7 +24,7 @@ import { markedBox } from "../dom/geometry.js";
 import { closestAcross, renderedParent } from "../lib/shadow-tree.js";
 import { isAddressable } from "./anchor-resolution.js";
 
-/** @typedef {import("../dom/rect.js").Box} Box */
+/** @typedef {import("../base/box.js").Box} Box */
 /** @typedef {{left: number, top: number, right: number, bottom: number}} MarkRoom */
 
 /** @type {readonly ["left", "top", "right", "bottom"]} */

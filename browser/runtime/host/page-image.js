@@ -138,7 +138,7 @@ function captureRoot(region, skip) {
   return { root, ground: `rgba(${channels.join(", ")})` };
 }
 
-/** @typedef {{blob: Blob, warnings: string[]}} PageImage */
+/** @import { PageImage } from "../base/sample-protocol.js" */
 /** @param {{x: number, y: number, width: number, height: number}} clip @param {{exclude?: string[]}} [options] @returns {Promise<PageImage>} */
 export async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();

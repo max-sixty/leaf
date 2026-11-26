@@ -5,7 +5,10 @@
 
 /** @import { Cell, Command } from "../dom/keyboard/bindings.js" */
 /** @import { DraftDrawing } from "../../types/domain.js" */
-/**
+/** The text field the wiring takes, a `leaf-text` (annotations/composing/text-field.js),
+ * by what the wiring reads of it and does to it.
+ * @typedef {HTMLElement & {value: string, placeholder: string, readOnly: boolean, edit: (text: string) => void,
+ * record: (undo: () => void, redo: () => void) => void, restartHistory: () => void}} InputField
  * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string, alternate: boolean) => unknown} Sender
  * @typedef {{word: string, keys: readonly string[], run: () => unknown}} BoxPress
  * @typedef {Object} InputOptions
@@ -31,8 +34,8 @@
  * @property {boolean} [sentMedia]
  * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
  * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
- * composition: () => {field: HTMLElement, frame: HTMLElementTagNameMap["leaf-composition-field"]}, addMedia: (images: readonly Blob[]) => Promise<boolean>,
+ * composition: () => {field: HTMLElement, frame: HTMLElement}, addMedia: (images: readonly Blob[]) => Promise<boolean>,
  * writing: () => boolean, covered: () => HTMLElement | null}} InputSync
- * @typedef {(field: HTMLElementTagNameMap["leaf-text"], options: InputOptions) => InputSync} WireInput
+ * @typedef {(field: InputField, options: InputOptions) => InputSync} WireInput
  */
 export {};

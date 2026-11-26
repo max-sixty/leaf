@@ -396,10 +396,9 @@ const layerOf = (name) =>
     ),
   );
 // The modules a comment's JSDoc names: each `import("…")`, and each `@import … from "…"`,
-// whose braces may span lines. The ambient declarations of `browser/types/` stand
-// outside the runtime, so a type a global names (`HTMLElementTagNameMap`, an element's
-// `lf*` properties) is not read here; those declarations name only types in `base/`,
-// `lib/` or `browser/types/`, which every layer may.
+// whose braces may span lines. The rule reads runtime modules alone, so a type that
+// reaches a module through an ambient declaration of `browser/types/`, such as an
+// element's `lfPreview` or a tag in `HTMLElementTagNameMap`, is outside what it reads.
 const JSDOC_IMPORTS = [
   /\bimport\(\s*(["'`])([^"'`]+)\1\s*\)/gu,
   /@import\b[^@]*?\bfrom\s+(["'])([^"']+)\1/gu,

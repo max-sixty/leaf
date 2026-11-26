@@ -90,7 +90,7 @@ function editorViewOver({
 
   /** @param {import("@codemirror/view").EditorView} view
    * @param {import("@codemirror/state").SelectionRange} selection @param {ScrollOptions} options
-   * @param {import("../dom/rect.js").Box} head */
+   * @param {import("../base/box.js").Box} head */
   function placeWithinEditor(view, selection, options, head) {
     const port = view.scrollDOM;
     // Only an editor box that scrolls takes a share. A text field's scrolls nothing,
@@ -159,7 +159,7 @@ function editorViewOver({
     });
   }
 
-  /** @type {(keyof import("../dom/rect.js").Box)[]} */
+  /** @type {(keyof import("../base/box.js").Box)[]} */
   const EDGES = ["top", "bottom", "left", "right"];
   const navigation = new Compartment();
   const reveal = EditorView.scrollHandler.of((view, selection, options) => {

@@ -480,7 +480,7 @@ export const contributionReceipts = elementDirective(
 // each receipt (`presentContributionReceipts`), `receipt` and `awaitsUser`, is painted
 // where the options carry it, and otherwise left as the seat last painted it.
 /** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
- * @param {HostOptions & {preview?: HTMLElement["lfPreview"] | null, unread?: boolean,
+ * @param {HostOptions & {preview?: import("../base/preview-declaration.js").Read | null, unread?: boolean,
  * receipt?: import("../../types/domain.js").Workflow | null, awaitsUser?: boolean}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);

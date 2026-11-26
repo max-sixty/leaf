@@ -143,7 +143,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @typedef {import("../../readings/anchor-resolution.js").AimTarget} PickerTarget
  * @typedef {Object} TargetPickerOptions
  * @property {ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToPassage"]} scrollToPassage
- * @property {{barriers: () => import("../../dom/rect.js").Box[]}} hintChrome
+ * @property {{barriers: () => import("../../base/box.js").Box[]}} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
  * @property {() => boolean} pointerModeActive
@@ -263,7 +263,7 @@ export function createTargetPicker({
     return null;
   }
 
-  /** @param {import("../../dom/rect.js").Box} a @param {import("../../dom/rect.js").Box} b */
+  /** @param {import("../../base/box.js").Box} a @param {import("../../base/box.js").Box} b */
   const sameVisibleBox = (a, b) =>
     Math.abs(a.left - b.left) < 0.5 &&
     Math.abs(a.top - b.top) < 0.5 &&

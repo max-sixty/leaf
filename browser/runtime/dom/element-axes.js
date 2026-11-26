@@ -185,7 +185,7 @@ export function elementBorderFrame(
 // `inner` carried; where the browser turns the box in a way the frame doesn't read, as a
 // motion path or a perspective does, the rect keeps the answer within those insets of
 // where the box is drawn. Null for a box with no frame.
-/** @typedef {import("./rect.js").Box} Box */
+/** @typedef {import("../base/box.js").Box} Box */
 /** @overload @param {HTMLElement} source @param {Box} inner @param {DOMMatrixReadOnly} [matrix] @returns {Box} */
 /** @overload @param {Element} source @param {Box} inner @param {DOMMatrixReadOnly} [matrix] @returns {Box | null} */
 /** @param {Element} source @param {Box} inner @param {DOMMatrixReadOnly} [matrix] @returns {Box | null} */
@@ -211,7 +211,7 @@ export function innerBox(source, inner, matrix) {
 // The box `box` covers once `matrix` carries it: the bounds of its four corners. A
 // frame's matrix carries a box of its pixels into the viewport, and its inverse a box
 // of the viewport into the frame.
-/** @param {DOMMatrixReadOnly} matrix @param {import("./rect.js").Box} box */
+/** @param {DOMMatrixReadOnly} matrix @param {import("../base/box.js").Box} box */
 export function carriedBox(matrix, { left, top, right, bottom }) {
   /** @param {number} x @param {number} y */
   const corner = (x, y) => {

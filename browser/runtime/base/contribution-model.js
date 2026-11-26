@@ -30,7 +30,12 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * state?: ContributionState, visible?: boolean, disabled?: boolean, count?: number,
  * pressed?: boolean | null, workflowReceipt?: import("../../types/domain.js").Workflow | null | undefined,
  * relation?: EntryRelationInput | null, activation?: string | null, title?: string | null,
- * scope?: object | null | undefined}} EntryInput
+ * scope?: CommandScope | null | undefined}} EntryInput
+ * @typedef {{scope: object} | {title: string | null, rows: readonly object[]}} CommandScope
+ * An entry's command scope, which the browser registry keeps beside the record rather
+ * than in it (features/contribution-controls.js): a scope's capability
+ * (dom/keyboard/scopes.js, `CommandCapability`) or the declaration an element holds as
+ * its `lfCommands`, told apart here by the members each has.
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
  * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
  * @typedef {ContributionEntry & {owner: string}} OwnedEntry

@@ -201,7 +201,7 @@ interface Element {
   lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`annotations/preview.js`): null adds nothing, false shows nothing here or around it. */
-  lfPreview?: import("../runtime/annotations/preview.js").Read;
+  lfPreview?: import("../runtime/base/preview-declaration.js").Read;
   /** A visual's parts where its `data-lf-part` marks don't say them, read as each
    * reading of the visual asks (`state/visual-parts.js`). */
   lfParts?: import("../runtime/state/visual-parts.js").Parts | undefined;

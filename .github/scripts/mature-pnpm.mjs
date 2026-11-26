@@ -1,8 +1,8 @@
-/** Prints the newest pnpm release old enough for `minimumReleaseAge` in
- * `pnpm-workspace.yaml`, for the pnpm-update workflow to move `packageManager` to.
- * `pnpm self-update` without a version would take the `latest` tag whatever its age.
+/** Prints the newest pnpm release at least as many minutes old as its argument, which
+ * the pnpm-update workflow reads from pnpm's `minimumReleaseAge`, for the workflow to
+ * move `packageManager` to. `pnpm self-update` without a version would take the
+ * `latest` tag whatever its age.
  */
-import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 /** The newest pnpm release published at least `minutes` before `now`, from the
@@ -27,12 +27,9 @@ export function maturePnpm(time, minutes, now = Date.now()) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const minutes = Number(
-    readFileSync("pnpm-workspace.yaml", "utf8").match(
-      /^minimumReleaseAge: (\d+)$/m,
-    )?.[1],
-  );
-  if (!minutes) throw new Error("pnpm-workspace.yaml sets no minimumReleaseAge");
+  const minutes = Number(process.argv[2]);
+  if (!(minutes > 0))
+    throw new Error(`Usage: mature-pnpm.mjs MINUTES (got ${process.argv[2]})`);
   const response = await fetch("https://registry.npmjs.org/pnpm");
   if (!response.ok) throw new Error(`Registry answered ${response.status}`);
   console.log(maturePnpm((await response.json()).time, minutes));

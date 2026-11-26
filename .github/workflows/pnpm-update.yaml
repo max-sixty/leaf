@@ -37,7 +37,7 @@ jobs:
       - name: Move pnpm to its newest release old enough for minimumReleaseAge
         id: move
         run: |
-          version=$(node .github/scripts/mature-pnpm.mjs)
+          version=$(node .github/scripts/mature-pnpm.mjs "$(pnpm config get minimumReleaseAge)")
           pnpm self-update "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       # Skips a week whose move is already on main or on the open pull request.

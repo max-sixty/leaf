@@ -628,7 +628,9 @@
          * is its whole room, since its columns set its width. A block breaks out only
          * where it stands directly in a flow, so a flow counts its own children and
          * those of the flows standing in it, and not a block a plain wrapper keeps in
-         * the column. */
+         * the column. The pair is important against the page's own rules: a page's
+         * inline margin on the flow, as `figure { margin: 1em 0 }` sets, would cancel
+         * the margin and leave the padding, squeezing the flow's words to a sliver. */
         > section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
         > article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
         > details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
@@ -691,9 +693,9 @@
               & > :is([data-lf-space], .layout-sidebar)
             ) {
             margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
-              calc(-1 * max(0px, var(--lf-reach-end)));
+              calc(-1 * max(0px, var(--lf-reach-end))) !important;
             padding-inline: max(0px, var(--lf-reach-start))
-              max(0px, var(--lf-reach-end));
+              max(0px, var(--lf-reach-end)) !important;
           }
         }
       }

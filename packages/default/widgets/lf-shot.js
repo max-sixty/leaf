@@ -42,9 +42,9 @@ import { ShotView } from "./shot-view.js";
  * the comparison already running.
  *
  * A pair opens in the view its `view` attribute names, Slider by default, and the
- * reader chooses from there. The maintainer chose to let the author name it, because
- * Slider's even split shows only one version of a change that sits in one half of the
- * frame. The divider and the view radios are Web Awesome's, and this module loads
+ * reader chooses from there. The maintainer chose to make it the author's setting,
+ * since each view shows a different kind of change best and Slider's even split shows
+ * only one version of a change that sits in one half of the frame. The divider and the view radios are Web Awesome's, and this module loads
  * those three controls with itself (`webawesome-views`), so every view takes the first
  * press the reader makes once the page shows. That puts them on the startup path;
  * loading them after presentation kept them off, but left the radios inert until they

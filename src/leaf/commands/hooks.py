@@ -43,9 +43,9 @@ records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
 session's pages (`cmd_pages`) to draw them beside the prompt and to take the
 instructions Leaf lists for it, and reports what each came to with `--fork`
-(`carrier.step`, whose header holds that contract). The follower records the process
-it runs in, so a Stop can tell the user where Claude Code didn't load the module
-(`Harness.unloaded_module`). `leaf hook` (`cli.hook`) dispatches here.
+(`cmd_fork`; `carrier.py`'s header holds that contract). The follower records the
+process it runs in, so a Stop can tell the user where Claude Code didn't load the
+module (`Harness.unloaded_module`). `leaf hook` (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
@@ -551,6 +551,32 @@ def _lines(sid: str, page_dir, looked: dict) -> list[dict]:
     return requests
 
 
+def cmd_fork(payload: dict) -> dict | None:
+    """Leaf's answer to the hooks module's report `payload` (`carrier.py`): a turn's
+    end goes to the turn-end check (`clerk.turn_ended`), and an instruction's result
+    to the step its basis's `kind` names: the turn-end check's fork (`check`), a
+    completion (`completion`), or a thread's line fork or a fork beside it (`line`,
+    `beside`). A kind no step takes answers with a line for the log, so the module
+    stops reporting it."""
+    sid = payload.get("session_id") or ""
+    if not sid:
+        return None
+    if payload.get("turn_end"):
+        from leaf.agents.clerk import turn_ended
+
+        return turn_ended(sid)
+    kind = payload["basis"]["kind"]
+    if kind == "check":
+        from leaf.agents.clerk import checked as taken
+    elif kind == "completion":
+        from leaf.agents.completions import replied as taken
+    elif kind in ("line", "beside"):
+        from leaf.agents.forks import step as taken
+    else:
+        return {"log": f"no step of this Leaf takes a {kind!r} instruction's report"}
+    return taken(sid, payload)
+
+
 def main(
     harness: str, *, watch: bool = False, pages: bool = False, fork: bool = False
 ) -> None:
@@ -592,9 +618,7 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        from leaf.agents.carrier import step
-
-        answered = step(payload.get("session_id") or "", payload)
+        answered = cmd_fork(payload)
         if answered is not None:
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return

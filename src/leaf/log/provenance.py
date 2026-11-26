@@ -3,10 +3,10 @@
 **Where a revision stands in the log.** The log links an agent's answer to the
 user's messages it settles (`events.settlements`). A reply or note that publishes a
 revision names its bundle in `publication`; a read's activation, which no reply or
-note names, appends an `activation` that does (`revisioning.py`), except for a page's
-first revision, which no comparison shows against an earlier one and so needs no
-place. A revision's place in the log is the seq of the first event naming its bundle
-(`revision_places`).
+note names, appends an `activation` that does (`revision_publication.py`), except for
+a page's first revision, which no comparison shows against an earlier one and so
+needs no place. A revision's place in the log is the seq of the first event naming
+its bundle (`revision_places`).
 
 **What a version was saved after** (`saved_after`). A comparison of a version with
 the one before it shows changes every one of which that version's revisions made, so
@@ -73,7 +73,7 @@ if TYPE_CHECKING:
 def revision_places(events: list) -> dict[int, int]:
     """Each revision's place in the log: the seq of the first event naming its bundle
     in `publication`, the reply or note that published it or the `activation` a read
-    appended (`revisioning.py`). A page's first revision may have none."""
+    appended (`revision_publication.py`). A page's first revision may have none."""
     places: dict[int, int] = {}
     for event in events:
         if event.get("publication"):

@@ -22,7 +22,7 @@ that file appears. Users never discover a staged or incomplete revision,
 including after a process crash. A publication that also changes the log stages
 its bundle, records the exact bundle name in its first admitted prerequisite,
 and publishes this marker only after all dependent transitions are durable.
-`revisioning.finish_publications` completes that sequence before transaction
+`revision_publication.finish_publications` completes that sequence before transaction
 consumers read the page.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
@@ -639,7 +639,7 @@ def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]
     stylesheet. Its stylesheets are every one delivery rewrites
     (`structure.delivered_sheets`), its samples' included; a sample child's
     attributes its own reading names
-    (`authored_checks.source.uncaptured_sample_errors`). A page's own markup the
+    (`authored_checks.documents.uncaptured_sample_errors`). A page's own markup the
     capture reads (`_capture_artifact`)."""
     refused = []
     media = set(document.authoring.media_refs)

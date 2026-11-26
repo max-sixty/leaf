@@ -358,7 +358,7 @@ def test_a_server_has_the_copy_its_session_runs_restart_it(
 def test_a_new_copy_restarts_only_the_server_that_asked(claimed, monkeypatch):
     """`server _follow` from the copy that replaced a server's own answers as soon
     as it runs, then restarts that server under itself, at its address and for the
-    session holding the page (`hosting.follow_copy`). A server another start put in
+    session holding the page (`vendoring.follow_copy`). A server another start put in
     its place, such as one a checkout started, keeps running, and so does one whose
     session has ended, which retires after its grace; neither is a failure of the
     follow."""
@@ -375,7 +375,7 @@ def test_a_new_copy_restarts_only_the_server_that_asked(claimed, monkeypatch):
         restarted.append((page_dir, harness))
         yield
 
-    monkeypatch.setattr(hosting_model, "restarting_server", restarting)
+    monkeypatch.setattr(vendoring_model, "restarting_server", restarting)
     assert follow(claimed, "a-checkout-s-server", asking).exit_code == 0
     assert restarted == []
     assert follow(claimed, "fixture-server", asking).exit_code == 0
@@ -439,7 +439,7 @@ def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(
         yield
 
     monkeypatch.setattr(vendoring_model, "renew_layer", renew)
-    monkeypatch.setattr(hosting_model, "restarting_server", restarting)
+    monkeypatch.setattr(vendoring_model, "restarting_server", restarting)
     assert follow(claimed, "fixture-server", {}).exit_code == 0
     if hooks_run == "another Leaf":
         assert renewals == []

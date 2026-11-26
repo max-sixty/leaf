@@ -54,7 +54,7 @@ from leaf.log.event_log import read_events
 from leaf.pages.exporting import cmd_export
 from leaf.base.files import stamped_version
 from leaf.records.publishing import cmd_stamp
-from leaf.records.revisioning import planned_activation
+from leaf.records.revision_publication import planned_activation
 page, target = map(Path, sys.argv[1:])
 events = read_events(page)
 checked = check_source(page, events)

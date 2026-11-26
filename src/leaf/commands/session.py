@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from leaf.agents.clerk import QUEUED, waking
 from leaf.agents.presence import nudge_unwatched, turn_ending
@@ -46,7 +46,9 @@ from leaf.log.file_changes import FileChanges, target_paths
 from leaf.log.interaction_log import record_command, record_watch
 from leaf.records.transaction import PageTransaction, owned_pages, unacknowledged
 from leaf.source.page_inputs import outside_inputs, page_input, page_reading, page_roots
-from leaf.source.registry.kernel import kinds_declaring
+
+if TYPE_CHECKING:
+    from leaf.records.work_state import WorkState
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -77,14 +79,14 @@ def cmd_waiting(page_dir: Path) -> dict:
     (`todos.item_starts`), and return the declaration's record. The updates still
     owed an answer, which the page goes on showing over it, are noted with the
     command that answers each."""
+    from leaf.agents.presence import read_work
     from leaf.records.activity import answer_command
     from leaf.records.revisioning import activate_source
-    from leaf.serving.served_state.context import read_page
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         status = set_status(page, "waiting")
-        owed = read_page(page_dir, page.events).work.obligations
+        owed = read_work(page_dir, page.events).obligations
     if owed:
         answers = [answer_command(item["answer"], page_dir) for item in owed]
         note(Finding("page-open-owes", values={"answers": answers}))
@@ -104,13 +106,13 @@ def cmd_idle(page_dir: Path) -> dict:
     holds the page for every open to-do too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
+    from leaf.agents.presence import read_work
     from leaf.records.activity import blocking_obligations, unanswered
-    from leaf.serving.served_state.context import read_page
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        work = read_page(page_dir, events).work
-        state = {**work.presence, "activity": work.activity}
+        work = read_work(page_dir, events)
+        state: dict = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim)
         pending = len(unacknowledged(events, page.cursor))
@@ -165,6 +167,9 @@ class PageTick(NamedTuple):
     lost: bool
     restarted: str | None
     transaction: PageTransaction
+    # The page's work the pass read its batch by (`presence.read_work`), or None
+    # on a page the watch has lost, whose batch it does not read.
+    work: "WorkState | None" = None
 
 
 class Watch:
@@ -417,8 +422,10 @@ class Watch:
         status = page.status
         live = status["state"] != "idle"
         from leaf.agents.delivery import deliverable
+        from leaf.agents.presence import read_work
 
-        batch = deliverable(page) if watch_state != "lost" else []
+        work = read_work(page_dir, page.events) if watch_state != "lost" else None
+        batch = deliverable(page, work) if work is not None else []
         service = read_service(page_dir)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
@@ -455,6 +462,7 @@ class Watch:
                 key in self._lost,
                 None,
                 page,
+                work,
             ),
             revive,
         )
@@ -522,7 +530,14 @@ def delivery_record(reading: PageTick, harness: Harness | None) -> dict:
     from leaf.agents.delivery import batch_data, delivery_reading, freeze_delivery
 
     payload = freeze_delivery(
-        [batch_data(reading.page_dir, reading.transaction, reading.batch)],
+        [
+            batch_data(
+                reading.page_dir,
+                reading.transaction,
+                reading.batch,
+                work=reading.work,
+            )
+        ],
         acknowledge=wait_acknowledgement(harness, reading.page_dir),
     )
     return delivery_reading(payload)
@@ -689,43 +704,18 @@ def cmd_wait(page_dir: Path | None = None) -> int:
         watch.release()
 
 
-def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
-    """Select what can wake a hook without changing its immutable receipt batch.
-
-    A settled thread input has already had its meaning answered, even when its
-    delivery was never received. Unsettled inputs read their existing canonical
-    workflow. A completed receipt advances the cursor, so handed input is already
-    absent from this unreceived batch. An opened record without the completed
-    `receipt` does not prove delivery. Other admitted attention (including
-    reports, errors, reactions and widget actions) remains
-    transport input, independent of whether it carries a response obligation.
-    """
-    from leaf.records.workflows import agent_inputs
-    from leaf.serving.served_state.context import read_page
-
-    if not batch:
-        return []
-    agents = agent_inputs(read_page(page.page_dir, page.events).work.durable)
-    pending = []
-    for event in batch:
-        if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
-            continue
-        pending.append(event)
-    return pending
-
-
 def left_owed(page: PageTransaction) -> list[dict]:
     """The updates whose answers the claimant's closed turn left owed and no prompt
     has named since their delivery (`activity.left_owed`). The Stop hook lets such
     a turn end on its answer, and the watch wakes a turn of its own for them, whose
     prompt hook names them."""
     from leaf.agents.delivery import reminded
+    from leaf.agents.presence import read_work
     from leaf.records.activity import left_owed as owed_after
-    from leaf.serving.served_state.context import read_page
 
     if not turn_closed(page.active_claim):
         return []
-    work = read_page(page.page_dir, page.events).work
+    work = read_work(page.page_dir, page.events)
     by_id = {event["id"]: event for event in page.events}
     return [
         by_id[obligation["input"]]
@@ -840,8 +830,12 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
         it: new input; or, unless Escape ended the turn, an answer the closed turn
         left owed, or a queued line telling the session of work it now owes once
         its turn has closed."""
+        from leaf.agents.delivery import wake_inputs
+
         page = reading.transaction
-        if inputs := wake_inputs(page, reading.batch):
+        # A pass hands `ready` only pages it has not lost, whose work it read.
+        assert reading.work is not None
+        if inputs := wake_inputs(reading.batch, reading.work):
             return "input", inputs
         if interrupted:
             return None
@@ -930,9 +924,11 @@ def woke_after(session: str) -> None:
 def nudge_pending(session: str) -> None:
     """Nudge the session for each page it holds whose input could wake it, as
     admission would have with no watch holding the lease (`nudge_unwatched`)."""
-    from leaf.agents.delivery import deliverable
+    from leaf.agents.delivery import deliverable, wake_inputs
+    from leaf.agents.presence import read_work
 
     for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
-            if wake_inputs(page, deliverable(page)):
+            work = read_work(page_dir, page.events)
+            if wake_inputs(deliverable(page, work), work):
                 nudge_unwatched(page)

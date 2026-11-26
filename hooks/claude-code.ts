@@ -383,8 +383,8 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-/** Report to Leaf (`leaf hook --fork`, `carrier.step`) with `payload` and the tool calls
- * the main thread is running, which no fork can see, and what Leaf answers: the
+/** Report to Leaf (`leaf hook --fork`, `hooks.cmd_fork`) with `payload` and the tool
+ * calls the main thread is running, which no fork can see, and what Leaf answers: the
  * instructions to run next (`do`) and a line for the debug log (`log`), or undefined
  * where it printed nothing. */
 async function tellLeaf(

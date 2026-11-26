@@ -345,10 +345,14 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     ]
     if not bindings:
         return Finding("datum-unbound-source", values=named)
-    if source not in view.contracts:
-        return Finding("datum-unsupplied-source", values=named)
     reading = view.source(source, registry)
-    if reading is None or anchor.get("source_revision") != reading["revision"]:
+    if reading is None:
+        return (
+            None
+            if source in view.contracts
+            else Finding("datum-unsupplied-source", values=named)
+        )
+    if anchor.get("source_revision") != reading["revision"]:
         return None
     if "error" in reading:
         return Finding(

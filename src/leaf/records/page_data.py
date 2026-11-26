@@ -98,11 +98,14 @@ def working_data_bindings(
 
 
 def bound_data(page_dir: Path, registry: dict, events: list) -> dict:
-    """The page's data (`data.read_data`) less each source no document or message of
-    the page binds, such as a file the page grants an editor alone, and the version of
-    what is left, so a reader that names it is sent these sources and no others."""
+    """The page's data (`data.read_data`) less each source no revision or message of
+    the page binds, such as a file the page grants an editor alone or one only an
+    unpublished source binds, and the version of what is left, so a reader that names
+    it is sent these sources and no others."""
     stored = read_data(page_dir, registry)
-    bindings, _errors = working_data_bindings(page_dir, registry, events)
+    bindings, _errors = merge_data_document_readings(
+        page_data_document_readings(page_dir, events, registry)
+    )
     sources = {
         source: reading
         for source, reading in stored["sources"].items()

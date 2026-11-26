@@ -46,7 +46,7 @@ from leaf.base.state import (
     record_name,
     session_file,
 )
-from leaf.source.file_bindings import bound_paths
+from leaf.source.file_bindings import bound_paths, observed
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
@@ -211,9 +211,9 @@ def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
 
 
 def _bound_stamps(page_dir: Path) -> list[tuple[str, object]]:
-    # A bound file is stamped as its source reads it (`data.file_sources`), its
-    # change time included, so the news moves with every change that moves the source.
-    return [(name, file_stamp(path, changed=True)) for name, path in _bound(page_dir)]
+    # A bound file is stamped as its source reads it (`file_bindings.observed`), so
+    # the news moves with every change that moves the source.
+    return [(name, observed(path)) for name, path in _bound(page_dir)]
 
 
 def record_reading(page_dir: Path) -> str:

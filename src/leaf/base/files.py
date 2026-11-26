@@ -55,7 +55,7 @@ def file_stamp(path: Path, *, changed: bool = False):
     file, its permissions and its modification time among them. So it moves for a
     file that becomes unreadable, and for a same-size rewrite that puts the old
     modification time back, which leave the plain stamp as it was. A file someone
-    else edits takes it (`data.file_sources`). Leaf's own files don't, since a
+    else edits takes it (`file_bindings.observed`). Leaf's own files don't, since a
     hard link moves the change time too, and Leaf links a revision's files into the
     next revision.
 

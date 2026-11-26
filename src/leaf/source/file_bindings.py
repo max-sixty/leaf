@@ -40,6 +40,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
+from leaf.base.files import file_stamp
 from leaf.base.leases import page_locked
 from leaf.base.locations import canonical_path, path_lock
 from leaf.base.refusals import Refused
@@ -261,6 +262,20 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
         for other in BINDINGS.others(page_dir / FILE_BINDINGS_FILE):
             other.unlink(missing_ok=True)
     return {"binding": binding, "bound": False}
+
+
+def observed(path: Path) -> tuple:
+    """What the page knows of a bound file without reading it, which its news
+    (`page_inputs`), the cache of its source and the source's run (`data.file_sources`)
+    all read, so a change one of them sees, all of them see: its stamp with its change
+    time (`file_stamp`'s `changed`), since anyone may change the file's permissions or
+    put back its modification time, and whether its path still names it without a
+    symlink, which a read refuses (`_read`)."""
+    try:
+        direct = path.resolve() == path
+    except OSError:
+        direct = False
+    return file_stamp(path, changed=True), direct
 
 
 def read_bound(path: Path, label: str) -> tuple[dict, float]:

@@ -36,6 +36,7 @@ widget input of another contract can't draw it, which `page check` refuses
 
 import hashlib
 import json
+from collections.abc import Container
 from datetime import datetime
 from pathlib import Path
 
@@ -53,7 +54,13 @@ from leaf.base.state import (
     object_schema,
 )
 from leaf.source.data_contracts import data_bindings, payload_error
-from leaf.source.file_bindings import FileBindingError, bound_paths, labels, read_bound
+from leaf.source.file_bindings import (
+    FileBindingError,
+    bound_paths,
+    labels,
+    observed,
+    read_bound,
+)
 
 # The contract a bound file is a source under. The `default` package declares it, and
 # every layer composes that package.
@@ -221,9 +228,8 @@ def _judged(source: str, reading: dict, registry: dict, key: str | None = None) 
 class _Files:
     """Each bound file's source by binding, and the digest of its whole value, kept
     under the observation of the file that also names its run and moves the page's
-    news (`page_inputs`): its path, its label and its stamp with its change time
-    (`file_stamp`'s `changed`). A source holding an error is read again each time,
-    since its cause may lie in the file's path, which no stamp of the file names."""
+    news (`page_inputs`): its path, its label and what `file_bindings.observed` says
+    of it, which moves with whatever moves the read's answer, an error's included."""
 
     def __init__(self) -> None:
         self.held: dict[str, tuple] = {}
@@ -233,16 +239,15 @@ def _file_reading(
     page_dir: Path, binding: str, path: Path, label: str
 ) -> tuple[dict, str]:
     """The source of the bound file at `path`, and what names its value (`value_key`)."""
-    seen = (str(path), label, file_stamp(path, changed=True))
+    seen = (str(path), label, observed(path))
     held = memo(page_dir, _Files).held
     kept = held.get(binding)
     if kept is not None and kept[0] == seen:
         return kept[1], kept[2]
     reading = _file_source(binding, path, seen)
-    if "error" in reading:
-        held.pop(binding, None)
-        return reading, reading["revision"]
-    key = value_revision(reading["value"])
+    key = (
+        value_revision(reading["value"]) if "value" in reading else reading["revision"]
+    )
     held[binding] = (seen, reading, key)
     return reading, key
 
@@ -261,17 +266,19 @@ def file_sources(page_dir: Path) -> dict[str, tuple[dict, str]]:
     }
 
 
-def value_key(page_dir: Path, source: str, reading: dict) -> str:
+def value_key(page_dir: Path, source: str, reading: dict, files: Container) -> str:
     """What names `reading`'s value where two readings of `source` are compared, as the
     served state's tail compares them: its revision, which digests a publication's
-    value, or for the bound file this process last read, a digest of its whole value,
-    since the file's revision leaves out the label its value names."""
+    value, or for a source among `files`, the page's bound files, a digest of its whole
+    value, since the file's revision leaves out the label its value names. That digest
+    is kept with the reading this process last read of the file, and taken afresh of
+    any other."""
+    if source not in files:
+        return reading["revision"]
     kept = memo(page_dir, _Files).held.get(source)
-    if kept is not None and all(
-        kept[1][name] == reading[name] for name in ("revision", "run")
-    ):
+    if kept is not None and kept[1] is reading:
         return kept[2]
-    return reading["revision"]
+    return value_revision(reading["value"])
 
 
 def _file_source(binding: str, path: Path, seen: tuple) -> dict:

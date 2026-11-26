@@ -396,8 +396,8 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(
     names another write, so a write outside Leaf moves the reading a visible tab polls
     and that source's run, and so do rewriting the same bytes, a same-size rewrite that
     puts the old modification time back, and a file becoming unreadable, which the
-    source then reports. A failure whose cause the file's stamp doesn't name, as a
-    symlink put in its path, clears once its cause does."""
+    source then reports, and a symlink put in its path, which a read refuses, and
+    taken out again."""
     folder = tmp_path / "notes"
     folder.mkdir()
     target = folder / "notes.txt"
@@ -440,12 +440,17 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(
     assert source()["value"]["text"] == "BRAVO\n"
 
     moved = tmp_path / "moved"
-    folder.rename(moved)
-    folder.symlink_to(moved)
-    assert "symlink" in moves(lambda: target.write_text("CHARLIE\n"))["error"]
-    folder.unlink()
-    moved.rename(folder)
-    assert source()["value"]["text"] == "CHARLIE\n"
+
+    def indirect():
+        folder.rename(moved)
+        folder.symlink_to(moved)
+
+    def direct():
+        folder.unlink()
+        moved.rename(folder)
+
+    assert "symlink" in moves(indirect)["error"]
+    assert moves(direct)["value"]["text"] == "BRAVO\n"
 
 
 def test_a_bound_file_is_the_page_s_source_under_its_binding(

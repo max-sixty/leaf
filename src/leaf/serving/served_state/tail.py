@@ -65,6 +65,7 @@ from pathlib import Path
 
 from leaf.base.page_memory import memo
 from leaf.source.data import value_key
+from leaf.source.file_bindings import bound_paths
 
 # How many readings this process remembers of each page: a reading for each of a few
 # tabs, and the answers each received but had not adopted yet when it next asked.
@@ -301,8 +302,9 @@ def _compared(reading: dict, page_dir: Path) -> dict:
     """`reading` as its parts are taken: each data source's value stood in for by what
     names it (`data.value_key`)."""
     data = reading["data"]
+    files = bound_paths(page_dir)
     sources = {
-        source: {**held, "value": value_key(page_dir, source, held)}
+        source: {**held, "value": value_key(page_dir, source, held, files)}
         if "value" in held
         else held
         for source, held in data["sources"].items()

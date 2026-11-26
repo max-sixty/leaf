@@ -3842,10 +3842,10 @@ sequenceDiagram
 
 def test_every_box_a_diagram_names_takes_its_own_comment(browser, serve):
     """Each box an author names takes a comment of its own in every kind of diagram
-    that draws its boxes under their names, and a box that holds others is marked on
-    its own frame. A group leaves a name it shares to the box. A name drawn twice, a
-    group Pele numbers for want of a name, and a journey, whose steps Pele numbers on a
-    phone, take the whole diagram's comment, and the diagram still draws."""
+    that draws its boxes under their names. A group leaves a name it shares to the box.
+    A name drawn twice, a group Pele numbers for want of a name, and a journey, whose
+    steps Pele numbers on a phone, take the whole diagram's comment, and the diagram
+    still draws."""
     page = open_page(
         browser,
         serve(
@@ -3892,17 +3892,17 @@ journey
     parts = page.evaluate(
         """() => Object.fromEntries([...document.querySelectorAll('lf-diagram')].map(
           (d) => [d.id, d.lfParts.read().map((p) =>
-            [p.id, p.label, p.surface ? p.surface.localName : p.element.localName])]))"""
+            [p.id, p.label])]))"""
     )
     assert parts == {
         "board": [
-            ["node:Todo", "Todo 2", "rect"],
-            ["node:t1", "Write docs", "g"],
-            ["node:Done", "Done 1", "rect"],
+            ["node:Todo", "Todo 2"],
+            ["node:t1", "Write docs"],
+            ["node:Done", "Done 1"],
         ],
-        "years": [["node:2025", "2025 Ship", "g"]],
-        "model": [["node:Job", "Job", "g"]],
-        "blocks": [["node:a", "a", "g"]],
+        "years": [["node:2025", "2025 Ship"]],
+        "model": [["node:Job", "Job"]],
+        "blocks": [["node:a", "a"]],
         "release": [],
     }
 

@@ -928,7 +928,7 @@ def advance_turn(
 
 def open_session_turn(session_id: str) -> dict | None:
     """Open the session's turn for an explicit reader acknowledgement
-    (`delivery.receive_delivery`). A provider names its own turns, so this opens
+    (`delivery_ack.receive_delivery`). A provider names its own turns, so this opens
     none of a provider's but the one it holds open: a late consumer or callback
     can't restart a turn the harness ended. One after the session's files retired
     starts a generation no claim names."""

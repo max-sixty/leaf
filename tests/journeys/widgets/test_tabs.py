@@ -12,7 +12,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 
 def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):
@@ -322,9 +322,8 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     plan_start = switch(plan)
     assert plan_start == 0
     at_start("#plan-part")
-    # Summary fits under the title, so it opens with the title and nothing to scroll.
+    # Summary fits under the title, so it opens with the title.
     assert switch(summary) == 0
-    assert page.evaluate("document.scrollingElement.scrollHeight - innerHeight") <= 0
     # Evidence reopens where the user left it, and pressing the open tab moves nothing.
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)

@@ -38,9 +38,11 @@ lf-toc {
   display: block;
   margin: var(--lf-sp-4) 0 30px;
 }
-/* The closed native toggle has the same box before its outline arrives. */
+/* The closed native toggle has the same box before its outline arrives: the toggle's
+   face (`.lf-label`) and padding (below). */
 lf-toc:empty {
-  min-block-size: max(calc(var(--lf-t-6) * 1.3 + 14px), var(--lf-aim-floor));
+  font: var(--lf-font-heading);
+  min-block-size: max(calc(1lh + 14px), var(--lf-aim-floor));
 }
 lf-toc[data-lf-toc-empty] {
   display: none;

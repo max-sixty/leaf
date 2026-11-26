@@ -56,9 +56,6 @@ export { onCurrentLocation, onPress, onPressAway } from "./dom/focus.js";
 export { readObligations } from "./records/obligations/place.js";
 export { comparisonChanges } from "./features/version.js";
 export { answerWords } from "./records/obligations/answer.js";
-// Whether this page sent an event, such as the one that answered an obligation, rather
-// than another window or the agent, as `lf-deck` asks before moving on from a card.
-export { sentHere } from "./host/application.js";
 export { readWork } from "./host/work.js";
 export { obligationActions } from "./host/application.js";
 export { readQueues } from "./state/queue-api.js";

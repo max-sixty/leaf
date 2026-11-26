@@ -214,10 +214,17 @@
 }
 /* Under a finger, with no hover to hide it, Copy would stand on every message for
    good, so it is left out there, and a finger copies a message's words by selecting
-   them. Copy link stays, since nothing else gives a finger a reply's link: the address
-   names only the thread open (records/thread/address.js). */
+   them. Copy link stays on a reply, since nothing else gives a finger a reply's link:
+   the address names only the thread open (records/thread/address.js). The opening
+   message's link is that thread's, which the address already names, so it is left out
+   there too, and the opening head, which on a card also holds the thread's controls,
+   keeps its name and labels whole at the card's least width. */
 @media (pointer: coarse), (hover: none) {
-  .lf-msg-controls > .lf-msg-copy {
+  .lf-msg-controls > .lf-msg-copy,
+  .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+    > .lf-msg-head
+    .lf-msg-controls
+    > .lf-msg-link {
     display: none;
   }
 }

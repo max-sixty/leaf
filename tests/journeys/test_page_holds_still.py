@@ -51,9 +51,9 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import choose_threads_in_panel, go_to_threads, settle
 from leaf_dev.example_data import named_source
 

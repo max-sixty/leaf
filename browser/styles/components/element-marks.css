@@ -402,3 +402,13 @@
       var(--lf-landing-room, 0px)
   );
 }
+/* The unanswered decision the user is in (markHere) wears the location ring
+   (`[data-lf-projected-location]`, surfaces.css). The ring stands outside the decision, so a
+   landing keeps its room at the scroller's edge, as a margin entry's does (controls.css): an obligation
+   landed at the top of a scrolling pane stood flush with it, the top of its ring cut
+   off under the pane's header rule. At no weight, in the theme's tier, so a widget
+   whose box wears the mark keeps a margin of its own, as a deck's card keeps its
+   bar in view above it. */
+:where([data-lf-obligation]) {
+  scroll-margin-block: var(--lf-focus-ring-landing);
+}

@@ -30,8 +30,8 @@ from render_harness import (
     write,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
+from leaf.base.leases import release_lease, take_wait_lease, waiter_lease_path
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

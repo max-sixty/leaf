@@ -31,10 +31,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
+from leaf.agents import delivery as delivery_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -390,7 +390,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
         },
     )
     # The highest user event reached context, so everything so far is ours to answer.
-    with service_model.PageTransaction(d) as transaction:
+    with transaction_model.PageTransaction(d) as transaction:
         batch = {"events": transaction.events}
         with delivery_model.receive_batch(
             transaction, batch, session_id=None

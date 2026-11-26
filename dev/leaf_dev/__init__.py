@@ -34,7 +34,7 @@ def declared_records() -> dict:
 
     import leaf
     import leaf_website
-    from leaf.state import RECORDS
+    from leaf.base.state import RECORDS
 
     for package in (leaf, leaf_website):
         for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):

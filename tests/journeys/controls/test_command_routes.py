@@ -11,7 +11,7 @@ from playwright.sync_api import expect
 from render_cases_navigation import go_to_address
 from render_harness import leaf_page, open_page
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

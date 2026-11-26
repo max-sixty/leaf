@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
-from render_cases_layout import overlapped_words, ring_faults, rings_drawn
+from render_cases_layout import overlapped_words, ring_faults, ring_rule, rings_drawn
 from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
@@ -35,8 +35,8 @@ from render_harness import (
 
 from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -513,7 +513,10 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     order among the open threads, as Threads lists the two together, a comment about a
     passage of a paragraph holding a thread included. The walk opens the comment's box
     on its words and stands the user on the box, not in it, so the next `t` walks on and
-    puts the box away, and `c` or Enter puts the caret after the words."""
+    puts the box away, and `c` or Enter puts the caret after the words. While the user
+    stands on the box it keeps its resting edge, so it doesn't look like one they type
+    in, and wears `c` as a key chip, since its words cover the placeholder that says
+    `c`."""
     url = serve(
         leaf_page(
             "drafts in the walk",
@@ -554,10 +557,54 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     page.keyboard.press("t")
     expect(box).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    expect(chip.filter(has_text="c")).to_be_visible()
+    assert ring_rule(box) == ""
+    assert ring_rule(box, "after") == ""
     page.keyboard.press(enters)
+    expect(chip).to_have_count(0)
     expect(field).to_be_focused()
+    assert ring_rule(box, "after")
     expect(field).to_have_js_property("value", "About the passage.")
     expect(field).to_have_js_property("selectionStart", len("About the passage."))
+
+
+def test_a_thread_stop_wears_c_on_a_reply_box_holding_words(browser, serve):
+    """A thread card the walk stands on whose reply box holds a draft wears `c` as a chip
+    on that box's corner, since the draft's words cover the placeholder that says `c`
+    in an empty box. `c` puts the caret after the words, and the chip goes."""
+    url = serve(
+        leaf_page(
+            "a reply draft",
+            '<h1>A reply draft</h1><p id="said">The thread on this paragraph waits.</p>',
+        ),
+        anchored=[("said", "thread on this paragraph")],
+    )
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator("leaf-text")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    page.locator("h1").click()
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip).to_have_count(0)
+    page.keyboard.press("c")
+    write(reply, "Left unsent.")
+    page.keyboard.press("Escape")
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip.filter(has_text="c")).to_be_visible()
+    frame = card.locator(".lf-compose-field").bounding_box()
+    at = chip.bounding_box()
+    assert frame and at
+    assert abs(at["x"] + at["width"] / 2 - frame["x"]) < 2
+    assert abs(at["y"] + at["height"] / 2 - frame["y"]) < 2
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("selectionStart", len("Left unsent."))
+    expect(chip).to_have_count(0)
 
 
 def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(
@@ -1666,7 +1713,8 @@ def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve
 
 def test_a_finger_copies_a_reply_s_link(browser, serve):
     """Under a finger, where the address names only the thread, a reply offers its Copy
-    link, though not its Copy, whose words a finger selects instead."""
+    link, though not its Copy, whose words a finger selects instead. The opening
+    message offers neither, its link being the thread's, which the address names."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Where does this end?")
     reply = append_carried_log_record(
@@ -1689,6 +1737,8 @@ def test_a_finger_copies_a_reply_s_link(browser, serve):
     page = open_page(browser, thread_url(url, root), context=context)
     message = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
     expect(message.locator(".lf-msg-copy")).to_be_hidden()
+    opening = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{root}"]')
+    expect(opening.locator(".lf-msg-link")).to_be_hidden()
     message.locator(".lf-msg-link").tap()
     expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
     copied = urlsplit(page.evaluate("navigator.clipboard.readText()"))

@@ -38,8 +38,8 @@ from render_harness import (
     write_draft_elsewhere,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -254,10 +254,14 @@ def test_executable_revision_does_not_restore_a_new_draft_generation(browser, se
     page.route("**/api/drafts", refuse)
     attempt = write_draft_elsewhere(page, editing["context"], editing["words"])
     replace_editing_document(page, serve)
-    assert (
-        page.evaluate("async()=> (await window.__lfCheckApi()).captureDraftEditing()")
-        is None
+    # The entry's record still puts the user back in the reply, which now holds the
+    # other tab's generation: the words come from the drafts store, never the handoff.
+    arrived = page.evaluate(
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing()"
     )
+    assert arrived["context"] == editing["context"]
+    assert arrived["attempt"] == attempt
+    assert arrived["words"] == editing["words"]
     expect(page.locator(".lf-composer leaf-text")).not_to_be_visible()
     actual = stored_draft(page, editing["context"])
     assert actual is not None

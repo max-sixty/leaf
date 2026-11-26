@@ -18,7 +18,7 @@ from render_harness import (
 
 from browser.drafts.test_reply_sessions import open_reply
 from browser.margin.test_pins import FOLDING_PAGE
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import open_on_me
 
 PHONE = {

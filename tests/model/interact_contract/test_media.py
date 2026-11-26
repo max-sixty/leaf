@@ -8,9 +8,9 @@ import pytest
 from click.testing import CliRunner
 from interact_support import PAGE, check_findings, comment, fetch, found, publish
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import media as media_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.serving import media as media_model
 
 
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):

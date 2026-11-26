@@ -4,7 +4,7 @@ acts where the glide lands."""
 import pytest
 from render_harness import LONG_PAGE, held_frames, open_page, scroll_settled
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

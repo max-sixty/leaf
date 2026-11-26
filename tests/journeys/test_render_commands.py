@@ -41,10 +41,10 @@ from render_harness import (
     reported_browser_errors,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf import user_views
-from leaf.render_gate.command import PIN_VARIABLE
-from leaf.render_gate.page_code import run_page_code
+from leaf.pages.render_gate.command import PIN_VARIABLE
+from leaf.pages.render_gate.page_code import run_page_code
+from leaf.serving import user_views
+from leaf.source import render_checks as render_checks_model
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -553,8 +553,8 @@ from render_harness import (
     primed,
 )
 
-from leaf import event_log as events_model
-from leaf.render_gate import version as render_gate_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate import version as render_gate_model
 
 
 @pytest.mark.shifts_unsurveyed

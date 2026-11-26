@@ -34,7 +34,7 @@ no current claim or timestamp proximity supplies this identity.
 
 Every input a session answered carries the time the session's `leaf` commands
 took on it (`leaf_commands_s`), from the `leaf_command` record each writes in the
-page (`leaf.interaction_log.record_command`), on any harness: those that started
+page (`leaf.log.interaction_log.record_command`), on any harness: those that started
 between the harness taking the input and the answer. Where the input has a reply
 breakdown (below), the harness took it at the boundary the breakdown finds;
 elsewhere at its opened pickup, else its admission, which leaves out a
@@ -78,13 +78,13 @@ from datetime import datetime
 from functools import cache
 from pathlib import Path
 
-from leaf.events import is_answer
-from leaf.files import list_revisions
-from leaf.interaction_log import interaction_time, read_interactions
-from leaf.registry.kernel import kinds_declaring
-from leaf.revision_artifact import read_revision
-from leaf.thread_context import thread_names
-from leaf.todos import start_reading
+from leaf.base.files import list_revisions
+from leaf.log.events import is_answer
+from leaf.log.interaction_log import interaction_time, read_interactions
+from leaf.log.thread_context import thread_names
+from leaf.records.todos import start_reading
+from leaf.source.registry.kernel import kinds_declaring
+from leaf.source.revision_artifact import read_revision
 from leaf_dev.reply_phases import (
     claude_code_records,
     claude_code_transcript,
@@ -231,7 +231,7 @@ def page_timings(
     unlinked = []
     # The working line each line fork posted, by the line's id: progress on its
     # round's newest message, which takes nothing in hand and so names no input of
-    # its own (`leaf.forks`).
+    # its own (`leaf.agents.forks`).
     fork_lines = {
         row["line"]: row["inputs"][-1]
         for row in observations
@@ -484,7 +484,7 @@ def waited(row: dict, watches: list[dict], records: Records) -> dict | None:
     """What the input waited on before its opened pickup (`pickup_wait`), where
     `records` reads the record of the session that opened it, with the `watch`
     record of that session's watch running at the admission
-    (`leaf.interaction_log.record_watch`), or None where none recorded one."""
+    (`leaf.log.interaction_log.record_watch`), or None where none recorded one."""
     opened = row["milestones"].get("opened")
     if opened is None:
         return None

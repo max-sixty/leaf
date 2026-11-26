@@ -13,7 +13,7 @@ from render_harness import (
     told,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 def test_code_reference_keeps_command_context_and_cancel_destination(browser, serve):

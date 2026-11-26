@@ -8,7 +8,7 @@ from threading import Event
 
 from interact_support import STATED_TIMEOUT
 
-from leaf import leases, state
+from leaf.base import leases, state
 
 
 def test_a_waiting_purpose_lock_follows_a_removed_holder(tmp_path, monkeypatch):

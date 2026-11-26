@@ -6,8 +6,8 @@ from browser.threads.test_rewrites import PICTURE, PICTURED, _rewrite_surface
 from playwright.sync_api import expect
 from render_harness import round_trip
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -15,8 +15,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser, serve):
     """A rewrite cleared and left keeps none of its empty words, which would show an
     empty box in place of the message at every later opening, without saying it held
-    anything. A rewrite keeps words: a page reloaded over an emptied one opens on the
-    message's own.
+    anything. A rewrite keeps words: a page reloaded over an emptied one puts the user
+    back in the rewrite, which holds the message's own.
 
     Saved, an emptied rewrite deletes its message, rather than its Save standing drawn
     live and doing nothing. The box says so before the press, its field reading Delete
@@ -38,7 +38,7 @@ def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser,
     wait_until_ready(page)
     open_panel_thread(page, mine)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
-    words.dblclick()
+    expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Fit the north bracket.")
 
     page.keyboard.press("ControlOrMeta+a")

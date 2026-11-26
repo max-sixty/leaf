@@ -20,11 +20,11 @@ from interact_support import (
 )
 from model.test_interact_product import PAGE_FIXTURES
 
-import leaf.validation.command as checking_command
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.registry import storage as registry_storage
-from leaf.thread_context import logged_fragment
+import leaf.pages.validation.command as checking_command
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log.thread_context import logged_fragment
+from leaf.source.registry import storage as registry_storage
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import (
     leaf_in_process,

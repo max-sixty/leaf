@@ -10,7 +10,7 @@ from render_harness import (
     panel_menu,
 )
 
-from leaf import data as data_model
+from leaf.source import data as data_model
 
 
 def expect_walk_says(page, words):

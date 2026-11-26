@@ -4,7 +4,7 @@ import pytest
 from browser.margin import PANE_PIN_PAGE, _comment_on
 from render_harness import margins_laid_out, open_page, pane_scroll_behavior, resized
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

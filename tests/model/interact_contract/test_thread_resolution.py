@@ -17,15 +17,15 @@ from interact_support import (
     publish,
 )
 
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import files as files_model
-from leaf import passages as passages_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf.registry import storage as registry_storage
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -451,7 +451,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     (page_dir / "index.html").write_text(source)
     append_carried_log_record(page_dir, dict(COMMENT))
     publish(page_dir)
-    from leaf.files import latest_revision
+    from leaf.base.files import latest_revision
 
     revision = latest_revision(page_dir)
 
@@ -507,8 +507,8 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     """Each verb is its own coordinate, so another verb on the deciding widget stands
     beside the decision: neither the thread it closed nor its membership moves."""
 
-    from leaf.projection import page_reading
-    from leaf.thread_context import thread_memberships
+    from leaf.log.projection import page_reading
+    from leaf.log.thread_context import thread_memberships
 
     registry = registry_storage.require_registry(page_dir)
     registry = deepcopy(registry)
@@ -554,7 +554,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
     closed, and its undo the same, until that answer is taken back or a version
     retracts what it rested on: after either, the thread it closed is no longer the
     later gesture's, as a revised suggestion that resolves another thread shows."""
-    from leaf.thread_context import thread_memberships
+    from leaf.log.thread_context import thread_memberships
 
     def decide(id, outcome, answer, revision=1, depends=("sug-a",)):
         return {
@@ -651,8 +651,8 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
     """Membership names every thread whose resolution an event changes, as
     `build_threads` reads it before and after that event, over every three-step
     history of answers, non-answers, undos, and version notes at one coordinate."""
-    from leaf.events import build_threads
-    from leaf.thread_context import thread_memberships
+    from leaf.log.events import build_threads
+    from leaf.log.thread_context import thread_memberships
 
     within = {"x": ("w", "x"), "y": ("w", "y")}
     comments = [

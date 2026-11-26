@@ -52,10 +52,10 @@ from render_harness import (
 
 from browser.test_render_floating_panel import finish_held, held_motion, hold_motion
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered, wait_for_probe
+from leaf.log import event_log as events_model
+from leaf.serving.media import store_uploaded_media
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, wait_for_probe
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -2431,13 +2431,13 @@ def type_drafts(page, field, drafts):
 
 CONTINUED = {
     "fence in a quote": ("> ```⏎x⏎```⏎after", "> ```\n> x\n> ```\n> after"),
-    "fence in an item": ("- a⏎⌫⌫  ```⏎x⏎```⏎more", "- a\n  ```\n  x\n  ```\n  more"),
+    "fence in an item": ("- a⏎```⏎x⏎```⏎more", "- a\n- ```\n  x\n  ```\n  more"),
     "leaving a list": ("- a⏎⏎b", "- a\n\nb"),
     "leaving a quote": ("> a⏎⏎b", "> a\n\nb"),
     "leaving a nested quote": ("> > a⏎⏎b", "> > a\n>\n> b"),
     "outdenting a nested item": (
-        "1. a⏎b⏎⌫⌫⌫   - c⏎⏎d",
-        "1. a\n2. b\n   - c\n3. d",
+        "1. a⏎b⏎⇥c⏎⏎d",
+        "1. a\n2. b\n   1. c\n3. d",
     ),
     "splitting an item": ("- one two←←←⏎", "- one \n- two"),
     "leaving a list, then its quote": ("> - a⏎⏎⏎x", "> - a\n\nx"),

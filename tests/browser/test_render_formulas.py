@@ -5,9 +5,9 @@ from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_harness import consume_browser_errors, open_page, select
 
-from leaf import anchor_capture as anchor_capture_model
-from leaf import passages as passages_model
-from leaf import structure as structure_model
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
 
 LONG = " + ".join(f"a_{{{n}}} x^{{{n}}}" for n in range(1, 31))
 FORMULAS = leaf_page(

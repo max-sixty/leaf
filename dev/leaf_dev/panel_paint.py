@@ -29,7 +29,7 @@ from io import BytesIO
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 
-from leaf.render_checks import one_frame, rendered, wait_for_probe
+from leaf.source.render_checks import one_frame, rendered, wait_for_probe
 from leaf_dev.browser import PANEL
 
 ROUTES = (

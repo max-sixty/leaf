@@ -26,7 +26,7 @@ from render_harness import (
     told,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 def test_a_focus_preview_adds_to_a_link_s_own_description(browser, serve):

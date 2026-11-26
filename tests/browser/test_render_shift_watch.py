@@ -629,6 +629,52 @@ def test_a_permitted_step_permits_nothing_after_it(browser):
     consume_browser_errors(page, moved_within("button#act"))
 
 
+@pytest.mark.parametrize(
+    "joins", [True, False], ids=["a-message-joins", "nothing-joins"]
+)
+def test_a_card_standing_on_its_foot_widens_and_rises_only_as_a_message_joins_it(
+    browser, joins
+):
+    """A card over its subject stands on its foot (`data-lf-rises`), so the long message
+    that widens it once (`data-lf-widens`) lifts its head in the same frame, carrying
+    its controls up and sideways. The same widening with no message joining its
+    transcript credits no rise."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0"><div data-lf-runtime>'
+            '<div id="card" data-lf-widens data-lf-rises style="position:fixed;'
+            'bottom:40px;right:40px;width:160px">'
+            '<button id="close">Close</button>'
+            '<div id="log" data-lf-reflow="append"><p>A short question.</p></div>'
+            "</div></div></body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """joins => new Promise((done) => {
+          card.style.width = "320px";
+          if (joins) {
+            const answer = document.createElement("p");
+            answer.textContent = "An answer long enough to stand taller than wide. ".repeat(12);
+            log.append(answer);
+          } else card.style.paddingTop = "120px";
+          requestAnimationFrame(() => requestAnimationFrame(done));
+        })""",
+        joins,
+    )
+    judge_watches()
+    if not joins:
+        consume_browser_errors(
+            page,
+            lambda problem: (
+                problem.code == "moved-without-input"
+                and ["div#card"] in problem.values["beside"]
+            ),
+        )
+
+
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
     """Chrome may paint a document the parser has only partly added, as a slow
     runner's parser yields mid-page: a select before its option and the taller box

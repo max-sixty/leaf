@@ -19,8 +19,8 @@ line:
   The touch passage verifies either clear placement or a window-constrained frame
   when the paragraph and frame cannot fit together; font metrics can choose either.
 - `moves`: how far the card stands from where the box stood, at the edge each holds
-  (the left edge across; the top down, or the foot where the card stands above),
-  bucketed `still` (the same place), `near` (a line or two) or `away`.
+  (across, the edge the box stood by; down, the top, or the foot where the card stands
+  above), bucketed `still` (the same place), `near` (a line or two) or `away`.
 
 Each case also writes the pair it read to its test's `tmp_path/<case>.png`: the box as
 the user typed in it on the left, the card on the right with the box's outline drawn

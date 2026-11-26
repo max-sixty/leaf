@@ -22,7 +22,7 @@ from render_harness import (
 )
 
 from browser.test_render_gate import AIM_BOXES, aim_selectors
-from leaf.file_bindings import bind_file
+from leaf.source.file_bindings import bind_file
 
 
 def test_file_editor_page_navigation_preserves_the_caret_position(

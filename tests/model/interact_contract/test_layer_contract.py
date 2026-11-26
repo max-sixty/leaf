@@ -31,23 +31,23 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
-from leaf.findings import Finding
-from leaf.json_block import read_json_block
-from leaf.registry import contract as registry_contract
-from leaf.registry import layer as registry_layer
-from leaf.registry import storage as registry_storage
-from leaf.registry import validation as registry_validation
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.base.json_block import read_json_block
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import layer as registry_layer
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry import validation as registry_validation
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -444,7 +444,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     from markdown_it import MarkdownIt
 
     kinds = cleanup_model.kernel_registry()["$events"]["kinds"]
-    text = Path(schema_model.__file__).with_name("events.md").read_text()
+    text = (Path(schema_model.__file__).parents[1] / "events.md").read_text()
     tokens = MarkdownIt("commonmark").enable("table").parse(text)
     start = next(
         index for index, token in enumerate(tokens) if token.type == "table_open"

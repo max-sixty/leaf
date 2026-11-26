@@ -1559,7 +1559,7 @@ export default [
     },
   },
   {
-    files: ["src/leaf/render-checks/*.js"],
+    files: ["src/leaf/source/render-checks/*.js"],
     languageOptions: { globals: browserGlobals },
     rules: {
       ...publicRuntimeBoundary,
@@ -1575,7 +1575,7 @@ export default [
   {
     // The Playwright driver imports the probe route Python selects at runtime. It is
     // the loader being tested; every probe behind that route keeps static imports.
-    files: ["src/leaf/render-checks/driver.js"],
+    files: ["src/leaf/source/render-checks/driver.js"],
     languageOptions: { sourceType: "script" },
     rules: {
       "no-restricted-syntax": [
@@ -1587,7 +1587,7 @@ export default [
     },
   },
   {
-    files: ["src/leaf/render-checks/*.js"],
+    files: ["src/leaf/source/render-checks/*.js"],
     rules: {
       // Render checks use their diagnostic adapter alongside the public widget API.
       // Every other runtime owner remains private to the kernel.
@@ -1915,12 +1915,12 @@ export default [
     },
   },
   {
-    files: ["src/leaf/render-checks/init.js"],
+    files: ["src/leaf/source/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
   },
   {
     // The script an export draws its page with (`exporting.static_document`).
-    files: ["src/leaf/static-export.js"],
+    files: ["src/leaf/pages/static-export.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {

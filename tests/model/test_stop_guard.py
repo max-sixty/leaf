@@ -56,24 +56,24 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf.json_block import read_json_block
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
-from leaf.service import PREVIEW
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import read_json_block
+from leaf.base.service import PREVIEW
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import activity as activity_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import storage as registry_storage
 
 
 def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differs():
@@ -705,7 +705,7 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     events = open(page_dir / "events.jsonl", "a+b")
     fcntl.flock(events, fcntl.LOCK_EX)
     probe = """\
-from leaf import transaction as transaction_model
+from leaf.records import transaction as transaction_model
 
 original_flocked = transaction_model.flocked
 events = Path(os.environ["EVENTS"]).resolve()

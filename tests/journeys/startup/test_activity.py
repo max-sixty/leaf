@@ -33,11 +33,11 @@ from render_harness import (
     told,
 )
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 from leaf_dev.browser import choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed

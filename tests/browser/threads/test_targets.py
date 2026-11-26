@@ -37,11 +37,11 @@ from browser.threads import (
     seed_reply,
     thread_row,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import transaction as transaction_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed

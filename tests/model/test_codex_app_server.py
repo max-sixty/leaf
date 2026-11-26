@@ -44,25 +44,25 @@ from interact_support import (
     write_record,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import codex_adapter as codex_adapter_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
-from leaf import hooks as hooks_model
-from leaf import interaction_log as interaction_log_model
-from leaf import leases as leases_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf.refusals import Refused
-from leaf.session import set_status
+from leaf.agents import codex as codex_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands.session import set_status
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_log_model
+from leaf.records import activity as activity_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
 from leaf_dev.page_timings import page_timings
 
 
@@ -2844,7 +2844,7 @@ if arguments[:2] == ["app-server", "--listen"]:
 
 @pytest.mark.parametrize(
     "ending",
-    ["sys.exit(0)", "from leaf.server import exit_serving; exit_serving(0)"],
+    ["sys.exit(0)", "from leaf.agents.server import exit_serving; exit_serving(0)"],
 )
 def test_a_private_app_server_stops_when_its_process_exits(tmp_path, ending):
     """A page server's title request holds its App Server on a daemon thread, which
@@ -2866,7 +2866,7 @@ signal.pause()
     program.chmod(0o755)
     holder = f"""
 import sys, threading, time
-from leaf.codex import private_app_server
+from leaf.agents.codex import private_app_server
 ready = threading.Event()
 def hold():
     with private_app_server({str(program)!r}):

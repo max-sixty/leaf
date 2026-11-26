@@ -9,9 +9,9 @@ from click.testing import CliRunner
 from conftest import hooks_run_this_tree
 from interact_support import append_carried_log_record, check, inlined
 
-from leaf import cli as cli_model
-from leaf import hooks as hooks_model
-from leaf import transaction as transaction_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.records import transaction as transaction_model
 
 
 def test_only_serving_or_claiming_a_page_puts_the_session_under_the_guard(
@@ -61,10 +61,10 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import session as session_model
-from leaf import thread as thread_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.commands import session as session_model
 
 
 def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot):

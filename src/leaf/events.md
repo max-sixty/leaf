@@ -40,7 +40,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix` where
 the neighbouring text tells two identical passages apart. The browser writes it from
 the user's selection. `leaf thread create`, and a reply command that moves a thread,
-write it from a quote read out of the authored HTML through `leaf.passages`, so they
+write it from a quote read out of the authored HTML through `leaf.source.passages`, so they
 write only anchors the file confirms (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
@@ -88,7 +88,7 @@ browser reads all of this off the rendered page, which no file reading can repro
 the door bounds its shape, the stroke count and 500 characters of `says`, refuses a
 drawing without an anchor or `box`, and does not re-read it. `$events.handling.comment`
 tells the agent how to read a drawing, and `leaf page picture` redraws one as the user
-saw it (`render_gate/picture.py`).
+saw it (`pages/render_gate/picture.py`).
 
 A note, a reply that publishes the saved source, or an `activation` carries
 `publication`, the exact immutable bundle name (`r<revision>-<digest>`). It is the
@@ -349,7 +349,7 @@ widgets', thread widgets', message requests and user-owned tasks, with a record 
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses and its next
 actor. `$keys.awaits` in `browser/registry.json` says when a widget's obligation
-exists and what its id is, and `Obligation` in `served_state/state.schema.json` lists
+exists and what its id is, and `Obligation` in `serving/served_state/state.schema.json` lists
 the served fields. `obligations.collection` selects `all`, `user` and `unanswered` from
 it. To-dos are separate records, and no to-do is made from an obligation.
 

@@ -612,7 +612,7 @@ opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chro
 its frame shows, except that a block's page counts until it arrives or a deadline
 passes, since its arrival sets the frame's height (`browser/runtime/host/sample.js`), and
 `page check --render` scrolls each frame still waiting into view
-(`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
+(`src/leaf/source/render_checks.py`, `start_near_work`). A sample the reader saw as it started
 holds the page's presentation, or the jump that showed it, only while they still see
 its frame (`browser/runtime/host/sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
@@ -622,7 +622,7 @@ whose first assertion fails once Chromium draws the chart out of view.
 ### Page cache
 
 Every Leaf server, locally and on leaf.page, sends `no-cache` for a page's
-document and state (`CACHE_CONTROL`, `src/leaf/http.py`), so a browser may keep
+document and state (`CACHE_CONTROL`, `src/leaf/serving/http.py`), so a browser may keep
 the page in its back/forward cache. On 2026-10-20, Chromium 153.0.8010.12 and
 installed Firefox 158.0.1 restored a local `release-notes` page on Back and
 applied state changes made while away. Firefox loaded a page containing samples

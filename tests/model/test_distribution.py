@@ -5,10 +5,10 @@ import shutil
 
 import pytest
 
-from leaf import layer as layer_model
-from leaf import runtime_selection
-from leaf.refusals import Refused
-from leaf.revision_artifact import Resource
+from leaf.base.refusals import Refused
+from leaf.source import layer as layer_model
+from leaf.source import runtime_selection
+from leaf.source.revision_artifact import Resource
 from leaf_dev.commands.site._distribution import bundle_runtime
 
 
@@ -187,7 +187,7 @@ def test_runtime_identity_follows_package_browser_contributions(tmp_path, monkey
 @pytest.mark.parametrize("suffix", [".js", ".mjs"])
 def test_package_private_imports_are_refused(directory, suffix, tmp_path):
     """Every package browser directory shares the public kernel boundary."""
-    from leaf.layer import compose_layer, layer_inputs
+    from leaf.source.layer import compose_layer, layer_inputs
 
     custom = tmp_path / "custom"
     (custom / directory).mkdir(parents=True)

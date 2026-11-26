@@ -15,9 +15,9 @@ from render_harness import (
     undo,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
-from leaf.render_gate import version as render_gate_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 

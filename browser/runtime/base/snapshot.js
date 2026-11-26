@@ -169,7 +169,7 @@ function shared(prior, next, kept) {
 }
 
 // The names a list's records go by, by the rule the server's patch protocol names a
-// list's items by (src/leaf/served_state/tail.py, `_named`): each record's `id` where
+// list's items by (src/leaf/serving/served_state/tail.py, `_named`): each record's `id` where
 // every record has a string one, else its event's `id` where every record holds an
 // event with one, and only where no two records share a name.
 /** @type {readonly ((item: any) => unknown)[]} */

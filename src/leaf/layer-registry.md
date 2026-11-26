@@ -4,7 +4,7 @@ A page records the packages it selects in `layer.json`
 (`registry.storage.LAYER`), never the layer itself. Every Leaf that serves, checks or
 exports the page composes the layer from that selection, its own core and bundled
 packages and the user's installed ones, in the order and at the merge grains of
-`../../skills/leaf/references/packages.md`, "Package contract"; `registry/layer.py`
+`../../skills/leaf/references/packages.md`, "Package contract"; `source/registry/layer.py`
 is the merge and `layer.selected_layer` holds the result. The browser
 runtime comes from the same Leaf (`runtime_selection.py`), so a page's widgets,
 theme, vocabulary and runtime always ship together. Each revision captures its
@@ -133,10 +133,10 @@ build lets its shape change only with a bump.
 
 Every composition, `page init`'s layer and a page's own declarations over it, writes
 `$modules`, the module each declared element has among the files it composes
-(`registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
+(`source/registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
 `page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
 declaration says so. Composition also writes into each declaration the defaults it
-leaves out (`registry/contract.complete_declarations`): its `content`, its attribute
+leaves out (`source/registry/contract.complete_declarations`): its `content`, its attribute
 schema, the `type` and `additionalProperties` of that schema and of each verb's
 `detail` schema, each verb's `unit` and its record's `kind`, an obligation's
 `answered`, and each attribute an input binds by, as a string in the attribute
@@ -145,7 +145,7 @@ validation, so validation and every later reader read them whether the declarati
 composition wrote them.
 
 Composition then stamps the facts the browser reads rather than derives
-(`registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,
+(`source/registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,
 each widget's deciding verb (`verbs`) and the member tags each of its outcomes
 retires, and `$states`, each verb's writer and the operation definition an admitted
 event records. It also completes the attribute schemas validation reads: an attribute
@@ -156,7 +156,7 @@ the whole widget takes the boolean attribute a version sets to take that verb ba
 `restated` for the user's and `overruled` for the agent's.
 
 The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
-both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s
+both runtimes read (`registry.layer.KERNEL_FACTS`, described in `source/registry/kernel.py`'s
 header, and the classifications on each `$events.kinds` entry). It is part of the
 runtime, so both read the serving Leaf's copy, the browser through
 `runtime/state/kernel-facts.js`. Composition lays each layer over it and keeps the

@@ -5,10 +5,10 @@ from copy import deepcopy
 
 from interact_support import append_carried_log_record, published
 
-from leaf import codex as codex_model
-from leaf.delivery import batch_data, freeze_delivery
-from leaf.state import write_json
-from leaf.transaction import PageTransaction
+from leaf.agents import codex as codex_model
+from leaf.agents.delivery import batch_data, freeze_delivery
+from leaf.base.state import write_json
+from leaf.records.transaction import PageTransaction
 
 
 def test_live_and_archived_readers_ignore_other_shapes_and_unknown_states(

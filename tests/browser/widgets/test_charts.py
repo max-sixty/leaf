@@ -32,8 +32,8 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from browser.widgets import hear_walks, walks_said
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

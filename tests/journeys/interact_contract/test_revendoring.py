@@ -14,13 +14,13 @@ from interact_support import (
 )
 from model.interact_contract import vocabulary
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf import session as session_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import storage as registry_storage
 from leaf_dev.page_fixtures import package_selection_args
 
 

@@ -216,7 +216,7 @@ runs: the manifests there register Leaf's components with each harness, and
 `bin/leaf` runs the uv project there. The **skill root**, `skills/leaf/`, holds the
 agent's instructions, `SKILL.md` and its references. A copy of the skill root alone
 is not an installation. `pyproject.toml` says where Python finds Leaf's modules,
-`leaf.state` finds the plugin root, and `leaf.schema` derives the paths of the
+`leaf.base.state` finds the plugin root, and `leaf.base.schema` derives the paths of the
 resources under it. When a page is initialized, Leaf composes the core browser assets
 and the page's packages into the page's layer.
 
@@ -346,7 +346,7 @@ build writes a static copy of the row, which a page shows at first paint, so a
 change to the row needs `pnpm run build:browser` (`build/AGENTS.md`). Only a
 prepared installation, such as the website's container, compiles the source modules
 into one bundle, the kernel (`build/runtime-bundle.mjs`,
-`leaf.runtime_selection.read_runtime`).
+`leaf.source.runtime_selection.read_runtime`).
 
 `bin/leaf` runs `uv run --no-dev` on the tree, which writes the tree's `.venv`, so the
 install must be writable; Leaf writes nothing else into it. A plugin update may
@@ -414,7 +414,7 @@ record them, so each lasts only as long as its DOM node. Code that replaces a no
 moves that state to the new node, matching the two by the key the replacement already
 uses. A draft being typed also stays out of the log until the user sends it, but it
 outlives its node: the page's server keeps it for every tab and device
-(`src/leaf/drafts.py`), and the agent never reads it.
+(`src/leaf/serving/drafts.py`), and the agent never reads it.
 
 Python decides where the agent's work stands, in the one vocabulary every record and
 surface reads (`standing.py`): whose move it is, and whether the work is waiting,

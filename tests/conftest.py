@@ -25,19 +25,19 @@ import pytest
 from click.testing import CliRunner
 from playwright.sync_api import Frame, Page, sync_playwright
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import codex_adapter as codex_adapter_model
-from leaf import handover_pass as handover_pass_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import layer as layer_model
-from leaf import leases as leases_model
-from leaf import machine as machine_model
-from leaf import state as cleanup_model
-from leaf.registry.schema import schema_error, with_leaf_resources
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import command as render_command_model
+from leaf.agents import codex as codex_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import machine as machine_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.serving import handover_pass as handover_pass_model
+from leaf.source import layer as layer_model
+from leaf.source.registry.schema import schema_error, with_leaf_resources
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import FIREFOX_PREFS, linux_font_environment, shell_executable
 from leaf_dev.page_fixtures import package_selection_args

@@ -46,10 +46,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
-from leaf.schema import PLUGIN_ROOT
+from leaf.base.schema import PLUGIN_ROOT
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import choose_threads_in_panel, open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed

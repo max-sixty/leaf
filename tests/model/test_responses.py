@@ -37,21 +37,21 @@ from interact_support import (
     state_json,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf import transaction as transaction_model
-from leaf.refusals import Refused
-from leaf.thread_context import logged_fragment
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.log.thread_context import logged_fragment
+from leaf.records import revisioning as revisioning_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
 
 
 class ResponseOptions(TypedDict, total=False):
@@ -512,11 +512,11 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
             sys.executable,
             "-c",
             (
-                "from click.testing import CliRunner; from leaf.cli import cli; import sys; "
-                "assert 'leaf.delivery' not in sys.modules; "
+                "from click.testing import CliRunner; from leaf.commands.cli import cli; import sys; "
+                "assert 'leaf.agents.delivery' not in sys.modules; "
                 "result = CliRunner().invoke(cli, ['thread', 'reply', '--help']); "
                 "assert result.exit_code == 0, result.output; "
-                "assert 'leaf.delivery' not in sys.modules"
+                "assert 'leaf.agents.delivery' not in sys.modules"
             ),
         ],
         capture_output=True,

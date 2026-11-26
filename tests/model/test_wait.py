@@ -48,23 +48,23 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
-from leaf.detached import StartRefused
-from leaf.interaction_log import read_interactions
-from leaf.registry.kernel import kernel_protocol
+from leaf.agents import delivery as delivery_model
+from leaf.agents import server as server_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.detached import StartRefused
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log.interaction_log import read_interactions
+from leaf.pages import hosting as hosting_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry.kernel import kernel_protocol
 
 
 def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
@@ -827,7 +827,9 @@ _RUNNING_FROM = """
 import sys
 from pathlib import Path
 
-from leaf import hooks, state
+from leaf.commands import hooks
+
+from leaf.base import state
 from leaf.__main__ import main
 
 state.PLUGIN_ROOT = hooks.PLUGIN_ROOT = Path(sys.argv[1])

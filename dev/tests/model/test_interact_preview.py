@@ -25,13 +25,20 @@ from interact_support import (
 )
 from model_folds import leaf_page
 
-from leaf import cli as cli_model
-from leaf import server, service, transaction
-from leaf.interaction_log import read_interactions
-from leaf.layer import stylesheet
-from leaf.media import media_name
-from leaf.registry.storage import layer_packages, layer_record, load_registry, selected
-from leaf.structure import SourceDocument
+from leaf.agents import server
+from leaf.base import service
+from leaf.commands import cli as cli_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records import transaction
+from leaf.serving.media import media_name
+from leaf.source.layer import stylesheet
+from leaf.source.registry.storage import (
+    layer_packages,
+    layer_record,
+    load_registry,
+    selected,
+)
+from leaf.source.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview
 from leaf_dev.example_data import named_source
@@ -203,7 +210,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     other half: its own writes are a user's feedback, and watching them would make
     every gesture a reload.
     """
-    from leaf.layer import layer_inputs
+    from leaf.source.layer import layer_inputs
 
     source = named_source("heat-loss")
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
@@ -361,8 +368,8 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
 
 def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
-    from leaf.data import read_data
-    from leaf.registry.storage import load_registry
+    from leaf.source.data import read_data
+    from leaf.source.registry.storage import load_registry
     from leaf_dev.example_data import data_file, page_files
 
     examples = tmp_path / "examples"
@@ -655,9 +662,9 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
 def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted(
     page_dir, monkeypatch, transferred
 ):
-    from leaf import detached
-    from leaf.hosting import cmd_stop
-    from leaf.service import page_claim
+    from leaf.base import detached
+    from leaf.base.service import page_claim
+    from leaf.pages.hosting import cmd_stop
 
     owner = preview.PreviewService(page_dir, user=True)
     sent = detached.socket.socket.sendall
@@ -672,7 +679,7 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
                 failure="accepted start did not publish its claim",
             )
             if transferred:
-                from leaf.harness import ClaudeCodeHarness
+                from leaf.base.harness import ClaudeCodeHarness
 
                 with transaction.PageTransaction(page_dir) as page:
                     page.take_claim(ClaudeCodeHarness("successor", "Claude"))
@@ -702,8 +709,8 @@ def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
     another Leaf, as an installed copy, acts for no session. It serves the page
     unclaimed and says so, and the checkout's own `leaf wait` on the page hears the
     user."""
-    from leaf.hosting import cmd_stop
-    from leaf.session import cmd_wait
+    from leaf.commands.session import cmd_wait
+    from leaf.pages.hosting import cmd_stop
 
     installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
     hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], installed)
@@ -822,9 +829,9 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     The source and value publication use the same real refresh as a resumed or
     live preview; a literal seed edited on the page remains that page's data.
     """
-    from leaf.data import read_data
-    from leaf.publishing import authored_digest
-    from leaf.registry.storage import load_registry
+    from leaf.records.publishing import authored_digest
+    from leaf.source.data import read_data
+    from leaf.source.registry.storage import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -941,8 +948,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
 
 def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
     """Unreadable runtime inputs or incomplete captures leave the last page serving."""
-    from leaf.data import read_data
-    from leaf.registry.storage import load_registry
+    from leaf.source.data import read_data
+    from leaf.source.registry.storage import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(

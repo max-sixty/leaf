@@ -45,8 +45,8 @@ from render_harness import (
 from browser.navigation import (
     color_cue_markup,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

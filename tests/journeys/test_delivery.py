@@ -19,15 +19,15 @@ from interact_support import (
     state_json,
 )
 
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import event_meaning as event_meaning_model
-from leaf import page_view as page_view_model
-from leaf import session as session_model
-from leaf import thread as thread_model
-from leaf import thread_context as thread_context_model
-from leaf import transaction as transaction_model
-from leaf.registry import storage as registry_storage
+from leaf.agents import thread as thread_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import thread_context as thread_context_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import event_meaning as event_meaning_model
+from leaf.records import page_view as page_view_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import storage as registry_storage
 
 
 def test_a_page_obligation_that_settles_a_thread_carries_its_thread(page_dir, capsys):

@@ -16,12 +16,12 @@ from interact_support import (
     with_modules,
 )
 
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf.authored_checks.declarations import declaration_advice
-from leaf.registry import contract as registry_contract
-from leaf.registry import layer as registry_layer
-from leaf.registry import validation as registry_validation
+from leaf.log import event_log as events_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records.authored_checks.declarations import declaration_advice
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import layer as registry_layer
+from leaf.source.registry import validation as registry_validation
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,
@@ -458,7 +458,7 @@ def test_a_widget_orders_its_own_members():
     element between it and its members: the check takes `within` naming the
     widget's own tag, admission places a move in the widget, the fold reads the
     widget's own children, and the move's words name the list once, as the widget."""
-    from leaf.projection import AuthoredOrders, folded_positions, page_reading
+    from leaf.log.projection import AuthoredOrders, folded_positions, page_reading
 
     registry = deepcopy(model_layer())
     for tag in ("lf-audit-list", "lf-audit-entry"):
@@ -688,8 +688,8 @@ def _independent_member_records():
 
 
 def test_member_records_compose_without_claiming_each_others_state(tmp_path):
-    from leaf.construction import constructed_content
-    from leaf.projection import page_reading, retirement_outcomes
+    from leaf.log.construction import constructed_content
+    from leaf.log.projection import page_reading, retirement_outcomes
 
     page = _independent_member_records()
     reading = page.reading(1, page.registry(1))
@@ -784,7 +784,7 @@ def test_nested_member_records_refuse_foreign_selection_and_position():
 
 
 def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
-    from leaf.markup_checks.instances import widget_errors
+    from leaf.records.markup_checks.instances import widget_errors
 
     page = _independent_member_records()
     registry = page.registry(1)

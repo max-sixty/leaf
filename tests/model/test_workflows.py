@@ -1416,7 +1416,7 @@ def test_an_answer_covers_only_the_inputs_its_delivery_carried(page_dir, final):
     answer = thread_model.post_response(
         reference,
         "Leaving it, labelled.",
-        **({"reservation": "turn-final-attempt"} if final else {}),
+        reservation="turn-final-attempt" if final else None,
     )
     assert answer is not None and answer["also"] == [changed["id"]]
     assert [item["input"] for item in owed(state_json(page_dir))] == [first["id"]]

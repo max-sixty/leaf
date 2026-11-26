@@ -95,8 +95,8 @@ A note, a reply that publishes the saved source, or an `activation` carries
 first event of the revision's publication, and its seq is the revision's place in the
 log. A page's first revision, when a read activates it, has no such event, since no
 comparison reads its place. Only the checked source publisher supplies it;
-`revisioning.py`'s header says how a publication and the anchor moves that depend on
-it land together.
+`revision_publication.py`'s header says how a publication and the anchor moves that
+depend on it land together.
 
 ## Undo
 

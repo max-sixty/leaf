@@ -46,6 +46,7 @@ from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.refusals import Refused
 from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import tasks as tasks_model
 from leaf.log import event_log as events_model
 from leaf.log.thread_context import logged_fragment
@@ -146,7 +147,7 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     earlier = delivery_through(claimed, last_deliverable_seq(claimed))
-    delivery_model.receive_delivery(earlier)
+    delivery_ack_model.receive_delivery(earlier)
     ref = delivered_ref(claimed, asked["id"])
     reply = ["thread", "reply", str(claimed), asked["id"], "--text", "B"]
 
@@ -177,7 +178,7 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
     pickups = len(
         [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
     )
-    delivery_model.receive_delivery(earlier)
+    delivery_ack_model.receive_delivery(earlier)
     assert delivered_ref(claimed, asked["id"]) == successor
     assert pickups == len(
         [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]

@@ -1057,7 +1057,7 @@ def _compose_and_append(
                 },
             ]
         from leaf.records.authored_checks.source import check_source
-        from leaf.records.revisioning import planned_activation
+        from leaf.records.revision_publication import planned_activation
 
         checked = check_source(page_dir, source_events)
         if checked.errors:
@@ -1165,7 +1165,7 @@ def _compose_and_append(
         event["title"] = title
     published = None
     if checked is not None:
-        from leaf.records.revisioning import publish_checked_event
+        from leaf.records.revision_publication import publish_checked_event
 
         record = publish_checked_event(page, checked, event)
         if failure is None:

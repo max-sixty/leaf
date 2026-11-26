@@ -89,12 +89,12 @@ unsettled update's workflow, the evidence of its delivery, and each owed update'
 obligation record, which says who owes it a move. Its header says when each settles.
 `activity` says where each workflow stands, and each record stands where the strongest
 workflow serving it does. The served list names each workflow's `thread`, strongest
-first (`served_state.work.served_workflows`).
+first (`work_state.served_workflows`).
 
 A workflow waits until a turn has taken it in (`seen`), and after, until the agent
 starts it. It is `running` while a start stands on it, while its reply streams in
 (reason `replying`), or while a progress message of the agent's stands after it in
-its thread, such as a line fork's working line (`served_state.work.lined`). It is
+its thread, such as a line fork's working line (`work_state.lined`). It is
 `blocked` where evidence shows it has stopped moving:
 
 - `undelivered`: no harness has carried it past the pickup grace.
@@ -338,7 +338,7 @@ process from a checkout follows no copy.
 
 An update that moves the page protocol leaves the session's pages at the old one.
 The restart of each page's server renews the page first, as the session's next hook
-would (`hosting.follow_copy`), and the renewal restarts the server itself; the
+would (`vendoring.follow_copy`), and the renewal restarts the server itself; the
 successor adapter or watch delivers the page's input once the renewal lands. What
 holds a renewal back is queued for the session's next step, and wakes an idle session
 where a watch runs between turns.

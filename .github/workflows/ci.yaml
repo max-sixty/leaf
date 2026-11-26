@@ -191,11 +191,13 @@ jobs:
       # the steps reading `node_modules` are done. The pins move with Dependabot's weekly
       # npm group, while a user's Claude Code updates itself as each release ships, so a
       # release that refuses to load `hooks/claude-code.ts`, or changes the Pi API
-      # `hooks/pi.ts` uses, turns the run red for tend within a day.
+      # `hooks/pi.ts` uses, turns the run red for tend within a day. The step lifts
+      # `pnpm-workspace.yaml`'s three-day `minimumReleaseAge`, under which `@latest`
+      # resolves to the newest release at least three days old.
       - name: Check the hooks against the newest Claude Code and Pi
         if: github.event_name == 'schedule' && !cancelled()
         run: |
-          pnpm add --save-dev @anthropic-ai/claude-code@latest @earendil-works/pi-coding-agent@latest
+          pnpm add --save-dev --config.minimum-release-age=0 @anthropic-ai/claude-code@latest @earendil-works/pi-coding-agent@latest
           pnpm run check:hooks
 
       - name: Check website deployment

@@ -2,6 +2,15 @@
 packages:
   - .
 verifyDepsBeforeRun: error
+# pnpm resolves only versions published at least three days ago (the value is in
+# minutes), for a contributor's update as for Dependabot's. Dependabot's npm updates
+# resolve under its default three-day cooldown and fail outright while the lockfile holds
+# any younger version, so the lockfile takes only versions old enough for them. The wait
+# also keeps out a release that is pulled within days of publishing, as a compromised one
+# usually is. Installs from the lockfile don't check it. To take a release sooner, such
+# as a security fix, pass `--config.minimum-release-age=0` to that one command; a
+# Dependabot run in the next three days then fails.
+minimumReleaseAge: 4320
 allowBuilds:
   "@anthropic-ai/claude-code": true
   esbuild: true

@@ -257,7 +257,9 @@ back whenever the file may have changed on disk or its label changed, the widget
 save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
 package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
-travel with the page.
+travel with the page. A widget that only shows the file binds it as a source by its
+binding's id instead ([package-data.md, "External or derived
+data"](package-data.md#external-or-derived-data)).
 
 ## Authenticated HTTP connections
 

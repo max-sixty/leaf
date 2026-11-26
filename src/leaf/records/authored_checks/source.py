@@ -19,7 +19,7 @@ from leaf.records.authored_checks.source_history import (
 )
 from leaf.records.markup_checks.markup import unpointable_blocks
 from leaf.source.capture_refusals import ArtifactError
-from leaf.source.data import read_contracts, read_data
+from leaf.source.data import bound_file_conflicts, read_contracts, read_data
 from leaf.source.data_contracts import measurement_lag
 from leaf.source.layer import other_serving_leaf
 from leaf.source.reading import SourceReading
@@ -221,6 +221,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     errors.extend(
         sample_errors(page_dir, document, events, document, registry, contracts)
     )
+    if registry is not None:
+        errors.extend(bound_file_conflicts(page_dir, document.lf_elements, registry))
     # The capture reads the document and the files it names whatever the markup
     # holds, so one check reports both; it needs only the vocabulary. Each problem
     # has one of the two as its owner (`documents.authored_document_checks`), and a

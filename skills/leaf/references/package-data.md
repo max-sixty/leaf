@@ -505,6 +505,12 @@ a source error. `leaf page state PAGE` lists each bound source under `data_bindi
 a producer needn't parse markup. Every value goes to every user of the page, so never put
 credentials or private host state in one.
 
+A file the page binds with `leaf file bind` is a source too, under its binding's id:
+a `text-document` value `{key, name, text, revision}`, the binding, the file's name,
+its text and its revision, which Leaf reads again each time anyone writes the file.
+`leaf data set` and `leaf data clear` refuse that id, since writing the file is what
+changes it, and `page check` refuses an input of another contract that binds it.
+
 Leaf keeps no old values: every document bound to a source, stamped versions and
 widgets in Threads included, shows its current value. A document that must keep one
 value binds a source id nothing rewrites. Each value has a `revision`, which identifies

@@ -43,8 +43,7 @@ class PageRead:
     # The layer a revision's `$layer` selects, as served (`layer.served_layer`).
     serve_layer: Callable[[dict], dict]
     stored_data: Callable[[], dict]
-    # Each file binding's label and stamp (`file_bindings.bound_files`); a capture
-    # binds none.
+    # Each file binding's label (`file_bindings.bound_files`); a capture binds none.
     bound_files: Callable[[], dict[str, dict[str, str]]]
     versions: tuple[dict, ...]
     presence: dict

@@ -90,10 +90,12 @@ from leaf.base.state import (
     session_record,
 )
 from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
 from leaf.log.interaction_log import append_interactions
 from leaf.pages.hosting import LeafHTTPServer
 from leaf.pages.page_snapshot import capture_page_snapshot
 from leaf.pages.render_gate.messages import message_check
+from leaf.records.page_data import bound_data
 from leaf.records.revisioning import activate_source
 from leaf.records.transaction import PageTransaction, restore_page_claim
 from leaf.serving.http import PageEndpoint, PostRoute, scope_page_urls
@@ -1614,12 +1616,15 @@ def initial_state(
     """Build the canonical state shared by users before any private mutation."""
     revision = latest_revision(page_dir)
     assert revision is not None
+    latest = read_revision(page_dir, revision)
+    # A file the page grants and no markup shows stays out of the public state.
     captured = capture_page_snapshot(
         page_dir,
-        read_revision(page_dir, revision).document,
+        latest.document,
         revision,
         url=f"/revisions/{revision_path(page_dir, revision).name}",
         process=False,
+        data=bound_data(page_dir, latest.registry, read_events(page_dir)),
     )
     state = PageStateService(
         page_dir,

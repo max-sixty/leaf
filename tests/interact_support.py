@@ -2483,8 +2483,12 @@ def published(page_dir):
 
 
 def comment(page_dir, *args):
-    """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["thread", "create", str(page_dir), *args])
+    """Open a thread, titled "Agent thread" unless `args` give a title, with the
+    posted event on stdout for the caller to read."""
+    titled = () if "--title" in args else ("--title", "Agent thread")
+    return CliRunner().invoke(
+        cli_model.cli, ["thread", "create", str(page_dir), *args, *titled]
+    )
 
 
 DRAFTED = PAGE.replace(

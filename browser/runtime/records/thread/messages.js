@@ -195,10 +195,11 @@ export const messageWords = (message) =>
 export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 
 // Whether a title is on its way to an untitled thread. Leaf asks the claimant's
-// harness for one as the user's words are admitted, and the agent for one with its
-// reply (thread_titles.py), so one comes while a session holds the page's claim and the
-// agent owes the thread work. A turn that ended, stalled or was never picked up sends
-// none, nor does a page nobody has claimed, and the thread reads its opening words.
+// harness for one as the user's words are admitted, and the agent's reply names the
+// thread (thread_titles.py), so one comes while a session holds the page's claim and
+// the agent owes the thread work. A turn that ended, stalled or was never picked up
+// sends none. On a page nobody has claimed only an agent's reply names the thread, and
+// the page can't tell whether an agent hears it, so the thread reads its opening words.
 /** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly next_actor: string | null, readonly state: string, readonly source: {readonly kind: string}} | null}} thread */
 export const titlePending = (thread) =>
   thread.title == null &&

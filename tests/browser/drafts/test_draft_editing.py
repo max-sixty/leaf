@@ -732,6 +732,8 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
             "reply",
             "--done",
             response_reference(serve.page_dir, question),
+            "--title",
+            "Note draft",
             "--text",
             "Here it is:"
             + "\n\n"

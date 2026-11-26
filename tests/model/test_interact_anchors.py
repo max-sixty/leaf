@@ -458,7 +458,16 @@ def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
 
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "I checked it."],
+        [
+            "thread",
+            "reply",
+            "--done",
+            reference,
+            "--text",
+            "I checked it.",
+            "--title",
+            "Thread title",
+        ],
     )
 
     assert answered.exit_code == 0, answered.output
@@ -525,7 +534,17 @@ def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_di
     )
     for text, flags in (("On it.", ["--todo", "Check it"]), ("Checked.", ["--done"])):
         said = CliRunner().invoke(
-            cli_model.cli, ["thread", "reply", reference, "--text", text, *flags]
+            cli_model.cli,
+            [
+                "thread",
+                "reply",
+                reference,
+                "--text",
+                text,
+                *flags,
+                "--title",
+                "Thread title",
+            ],
         )
         assert said.exit_code == 0, said.output
         [thread] = state_json(page_dir)["threads"]
@@ -592,6 +611,8 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             response_reference(page_dir, "c1"),
             "--text",
             f"Which?\n\n{ask}",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1441,6 +1462,8 @@ def test_detach_after_a_reader_already_activated_the_removal(page_dir):
             "--detach",
             "--text",
             "Removed this.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -1898,6 +1921,8 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
                 response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
+                "--title",
+                "Thread title",
             ],
         )
         .output

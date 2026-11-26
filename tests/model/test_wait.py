@@ -220,7 +220,16 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
 
     progress = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", first_ref, "--ephemeral", "--text", "Checking"],
+        [
+            "thread",
+            "reply",
+            first_ref,
+            "--ephemeral",
+            "--text",
+            "Checking",
+            "--title",
+            "Thread title",
+        ],
     )
     assert progress.exit_code == 0, progress.output
     assert json.loads(progress.output)["parent"] == event["id"]
@@ -1492,7 +1501,16 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
         assert delivery_model.deliverable(page) == []
     reply = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--done", event["answer"]["ref"], "--text", "Here."],
+        [
+            "thread",
+            "reply",
+            "--done",
+            event["answer"]["ref"],
+            "--text",
+            "Here.",
+            "--title",
+            "Thread title",
+        ],
     )
     assert reply.exit_code == 0, reply.output
     assert owed_answers(page_dir) == []

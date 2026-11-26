@@ -620,6 +620,8 @@ def test_a_message_admits_an_option_that_leads_with_a_strong_and_no_label(page_d
         '<lf-group id="ask" label="Which?">\n<h2 id="ask-h">Which?</h2>'
         '<lf-options id="pick"><lf-option id="a"><strong>A</strong> first.</lf-option>'
         '<lf-option id="b"><strong>B</strong> second.</lf-option></lf-options></lf-group>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.at) for f in noted] == [
         ("unnamed-card", "<lf-option id=a>"),
@@ -655,6 +657,8 @@ def test_reply_assigns_a_worker_to_a_goal_on_the_page(page_dir):
                 f'<lf-test-plan id="quoted"><lf-test-worker id="quoted-worker"'
                 f' state="working" on="{on}"><strong>Worker</strong>'
                 "</lf-test-worker></lf-test-plan>",
+                "--title",
+                "Thread title",
             ],
         )
 
@@ -675,9 +679,16 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["thread", "reply", "--done", response_reference(page_dir, for_event)]
+            [
+                "thread",
+                "reply",
+                "--done",
+                response_reference(page_dir, for_event),
+                "--title",
+                "Thread title",
+            ]
             if for_event
-            else ["thread", "reply", str(page_dir), to]
+            else ["thread", "reply", str(page_dir), to, "--title", "Thread title"]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -784,6 +795,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
                 '<lf-option id="o1" label="A"><strong>A</strong></lf-option>'
                 "</lf-options></lf-group>"
             ),
+            "--title",
+            "Thread title",
         ],
     )
     assert reply.exit_code != 0
@@ -796,7 +809,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 def test_agent_messages_preserve_a_single_space(page_dir):
     """Only the zero-length string is empty; every typed character reaches the log."""
     empty = CliRunner().invoke(
-        cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
+        cli_model.cli,
+        ["thread", "create", str(page_dir), "--text", "", "--title", "Agent thread"],
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stdout)["error"] == (
@@ -951,7 +965,16 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "The work is ready."],
+        [
+            "thread",
+            "reply",
+            "--done",
+            reference,
+            "--text",
+            "The work is ready.",
+            "--title",
+            "Thread title",
+        ],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -999,9 +1022,9 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
 
     def progress(text, *, proactive=False):
         route = (
-            ["thread", "reply", str(claimed), root["id"]]
+            ["thread", "reply", str(claimed), root["id"], "--title", "Thread title"]
             if proactive
-            else ["thread", "reply", reference]
+            else ["thread", "reply", reference, "--title", "Thread title"]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -1080,6 +1103,8 @@ def test_an_agent_reply_asks_the_user_only_through_a_declared_obligation(page_di
             response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1131,6 +1156,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1277,6 +1304,8 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
                 response_reference(page_dir, event_id),
                 "--text",
                 text,
+                "--title",
+                "Thread title",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1600,6 +1629,8 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
                 response_reference(page_dir, said["id"]),
                 "--text",
                 f"A{n}",
+                "--title",
+                "Thread title",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1790,6 +1821,8 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
             reference,
             "--text",
             f"See:\n\n{markup}" if markup else "See:",
+            "--title",
+            "Thread title",
         ],
     )
     assert result.exit_code != 0, result.output
@@ -1860,6 +1893,8 @@ def test_page_state_reads_reactions_as_marks(page_dir):
             answered["id"],
             "--text",
             "Which part?",
+            "--title",
+            "Thread title",
         ],
     )
     assert posted.exit_code == 0, posted.output
@@ -1902,7 +1937,16 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     def reply(target, text):
         posted = CliRunner().invoke(
             cli_model.cli,
-            ["thread", "reply", str(page_dir), target, "--text", text],
+            [
+                "thread",
+                "reply",
+                str(page_dir),
+                target,
+                "--text",
+                text,
+                "--title",
+                "Thread title",
+            ],
         )
         assert posted.exit_code == 0, posted.output
         return json.loads(posted.output)
@@ -1986,6 +2030,8 @@ def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
             "--obligation",
             "--text",
             "Which part?",
+            "--title",
+            "Thread title",
         ],
     )
     assert answer.exit_code == 0, answer.output

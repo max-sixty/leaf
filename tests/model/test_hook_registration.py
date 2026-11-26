@@ -548,6 +548,8 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
                 "--ephemeral",
                 "--text",
                 "Checking.",
+                "--title",
+                "Check",
             )
         )
         assert asked["id"] in printed, printed

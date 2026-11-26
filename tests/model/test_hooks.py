@@ -1951,6 +1951,8 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
                 envelope["batches"][0]["events"][0]["answer"]["ref"],
                 "--text",
                 "I will add the camera first.",
+                "--title",
+                "Thread title",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -2049,7 +2051,17 @@ def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered
         for event in fresh
     )
     reply = CliRunner().invoke(
-        cli_model.cli, ["thread", "reply", "--done", ref, "--text", "Because."]
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            ref,
+            "--text",
+            "Because.",
+            "--title",
+            "Thread title",
+        ],
     )
     assert reply.exit_code == 0, reply.output
     assert asked["id"] not in {item["input"] for item in owed_answers(claimed)}

@@ -628,6 +628,8 @@ def test_a_message_sample_starts_from_its_message_html(server, page_dir):
             response_reference(page_dir, "aabb0011"),
             "--text",
             f"Try it:\n\n{markup}",
+            "--title",
+            "Thread title",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -2572,6 +2574,8 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
                 '<lf-option id="exhibited-a" label="A"><strong>A</strong></lf-option>'
                 "</lf-options></lf-sample>"
             ),
+            "--title",
+            "Thread title",
         ],
     )
     assert reply.exit_code == 0, reply.output

@@ -753,7 +753,15 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert "anchor" not in event
 
     [anchored] = command_findings(
-        "thread", "create", page_dir, "--quote", "Plan", "--text", "Change this"
+        "thread",
+        "create",
+        page_dir,
+        "--quote",
+        "Plan",
+        "--text",
+        "Change this",
+        "--title",
+        "Agent thread",
     )
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
@@ -1778,7 +1786,13 @@ def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
     version.write_text(PAGE)
     publish(page_dir)
     noted = command_notes(
-        "thread", "create", page_dir, "--text", f"Panes:\n\n<div>\n{panes}\n</div>"
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        f"Panes:\n\n<div>\n{panes}\n</div>",
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values["line"]) for f in noted] == [
         ("pane-header-first", 3),
@@ -2073,6 +2087,8 @@ def test_a_reply_carrying_a_suggestion_posts_and_says_what_deciding_it_changes(
             response_reference(page_dir, "c1"),
             "--text",
             'Fixed: read <lf-suggestion id="sug-x"><lf-old>daily</lf-old><lf-new>weekly</lf-new></lf-suggestion>.',
+            "--title",
+            "Thread title",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -2121,6 +2137,8 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
             reference,
             "--text",
             "Updated.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -2176,6 +2194,8 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
             response_reference(page_dir, "c2"),
             "--text",
             "Updated.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -2211,6 +2231,8 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
             response_reference(page_dir, "c1"),
             "--text",
             "Updated.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -2456,6 +2478,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             'Which store?\n\n<lf-group id="t-ask" label="Store?">\n<h3 id="t-ask-h">Store?</h3>\n<lf-options id="t-store">'
             '<lf-option id="t-sqlite" label="sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-group>",
+            "--title",
+            "Agent thread",
         ).output.splitlines()
     ]
     [renamed] = json.loads(run("thread", "edit", "t-store", "--title", "Store").output)[

@@ -589,7 +589,17 @@ def _replying_after(page, server, edit):
     # A process of its own, as the agent's next command is, so it reads the page as
     # edited rather than as this one remembers it (`page_memory`).
     return subprocess.run(
-        [*LEAF_COMMAND, "thread", "reply", reference, "--ephemeral", "--text", "Hi"],
+        [
+            *LEAF_COMMAND,
+            "thread",
+            "reply",
+            reference,
+            "--ephemeral",
+            "--title",
+            "Greeting",
+            "--text",
+            "Hi",
+        ],
         capture_output=True,
         text=True,
         timeout=STATED_TIMEOUT,

@@ -286,6 +286,8 @@ def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_
             "Checking the change.",
             "--todo",
             "Check the change",
+            "--title",
+            "Thread title",
         ],
     )
     assert opened.exit_code == 0, opened.output

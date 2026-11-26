@@ -247,6 +247,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
             "reply",
             str(d),
             held,
+            "--title",
+            "Reconnect traces",
             "--text",
             "I'll re-run it against the rolling deploy.",
             "--todo",

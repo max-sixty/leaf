@@ -59,6 +59,18 @@ window.HTMLSlotElement.prototype.assignedElements = function (options) {
     ? flattened(this).filter((node) => node.nodeType === Node.ELEMENT_NODE)
     : assignedElements.call(this);
 };
+// An element laid out `display: contents` generates no box, so every engine answers
+// that it is not visible, and gives it no focus unless it hands focus on; happy-dom
+// reads only its ancestors.
+const checkVisibility = window.Element.prototype.checkVisibility;
+const boxless = (element) => window.getComputedStyle(element).display === "contents";
+window.Element.prototype.checkVisibility = function (options) {
+  return !boxless(this) && checkVisibility.call(this, options);
+};
+const focus = window.HTMLElement.prototype.focus;
+window.HTMLElement.prototype.focus = function (options) {
+  if (!boxless(this) || this.shadowRoot?.delegatesFocus) focus.call(this, options);
+};
 // happy-dom answers no composed range, which every engine ships and the runtime reads a
 // selection by (`pageRange`). An end in a shadow root the caller doesn't name moves out
 // to its host's edge, after the host for the range's end, as the DOM's rescoping does.

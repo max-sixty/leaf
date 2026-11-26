@@ -2251,7 +2251,7 @@ wa-copy-button.lf-icon-action {
    mark far below it, in a later lane, still reads against it. The widget places their
    layer behind its lanes, from the ruler's foot to the drawing's, and lets the pointer
    through it. The line is dotted, so it reads under a lane's solid rule, in the
-   contour ink, so it reads on either scheme's ground. A flipped tick's line stands at
+   border ink, so it reads on either scheme's ground. A flipped tick's line stands at
    its box's end, so its gridline does too. */
 .lf-axis-gridline {
   inset-block: 0;

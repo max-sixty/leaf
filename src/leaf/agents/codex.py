@@ -2333,13 +2333,14 @@ UNCONFIRMED_TEXT = (
 
 
 def reply_target_answered(target: dict) -> bool | None:
-    """Whether an answer settled the reply target's input (`thread.answered`), or None
-    when its page no longer exists."""
-    from leaf.agents.thread import answered
+    """Whether an answer settled the reply target's input (`thread.settling_answer`),
+    or None when its page no longer exists."""
+    from leaf.agents.thread import settling_answer
 
     try:
         with PageTransaction(Path(target["page"])) as page:
-            return answered(page.page_dir, page.events, target["responds"])
+            answer = settling_answer(page.page_dir, page.events, target["responds"])
+            return answer is not None
     except FileNotFoundError:
         return None
 

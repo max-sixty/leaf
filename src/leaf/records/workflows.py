@@ -35,20 +35,20 @@ settled, and emits two readings of them, each the one home of its facts:
 A record exists only for an update an operation names: the newest input the agent owes
 an answer in a thread, the newest unsettled owed page action on a widget's unit, an
 update a harness handed back, and every input a reply answered. A thread's waiting
-inputs, such as a message and a pick after it, are the user's turns there
-(`events.owed_turns`) and the user's newest owed action on each unit of a widget a
-message there sent. They wait side by side in the thread's history (`events.settle`) and
-owe one reply, since two would say the same thing twice. That reply is addressed to the
-newest and settles them all, so each older input publishes no record, and its workflow
-names the newest input's record. A widget action that answers no obligation, such as an
-edit to a user-owned draft or a moved card, owes nothing and publishes none. The log
-goes on applying it to later readings of the document, and `page check` makes the next
-version write any part of it the markup must record. Its receipt shows until the
-document takes it in: on the page, until the markup records it or a later version's note
-takes it in (`page_action_unsettled`); in thread markup, which no version rewrites,
-until the agent's next message in that thread or a resolution after it. A settled page
-action leaves the inventory: its widget's own record carries its ending. A turn or an
-owed action the user's resolve closed over keeps its record and its workflow, since that
+inputs are the user's turns there (`events.owed_turns`) and the user's newest owed
+action on each unit of a widget a message there sent, such as a message and a pick after
+it. They wait side by side in the thread's history (`events.settle`) and owe one reply,
+since two would say the same thing twice. That reply is addressed to the newest and
+settles them all, so each older input publishes no record, and its workflow names the
+newest input's record. A widget action that answers no obligation, such as an edit to a
+user-owned draft or a moved card, owes nothing and publishes none. The log goes on
+applying it to later readings of the document, and `page check` makes the next version
+write any part of it the markup must record. Its receipt shows until the document takes
+it in: on the page, until the markup records it or a later version's note takes it in
+(`page_action_unsettled`); in thread markup, which no version rewrites, until the
+agent's next message in that thread or a resolution after it. A settled page action
+leaves the inventory: its widget's own record carries its ending. A turn or an owed
+action the user's resolve closed over keeps its record and its workflow, since that
 resolve settles nothing the agent owes; a closing that answers for the thread, such as
 the agent's own resolve, leaves none (`events.owed_turns`). An update handed back waits
 on the user, so closing the thread over it retires it.
@@ -397,8 +397,7 @@ def handed_over(
     ) -> dict:
         """One update's workflow. `covering` are the starts that take it in hand, from
         which `activity.in_hand` tells whether a start holds it now: the one holding
-        it, and on the input a thread's one reply is addressed to, every start on an
-        input that reply answers."""
+        it, and in a thread every start on an input the thread's one reply answers."""
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
@@ -675,11 +674,11 @@ def handed_over(
         # A failure reply gives up on the input it names and settles every input
         # waiting before it (`events.settle`), so it hands them back to the user as
         # one, on one record. It stands until the user acts in the thread again by
-        # anything that still stands, a turn or an owed action, or an answer settles
-        # something since, such as the turn that failed recovering, whatever became
-        # of it. It waits on the user, so closing the thread over it retires it. One
-        # that fails in a thread already closed still stands: the user's resolve left
-        # the request owed, and nothing else would tell them no answer is coming.
+        # anything that still stands, a turn or an owed action, or the agent settles
+        # something since, whatever became of it. It waits on the user, so closing
+        # the thread over it retires it. One that fails in a thread already closed
+        # still stands: the user's resolve left the request owed, and nothing else
+        # would tell them no answer is coming.
         superseded = max(
             [each.answer["seq"] for each in walked.settlements]
             + [turn["seq"] for turn in turns if turn["author"] != "agent"]
@@ -689,20 +688,13 @@ def handed_over(
         )
         for each in walked.settlements:
             response = each.answer
-            returned = [
-                inputs[identity]
-                for identity in dict.fromkeys(turn["id"] for turn in each.turns)
-                if identity in inputs
-            ]
             if (
                 not response.get("failure")
                 or superseded > response["seq"]
-                or not returned
+                or response["responds"] not in inputs
             ):
                 continue
-            # The record stands on the newest input handed back that still stands,
-            # the one the failure names unless the user has since taken it back.
-            named, subject, _at = returned[-1]
+            named, subject, _at = inputs[response["responds"]]
             handed_back = publish(
                 update_obligation(
                     named["id"],
@@ -714,8 +706,10 @@ def handed_over(
                     next_actor="user",
                 )
             )
-            for source, on, at in returned:
-                workflows.append(failed(source, on, at, response, handed_back))
+            for identity in dict.fromkeys(turn["id"] for turn in each.turns):
+                if identity in inputs:
+                    source, on, at = inputs[identity]
+                    workflows.append(failed(source, on, at, response, handed_back))
         # The user's turns the agent owes and their owed actions on widgets sent
         # here wait as one batch. Every exact input keeps its own transport/work
         # evidence, and the response contract coalesces the batch onto the newest

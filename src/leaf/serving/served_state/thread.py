@@ -10,7 +10,6 @@ from leaf.log.events import (
     owed_turns,
     progress_completions,
     seat_root,
-    settling_answer,
     spoken_turns,
 )
 from leaf.log.projection import ThreadMarkupReading
@@ -177,9 +176,6 @@ def browser_thread(
         live_reply is not None
         and live_reply["text"]
         and not any(_answers_live_reply(event, live_reply) for event in events)
-        # An answer to a newer input in its thread settled the reply's input too, so
-        # the turn's final message will yield to it (`thread.ProviderFinal`).
-        and settling_answer(threads, live_reply["responds"]) is None
     ):
         target = next(
             (

@@ -27,7 +27,7 @@ from leaf.log.events import (
     active_summaries,
     build_threads,
     is_answer,
-    settling_answer,
+    settle,
     taken_back,
     thread_structure,
 )
@@ -564,11 +564,18 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
     return asked
 
 
-def answered(page_dir: Path, events: list[dict], responds: str) -> bool:
-    """Whether an answer settled the input `responds` names on the page, by naming it
-    or a newer input in its thread (`events.settling_answer`)."""
-    threads = build_threads(events, active_enclosing(page_dir))
-    return settling_answer(threads, responds) is not None
+def settling_answer(page_dir: Path, events: list[dict], responds: str) -> dict | None:
+    """The agent's answer that settled the input `responds` names, by naming it or an
+    input after it in its thread (`events.settle`), where the input waits no more;
+    else None. A failure receipt is no answer."""
+    for thread in build_threads(events, active_enclosing(page_dir)).values():
+        settled = settle(thread)
+        if any(turn["id"] == responds for turn in settled.waiting):
+            return None
+        for each in reversed(settled.settlements):
+            if any(turn["id"] == responds for turn in each.turns):
+                return each.answer if is_answer(each.answer) else None
+    return None
 
 
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
@@ -592,7 +599,7 @@ class ProviderFinal:
 
     It keeps that address after the user settled the update, but yields to an answer
     another writer already gave it, to the update or to a newer input in its thread
-    (`answered`; a failure receipt is no answer), so a turn's answer
+    (`settling_answer`; a failure receipt is no answer), so a turn's answer
     committed after its reservation lapsed never answers twice; and it writes nothing
     once another delivery holds the address."""
 
@@ -871,7 +878,7 @@ def _resolve_obligation(
     if (
         isinstance(settlement, ProviderFinal)
         and responds is not None
-        and answered(page_dir, events, responds)
+        and settling_answer(page_dir, events, responds)
     ):
         return None
     responses = current_responses(page_dir, events)

@@ -193,6 +193,7 @@
               <ul>
                 <li><a href="#architecture">Pages, core, and packages</a></li>
                 <li><a href="#architecture-parts">Responsibilities and state</a></li>
+                <li><a href="#browser-and-server">Browser and server</a></li>
                 <li><a href="#exchange">The exchange</a></li>
                 <li><a href="#specification-map">Find the right guide</a></li>
               </ul>
@@ -307,6 +308,56 @@ flowchart TD
               runtime and composes its layer from the recorded selection. Historical
               revisions keep authored content and recorded decisions, while the serving
               Leaf supplies the code that draws them.
+            </p>
+          </section>
+          <section id="browser-and-server">
+            <h2>Browser and server</h2>
+            <p id="browser-and-server-lede">
+              A page runs as two programs that share no memory: Leaf's
+              <a href="#browser-state">browser runtime</a>, in each tab that shows the
+              page, and the page's server, a Python process. The server learns what the
+              user did only from what a browser sends it. A widget deals only with the
+              runtime: the runtime sets the element's <code>state</code> property, and
+              the element dispatches <code>lf-action</code>, or <code>lf-undo</code>, to
+              say what the user did (<a href="#widgets">Widgets</a>).
+            </p>
+            <figure id="browser-and-server-figure" class="diagram-figure">
+              <lf-diagram id="browser-and-server-sequence" data-height="424">
+                <pre>
+sequenceDiagram
+  accTitle: One pick, from the widget to the log and back
+  accDescr: The widget dispatches lf-action. Leaf's runtime sets the widget's state at once, so the pick shows, and posts the action to the page's server. The server validates it against the registry, appends it to events.jsonl and reads the markup and the log again. It answers with the recorded event and its new reading, and the runtime sets each widget's state from that reading.
+  participant W as Widget
+  participant R as Leaf's runtime
+  participant S as Page's server
+  participant L as events.jsonl
+  W-&gt;&gt;R: lf-action {verb, detail}
+  R--&gt;&gt;W: sets state: the pick shows
+  R-&gt;&gt;S: POST /api/event
+  Note over S: validates against the registry
+  S-&gt;&gt;L: appends the action
+  Note over S: reads markup and log again
+  S-&gt;&gt;R: the event and the new reading
+  R--&gt;&gt;W: sets state from the reading
+</pre>
+              </lf-diagram>
+              <figcaption id="browser-and-server-caption">
+                <strong>One pick, from the widget to the log and back.</strong> The
+                runtime
+                <a href="#browser-updates">draws the pick before the request leaves</a>,
+                and a refusal returns the widget to the server's state. Other tabs hear
+                of the change through their
+                <a href="#browser-freshness">freshness checks</a> and read
+                <code>GET /api/state</code>.
+              </figcaption>
+            </figure>
+            <p id="browser-and-server-reading">
+              Facts that depend on the whole log, such as which questions still wait on
+              the user, arrive with the server's reading rather than with the gesture.
+              The server computes every reading from the authored markup and the log,
+              without running any widget's module, so the agent's deliveries, its
+              turn-end check and <code>leaf page state</code> see the same state with no
+              tab open.
             </p>
           </section>
           <section id="exchange">
@@ -2088,7 +2139,7 @@ flowchart TD
   Door -- "record" --&gt; Log[("events.jsonl")]
   Log -- "derive state" --&gt; Fold["State"]
   Initial["Authored initial values"] --&gt; Fold
-  Fold -- "render()" --&gt; Widget
+  Fold -- "state" --&gt; Widget
 </pre>
             </lf-diagram>
             <table id="layers-table">

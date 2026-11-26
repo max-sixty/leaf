@@ -123,10 +123,10 @@ from leaf.agents.codex_state import (
     delivery_lock_path,
     delivery_turn,
     hook_turn,
-    sync_transcript_turn,
 )
 from leaf.agents.delivery import stream_reply_target
 from leaf.agents.thread import delivery_reply_reserved
+from leaf.base.codex_transcript import sync_transcript_turn
 from leaf.base.detached import Handshake, starting_detached
 from leaf.base.harness import CodexHarness, Harness, session_harness
 from leaf.base.leases import (

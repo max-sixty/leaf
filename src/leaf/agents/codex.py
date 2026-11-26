@@ -108,7 +108,6 @@ from leaf.agents.codex_state import (
     delivery_dir,
     delivery_lock_path,
     hook_turn,
-    reverse_transcript_lines,
 )
 from leaf.agents.delivery import (
     DELIVERY,
@@ -129,12 +128,14 @@ from leaf.agents.delivery import (
     stream_reply_target,
     validate_delivery_id,
 )
+from leaf.base.codex_transcript import reverse_transcript_lines
 from leaf.base.harness import CodexHarness, Harness
 from leaf.base.json_block import json_block
 from leaf.base.refusals import Refused
 from leaf.base.service import delivery_reply_attempt
 from leaf.base.state import (
     Record,
+    aware_instant,
     close_session_turn,
     flocked,
     renew_turn,
@@ -152,7 +153,6 @@ from leaf.records.transaction import (
     owned_pages,
     restore_page_claim,
 )
-from leaf.source.registry.schema import aware_instant
 
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand

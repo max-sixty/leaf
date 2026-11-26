@@ -67,6 +67,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from xml.etree import ElementTree
 
+from leaf.agents.codex_state import confirm_codex_pointer
 from leaf.base.harness import session_harness
 from leaf.base.json_block import json_block, read_json_block
 from leaf.base.refusals import Refused
@@ -1425,23 +1426,21 @@ def receive_delivery(delivery_id: str) -> list[Path]:
 
     The explicit acknowledgement command, `leaf delivery ack`, proves the
     consumer is running even if its prompt hook failed. The canonical opener preserves known provider
-    lifecycle authority. Pointer receipt also retains its origin's reservation,
-    including the exact turn a Codex hook offered it to
-    (`Harness.receive_pointer`). Explicit confirmation is strict: a transferred
-    page or ended turn reports refusal rather than silently accepting a partial
-    receipt. Automatic hook and provider receipts observe an already-open turn
-    through `receive` instead.
+    lifecycle authority. Pointer receipt also retains its origin's reservation:
+    where the session's input travels through a delivery record its hooks offer
+    from (`Harness.adapter`), it keeps the exact turn a hook offered the pointer
+    to (`codex_state.confirm_codex_pointer`). Explicit confirmation is strict: a
+    transferred page or ended turn reports refusal rather than silently accepting
+    a partial receipt. Automatic hook and provider receipts observe an already-open
+    turn through `receive` instead.
     """
     payload = read_delivery(delivery_id)
     acting_on_delivery(payload)
     harness = session_harness()
     if harness:
         open_session_turn(harness.session)
-        if (
-            payload["acknowledge"] is None
-            and (received := harness.receive_pointer(payload)) is not None
-        ):
-            return received
+        if payload["acknowledge"] is None and harness.adapter:
+            return confirm_codex_pointer(harness.session, payload)
     return receive(payload, harness.session if harness else None)
 
 

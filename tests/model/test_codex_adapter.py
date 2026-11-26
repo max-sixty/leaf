@@ -54,6 +54,7 @@ from leaf.agents import codex_desktop as codex_desktop_model
 from leaf.agents import codex_state as codex_state_model
 from leaf.agents import delivery as delivery_model
 from leaf.agents import thread as thread_model
+from leaf.base import codex_transcript as codex_transcript_model
 from leaf.base import files as files_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
@@ -1197,12 +1198,12 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     capsys.readouterr()
     append("task_started", "resumed", partial=True)
     before = cleanup_model.session_record("codex-thread")
-    assert codex_state_model.sync_transcript_turn("codex-thread") == before
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == before
     with source.open("a") as stream:
         stream.write("\n")
     # Hooks start cold in separate processes; their ordering proof must also
     # work without the resident adapter's earlier source reading.
-    codex_state_model.transcript_turns.cache_clear()
+    codex_transcript_model.transcript_turns.cache_clear()
     comment = append_carried_log_record(
         page_dir,
         {
@@ -1260,12 +1261,14 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
         [comment["id"]],
     )
     append("task_complete", "prior")
-    sync_transcript_turn_result = codex_state_model.sync_transcript_turn("codex-thread")
+    sync_transcript_turn_result = codex_transcript_model.sync_transcript_turn(
+        "codex-thread"
+    )
     assert sync_transcript_turn_result is not None
     assert sync_transcript_turn_result["turn_closed"] is None
     append("task_complete", "resumed")
-    codex_state_model.transcript_turns.cache_clear()
-    closed = codex_state_model.sync_transcript_turn("codex-thread")
+    codex_transcript_model.transcript_turns.cache_clear()
+    closed = codex_transcript_model.sync_transcript_turn("codex-thread")
     assert closed is not None
     assert closed["turn_closed"] is not None
     hooks_model.cmd_hook(
@@ -1279,15 +1282,17 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     assert cleanup_model.session_record("codex-thread") == closed
     # A newer prompt can precede its native transcript append.
     newest = cleanup_model.prompt_turn("codex-thread", "newest")
-    codex_state_model.transcript_turns.cache_clear()
-    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
+    codex_transcript_model.transcript_turns.cache_clear()
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == newest
     foreign = tmp_path / "other.jsonl"
     foreign.write_text(source.read_text().replace('"codex-thread"', '"other-session"'))
-    assert codex_state_model.sync_transcript_turn("codex-thread", foreign) == newest
+    assert (
+        codex_transcript_model.sync_transcript_turn("codex-thread", foreign) == newest
+    )
     # Replacing the source with an earlier prefix is another lagging reading,
     # rather than proof that the new prompt ended or moved backwards.
     source.write_text("\n".join(source.read_text().splitlines()[:2]) + "\n")
-    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == newest
 
 
 def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
@@ -1499,7 +1504,7 @@ def _comment_before_the_first_tool_step(
     else:
         prompt("earlier-turn")
         append("task_complete", "earlier-turn")
-        codex_state_model.sync_transcript_turn("codex-thread")
+        codex_transcript_model.sync_transcript_turn("codex-thread")
         cleanup_model.session_file("codex-thread", cleanup_model.HOOKS_SUFFIX).unlink()
         append("task_started", "user-turn")
     comment = append_carried_log_record(

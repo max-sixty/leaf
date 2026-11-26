@@ -253,7 +253,7 @@ save may have reached the file. `watch(callback)` calls
 back whenever the file may have changed on disk or its label changed, the widget's own
 save included, so read it again then. `beside(path)` gives the address the page's own
 server answers a file at by its path from the bound file's folder, such as a picture
-a README names, `../` included. `writable` is false in captured documents and exports. Editing the file
+a README names, `../` included, or `null` where the page isn't `writable`. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
 package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
 travel with the page. A widget that only shows the file binds it as a source by its

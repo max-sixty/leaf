@@ -55,12 +55,15 @@ export function boundFile(binding) {
       return label();
     },
     // The address the page's own server answers a file at by its path from the bound
-    // file's folder, such as a picture a README names, `../` included.
+    // file's folder, such as a picture a README names, `../` included, or null where
+    // the page can't reach its server's files, as in an export.
     /** @param {string} path */
     beside: (path) =>
-      pageUrl(
-        `api/files/${encodeURIComponent(binding)}/beside?path=${encodeURIComponent(path)}`,
-      ),
+      writable()
+        ? pageUrl(
+            `api/files/${encodeURIComponent(binding)}/beside?path=${encodeURIComponent(path)}`,
+          )
+        : null,
     // The server answers a binding the page lacks as no file, keeping the console
     // clean for a designed state; the editor still shows it as unavailable.
     read: async () => {

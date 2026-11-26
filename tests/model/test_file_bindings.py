@@ -26,6 +26,7 @@ from interact_support import (
 )
 
 from leaf.base.locations import PATH_LOCKS, path_lock_key
+from leaf.base.state import state_home
 from leaf.commands.cli import cli
 from leaf.log.construction import input_readings
 from leaf.records.page_data import cmd_data_clear, cmd_data_set
@@ -417,8 +418,14 @@ def test_a_live_page_answers_the_files_a_bound_file_names_sandboxed(
         assert answer.headers["Content-Security-Policy"] == "sandbox"
     assert fetch(address, token=None)[0] == 401
     assert fetch(f"{server}/api/files/readme/beside?path=missing.png")[0] == 404
-    state = urllib.parse.quote(str(page_dir / "files.json"))
-    assert fetch(f"{server}/api/files/readme/beside?path={state}")[0] == 404
+    kept = state_home() / "kept.txt"
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    kept.write_text("private\n")
+    beside = f"{server}/api/files/readme/beside?path="
+    assert fetch(beside + urllib.parse.quote(str(kept)))[0] == 404
+    shared = tmp_path / "shared.txt"
+    shared.write_text("shared\n")
+    assert fetch(beside + urllib.parse.quote(str(shared))) == (200, b"shared\n")
 
 
 def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(

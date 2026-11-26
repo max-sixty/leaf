@@ -1237,9 +1237,10 @@ class TextDocument extends LeafElement {
       const beside = (reference) => {
         if (reference === null || URL.parse(reference) || /^[/?#]/.test(reference))
           return null;
-        const path = reference.split(/[?#]/)[0] ?? "";
+        const path = reference.split(/[?#]/)[0];
+        if (!path) return null;
         try {
-          return path && files.beside(decodeURIComponent(path));
+          return files.beside(decodeURIComponent(path));
         } catch {
           return files.beside(path);
         }

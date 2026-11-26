@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createHintSession, codedHints } from "/runtime/readings/key-badges/hints.js";
+import { declareCover } from "/runtime/dom/geometry.js";
 import { setQuickShortcuts } from "/runtime/dom/keyboard/bindings.js";
 import { commandScope, keys } from "/runtime/dom/keyboard/scopes.js";
 import { liveEl } from "/runtime/transport/notifications.js";
@@ -59,10 +60,11 @@ function hintMap(t, names) {
     return links.get(name);
   };
   let inView = names;
-  // Links the chrome covers, the boxes it stands in, and the filter on the map.
+  // Links the chrome covers, the covers it declares over them (dom/geometry.js,
+  // `declareCover`), and the filter on the map.
   let covered = new Set();
-  /** @type {DOMRect[]} */
-  let barriers = [];
+  /** @type {(() => void)[]} */
+  let covers = [];
   let keep = () => true;
   let boxReads = 0;
   const taken = [];
@@ -103,7 +105,6 @@ function hintMap(t, names) {
       describe: (candidate) => `Link, ${candidate.name}`,
       all: "All hints.",
     },
-    chrome: { barriers: () => barriers },
   });
   session.mount();
   const [walk, choose] = session.walkRows({
@@ -122,6 +123,7 @@ function hintMap(t, names) {
     session.disarm();
     layer.remove();
     for (const node of links.values()) node.remove();
+    for (const release of covers) release();
   });
   return {
     session,
@@ -131,7 +133,11 @@ function hintMap(t, names) {
     // Covers links with the chrome, as the panel growing over them does.
     cover: (names) => {
       covered = new Set(names);
-      barriers = names.map((name) => links.get(name).getBoundingClientRect());
+      for (const release of covers) release();
+      covers = names.map((name) => {
+        const box = links.get(name).getBoundingClientRect();
+        return declareCover(document.createElement("div"), () => box);
+      });
     },
     boxReads: () => boxReads,
     filter: (matches) => {

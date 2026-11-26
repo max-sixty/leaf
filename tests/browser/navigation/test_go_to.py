@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
 from render_cases_navigation import (
     ADDRESSED_PAGE,
+    BINDING_BADGE_PAGE,
     CHIPS,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
@@ -736,8 +737,11 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
 def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve):
     """Go-to's map holds the controls Leaf draws over the page as it holds the page's
     own: with Threads open, the floating panel's tabs and the leaf wear chips, and a
-    tab's code presses that tab. The ✕ and the field's Close that end Go-to wear none,
-    since each would only do what Escape does (panel/floating-panel.js, `heldByStance`)."""
+    tab's code presses that tab, though Go-to arms as the Threads view fades in. Each
+    tab's chip stands on the tab's words rather than on its box's corner, in the
+    padding it shares with the tab before it. The ✕ and the field's Close that end
+    Go-to wear none, since each would only do what Escape does
+    (panel/floating-panel.js, `heldByStance`)."""
     page = open_page(
         browser,
         serve(
@@ -757,14 +761,20 @@ def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve)
     expect(page.locator(".lf-fp-row > .lf-fp-exit")).to_have_accessible_name(
         "Close Go to"
     )
-    # A resize reads the map again, now over the row Go-to has drawn.
-    resized(page, 1100, 760)
     routes = heard_routes(page)
     assert {"Link, One", "Control, Menu", "Control, On Me", "Control, Threads"} <= set(
         routes
     ), routes
     assert any(route.startswith("Control, Page menu") for route in routes), routes
     assert not [route for route in routes if "Go to" in route or "esc" in route], routes
+    for name in ("Menu", "On Me", "Threads"):
+        tab = page.locator(".lf-fp-tab", has_text=name).bounding_box()
+        chip = page.locator(
+            f'{CHIPS}[data-lf-hint-code="{routes[f"Control, {name}"]}"]'
+        ).bounding_box()
+        assert tab and chip, name
+        middle = (chip["x"] + chip["width"] / 2, chip["y"] + chip["height"] / 2)
+        assert middle[0] > tab["x"] + 2 and middle[1] > tab["y"] + 2, (name, chip, tab)
 
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
@@ -811,11 +821,56 @@ def test_a_message_s_controls_wear_chips_only_while_they_show(browser, serve):
     assert "Control, Add reaction" in heard_routes(page)
 
 
+def test_a_decision_s_picks_keep_their_chips_when_go_to_arms_on_it(browser, serve):
+    """On a decision, each option's pick stands transparent under its digit until Go-to,
+    arming, takes the digits away in the frame it paints. The map is read from that
+    scene, so every pick wears a chip."""
+    page = open_page(browser, serve(BINDING_BADGE_PAGE))
+    page.keyboard.press("m")
+    page.keyboard.press("Tab")
+    expect(page.locator("#c-heater > .lf-key-badge")).to_be_visible()
+    page.keyboard.press("g")
+    routes = heard_routes(page)
+    for name in ("Immersion heater", "Heated cable", "Break the ice"):
+        assert [route for route in routes if name in route], (name, routes)
+
+
+def test_a_copy_control_s_code_copies(browser, serve):
+    """Web Awesome copies on a click of the button it draws inside its copy control, so
+    the control answers Go-to's press of its host the same way, and a code block's
+    Copy wears a chip whose code copies the block's source."""
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Copy by code",
+                '<h1 id="top">Copy by code</h1><pre id="run"><code>echo hello</code></pre>',
+            )
+        ),
+        context=context,
+    )
+    page.evaluate("navigator.clipboard.writeText('kept')")
+    page.locator("#run").hover()
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    routes = heard_routes(page)
+    copy = next((code for route, code in routes.items() if "Copy" in route), None)
+    assert copy, routes
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.type(copy)
+    page.wait_for_function(
+        "() => navigator.clipboard.readText().then(text => text.trim() === 'echo hello')"
+    )
+
+
 def heard_routes(page):
-    """Walk the armed map aloud, each hint once, and answer each route it says with the
-    code that takes it."""
+    """Walk the armed map aloud, each hint once, once it has said what it holds, and
+    answer each route it says with the code that takes it."""
     rendered(page)
     live = page.locator(".lf-live")
+    expect(live).to_have_text(re.compile(r"^Go to — \d+ visible target"))
     heard = []
     for _ in range(page.locator(CHIPS).count()):
         page.keyboard.press("Tab")
@@ -823,7 +878,7 @@ def heard_routes(page):
         if heard:
             expect(live).not_to_have_text(heard[-1])
         heard.append(live.text_content())
-    said = [re.fullmatch(r"Hint (\w+): (.+?)\. Enter.*", one) for one in heard]
+    said = [re.fullmatch(r"Hint (\w+): (.+?)\.? Enter.*", one) for one in heard]
     assert all(said), heard
     return {match.group(2): match.group(1) for match in said if match}
 

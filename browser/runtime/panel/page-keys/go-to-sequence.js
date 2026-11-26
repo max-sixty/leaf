@@ -71,6 +71,7 @@ import {
   nativePress,
 } from "../../dom/keyboard/bindings.js";
 import { keyBadgePlacement } from "../../readings/key-badges/key-badge-placement.js";
+import { drawnBox } from "../../dom/geometry.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -121,7 +122,6 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @typedef {Object} GoToOptions
  * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "agent" | "leaves">} doors
  * @property {(element: Element) => boolean} heldByStance
- * @property {import("../../readings/key-badges/hints.js").HintChrome} hintChrome
  * @property {() => unknown} openPageMap
  * @property {() => readonly Command[]} directDestinations
  * @property {ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToElement"]} scrollToElement
@@ -134,7 +134,6 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 export function createGoToSequence({
   doors,
   heldByStance,
-  hintChrome,
   openPageMap,
   directDestinations,
   scrollToElement,
@@ -393,6 +392,9 @@ export function createGoToSequence({
         if (unavailable) continue;
         const rect = placement.badgeBox(member);
         if (!rect || !placement.exposes(member, rect, candidate.exposure)) continue;
+        // A chip hangs off the corner of what its target draws in that box, its words or
+        // glyph, rather than the box's, which can begin in padding nearer a neighbour's.
+        const { left, top } = drawnBox(member, rect) ?? rect;
         seen.add(member);
         const says =
           member.getAttribute("aria-label")?.trim() ||
@@ -400,7 +402,7 @@ export function createGoToSequence({
           addressableSays(member) ||
           visibleWords(member) ||
           candidate.kind;
-        found.push({ ...candidate, order, rect, says });
+        found.push({ ...candidate, order, rect, at: { left, top }, says });
       }
     found.sort(
       (left, right) =>
@@ -477,8 +479,8 @@ export function createGoToSequence({
         model: goToHintModel(candidate, candidate === current),
         target: candidate.rect,
         placement: "corner",
-        left: candidate.rect.left,
-        top: candidate.rect.top,
+        left: candidate.at.left,
+        top: candidate.at.top,
       })),
     template: goToHintTemplate,
     take: (candidate) => {
@@ -489,7 +491,6 @@ export function createGoToSequence({
       describe: (candidate) => `${candidate.kind}, ${candidate.says}`,
       all: "All go-to hints.",
     },
-    chrome: hintChrome,
   };
   const hints = createHintSession(hintOptions);
 

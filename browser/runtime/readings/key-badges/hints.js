@@ -31,8 +31,8 @@
    first, so it shows wherever its target leaves room for one. A withheld chip's code
    still takes it, as every member's does. Rejected: showing every chip,
    moved up or down as far as a free seat lies, which slides a crowded column's chips
-   rows past their targets. Geometry belongs to each caller and is passed in so this module
-   introduces no ownership cycle through its callers. */
+   rows past their targets. Where each member stands belongs to its caller; where the
+   chrome stands, every map reads alike (dom/geometry.js, `coverBoxes`). */
 import {
   bindingEnabled,
   cycledRow,
@@ -47,8 +47,9 @@ import {
 import { saying } from "../../dom/keyboard/control-keys.js";
 import { clamp, overlaps, overlapsAcross } from "../../dom/rect.js";
 import { chipSeats } from "./chip-seats.js";
-import { layoutWindow } from "../../dom/geometry.js";
+import { coverBoxes, layoutWindow } from "../../dom/geometry.js";
 import { scrollDrawn, scrolling, watchScrollEnds } from "../../dom/arrivals.js";
+import { nextFrame } from "../../lib/frame-pass.js";
 import { announce } from "../../transport/notifications.js";
 import { repaint } from "../../dom/repaint.js";
 
@@ -523,6 +524,25 @@ export function seatHints(faces, { band, viewport, browsed }) {
   return faces.map((face) => ({ face, box: boxes.get(face) ?? null }));
 }
 
+// The scene the next frames draw (`arm`): drawn, then every finite fade under way ended.
+const settled = () =>
+  (
+    scrollDrawn() ??
+    new Promise((drawn) => nextFrame(() => nextFrame(() => drawn(undefined))))
+  ).then(() =>
+    Promise.allSettled(
+      document.getAnimations().flatMap((animation) => {
+        const effect = animation.effect;
+        return animation.playState === "running" &&
+          effect instanceof KeyframeEffect &&
+          effect.getComputedTiming().endTime !== Infinity &&
+          effect.getKeyframes().some((key) => "opacity" in key)
+          ? [animation.finished]
+          : [];
+      }),
+    ),
+  );
+
 /* One armed map over a caller's scene.
 
    `read` takes one reading of the scene: which members the map holds, what codes name
@@ -550,24 +570,22 @@ export function seatHints(faces, { band, viewport, browsed }) {
    measuring every member again on each paint to notice a move, a hit test per chip,
    which made each Tab cost what the map held.
 
-   `chrome.barriers` reads the fixed furniture the placement pass must keep clear. Asked
-   of a member, it leaves out the surface the member stands on, so the chip naming a
-   tab of the floating panel stands on the panel; asked of none, it reads every cover,
-   and the map is read again when they move.
+   Each chip keeps clear of the boxes the chrome covers, but for the surface its own
+   member stands on (`coverBoxes`), so the chip naming a tab of the floating panel
+   stands on the panel; the map is read again when any cover moves.
    A map stands through a scroll once it has stood still long enough to be read: its
    chips ride with the things they name (chip-seats.js), so the codes the user is
    reading stay where they were read and stay pressable, while membership and seats
    wait for the scene to settle. A map armed into a page already in flight has stood
    still for nobody, and shows nothing until it settles rather than putting codes on a
    scene that is leaving. */
-/** @typedef {{barriers: (member?: Element) => HintBarrier[]}} HintChrome */
 /** @template {{code: string}} C
  * @template {{key: unknown, className: string}} M
  * @typedef {{layer: HTMLElement, read: () => C[], identity: (candidate: C) => Element,
  * kept?: (candidate: C) => boolean,
  * layout: (candidates: C[], options: {current: C | undefined}) => {candidate: C, model: M, left: number, top: number, target: HintBox, placement: HintPlacement}[],
  * template: (model: M) => unknown, take: (candidate: C) => unknown,
- * words: {describe: (candidate: C) => string, all: string}, chrome: HintChrome}} HintSessionOptions
+ * words: {describe: (candidate: C) => string, all: string}}} HintSessionOptions
  */
 /** @template {{code: string}} C @template {{key: unknown, className: string}} M
  * @param {HintSessionOptions<C, M>} options */
@@ -580,7 +598,6 @@ export function createHintSession({
   template,
   take: takeCandidate,
   words,
-  chrome,
 }) {
   let armed = false;
   let prefix = "";
@@ -648,27 +665,33 @@ export function createHintSession({
       : -1;
   }
 
-  // The map stands on a scene the browser has drawn (dom/arrivals.js, `scrollDrawn`). A
+  // The map stands on the scene arming draws, once the fades under way in it end. A
   // scroll a script has just written, as `g` writes landing the glides under way, leaves
-  // a box anchored to what it moved where it stood until the next rendering update, so a
-  // map read then would name a margin entry the thread card the walk opened is arriving
-  // to cover, and Tab would walk to it. Armed before then, the map is read at once, for
-  // a key typed in those frames, and read again once the scene is drawn, unless a
-  // letter typed meanwhile holds it; `then` hears what the map found once it stands on
-  // the drawn scene.
-  /** @type {Promise<void> | null} */
+  // a box anchored to what it moved where it stood until the next rendering update
+  // (dom/arrivals.js, `scrollDrawn`), so a map read then would name a margin entry the
+  // thread card the walk opened is arriving to cover, and Tab would walk to it. Arming
+  // changes the scene too, in the frame it paints, as a decision's picks show again
+  // once their digits go. And a box fading in, as a panel view or a thread card does
+  // as it opens, holds controls whose place in the map turns on where its fade ends.
+  // Armed before then, the map is read at once, for a key typed in those frames, and
+  // read again once the scene is drawn and every finite fade under way has ended,
+  // unless a letter typed meanwhile holds it; `then` hears what the map found then,
+  // unless the user has typed or walked meanwhile.
+  /** @type {Promise<unknown> | null} */
   let reading = null;
   /** @param {(found: C[]) => void} [then] */
   function arm(then = () => {}) {
     armed = true;
     hold(read());
-    const drawn = (reading = scrollDrawn());
-    if (!drawn) return then(candidates);
+    const drawn = (reading = settled());
     drawn.then(() => {
       if (!armed || reading !== drawn) return;
       reading = null;
+      // A letter or a walk meanwhile has answered in its own words, which the map's
+      // would cut off.
+      const answered = prefix !== "" || at >= 0;
       if (!prefix) readAgain();
-      then(candidates);
+      if (!answered) then(candidates);
       repaint();
     });
   }
@@ -808,7 +831,7 @@ export function createHintSession({
         at: { left: plan.left, top: plan.top },
         target: plan.target,
         placement: plan.placement,
-        barriers: chrome.barriers(element),
+        barriers: coverBoxes(element),
         browsed: plan.candidate === browsed,
       };
     });
@@ -874,7 +897,7 @@ export function createHintSession({
     const wasWalking = at >= 0;
     const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate).isConnected);
-    const barriers = chrome.barriers();
+    const barriers = coverBoxes();
     // Chrome the user has opened over the page, such as a panel view, covers other boxes
     // than the reading saw.
     const covered = seating !== null && !sameBoxes(barriers, seating.barriers);

@@ -38,7 +38,6 @@ const goTo = createGoToSequence({
   },
   heldByStance: () => false,
   openPageMap: () => {},
-  hintChrome: { barriers: () => [] },
   directDestinations: () => [],
   scrollToElement: () => {},
   leavesOffered: () => false,

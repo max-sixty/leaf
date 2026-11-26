@@ -79,9 +79,18 @@ export function copyControl(
         role,
         className,
         undefined,
-        { action },
+        { action, pressable: true },
       )
     : offer("wa-copy-button", className);
+  // Web Awesome copies on a click of the button it draws, so a click on the host
+  // itself, as Go-to's press is, presses that button: the host keeps the press
+  // contract it opts into above (lib/controls.js, `offerElement`). A trigger is its
+  // own press.
+  if (role)
+    copy.addEventListener("click", (event) => {
+      if (event.composedPath()[0] === copy && !copiesThroughSelection())
+        copyTrigger(copy)?.click();
+    });
   // A role draws its action's symbol as the host's first child, which the copy icon's
   // slot then takes.
   const symbol =

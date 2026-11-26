@@ -296,7 +296,8 @@ session.</p></details>
 # A chip a typed letter or a filter rules out keeps its seat, hidden, so a count of the
 # map the user sees counts `:visible` chips. The map holds Leaf's own controls too, the
 # floating panel's leaf on every page, so a count of a page's links and folds counts
-# `ROUTE_CHIPS`, the chips of every kind but a control's.
+# `ROUTE_CHIPS`, the chips of every kind but a control's, the page's own presses
+# left out with Leaf's.
 CHIPS = ".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]"
 ROUTE_CHIPS = f'{CHIPS}:not([data-lf-go-to-kind="Control"])'
 

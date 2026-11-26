@@ -733,7 +733,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
 
     assert page.evaluate(
         """async () => {
-          window.localController = (await window.__lfWidgetApi()).widgetController;
+          window.localController = (await window.__lfCheckApi()).controllerOf;
           window.pageLocal = document.querySelector('#page-local');
           return localController(pageLocal)
             .dispatch({kind: 'undo', target: 'not-a-candidate'}) === null;

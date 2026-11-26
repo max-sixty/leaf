@@ -22,7 +22,7 @@ leave alone, such as which panel they opened. State a module keeps in `localStor
 IndexedDB or memory never reaches another device or the agent, and Undo can't take it
 back.
 
-## The widget controller
+## Reading and recording state
 
 A registry-declared widget draws its state from `state`, the property Leaf sets,
 records a gesture with an `lf-action` event and takes one back with `lf-undo`
@@ -37,31 +37,14 @@ none either; its parent draws it from its own state. Leaf itself draws what the
 declaration alone decides, such as hiding a suggestion's `lf-old` once it is accepted
 (`retired-when`).
 
-`widgetController(owner)` reads the rest of what Leaf holds for a widget, the module's
-own or another's, through `read` and `dispatch`. `read()` is a page
-reading (`module-reading.md`, "Page readings"), so a `LeafElement` whose `render()`
-calls it draws again when it changes. Another element's `state`
-property is not a page reading, and nothing tells a widget that read it when Leaf
-sets it again. If the widget's id has changed since upgrade, `read()` reports every
-action unavailable and `dispatch()` returns `null`. `read()` returns an immutable `{authored, state, memberships, thread,
-provenance, actions}`. `authored` is the state the page's markup sets, and `state` that with every
-recorded action applied, including the user's latest gestures before the server admits
-them. `memberships` maps each attribute an `attribute` record marks to the ids of the
-members the widget currently owns. `thread.heldBy` is the id of the open Thread whose
-opening message holds this widget, or `null`. Each entry in `actions` says whether the
-action is `available`, why not in `unavailable` (a phrase such as `no agent or server is
-available`, or `null`), and what Undo can take back; check it before changing anything
-for the action. Before the document has loaded, `authored` and `state` may be missing, and
-Leaf sets no `state` on the element until it holds every declared verb.
+Nothing tells a widget that reads another element's `state` when Leaf sets it again.
+A widget that follows another reads that widget's output
+([package-data.md, "Widget outputs"](package-data.md#widget-outputs)).
 
-`says` names a gesture in the widget's words, such as `Chose “Fast”`. Leaf's
-acknowledgement shows it, and so does Undo in the tab that made the gesture, so post no
-notice of your own for it; another tab, or this one after a reload, names the gesture
-in Leaf's own words. `dispatch({kind: "action", verb, detail, attempt?, says?})` records
-as `lf-action` does, and `dispatch({kind: "undo", target})` undoes the `id` or `attempt`
-it names from the action's Undo candidates. `dispatch` returns `null` when the action
-isn't available, throws for a verb the widget doesn't declare, and otherwise returns
-`{reading, delivery}`; a refusal restores the server's state.
+`says`, in an `lf-action` event's `detail`, names the gesture in the widget's words,
+such as `Chose “Fast”`. Leaf's acknowledgement shows it, and so does Undo in the tab
+that made the gesture, so post no notice of your own for it; another tab, or this one
+after a reload, names the gesture in Leaf's own words.
 
 The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with the Undo
 row in the leaf's menu.

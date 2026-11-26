@@ -30,9 +30,9 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
 
 - Send whatever the agent must hear through a widget, such as a playground's
   contributor or actions (the playground package's author instructions),
-  `lf-options`, `lf-draft`, or a page widget whose controller records it
-  (`module-state.md`, "The widget controller"). State the script keeps itself, in memory or `localStorage`, never
-  reaches the log.
+  `lf-options`, `lf-draft`, or a page widget that records it with `lf-action`
+  (`module-state.md`, "Reading and recording state"). State the script keeps itself,
+  in memory or `localStorage`, never reaches the log.
 - Leaf hears a key after the listeners on the page's elements, so a listener on an
   element, `body` included, that prevents a key pressed with focus inside it keeps the
   key from Leaf, and a listener on the document or the window hears only a key Leaf

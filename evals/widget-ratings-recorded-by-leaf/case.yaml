@@ -61,7 +61,7 @@ assert:
       `verbs` for a rating, the module draws each answer's rating from the `state`
       Leaf sets on the element, and it records each rating as the reviewer gives it
       with an `lf-action` event naming that verb, dispatched directly or through
-      `LeafElement`'s `record()` or `widgetController(…).dispatch`. Rating one answer
+      `LeafElement`'s `record()`. Rating one answer
       leaves the others' ratings in force: the verb's `unit` names the answer, each
       answer is a widget of its own, or each action carries every answer's rating.
       Fail if the module still keeps the ratings in `localStorage`, `sessionStorage`,

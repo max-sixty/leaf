@@ -11,7 +11,7 @@ import { authoredScope, elementById } from "../readings/passages.js";
 import { quietSince } from "../state/presence.js";
 import { quoted } from "../records/widget-descriptors.js";
 import { saidAt, reportSequence } from "./reports.js";
-import { widgetController } from "./widget-controller.js";
+import { controllerOf } from "./widget-controller.js";
 import { addressableName } from "../readings/addressable-names.js";
 
 /** @typedef {{role: "scope" | "evidence"}} ContainerRole
@@ -19,7 +19,7 @@ import { addressableName } from "../readings/addressable-names.js";
  * @typedef {{role: "worker", state: string, running: readonly string[], retired: readonly string[], on?: string}} WorkerRole
  * @typedef {ContainerRole | GoalRole | WorkerRole} WorkRole
  * @typedef {WorkRole["role"]} Role
- * @typedef {ReturnType<ReturnType<typeof widgetController>["read"]>} WidgetReading
+ * @typedef {import("./widget-controller.js").WidgetReading} WidgetReading
  * @typedef {(element: Element) => WidgetReading} ReadWidget
  * @typedef {Extract<import("../state/semantic-application.js").ObligationRecord, {source: {kind: "widget"}}>} WidgetObligation
  * @typedef {{tree: WorkTree, held: Map<Node, import("../state/semantic-application.js").ObligationRecord[]>, asking: Set<string>, stopped: Map<Element, boolean>}} Open
@@ -278,7 +278,7 @@ export function readWork(element) {
   const read = (element) => {
     let reading = readings.get(element);
     if (!reading) {
-      reading = widgetController(element).read();
+      reading = controllerOf(element).read();
       readings.set(element, reading);
     }
     return reading;

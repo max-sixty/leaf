@@ -303,10 +303,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     )
     in_force = page.evaluate(
         """async ids => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
-            const state = widgetController(widget).read().state;
+            const state = controllerOf(widget).read().state;
             return Object.entries(state).flatMap(([verb, value]) =>
               (value.units ? Object.values(value.units) : [value])
                 .filter(({action}) => action)

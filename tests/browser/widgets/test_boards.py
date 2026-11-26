@@ -927,6 +927,10 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
     page.locator("#rail-section").scroll_into_view_if_needed()
     undo(page)
     stands("col-next", "rail-next")
+    # The options record the drop under the card's words, so Undo names the move.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Undone: Moved “Keep the rail” to Undecided just now"
+    )
 
     (serve.page_dir / "index.html").write_text(
         ANSWERS_BOARD_PAGE.replace(
@@ -953,27 +957,13 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
 
 def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
-    """Only the board's module holds a card with `shows` to the answer it shows:
-    `page check` requires only that the element exists, and the append door admits a
-    board move of the card. Such a move in the log, which the module never sends,
-    leaves the card in its answer's column. A card whose `shows` names an element with no answer stands
-    where the markup puts it and takes no move, and the board tells the author so
-    once, as the page's error."""
-    source = ANSWERS_BOARD_PAGE.replace(
-        '<lf-column id="col-open" label="Undecided"></lf-column>',
-        '<lf-column id="col-open" label="Undecided">'
-        '<lf-card id="card-section" label="The section" shows="rail-section">'
-        "<strong>The section</strong></lf-card></lf-column>",
-    )
-    page = open_page(browser, live_url(serve(source)))
+    """The append door admits a board move of a card with `shows`, which the board's
+    module never sends. Such a move in the log leaves the card in the column its
+    choice names."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
     expect(page.locator("#col-later > #card-rail")).to_have_count(1)
-    report = (
-        '<lf-card id="card-section"> failed: shows="rail-section" names <lf-group>,'
-        " which has no answer a board can show"
-    )
-    reported_browser_errors(page, report)
 
-    stray = append_command(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -986,21 +976,6 @@ def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
     )
     told(page)
     expect(page.locator("#col-later > #card-rail")).to_have_count(1)
-
-    grip = page.locator("#card-section .lf-grip")
-    expect(grip).to_have_attribute("aria-disabled", "true")
-    grip.focus()
-    for press in ("Enter", "ArrowRight", "Enter"):
-        page.keyboard.press(press)
-    expect(page.locator("#col-open > #card-section")).to_have_count(1)
-    events = events_model.read_events(serve.page_dir)
-    assert [event["id"] for event in events if event["kind"] == "action"] == [
-        stray["id"]
-    ]
-    # The draws since, for the stray move and the refused grab, report nothing more.
-    assert [
-        event["text"].startswith(report) for event in events if event["kind"] == "error"
-    ] == [True]
 
 
 def test_an_answer_naming_no_one_column_stands_with_the_undecided(browser, serve):
@@ -1063,8 +1038,8 @@ def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
     page = open_page(browser, live_url(serve(source)))
     reported_browser_errors(
         page,
-        '<lf-card id="card-rail"> failed: shows="rail" names <lf-options>, none of'
-        " whose members carries a `value`",
+        '<lf-card id="card-rail"> failed: shows="rail" names <lf-options>, whose'
+        " choice offers no `value`",
     )
 
     with sending(page, "the move"):

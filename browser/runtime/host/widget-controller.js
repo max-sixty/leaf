@@ -1,4 +1,4 @@
-/* The public semantic adapter for one captured widget owner.
+/* The semantic adapter for one captured widget owner.
 
    Leaf captures identity and declarations before upgrade. This controller exposes only
    immutable publisher selections and commands validated against the newest selection;
@@ -6,8 +6,9 @@
    sets its `state` on (element-integration.js), which owns the widget's render
    region; the controller owns its asynchronous preparation region (`prepare`), which
    removal pauses and reconnection restores. Registered preparation also holds full
-   rendering readiness until completion or removal. A package reaches `read` and
-   `dispatch` (`widgetController`), and says preparation only with the event below.
+   rendering readiness until completion or removal. Only Leaf's runtime holds a
+   controller (`controllerOf`). A widget reads the controller's reading as its `state`,
+   and reaches `dispatch` and `prepare` only through the events below.
 
    A widget's element tells the controller of its drawing through events Leaf hears
    at the document. It says it has drawing under way with `pending-task`
@@ -39,13 +40,10 @@ import { watchOwner } from "../dom/arrivals.js";
 import { holdRendering } from "../base/rendering.js";
 
 /** @typedef {ReturnType<typeof createWidgetController>} Controller
- * @typedef {Pick<Controller, "read" | "dispatch">} WidgetController
  * @typedef {import('../state/semantic-application.js').WidgetDescriptor} WidgetDescriptor
  * @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading
  * @typedef {{completion: Promise<unknown[]>}} Preparation
  * @typedef {ReturnType<typeof attachWidgetPresentation>} PreparationHandle */
-/** @type {WeakMap<Element, WidgetController>} */
-const controllers = new WeakMap();
 
 // A widget Leaf drives has drawn the first sets of an arrival (element-integration.js).
 // It can first appear when thread presentation mounts message markup after the global
@@ -182,31 +180,11 @@ function createWidgetController(owner) {
 /** @type {WeakMap<Element, Controller>} */
 const created = new WeakMap();
 /** The controller of a widget the page has captured, made on the first call, with its
- * watch of the owner's leaving and return. Leaf's own code asks here; a package asks
- * `widgetController`.
+ * watch of the owner's leaving and return.
  * @param {Element} owner */
 export function controllerOf(owner) {
   let controller = created.get(owner);
   if (!controller) created.set(owner, (controller = createWidgetController(owner)));
-  return controller;
-}
-
-/** What a package reads and records of a widget: `read` and `dispatch`. A custom
- * element constructed with document.createElement receives its authored id only after
- * its constructor and field initializers run, so the descriptor is resolved on first
- * use, which is normally connectedCallback, and a data renderer can build a
- * replacement with the same revision-bound identity as the authored node.
- * @param {Element} owner @returns {WidgetController} */
-export function widgetController(owner) {
-  let controller = controllers.get(owner);
-  if (!controller) {
-    controller = Object.freeze({
-      read: () => controllerOf(owner).read(),
-      /** @param {import("../records/pending/dispatch.js").WidgetCommand} command */
-      dispatch: (command) => controllerOf(owner).dispatch(command),
-    });
-    controllers.set(owner, controller);
-  }
   return controller;
 }
 

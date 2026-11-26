@@ -108,7 +108,13 @@
  * quoting gates the action channel and not presentation.
  *
  * Authored children stay in place, as their author wrote them. An option the user
- * adds shows its words as inline Markdown (`OptionAddition`). */
+ * adds shows its words as inline Markdown (`OptionAddition`).
+ *
+ * Only this module records the pick. Another widget that shows it, as a board card
+ * does, reads the group's `choice` output and asks for a pick with `--choose` (the
+ * registry's `choice` contract). The group records the asked pick under the asker's
+ * words, so Undo names the gesture the user made, and refuses a value several options
+ * carry, since that would pick one of them for the user. */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
@@ -215,6 +221,11 @@ customElements.define(
         ].join(", ") || "No options selected"
       );
     }
+
+    // The `choice` output, said with `change` each time it moves.
+    /** @type {{value: string, values: string[], disabled: boolean} | null} */
+    choice = null;
+    #choiceSaid = "null";
 
     /** @type {OptionAddition | undefined} */
     #additionOwner;
@@ -330,6 +341,64 @@ customElements.define(
             : `Dropped “${name}”`;
         this.#dispatch("choose", this.#addition.detailFor(next), null, said);
       });
+      this.addEventListener("command", (event) => {
+        const { command, source } = /** @type {CommandEvent} */ (event);
+        if (command === "--choose" && !this.#choose(source)) event.preventDefault();
+      });
+    }
+
+    // Record the pick a `--choose` asks for, or answer false where the group takes none.
+    /** @param {Element | null} source */
+    #choose(source) {
+      /** @type {{value?: unknown, says?: unknown}} */
+      let asked;
+      try {
+        asked =
+          JSON.parse(source instanceof HTMLButtonElement ? source.value : "") ?? {};
+      } catch {
+        return false;
+      }
+      const { value, says } = asked;
+      // The group takes what the `choice` it holds offers, so the two can't disagree.
+      const { choice } = this;
+      if (
+        !choice ||
+        choice.disabled ||
+        choice.values.filter((offered) => offered === value).length !== 1
+      )
+        return false;
+      // The empty string offers the empty pick, which no option's `value` can be.
+      const next = new Set(
+        [...this.#options()].filter((option) => option.getAttribute("value") === value),
+      );
+      const words = typeof says === "string" ? says : "";
+      this.#addition.remember(next);
+      return Boolean(
+        this.#dispatch("choose", this.#addition.detailFor(next), null, words),
+      );
+    }
+
+    /** @param {ReadonlySet<string>} picked */
+    #holdChoice(picked) {
+      const options = [...this.#options()];
+      const [only, other] = new Set(
+        options
+          .filter((option) => picked.has(option.id))
+          .map((option) => option.getAttribute("value") ?? ""),
+      );
+      const choice = {
+        value: other === undefined ? (only ?? "") : "",
+        values: [
+          "",
+          ...options.flatMap((option) => option.getAttribute("value") ?? []),
+        ],
+        disabled: !this.#available("choose"),
+      };
+      const said = JSON.stringify(choice);
+      if (said === this.#choiceSaid) return;
+      this.#choiceSaid = said;
+      this.choice = choice;
+      this.dispatchEvent(new Event("change"));
     }
 
     /** @param {string} verb */
@@ -656,6 +725,7 @@ customElements.define(
       this.#addition.render(added, this.#done?.host ?? null);
       this.#syncChoice(detail);
       this.#refreshAvailability();
+      this.#holdChoice(new Set(detail.value));
       return nothing;
     }
   },

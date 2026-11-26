@@ -287,7 +287,8 @@ for its kind that depends on the element is its `lfWord()`. So does a rule about
 widget's markup that no declared fact states: the module checks it as it draws and
 reports a breach with an `error` event
 ([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
-card whose `shows` names a widget with no answer. Every declaration has
+card whose `shows` names a question none of whose options carries a `value`. Every
+declaration has
 a `description` saying what the widget is for and when to use it, and a valid
 `example`. The optional `instructions` gives the choices and obligations
 of using it; a package's shared author instructions own guidance spanning its widgets.

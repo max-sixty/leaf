@@ -24,7 +24,6 @@ import { deferredArrival } from "./readings/presentation.js";
 import { growthIsSeen } from "./dom/geometry.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
 export * from "./portable-api.js";
-export { widgetController } from "./host/widget-controller.js";
 
 // `elementById(address, from)`: the element an id, a widget's `id:key` or a fragment
 // names, in the message `from` was written in first, then on the page.

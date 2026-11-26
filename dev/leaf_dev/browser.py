@@ -14,7 +14,14 @@ from functools import cache
 from pathlib import Path
 
 import click
-from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
+from playwright.sync_api import (
+    Browser,
+    FrameLocator,
+    Locator,
+    Page,
+    expect,
+    sync_playwright,
+)
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.source.render_checks import (
@@ -563,6 +570,21 @@ def panel_view(name: str) -> str:
 
 # A view of one thread, which names the thread it shows by id in `data-lf-thread`.
 PANEL_THREAD = panel_view("thread")
+
+
+def text_field(
+    scope: Page | Locator | FrameLocator,
+    name: str | re.Pattern[str] | None = None,
+    *,
+    exact: bool | None = None,
+):
+    """Leaf's text field (`leaf-text`) in `scope` that a role query names `name`, matched
+    as `get_by_role` matches it. Its one textbox stands in a closed shadow root no
+    locator reaches, so this finds the group around it (text-field.js), among Leaf's
+    text fields alone, since other groups can carry the same words."""
+    return scope.get_by_role("group", name=name, exact=exact).and_(
+        scope.locator("leaf-text")
+    )
 
 
 # A JavaScript expression for the page's own check API (runtime/check-api.js), imported

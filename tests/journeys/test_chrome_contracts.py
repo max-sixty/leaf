@@ -29,7 +29,7 @@ from render_harness import (
 )
 
 from leaf.log import event_log as events_model
-from leaf_dev.browser import choose_threads_in_panel
+from leaf_dev.browser import choose_threads_in_panel, text_field
 
 
 # Each scheme and each pointer once: the faces compared are the same scheme's, and a
@@ -69,7 +69,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     margin = page.locator(".lf-margin-preview .lf-page-thread")
-    expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+    expect(text_field(margin, name="Reply", exact=True)).to_be_visible()
 
     def faces(thread):
         return thread.evaluate(
@@ -118,9 +118,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     # them beside their passages again before the marker opens the card.
     choose_threads_in_panel(page, on=False)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
-    write(
-        margin.get_by_role("textbox", name="Reply", exact=True), "Sent beside the page."
-    )
+    write(text_field(margin, name="Reply", exact=True), "Sent beside the page.")
     with sending(page, "the anchored follow-up"):
         margin.get_by_role("button", name="Send", exact=True).click()
     expect(margin.locator(".lf-msg").last).to_contain_text("Sent beside the page.")

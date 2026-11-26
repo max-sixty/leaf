@@ -74,7 +74,7 @@ function mergeIntervals(intervals) {
   return merged;
 }
 
-/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../dom/rect.js").Box} band
+/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../base/box.js").Box} band
  * @returns {{interval: Interval, height: number, width: number, contentHeight: number} | null} */
 function visibleInterval(body, clips, band) {
   if (!presented(body)) return null;
@@ -100,7 +100,7 @@ function visibleInterval(body, clips, band) {
 
 // An element's box can intersect the viewport while all its words are clipped or
 // below it. Measure the text itself through the one reading of what is seen.
-/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../dom/rect.js").Box} band */
+/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../base/box.js").Box} band */
 function wordsAreVisible(body, clips, band) {
   if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
     return false;
@@ -125,7 +125,7 @@ function wordsAreVisible(body, clips, band) {
 }
 
 /** @param {{
- * markRead: (items: ContentVersion[]) => ReturnType<typeof import("../../host/delivery.js").deliverBookkeeping>,
+ * markRead: (items: ContentVersion[]) => Promise<"accepted" | "refused" | "unreached">,
  * openThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
  * }} dependencies */
 export function createReadTracking({ markRead, openThread }) {

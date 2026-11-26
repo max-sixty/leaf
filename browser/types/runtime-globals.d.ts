@@ -5,12 +5,7 @@ interface DocumentInputs {
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
   /** Which state a reload carries for a control (base/document-inputs.js). */
-  holdsValue(
-    node: Element,
-  ): node is
-    | HTMLInputElement
-    | HTMLTextAreaElement
-    | HTMLElementTagNameMap["leaf-text"];
+  holdsValue(node: Element): node is HTMLElement & { value: string };
   holdsTick(node: Element): node is HTMLInputElement;
   holdsOpen(node: Element): node is HTMLDetailsElement;
   readonly count: number;
@@ -188,7 +183,7 @@ interface Element {
    * the element says they changed (`lf-commands`; dom/keyboard/scopes.js): a scope's
    * title, rows and options. */
   lfCommands?:
-    | (import("../runtime/dom/keyboard/scopes.js").ScopeOptions & {
+    | (import("../runtime/base/command-declaration.js").ScopeOptions & {
         title: string | null;
         rows: readonly import("../runtime/dom/keyboard/bindings.js").Command[];
       })
@@ -201,7 +196,7 @@ interface Element {
   lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`annotations/preview.js`): null adds nothing, false shows nothing here or around it. */
-  lfPreview?: import("../runtime/annotations/preview.js").Read;
+  lfPreview?: import("../runtime/base/preview-declaration.js").Read;
   /** A visual's parts where its `data-lf-part` marks don't say them, read as each
    * reading of the visual asks (`state/visual-parts.js`). */
   lfParts?: import("../runtime/state/visual-parts.js").Parts | undefined;

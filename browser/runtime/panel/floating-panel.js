@@ -488,7 +488,7 @@ const pressKeys = (press) =>
 // each ask, so a box standing it rechecks its keys without reading the field's words
 // again (annotations/composing/input.js, `pressing`), and what it does: its own `run`, else the
 // command it names.
-/** @param {FieldPress} press @returns {import("../annotations/composing/input.js").BoxPress} */
+/** @param {FieldPress} press @returns {import("../records/composition-input.js").BoxPress} */
 const pressReading = (press) => ({
   word: actionName(press.action),
   get keys() {
@@ -1260,7 +1260,7 @@ export function createFloatingPanel({
   // the news showed, where it showed one (`shown`, the messages drawn before it); and
   // reopened where the user had read it to (`reading`, records/thread/reply-landing.js,
   // `restoreCurrentLocation`).
-  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../records/thread/reply-landing.js").ThreadReading} | null} */
+  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../base/held-place.js").ThreadReading} | null} */
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -3582,7 +3582,7 @@ export function createFloatingPanel({
         ?data-lf-resolved=${thread.resolved}
         data-lf-turn=${attention?.turn === "user" ? "user" : nothing}
         .lfPreview=${(
-          /** @type {import("../annotations/preview.js").Route} */ route,
+          /** @type {import("../base/preview-declaration.js").Route} */ route,
         ) => {
           const read = threadPreview(
             [thread],
@@ -4551,7 +4551,7 @@ export function createFloatingPanel({
     /** @type {unknown} */
     let end = nothing;
     // The clock time behind the age the line's end shows, which its preview says.
-    /** @type {import("../annotations/preview.js").Line} */
+    /** @type {import("../base/preview-declaration.js").Line} */
     let ageSaid = null;
     const work = list === "agent" ? workOn(item) : null;
     if (work) {
@@ -5394,7 +5394,7 @@ export function createFloatingPanel({
   // first, so Close leaves the end. A finger, shown no keys, has the ✕ as its way out,
   // so Close stands only where the page shows keys. It asks the dispatcher whether a
   // stance stands now (`innermostStance`), as `fieldExit` does.
-  /** @returns {import("../annotations/composing/input.js").BoxPress | null} */
+  /** @returns {import("../records/composition-input.js").BoxPress | null} */
   function stanceClose() {
     const held = innermostStance();
     const exit = held ? rows().find((entry) => entry.exit) : null;
@@ -5870,7 +5870,7 @@ export function createFloatingPanel({
   };
   /** @param {Element | null} node */
   const onMeHolds = (node) => doors.queue.shows() && onMe.lists(node);
-  /** @param {Pick<import("../features/anchor-travel.js").Arrival, "where" | "focus">} destination
+  /** @param {Pick<import("../dom/arrival-plan.js").Arrival, "where" | "focus">} destination
    * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
     if (!focus && ownPassage(where)) return;

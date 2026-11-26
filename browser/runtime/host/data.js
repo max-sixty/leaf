@@ -50,11 +50,9 @@ import { referencedProjection } from "../readings/references.js";
 import { reportPageError } from "../transport/layer-client.js";
 import { tick } from "../state/version-signal.js";
 
-/** A publication as `leaf.source.data.read_source` serves it, before widget delivery.
- * @typedef {NonNullable<import("../../types/contract.js").ServedReading["data"]["sources"]>[string]} SourceReading
- * @typedef {{contract: string, value: unknown}} OutputReading
- * @typedef {{input: string, source: string, contract: string, revision: string}
- *   | {derived: readonly {widget: string}[]}} DataOrigin
+/** @import { SourceReading } from "../../types/domain.js" */
+/** @import { DataOrigin } from "../records/projection/data.js" */
+/** @typedef {{contract: string, value: unknown}} OutputReading
  * @typedef {(SourceReading & {source: string, origin: DataOrigin})
  *   | (OutputReading & {source?: never, revision?: never, origin: DataOrigin})} DataSnapshot
  */

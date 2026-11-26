@@ -1808,7 +1808,7 @@ function revisionDocument(revision) {
  *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   openThread: Parameters<typeof replyDestination>[1],
  *   refreshThread: () => unknown,
- *   midComposition: ReturnType<typeof import("../annotations/composing/engagement.js").createEngagement>["midComposition"],
+ *   midComposition: (retains?: (node: Element | null | undefined) => boolean) => boolean | undefined,
  *   hasPending: () => boolean,
  *   readAndApply: () => unknown,
  *   syncLayout: () => unknown,

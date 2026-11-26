@@ -1,6 +1,10 @@
 /* Values carried by the private sample port. The host and the child own both ends;
    authored navigation retires the port rather than changing its protocol. */
 
+/** An image of a part of the page, as `pageImage` makes it (host/page-image.js) and the
+ * port's `image` answers with it.
+ * @typedef {{blob: Blob, warnings: string[]}} PageImage */
+
 /** @typedef {{window: boolean, dress?: LeafDress | undefined}} SampleSettings
  * @typedef {{sample: string, nonce: string, settings: SampleSettings}} SampleOffer
  * @typedef {Record<string, never>} NoDetail
@@ -9,7 +13,7 @@
  * @typedef {{x: number, y: number, width: number, height: number}} SampleCrop
  * @typedef {{
  * "restore-current-location": {detail: NoDetail, result: boolean},
- * image: {detail: SampleCrop, result: import("../host/page-image.js").PageImage},
+ * image: {detail: SampleCrop, result: PageImage},
  * window: {detail: {window: boolean}, result: SampleSize},
  * thread: {detail: {id: string, surface?: "page" | "panel"}, result: boolean},
  * "near-work": {detail: NoDetail, result: null}
@@ -27,7 +31,7 @@
  * @typedef {{[K in SampleMethod]: {id: SampleId, method: K, detail: SampleCommands[K]["detail"]}}[SampleMethod]} SampleRequest
  * @typedef {{id: SampleId, result: SampleResult} | {id: SampleId, error: SampleFailure}} SampleReply
  * @typedef {import("../../types/contract.js").CompleteUnion<SampleNotice | ChildStatus | SampleReply | {type: "connected", nonce: string} | {type: "visibility-read", detail: {id: number}}>} ChildMessage
- * @typedef {{type: "cancel-view"} | {type: "visibility", detail: {visible: boolean}} | {type: "dress", detail: LeafDress} | {type: "visibility-reading", detail: {id: number, error: SampleFailure} | {id: number, visible: false} | ({id: number, visible: true} & import("../dom/rect.js").Box)}} ParentNotice
+ * @typedef {{type: "cancel-view"} | {type: "visibility", detail: {visible: boolean}} | {type: "dress", detail: LeafDress} | {type: "visibility-reading", detail: {id: number, error: SampleFailure} | {id: number, visible: false} | ({id: number, visible: true} & import("./box.js").Box)}} ParentNotice
  * @typedef {import("../../types/contract.js").CompleteUnion<SampleRequest | ParentNotice>} ParentMessage
  */
 export {};

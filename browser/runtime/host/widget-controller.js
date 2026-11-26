@@ -353,29 +353,30 @@ const undoCandidates = (action) => {
 // has one to give (`unavailable`), and whether `lf-undo` would take back the action in
 // force (`undoable`), which a verb holding a state for each unit says on each unit. A
 // verb the agent writes reads as one the user may neither act on nor take back.
-/** @param {WidgetReading} reading */
+/** @param {WidgetReading} reading @returns {import("../../types/domain.js").WidgetState} */
 export const widgetState = ({ state, actions }) =>
   immutable(
     Object.fromEntries(
       Object.entries(state).map(([verb, held]) => {
         const undoable = undoCandidates(actions[verb]);
+        const offered = {
+          available: actions[verb]?.available ?? false,
+          unavailable: actions[verb]?.unavailable ?? null,
+        };
         return [
           verb,
-          {
-            ...held,
-            ...("units" in held
-              ? {
-                  units: Object.fromEntries(
-                    Object.entries(held.units).map(([unit, at]) => [
-                      unit,
-                      { ...at, undoable: undoable.has(unit) },
-                    ]),
-                  ),
-                }
-              : { undoable: undoable.size > 0 }),
-            available: actions[verb]?.available ?? false,
-            unavailable: actions[verb]?.unavailable ?? null,
-          },
+          "units" in held
+            ? {
+                ...held,
+                units: Object.fromEntries(
+                  Object.entries(held.units).map(([unit, at]) => [
+                    unit,
+                    { ...at, undoable: undoable.has(unit) },
+                  ]),
+                ),
+                ...offered,
+              }
+            : { ...held, undoable: undoable.size > 0, ...offered },
         ];
       }),
     ),

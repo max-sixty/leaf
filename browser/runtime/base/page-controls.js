@@ -59,6 +59,7 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
 /** @typedef {"page" | "navigate" | "annotate" | "keys" | "about"} PageControlGroup */
+/** @import { WorkingPlace } from "./held-place.js" */
 
 /** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
@@ -86,7 +87,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   disabled?: boolean | (() => boolean),
  *   exit?: boolean,
  *   action?: string | (() => string),
- *   press?: (held: import("../records/history.js").WorkingPlace | null) => unknown,
+ *   press?: (held: WorkingPlace | null) => unknown,
  * }} PageControl
  */
 /** @param {PageControl} row */

@@ -371,17 +371,9 @@ import { linkPreview } from "./place-preview.js";
 import { markRoom } from "../readings/mark-room.js";
 import { anchorBox } from "../dom/css-anchors.js";
 
-/** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
- * @typedef {Word | readonly Word[]} Words
- * @typedef {readonly (readonly string[])[]} Presses
- * @typedef {Words | null | undefined | false} Line
- * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
- * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("../dom/rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
- * @typedef {Preview | null | undefined | false} Declared
- * @typedef {"pointer" | "focus" | "hold"} Route
- * @typedef {(route: Route) => Declared} Read
- * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("../dom/rect.js").Box | null, about: Element | null, excerpt: boolean, unseen: boolean, restates: boolean, declared: Preview | null}} Reading
- * @typedef {import("../dom/rect.js").Box} Box
+/** @import { Box } from "../base/box.js" */
+/** @import { Words, Presses, List, Preview, Declared, Route, Read } from "../base/preview-declaration.js" */
+/** @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | Box | null, about: Element | null, excerpt: boolean, unseen: boolean, restates: boolean, declared: Preview | null}} Reading
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, away?: boolean, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
  * @typedef {{pointerId: number, node: Node | null, parent: Element | null, element: Element | null, range: Range | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */

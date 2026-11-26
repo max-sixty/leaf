@@ -32,7 +32,7 @@ export const NOTHING_ON_ME = emptyOnList("ready", "me");
 // update's record is answered by a reply or a version, or by the user sending again.
 /** @template {import("../base/snapshot.js").Immutable<import("./semantic-application.js").CurrentQueueItem>} T
  * @param {T} item
- * @returns {item is T & {obligation: import("../records/obligations/answer.js").AnswerableObligation}} */
+ * @returns {item is T & {obligation: import("./obligations/source.js").AnswerableObligation}} */
 export const carriesObligation = (item) =>
   item.kind === "widget" || item.kind === "message";
 

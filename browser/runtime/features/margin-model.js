@@ -38,7 +38,7 @@ import { leafSays, wordsText } from "../base/voice.js";
  * @typedef {import("../base/contribution-model.js").ContributionKind} Kind
  * @typedef {import("../base/contribution-model.js").ContributionState} State
  * @typedef {import("../base/contribution-model.js").KindFace} KindFace
- * @typedef {import("../state/semantic-application.js").Workflow} Workflow
+ * @typedef {import("../../types/domain.js").Workflow} Workflow
  * @typedef {{word: import("../base/voice.js").Words, reason: string}} UserAttention
  * @typedef {{id: string, text: string, owner?: string, marker?: boolean,
  * represents?: boolean, workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,

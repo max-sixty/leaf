@@ -76,7 +76,7 @@ const { holdsValue, holdsTick, holdsOpen } = inputs;
 /** @typedef {{id?: string, name?: string, part?: string, partName?: string,
  * thread?: string, on?: "thread" | "message" | "reply", message?: string,
  * at?: [like: string, nth: number], revision?: number | null,
- * caret?: import("../dom/focus.js").Caret}} FocusKey */
+ * caret?: import("../base/held-place.js").Caret}} FocusKey */
 // How `active` is named inside `holder`, a message or the page, names first: a generated
 // control by its named owner's id and its `data-lf-carry` key and tag; the element
 // focus is on, or whose shadow tree holds it, by its id; else its place among the
@@ -211,7 +211,7 @@ function keyedFocus(owner, { part, partName }) {
 // Capture before replacement. JSON records can cross a reload; held nodes remain local
 // so an in-place install can skip restoration on the nodes it kept. Only a key naming
 // an element by its id or its owner's key carries focus here (the header).
-/** @typedef {{id: string, name: string, focus?: boolean, part?: string, partName?: string, open?: boolean, scrollTop?: number, scrollLeft?: number, value?: string, checked?: boolean, caret?: import("../dom/focus.js").Caret}} CarryRecord */
+/** @typedef {{id: string, name: string, focus?: boolean, part?: string, partName?: string, open?: boolean, scrollTop?: number, scrollLeft?: number, value?: string, checked?: boolean, caret?: import("../base/held-place.js").Caret}} CarryRecord */
 /** @param {ParentNode} root @param {ParentNode} authored */
 export function captureCarry(root, authored) {
   // The focused control in whichever tree holds it, a widget's shadow root included.

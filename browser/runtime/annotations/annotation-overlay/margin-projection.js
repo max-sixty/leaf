@@ -203,15 +203,15 @@ import { rowArrows } from "../../lib/keys.js";
  * @typedef {{thread: string, accompanies: boolean}} SavedPreview
  * @typedef {{entry: string, preview: SavedPreview | null, focus: SavedFocus | null}} MarginLocation
  */
+/** @import { PageMapCommands } from "../../features/annotation-inventory.js" */
 /** @param {Omit<PreviewDependencies, "onClose"> & {
  * refreshInventory: ReturnType<typeof import("../../features/annotation-inventory.js").createAnnotationInventory>["collect"],
  * renderAnnotations: (() => void) & {refresh: () => void},
  * openPageThread: ReturnType<typeof import("../../records/thread/destination.js").createThreadDestinations>["openPageThread"],
  * returnToPage: ReturnType<typeof import("../../records/thread/destination.js").createThreadDestinations>["returnToPage"],
  * designModeActive: () => boolean, pointerModeActive: () => boolean,
- * leavePageMap: ReturnType<typeof import("../../panel/page-map-dialog.js").createPageMapDialog>["leavePageMap"],
- * openPageMap: ReturnType<typeof import("../../panel/page-map-dialog.js").createPageMapDialog>["openPageMap"],
- * pageMapDialogContains: ReturnType<typeof import("../../panel/page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
+ * leavePageMap: PageMapCommands["leavePageMap"], openPageMap: PageMapCommands["openPageMap"],
+ * pageMapDialogContains: PageMapCommands["pageMapDialogContains"],
  * marksFor: ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,

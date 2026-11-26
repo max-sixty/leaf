@@ -581,7 +581,7 @@ class LeafText extends HTMLElement {
     const right = rtl ? box.left + size * scaleX : box.right;
     const top = box.bottom - size * scaleY;
     const middle = box.bottom - (size * scaleY) / 2;
-    /** @param {import("../../dom/rect.js").Box} rect @param {number} leading */
+    /** @param {import("../../base/box.js").Box} rect @param {number} leading */
     const reaches = (rect, leading) =>
       rect.left < right &&
       rect.right > left &&
@@ -595,7 +595,7 @@ class LeafText extends HTMLElement {
         lineStyle.translate === "none"
           ? []
           : lineStyle.translate.split(/\s+/).map(Number.parseFloat);
-      /** @param {import("../../dom/rect.js").Box} rect */
+      /** @param {import("../../base/box.js").Box} rect */
       const back = (rect) => ({
         left: rect.left - ox * scaleX,
         right: rect.right - ox * scaleX,

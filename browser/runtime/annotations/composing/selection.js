@@ -171,7 +171,7 @@ fabBar.prepend(composer);
 /** @typedef {NonNullable<import("../../../types/contract.js").EventMap["comment"]["anchor"]>} Anchor
  * @typedef {import("../../records/drafts.js").ComposerDraft} ComposerDraft
  * @typedef {ComposerDraft & {text: string}} ComposerRecord
- * @typedef {ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>} ComposerFrame
+ * @typedef {import("../../records/thread/destination.js").SendFrame | null} ComposerFrame
  * @typedef {Object} ComposerOptions
  * @property {(on: boolean) => unknown} setReact
  * @property {typeof import("../reactions.js").reactionEmoji} reactionEmoji
@@ -194,13 +194,13 @@ fabBar.prepend(composer);
  * @property {(destination: Element) => unknown} landSent
  * @property {() => Promise<unknown>} refreshThread
  * @property {ReturnType<typeof import("./input.js").createCompositionInputs>["wireInput"]} wireInput
- * @property {{target: (anchor: Anchor | null) => Element | null, replace: (anchor: Anchor | null, drawing: import("./drawing-record.js").DraftDrawing | null) => unknown, undoStroke: (anchor: Anchor | null) => unknown, remove: (anchor: Anchor | null) => unknown}} drawingEdits
+ * @property {{target: (anchor: Anchor | null) => Element | null, replace: (anchor: Anchor | null, drawing: import("../../../types/domain.js").DraftDrawing | null) => unknown, undoStroke: (anchor: Anchor | null) => unknown, remove: (anchor: Anchor | null) => unknown}} drawingEdits
  */
 /** @type {Anchor | null} */
 export let pendingAnchor = null;
 /** @type {"design" | null} */
 export let pendingAbout = null;
-/** @type {import("./drawing-record.js").DraftDrawing | null} */
+/** @type {import("../../../types/domain.js").DraftDrawing | null} */
 export let pendingDrawing = null;
 
 // The words of the element a comment was pointed at, as the passage that finds them
@@ -254,7 +254,7 @@ export function createSelectionComposer({
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = commentContext("");
-  /** @type {import("./input.js").InputSync} */
+  /** @type {import("../../records/composition-input.js").InputSync} */
   let syncComposer;
   let pendingRevision = applicationState.read().document.revision;
   // The draft owns its mode; the response action and editor hint present it.
@@ -303,7 +303,7 @@ export function createSelectionComposer({
   // words. The composer on that passage, up or put away, holds the draft's
   // current reading, so it takes the change and saves it; any other draft is rewritten
   // where it is stored, and one left holding nothing is settled.
-  /** @param {Anchor | null} anchor @param {import("./drawing-record.js").DraftDrawing | null} drawing */
+  /** @param {Anchor | null} anchor @param {import("../../../types/domain.js").DraftDrawing | null} drawing */
   function setDraftDrawing(anchor, drawing) {
     const ctx = composerCtx(anchor);
     if (ctx === composerCtx(pendingAnchor)) {
@@ -516,7 +516,7 @@ export function createSelectionComposer({
   // design mode is about design — and a restored draft passes its saved modes. A pointing
   // gesture passes the row inside the target it landed on (`point`, readings/pointed-place.js),
   // or null; a route that names no point leaves the bar where it stands on this anchor.
-  /** @param {Anchor | null} anchor @param {string | null | undefined} text @param {{suggest?: boolean | undefined, about?: "design" | null | undefined, drawing?: import("./drawing-record.js").DraftDrawing | null | undefined, focus?: boolean, point?: Element | null | undefined, revision?: number | null}} [options] */
+  /** @param {Anchor | null} anchor @param {string | null | undefined} text @param {{suggest?: boolean | undefined, about?: "design" | null | undefined, drawing?: import("../../../types/domain.js").DraftDrawing | null | undefined, focus?: boolean, point?: Element | null | undefined, revision?: number | null}} [options] */
   function openComposer(
     anchor,
     text,

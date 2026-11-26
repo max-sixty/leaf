@@ -245,7 +245,7 @@ const PLACELESS = `${THREAD}, ${ON_CARD}`;
 // The page place a surface beside the page holds while the user stands in it, as the
 // floating panel holds where they stepped in from (`readPlace`, history.js). It is still
 // their place on the page, so `z` aligns it and a walk pressed there starts on it.
-/** @type {() => import("./history.js").WorkingPlace | null} */
+/** @type {() => import("../base/held-place.js").WorkingPlace | null} */
 let heldPlace = () => null;
 /** @param {typeof heldPlace} read */
 export function holdPagePlace(read) {

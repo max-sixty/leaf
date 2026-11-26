@@ -30,7 +30,7 @@ import {
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { keeps } from "../lib/keeps.js";
 
-/** @typedef {import('./rect.js').Box} Box
+/** @typedef {import("../base/box.js").Box} Box
  * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},
  * placer: Element | null | undefined, scrolls: boolean}} ClipEntry
  * @typedef {Map<Element, ClipEntry>} ClipCache
@@ -151,7 +151,7 @@ export const coverBoxes = (item = null, { rest = false } = {}) =>
 // takes no room from what it holds (`coverBoxes`), as the floating panel's open view
 // covers none of the thread it shows. A chrome owner that changes the box it covers
 // says so (`announceRoom`), since no scroll or resize tells a reader.
-/** @param {{within?: Partial<import('./rect.js').Box> | null,
+/** @param {{within?: Partial<import("../base/box.js").Box> | null,
  * gap?: number, viewport?: "visual" | "layout",
  * across?: {left: number, right: number} | null, item?: Node | null}} [options] */
 export function shownWindow({

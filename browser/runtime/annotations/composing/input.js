@@ -102,36 +102,9 @@ import { coarsePointer } from "../../base/pointer.js";
 import { PRESS } from "../../lib/keys.js";
 import { restArming } from "../../lib/rest-arming.js";
 
-/** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
- * @typedef {import("./text-field.js").LeafTextElement} TextField
- * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string, alternate: boolean) => unknown} Sender
- * @typedef {{word: string, keys: readonly string[], run: () => unknown}} BoxPress
- * @typedef {Object} InputOptions
- * @property {import("../../dom/keyboard/bindings.js").Cell<string>} hint
- * @property {(() => unknown) | null} [hintParts]
- * @property {() => unknown} [hintLead]
- * @property {() => string | BoxPress | null} [enters]
- * @property {import("../../dom/keyboard/bindings.js").Cell<string> | null} [accessibleName]
- * @property {() => boolean} [closed]
- * @property {() => boolean} [cornerAtRest]
- * @property {(value: string) => unknown} save
- * @property {Sender} send
- * @property {string} [sendClass]
- * @property {import("../../dom/keyboard/bindings.js").Cell<string>} sends
- * @property {import("../../dom/keyboard/bindings.js").Cell<string>} [action]
- * @property {import("../../dom/keyboard/bindings.js").Cell<string | null>} [altLabel]
- * @property {() => true | string} [allowsMedia]
- * @property {() => boolean} [busy]
- * @property {(raw: string) => boolean} [hasContent]
- * @property {{read: () => Drawing | null, target: () => Element | null, replace: (drawing: Drawing | null) => unknown, undoStroke: () => unknown, remove: () => unknown} | null} [drawing]
- * @property {readonly import("../../dom/keyboard/bindings.js").Command[]} [rows]
- * @property {HTMLElement | null} [submitIn]
- * @property {boolean} [sentMedia]
- * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
- * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
- * composition: () => {field: HTMLElement, frame: CompositionField}, addMedia: (images: readonly Blob[]) => Promise<boolean>,
- * writing: () => boolean, covered: () => HTMLElement | null}} InputSync
- * @typedef {TextField & {[INPUT_DRAFT]?: InputSync}} WiredInput
+/** @import { BoxPress, InputField, InputOptions, InputSync } from "../../records/composition-input.js" */
+/** @typedef {import("../../../types/domain.js").DraftDrawing} Drawing
+ * @typedef {InputField & {[INPUT_DRAFT]?: InputSync}} WiredInput
  */
 
 const INPUT_DRAFT = Symbol("composition draft");

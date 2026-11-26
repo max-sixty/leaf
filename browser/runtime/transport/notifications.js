@@ -58,7 +58,7 @@ import { onUserInput } from "../dom/focus.js";
 import { saying } from "../dom/keyboard/control-keys.js";
 
 /** @typedef {import("../base/voice.js").Words} Words
- * @typedef {import("../host/semantic-news.js").SemanticNews} SemanticNews
+ * @typedef {import("../../types/domain.js").SemanticNews} SemanticNews
  * @typedef {"notice" | "walk" | "error" | "pickup" | "version" | "reply" | "new-on-me" | "on-me-empty"} Moment
  * @typedef {{key: "semantic-news", value: readonly SemanticNews[],
  * combine: (older: readonly SemanticNews[], newer: readonly SemanticNews[]) => readonly SemanticNews[],

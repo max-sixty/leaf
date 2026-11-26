@@ -73,12 +73,15 @@ import { TEXT_FIELD } from "../../dom/control-selectors.js";
 import { tick } from "../../state/version-signal.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
-/** @typedef {ReturnType<typeof import("../../annotations/composing/input.js").createCompositionInputs>["wireInput"]} WireInput */
+/** @import { WireInput } from "../composition-input.js" */
+/** A reply box's field, which the box puts the caret back in as it changes hands.
+ * @typedef {import("../composition-input.js").InputField & {setSelectionRange:
+ * (...caret: import("../../base/held-place.js").Caret) => void}} ReplyField */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
  * wireInput: WireInput,
  * landSent: typeof import("./landing.js").landSent,
  * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
-/** @typedef {Partial<Pick<import("../../annotations/composing/input.js").InputOptions,
+/** @typedef {Partial<Pick<import("../composition-input.js").InputOptions,
  * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed" | "cornerAtRest">> & {
  * onChange?: () => void,
  * editLast?: ReturnType<typeof import("./message-edit.js").threadRewrites>["editLast"] | null,
@@ -88,8 +91,8 @@ import { closestAcross } from "../../lib/shadow-tree.js";
  * editLast: ReplyOptions["editLast"], sending: ReplyOptions["sending"], sent: ReplyOptions["sent"],
  * give: () => () => void, take: (owner: Composition) => void, box: BoxOptions}} Binding */
 /** @typedef {{context: string, key: string, row: HTMLDivElement,
- * controls: {input: ReturnType<typeof import("../../annotations/composing/text-field.js").textField>, send: HTMLButtonElement | null},
- * send: import("../../annotations/composing/input.js").Sender | null,
+ * controls: {input: ReplyField, send: HTMLButtonElement | null},
+ * send: import("../composition-input.js").Sender | null,
  * binding: Binding | null, changed: () => void, sync: ReturnType<WireInput>, retired?: boolean}} Composition */
 /** @typedef {{owner: Composition | null,
  * editing?: NonNullable<ReturnType<typeof captureDraftEditing>>, continuing?: boolean}} Session */
@@ -379,7 +382,7 @@ function sendReply(draftCtx, key, text, owns, actions, back) {
 // What the row does for a view, its actions, `onChange` and `editLast`, is the binding
 // of whichever view holds it now (`attach`).
 /** @param {string} key @param {HTMLDivElement} row
- * @param {ReturnType<typeof import("../../annotations/composing/text-field.js").textField>} input
+ * @param {ReplyField} input
  * @param {ReplyCommands} commands
  * @param {BoxOptions} options */
 function wireReply(key, row, input, commands, options) {
@@ -393,7 +396,7 @@ function wireReply(key, row, input, commands, options) {
   /** @type {Composition | undefined} */
   let composition;
   const box = () => composition?.binding?.box ?? options;
-  /** @param {import("../../dom/keyboard/bindings.js").Cell<string> | null} cell */
+  /** @param {import("../../base/command-declaration.js").Cell<string> | null} cell */
   const read = (cell) => (typeof cell === "function" ? cell() : cell);
   const sync = commands.wireInput(input, {
     hint: () => read(box().hint) ?? "",

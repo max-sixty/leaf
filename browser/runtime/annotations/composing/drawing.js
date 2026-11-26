@@ -152,7 +152,7 @@ function wordsUnder(ink) {
 }
 
 /** @typedef {import("./selection.js").Anchor | null} Anchor
- * @typedef {import("./drawing-record.js").DraftDrawing} Drawing
+ * @typedef {import("../../../types/domain.js").DraftDrawing} Drawing
  * @typedef {NonNullable<ReturnType<typeof elementFrame>>} DrawingFrame
  * @typedef {{anchor: Anchor, element: Element, frameReference?: Drawing["frame"]}} DrawingTarget
  * @typedef {{anchor: Anchor, drawing: Drawing, open: boolean}} HeldDrawing
@@ -163,7 +163,7 @@ function wordsUnder(ink) {
  * @property {{aimTargetAt: (element: Element) => DrawingTarget | null, resolveAnchor: typeof import("../../readings/anchor-resolution.js").resolveAnchor}} anchors
  * @property {{refreshAim: () => unknown}} pageGeometry
  * @property {() => {x: number, y: number}} pointer
- * @property {() => readonly (DrawingTarget & {rect: import("../../dom/rect.js").Box & {width: number, height: number}})[]} visibleTargets
+ * @property {() => readonly (DrawingTarget & {rect: import("../../base/box.js").Box & {width: number, height: number}})[]} visibleTargets
  * @property {(anchor: Anchor) => Drawing | null} anchoredDrawing
  * @property {() => readonly HeldDrawing[]} heldDrawings
  * @property {(notify: () => unknown) => () => void} watchHeldDrawings

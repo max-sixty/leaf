@@ -231,7 +231,7 @@ import { errorOver } from "../../transport/errors.js";
  * @typedef {import("../../features/margin-model.js").ThreadItem} Item
  * @typedef {import("../../features/margin-model.js").ThreadChoice} Choice
  * @typedef {import("../../records/thread/workflow.js").ThreadRecord} ThreadRecord
- * @typedef {NonNullable<ReturnType<ReturnType<typeof import("./composing/floating-response.js").createFloatingResponsePlacement>["frame"]>>} Origin
+ * @typedef {import("../../records/thread/destination.js").SendFrame} Origin
  * @typedef {{entry: Entry, choice: Choice, threadItem: string, control: Element | null,
  * accompanies: boolean, forced: boolean, disclosed: boolean}} Selection
  * @typedef {Selection & {item: Item, preparing: boolean,

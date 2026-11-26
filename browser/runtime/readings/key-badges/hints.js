@@ -52,8 +52,8 @@ import { scrollDrawn, scrolling, watchScrollEnds } from "../../dom/arrivals.js";
 import { announce } from "../../transport/notifications.js";
 import { repaint } from "../../dom/repaint.js";
 
-/** @typedef {import("../../dom/rect.js").Box & {held?: boolean}} HintBarrier */
-/** @typedef {import("../../dom/rect.js").Box & {width: number, height: number, held?: boolean, clippedTop?: boolean}} HintBox
+/** @typedef {import("../../base/box.js").Box & {held?: boolean}} HintBarrier */
+/** @typedef {import("../../base/box.js").Box & {width: number, height: number, held?: boolean, clippedTop?: boolean}} HintBox
  * @typedef {"corner" | "before" | "above"} HintPlacement
  * @typedef {{start: HintBox, target: HintBox, placement?: HintPlacement}} HintFace
  */
@@ -105,13 +105,13 @@ const movedTo = (box, left, top) => ({
   height: box.height,
 });
 
-/** @param {import("../../dom/rect.js").Box} one @param {import("../../dom/rect.js").Box} other */
+/** @param {import("../../base/box.js").Box} one @param {import("../../base/box.js").Box} other */
 const sameBox = (one, other) =>
   one.left === other.left &&
   one.top === other.top &&
   one.right === other.right &&
   one.bottom === other.bottom;
-/** @param {readonly import("../../dom/rect.js").Box[]} some @param {readonly import("../../dom/rect.js").Box[]} others */
+/** @param {readonly import("../../base/box.js").Box[]} some @param {readonly import("../../base/box.js").Box[]} others */
 const sameBoxes = (some, others) =>
   some.length === others.length &&
   some.every((box, index) => {
@@ -203,7 +203,7 @@ function spreadHints(seats, hints, { barriers }) {
 
 // Whether `outer` encloses `inner` and is larger across or down: an equal box is the same
 // place rather than a box around it.
-/** @param {import("../../dom/rect.js").Box} outer @param {import("../../dom/rect.js").Box} inner */
+/** @param {import("../../base/box.js").Box} outer @param {import("../../base/box.js").Box} inner */
 const encloses = (outer, inner) =>
   outer.left <= inner.left &&
   outer.top <= inner.top &&
@@ -270,7 +270,7 @@ function nestOutsets(faces, room) {
 // window's edge or a fixed barrier, rather than its target or a face riding with its
 // own, so the window holds it where a scroll carries the rest. `browsed` is the face a
 // walk is on, if any.
-/** @template {HintFace} T @param {readonly T[]} faces @param {{barriers?: HintBarrier[], band: number, viewport: import("../../dom/rect.js").Box, browsed?: T | undefined}} options */
+/** @template {HintFace} T @param {readonly T[]} faces @param {{barriers?: HintBarrier[], band: number, viewport: import("../../base/box.js").Box, browsed?: T | undefined}} options */
 export function seatHints(
   faces,
   { barriers: fixedBarriers = [], band, viewport, browsed },
@@ -322,11 +322,11 @@ export function seatHints(
       return false;
     const x = (seat.left + seat.right) / 2;
     const y = (seat.top + seat.bottom) / 2;
-    /** @param {import("../../dom/rect.js").Box} rows */
+    /** @param {import("../../base/box.js").Box} rows */
     const off = (rows) => Math.max(rows.top - y, y - rows.bottom, 0);
     // The stretch from the chip's middle to the nearest point of its own target.
     const near = { x: clamp(x, own.left, own.right), y: clamp(y, own.top, own.bottom) };
-    /** @param {import("../../dom/rect.js").Box} box */
+    /** @param {import("../../base/box.js").Box} box */
     const between = (box) =>
       box.left < Math.max(x, near.x) &&
       box.right > Math.min(x, near.x) &&
@@ -375,7 +375,7 @@ export function seatHints(
         target.top < other.bottom &&
         Math.max(other.left - target.right, target.left - other.right) < start.height,
     );
-  /** @param {import("../../dom/rect.js").Box} one @param {import("../../dom/rect.js").Box} other */
+  /** @param {import("../../base/box.js").Box} one @param {import("../../base/box.js").Box} other */
   const rowNeighbours = (one, other) =>
     overlapsAcross(one, other) && (one.bottom <= other.top || other.bottom <= one.top);
   const crowded = new Set(

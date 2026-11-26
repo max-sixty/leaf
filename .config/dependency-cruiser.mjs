@@ -3,7 +3,8 @@
 // The runtime's import graph. eslint reads one module at a time, so it sees the edges
 // a module declares but not where they lead. Every rule here reads a route through the
 // whole graph; `eslint.config.mjs` keeps the rules a module's own source answers, such
-// as which specifiers an owner may name and who may write the document root.
+// as which specifiers an owner may name, which layers a module may name
+// (`architecture/import-layers`) and who may write the document root.
 //
 // The graph is the runtime directory, the physical annotation overlay included.
 // Everything outside it is excluded, the boot entry and the vendored bundles among
@@ -112,7 +113,7 @@ const applicationOwners = [
 // application owner, through however many helpers, owns state instead of drawing it.
 // The geometry and paint group adds the thread's own presenter, which composes
 // them and must stay above them. A renderer in a layer below every module it must
-// not reach needs no entry, since `layering` already keeps it from them.
+// not reach needs no entry, since the import layers already keep it from them.
 const forbiddenClosures = Object.fromEntries([
   ...[
     "records/thread/folding.js",
@@ -139,50 +140,6 @@ const forbiddenClosures = Object.fromEntries([
   ].map((root) => [root, [...applicationOwners, "records/thread/presentation.js"]]),
 ]);
 
-// The runtime's import layers, top first. A module imports only modules of its own
-// layer and of the layers listed after it. The entry points form the top layer and stay
-// at the runtime's top level, since pages, packages, the server and the render checks
-// load them by served path. Each other layer is a directory of the runtime. The library
-// of shared web code (`lib/`) keeps its served path and belongs to the bottom layer.
-// A module anywhere else at the top level fails `layering-unplaced`: move it into a
-// layer no higher than any module that imports it and no lower than any module it
-// imports.
-//
-// When a `layering` rule fails, make the import point down, by passing the value or
-// callback in or by moving what it needs to a layer below both. Where the module itself
-// stands in the wrong layer, move the module instead.
-const layers = [
-  {
-    name: "Entry points and diagnostics",
-    paths: [
-      "bootstrap.js",
-      "prepaint.js",
-      "check-api.js",
-      "validation.js",
-      "widget-api.js",
-      "portable-api.js",
-      "stage-integration.js",
-      "age.js",
-    ],
-  },
-  { name: "Floating panel, page dialogs and page keys", paths: ["panel/"] },
-  { name: "Annotation presentation and composing", paths: ["annotations/"] },
-  { name: "Application and widget host", paths: ["host/"] },
-  {
-    name: "Page features: annotation inventory, contributions, version travel",
-    paths: ["features/"],
-  },
-  { name: "Records, history and undo", paths: ["records/"] },
-  { name: "Page readings, places and paint", paths: ["readings/"] },
-  { name: "Transport, errors and notices", paths: ["transport/"] },
-  { name: "DOM, geometry, focus and the key register", paths: ["dom/"] },
-  { name: "State and registry", paths: ["state/"] },
-  { name: "Primitives and the library", paths: ["base/", "lib/"] },
-];
-// A path names a file exactly and a directory by everything under it.
-const inLayers = (paths) =>
-  `^${runtime}(?:${paths.map((path) => escaped(path) + (path.endsWith("/") ? "" : "$")).join("|")})`;
-
 // A rule naming a module that no longer exists matches nothing and passes, so the
 // declarations above are checked against the directory before they become rules.
 for (const name of new Set(
@@ -194,12 +151,6 @@ for (const name of new Set(
     throw new Error(
       `.config/dependency-cruiser.mjs names a missing runtime module: ${name}`,
     );
-for (const { paths } of layers)
-  for (const path of paths)
-    if (!fs.existsSync(new URL(`../${runtime}${path}`, import.meta.url)))
-      throw new Error(
-        `.config/dependency-cruiser.mjs names a missing runtime module: ${path}`,
-      );
 
 export default {
   forbidden: [
@@ -263,21 +214,6 @@ export default {
       from: { path: isModule(root) },
       to: { reachable: true, path: isOneOf(forbidden) },
     })),
-    ...layers.slice(1).map(({ name, paths }, at) => ({
-      name: "layering",
-      comment: `${name} imports only its own layer and the layers after it in \`layers\`.`,
-      severity: "error",
-      from: { path: inLayers(paths) },
-      to: { path: inLayers(layers.slice(0, at + 1).flatMap((layer) => layer.paths)) },
-    })),
-    {
-      name: "layering-unplaced",
-      comment:
-        "Each runtime module is an entry point or stands in a layer's directory.",
-      severity: "error",
-      from: { path: owners, pathNot: inLayers(layers.flatMap((layer) => layer.paths)) },
-      to: {},
-    },
   ],
   options: {
     moduleSystems: ["es6"],

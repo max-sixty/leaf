@@ -60,7 +60,6 @@ from bisect import bisect_right
 from collections.abc import Callable
 from functools import partial
 from math import inf
-from typing import TYPE_CHECKING
 
 from leaf.base import standing
 from leaf.base.page_memory import Slot
@@ -89,9 +88,6 @@ from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import verb_writers
 from leaf.source.registry.reactions import reaction_emoji
-
-if TYPE_CHECKING:
-    from leaf.records.todos import TodoReading
 
 
 def question_ids(message: dict) -> list[str]:
@@ -819,7 +815,7 @@ def page_obligation_readings(
     dropped: set,
     threads: dict,
     within: dict,
-    log: "TodoReading",
+    owed: list[dict],
     *,
     settled_away: set[str] | None = None,
     prior=None,
@@ -828,13 +824,12 @@ def page_obligation_readings(
 ) -> dict:
     """Obligations in one document basis; a discussion changes attention, not answer:
     an obligation a thread with the agent is about is the agent's (`anchors_with_agent`).
-    `log` is the page's `todos.TodoReading`: its `owed` holds the work the agent's
-    replies promised."""
+    `owed` is the work the agent's replies promised (`todos.TodoReading.owed`)."""
     reducer = _ObligationReducer(
         sources, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
-    discussed(records, anchors_with_agent(threads, log.owed), within)
+    discussed(records, anchors_with_agent(threads, owed), within)
     return collection(records)
 
 
@@ -842,7 +837,7 @@ def thread_obligation_readings(
     events: list,
     registry: dict,
     threads: dict,
-    log: "TodoReading",
+    owed: list[dict],
     *,
     reading: ThreadMarkupReading,
 ) -> dict:
@@ -851,8 +846,8 @@ def thread_obligation_readings(
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
     obligation does (`anchors_with_agent`). That turn instead answers a message
-    obligation, as does a reaction on the message whose emoji settles it; `log` is the
-    page's `todos.TodoReading`, whose `owed` holds the work replies promised."""
+    obligation, as does a reaction on the message whose emoji settles it. `owed` is
+    the work replies promised (`todos.TodoReading.owed`)."""
     reducer = _ObligationReducer(
         obligation_sources(reading.structure, registry),
         reading.projection,
@@ -894,7 +889,7 @@ def thread_obligation_readings(
     emoji = reaction_emoji(registry)
     # The newest open to-do on each thread.
     newest_todo: dict[str, int] = {}
-    for todo in log.owed:
+    for todo in owed:
         subject = todo["source"]["subject"]
         if subject["kind"] == "thread":
             newest_todo[subject["id"]] = max(
@@ -925,13 +920,13 @@ def thread_obligation_readings(
                 settle_by_words(record, answer)
         if record["next_actor"] is None:
             continue
-        owed = answers.owed
+        turn = answers.owed
         if closed is not None:
             record["next_actor"] = None
         # Only the user's words answer a question asked in words, so a turn the agent
         # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
         elif not in_words and (
-            (owed is not None and owed["seq"] > asked)
+            (turn is not None and turn["seq"] > asked)
             or newest_todo.get(record["thread"], 0) > asked
         ):
             record["next_actor"] = "agent"

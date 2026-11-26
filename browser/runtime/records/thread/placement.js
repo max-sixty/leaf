@@ -66,6 +66,20 @@ import { kept } from "../../state/kept.js";
 // element a version activation has replaced — is no place, which is the same answer an
 // anchor that resolves nowhere gets.
 /** @typedef {(id: string) => {place: Element | null} | null | undefined} PlacedAt */
+/** Where anchor placement puts a thread, a saved draft or the comment being composed
+ * (annotations/anchor-placement.js), as the readers it is handed to read it.
+ * @typedef {ReturnType<typeof import("./state.js").allThreads>[number]} Thread
+ * @typedef {import("../../../types/contract.js").CompleteUnion<import("../../readings/resolved-target.js").ResolvedTarget & {message?: string}>} ResolvedTarget
+ * @typedef {ResolvedTarget & {messageTarget: ReturnType<typeof import("./messages.js").messageHolding>,
+ * point: Element | null, pointRow: string | null, pointWords: string | null}} Placement
+ * @typedef {ReturnType<typeof import("../../readings/anchor-resolution.js").resolveAnchor>} PendingPlacement
+ * @typedef {{open: boolean, anchor: import("../../../types/domain.js").Anchor | null, about: string | null,
+ * drawing: import("../../../types/domain.js").DraftDrawing | null}} ThreadDraft
+ * @typedef {{readings: {thread: Thread, placement: Placement}[],
+ * draft: ThreadDraft & {resolved: PendingPlacement}, action: PendingPlacement}} PlacementReading
+ * @typedef {{placedAt: (id: string | null | undefined) => Placement | undefined,
+ * savedAt: (context: string) => Placement | undefined, pendingAt: () => PendingPlacement}} ThreadPlacements
+ */
 /** @param {Pick<import("../../../types/domain.js").Thread, "id" | "anchor">} t @param {PlacedAt} placedAt */
 export const threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);

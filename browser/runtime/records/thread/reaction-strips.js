@@ -7,7 +7,7 @@ import { isHTML } from "../../lib/shadow-tree.js";
 import { html, ref, render, repeat } from "/vendor/lit.js";
 import { offeredAction } from "../../lib/controls.js";
 
-/** @typedef {{registerSurface: ReturnType<typeof import("../../annotations/reactions.js").createReactionController>["registerReactSurface"],
+/** @typedef {{registerSurface: (surface: Element, picker: {palette: HTMLElement, trigger: HTMLElement}) => {toggle: () => unknown, close: () => unknown},
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "setReaction">,
  * pressed?: () => void}} ReactionCommands */
 /** @typedef {NonNullable<ReturnType<typeof import("./messages.js").messageReading>["reactions"]>} ReactionReading */

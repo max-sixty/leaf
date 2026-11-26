@@ -193,7 +193,7 @@ import { excerptWords } from "../../lib/words.js";
 // the page's title, where no heading stands over them: a label of quoted words with no
 // place of their own, and the head's title for any other.
 /** @param {ThreadRecord} thread
- * @param {Pick<ReturnType<typeof import("../../annotations/anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
+ * @param {Pick<import("./placement.js").ThreadPlacements, "placedAt">} anchors */
 function quoteReading(thread, anchors) {
   const quoted = threadPassage(thread);
   const place = anchorPlace(quoted, thread.root.about);
@@ -273,7 +273,7 @@ function workingMessage(thread, messages) {
   const running = workflows.find(inHand);
   const runningLine = running && hasWorkflowLine(running) ? running : null;
   const stopped = workflows.find(
-    /** @returns {workflow is Extract<import("../../state/semantic-application.js").Workflow, {detail: string}>} */
+    /** @returns {workflow is Extract<import("../../../types/domain.js").Workflow, {detail: string}>} */
     (workflow) =>
       workflow.state === "blocked" &&
       workflow.reason !== null &&

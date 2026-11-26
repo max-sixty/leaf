@@ -31,7 +31,7 @@ import { shownParts } from "../runtime/dom/geometry.js";
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
 /** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
-/** @typedef {import("../runtime/base/contribution-model.js").EntryInput} EntryInput */
+/** @typedef {import("../runtime/features/contribution-controls.js").EntryInput} EntryInput */
 const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
 /** @param {SuggestionState} state */
@@ -294,7 +294,7 @@ customElements.define(
       );
     }
 
-    /** @returns {import("../runtime/base/contribution-model.js").ReadingOptions} */
+    /** @returns {import("../runtime/features/contribution-controls.js").ReadingOptions} */
     #readMargin() {
       const outcome = this.#outcome();
       const entries = this.#entries();

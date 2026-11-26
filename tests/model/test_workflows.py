@@ -1262,17 +1262,17 @@ def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, then):
     asked = offer_choice(claimed)
     message = say(claimed, asked, "ok, can we file an issue requesting this?")
     picked = choose(claimed, "file")
-    thread_model.fail_answer(
-        claimed,
-        picked["id"],
-        "delivery_unconfirmed",
-        "Send it again if I still need an answer.",
-        also=[message["id"]],
-        attempt=f"unconfirmed-{picked['id']}",
-        identity={"session": "s1"},
-        only_if_unclaimed=False,
-        claimed_session="s1",
-    )
+    for event in (message, picked):
+        thread_model.fail_answer(
+            claimed,
+            event["id"],
+            "delivery_unconfirmed",
+            "Send it again if I still need an answer.",
+            attempt=f"unconfirmed-{event['id']}",
+            identity={"session": "s1"},
+            only_if_unclaimed=False,
+            claimed_session="s1",
+        )
     failed = state_json(claimed)
     assert owed(failed) == []
     assert update_records(failed) == {f"update:{picked['id']}": "user"}

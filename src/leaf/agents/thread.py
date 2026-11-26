@@ -567,10 +567,7 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
 def answered_already(events: list[dict], inputs: list) -> bool:
     """Whether an answer in `events` covers each of `inputs`, so another answer to
     them would be the second (`successful_replies`)."""
-    answered = {
-        identity for event in events if is_answer(event) for identity in covered(event)
-    }
-    return answered.issuperset(inputs)
+    return all(successful_replies(events, each) for each in inputs)
 
 
 def successful_replies(events: list[dict], input_id: str) -> list[dict]:
@@ -672,9 +669,8 @@ def post_reply(
 
     An answer and a failure receipt record as ``also`` the other inputs they answer
     beside ``responds`` (`events.covered`): the address's ``also``, the inputs its
-    thread owed when the delivery was captured that the agent could read
-    (`delivery.batch_data`), or for an address no delivery captured, those the log
-    owes at it now. An input the thread has come to owe since
+    thread owed when the delivery was captured, or for an address no delivery
+    captured, those the log owes at it now. An input the thread has come to owe since
     the capture, such as a pick an undo brought back, stays owed.
 
     A ``responds`` that no longer names the update owed refuses an answer, which
@@ -1308,7 +1304,7 @@ def fail_answer(
     failure: str,
     text: str,
     *,
-    also: tuple[str, ...] | list[str] = (),
+    also: list[str] | None = None,
     attempt: str,
     identity: dict,
     only_if_unclaimed: bool,
@@ -1328,32 +1324,24 @@ def fail_answer(
 
     An update with no answer outstanding writes nothing, except that a repeated reply
     receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves an update
-    some turn already picked up to the writer following that turn. The failure hands
-    back the update and `also`, the other inputs its failed delivery carried that the
-    answer would have covered, and nothing else: an input another delivery carried
-    stays with the turn that holds it, and one sent since stays owed. Where the user
-    has taken the update back since, the failure goes in at the newest of `also`
-    still owed an answer, so what the delivery carried is still handed back.
+    some turn already picked up to the writer following that turn. `also` names the
+    other inputs the failed delivery carried that its answer covered, so the failure
+    hands back those and the update alone; without it, it hands back what the log
+    owes at the update's answer now.
     """
     with PageTransaction(page_dir) as page:
         if claimed_session is not None and page.claim_of(claimed_session) is None:
             raise ReceiptRefused(
                 f"page is no longer claimed by session {claimed_session!r}"
             )
-        responses = current_responses(page_dir, page.events)
-    answer = responses.get(responds)
+        answer = current_responses(page_dir, page.events).get(responds)
     if answer is not None and answer["kind"] == "markup":
         return _fail_markup_answer(
             page_dir, responds, failure, only_if_unclaimed, claimed_session
         )
-    carried = [*also, responds]
-    if answer is None:
-        responds = next(
-            (each for each in reversed(also) if each in responses), responds
-        )
     return post_reply(
         page_dir,
-        {"responds": responds, "also": [each for each in carried if each != responds]},
+        {"responds": responds, **({"also": also} if also is not None else {})},
         text,
         settlement=Receipt(only_if_unclaimed),
         attempt=attempt,

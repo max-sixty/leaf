@@ -689,9 +689,9 @@ def handed_over(
             returned = [inputs[turn["id"]] for turn in handed if turn["id"] in inputs]
             if superseded > response["seq"] or not returned:
                 continue
-            # The record stands on the input handed back that was made last, as the
-            # thread's answer does.
-            named, subject, _at = max(returned, key=lambda each: each[0]["seq"])
+            # The record stands on the newest input handed back that still stands,
+            # the one the failure names unless the user has since taken it back.
+            named, subject, _at = returned[-1]
             handed_back = publish(
                 update_obligation(
                     named["id"],

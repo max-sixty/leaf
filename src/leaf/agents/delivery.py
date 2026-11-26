@@ -261,9 +261,8 @@ _ANSWER = {
                 },
                 {
                     "also": described(
-                        "The other inputs the reply answers besides `responds`: "
-                        "those its thread owed at capture that this delivery or an "
-                        "earlier one let the agent read, in log order.",
+                        "The other inputs the reply answers besides `responds`, "
+                        "which its thread owed at capture, in log order.",
                         {"type": "array", "items": STRING, "minItems": 1},
                     ),
                 },
@@ -639,30 +638,6 @@ def batch_data(
         else None
     )
 
-    threads = batch_threads(
-        events,
-        batch,
-        reader.within,
-        whole=whole,
-        beside_line=(claim := transaction.claim) is not None and lane_up(claim["id"]),
-    )
-    # What the recipient reads of the page: this batch, the thread messages and
-    # gestures it carries, and what an earlier delivery handed over. An answer covers only that
-    # (`also`); an input owed that the recipient never read stays owed.
-    readable = {
-        *(event["id"] for event in batch),
-        *(
-            shown["id"]
-            for thread in threads
-            for shown in (*thread["messages"], *thread["actions"])
-        ),
-        *(
-            identity
-            for pickup in pickup_receipts(events, phase=None)
-            if pickup["phase"] != "failed"
-            for identity in pickup["events"]
-        ),
-    }
     captured = []
     for event in batch:
         known = facts[event["id"]]
@@ -671,11 +646,7 @@ def batch_data(
         # the agent has no use for it.
         entry.pop("attempt", None)
         if (answer := responses.get(event["id"])) is not None:
-            read = [each for each in answer.get("also", ()) if each in readable]
-            entry["answer"] = {
-                **{key: value for key, value in answer.items() if key != "also"},
-                **({"also": read} if read else {}),
-            }
+            entry["answer"] = answer
         if (
             waiting := about(event["widget"])
             if about is not None and event["kind"] == "action"
@@ -695,7 +666,14 @@ def batch_data(
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": threads,
+        "threads": batch_threads(
+            events,
+            batch,
+            reader.within,
+            whole=whole,
+            beside_line=(claim := transaction.claim) is not None
+            and lane_up(claim["id"]),
+        ),
         "events": captured,
     }
 

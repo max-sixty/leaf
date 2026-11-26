@@ -541,3 +541,22 @@ test("contribution reading projections contain data while producers retain activ
   assert.equal(declaration.readings[0].activate, activate);
   assert.ok(Object.isFrozen(reading.readings[0]));
 });
+
+test("a contribution reading keeps only the fields a reading declares", () => {
+  const declared = { id: "inbox", text: "Inbox", kind: "on-me", represents: true };
+  const reading = normalizeContributionReading(
+    {
+      readings: [
+        {
+          ...declared,
+          unread: 3,
+          userAttention: { word: "Answer", reason: "obligation" },
+          marker: true,
+          thread: { id: "t1" },
+        },
+      ],
+    },
+    "owner",
+  );
+  assert.deepEqual(reading.readings, [declared]);
+});

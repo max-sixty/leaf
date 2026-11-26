@@ -34,7 +34,7 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
  * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
  * @typedef {ContributionEntry & {owner: string}} OwnedEntry
- * @typedef {{id: string, text: string, kind?: ContributionKind, activate?: () => unknown}} ReadingInput
+ * @typedef {{id: string, text: string, kind?: ContributionKind, represents?: boolean, activate?: () => unknown}} ReadingInput
  * @typedef {{kind?: ContributionKind | null, subject?: string | null,
  * state?: ContributionState, side?: "before" | "after", notice?: {text: string, tone?: string | null} | null,
  * entries?: readonly EntryInput[], readings?: readonly ReadingInput[]}} ReadingOptions
@@ -325,8 +325,19 @@ export function normalizeContributionReading(reading, owner) {
     side,
     notice: normalizedNotice,
     entries: Object.freeze(normalizedEntries),
+    // A reading carries only the fields a reading declares. The margin item made from
+    // it (features/annotation-inventory.js) also holds what only Leaf's own readings
+    // say, such as a thread's `unread` and `userAttention`, so a package's field of
+    // that name would paint Leaf's marks.
     readings: Object.freeze(
-      readings.map(({ activate, ...item }) => Object.freeze(item)),
+      readings.map(({ id, text, kind, represents }) =>
+        Object.freeze({
+          id,
+          text,
+          ...(kind !== undefined && { kind }),
+          ...(represents && { represents }),
+        }),
+      ),
     ),
   });
 }

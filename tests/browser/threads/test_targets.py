@@ -8,6 +8,7 @@ from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_navigation import mark_point
 from render_harness import (
     EXAMPLE_PACKAGES,
     RELEASE_FOCUS,
@@ -82,7 +83,7 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
                     "author": "user",
                     "revision": 1,
                     "text": "About this paragraph.",
-                    "anchor": {"section": "inside"},
+                    "anchor": {"section": "inside", "quote": "Commented words"},
                 }
             ],
         ),
@@ -90,9 +91,10 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     panel = page.locator("#first")
     expect(panel).to_have_attribute("tabindex", "0")
     passage = page.locator("#inside")
-    passage.hover()
+    at = mark_point(page, "lf-mark")
+    page.mouse.move(*at)
     expect(passage).to_have_css("cursor", "pointer")
-    passage.click()
+    page.mouse.click(*at)
     expect(
         page.locator(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="inside-thread"]'
@@ -100,10 +102,11 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     ).to_be_visible()
 
 
-def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
-    """A press in a commented section opens its thread, but one on a field or button
-    inside it keeps its own meaning (annotations/composing/surface.js), so the hand stands over the
-    section's words and the field keeps its own cursor."""
+def test_the_hand_stands_on_marked_words_alone(browser, serve):
+    """A press on a passage's marked words opens its thread, so the hand stands over
+    them. A thread on the whole section draws no mark there, so neither its other words
+    nor its field show the hand, and the field keeps its own cursor
+    (annotations/anchor-paint.js, header)."""
     source = leaf_page(
         "Commented form",
         '<section id="form"><p id="words">Fill this in, please.</p>'
@@ -126,6 +129,14 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
                 },
                 {
                     "kind": "comment",
+                    "id": "words-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About asking.",
+                    "anchor": {"section": "words", "quote": "please"},
+                },
+                {
+                    "kind": "comment",
                     "id": "act-thread",
                     "author": "user",
                     "revision": 1,
@@ -145,7 +156,10 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     expect(field).not_to_have_attribute("data-lf-over-mark", re.compile(".*"))
     assert page.evaluate(at_pointer, centre) != "pointer"
     words = page.locator("#words")
-    words.hover()
+    words.hover(position={"x": 4, "y": words.bounding_box()["height"] / 2})
+    rendered(page)
+    expect(words).not_to_have_attribute("data-lf-over-mark", re.compile(".*"))
+    page.mouse.move(*mark_point(page, "lf-mark"))
     expect(words).to_have_css("cursor", "pointer")
     # The words preview their thread after a dwell, and that preview can stand over the
     # buttons below, so put it away before aiming at them.
@@ -167,11 +181,11 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
 
 
 def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
-    """A press means one thing. A press on an option card picks it and one on a gloss
-    pins its card, so neither opens the thread on the question they stand in, whose
-    reply box would take the user's focus (annotations/composing/surface.js, the page's click). A
-    gloss in a label leaves the press to the label, which ticks its box. A press on the
-    question's own words still opens that thread."""
+    """A press means one thing. A press on an option card's marked words picks the
+    option and one on a gloss's pins its card, so neither opens the thread on those
+    words, whose reply box would take the user's focus (annotations/composing/surface.js,
+    the page's click). A gloss in a label leaves the press to the label, which ticks its
+    box. A press on marked words outside any control still opens their thread."""
     source = leaf_page(
         "Commented question",
         '<lf-group id="cache-q" label="Which cache should the importer use?">'
@@ -199,13 +213,19 @@ def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
                     "kind": "comment",
                     "author": "user",
                     "revision": 1,
-                    "text": "Does Redis need a deploy step?",
-                    "anchor": {"section": "cache-q"},
+                    "text": f"About {quote}?",
+                    "anchor": {"section": "cache-q", "quote": quote},
                 }
+                for quote in (
+                    "Redis",
+                    "durable store",
+                    "WAL",
+                    "Both hold a day of results.",
+                )
             ],
         ),
     )
-    expect(page.locator("#cache-q")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 4")
     card = page.locator(".lf-margin-preview")
 
     page.locator("#cache-redis strong").click()
@@ -224,7 +244,8 @@ def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
     rendered(page)
     expect(card).to_be_hidden()
 
-    page.locator("#words").click()
+    words = page.locator("#words")
+    words.click(position={"x": 12, "y": words.bounding_box()["height"] / 2})
     expect(card.locator("leaf-text")).to_be_focused()
 
 

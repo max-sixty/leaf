@@ -100,7 +100,8 @@ there takes the pointer: a control, native or ARIA, an element with a `title` or
 `lfPreview`, or a widget that draws its content itself (`content` `data`, `markdown`
 or `empty`). There the element's own preview shows, or none, and the thread is reached
 by its margin entry. Words a widget holds of the author's markup, outside any control
-in it, preview their thread.
+in it, preview their thread. A thread on a whole element, such as a widget, draws no
+mark on the element, so only the thread's margin entry previews it.
 
 A link an author wrote to a place on the page previews that place with no declaration.
 A link a widget draws previews nothing of the place unless the widget declares it,

@@ -30,7 +30,6 @@ from interact_support import (
     state_json,
 )
 
-from leaf.agents import codex as codex_model
 from leaf.agents import delivery as delivery_model
 from leaf.agents import thread as thread_model
 from leaf.base import leases as leases_model

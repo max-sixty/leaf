@@ -6,8 +6,8 @@ authoritative presentation, and one rendering frame after it, in the light schem
 the render viewport, or with `--render` on the render check's page, at its desktop
 window (`PageCode`).
 
-A thread message's markup takes the same run before it posts, wherever it places one
-of those widgets (`messages.py`).
+A thread message takes the same run before it posts, where
+`browser_judged.places_judged_widget` selects its markup (`messages.py`).
 
 What fails it is what the runtime would report to the agent. `runtime/transport/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and

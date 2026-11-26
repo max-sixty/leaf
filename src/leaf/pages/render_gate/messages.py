@@ -10,8 +10,9 @@ Mermaid sequence diagram didn't draw (a `;` in a loop label or note ends the
 statement), and their authors never ran `--render`. A message with no such widget
 waits on no browser.
 
-Every message an agent writes passes through the check, so the browser run is
-imported only for a message that needs it."""
+The thread commands import this module even for a message of plain text, and a write
+runs the check only on a message holding HTML (`thread.drawn_markup`), so the module
+imports the browser run only where that markup places such a widget."""
 
 from pathlib import Path
 

@@ -1110,7 +1110,7 @@ def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
 def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     page_dir, monkeypatch
 ):
-    from leaf.records import revisioning
+    from leaf.records import revision_publication
     from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace(
@@ -1124,7 +1124,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     ]
     revised = original.replace("Alpha Gamma", "Beta Delta")
     (page_dir / "index.html").write_text(revised)
-    append = revisioning.append_admitted
+    append = revision_publication.append_admitted
 
     def interrupted(page, event, **kwargs):
         accepted = append(page, event, **kwargs)
@@ -1133,7 +1133,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
         return accepted
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "append_admitted", interrupted)
+        fault.setattr(revision_publication, "append_admitted", interrupted)
         refused = stamp(page_dir, "Revised")
         assert isinstance(refused.exception, RuntimeError)
     assert files_model.latest_revision(page_dir) == 1
@@ -1157,7 +1157,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
 def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     page_dir, monkeypatch
 ):
-    from leaf.records import revisioning
+    from leaf.records import revision_publication
     from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
@@ -1183,7 +1183,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
         raise RuntimeError("interrupted before required reply")
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "append_admitted", interrupted)
+        fault.setattr(revision_publication, "append_admitted", interrupted)
         refused = CliRunner().invoke(cli_model.cli, args)
         assert isinstance(refused.exception, RuntimeError)
     with PageTransaction(page_dir) as page:
@@ -1191,7 +1191,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
         assert not any(event["kind"] == "reply" for event in page.events)
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "publish_artifact", interrupted)
+        fault.setattr(revision_publication, "publish_artifact", interrupted)
         refused = CliRunner().invoke(cli_model.cli, args)
         assert isinstance(refused.exception, RuntimeError)
     assert files_model.latest_revision(page_dir) == 1
@@ -1207,7 +1207,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
 def test_an_interrupted_activation_finishes_all_anchor_transitions(
     page_dir, monkeypatch
 ):
-    from leaf.records import revisioning
+    from leaf.records import revision_publication, revisioning
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
@@ -1219,14 +1219,14 @@ def test_an_interrupted_activation_finishes_all_anchor_transitions(
         for q in ("Alpha", "Gamma")
     ]
     (page_dir / "index.html").write_text(original.replace("Alpha Gamma", "Beta Delta"))
-    append = revisioning.append_admitted
+    append = revision_publication.append_admitted
 
     def interrupted(page, event, **kwargs):
         append(page, event, **kwargs)
         raise RuntimeError("interrupted after the first append")
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "append_admitted", interrupted)
+        fault.setattr(revision_publication, "append_admitted", interrupted)
         import pytest
 
         with pytest.raises(RuntimeError, match="interrupted after"):

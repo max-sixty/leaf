@@ -79,7 +79,7 @@ from leaf.records import publishing as publishing_model
 from leaf.records import reports as reports_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
-from leaf.records.authored_checks.admission import message_markup_findings
+from leaf.records.authored_checks.documents import message_markup_findings
 from leaf.records.authored_checks.source import check_source
 from leaf.records.authored_checks.source_history import predecessor_reading
 from leaf.serving import revision_delivery as revision_delivery_model

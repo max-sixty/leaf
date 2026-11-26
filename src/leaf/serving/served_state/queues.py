@@ -33,8 +33,8 @@ A row names its record by `id` and carries no copy of it: the view serves each
 obligation record in `obligations`, and the record says where it stands (`standing`),
 so a row's reader takes whether the agent has it in hand, and how a done one ended,
 from there. The browser's publisher joins each row to its current record. On <agent>
-orders the updates by their strongest workflow (`work.served_workflows`), the order
-every surface showing one of several reads.
+orders the updates by their strongest workflow (`work_state.served_workflows`), the
+order every surface showing one of several reads.
 
 A row that leaves a list lands in Done, whose `owner` names the list: the records no
 longer open, which an update's is when the agent's reply answered it, a widget's

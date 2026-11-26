@@ -2006,7 +2006,7 @@ def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, re
 
         page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
 
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         primed(browser.unwatched, configure),
         serve(
             leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),

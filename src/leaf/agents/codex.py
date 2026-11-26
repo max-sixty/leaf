@@ -2,14 +2,15 @@
 the App Server connection Leaf uses where it can reach one, which the desktop app
 never offers (`session-lifetime.md`, "Watchers", says which tasks offer one).
 
-Two programs connect to a Codex task's App Server for Leaf: the detached
-`codex_adapter.py`, which watches a task the user owns, and `leaf_website`
-(`worker/`), which owns the tasks it starts. Both use this module's App Server
+Two programs connect to a Codex task's App Server for Leaf: the detached delivery
+adapter (`codex_run.py`), which watches a task the user owns through
+`codex_adapter.TaskConnection`, and `leaf_website` (`worker/`), which owns the tasks
+it starts. Both use this module's App Server
 connection, `start_app_server_delivery` to start a delivery's turn, `TurnFold` to
 turn a turn's notifications into page activity, a reply and an ending, and
 `CarriedTurn` to follow a turn on the connection that started it. Each client's
-header says how notifications reach its folds and what it does when a start or a
-connection fails.
+header, `codex_adapter.py`'s for `TaskConnection` and `leaf_website`'s, says how
+notifications reach its folds and what it does when a start or a connection fails.
 
 A delivery carries a batch of the user's updates to the task. Its content is an
 immutable envelope (`delivery.freeze_delivery`, read with `leaf delivery read <id>`).
@@ -35,14 +36,14 @@ page, is retired without writing (`delivery.receive_batch`).
 While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
 complete envelope as a JSON block (`json_block`), or its pointer where Codex wouldn't
 show it whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn
-accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
+accepts it (`confirm_codex_pointer`). A hook never re-offers input or takes one
 another transport holds. The Stop hook offers nothing while an App Server adapter
 runs (`codex_adapter.later_turn_takes_input`): the turn ends on its own answer, and
 the adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
 queue adapter, whose turn would open on a pointer Codex shows as the user's own
 message, or a task that waits with `leaf wait`, Stop offers the input into the turn it
 continues, even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads
-as running, the adapter's `_offer_queued_delivery` offers the pending input, or the
+as running, the adapter's `offer_queued_delivery` offers the pending input, or the
 unread pointer, itself. Without an App Server connection it asks the desktop app to
 start the turn (`codex_desktop.py`), or else hands the pointer to `codex queue`,
 retrying the same pointer while the session owns a page, and never calls `turn/start`.
@@ -100,7 +101,7 @@ from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
-from typing import ClassVar, Literal, TypedDict
+from typing import TYPE_CHECKING, ClassVar, Literal, TypedDict
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
@@ -122,6 +123,7 @@ from leaf.agents.delivery import (
     new_delivery_id,
     read_delivery,
     reader_envelope,
+    receive,
     receive_batch,
     record_pickup,
     stored_delivery,
@@ -153,6 +155,9 @@ from leaf.records.transaction import (
     owned_pages,
     restore_page_claim,
 )
+
+if TYPE_CHECKING:
+    from leaf.records.work_state import WorkState
 
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
@@ -2135,8 +2140,11 @@ def append_batch(
     page_dir: Path,
     transaction: PageTransaction,
     batch: list[dict],
+    *,
+    work: "WorkState | None" = None,
 ) -> tuple[Path, int, dict] | None:
-    """Append fresh events to the task's one collecting record."""
+    """Append fresh events to the task's one collecting record, by the page's
+    work (`presence.read_work`), `work` where the caller has already read it."""
     current = _collecting_record(session_id)
     if current is None:
         path = record_path(session_id, new_delivery_id())
@@ -2167,7 +2175,11 @@ def append_batch(
         for event in entry["events"]
         if "answer" in event
     )
-    responses = current_responses(page_dir, transaction.events)
+    from leaf.agents.presence import read_work
+
+    if work is None:
+        work = read_work(page_dir, transaction.events)
+    responses = current_responses(page_dir, transaction.events, work)
     selected = []
     for event in fresh:
         response = responses.get(event["id"])
@@ -2179,7 +2191,7 @@ def append_batch(
     if not selected:
         return None
 
-    data = batch_data(page_dir, transaction, selected, responses=responses)
+    data = batch_data(page_dir, transaction, selected, work=work)
     entry = {
         **data,
         "session": session_id,
@@ -2568,6 +2580,34 @@ def accept_codex_delivery(
         if received is not None:
             accepted.append(received)
     return accepted
+
+
+def confirm_codex_pointer(session_id: str, payload: dict) -> list[Path]:
+    """Confirm the owning task's complete delivery receipt in its exact turn.
+
+    A hook reservation remains bound to its offered turn. Already queued input
+    and recovery reminders have no such reservation; their explicit reader
+    confirmation records the current receiver's turn under the page lock. So
+    does a queue offer whose acceptance went unrecorded, as when the adapter
+    failed after `codex queue` returned: the pointer in this turn proves the
+    queue took it, and accepting it here keeps the adapter from queueing it
+    again.
+    """
+    observation = hook_turn(session_id)
+    if not observation or not observation["running"]:
+        raise ReceiptRefused("the receiving provider turn has ended")
+    record = read_task_delivery(session_id, payload["id"])
+    if type(record) is Offering:
+        accept_codex_delivery(session_id, payload["id"], None)
+        return receive(payload, session_id)
+    if record is None or isinstance(record, Accepted):
+        return receive(payload, session_id)
+    received = accept_codex_delivery(
+        session_id, payload["id"], observation["turn"], hook_observation=observation
+    )
+    if len(received) != len(payload["batches"]):
+        raise ReceiptRefused("delivery no longer owns its page or receiving turn")
+    return [batch["page"] for batch in received]
 
 
 def open_app_server_delivery(

@@ -89,7 +89,7 @@ class Harness:
       held no page when that turn's prompt came. Then nothing watches, as when a
       watch fails, reaches its hook's timeout or loses a background job's retired
       worker, while the session lives on, which is why this is the harness with a
-      `nudge` (`presence.nudge_interrupted`).
+      `nudge` (`server_rows.nudge_interrupted`).
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -124,7 +124,7 @@ class Harness:
     # (`codex_adapter`): a claim starts or joins it before publishing its page
     # (`hosting.preparing_delivery`), the tool hook and Stop offer the record
     # (`hooks.offer_at_step`), and the reader's acknowledgement of a pointer the
-    # record offered confirms it there (`delivery.receive_delivery`).
+    # record offered confirms it there (`delivery_ack.receive_delivery`).
     adapter: ClassVar[bool] = False
     # How Leaf asks the harness's model a tool-free structured question, which
     # `inference.harness_generator` reads: a completion on the session's own model

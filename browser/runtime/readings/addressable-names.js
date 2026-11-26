@@ -41,7 +41,7 @@ export function addressableSays(addressable) {
 // own insides, since a section an agent sent in a reply stands inside the floating
 // panel's chrome and its heading is still its name. An element the contract gives no
 // name answers "". The server names an obligation's element by the same rule off the
-// document (`gesture_words.element_name`), and `tests/name_cases.json` holds both to
+// document (`passages.element_name`), and `tests/name_cases.json` holds both to
 // the same cases.
 //
 // Rejected: naming any element by a leading heading, looked for inside a <header> or

@@ -400,6 +400,8 @@ def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
             "aabb0011",
             "--text",
             f"Try:\n\n{sample}",
+            "--title",
+            "Thread title",
         )
     else:
         history = [
@@ -435,7 +437,13 @@ def sample_holder_findings(page_dir, holder, source) -> list[Finding]:
         return findings
     published(page_dir)
     return command_findings(
-        "thread", "create", str(page_dir), "--text", f"Try it:\n\n{source}"
+        "thread",
+        "create",
+        str(page_dir),
+        "--text",
+        f"Try it:\n\n{source}",
+        "--title",
+        "Agent thread",
     )
 
 
@@ -515,6 +523,8 @@ def test_an_id_the_log_gives_an_event_is_refused_in_a_page_and_a_message(page_di
         page_dir,
         "--text",
         'See:\n\n<lf-code id="6d1d57ac">\n<pre><code>1</code></pre></lf-code>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values) for f in message] == [
         ("ids-taken-by-events", {"ids": ["6d1d57ac"]})
@@ -578,7 +588,7 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     parses as a block's contents but not as the declaration list delivery reads,
     and unasked would pass every check only for delivery to refuse it."""
     from leaf.serving.revision_delivery import DeliveryAddress, rebase_document
-    from leaf.source.revision_artifact import ArtifactError
+    from leaf.source.capture_refusals import ArtifactError
 
     markup = holder.format(f'<p style="{style}">Shown</p>')
     source = styled("", markup)
@@ -588,7 +598,13 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     else:
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", f"Look:\n\n{markup}"
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            f"Look:\n\n{markup}",
+            "--title",
+            "Agent thread",
         )
     [refused] = findings if door == "message" else found(findings, "css-syntax")
     assert refused.code == "css-syntax"
@@ -609,7 +625,13 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
     if door == "message-sample":
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", f"Try:\n\n{sample}"
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            f"Try:\n\n{sample}",
+            "--title",
+            "Agent thread",
         )
     else:
         (page_dir / "index.html").write_text(
@@ -632,6 +654,8 @@ def test_a_message_takes_the_advice_its_markup_draws_on_a_page(page_dir):
         page_dir,
         "--text",
         'Run:\n\n<pre><code class="language-nope">go</code></pre>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values["language"]) for f in noted] == [
         ("uncoloured-language", "nope")
@@ -654,7 +678,13 @@ def test_a_dropped_declaration_is_advice(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     published(page_dir)
     noted = command_notes(
-        "thread", "create", page_dir, "--text", f"Try:\n\n{published_markup}"
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        f"Try:\n\n{published_markup}",
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.severity) for f in noted] == [("css-dropped", "advice")]
 

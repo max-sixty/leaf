@@ -54,7 +54,7 @@ from leaf.serving.http import assets_path
 from leaf.source import render_checks as render_checks_model
 from leaf.source import revision_artifact as artifact_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.page_fixtures import package_selection_args
 
@@ -122,7 +122,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
 
 
 def test_server_round_trip(server, page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     source = page_dir / "index.html"
@@ -589,7 +589,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
 ):
     """An open old tab may outlive the selection of the package that upgraded its
     widget."""
-    shipped = registry_storage.load_registry(page_dir)
+    shipped = vocabulary_model.load_registry(page_dir)
     overlay = page_dir.parent / ".leaf"
     (overlay / "widgets").mkdir(parents=True)
     (overlay / "registry.json").write_text(

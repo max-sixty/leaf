@@ -11,7 +11,7 @@ from render_harness import (
 
 from leaf.source import anchor_capture as anchor_capture_model
 from leaf.source import passages as passages_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.structure import SourceDocument
 
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
@@ -100,7 +100,7 @@ def written_anchors(page_dir, html, limit=40):
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     text = passages_model.page_passages(SourceDocument(html), registry).text
     words = text.split(" ")
     anchors = []

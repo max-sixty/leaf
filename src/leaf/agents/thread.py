@@ -29,7 +29,7 @@ from leaf.log.events import (
     is_answer,
     taken_back,
 )
-from leaf.log.obligations import local_obligation_entry, questions_in_words, shown_in
+from leaf.log.obligations import questions_in_words
 from leaf.log.projection import page_reading
 from leaf.log.thread_context import thread_message, thread_names, thread_structure
 from leaf.records.activity import answer_command, reply_command
@@ -49,11 +49,13 @@ from leaf.records.event_contracts import append_admitted
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
 from leaf.source.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
-from leaf.source.passages import SourceReading, holds_html, message_markup
+from leaf.source.obligation_sources import local_obligation_entry
+from leaf.source.passages import holds_html, message_markup
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import kinds_declaring, title_limit
 from leaf.source.revision_artifact import active_enclosing, read_revision
-from leaf.source.structure import SourceDocument
+from leaf.source.structure import SourceDocument, shown_in
 
 
 def drawn_markup(text: str) -> str:
@@ -250,7 +252,7 @@ def current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
@@ -493,7 +495,7 @@ def ask_again(
     asked in its thread (`thread_questions`). `OwedAnswer` where the thread owes the
     user a reply, which the question waits on. Refused, as an agent's reply is, where
     its HTML doesn't validate (`check_markup`)."""
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     message = question.removeprefix("message:")
     name = f"message:{message}"
@@ -529,6 +531,7 @@ def ask_again(
         part="",
         detach=False,
         title=None,
+        title_owed=False,
     )[0]
 
 
@@ -642,6 +645,7 @@ def post_reply(
     part: str = "",
     detach: bool = False,
     title: str | None = None,
+    title_owed: bool = False,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor;
     the appended record, or the earlier reply a repeated `attempt` names, or none
@@ -680,6 +684,11 @@ def post_reply(
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
+
+    ``title`` names the thread where it has no title yet, and ``title_owed`` refuses
+    a reply into an untitled thread that gives none (`untitled-thread`), as the
+    agent's own command does: Leaf's own writes, such as a line fork's working line
+    or a Codex turn's final message, owe none.
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry an obligation, a to-do, widgets, failure or
@@ -755,6 +764,7 @@ def post_reply(
             part=part,
             detach=detach,
             title=title,
+            title_owed=title_owed,
         )
     if claimed_session is None:
         note(*addressed.advice)
@@ -997,12 +1007,20 @@ def _compose_and_append(
     part: str,
     detach: bool,
     title: str | None,
+    title_owed: bool,
 ) -> tuple[dict, "_Published | None"]:
     """Check the reply's content (`drawn_markup`) against the page, compose its event
     and append it at `obligation`. Successful replies publish saved edits when
     `validate_source` requests it. Progress and failure reports use the active
     revision; detaching still checks saved source. Return the appended record and any checked
-    publication for `_revision_advice` to read."""
+    publication for `_revision_advice` to read.
+
+    `title_owed` refuses a reply into an untitled thread that gives no `title`
+    (`untitled-thread`). The user asked for every thread to have a title, whether or
+    not a surface shows it. On a page no session claims, no harness is asked for one
+    as the user posts (`thread_titles`), so the agent's reply is where it comes from,
+    and the delivery's request for one goes unread by an agent that reads the delivery
+    through a filter, as `jq` with a field list does."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand, _advice = obligation
     markup = drawn_markup(text)
@@ -1015,6 +1033,9 @@ def _compose_and_append(
         **({"responds": responds} if responds is not None else {}),
     }
     opening = _messages(events)[thread_id]
+    # Admission refuses a reply whose thread is taken back, so where the thread is
+    # gone from the reading there is nothing to say of it.
+    before = build_threads(events, active_enclosing(page_dir)).get(thread_id)
     moving = bool(quote or section or part)
     widget = bool(markup) and bool(SourceDocument(markup).lf_elements)
     if ephemeral and (
@@ -1026,13 +1047,12 @@ def _compose_and_append(
     relocating = moving or detach
     if relocating and opening.get("holds"):
         raise Rejected([Finding("held-anchor", values={"thread": thread_id})])
+    if title_owed and title is None and before is not None and before["title"] is None:
+        raise Rejected([Finding("untitled-thread", values={"thread": thread_id})])
     if detach:
-        current_thread = build_threads(events, active_enclosing(page_dir)).get(
-            thread_id
-        )
         # A thread the user took back whole is gone from the reading, and the
         # append door refuses a reply into it (`withdrawn-parent`).
-        if current_thread is not None and current_thread["anchor"] is None:
+        if before is not None and before["anchor"] is None:
             # Already where --detach would put it: activating the edit that removed
             # the passage, which any tab's poll may do first, detached it. The reply
             # lands without a transition, so the thread keeps the anchor it left.
@@ -1127,9 +1147,6 @@ def _compose_and_append(
     if asks_back and not explicit_obligation and asking is None:
         unasked = unasked_widget(fragment, publication.registry) if markup else {}
         raise Rejected([Finding("undeclared-answer", values=unasked)])
-    # Admission refuses a reply whose thread is taken back, so where the thread is
-    # gone from the reading there is nothing to say of it.
-    before = build_threads(events, active_enclosing(page_dir)).get(thread_id)
     unannounced = (
         before is not None
         and _goes_in_unannounced(before, asks=bool(explicit_obligation or asking))
@@ -1420,7 +1437,7 @@ def cmd_edit(
     unedited.
     """
     from leaf.records.event_contracts import append_all_admitted
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     title = agent_title(title)
     body = (
@@ -1548,7 +1565,7 @@ def cmd_summarize(
     thread its first message sits in; or nothing, where `fence`, given the page
     under its lock, says the writer no longer should, as a fork that summarizes a
     thread for the agent (`summary_fork`)."""
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:

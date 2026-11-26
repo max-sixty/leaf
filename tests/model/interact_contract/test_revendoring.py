@@ -29,6 +29,7 @@ from leaf.pages.render_gate import preview as render_gate_model
 from leaf.records import reports as reports_model
 from leaf.records import revisioning as revisioning_model
 from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import storage as registry_storage
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import _stateful_page_declaration, vocabulary
@@ -307,7 +308,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
         "report",
         "activation",
     ]
-    assert "verbs" not in registry_storage.load_registry(page_dir)["lf-test-task"]
+    assert "verbs" not in vocabulary_model.load_registry(page_dir)["lf-test-task"]
 
 
 @pytest.mark.parametrize("in_sample", [False, True])

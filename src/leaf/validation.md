@@ -49,7 +49,7 @@ the decisions behind them:
   Each problem has one owner. The document's markup is the markup rules'. The
   capture owns what delivery can't deliver: each reference, a `/media/` file the
   page won't answer, whether markup or a stylesheet names it, and CSS that
-  delivery's own reader (`revision_artifact._read_css`) can't read, in a file or
+  delivery's own reader (`styles._read_css`) can't read, in a file or
   any sheet delivery rewrites in the document, which the capture finds by
   delivery's own walk (`structure.delivered_elements`), templates and shadow roots
   included. What that reader reads whole but a browser drops, such as `broken;`

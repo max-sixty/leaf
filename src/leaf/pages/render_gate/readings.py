@@ -19,7 +19,8 @@ from leaf.log.projection import (
     retirement_outcomes,
     thread_markup_reading,
 )
-from leaf.source.passages import SourceReading, page_passages
+from leaf.source.passages import page_passages
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import (
     MODULES,
     is_element_name,

@@ -26,8 +26,9 @@ from leaf.records.authored_checks.source import (
     source_advice,
 )
 from leaf.serving.handover_pass import remember_reading
+from leaf.source.layer import selected_layer
 from leaf.source.registry.contract import RegistryError
-from leaf.source.registry.storage import layer_record, selected
+from leaf.source.registry.storage import layer_record
 
 
 def cmd_check(page_dir: Path, render: bool = False) -> dict:
@@ -75,7 +76,7 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         # reading the page needs only its vocabulary (`layer.LayerVocabulary`).
         try:
             if (record := layer_record(page_dir)) is not None:
-                selected(record, page_dir)
+                selected_layer(record, page_dir)
         except RegistryError as error:
             return reported(1, list(error.findings)), None
         events = read_events(page_dir)

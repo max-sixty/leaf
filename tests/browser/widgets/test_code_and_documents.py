@@ -1164,7 +1164,7 @@ SELECTED_TEXTS = {
         "First, new beginning.\n",
     ),
     "markdown-list": (
-        '- First, old.\n- `second = "selected"`\n',
+        '- First, old.\n- Second:\n\n  ```python\n  second = "selected"\n  ```\n',
         "- First, new beginning.\n",
     ),
 }

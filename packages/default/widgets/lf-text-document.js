@@ -29,8 +29,8 @@
  * preview renders a file,
  * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. A new
  * text rewrites only the source rows it changes (`rewrite`) and the preview's text it
- * changes, keeping each block it leaves as it was drawn (`drawnFrom`). HTML lives in a
- * separate
+ * changes, reconciled already dressed, so code and formulas it leaves stay as drawn.
+ * HTML lives in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
@@ -65,10 +65,15 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 // tabs share (text-document.css).
 const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
-// A node of a rendering as its markup, the same for nodes that draw the same.
-/** @param {Node} node */
-const drawnMarkup = (node) =>
-  node instanceof Element ? node.outerHTML : `${node.nodeType}:${node.textContent}`;
+// A fragment's words, as a heading's address spells them (`headingSlugs`).
+/** @param {string} fragment */
+const slugWords = (fragment) => {
+  try {
+    return decodeURIComponent(fragment);
+  } catch {
+    return fragment;
+  }
+};
 
 // The key a heading of the Markdown preview takes before its address (`lfElementsFor`).
 const HEADING = "preview:";
@@ -835,21 +840,6 @@ function drawLater(doc, value, rendering) {
 
 class TextDocument extends LeafElement {
   rendering = 0;
-  // The markup each block of the Markdown preview was drawn from (`show`).
-  /** @type {WeakMap<Node, string>} */
-  drawnFrom = new WeakMap();
-  // The page's links and pictures, but a link the file makes to one of its own headings
-  // names that heading in this document's preview (`lfElementsFor`), as GitHub's
-  // rendering of the file answers it, rather than an element of the page.
-  /** @type {import("/runtime/lib/markdown.js").MarkdownLinks} */
-  links = {
-    ...pageLinks,
-    link: (href) =>
-      href.length > 1 && href.startsWith("#") && this.id
-        ? { href: `#${this.id}:${HEADING}${href.slice(1)}` }
-        : pageLinks.link?.(href),
-  };
-
   // A key names a reading's datum (`mark`), or, after `preview:`, a heading of the
   // Markdown preview by its address in the file (`headingSlugs`), so a heading's
   // address never takes a datum's.
@@ -1194,35 +1184,26 @@ class TextDocument extends LeafElement {
       const previewNode = view.preview;
       if (previewNode instanceof HTMLDivElement) {
         const template = document.createElement("template");
-        template.innerHTML = renderMarkdown(source, this.links, false);
-        // A block whose markup is unchanged stands in the new rendering as a copy of
-        // the block already drawn, its code coloured and formulas typeset
-        // (`dressCode`), so the reconciliation keeps that block and any selection in
-        // it, as it keeps the unchanged text of a changed one.
-        const fresh = [...template.content.childNodes];
-        const markups = fresh.map(drawnMarkup);
-        /** @type {Map<string, ChildNode[]>} */
-        const standing = new Map();
-        for (const node of previewNode.childNodes) {
-          const markup = this.drawnFrom.get(node);
-          if (markup === undefined) continue;
-          const nodes = standing.get(markup);
-          if (nodes) nodes.push(node);
-          else standing.set(markup, [node]);
-        }
-        /** @type {Map<string, number>} */
-        const taken = new Map();
-        const blocks = fresh.map((node, at) => {
-          const markup = markups[at] ?? "";
-          const count = taken.get(markup) ?? 0;
-          const drawn = standing.get(markup)?.[count];
-          taken.set(markup, count + 1);
-          return drawn ? drawn.cloneNode(true) : node;
-        });
-        setRenderedChildren(previewNode, blocks);
-        previewNode.childNodes.forEach((node, at) =>
-          this.drawnFrom.set(node, markups[at] ?? ""),
+        template.innerHTML = renderMarkdown(source, pageLinks, false);
+        // A link the file makes to one of its own headings names that heading in the
+        // preview (`lfElementsFor`), as GitHub's rendering of the file answers it; any
+        // other fragment names the page's own place.
+        const slugs = headingSlugs(
+          template.content.querySelectorAll("h1, h2, h3, h4, h5, h6"),
         );
+        for (const link of template.content.querySelectorAll('a[href^="#"]')) {
+          const slug = (link.getAttribute("href") ?? "").slice(1);
+          if (this.id && slugs.has(slugWords(slug)))
+            link.setAttribute("href", `#${this.id}:${HEADING}${slug}`);
+        }
+        // A preview already drawn takes the new rendering dressed (`dressCode`), as
+        // its own nodes are, so the reconciliation keeps the coloured code and typeset
+        // formulas the text leaves as they were, and any selection in them.
+        if (previewNode.hasChildNodes()) {
+          await dressCode(template.content);
+          if (rendering !== this.rendering || !this.isConnected) return;
+        }
+        setRenderedChildren(previewNode, template.content.childNodes);
       } else if (
         previewNode instanceof HTMLIFrameElement &&
         (!previewNode.isConnected ||

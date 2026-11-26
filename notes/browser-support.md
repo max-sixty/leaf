@@ -671,14 +671,12 @@ A pane's body is a grid item and an inline-size container (elements.css). A grid
 item with an `auto` inline margin is sized to fit its content, which containment
 counts as empty, so a body an author centred with `margin-inline: auto` and a
 `max-inline-size` drew 0px wide inside its padding. `browser/elements.css` gives a
-body that holds content `inline-size: stretch`, which fills the pane before the
-margins share what the `max-inline-size` leaves, and caps every body at
-`max-inline-size: stretch`. On 2026-11-25 Playwright Firefox 159.0 (build 1572)
-rejected `stretch` in the inline axis, as a size and as a maximum, and took
-`-moz-available`; Playwright Chromium 159.0.8154.6 and WebKit 27.2 took `stretch`.
+body `inline-size: stretch`, which fills the pane before the margins share what the
+`max-inline-size` leaves. On 2026-11-25 Playwright Firefox 159.0 (build 1572)
+rejected `stretch` in the inline axis and took `-moz-available`; Playwright Chromium 159.0.8154.6 and WebKit 27.2 took `stretch`.
 Recheck with `uv run leaf-dev probe --browser firefox` on a pane whose body has
 `margin-inline: auto; max-inline-size: 30rem`; once Firefox centres it without the
-prefixed value, the prefixed declarations can go.
+prefixed value, the prefixed declaration can go.
 
 ### A moved box's place in flow in Firefox's scroll size
 

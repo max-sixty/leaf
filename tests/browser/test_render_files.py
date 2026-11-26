@@ -88,7 +88,8 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     of the editor rather than its foot."""
     file = tmp_path / "README.md"
     file.write_text(
-        "# Notes\n\nCost: $`c(x) = h\\,x`$ a request, [as at the end](#the-end).\n\n"
+        "# Notes\n\nCost: $`c(x) = h\\,x`$ a request, [as at the end](#the-end), "
+        "beside [the regions](#regions).\n\n"
         '```json\n{"floor": 300000}\n```\n\n'
         + "\n\n".join(f"Paragraph {number}." for number in range(1, 201))
         + "\n\n## The end\n\n> ## Notes\n\n## Source\n"
@@ -120,6 +121,10 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     expect(preview.locator("code.language-json [data-lf-syn]").first).to_be_attached()
     preview.get_by_role("link", name="as at the end").click()
     expect(preview.get_by_role("heading", name="The end")).to_be_in_viewport()
+    # A fragment naming no heading of the file names the page's own place.
+    expect(preview.get_by_role("link", name="the regions")).to_have_attribute(
+        "href", "#regions"
+    )
     # A heading's address is GitHub's, counted past one an earlier heading took, and
     # never a reading's own key.
     assert page.locator("#preview").evaluate(

@@ -388,5 +388,12 @@ lf-text-document iframe.lf-text-document-preview {
       block-size: 100%;
       max-block-size: none;
     }
+    /* A Source tab shown whole scrolls inside the pane it fills. */
+    lf-text-document[preview="markdown"]:not([source], [for])
+      .lf-text-document-view
+      > lf-tabs
+      > lf-tab[data-lf-all] {
+      overflow: auto;
+    }
   }
 }

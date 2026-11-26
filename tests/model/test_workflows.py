@@ -1151,6 +1151,27 @@ def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
     assert events_model.read_events(page_dir)[-1]["text"] == "Filed it."
 
 
+def test_a_late_answer_to_a_pick_leaves_the_message_after_it_owed(page_dir):
+    """A turn delivered the user's pick and reserved its answer there. Before it
+    answers, the user changes the pick, sends a message, and takes the change back,
+    which brings the first pick back. The turn's answer covers the pick it was
+    delivered, and the message it never read stays owed."""
+    asked = offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    choose_again = choose(page_dir, "skip")
+    message = say(page_dir, asked, "File it only after I approve the draft.")
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": choose_again["id"]}
+    )
+    assert thread_model.post_reply(
+        page_dir,
+        {"parent": asked["id"], "responds": first["id"]},
+        "Filing it.",
+        settlement=thread_model.ProviderFinal("earlier-turn"),
+    )
+    assert [item["input"] for item in owed(state_json(page_dir))] == [message["id"]]
+
+
 def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
     page_dir,
 ):

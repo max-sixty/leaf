@@ -807,32 +807,35 @@ def settle(thread: dict) -> Settled:
     older work leaves newer input waiting, and an answer naming an input already
     settled or taken back settles nothing. A turn taken back before the answer, with
     its rewrites, is no part of what it settles, and one taken back after it leaves
-    the settlement standing. A failure receipt names its input as an answer does, so
-    it settles here too; `is_answer` tells the two apart.
+    the settlement standing. An action an undo brings back while it still waits keeps
+    the place it was made, where its delivery's answer may yet name it. A failure
+    receipt names its input as an answer does, so it settles here too; `is_answer`
+    tells the two apart.
 
     The history comes from the log alone, so every reader settles a thread the same
     way, with a registry or without one. It holds every action on a widget sent in the
     thread, one that owes nothing included, such as a pick still waiting for its
     group's Done; `workflows` decides which waiting actions are owed."""
     settled = []
-    waiting = []
+    waiting: OrderedDict[str, dict] = OrderedDict()
+    # Each message → the ids of its rewrites still waiting, which leave with it.
+    rewrites: dict[str, list[str]] = {}
     for turn in thread["turns"]:
         if "undoes" in turn:
             gone = turn["undoes"]
-            waiting = [
-                each
-                for each in waiting
-                if gone not in (each["id"], each.get("message"))
-            ]
+            for identity in [gone, *rewrites.pop(gone, ())]:
+                waiting.pop(identity, None)
         elif turn["author"] != "agent":
-            waiting.append(turn)
-        elif (responds := turn.get("responds")) is not None:
-            named = [at for at, each in enumerate(waiting) if each["id"] == responds]
-            if named:
-                through = named[-1] + 1
-                settled.append(Settlement(turn, waiting[:through]))
-                waiting = waiting[through:]
-    return Settled(settled, waiting)
+            if turn["id"] not in waiting:
+                waiting[turn["id"]] = turn
+                if turn["kind"] == "edit":
+                    rewrites.setdefault(turn["message"], []).append(turn["id"])
+        elif (responds := turn.get("responds")) in waiting:
+            taken = []
+            while not taken or taken[-1]["id"] != responds:
+                taken.append(waiting.popitem(last=False)[1])
+            settled.append(Settlement(turn, taken))
+    return Settled(settled, list(waiting.values()))
 
 
 def unanswered_agent_turn(thread: dict) -> dict | None:

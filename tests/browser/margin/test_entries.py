@@ -1144,7 +1144,7 @@ PICTURE_PARTS_PAGE = leaf_page(
     "parts of pictures",
     '<h1 id="t">Parts</h1>'
     + chart_markup("weeks", WEEKS).replace("<lf-chart ", '<lf-chart data-height="220" ')
-    + '<lf-diagram id="flow" parts="all"><pre>\ngraph LR\n'
+    + '<lf-diagram id="flow"><pre>\ngraph LR\n'
     "  S[Start request] --> H[Handle request] --> U[Result]\n</pre></lf-diagram>",
 )
 

@@ -224,9 +224,7 @@ declaredVisuals((element) => Boolean(registry[element.localName]?.visual));
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>
-  visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.visual ?? null)
-    : null;
+  visual ? visualPartAdmission(registry[visual.localName]?.visual ?? null) : null;
 
 /** @param {Element | null} element */
 const wholeVisualSurface = (element) =>

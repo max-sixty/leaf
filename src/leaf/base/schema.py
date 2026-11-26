@@ -378,12 +378,6 @@ FACTS: dict[str, dict] = {
             {"const": "whole"},
             {
                 "type": "object",
-                "properties": {"parts": _ATTRIBUTE_NAME},
-                "required": ["parts"],
-                "additionalProperties": False,
-            },
-            {
-                "type": "object",
                 "properties": {
                     "prefixes": {
                         "type": "array",

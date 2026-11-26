@@ -1073,23 +1073,16 @@
       min-block-size: 0;
       margin-block: 0;
     }
-    /* A page's grid of panes (above) told the height it has to fill, as the body is and
+    /* A box holding the page's panes told the height it has to fill, as the body is and
      * as a page tab's one block or a question group's answer (below) is, shares that
-     * height among its rows and gives its panes a definite height. A body widget lays
-     * out its own tracks. */
+     * height among its rows and gives its panes a definite height. Unlike the frame of a
+     * grid of panes (above), this holds for a box whose rows mix panes with boxes of
+     * panes, and passes the height on, so a pane above a row of two splits the window
+     * with that row. A body widget lays out its own tracks. */
     @container style(--lf-full-height: 1) {
       :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
         :not([data-lf-reading-role="pane"] > *):has(
           > [data-lf-reading-role="pane"]:not([data-lf-generated])
-        ):not(
-          :has(
-            > :not(
-              [data-lf-reading-role="pane"]:not([data-lf-generated]),
-              script,
-              style,
-              template
-            )
-          )
         ) {
         grid-auto-rows: minmax(0, 1fr);
         min-block-size: 0;

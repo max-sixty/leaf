@@ -3,6 +3,8 @@
 import json
 import shutil
 import stat
+import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
@@ -309,7 +311,10 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     original = read_file(page_dir, "notes")
     url = f"{server}/api/files/notes"
     assert fetch(url, token=None)[0] == 401
-    assert json.loads(fetch(url)[1]) == original
+    assert json.loads(fetch(url)[1]) == {
+        **original,
+        "url": f"/api/host-files{target.resolve().as_posix()}",
+    }
     assert fetch(f"{server}/files.json")[0] == 404
     # A binding the page lacks reads as no file, and only a save against it refuses.
     assert fetch(f"{server}/api/files/unbound") == (200, b"null")
@@ -340,7 +345,7 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     assert target.read_text() == "hello\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 200, raw
-    assert json.loads(raw) == read_file(page_dir, "notes")
+    assert json.loads(raw)["text"] == read_file(page_dir, "notes")["text"]
     assert target.read_text() == "edited\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 409
@@ -377,6 +382,29 @@ def test_http_file_door_requires_key_origin_and_current_revision(
             )[0]
             == 403
         )
+
+
+def test_a_live_page_answers_the_files_a_bound_file_names_sandboxed(
+    server, page_dir, tmp_path
+):
+    """A bound file's snapshot gives the address of its bytes, which the paths its text
+    names resolve from, as a README's pictures do. The page's server answers any file
+    there, above the file's folder too, and sandboxes the answer, so an SVG opened on
+    its own runs no script as the page."""
+    (tmp_path / "docs").mkdir()
+    readme = tmp_path / "docs" / "README.md"
+    readme.write_text("![logo](../logo.svg)\n")
+    logo = tmp_path / "logo.svg"
+    logo.write_text('<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>')
+    bind_file(page_dir, "readme", readme)
+    snapshot = json.loads(fetch(f"{server}/api/files/readme")[1])
+    address = urllib.parse.urljoin(server + snapshot["url"], "../logo.svg")
+    with urllib.request.urlopen(f"{address}?t={TOKEN}") as answer:
+        assert answer.read() == logo.read_bytes()
+        assert answer.headers["Content-Type"].startswith("image/svg+xml")
+        assert answer.headers["Content-Security-Policy"] == "sandbox"
+    assert fetch(address, token=None)[0] == 401
+    assert fetch(urllib.parse.urljoin(address, "missing.png"))[0] == 404
 
 
 def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(

@@ -48,7 +48,7 @@ import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
-import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
+import { loadMarkdown, markdownFileFragment } from "/runtime/lib/markdown.js";
 import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import {
@@ -80,8 +80,8 @@ const slugWords = (fragment) => {
 const drawnMarkup = (node) =>
   node instanceof Element ? node.outerHTML : `${node.nodeType}:${node.textContent}`;
 
-// The key a heading of the Markdown preview takes before its address (`lfElementsFor`).
-const HEADING = "preview:";
+// The key a place of the Markdown preview takes before its name (`lfElementsFor`).
+const PLACE = "preview:";
 
 // Each reading shows the same document whatever text its source holds, so its key is
 // also its identity (records/projection/data.js), with the file's where the value names
@@ -121,6 +121,47 @@ function headingSlugs(headings) {
     slugs.set(slug, heading);
   }
   return slugs;
+}
+
+// The candidates of a `srcset`, each its URL and its size, as `640w` or `2x`: a URL runs
+// to whitespace, and a comma it ends with, or the first after its size, ends the
+// candidate (HTML's "parse a srcset attribute").
+/** @param {string} srcset @returns {[string, string][]} */
+function srcsetCandidates(srcset) {
+  /** @type {[string, string][]} */
+  const candidates = [];
+  let at = 0;
+  while (at < srcset.length) {
+    const start = srcset.slice(at).search(/[^\s,]/);
+    if (start < 0) break;
+    at += start;
+    const end = at + srcset.slice(at).search(/\s|$/);
+    const url = srcset.slice(at, end);
+    at = end;
+    if (url.endsWith(",")) {
+      candidates.push([url.replace(/,+$/, ""), ""]);
+      continue;
+    }
+    const comma = srcset.indexOf(",", at);
+    const stop = comma < 0 ? srcset.length : comma;
+    candidates.push([url, srcset.slice(at, stop).trim()]);
+    at = stop + 1;
+  }
+  return candidates;
+}
+
+// The places in a Markdown file a link of the file can name, as GitHub's rendering
+// answers it: each heading by its address (`headingSlugs`), and each element the file
+// names by `id` or `name`, as `<a name="top">`, by that name (`data-lf-place`), which
+// the preview carries rather than give the page the file's ids (`preparePreview`).
+/** @param {ParentNode} root */
+function filePlaces(root) {
+  const places = headingSlugs(root.querySelectorAll("h1, h2, h3, h4, h5, h6"));
+  for (const element of root.querySelectorAll("[data-lf-place]")) {
+    const name = element.getAttribute("data-lf-place") ?? "";
+    if (!places.has(name)) places.set(name, element);
+  }
+  return places;
 }
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
@@ -549,7 +590,9 @@ function sizeRuns(code, text, starts, { columns, tab }, drawn, only) {
   const forgetting = resized.filter(
     ([run]) =>
       drawn?.has(run) &&
-      run.firstElementChild?.checkVisibility({ contentVisibilityAuto: true }) === false,
+      run.firstElementChild?.checkVisibility({
+        contentVisibilityAuto: true,
+      }) === false,
   );
   for (const [run, lines] of forgetting) {
     drawn?.delete(run);
@@ -851,11 +894,10 @@ class TextDocument extends LeafElement {
   /** @param {string} key @returns {Element[]} */
   lfElementsFor(key) {
     const preview = this.view?.preview;
-    if (key.startsWith(HEADING)) {
+    if (key.startsWith(PLACE)) {
       if (!(preview instanceof HTMLDivElement)) return [];
-      const headings = preview.querySelectorAll("h1, h2, h3, h4, h5, h6");
-      const heading = headingSlugs(headings).get(key.slice(HEADING.length));
-      return heading ? [heading] : [];
+      const place = filePlaces(preview).get(key.slice(PLACE.length));
+      return place ? [place] : [];
     }
     const datum = this.querySelector(`[data-lf-datum="${CSS.escape(key)}"]`);
     return datum ? [datum] : [];
@@ -1088,22 +1130,58 @@ class TextDocument extends LeafElement {
   // (`dressCode`); a changed block is dressed before it stands, so the reconciliation
   // keeps every node the text leaves as it was, and any selection in it, and the
   // dressing costs only what the text changed. A first draw stands undressed, and
-  // `show` dresses it in place. A link the file makes to one of its own headings names
-  // that heading in the preview (`lfElementsFor`), as GitHub's rendering of the file
-  // answers it; any other fragment names the page's own place.
-  /** @param {string} source @param {number} rendering */
-  async preparePreview(source, rendering) {
-    const template = document.createElement("template");
-    template.innerHTML = renderMarkdown(source, pageLinks, false);
-    const slugs = headingSlugs(
-      template.content.querySelectorAll("h1, h2, h3, h4, h5, h6"),
-    );
-    for (const link of template.content.querySelectorAll('a[href^="#"]')) {
-      const slug = (link.getAttribute("href") ?? "").slice(1);
-      if (this.id && slug && slugs.has(slugWords(slug)))
-        link.setAttribute("href", `#${this.id}:${HEADING}${slug}`);
+  // `show` dresses it in place. The file reads as GitHub reads it, its HTML included
+  // (`markdownFileFragment`), and as GitHub's rendering of the file answers them, a
+  // link the file makes to one of its own places names that place in the preview
+  // (`filePlaces`), and a picture or a file it names by a path is the one beside the
+  // file, at the address the value gives the file (`url`). A link to another file opens
+  // it in a new tab, as a link that leaves the page does (`pageLinks`). Any other
+  // fragment names the page's own place. A fold the text changed inside stays as the
+  // reader left it.
+  /** @param {string} source @param {string | null} address @param {number} rendering */
+  async preparePreview(source, address, rendering) {
+    const content = await markdownFileFragment(source, pageLinks);
+    for (const element of content.querySelectorAll(
+      '[id^="user-content-"], a[name^="user-content-"]',
+    )) {
+      const name = element.getAttribute("id") ?? element.getAttribute("name") ?? "";
+      element.removeAttribute("id");
+      if (element.localName === "a") element.removeAttribute("name");
+      element.setAttribute("data-lf-place", name.slice("user-content-".length));
     }
-    const fresh = [...template.content.childNodes];
+    const places = filePlaces(content);
+    for (const link of content.querySelectorAll('a[href^="#"]')) {
+      const name = (link.getAttribute("href") ?? "").slice(1);
+      if (this.id && name && places.has(slugWords(name)))
+        link.setAttribute("href", `#${this.id}:${PLACE}${name}`);
+    }
+    const base = address ? URL.parse(address, location.href) : null;
+    if (base) {
+      // A reference with no scheme of its own, as `docs/guide.md` or `../logo.svg`.
+      /** @param {string | null} reference */
+      const beside = (reference) =>
+        reference === null || URL.parse(reference)
+          ? null
+          : (URL.parse(reference, base)?.href ?? null);
+      for (const link of content.querySelectorAll("a[href]:not([href^='#'])")) {
+        const href = beside(link.getAttribute("href"));
+        if (!href) continue;
+        link.setAttribute("href", href);
+        link.setAttribute("target", "_blank");
+      }
+      for (const image of content.querySelectorAll("img[src]")) {
+        const src = beside(image.getAttribute("src"));
+        if (src) image.setAttribute("src", src);
+      }
+      for (const option of content.querySelectorAll("img[srcset], source[srcset]"))
+        option.setAttribute(
+          "srcset",
+          srcsetCandidates(option.getAttribute("srcset") ?? "")
+            .map(([url, size]) => [beside(url) ?? url, size].filter(Boolean).join(" "))
+            .join(", "),
+        );
+    }
+    const fresh = [...content.childNodes];
     const markups = fresh.map(drawnMarkup);
     const drawn = this.view?.preview;
     if (!(drawn instanceof HTMLDivElement) || !drawn.hasChildNodes())
@@ -1125,6 +1203,27 @@ class TextDocument extends LeafElement {
       taken.set(markup, count + 1);
       return standing.get(markup)?.[count]?.cloneNode(true) ?? node;
     });
+    // A fold stays as the reader left it where the text changed inside it: it takes
+    // the state of the fold drawn with the same summary, the first of them for the
+    // first, since a block the text changed is drawn afresh.
+    /** @type {Map<string, HTMLDetailsElement[]>} */
+    const shown = new Map();
+    for (const fold of drawn.querySelectorAll("details")) {
+      const summary = fold.querySelector(":scope > summary")?.textContent ?? "";
+      const folds = shown.get(summary);
+      if (folds) folds.push(fold);
+      else shown.set(summary, [fold]);
+    }
+    for (const node of nodes)
+      if (node instanceof Element)
+        for (const fold of [
+          ...(node.localName === "details" ? [node] : []),
+          ...node.querySelectorAll("details"),
+        ]) {
+          const summary = fold.querySelector(":scope > summary")?.textContent ?? "";
+          const was = shown.get(summary)?.shift();
+          if (was) fold.toggleAttribute("open", was.open);
+        }
     await Promise.all(
       nodes
         .filter((node, at) => node === fresh[at] && node instanceof Element)
@@ -1141,6 +1240,7 @@ class TextDocument extends LeafElement {
     const name = typeof value === "string" ? null : (value?.name ?? null);
     // The file's identity: its stable key where the value gives one, else its name.
     const file = typeof value === "string" ? null : (value?.key ?? name);
+    const address = typeof value === "string" ? null : (value?.url ?? null);
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
@@ -1165,7 +1265,9 @@ class TextDocument extends LeafElement {
       // anything, so the source rows, the preview and the marks naming their revision
       // change together in one task (`preparePreview`).
       const blocks =
-        preview === "markdown" ? await this.preparePreview(source, rendering) : null;
+        preview === "markdown"
+          ? await this.preparePreview(source, address, rendering)
+          : null;
       if (rendering !== this.rendering || !this.isConnected) return;
       const next = lines(source);
       const { text } = next;
@@ -1175,7 +1277,11 @@ class TextDocument extends LeafElement {
           ? new RunColours(language, (error) => {
               if (this.isConnected)
                 this.dispatchEvent(
-                  new ErrorEvent("error", { error, bubbles: true, composed: true }),
+                  new ErrorEvent("error", {
+                    error,
+                    bubbles: true,
+                    composed: true,
+                  }),
                 );
             })
           : null;

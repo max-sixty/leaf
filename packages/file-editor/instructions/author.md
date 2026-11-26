@@ -1,7 +1,8 @@
 Use `--package file-editor` when the reader should edit UTF-8 files on the machine
 serving the page: a config, a prompt, code or any file another tool reads as it
-stands. Bind each file explicitly; the browser receives each file's label and
-contents, never its absolute path.
+stands. Bind each file explicitly; the browser receives each file's label, contents
+and the address of its bytes, from which a Markdown preview of it loads the pictures
+and files it names beside it.
 
 ```bash
 leaf page init --package reading --package file-editor PAGE

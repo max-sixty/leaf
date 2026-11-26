@@ -85,6 +85,9 @@
       "/vendor/temml.esm.js": [
         "../../build/entries/temml/entry.mjs"
       ],
+      "/vendor/purify.esm.js": [
+        "../../build/entries/dompurify/entry.mjs"
+      ],
       "/vendor/jsdiff.esm.js": [
         "../../build/entries/jsdiff/entry.mjs"
       ],

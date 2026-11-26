@@ -30,8 +30,7 @@ since that would take their place and their aim away in the middle of the task
 (`../skills/leaf/SOUL.md`, "Preserve the user's attention and work"). Every hold costs
 code on each later change, so the guarantee is owed to the paths users take often: a
 rare path the user takes in at a glance may move what is on screen rather than carry a
-mechanism of its own (`../skills/leaf/SOUL.md`, "Keep the foundation small and
-extensible").
+mechanism of its own (`../skills/leaf/SOUL.md`, "Keep Leaf's code plain").
 
 A hold rule is tested in `tests/journeys/test_page_holds_still.py`, whose cases cross
 places the user can be with changes that can arrive. A new rule joins it as a place, a

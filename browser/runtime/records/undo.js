@@ -167,7 +167,7 @@ import { focused } from "../dom/focus.js";
 import { signal } from "/vendor/signals-core.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "emoji" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("../base/snapshot.js").Immutable<import("../../types/domain.js").Event | import("../../types/domain.js").Message>>>} UndoEvent
@@ -225,7 +225,7 @@ function reactionPlace(event) {
 // What a gesture did, in the words the page holds for it now.
 /** @param {UndoEvent} event @param {Gesture | undefined} gesture */
 function gestureWords(event, gesture) {
-  if (event.token) return `${event.token} reaction on ${reactionPlace(event)}`;
+  if (event.emoji) return `${event.emoji} reaction on ${reactionPlace(event)}`;
   switch (event.kind) {
     case "resolve":
     case "unresolve": {
@@ -261,7 +261,7 @@ function placeOf(event) {
   const message =
     event.kind === "edit"
       ? event.message
-      : event.kind === "reply" && !event.token
+      : event.kind === "reply" && !event.emoji
         ? event.id
         : null;
   if (message)
@@ -291,7 +291,7 @@ function placeOf(event) {
 // gesture that wrote none.
 /** @param {UndoEvent} event @returns {{ctx: string, text: string, payload?: object, under?: string | null} | null} */
 function writtenIn(event) {
-  if (event.token) return null;
+  if (event.emoji) return null;
   const text = event.text ?? "";
   switch (event.kind) {
     case "comment": {

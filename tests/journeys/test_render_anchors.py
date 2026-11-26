@@ -1152,12 +1152,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     strip = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-strip')
     thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-lf-token="change"]').click()
+        strip.locator('.lf-react[data-lf-emoji="❌"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
-    assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
+    assert (reacted["kind"], reacted["parent"], reacted["emoji"]) == (
         "reply",
         reply["id"],
-        "change",
+        "❌",
     )
 
     # Resolve is the thread's own control, reached by the keyboard like any other.

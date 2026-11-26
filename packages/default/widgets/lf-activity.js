@@ -40,7 +40,6 @@ import {
   tabStore,
   anchorLabel,
   elementById,
-  layerFact,
   nameOf,
   threadActions,
   readThreads,
@@ -74,9 +73,6 @@ function placeName(anchor, about) {
     return excerptWords(anchorLabel(anchor, about), NAME);
   return nameById(anchor?.section ?? null);
 }
-
-/** @param {string} token */
-const reaction = (token) => layerFact("$reactions")?.tokens?.[token]?.glyph ?? token;
 
 /** @param {import("../../../browser/types/contract.js").ServedHistoryRow} row */
 const actorOf = (row) =>
@@ -130,9 +126,9 @@ function describe(row) {
   });
   switch (row.kind) {
     case "comment":
-      if (row.token)
+      if (row.emoji)
         return {
-          what: `reacted ${reaction(row.token)} on`,
+          what: `reacted ${row.emoji} on`,
           widget: row.anchor?.section ?? null,
           label: placeName(row.anchor, row.about),
         };
@@ -142,7 +138,7 @@ function describe(row) {
         placeName(row.anchor, row.about),
       );
     case "reply":
-      return thread(row.token ? `reacted ${reaction(row.token)} in` : "replied in");
+      return thread(row.emoji ? `reacted ${row.emoji} in` : "replied in");
     case "edit":
       return thread("edited a message in");
     case "resolve":

@@ -144,7 +144,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     )
     internal_reaction = append_carried_log_record(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
+        {"kind": "reply", "author": "user", "parent": root["id"], "emoji": "👍"},
     )
     second = append_carried_log_record(
         page_dir,
@@ -202,7 +202,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
             "kind": "reply",
             "author": "user",
             "parent": third["id"],
-            "token": "mark",
+            "emoji": "👍",
         },
     )
     assert refused(third["id"], reaction["id"]) == "summary-endpoints"
@@ -464,7 +464,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         )
     middle_reaction = append_carried_log_record(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
+        {"kind": "reply", "author": "user", "parent": root["id"], "emoji": "👍"},
     )
     for number in range(5, 7):
         spoken.append(
@@ -480,7 +480,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         )
     trailing_reaction = append_carried_log_record(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
+        {"kind": "reply", "author": "user", "parent": root["id"], "emoji": "👍"},
     )
     events = events_model.read_events(page_dir)
     latest = next(event for event in events if event["id"] == spoken[-1]["id"])

@@ -257,12 +257,12 @@ def prose_beside_identifiers(held):
         (
             "Log shape",
             (
-                "<code>token</code> in place of <code>text</code> on <code>comment</code>"
-                " and <code>reply</code>; a record is one or the other, and a token rides"
+                "<code>emoji</code> in place of <code>text</code> on <code>comment</code>"
+                " and <code>reply</code>; a record is one or the other, and an emoji rides"
                 " no suggestion, hold, or markup."
             ),
             [
-                "test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares_and_refuses_one_it_does_not"
+                "test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares_and_refuses_one_it_does_not"
             ],
         ),
         (

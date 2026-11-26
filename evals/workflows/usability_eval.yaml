@@ -1175,7 +1175,7 @@ cases:
               value:
                 - opt-online
           - kind: comment
-            token: shorten
+            emoji: "✂️"
             anchor:
               - why-now
               - The reporting team moves its dashboards

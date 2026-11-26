@@ -311,7 +311,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
         f"{server}/api/event",
-        data=json.dumps({"kind": "comment", "revision": 1, "token": "keep"}).encode(),
+        data=json.dumps({"kind": "comment", "revision": 1, "emoji": "👍"}).encode(),
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
@@ -5247,27 +5247,17 @@ def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
     return layer_model.selected_layer(manifest["layer"], page).files
 
 
-def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
-    """The shipped tokens are the default layer's statement, not core's. A project's
-    entry under a token's name replaces that token whole, a new name joins after
+def test_init_merges_reactions_merge_patch_style(tmp_path, monkeypatch):
+    """The shipped reactions are the default layer's statement, not core's. A project's
+    entry under an emoji replaces that emoji's facts whole, a new emoji joins after
     the shipped ones, and `null` removes one — which is the only way a layer can take
-    a token off the bar without restating the whole set. The order used by the optional
-    digit accelerators is the merged map's."""
+    a reaction off the bar without restating the whole set. The order used by the
+    optional digit accelerators is the merged map's."""
     project = tmp_path / "proj"
     layer = project / ".leaf"
     layer.mkdir(parents=True)
     (layer / "registry.json").write_text(
-        json.dumps(
-            {
-                "$reactions": {
-                    "tokens": {
-                        "keep": {"glyph": "👍", "settles": True},
-                        "shorten": None,
-                        "meh": {"glyph": "~"},
-                    }
-                }
-            }
-        )
+        json.dumps({"$reactions": {"emoji": {"👍": {}, "✂️": None, "🙂": {}}}})
     )
     monkeypatch.chdir(project)
 
@@ -5277,39 +5267,41 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    tokens = vocabulary_model.load_registry(page)["$reactions"]["tokens"]
-    assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
-    assert tokens["keep"] == {"glyph": "👍", "settles": True}
-    assert tokens["meh"] == {"glyph": "~"}
-    assert "settles" not in tokens["change"]
+    emoji = vocabulary_model.load_registry(page)["$reactions"]["emoji"]
+    assert list(emoji) == ["👍", "❌", "🤔", "🔎", "🎯", "🙂"]
+    assert emoji["👍"] == {}
+    assert emoji["🙂"] == {}
 
 
 @pytest.mark.parametrize(
-    "entry",
+    ("emoji", "facts"),
     [
-        {"glyph": ""},
-        {"glyph": "✓", "means": "x"},  # prose the layer does not declare
-        {"glyph": "✓", "settle": True},  # a flag nothing reads
-        {"glyph": "✓", "settles": "yes"},
+        (" ", {}),
+        ("thumbs up", {}),  # a word in an emoji's place
+        ("✓", {"means": "x"}),  # prose the layer does not declare
+        ("✓", {"settle": True}),  # a flag nothing reads
+        ("✓", {"settles": "yes"}),
     ],
 )
-def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch, entry):
-    """Consumers read declared fields directly, so an invalid glyph, an undeclared
-    field, or a misspelled behavior must fail at the package boundary instead of
-    disappearing."""
+def test_package_check_refuses_a_malformed_reaction(
+    tmp_path, monkeypatch, emoji, facts
+):
+    """Consumers read declared fields directly, so an emoji that is no mark, an
+    undeclared field, or a misspelled behavior must fail at the package boundary
+    instead of disappearing."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$reactions"] = {"tokens": {"nod": entry}}
+    registry["$reactions"] = {"emoji": {emoji: facts}}
     registry_path.write_text(json.dumps(registry))
 
     status, [refused] = package_findings(".leaf")
     assert status == 1
 
     assert refused.code == "layer-facts"
-    assert refused.values["path"][:3] == ["$reactions", "tokens", "nod"]
+    assert refused.values["path"][:2] == ["$reactions", "emoji"]
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():

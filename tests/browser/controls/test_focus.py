@@ -832,7 +832,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "first-control"},
         },
     )

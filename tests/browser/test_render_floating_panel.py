@@ -367,7 +367,7 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    assert events_model.read_events(serve.page_dir)[-1]["token"]
+    assert events_model.read_events(serve.page_dir)[-1]["emoji"]
     expect(pressed).to_have_count(1)
     expect(thread.locator(".lf-msg")).to_have_count(2)
 

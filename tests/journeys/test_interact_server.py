@@ -359,7 +359,7 @@ def test_server_round_trip(server, page_dir):
         {
             "kind": "comment",
             "revision": 2,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "feeder-board"},
             "drawing": drawing,
         },

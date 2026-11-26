@@ -654,6 +654,34 @@ def reaction_pressed(page: Page) -> None:
     settle(page)
 
 
+def reaction_resting(page: Page) -> None:
+    """The reply's open reactions under a pointer resting on the first past a preview's
+    dwell. A reaction is its emoji, which its face shows whole, so it previews nothing
+    (annotations/preview.js)."""
+    reaction_palette(page)
+    strip = page.locator(f"{panel_view('thread')} .lf-react-strip").first
+    strip.locator(".lf-react").first.hover()
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def reaction_thread(page: Page) -> None:
+    """The thread the agent's answer to the user's reaction on a passage opens, from
+    Threads: its first message is the reaction, drawn as its emoji."""
+    as_agent(
+        "thread",
+        "reply",
+        "0f47b3ce",
+        "--text",
+        "Good to hear the stalls all recovered; the workaround stays documented.",
+        "--title",
+        "Forced stalls",
+    )
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    open_thread(page, "0f47b3ce")
+    settle(page)
+
+
 MARGIN_SUGGESTION = '.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]'
 
 
@@ -4013,6 +4041,8 @@ STATES = (
     State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
+    State("reaction-resting", "ship-review", reaction_resting),
+    State("reaction-thread", "ship-review", reaction_thread),
     State(
         "margin-reaction-choices",
         "release-notes",

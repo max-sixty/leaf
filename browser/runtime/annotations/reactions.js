@@ -1,4 +1,4 @@
-/* The response bar's reaction row and the tokens in force a strip or circle wears.
+/* The response bar's reaction row and the reactions in force a strip or circle wears.
 
    An open anchored composer owns its general response disclosure: reactions only
    contribute declared actions to it, and `e` opens that local group focused on its
@@ -31,7 +31,7 @@
    after admission to the local ledger. Its durable answer never closes a newer composer
    or returns focus: those belong to the gesture that has already ended.
 
-   Token rendering and per-press submission helpers are passive exports. Boot
+   Chip rendering and per-press submission helpers are passive exports. Boot
    constructs the reaction controller with auxiliary-surface, composer, and travel
    capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
@@ -77,7 +77,7 @@ import {
   nativePress,
   savedReadingSettled,
 } from "../dom/keyboard/bindings.js";
-import { reactionsAt, tokenChoices } from "../state/thread/model.js";
+import { emojiChoices, reactionsAt } from "../state/thread/model.js";
 import { allThreads, readThreads } from "../records/thread/state.js";
 import { effect, untracked } from "/vendor/signals-core.js";
 import { annotationSelection } from "../features/annotation-inventory.js";
@@ -92,47 +92,47 @@ import { PRESS, rowArrows } from "../lib/keys.js";
  * @typedef {{withdrawReaction: ReturnType<typeof import("../records/undo.js").createUndo>["withdraw"], postReaction: Post}} ReactionCommands
  */
 
-const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
-// The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
-// page row and the keyboard accelerators all read this one list, so a layer that
-// renames, adds or removes a token moves every surface at once, and core never learns
-// a token's name. Empty until the registry has arrived: the register checks every core
-// row's bindings as the module evaluates, before the vocabulary is known.
-export const reactionTokens = () => Object.entries(reactionVocabulary());
+const reactionVocabulary = () => registry.$reactions?.emoji ?? {};
+// The layer's reactions, each its emoji, in declared order. The bar, a reply's strip,
+// the page row and the keyboard accelerators all read this one list, so a layer that
+// adds or removes an emoji moves every surface at once, and core never names one.
+// Empty until the registry has arrived: the register checks every core row's bindings
+// as the module evaluates, before the vocabulary is known.
+export const reactionEmoji = () => Object.keys(reactionVocabulary());
 // A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
 /** @param {Anchor | null} anchor */
 const anchorChoices = (anchor) =>
   reactionAvailable()
-    ? tokenChoices(
+    ? emojiChoices(
         reactionVocabulary(),
         anchor ? reactionsAt(allThreads(), anchor) : [],
       )
     : [];
 
-// One token as a press in the response bar; a reply's strip builds its own
-// (records/thread/reaction-strips.js). The token names the control and the compact face
-// stays the declared mark. Digits remain keyboard accelerators without changing the
-// shape of every chip.
-/** @param {{name: string, glyph: string, label: string}} choice @param {(name: string) => unknown} pressed */
-function reactionChip({ name, glyph, label }, pressed) {
+// One reaction as a press in the response bar; a reply's strip builds its own
+// (records/thread/reaction-strips.js). Its emoji is its face and its name, which a
+// screen reader says by the emoji's Unicode name. Digits remain keyboard accelerators
+// without changing the shape of every chip.
+/** @param {{emoji: string}} choice @param {(emoji: string) => unknown} pressed */
+function reactionChip({ emoji }, pressed) {
   const chip = offerAction("response", "lf-react");
   // A toggle from the start, before the bar paints which reactions stand
   // (`paintBarReactions`), so it wears a reaction's face (controls.css).
   chip.setAttribute("aria-pressed", "false");
-  chip.dataset.lfToken = name;
-  chip.setAttribute("aria-label", label);
-  responseAction(chip, { glyph, label: name, collapse: true });
+  chip.dataset.lfEmoji = emoji;
+  responseAction(chip, { glyph: emoji, label: emoji, collapse: true });
   keys(chip, "On a reaction", [
     {
-      id: `reaction.${name}`,
+      // Each chip's scope is its own, so one stable id names its press on every chip.
+      id: "reaction.press",
       ready: savedReadingSettled,
       when: reactionAvailable,
       keys: [],
       control: chip,
-      title: label,
-      run: () => pressed(name),
+      title: emoji,
+      run: () => pressed(emoji),
     },
   ]);
   return chip;
@@ -143,9 +143,9 @@ function reactionChip({ name, glyph, label }, pressed) {
 // takes that reaction back (reactHere).
 /** @param {Anchor | null} anchor */
 export function paintBarReactions(anchor) {
-  const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
+  const by = new Map(anchorChoices(anchor).map((choice) => [choice.emoji, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-    const inForce = by.get(chip.getAttribute("data-lf-token") ?? "")?.inForce;
+    const inForce = by.get(chip.getAttribute("data-lf-emoji") ?? "")?.inForce;
     keeps(chip, "aria-pressed", String(Boolean(inForce)));
   }
 }
@@ -186,9 +186,9 @@ export function createReactionController({
   let marginAnchor = null;
   /** @type {ReactionCommands | null} */
   let pageCommands = null;
-  /** @param {string} name @param {number} ordinal */
-  const marginReactionKey = (name, ordinal) =>
-    `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
+  /** @param {string} emoji @param {number} ordinal */
+  const marginReactionKey = (emoji, ordinal) =>
+    `reaction:${String(ordinal).padStart(4, "0")}:${emoji}`;
   /** @param {Element} surface @param {{palette: HTMLElement, trigger: HTMLElement}} picker */
   function registerReactSurface(surface, { palette, trigger }) {
     surfaces.set(surface, { palette, trigger });
@@ -206,8 +206,8 @@ export function createReactionController({
     const palette = el("span", "lf-react-palette");
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", "Reactions for this selection or element");
-    for (const choice of tokenChoices(reactionVocabulary(), []))
-      palette.append(reactionChip(choice, (token) => reactHere(token, commands)));
+    for (const choice of emojiChoices(reactionVocabulary(), []))
+      palette.append(reactionChip(choice, (emoji) => reactHere(emoji, commands)));
     fabOptions.append(palette);
     syncResponseOptions();
   }
@@ -222,9 +222,9 @@ export function createReactionController({
     return addressableWord(addressable) || "the element";
   };
 
-  /** @param {string} name @param {ReactionCommands} commands @param {Anchor | null} anchor */
-  async function reactHere(name, commands, anchor = fabAnchorAt()) {
-    const choice = anchorChoices(anchor).find((choice) => choice.name === name);
+  /** @param {string} emoji @param {ReactionCommands} commands @param {Anchor | null} anchor */
+  async function reactHere(emoji, commands, anchor = fabAnchorAt()) {
+    const choice = anchorChoices(anchor).find((choice) => choice.emoji === emoji);
     if (!choice) return;
     const { inForce } = choice;
     // Read before the bar goes, because the reading is about the bar that is open.
@@ -241,7 +241,7 @@ export function createReactionController({
       const event = {
         kind: "comment",
         revision,
-        token: name,
+        emoji,
         anchor: structuredClone(anchor),
       };
       if (designModeActive()) event.about = "design";
@@ -314,16 +314,16 @@ export function createReactionController({
       read: () => ({
         side: "after",
         entries: anchorChoices(marginAnchor).map((choice, ordinal) => ({
-          key: marginReactionKey(choice.name, ordinal),
-          activation: choice.name,
-          glyph: choice.glyph,
-          label: choice.label,
+          key: marginReactionKey(choice.emoji, ordinal),
+          activation: choice.emoji,
+          glyph: choice.emoji,
+          label: choice.emoji,
           rank: "secondary",
           pressed: Boolean(choice.inForce),
         })),
         readings: [],
       }),
-      activate: (name) => reactHere(name, commands, marginAnchor),
+      activate: (emoji) => reactHere(emoji, commands, marginAnchor),
     });
     marginTarget = target;
     const release = openMarginEntryOptions(target, "responses");
@@ -535,26 +535,26 @@ export function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: () =>
-          reactionTokens()
+          reactionEmoji()
             .slice(0, 9)
             .map((_, i) => String(i + 1)),
         label: () => {
-          const n = Math.min(reactionTokens().length, 9);
+          const n = Math.min(reactionEmoji().length, 9);
           return n > 1 ? `1–${n}` : "1";
         },
         description: () =>
-          reactionTokens()
+          reactionEmoji()
             .slice(0, 9)
-            .map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`)
+            .map((emoji, i) => `${i + 1} ${emoji}`)
             .join(", "),
         title: "react",
         when: reactionAvailable,
         runKey: (binding) => {
           if (reactSurface === marginSurface) {
             const ordinal = +binding - 1;
-            const token = reactionTokens()[ordinal]?.[0];
-            if (token)
-              marginOffer?.activate(marginReactionKey(token, ordinal), {
+            const emoji = reactionEmoji()[ordinal];
+            if (emoji)
+              marginOffer?.activate(marginReactionKey(emoji, ordinal), {
                 origin: focused(),
                 input: "keyboard",
                 surface: "margin",
@@ -641,7 +641,7 @@ export function createReactionController({
     title: "reactions",
     when: () =>
       reactionAvailable() &&
-      reactionTokens().length > 0 &&
+      reactionEmoji().length > 0 &&
       hasReactionTarget() &&
       (anchoringIsReady() || !pageSelection()),
     run: () => {
@@ -669,6 +669,6 @@ export function createReactionController({
 /** @param {Extract<Parameters<Post>[0], {kind: "comment" | "reply"}>} event @param {string} where @param {Post} postReaction */
 export async function sendReaction(event, where, postReaction) {
   const sent = await postReaction(event);
-  if (sent) announce(`${event.token} on ${where}`);
+  if (sent) announce(`${event.emoji} on ${where}`);
   return sent;
 }

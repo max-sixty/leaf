@@ -242,7 +242,7 @@ shows in `answer` at once; which obligations exist changes when the server's rea
 arrives. Each `source.kind` adds its own facts:
 
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
-  next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
+  next message in its thread is its `answer.value` (`{text}`, or `{emoji}` for a
   settling reaction). Once its
   thread is resolved after it, it stays `waiting` with no `next_actor`, even when the
   thread reopens, until a message asks it again.

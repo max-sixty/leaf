@@ -109,9 +109,7 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     named = {"description": "Build facts.", "schema": {}}
     refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
     assert refused.values["keyword"] == "pattern"
-    refused = registry_refusal(
-        lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
-    )
+    refused = registry_refusal(lambda: facts(reactions={"emoji": {" ": {}}}))
     assert refused.values["keyword"] == "pattern"
 
 
@@ -123,7 +121,7 @@ def test_one_check_names_the_first_departure_in_each_layer_fact():
     registry["$data"] = {"contracts": {"a\n": named, "b\n": named}}
     registry["$reactions"] = {
         **registry["$reactions"],
-        "tokens": {"keep\n": {"glyph": "+"}},
+        "emoji": {" ": {}},
     }
 
     with pytest.raises(registry_contract.RegistryError) as refused:
@@ -290,7 +288,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
 
 
 def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tmp_path):
-    """`$events.handling` merges by kind like `$reactions.tokens`: a project layer
+    """`$events.handling` merges by kind like `$reactions.emoji`: a project layer
     replaces one kind's clauses, deletes one with null, and inherits every other."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
@@ -658,7 +656,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment a newer message answers through": {"kind": "comment"},
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
-        "reaction on the page": {"kind": "comment", "token": "+1"},
+        "reaction on the page": {"kind": "comment", "emoji": "👍"},
         "reply": {"kind": "reply", **titled, **owes("reply")},
         "reply in an untitled thread": {
             "kind": "reply",
@@ -690,7 +688,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "settled": [{"id": "message:m1", "text": "Can you try the build?"}],
             **owes("reply"),
         },
-        "reaction on a message": {"kind": "reply", "token": "+1"},
+        "reaction on a message": {"kind": "reply", "emoji": "👍"},
         "rewritten message": {
             "kind": "edit",
             "text": "Tuesdays, after the report run",

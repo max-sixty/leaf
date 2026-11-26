@@ -473,7 +473,7 @@ test("taking back an answered reaction keeps its place as the log's answer will"
   const place = (message) => ({
     id: message.id,
     text: message.text,
-    token: message.token,
+    emoji: message.emoji,
     was: message.withdrawn?.was,
     deleted: deleted(message),
   });
@@ -485,8 +485,8 @@ test("taking back an answered reaction keeps its place as the log's answer will"
     ],
   );
   assert.deepEqual(folded.msgs.map(place), [
-    { id: "e1", text: "", token: undefined, was: "change", deleted: true },
-    { id: "e2", text: "Which part?", token: undefined, was: undefined, deleted: false },
+    { id: "e1", text: "", emoji: undefined, was: "❌", deleted: true },
+    { id: "e2", text: "Which part?", emoji: undefined, was: undefined, deleted: false },
   ]);
   assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
   assert.deepEqual(place(folded.root), place(taken.root));
@@ -539,7 +539,7 @@ test("the press leaves a sent message's place Deleted, as the log's answer does 
 test("a mark alone on the page comes off in the press, and a place the log kept stays", () => {
   const [holding] = servedReading("a reaction holding a to-do").threads;
   const [held] = servedReading("a reaction holding a to-do taken back").threads;
-  assert.equal(held.root.withdrawn?.was, "change");
+  assert.equal(held.root.withdrawn?.was, "❌");
   // The press takes the mark off; the log's answer brings back the place a to-do keeps.
   assert.deepEqual(foldThreads([holding], [{ kind: "undo", undoes: "e1" }]), []);
   // The log's place stays through the next gesture, whatever else stood on it.
@@ -550,7 +550,7 @@ test("a mark alone on the page comes off in the press, and a place the log kept 
   const { withdrawn: _, ...said } = held.root;
   const marked = {
     ...held,
-    msgs: [...held.msgs, { ...said, id: "mark", parent: "e1", token: "keep" }],
+    msgs: [...held.msgs, { ...said, id: "mark", parent: "e1", emoji: "👍" }],
   };
   assert.deepEqual(
     foldThreads([marked], [{ kind: "undo", undoes: "mark" }]).map(({ msgs }) =>
@@ -632,7 +632,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
     ts: "now",
   };
   const reply = { ...rewrite, id: "pending:reply", kind: "reply", parent: "question" };
-  const keep = { ...reply, id: "pending:keep", text: undefined, token: "keep" };
+  const keep = { ...reply, id: "pending:keep", text: undefined, emoji: "👍" };
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };

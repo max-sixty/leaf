@@ -239,14 +239,14 @@ customElements.define('lf-feed', class extends LeafElement {
 
     page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
     page.keyboard.press("Tab")
-    reaction = page.locator('.lf-fab-bar .lf-react[data-lf-token="keep"]')
+    reaction = page.locator('.lf-fab-bar .lf-react[data-lf-emoji="👍"]')
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
         reaction.click()
     marked = next(
-        e for e in events_model.read_events(serve.page_dir) if e.get("token") == "keep"
+        e for e in events_model.read_events(serve.page_dir) if e.get("emoji") == "👍"
     )
-    assert marked["token"] == "keep"
+    assert marked["emoji"] == "👍"
     assert marked["anchor"]["identity"] == "a"
     assert "quote" not in marked["anchor"]
 

@@ -9,8 +9,7 @@
    In Chromium, a custom property that changes on `html` restyles every element, since
    every element inherits it, unless it is registered as non-inheriting. So a value only
    the root reads, or one that changes with the user's input, is written as the plain
-   property it sets, as the floating panel's band is
-   (panel/floating-panel.js, `followBox`), and a custom property only for a token the page's
+   property it sets, and a custom property only for a token the page's
    CSS inherits that changes as rarely as its source, such as a page tab strip's
    height (dom/root-headers.js). */
 

@@ -406,7 +406,6 @@ import {
   placeBox,
   placeHolder,
   seenRect,
-  stateFootBand,
 } from "../dom/geometry.js";
 import { overlaps } from "../dom/rect.js";
 import { registerReadingRegion } from "../readings/reading-regions.js";
@@ -2283,7 +2282,7 @@ export function createFloatingPanel({
   ground.setAttribute("part", "panel");
   // The box stands over the window's foot, the row and any view open above it: what it
   // covers reads as unseen (dom/geometry.js, `declareCover`), and a landing stands clear of
-  // its reach (`followBox`). It covers where its surface is drawn
+  // where it comes to rest (`footCover` there). It covers where its surface is drawn
   // (dom/box-motion.js, `outline`): while the box moves, the card stands transparent at its
   // rest and the surface carries the panel from where it stood. The card's own box is
   // where that motion ends, which a landing about to show a place asks (`standsOver`).
@@ -2299,9 +2298,11 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
-  let bandFrame = 0;
+  let roomFrame = 0;
+  /** @type {number | null} */
+  let reachStated = null;
   function followBox() {
-    stateBand();
+    announceReach();
     const compact = host.dataset.lfRest === "mark";
     const duration = compact
       ? foldMs()
@@ -2310,31 +2311,23 @@ export function createFloatingPanel({
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
-  function stateBand() {
-    // How far the box reaches up from the window's foot, with the gap above the box and
-    // at least the foot's room (`--lf-foot-band`, base.css): the band Leaf's landings
-    // keep clear of (dom/geometry.js, `stateFootBand`, `landingBand`), so `m`, `t`, a Go-to or
-    // an On Me row's Show lands what it reaches above an open view rather than under it.
+  // The box's cover changed height (`declareCover` above), which no scroll or resize
+  // tells the readings of what the user sees (dom/geometry.js, `watchRoom`).
+  function announceReach() {
     const box = card.getBoundingClientRect();
-    const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
-    const root = document.documentElement;
-    const [rest = 0, clear = 0] = getComputedStyle(root)
-      .getPropertyValue("--lf-foot-band")
-      .trim()
-      .split(/\s+/)
-      .map(Number.parseFloat);
-    const band = atLayoutPrecision(Math.max(rest, reach + clear));
-    if (stateFootBand(band)) {
-      // This runs in the box's size delivery, which may write only what no one observes
-      // (page-layout.js). The margin hears the news of the room, and its pass places an
-      // open thread card in the same delivery, resizing a box shallower than any the
-      // delivery can still reach: a ResizeObserver loop. So the news waits for the
-      // frame; Leaf's own landings read the band stated above at once.
-      bandFrame ||= nextRender(() => {
-        bandFrame = 0;
-        announceRoom();
-      });
-    }
+    const reach = atLayoutPrecision(
+      box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0,
+    );
+    if (reach === reachStated) return;
+    reachStated = reach;
+    // This runs in the box's size delivery, which may write only what no one observes
+    // (page-layout.js). The margin hears the news of the room, and its pass places an
+    // open thread card in the same delivery, resizing a box shallower than any the
+    // delivery can still reach: a ResizeObserver loop. So the news waits for the frame.
+    roomFrame ||= nextRender(() => {
+      roomFrame = 0;
+      announceRoom();
+    });
   }
 
   // A view is as tall as what it holds, up to its cap (floating-panel.css,
@@ -6218,13 +6211,7 @@ export function createFloatingPanel({
           }
         }
         open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
-        // The band the view takes is stated once it is drawn, before the box's size
-        // delivery, so the route's landing of the thread's passage, which may follow in
-        // the same task, stands clear of the view (records/thread/destination.js, `taken`).
-        return present({ release: true }).then((shown) => {
-          stateBand();
-          return shown;
-        });
+        return present({ release: true });
       },
     });
     // Upgrade turns the status to its loading words without a publication.

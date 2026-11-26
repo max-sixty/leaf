@@ -72,7 +72,7 @@
      the chrome draws nothing, and the room is the window's safe area, which the body
      keeps (base.css). At the foot the floating panel's row rests (floating-panel.css),
      with a gap below and above it. The page keeps no room for that band: the row stands
-     over the page, and Leaf's landings stop above it (`--lf-foot-band`, base.css). A page
+     over the page, and Leaf's landings stop above it (`--lf-landing-foot`, base.css). A page
      that is not live draws no chrome (below).
 
      The row is its one line (`--lf-line`) and the panel's padding around it

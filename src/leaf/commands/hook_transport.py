@@ -279,10 +279,10 @@ def new_input(session_id: str) -> bool:
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
+    from leaf.agents.presence import read_work
     from leaf.pages.vendoring import renew_held
     from leaf.records.activity import acknowledged_obligations, turn_obligations
     from leaf.records.event_contracts import write_refusal
-    from leaf.serving.served_state.context import read_page
 
     plans = []
     for page_dir in owned_pages(session_id):
@@ -298,8 +298,8 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 # lock over a page projection or taking locks in reverse order.
                 while True:
                     lifecycle = session_record(session_id)
-                    work = read_page(page_dir, page.events).work
-                    state = {**work.presence, "activity": work.activity}
+                    work = read_work(page_dir, page.events)
+                    state: dict = {**work.presence, "activity": work.activity}
                     claim = page.active_claim
                     if session_record(session_id) == lifecycle:
                         break
@@ -447,8 +447,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     turn would put the update past its start's reach and count as the reminder it
     never got (`delivery.reminded`).
     """
+    from leaf.agents.presence import read_work
     from leaf.records.activity import acknowledged_obligations, in_hand
-    from leaf.serving.served_state.context import read_page
 
     for plan in plans:
         if not plan.acknowledged or plan.unwritable:
@@ -467,7 +467,7 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                     plan.claim["turn"],
                 ):
                     continue
-                work = read_page(plan.page, page.events).work
+                work = read_work(plan.page, page.events)
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
                     item["input"]

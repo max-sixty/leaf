@@ -532,7 +532,7 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
     payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
     if process == "Stop":
         _, imported = fresh_imports(leaf_main(*hook, stdin=json.dumps(payload)))
-        assert "leaf.serving.served_state.context" in imported, "the hook read no page"
+        assert "leaf.records.work_state" in imported, "the hook read no page"
     else:
         asked = append_command(
             claimed,

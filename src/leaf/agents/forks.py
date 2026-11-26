@@ -63,7 +63,7 @@ its thread or speaks for a round a later turn joined. A line that fails it drops
 the page's diagnostics say so.
 
 While the line stands, the waiting messages before it read On it, as they do before
-any progress message of the agent's (`served_state.work.lined`, which `activity` reads
+any progress message of the agent's (`work_state.lined`, which `activity` reads
 as a waiting update `running`, so every surface showing whether the agent is at work
 agrees), as the user chose. That word is all the line changes: as a receipt's progress
 it takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds

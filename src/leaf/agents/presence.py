@@ -1,6 +1,6 @@
-"""Page and neighboring-leaf presence readings, and the one write that follows
-from them: the message to a claimant whose input nothing will carry
-(`nudge_unwatched`, `nudge_interrupted`)."""
+"""Page and neighboring-leaf presence readings, the page's work folded with its
+presence (`read_work`), and the one write that follows from them: the message to a
+claimant whose input nothing will carry (`nudge_unwatched`, `nudge_interrupted`)."""
 
 import hashlib
 import json
@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from leaf.base.files import file_stamp
+from leaf.base.files import file_stamp, latest_revision, list_revisions
 from leaf.base.harness import claim_harness
 from leaf.base.leases import lock_is_held, wait_is_live, waiter_lease_path
 from leaf.base.page_memory import memo
@@ -32,6 +32,8 @@ from leaf.records.transaction import (
     owned_pages,
     unacknowledged,
 )
+from leaf.records.work_state import WorkState, work_state
+from leaf.source.revision_artifact import read_revision
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -403,6 +405,27 @@ def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
         datetime.fromisoformat(now_iso()),
     )
     return present, turn
+
+
+def read_work(page_dir: Path, events: list) -> WorkState:
+    """The page's work as the served state folds it (`work_state.work_state`,
+    `served_state.context.PageRead.work`): the log over the live revision, with the
+    claim's presence and live activity, for a transport or command that reads no
+    other part of the served page."""
+    revision = latest_revision(page_dir)
+    source = read_revision(page_dir, revision) if revision is not None else None
+    revisions = frozenset(list_revisions(page_dir))
+    present, live_stream = presence_with_activity(page_dir, events)
+    return work_state(
+        events,
+        source,
+        revision,
+        present,
+        now_iso(),
+        live_stream,
+        revisions=revisions,
+        revision_reader=lambda number: read_revision(page_dir, number),
+    )
 
 
 def session_turn_running(session_id: str) -> bool:

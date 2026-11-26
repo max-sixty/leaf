@@ -35,7 +35,7 @@ page, is retired without writing (`delivery.receive_batch`).
 While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
 complete envelope as a JSON block (`json_block`), or its pointer where Codex wouldn't
 show it whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn
-accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
+accepts it (`confirm_codex_pointer`). A hook never re-offers input or takes one
 another transport holds. The Stop hook offers nothing while an App Server adapter
 runs (`codex_adapter.later_turn_takes_input`): the turn ends on its own answer, and
 the adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
@@ -122,6 +122,7 @@ from leaf.agents.delivery import (
     new_delivery_id,
     read_delivery,
     reader_envelope,
+    receive,
     receive_batch,
     record_pickup,
     stored_delivery,
@@ -2568,6 +2569,34 @@ def accept_codex_delivery(
         if received is not None:
             accepted.append(received)
     return accepted
+
+
+def confirm_codex_pointer(session_id: str, payload: dict) -> list[Path]:
+    """Confirm the owning task's complete delivery receipt in its exact turn.
+
+    A hook reservation remains bound to its offered turn. Already queued input
+    and recovery reminders have no such reservation; their explicit reader
+    confirmation records the current receiver's turn under the page lock. So
+    does a queue offer whose acceptance went unrecorded, as when the adapter
+    failed after `codex queue` returned: the pointer in this turn proves the
+    queue took it, and accepting it here keeps the adapter from queueing it
+    again.
+    """
+    observation = hook_turn(session_id)
+    if not observation or not observation["running"]:
+        raise ReceiptRefused("the receiving provider turn has ended")
+    record = read_task_delivery(session_id, payload["id"])
+    if type(record) is Offering:
+        accept_codex_delivery(session_id, payload["id"], None)
+        return receive(payload, session_id)
+    if record is None or isinstance(record, Accepted):
+        return receive(payload, session_id)
+    received = accept_codex_delivery(
+        session_id, payload["id"], observation["turn"], hook_observation=observation
+    )
+    if len(received) != len(payload["batches"]):
+        raise ReceiptRefused("delivery no longer owns its page or receiving turn")
+    return [batch["page"] for batch in received]
 
 
 def open_app_server_delivery(

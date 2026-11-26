@@ -40,6 +40,7 @@ from leaf.base import state as cleanup_model
 from leaf.base.findings import Finding
 from leaf.base.json_block import read_json_block
 from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
 from leaf.log import event_log as events_model
@@ -805,7 +806,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     assert session_model.cmd_wait(page_dir) == 0
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["acknowledge"] is not None
-    assert delivery_model.receive_delivery(envelope["id"]) == [page_dir]
+    assert delivery_ack_model.receive_delivery(envelope["id"]) == [page_dir]
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]

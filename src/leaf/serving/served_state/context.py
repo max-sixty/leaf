@@ -52,7 +52,7 @@ class PageRead:
 
     @cached_property
     def work(self):
-        from leaf.serving.served_state.work import work_state
+        from leaf.records.work_state import work_state
 
         active = self.active
         return work_state(

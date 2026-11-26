@@ -9,14 +9,14 @@ The inventory is complete even when a work queue hides a resolved thread or an
 older prompt.
 
 On the page, the user answers an obligation only through its source: a widget
-through the actions its `awaits` declares, an agent message through a message of
-theirs in its thread, words or a reaction. Leaf adds no control of its own, such as a generic
+through their own gestures on it, an agent message through a message of theirs in
+its thread, words or a reaction. Leaf adds no control of its own, such as a generic
 Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
 the decision). Any widget may ask by declaring `awaits`; content that doesn't is
 asked about in a thread anchored to it. Whether a widget's obligation is answered is
 the widget's own word, which its gestures carry (`gesture_answers`), so this module
-reads it and keeps no rule of its own for it: the browser draws the same word in the
-gesture's task, and the two can't disagree.
+reads it and keeps no rule of its own for it. The browser draws the same word in the
+gesture's task, and this reading takes over once it arrives.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -52,8 +52,9 @@ one the user answered on another surface, or that no longer applies, so the thre
 as settled wherever it shows. The user asked for this over an agent end of its own
 (`todo_end` on the question's id, read as answered elsewhere or dropped with the agent's
 note), which added an ending, a line under the question and a Done row, and left threads
-it ended open. A page widget's answer given elsewhere goes into its declared state in a
-revision."""
+it ended open. A page widget's question the user answered elsewhere, as in chat, is
+retired by a revision that sets its `awaits.retired` attribute: markup answers
+nothing."""
 
 import hashlib
 import json
@@ -249,34 +250,46 @@ def previously_requested(
 
 
 def gesture_answers(events: list, projection: StateProjection) -> dict[str, bool]:
-    """Each widget's word on whether its obligation is answered, as its own gestures
-    carried it: widget id → the `answered` of the newest of its actions in force, or of
-    the user's undos of its actions, that carries one.
+    """Each widget's word on whether its obligation is answered: widget id → what the
+    newest of these says. A gesture that carries a word, an action of the widget still
+    in force or the user's undo of one, says its `answered`. A version note that
+    restates what any of the widget's actions rests on, retracting it, says the
+    question is open again, whichever member the retracted action named, until a later
+    gesture says otherwise.
 
     The widget decides, in the browser, from its state as the gesture left it
-    (`module-state.md`, "Declared widget state"), and the runtime sends the word
-    on the gesture's event, so this reads the word and decides nothing again. An action
-    no longer in force says nothing, since the state it left is gone. An undo's word
-    stands only while some action of the widget stands in force: a version that
-    restates the decision retracts its actions with no gesture to carry a word, and the
-    widget asks again. A widget with no such word is unanswered, whatever its markup
-    holds, so a version takes a question it settled out of the asking with
-    `awaits.retired` rather than by writing the answer in."""
+    (`module-state.md`, "Declared widget state"), and the runtime sends the word on the
+    gesture's event, so this reads the word and decides nothing again. An action no
+    longer in force says nothing, since the state it left is gone: an undo carries the
+    word for the state after it, and a retraction carries none, so the note speaks for
+    it. A widget with no word is unanswered, whatever its markup holds."""
+    undone = {event["undoes"] for event in events if event["kind"] == "undo"}
+    resting: dict[str, list[dict]] = {}
     widget_of: dict[str, str] = {}
-    latest: dict[str, dict] = {}
+    said: dict[str, bool] = {}
     for event in events:
         if event["kind"] == "action":
             widget_of[event["id"]] = event["widget"]
+            meaning = event.get("meaning") or {}
+            for identity in {event["widget"], *meaning.get("depends", ())}:
+                resting.setdefault(identity, []).append(event)
             if "answered" in event and event["id"] in projection.in_force:
-                latest[event["widget"]] = event
+                said[event["widget"]] = event["answered"]
         elif event["kind"] == "undo" and "answered" in event:
             if (widget := widget_of.get(event["undoes"])) is not None:
-                latest[widget] = event
-    return {
-        widget: event["answered"]
-        and (event["kind"] == "action" or bool(projection.actions_by_owner.get(widget)))
-        for widget, event in latest.items()
-    }
+                said[widget] = event["answered"]
+        elif event["kind"] == "note":
+            for identity in event.get("restated", ()):
+                for action in resting.get(identity, ()):
+                    # Retracted by this note: made on an earlier version, out of force
+                    # at the end, and not taken back by the user.
+                    if (
+                        action["revision"] < event["revision"]
+                        and action["id"] not in projection.in_force
+                        and action["id"] not in undone
+                    ):
+                        said[action["widget"]] = False
+    return said
 
 
 def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:

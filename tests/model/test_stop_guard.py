@@ -1147,6 +1147,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
             "widget": "note",
             "action": "edit",
             "detail": {"value": "Green room."},
+            # A draft says words stand in it, whether or not it asks the user.
+            "answered": True,
         },
     )
     edited = state_json(claimed)

@@ -33,7 +33,7 @@ import { messageText } from "../thread/messages.js";
  * named: (entry: import("./state.js").DeliveryHandle, says: string) => void,
  * withdraw: (event: UndoCandidate) => Promise<Event | null> | null,
  * onCollision: (attempt: string | undefined) => void,
- * answered: (widget: string) => boolean | undefined,
+ * answered: (widget: string, tag: string | null) => boolean | undefined,
  * }} DispatchDependencies */
 export function createCommandDispatch() {
   const submitted = new Set();

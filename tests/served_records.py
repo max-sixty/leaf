@@ -652,11 +652,18 @@ def gesture_sequence() -> dict:
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": value},
+            "answered": True,
             "attempt": f"sequence-edit-{index:03}",
         }
         for index, value in enumerate(edits, 1)
     ]
-    withdrawal = {"kind": "undo", "undoes": "e3", "attempt": "sequence-undo-003"}
+    # The earlier edits still stand, so the draft still holds words.
+    withdrawal = {
+        "kind": "undo",
+        "undoes": "e3",
+        "answered": True,
+        "attempt": "sequence-undo-003",
+    }
     commands.append(withdrawal)
     commands.extend(
         {
@@ -770,6 +777,7 @@ TAIL_LOG = (
         "widget": "kinds",
         "action": "answer",
         "detail": {},
+        "answered": True,
         "attempt": "tail-attempt-0008",
     },
 )
@@ -861,6 +869,7 @@ def tail_cases() -> list[dict]:
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": value},
+                "answered": True,
             }
             for value in values
         ]

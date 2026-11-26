@@ -217,14 +217,17 @@ customElements.define(
     }
 
     // Whether the group's question is answered, which Leaf asks after each of its
-    // gestures (`module-state.md`, "Declared widget state"): Done pressed where
-    // the group takes several options, otherwise a pick made. A selection only the
-    // markup holds answers nothing.
+    // gestures (`module-state.md`, "Declared widget state"): Done pressed where the
+    // group takes several options, otherwise a pick the user made. Each reads only the
+    // user's acts in force, never a selection only the markup holds, so a pick the
+    // version writes in answers nothing, as the server reads it.
     /** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"]} state @param {Element} group */
     static answered(state, group) {
-      return group.hasAttribute("multiple")
-        ? isAnswered(state)
-        : choiceIds(state.choose?.detail?.value ?? []).length > 0;
+      if (group.hasAttribute("multiple")) return isAnswered(state);
+      const choose = state.choose;
+      return Boolean(
+        choose && "action" in choose && choose.action && choiceIds(choose.value).length,
+      );
     }
 
     /** @type {OptionAddition | undefined} */

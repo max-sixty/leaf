@@ -3117,8 +3117,8 @@ flowchart TD
             <p id="progress-lists-answer">
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
-              obligation is answered by the actions its
-              <code>awaits</code> declaration names, such as a pick, or the Done a
+              obligation is answered when the widget says the user's gesture on it
+              answered it (<code>awaits</code>), as a pick does, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there, in words or a reaction such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and ends a thread

@@ -1294,7 +1294,11 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
         ("b1", "move", {"unit": "card-y", "value": "c-done", "rank": "i"}),
         ("b1", "move", {"unit": "card-x", "value": "c-done", "rank": "9"}),
     ]
+    # The group and the draft ask, so their gestures say whether they are answered;
+    # the board asks nothing.
+    words = {("g1", "add"): False, ("g1", "choose"): True, ("summary", "edit"): True}
     for widget, action, detail in actions:
+        word = words.get((widget, action))
         append_command(
             page_dir,
             {
@@ -1304,6 +1308,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **({} if word is None else {"answered": word}),
             },
         )
     state = state_json(page_dir)
@@ -1471,6 +1476,7 @@ def test_thread_read_reads_message_construction(page_dir):
             "widget": "route",
             "action": "choose",
             "detail": {"value": ["second"]},
+            "answered": True,
         },
     )
     runner = CliRunner()
@@ -2508,10 +2514,12 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "widget": "t-store",
             "action": "choose",
             "detail": {"value": ["t-sqlite"]},
+            "answered": True,
         },
     )
     undone = append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": picked["id"], "answered": False},
     )
     for name in ("t-store", opened["id"], renamed["id"], picked["id"], undone["id"]):
         read = run("page", "state", name)
@@ -2708,6 +2716,7 @@ def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
         "widget": "choice",
         "action": "choose",
         "detail": {"value": ["flag-first"]},
+        "answered": True,
     }
 
     def tab():
@@ -2799,6 +2808,7 @@ def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page
                         "widget": "choice",
                         "action": "choose",
                         "detail": {"value": ["flag-first"]},
+                        "answered": True,
                     },
                 )
             )
@@ -3923,6 +3933,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
             "widget": "practice-policy",
             "action": "choose",
             "detail": {"value": ["practice-a"]},
+            "answered": True,
         },
     )
     assert not pick["attention"]
@@ -4808,6 +4819,7 @@ def test_exact_markdown_body_retains_saved_whitespace_across_revision(page_dir, 
             "widget": "exact",
             "action": "edit",
             "detail": {"value": source},
+            "answered": bool(source),
         },
     )
     write(source)
@@ -4934,6 +4946,7 @@ def test_revisions_can_move_rewrite_or_remove_authored_generated_children(page_d
             "widget": "g1",
             "action": "add",
             "detail": {"option": added, "text": "My route."},
+            "answered": False,
         },
     )
     for authored in (

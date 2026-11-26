@@ -235,6 +235,8 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "widget": "note",
             "action": "edit",
             "detail": {"value": "Green room."},
+            # A draft says words stand in it, whether or not it asks the user.
+            "answered": True,
         },
     )
     picked = append_command(

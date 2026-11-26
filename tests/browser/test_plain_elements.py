@@ -110,6 +110,7 @@ def decided(page_dir, value, widget="verdict"):
             "widget": widget,
             "action": "decide",
             "detail": {"value": value},
+            "answered": bool(value),
         },
     )
 

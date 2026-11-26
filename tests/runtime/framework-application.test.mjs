@@ -1773,7 +1773,7 @@ test("An obligation contains the local typed answer while completion waits for a
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      awaits: { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide" },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1807,7 +1807,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
     ...descriptor,
     declaration: {
       verbs: { choose },
-      awaits: { value: "choose", answered: { choose: {} } },
+      awaits: { value: "choose" },
     },
   };
   const app = capture(
@@ -1843,7 +1843,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
   assert.equal(app.read().effective.obligations.all[0].prompt.target, "new-context");
 });
 
-test("pending undo removes completed empty obligation values and refusal restores them", () => {
+test("a pending undo's word reopens a completed empty answer and refusal restores it", () => {
   for (const [record, value] of [
     [{ kind: "attribute", attr: "selected" }, []],
     [{ kind: "body" }, ""],
@@ -1854,7 +1854,7 @@ test("pending undo removes completed empty obligation values and refusal restore
       ...descriptor,
       declaration: {
         verbs: { choose, answer },
-        awaits: { value: "choose", answered: { answer: {} } },
+        awaits: { value: "choose" },
       },
     };
     const app = capture(
@@ -1897,9 +1897,11 @@ test("pending undo removes completed empty obligation values and refusal restore
     app.adopt(reading);
     assert.deepEqual(app.read().effective.obligations.all[0].answer.value, value);
     app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-empty" }, "now");
-    assert.equal(app.read().effective.obligations.all[0].state, "done");
+    // The widget says the undo leaves its question open, as the runtime asks it.
+    app.answer("undo-empty", () => false);
+    assert.equal(app.read().effective.obligations.all[0].state, "waiting");
     assert.equal(app.read().effective.obligations.all[0].answer, null);
-    assert.equal(app.read().effective.queues.done[0].obligation.answer, null);
+    assert.equal(app.read().effective.queues.on_user[0].obligation.answer, null);
     app.refuse("undo-empty");
     assert.deepEqual(app.read().effective.obligations.all[0].answer.value, value);
   }
@@ -1910,7 +1912,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      awaits: { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide" },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1945,7 +1947,7 @@ test("pending undo removes a custom obligation answer before authoritative compl
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      awaits: { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide" },
     },
   };
   const app = capture([[declared.id, declared]]);

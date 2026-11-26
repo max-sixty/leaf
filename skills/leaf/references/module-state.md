@@ -156,13 +156,15 @@ pressed where it takes several:
 static answered(state, group) {
   return group.hasAttribute("multiple")
     ? Boolean(state.answer?.action)
-    : (state.choose?.detail?.value ?? []).length > 0;
+    : Boolean(state.choose?.action) && state.choose.value.length > 0;
 }
 ```
 
-A class without it is answered while the verb `awaits.value` names holds a state: a
-non-empty recorded value, or an action in force of a verb with no record. Only the
-user's gestures carry the word, so a version that writes an answer into the markup
+A class without it is answered while the user's acts in force hold a state at the
+verb `awaits.value` names: an action there that records a non-empty value, or, for a
+verb with no record, any action there. Either way, `answered` reads only the user's
+acts, never a value the markup holds, as lf-options' reads `action` beside its
+`value`. Only the user's gestures carry the word, so a version that writes an answer into the markup
 answers nothing: one that settles a question retires it (`awaits.retired`), and one
 that asks a decided question again marks it `restated` (`authoring-revisions.md`).
 

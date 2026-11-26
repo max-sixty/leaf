@@ -1151,10 +1151,18 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         )
 
     user = {"kind": "action", "author": "user", "revision": 1, "widget": "an-set"}
-    choose = {"action": "choose", "detail": {"value": ["an-chase", "an-say"]}}
+    # The group takes several options, so only its Done answers it.
+    choose = {
+        "action": "choose",
+        "detail": {"value": ["an-chase", "an-say"]},
+        "answered": False,
+    }
     append_command(serve.page_dir, user | choose)
     # The Done press. Recordless, and the last word on the group.
-    append_command(serve.page_dir, user | {"action": "answer", "detail": {}})
+    append_command(
+        serve.page_dir,
+        user | {"action": "answer", "detail": {}, "answered": True},
+    )
     # The population first: the probe returns clean for an empty list.
     page = open_page(browser, url)
     resized(page, 1280, 900)
@@ -1248,9 +1256,13 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
             "detail": {"value": "corrupt"},
         },
     )
-    edit = {"action": "edit", "detail": {"value": "User's current draft."}}
+    edit = {
+        "action": "edit",
+        "detail": {"value": "User's current draft."},
+        "answered": True,
+    }
     append_command(serve.page_dir, user | edit | {"widget": "edited"})
-    accept = {"action": "decide", "detail": {"outcome": "accept"}}
+    accept = {"action": "decide", "detail": {"outcome": "accept"}, "answered": True}
     append_command(serve.page_dir, user | accept | {"widget": "retired"})
     withdrawn = append_command(serve.page_dir, user | accept | {"widget": "undone"})
     append_carried_log_record(

@@ -4,7 +4,9 @@
    (`widgetAnswered`), which each gesture of it carries to the log. */
 import { applicationState, readApplication } from "../state/semantic-state.js";
 import { holdsState } from "../state/projection/model.js";
-import { addressableAt } from "../records/thread/messages.js";
+import { registry } from "../state/registry.js";
+import { widgetStatic } from "../records/obligations/answer.js";
+import { reportFailure } from "../lib/failure.js";
 
 /** @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading */
 
@@ -69,24 +71,42 @@ export const widgetState = ({ state, actions }) =>
 // What a widget that asks says of its obligation as its state now stands, which each
 // of its actions and each undo of one carries (records/pending/dispatch.js): its
 // class's static `answered(state, element)`, given the `state` Leaf sets
-// (`widgetState`) and the widget's authored element, wherever it stands, so the word
-// needs no drawing of the widget, as one in a thread nobody has open has none; or,
-// where the class says nothing, whether the verb `awaits.value` names holds a state
-// (`holdsState`). A widget that asks nothing says nothing.
-/** @param {string} widget @returns {boolean | undefined} */
-export function widgetAnswered(widget) {
+// (`widgetState`) and the widget's authored markup as `answerWords` is
+// (`widgetStatic`), so the word needs no drawing of the widget, as one in a thread
+// nobody has open has none; or, where the class says nothing, whether the user's acts
+// hold a state at the verb `awaits.value` names (`holdsState`). A class's `answered`
+// that throws is the widget's failure, reported as one, and the gesture goes with the
+// default rule's word rather than waiting on a widget that can't say; otherwise a
+// class that says never has the default rule speak for it. `tag` names the widget's
+// kind where no captured descriptor does, as for an undo of an action in a message
+// nobody has drawn. A widget that asks always says, and one that asks nothing says
+// nothing.
+/** @param {string} widget @param {string | null} tag @returns {boolean | undefined} */
+export function widgetAnswered(widget, tag) {
   const root = readApplication();
   const descriptor = root.document.descriptors.get(widget);
-  const verb = descriptor?.declaration.awaits?.value;
-  if (!descriptor || !verb) return undefined;
-  const decide = /** @type {{answered?: unknown} | undefined} */ (
-    customElements.get(descriptor.tag)
-  )?.answered;
-  const element = addressableAt(widget);
-  if (typeof decide === "function" && element)
-    return Boolean(
-      decide(widgetState(applicationState.selectWidget(descriptor).read()), element),
-    );
+  const kind = descriptor?.tag ?? tag;
+  const verb = kind ? registry[kind]?.awaits?.value : undefined;
+  if (!kind || !verb) return undefined;
   const folded = root.effective.widgets.get(widget);
-  return folded ? holdsState(folded, verb) : false;
+  const byDefault = () => Boolean(folded && holdsState(folded, verb));
+  const own = widgetStatic(kind, widget, "answered");
+  if (!own) return byDefault();
+  // A widget no page has captured has no reading: its folded state, or none, is all
+  // there is to say from.
+  const state = descriptor
+    ? widgetState(applicationState.selectWidget(descriptor).read())
+    : /** @type {import("../../types/domain.js").WidgetState} */ (folded?.state ?? {});
+  if (!own.element) {
+    console.error(
+      `leaf: <${kind} id="${widget}"> has no markup to say its answer from`,
+    );
+    return byDefault();
+  }
+  try {
+    return Boolean(own.call(state, own.element));
+  } catch (error) {
+    reportFailure(own.element, error);
+    return byDefault();
+  }
 }

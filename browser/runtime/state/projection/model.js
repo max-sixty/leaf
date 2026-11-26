@@ -321,15 +321,18 @@ const populated = (value) =>
   value !== "" &&
   (typeof value !== "object" || Object.keys(value).length > 0);
 
-/* Whether `verb` holds a state on `widget`: a non-empty recorded value, or, for a verb
-   with no record, an action in force. It is what a widget that asks says of its
-   obligation where its class says nothing of its own (`awaits`). */
+/* Whether the user's acts hold a state at `verb` on `widget`: an action in force there,
+   one that records a non-empty value where the verb records one, or one at any of its
+   members. What the markup holds counts for nothing, since only a gesture says a
+   question is answered. It is what a widget that asks says of its obligation where its
+   class says nothing of its own (`awaits`). */
 /** @param {Parameters<typeof obligationValue>[0]} widget @param {string} verb */
 export function holdsState(widget, verb) {
   const state = widget.state[verb];
-  if (state && !widget.specs.get(verb)?.record && !("units" in state))
-    return Boolean(state.action);
-  return Boolean(state) && populated(obligationValue(widget, verb, false).value);
+  if (!state) return false;
+  if ("units" in state) return Object.values(state.units).some((at) => at.action);
+  if (!state.action) return false;
+  return !widget.specs.get(verb)?.record || populated(state.value);
 }
 
 /** @param {ClassifiedEntry} entry @returns {entry is ProjectionEntry} */

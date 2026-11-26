@@ -1214,6 +1214,7 @@ def _decided(page_dir, words):
             "widget": "d1",
             "action": "edit",
             "detail": {"value": "Cut the flag; backfill first."},
+            "answered": True,
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -2520,6 +2521,8 @@ def edit(page_dir, text, widget="note", version=1):
             "widget": widget,
             "action": "edit",
             "detail": {"value": text},
+            # A draft says it holds an answer while the user's words stand in it.
+            "answered": bool(text),
         },
     )
 

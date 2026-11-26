@@ -84,6 +84,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": DRAFT_EDITED},
+            "answered": True,
         },
     )
     corrected = "Run the migration after deploying — it needs the new column."
@@ -214,6 +215,7 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": foreign},
+            "answered": True,
         },
     )
     told(page)

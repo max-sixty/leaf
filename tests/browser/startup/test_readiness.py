@@ -166,6 +166,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "widget": "startup-note",
             "action": "edit",
             "detail": {"value": "Ship on Friday from the green room."},
+            "answered": True,
         },
     )
     held = []

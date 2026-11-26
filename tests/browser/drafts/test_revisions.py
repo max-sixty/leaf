@@ -808,6 +808,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
                 "widget": "mutable",
                 "action": "edit",
                 "detail": {"value": value},
+                "answered": bool(value),
             },
         )
 

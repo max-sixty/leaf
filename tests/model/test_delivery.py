@@ -360,12 +360,13 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
         page_dir,
         {"kind": "undo", "author": "user", "undoes": changed["id"], "answered": False},
     )["attention"]
-    quiet = action("draft", "edit", {"value": "Green room."})
+    quiet = action("draft", "edit", {"value": "Green room."}, answered=True)
     assert not quiet["attention"]
     assert not append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": quiet["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": quiet["id"], "answered": False},
     )["attention"]
-    quiet = action("draft", "edit", {"value": "Red room."})
+    quiet = action("draft", "edit", {"value": "Red room."}, answered=True)
     assert (
         CliRunner()
         .invoke(
@@ -375,7 +376,9 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
         .exit_code
         == 0
     )
-    assert action("draft", "edit", {"value": "Orange room."})["attention"]
+    assert action("draft", "edit", {"value": "Orange room."}, answered=True)[
+        "attention"
+    ]
     selected = transaction_model.unacknowledged(
         events_model.read_events(page_dir), completed["seq"]
     )
@@ -1392,6 +1395,7 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
             "widget": "permit",
             "action": "choose",
             "detail": {"value": ["publish"]},
+            "answered": True,
         },
     )
     [batch] = freeze_events(page_dir, [pick])["batches"]
@@ -1445,19 +1449,30 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
                 "widget": widget,
                 "action": "tune",
                 "detail": {"values": {"radius": radius}},
+                "answered": submitted.get(widget, False),
             }
         )
 
+    submitted: dict[str, bool] = {}
     round_ = tune("notify", 12)
-    user({"kind": "undo", "undoes": tune("notify", 4)["id"]})
+    user({"kind": "undo", "undoes": tune("notify", 4)["id"], "answered": False})
     # The submission the agent got already is sent work, so it isn't carried again.
     submit = {"values": {"radius": 12}, "instruction": "Build it."}
-    user({"kind": "action", "widget": "notify", "action": "choose", "detail": submit})
+    user(
+        {
+            "kind": "action",
+            "widget": "notify",
+            "action": "choose",
+            "detail": submit,
+            "answered": True,
+        }
+    )
+    submitted["notify"] = True
     comment = {"kind": "comment", "text": "Too round."}
     opened = user({**comment, "anchor": {"section": "card"}})
     sharper = tune("notify", 6)
     reply = user({"kind": "reply", "parent": opened["id"], "text": "Now too sharp."})
-    user({"kind": "undo", "undoes": sharper["id"]})
+    user({"kind": "undo", "undoes": sharper["id"], "answered": True})
     moved = tune("other", 3)
     agent = {"author": "agent", "agent": "Claude"}
     append_command(

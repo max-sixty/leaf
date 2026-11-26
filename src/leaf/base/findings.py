@@ -2011,6 +2011,13 @@ _TEXT = {
             f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (`exhibit`)"
         ),
     ),
+    "answered-missing": _refuses(
+        _DECIDES,
+        lambda at, v: (
+            f"<{v['tag']}> declares `awaits`, so each act and undo of it says whether"
+            " its question is answered; send `answered`"
+        ),
+    ),
     "answered-unasked": _refuses(
         _ADMITS,
         lambda at, v: (

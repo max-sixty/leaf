@@ -183,6 +183,7 @@ customElements.define("lf-conditional", class extends LeafElement {
                 "widget": "question",
                 "action": "phase",
                 "detail": {"value": phase},
+                "answered": False,
             },
         )
         told(page)

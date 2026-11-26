@@ -877,6 +877,8 @@ def test_conditional_request_retains_registration_between_value_actions():
             "widget": "conditional",
             "action": "phase",
             "detail": {"value": phase},
+            # Moving the phase answers nothing; only `answer` does.
+            "answered": False,
         }
         for phase in ("open", "closed")
     ]
@@ -905,7 +907,11 @@ def test_conditional_request_retains_registration_between_value_actions():
     assert historical["outcome"] == "dropped"
     report_registry = deepcopy(registry)
     report_registry["lf-conditional"]["verbs"]["phase"]["writer"] = "agent"
-    reports = [{**event, "kind": "report", "author": "agent"} for event in events]
+    reports = [
+        {**{k: v for k, v in event.items() if k != "answered"}, "kind": "report"}
+        | {"author": "agent"}
+        for event in events
+    ]
     [reported] = page_obligations(
         model.reading(document, reports, registry=report_registry)
     )["all"]
@@ -943,7 +949,7 @@ def test_conditional_request_retains_registration_between_value_actions():
         )["all"]
         == []
     )
-    events.append({"kind": "undo", "undoes": "e1"})
+    events.append({"kind": "undo", "undoes": "e1", "answered": False})
     assert (
         page_obligations(model.reading(document, events, registry=registry))["all"]
         == []
@@ -978,6 +984,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
             "widget": "conditional",
             "action": "phase",
             "detail": {"value": phase},
+            **({"answered": False} if writer == "action" else {}),
         }
         for phase in ("open", "closed")
     ]
@@ -1041,7 +1048,10 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
 
     if writer == "action":
         # Undo removes the gesture; a same-revision note preserves its registration.
-        assert read([*events, {"kind": "undo", "undoes": "e1"}])["all"] == []
+        assert (
+            read([*events, {"kind": "undo", "undoes": "e1", "answered": False}])["all"]
+            == []
+        )
         assert len(historical) == 4
         assert (
             read(
@@ -1315,6 +1325,37 @@ def test_the_widgets_word_on_each_gesture_answers_or_reopens_its_question():
         "restated": ["rollback"],
     }
     assert not standing(restated, [*both, stamp], 2)
+
+
+def test_restating_a_step_decided_before_the_last_asks_again():
+    """The newest gesture's word said the checklist was answered, but a version that
+    restates a step decided earlier withdraws that step's decision, so the checklist
+    asks again until a later gesture says otherwise. Which member the restatement
+    names doesn't matter, only that it withdrew one of the widget's decisions."""
+    registry = signoff_registry()
+    both = [decided("rollback", False), decided("notes", True)]
+    restated = {
+        1: signoff("notes", "rollback"),
+        2: signoff("notes", "rollback", restated=("rollback",)),
+    }
+    stamp = {
+        "kind": "note",
+        "author": "agent",
+        "version": 1,
+        "revision": 2,
+        "text": "Rewrote the rollback step.",
+        "restated": ["rollback"],
+    }
+
+    def standing(events):
+        [item] = page_obligations(
+            model.reading(restated, events, registry=registry), 2
+        )["all"]
+        return standing_model.answered(item)
+
+    assert standing(both)
+    assert not standing([*both, stamp])
+    assert standing([*both, stamp, {**decided("rollback", True), "revision": 2}])
 
 
 def test_markup_alone_answers_no_question():

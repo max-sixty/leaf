@@ -198,11 +198,12 @@ no layer changes it.
 An `action` of a widget whose tag declares `awaits`, and an `undo` of one, carries
 `answered`: whether the widget's obligation is answered as the gesture leaves the
 widget's state, in the widget's own word (`module-state.md`, "Declared widget state"),
-which the runtime reads after drawing the gesture and before sending it. Admission
-refuses it on any other gesture, and decides nothing about it: the obligation is
-answered while the newest word among the widget's actions in force and the undos of
-them says so, and an undo's word stands only while an action of the widget does
-(`obligations.gesture_answers`).
+which the runtime reads after drawing the gesture and before sending it, whoever
+writes it. Admission refuses such a gesture without it, and it on any other gesture,
+and decides nothing about it: the obligation is answered while the newest of the
+widget's words says so, a word being one of its actions in force or the user's undos
+of them, or a version note that restates what any of its actions rests on, which says
+the question is open again (`obligations.gesture_answers`).
 
 `meaning` holds what a reader without the sending registry cannot recover from the
 event. Every `action` and `report` records:

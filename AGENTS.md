@@ -136,8 +136,9 @@ handles the act, before the browser's next frame. The widget decides whether its
 question is answered and its gesture carries that word to the log, where the server
 reads it rather than deciding again (`awaits`), so a press that answers a question
 moves it off On Me, and a deck to its next card, at once. Facts that depend on the
-rest of the log, such as whose turn a thread is and whom another obligation waits on,
-arrive with the server's reading of the gesture: the page's state as the server
+rest of the log, such as whose turn a thread is and whom an open obligation waits on,
+arrive with the server's reading of the gesture, and a question a gesture reopens
+stands as the user's until that reading says otherwise: the page's state as the server
 computes it from the whole log after admitting the gesture. That reading should be on
 screen within 100 ms, since the server usually runs on the user's machine. The
 browser doesn't predict that reading: a prediction is a second copy of the server's
@@ -436,8 +437,9 @@ whole thread, since its markup lives in the log rather than in a version.
 A gesture's own result shows in the task that sends it, before the server answers
 ("Responsiveness"); a disabled control, a spinner or a delivery status is not that
 result. To the server's reading, the browser adds only what a gesture decides by
-itself: a thread the user opens, the user's own reply and its wait for an answer, and
-the words of a refused send, kept for the user to send again. When the server refuses
+itself: a thread the user opens, the user's own reply and its wait for an answer,
+whether the question of the widget it acts on is answered, as that widget says
+(`awaits`), and the words of a refused send, kept for the user to send again. When the server refuses
 a gesture, the browser returns to the server's state.
 
 Focus, scroll position, selection, open disclosures, a drag and layout belong to the
@@ -455,7 +457,9 @@ page, which the Leaf panel shows, and for each obligation record and each update
 user handed over (`workflows.py`), which messages, thread attention, the On lists,
 margin entries and the Stop hook read. A busy page doesn't mean every message is being
 worked on. The browser adds its own unsent gestures to what the server sends, but
-never changes where a workflow stands, not even as time passes. Another page
+never changes where a workflow stands, not even as time passes, apart from a widget's
+own word on its question: an obligation a gesture answers or reopens stands so until
+the server's reading of the gesture arrives. Another page
 learns a page's activity only from the row `server_rows.py` writes and from whether
 the page's server is alive. It shows that activity only in its list of other pages
 (`/api/pages`), and that list feeds no page's own state and no server's reading of a

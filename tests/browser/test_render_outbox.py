@@ -346,6 +346,7 @@ def test_undo_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["opt-a"]},
+            "answered": True,
         },
     )
     told(page)
@@ -454,6 +455,7 @@ def test_undo_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["opt-a"]},
+            "answered": True,
         },
     )
     append_carried_log_record(
@@ -506,6 +508,7 @@ def test_undo_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["opt-a"]},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
@@ -606,6 +609,7 @@ def _choose(page_dir, option="opt-a"):
             "widget": "picks",
             "action": "choose",
             "detail": {"value": [option]},
+            "answered": True,
         },
     )
 
@@ -1957,6 +1961,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "reject"},
+            "answered": True,
         },
     )
 
@@ -2339,7 +2344,12 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     holding(page, held, 1, "the optimistic withdrawal")
     other_undo = append_command(
         serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": actions(serve.page_dir)[-1]["id"]},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": actions(serve.page_dir)[-1]["id"],
+            "answered": True,
+        },
     )
     response, refusal = fetch_whole_state(held[0])
     assert response.status == 400 and refused_on(refusal).code == "withdrawn-gesture"

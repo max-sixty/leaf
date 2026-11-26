@@ -247,7 +247,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []
-    assert unread(PICKED, {"kind": "undo", "undoes": "e3"}) == ["e2"]
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3", "answered": False}) == ["e2"]
     assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
 
 
@@ -340,7 +340,8 @@ def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
     holding nothing that says so."""
     assert settlement(ASKED, PICKED, TURNED_DOWN) is None
     # The reject is the third event written, so `e3` is what the undo names.
-    taken_back = {"kind": "undo", "undoes": "e3"}
+    # The accept still stands, so the suggestion stays decided.
+    taken_back = {"kind": "undo", "undoes": "e3", "answered": True}
     assert settlement(ASKED, PICKED, TURNED_DOWN, taken_back)["detail"] == {
         "outcome": "accept"
     }

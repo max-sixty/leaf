@@ -719,7 +719,13 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
 
     action = {"kind": "action", "author": "user", "revision": 1}
     action |= {"widget": "tone-playground"}
-    tune = {**action, "action": "tune", "detail": {"values": {"tone": "urgent"}}}
+    # A playground is answered once its settings are submitted, not by a tune.
+    tune = {
+        **action,
+        "action": "tune",
+        "detail": {"values": {"tone": "urgent"}},
+        "answered": False,
+    }
     assert admit(tune)["attention"] is False
     chosen = admit(
         {
@@ -735,7 +741,9 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     working = attention_reading(AdmissionReadings(page, log, page.registry(1)))
     assert working["work"] == [{"id": chosen["id"], "inputs": [chosen["id"]]}]
 
-    assert admit({**tune, "detail": {"values": {"tone": "calm"}}})["attention"] is False
+    # The submitted settings still stand, so a tune after them leaves it answered.
+    calmer = {**tune, "detail": {"values": {"tone": "calm"}}, "answered": True}
+    assert admit(calmer)["attention"] is False
     assert attention_reading(AdmissionReadings(page, log, page.registry(1))) == working
 
 

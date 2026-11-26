@@ -2125,6 +2125,7 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
                 "widget": "draft",
                 "action": "edit",
                 "detail": {"value": text},
+                "answered": bool(text),
             },
         )
 

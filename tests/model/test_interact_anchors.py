@@ -1534,12 +1534,13 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     publish(page_dir)
     identity = "routes-option-user"
     words = "Use <a literal> & keep the source unchanged."
+    # The single choice says each pick answers it, and the add alone doesn't.
     moves = [
-        ("add", {"option": identity, "text": words}),
-        ("choose", {"value": [identity]}),
-        ("choose", {"value": ["flag-first"]}),
+        ("add", {"option": identity, "text": words}, False),
+        ("choose", {"value": [identity]}, True),
+        ("choose", {"value": ["flag-first"]}, True),
     ]
-    for action, detail in moves:
+    for action, detail, answered in moves:
         append_command(
             page_dir,
             {
@@ -1549,6 +1550,7 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
                 "widget": "routes",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
 
@@ -2198,6 +2200,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "widget": "ps-q",
             "action": "choose",
             "detail": {"value": ["ps-cookie"]},
+            "answered": True,
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])

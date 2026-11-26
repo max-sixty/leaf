@@ -597,13 +597,14 @@
             <p id="progress-lists-subjects">
               Any widget can ask, whether bundled, from a package or the page’s own, by
               declaring <a href="#awaits"><code>awaits</code></a> in its registry entry,
-              which names the actions that answer it. To ask about content that asks
-              nothing, such as a paragraph or a chart, or to leave the user a step such
-              as trying a build, the agent opens a thread on that content or the page
-              with a message sent with <code>--obligation</code>, and the user’s reply
-              answers it. Nothing goes On Me that neither a widget nor a thread answers,
-              so no item carries a generic Done, and Leaf adds no answer to a widget
-              beyond those the widget declares.
+              and says on each of the user's gestures whether it is answered. To ask
+              about content that asks nothing, such as a paragraph or a chart, or to
+              leave the user a step such as trying a build, the agent opens a thread on
+              that content or the page with a message sent with
+              <code>--obligation</code>, and the user’s reply answers it. Nothing goes
+              On Me that neither a widget nor a thread answers, so no item carries a
+              generic Done, and Leaf adds no answer to a widget beyond those the widget
+              declares.
             </p>
             <p id="asking-lists">
               Each ask joins the user's On Me list until the widget or thread that asks

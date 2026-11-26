@@ -379,12 +379,13 @@ const widgetObligation = keptEach(
   /** @param {Extract<ObligationRecord, {source: {kind: "widget"}}>} served
    * @param {import("./projection/model.js").FoldedWidget} widget @param {string} verb
    * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
-   * @param {boolean} answerWithdrawn @param {boolean | undefined} said
+   * @param {boolean | undefined} said
    * @returns {ObligationRecord} */
-  (served, widget, verb, withdrawals, answerWithdrawn, said) => {
+  (served, widget, verb, withdrawals, said) => {
+    // An undo of the answer carries the widget's word for the state after it, so the
+    // word, not the served record, says whether the answer still stands.
     const item = said === undefined ? served : saidAnswered(served, said);
-    const completed = item.answered && !answerWithdrawn;
-    const { value, present } = obligationValue(widget, verb, completed);
+    const { value, present } = obligationValue(widget, verb, item.answered);
     const pendingValue =
       /** @type {{ e: Event }[]} */ (widget.entries).some(
         ({ e }) => e.action === verb && !Number.isInteger(e.seq),
@@ -454,10 +455,7 @@ function normalizedObligations(
       const word = said.get(sourceId);
       if (!verb || !widget) return word === undefined ? item : saidAnswered(item, word);
       const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
-      const answerWithdrawn = Boolean(
-        item.answer?.event && pendingWithdrawals.has(item.answer.event.id),
-      );
-      return widgetObligation(item, widget, verb, withdrawals, answerWithdrawn, word);
+      return widgetObligation(item, widget, verb, withdrawals, word);
     },
   );
   // A widget's record keeps where the server says it stands and its next actor, which
@@ -1729,13 +1727,35 @@ export function createSemanticApplication({ presentation } = {}) {
     // The gesture `attempt` carries what its widget says of its obligation once the
     // gesture is drawn (`read`: records/pending/dispatch.js), before it is sent, so the
     // publication that follows draws the obligation answered or open and the POST
-    // carries the word to the log (`awaits`). A gesture that concerns no widget that
-    // asks carries nothing.
-    /** @param {string} attempt @param {(widget: string) => boolean | undefined} read */
+    // carries the word to the log (`awaits`). An undo speaks for the widget of the
+    // action it takes back, found where this tab holds it: drawn, still sending, or in
+    // the log. A gesture that concerns no widget that asks carries nothing.
+    /** @param {string} attempt @param {(widget: string, tag: string | null) => boolean | undefined} read */
     answer(attempt, read) {
+      const root = publisher.peek();
       const held = entry(attempt);
-      const widget = held ? gestureWidget(held) : null;
-      const answered = widget === null ? undefined : read(widget);
+      if (!held) return;
+      const { event } = held;
+      /** @returns {{widget: string, origin: string | null} | null} */
+      const actedOn = () => {
+        if (event.kind === "action") return { widget: event.widget, origin: null };
+        if (event.kind !== "undo") return null;
+        if (held.projection?.kind === "undo") {
+          return { widget: held.projection.target.e.widget, origin: null };
+        }
+        const sending = root.unresolved.find(
+          (item) => item.localId === event.undoes || item.admitted?.id === event.undoes,
+        )?.event;
+        if (sending?.kind === "action") return { widget: sending.widget, origin: null };
+        const logged = root.authoritative?.events.find(({ id }) => id === event.undoes);
+        return logged?.kind === "action"
+          ? { widget: logged.widget, origin: logged.meaning.state?.origin ?? null }
+          : null;
+      };
+      const acted = actedOn();
+      if (!acted) return;
+      const tag = root.document.descriptors.get(acted.widget)?.tag ?? acted.origin;
+      const answered = read(acted.widget, tag);
       if (answered === undefined) return;
       update(attempt, (item) =>
         item.event.kind === "action" || item.event.kind === "undo"

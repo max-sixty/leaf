@@ -547,6 +547,14 @@ const bundles = {
     ],
   }),
 
+  // DOMPurify keeps to GitHub's list the HTML a Markdown file's preview draws
+  // (`markdownFileFragment` in runtime/lib/markdown.js), which loads it only for a file
+  // that holds HTML.
+  dompurify: () => ({
+    out: `${assets}/vendor/purify.esm.js`,
+    entryPoints: [input("entries/dompurify/entry.mjs")],
+  }),
+
   // Bundle only jsdiff's array comparison for the core browser runtime.
   jsdiff: () => ({
     out: `${assets}/vendor/jsdiff.esm.js`,

@@ -104,7 +104,7 @@ function headingSlugs(headings) {
   /** @type {Map<string, number>} */
   const taken = new Map();
   for (const heading of headings) {
-    const base = (heading.textContent ?? "")
+    const base = heading.textContent
       .toLowerCase()
       .replace(
         /[^\p{Letter}\p{Mark}\p{Decimal_Number}\p{Letter_Number}\p{Connector_Punctuation} -]/gu,
@@ -474,7 +474,7 @@ function lineColumns(code) {
   let width = 0;
   let characters = 0;
   for (const row of rows) {
-    const text = row.textContent?.replace(/\r?\n$/, "") ?? "";
+    const text = row.textContent.replace(/\r?\n$/, "");
     if (text.length < 8 || text.includes("\t")) continue;
     if (row.getBoundingClientRect().height > line * 1.5) continue;
     range.selectNodeContents(row);
@@ -1033,7 +1033,7 @@ class TextDocument extends LeafElement {
         if (!(target instanceof Element)) return;
         if (!skipped) this.drawn.add(target);
         const code = this.sourceView?.code;
-        if (target.parentElement !== code || !code) return;
+        if (target.parentElement !== code) return;
         // A run reported skipped while it stands in view stays shown, read off the
         // boxes as `list` reads them. As a tab opens again, Chromium reports the runs
         // in view skipped before it draws them, and its report that they draw can

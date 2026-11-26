@@ -170,7 +170,7 @@ export class TabSet extends LeafElement {
   #revealMotion = null;
 
   createRenderRoot() {
-    return this.#strip ?? this;
+    return this.#strip;
   }
 
   setup() {
@@ -625,7 +625,7 @@ export class TabSet extends LeafElement {
   // again.
   #declareHeader() {
     const over = !this.#parts || Boolean(this.#active && this.#listOver(this.#active));
-    const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
+    const header = this.#pageFlow && over && this.#strip.isConnected;
     this.#strip.toggleAttribute("data-lf-root-header", header);
   }
 
@@ -698,7 +698,7 @@ export class TabSet extends LeafElement {
       return;
     }
     const range = label && document.createRange();
-    if (range && label) {
+    if (range) {
       range.setStartBefore(label);
       range.setEndAfter(btn);
     }

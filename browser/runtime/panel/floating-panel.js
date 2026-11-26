@@ -409,6 +409,7 @@ import {
   stateFootBand,
 } from "../dom/geometry.js";
 import { overlaps } from "../dom/rect.js";
+import { elementBorderFrame, elementMatrix } from "../dom/element-axes.js";
 import { registerReadingRegion } from "../readings/reading-regions.js";
 import { sectionsInView } from "../readings/reading-place.js";
 import { agentName, documentChanged } from "../state/semantic-state.js";
@@ -2005,7 +2006,7 @@ export function createFloatingPanel({
    *   room: number | null,
    *   rewriting: boolean,
    *   pressed: {
-   *     node: Element, at: number, height: number, holds: number, keep: () => void,
+   *     node: Element, at: number, height: number | null, holds: number, keep: () => void,
    *   } | null,
    *   drawnRows: Map<string, {section: string, at: number}> | null,
    *   drawnDrafts: Set<string> | null,
@@ -2258,7 +2259,7 @@ export function createFloatingPanel({
   // delivers no observer a box shallower than the view later in the frame it resized,
   // so the box is read again here, before that frame paints what moved.
   const fit = sizeObserver(() => {
-    stood = openView()?.offsetHeight ?? null;
+    stood = heightOf(openView());
     followBox();
   });
   const follow = sizeObserver(() => {
@@ -2395,6 +2396,15 @@ export function createFloatingPanel({
   // holds.
   /** @type {number | null} */
   let stood = null;
+  // The height a view stands at, which a hold writes back as its `height`: in the
+  // view's own layout pixels, fraction included (dom/element-axes.js,
+  // `elementBorderFrame`). The view stands on its foot, so a height off by any amount
+  // carries all it holds by that much as the hold takes: `offsetHeight`'s whole pixel
+  // by up to half of one, a device pixel on a screen of two to the CSS pixel, and a
+  // bounding rect's height by the page's `zoom`.
+  /** @param {Element | null} view */
+  const heightOf = (view) =>
+    view instanceof HTMLElement ? elementBorderFrame(view).height : null;
   /** @param {number | null} height */
   const holdThread = (height) => {
     if (!trail.value.at(-1)?.thread || opening.room !== null || height === null)
@@ -2421,7 +2431,7 @@ export function createFloatingPanel({
       // Drawn once the script that made the press ends, still before the frame: a
       // press that leaves the thread, as Back does, takes the hold with the view, so
       // the hold never writes a height the leaving view would lose in the same script.
-      if (holdThread(view?.getBoundingClientRect().height ?? null)) afterScript(paint);
+      if (holdThread(heightOf(view))) afterScript(paint);
       if (press.closest(".lf-fp-news-outlet") && view)
         landing = {
           key: threadByKey(route.thread)?.key ?? route.thread,
@@ -2518,7 +2528,7 @@ export function createFloatingPanel({
     opening.pressed = {
       node,
       at: contentTop(node, view),
-      height: view.offsetHeight,
+      height: heightOf(view),
       holds: holding(view),
       keep: holdPlaceOf(node),
     };
@@ -2607,7 +2617,7 @@ export function createFloatingPanel({
     if (!opening.drawn) return false;
     const view = shownView();
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
-    opening.room = view.offsetHeight;
+    opening.room = heightOf(view);
     return true;
   }
   // A tab, filter or search the user presses changes what the list shows, which it
@@ -3768,7 +3778,7 @@ export function createFloatingPanel({
       landing: (resolved) => {
         // Enter on Resolve runs the thread's command before any click, so the press
         // holds the view here as a pointer's does on the head line (`head`).
-        if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
+        if (holdThread(heightOf(openView()))) paint();
         return resolved ? null : resolveLanding(thread.key);
       },
       drawn: threadDrawn(thread, view, outlet),
@@ -4225,13 +4235,20 @@ export function createFloatingPanel({
     if (view && listed && opening.room === null) return;
     fitting = false;
     if (!view || !listed || opening.room === null) return;
+    // Measured on screen and held in the view's own pixels, which a page's `zoom`
+    // scales (`heightOf`).
+    const scale = elementMatrix(view).d;
     const foot =
       view.getBoundingClientRect().bottom -
-      Number.parseFloat(getComputedStyle(view).paddingBottom);
+      scale * Number.parseFloat(getComputedStyle(view).paddingBottom);
     const card = view.querySelector(".lf-fp-on-item[data-lf-open]");
     const end = (card ?? view.lastElementChild)?.getBoundingClientRect().bottom;
     const change =
-      end === undefined ? 0 : card ? Math.max(0, end - foot) : Math.min(0, end - foot);
+      (end === undefined
+        ? 0
+        : card
+          ? Math.max(0, end - foot)
+          : Math.min(0, end - foot)) / scale;
     if (change) {
       opening.room = Math.max(0, opening.room + change);
       viewMovingUntil = performance.now() + viewResizeMs();
@@ -5270,7 +5287,7 @@ export function createFloatingPanel({
         const key = card.getAttribute("data-lf-key");
         if (key === null) throw new Error("On Me card has no item key");
         if (!opening.seatHeights.has(key))
-          opening.seatHeights.set(key, card.getBoundingClientRect().height);
+          opening.seatHeights.set(key, elementBorderFrame(card).height);
       }
     }
     // The drawing grows the card after it was fitted, so it is fitted again once the

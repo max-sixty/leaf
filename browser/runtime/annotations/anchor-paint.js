@@ -5,6 +5,16 @@
  * supply target existence, surface admission, drawing placement or travel. Its one hit
  * test answers which mark the pointer rests on, for a press (`markAt`) and for the
  * preview owner (`pointMark`).
+ *
+ * The pointer finds a thread only where the page draws the thread's mark: on a
+ * passage's inked words. A thread on an element draws nothing on the element at rest
+ * (`paintVisualStates`), so the element takes no hand, preview or press for it. Its
+ * margin entry previews and opens the thread, and traces the element while pointed at
+ * (margin-projection.js, `refreshHighlight`). The user asked for a smaller target than
+ * an element's box. Rejected: an element's mark found anywhere inside the element,
+ * which previewed a section's thread wherever the pointer rested in the section's band,
+ * as wide as the window, where nothing was drawn to show the thread, and opened the
+ * thread at a press on any of the section's words.
  */
 
 import { ringBox, visibleFocus } from "../dom/focus.js";
@@ -26,12 +36,7 @@ import { threadNamed } from "../records/thread/state.js";
 import { threadPreview } from "../records/thread/messages.js";
 import { declareRanges, pointRange } from "./preview.js";
 import { holds } from "../dom/rect.js";
-import {
-  renderedParent,
-  shadowHost,
-  upFrom,
-  closestAcross,
-} from "../lib/shadow-tree.js";
+import { shadowHost, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "../lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
@@ -124,16 +129,16 @@ export function createAnchorPaint({
   // Each marked thread's place in the page's reading order, as the last paint put them.
   /** @type {Map<string, number>} */
   const orderOf = new Map();
-  // Where the hit test finds each mark (`markHit`), with its thread's place in reading
-  // order: for each text node a passage's segments stand in, the pieces they cover there
-  // and, read as the hit test first asks, their tree (`piecesAt`); an element's mark by
-  // the element; and the shadow trees holding a passage's text, which the caret lookup
-  // looks into. It is read from anchor placement's segments, the one record of where a
-  // passage stands, which placement reads again for the anchors a change to the page's
-  // words touches (anchor-placement.js, `settle`); the index then reads again only those
-  // threads' pieces, in the text nodes they left and the ones they stand in (`replace`).
-  /** @typedef {{id: string, where: Mark, order: number}} Findable */
-  /** @typedef {Findable & Span & {where: Range}} Piece */
+  // Where the hit test finds each passage's mark (`markHit`), with its thread's place in
+  // reading order: for each text node a passage's segments stand in, the pieces they
+  // cover there and, read as the hit test first asks, their tree (`piecesAt`); and the
+  // shadow trees holding a passage's text, which the caret lookup looks into. It is read
+  // from anchor placement's segments, the one record of where a passage stands, which
+  // placement reads again for the anchors a change to the page's words touches
+  // (anchor-placement.js, `settle`); the index then reads again only those threads'
+  // pieces, in the text nodes they left and the ones they stand in (`replace`).
+  /** @typedef {{id: string, where: Range, order: number}} Findable */
+  /** @typedef {Findable & Span} Piece */
   /** @type {Map<Node, {pieces: Piece[], tree: PieceTree<Piece> | null}>} */
   const inText = new Map();
   // Each passage painted, by its thread: its place in reading order, and the segments
@@ -147,8 +152,6 @@ export function createAnchorPaint({
   // drawn rather than marked.
   /** @type {Set<string>} */
   const unmarked = new Set();
-  /** @type {Map<Element, Findable[]>} */
-  const onElement = new Map();
   /** @type {Set<ShadowRoot>} */
   const markedRoots = new Set();
   /** @type {Map<Element, Element>} */
@@ -309,9 +312,8 @@ export function createAnchorPaint({
   }
 
   // The pointer on a thread's words, or on its row in Threads, lights the words. Its
-  // element is lit only from the row: on the page the pointer is inside the element
-  // anywhere in it, so the contour would stand round a section for as long as the user
-  // read with the mouse resting in it. The hand still says a press opens the thread.
+  // element is lit only from the row, since on the page an element's thread takes no
+  // pointer (header).
   /** @param {string | null} id @param {boolean} fromRow @param {boolean} [repaintVisuals] */
   function paintHover(id, fromRow, repaintVisuals = true) {
     hovering = id;
@@ -363,78 +365,61 @@ export function createAnchorPaint({
     if (repaintVisuals) paintVisualStates();
   }
 
-  // Which thread's painted mark lies under a point, and the mark: of those the point
-  // lies in, the first thread's in reading order, which a press opens; and every thread
-  // marking what that mark marks, the character under the point or the element, in
-  // reading order, which the mark previews, as its margin entry does. The element under
-  // the point is the platform's hit test (`elementFromPointAcross`), so the chrome over
-  // the page's words holds no mark, an image whose element is marked is its mark's, and
-  // a point past a marked inline element is not that element's; an element's mark is
-  // found by climbing from it. A passage's piece is found by the character under the
-  // point: the caret lookup names a text node and an offset, one or two characters'
-  // boxes say whether the point is over the one before or after it, and that text
-  // node's tree names the pieces covering that character. So a pointer move reads no
-  // mark's geometry, and what it reads besides grows only with the threads it finds and
-  // the logarithm of the marks the page, a paragraph or one run of words holds (root
-  // AGENTS.md, "Responsiveness"): reading the rects of the marks in the element pointed
-  // at cost 512 reads at the last of 512 marks in one paragraph, and the platform's own
-  // `highlightsFromPoint` walks every range a highlight holds (notes/browser-support.md,
-  // "Highlight hit testing"). With the annotation layer hidden there is no mark to be
-  // under: an unseen passage shows no hand and opens nothing. With `whole`, a character's
-  // box reaches across its line's leading (dom/geometry.js, `lined`), as a preview's room
-  // reads it (`markBox`); a press and a hover read the character alone.
+  // Which thread's passage mark lies under a point, and the piece of it there: of those
+  // the point lies in, the first thread's in reading order, which a press opens; and
+  // every thread marking the character under the point, in reading order, which the mark
+  // previews, as its margin entry does. The element under the point is the platform's
+  // hit test (`elementFromPointAcross`), so the chrome over the page's words holds no
+  // mark. A passage's piece is found by the character under the point: the caret lookup
+  // names a text node and an offset, one or two characters' boxes say whether the point
+  // is over the one before or after it, and that text node's tree names the pieces
+  // covering that character, so a point past the end of a line's words is on none of
+  // them. So a pointer move reads no mark's geometry, and what it reads besides grows
+  // only with the threads it finds and the logarithm of the marks the page, a paragraph
+  // or one run of words holds (root AGENTS.md, "Responsiveness"): reading the rects of
+  // the marks in the element pointed at cost 512 reads at the last of 512 marks in one
+  // paragraph, and the platform's own `highlightsFromPoint` walks every range a
+  // highlight holds (notes/browser-support.md, "Highlight hit testing"). With the
+  // annotation layer hidden there is no mark to be under: an unseen passage shows no
+  // hand and opens nothing. With `whole`, a character's box reaches across its line's
+  // leading (dom/geometry.js, `lined`), as a preview's room reads it (`markBox`); a
+  // press and a hover read the character alone.
   /** @param {number} x @param {number} y @param {Element | null} [under] the element
    * under the point, where the caller has hit-tested it already
    * @param {boolean} [whole] whether a character's box spans its whole line
-   * @returns {{id: string, where: Mark, alike: readonly Findable[]} | null} */
+   * @returns {{id: string, where: Range, alike: readonly Findable[]} | null} */
   function markHit(x, y, under = elementFromPointAcross(x, y), whole = false) {
     if (annotationsHidden() || !under || !pageWords(under)) return null;
     // Changes to the page's words not yet placed are placed now, ahead of the reading.
     settle();
-    /** @type {Findable[]} */
-    let words = [];
-    const caret = inText.size
-      ? document.caretPositionFromPoint(x, y, { shadowRoots: [...markedRoots] })
-      : null;
+    if (!inText.size) return null;
+    const caret = document.caretPositionFromPoint(x, y, {
+      shadowRoots: [...markedRoots],
+    });
     const text = caret && inText.get(caret.offsetNode);
-    if (caret && text) {
-      text.tree ??= treeOf([...text.pieces].sort((a, b) => a.start - b.start));
-      for (const at of [caret.offset, caret.offset - 1]) {
-        if (at < 0 || !overCharacter(caret.offsetNode, at, x, y, whole)) continue;
-        words = piecesAt(text.tree, at);
-        break;
-      }
-    }
-    /** @param {readonly Findable[]} marks */
-    const first = (marks) =>
-      marks.reduce(
+    if (!caret || !text) return null;
+    text.tree ??= treeOf([...text.pieces].sort((a, b) => a.start - b.start));
+    for (const at of [caret.offset, caret.offset - 1]) {
+      if (at < 0 || !overCharacter(caret.offsetNode, at, x, y, whole)) continue;
+      const alike = piecesAt(text.tree, at);
+      const hit = alike.reduce(
         (/** @type {Findable | null} */ least, mark) =>
           !least || mark.order < least.order ? mark : least,
         null,
       );
-    let hit = first(words);
-    let alike = words;
-    for (let at = /** @type {Element | null} */ (under); at; at = renderedParent(at)) {
-      const marks = onElement.get(at) ?? [];
-      const least = first(marks);
-      if (least && (!hit || least.order < hit.order)) {
-        hit = least;
-        alike = marks;
-      }
+      return hit && { id: hit.id, where: hit.where, alike };
     }
-    return hit && { id: hit.id, where: hit.where, alike };
+    return null;
   }
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;
   // A mark under a point beneath a preview, which the preview keeps clear of as it does
   // a control, since a press there opens its thread (preview.js, `declareRanges`): the
-  // box of the mark's line there, across the line's leading (`lined`), or the element
-  // marked.
+  // box of the mark's line there, across the line's leading (`lined`).
   /** @param {number} x @param {number} y @param {Element} under */
   function markBox(x, y, under) {
     const where = markHit(x, y, under, true)?.where;
     if (!where) return null;
-    if (!(where instanceof Range)) return where.getBoundingClientRect();
     return (
       [...where.getClientRects()]
         .map((line) => lined(line, where.startContainer))
@@ -444,23 +429,11 @@ export function createAnchorPaint({
   /** @type {(() => void) | null} */
   let releaseMarks = null;
 
-  // Index the marks where the hit test finds them (`inText`, `onElement`).
+  // Index the passages' marks where the hit test finds them (`inText`).
   function index() {
     inText.clear();
-    onElement.clear();
     markedRoots.clear();
-    for (const [id, marks] of marked) {
-      const order = orderOf.get(id) ?? 0;
-      const passage = passages.get(id);
-      if (passage) indexPassage(id, passage);
-      else
-        for (const where of marks) {
-          if (where instanceof Range) continue;
-          const standing = onElement.get(where) ?? [];
-          standing.push({ id, where, order });
-          onElement.set(where, standing);
-        }
-    }
+    for (const [id, passage] of passages) indexPassage(id, passage);
   }
   // A passage's pieces, one in the text node each of its segments stands in, and the
   // shadow trees holding them, every level of them, which the caret lookup must look
@@ -574,26 +547,26 @@ export function createAnchorPaint({
     refreshHover();
   }
 
-  // A thread's mark previews the thread, as its margin entry does (`threadPreview`),
-  // from the one hit a press reads too (`markHit`), on a passage's words and on an
-  // element's mark alike, wherever the hand stands. The preview owner hears only where
-  // the user's own input put the pointer, so a mark a scroll or a repaint carries under
-  // a still pointer shows nothing, as the owner holds for elements, and a pointer
-  // carrying a press, as in selecting words, rests on no mark.
-  // The owner is told the piece the preview stands by: the passage's segment, or the
-  // element marked, the pointer came onto the thread's marks over, held while it stays
-  // on them, so the preview stands once by the line first pointed at as the pointer
-  // crosses the pieces an inline element or a shadow root splits a passage into
-  // (preview.js, `pointRange`). One range from the first piece to the last collapsed
-  // where a passage ran into a shadow tree (readings/passages.js, `rangeOf`). The owner reads a
-  // standing preview again each time it is told its range, so it is told again only
+  // A passage's mark previews its threads, as its margin entry does (`threadPreview`),
+  // from the one hit a press reads too (`markHit`), wherever the hand stands. The
+  // preview owner hears only where the user's own input put the pointer, so a mark a
+  // scroll or a repaint carries under a still pointer shows nothing, as the owner holds
+  // for elements, and a pointer carrying a press, as in selecting words, rests on no
+  // mark.
+  // The owner is told the piece of the passage the pointer first came onto, and that
+  // piece is kept while the pointer stays on the thread's marks. So the preview stands
+  // once, by the line first pointed at, as the pointer crosses the pieces an inline
+  // element or a shadow root splits a passage into (preview.js, `pointRange`). One
+  // range from the passage's first piece to its last would collapse where the passage
+  // runs into a shadow tree (readings/passages.js, `rangeOf`). The owner reads a
+  // standing preview again each time it is told its piece, so it is told again only
   // when the threads under the pointer change: telling it on each move drew 512
   // threads' lines on every move over a word 512 threads mark.
-  /** @type {{id: string, where: Mark, piece: Range} | null} */
+  /** @type {{id: string, where: Range} | null} */
   let standing = null;
   /** @type {Set<string> | null} */
   let told = null;
-  /** @param {{id: string, where: Mark, alike: readonly Findable[]} | null} hit
+  /** @param {{id: string, where: Range, alike: readonly Findable[]} | null} hit
    * @param {{x: number, y: number}} at */
   function pointMark(hit, at) {
     const id = resting && hit ? hit.id : null;
@@ -604,10 +577,7 @@ export function createAnchorPaint({
       return void pointRange(null);
     }
     if (standing?.id !== id || !marksFor(id).includes(standing.where)) {
-      const { where } = hit;
-      const piece = where instanceof Range ? where : document.createRange();
-      if (!(where instanceof Range)) piece.selectNode(where);
-      standing = { id, where, piece };
+      standing = { id, where: hit.where };
       told = null;
     }
     pointed = true;
@@ -618,9 +588,8 @@ export function createAnchorPaint({
     // A thread the user is in is in front of them already, as an entry standing open
     // previews nothing (preview.js). The threads are put in reading order as the
     // preview reads them.
-    const { piece } = standing;
     pointRange(
-      piece,
+      standing.where,
       () => {
         const here = currentLocationThreadId();
         if (here && alike.some((mark) => mark.id === here)) return null;

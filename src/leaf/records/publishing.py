@@ -33,11 +33,11 @@ from leaf.log.projection import (
 )
 from leaf.records.authored_checks.admission import checked_text
 from leaf.records.authored_checks.source import check_source
-from leaf.records.revisioning import (
-    hold_published,
+from leaf.records.revision_publication import (
     planned_activation,
     publish_checked_event,
 )
+from leaf.records.revisioning import hold_published
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
 from leaf.source.page_inputs import source_readings

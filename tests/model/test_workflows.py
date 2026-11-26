@@ -47,9 +47,9 @@ from leaf.records import activity as activity_model
 from leaf.records import event_contracts as event_contracts_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
+from leaf.records import work_state as work_state_model
 from leaf.records.event_meaning import AdmissionReadings
 from leaf.records.workflows import attention_reading
-from leaf.serving.served_state import work as work_served_model
 from leaf.source import vocabulary as vocabulary_model
 
 
@@ -869,7 +869,7 @@ def test_served_workflows_list_the_strongest_first():
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
-        served = work_served_model.served_workflows(workflows, thread_reading, records)
+        served = work_state_model.served_workflows(workflows, thread_reading, records)
         assert [item["id"] for item in served] == expected
 
 

@@ -8,7 +8,7 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import open_page, resized, scroll_settled
 
-from leaf.pages.render_gate.scheme import _render_page
+from leaf.pages.render_gate.version import _render_page
 from leaf.source.render_checks import (
     HANDOVER_DEADLINE_MS,
     RENDER_VIEWPORT,
@@ -233,7 +233,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
     from playwright._impl.fetch import APIRequestContext, APIResponse
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    from leaf.pages.render_gate import scheme, widget_quality
+    from leaf.pages.render_gate import version, widget_quality
 
     pages = []
     body, dispose = APIResponse.body, APIRequestContext.dispose
@@ -270,7 +270,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
     with monkeypatch.context() as patch:
         patch.setattr(APIResponse, "body", held_body)
         patch.setattr(APIRequestContext, "dispose", disposed)
-        owner = scheme if reader == "page" else widget_quality
+        owner = version if reader == "page" else widget_quality
         patch.setattr(owner, "observe_output_documents", abandoned_check)
         if reader == "page":
             _findings, _notices, complete = _render_page(

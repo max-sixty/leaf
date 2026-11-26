@@ -27,7 +27,8 @@ from leaf.log.event_log import read_events
 from leaf.log.projection import page_reading
 from leaf.log.provenance import revision_places, saved_after
 from leaf.records.event_facts import EventFacts
-from leaf.records.revisioning import Activation, activate_source, held_activation
+from leaf.records.revision_publication import Activation
+from leaf.records.revisioning import activate_source, held_activation
 from leaf.records.transaction import PageTransaction
 from leaf.serving.drafts import read_drafts
 from leaf.serving.served_state import browser as served_browser

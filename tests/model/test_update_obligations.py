@@ -20,17 +20,17 @@ from interact_support import (
 
 from leaf.agents import delivery as delivery_model
 from leaf.agents import thread as thread_model
+from leaf.agents.presence import read_work
 from leaf.base import standing as standing_model
 from leaf.log import event_log as events_model
 from leaf.records import activity as activity_model
 from leaf.records import transaction as transaction_model
-from leaf.serving.served_state.context import read_page
 
 
 def _owed_answers(page_dir, reading):
     """The answers `reading` (`blocking_obligations` or `turn_obligations`) holds the
     agent to, by input and operation, with the delivery's reference left off."""
-    work = read_page(page_dir, events_model.read_events(page_dir)).work
+    work = read_work(page_dir, events_model.read_events(page_dir))
     state = {**work.presence, "activity": work.activity}
     return [
         (

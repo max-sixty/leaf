@@ -3,13 +3,11 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.base.findings import Finding, Rejected
-from leaf.log.event_log import logged_ids
-from leaf.log.thread_context import (
-    placed_thread,
-    thread_ids,
-    thread_names,
-    thread_structure,
+from leaf.base.findings import Finding
+from leaf.log.thread_context import placed_thread, thread_ids, thread_names
+from leaf.records.authored_checks.documents import (
+    authored_document_checks,
+    sample_errors,
 )
 from leaf.records.authored_checks.source_history import (
     EMPTY_READING,
@@ -18,28 +16,10 @@ from leaf.records.authored_checks.source_history import (
     predecessor_reading,
     revision_reanchors,
 )
-from leaf.records.markup_checks.instances import (
-    inert_allocation_advice,
-    invoker_errors,
-    markup_findings,
-    question_errors,
-    reference_errors,
-    suggestion_errors,
-)
-from leaf.records.markup_checks.markup import (
-    authored_allocation_errors,
-    page_boundary_errors,
-    unpointable_blocks,
-)
-from leaf.records.page_data import initial_data_document_readings
-from leaf.records.sample_content import initial_sample_events
+from leaf.records.markup_checks.markup import unpointable_blocks
 from leaf.source.capture_refusals import ArtifactError
 from leaf.source.data import read_contracts, read_data
-from leaf.source.data_contracts import (
-    data_document_errors,
-    data_document_readings,
-    measurement_lag,
-)
+from leaf.source.data_contracts import data_document_readings, measurement_lag
 from leaf.source.layer import other_serving_leaf
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import RegistryError
@@ -50,7 +30,6 @@ from leaf.source.revision_artifact import (
     document_drops,
     page_files,
     resource_type,
-    unanswered_media,
 )
 from leaf.source.structure import SourceDocument
 from leaf.source.styles import css_drops
@@ -96,134 +75,6 @@ def _source_bytes(page_dir: Path) -> tuple[bytes, Finding | None]:
             "not-utf8", values={"path": str(path), "error": str(error)}
         )
     return data, None
-
-
-def _page_errors(
-    events: list,
-    parser,
-    registry: dict | None,
-    thread_ids: set[str],
-) -> list[Finding]:
-    """What a page's document alone is checked for beyond its markup
-    (`markup_checks.instances.markup_findings`): its shell and allocations, and its
-    instances against its event and id namespace."""
-    errors = [*page_boundary_errors(parser), *authored_allocation_errors(parser)]
-    if registry is None:
-        return errors
-    errors.extend(question_errors(parser, registry))
-    errors.extend(inert_allocation_advice(parser, registry))
-    errors.extend(
-        reference_errors(
-            parser.lf_elements,
-            registry,
-            parser.ids,
-            parser.by_id,
-            thread_ids=thread_ids,
-        )
-    )
-    errors.extend(invoker_errors(parser, parser.ids))
-    errors.extend(suggestion_errors(parser.lf_elements, registry))
-    taken = sorted(parser.ids & thread_structure(events).holders.keys())
-    if taken:
-        errors.append(Finding("ids-taken-by-messages", values={"ids": taken}))
-    if logged := sorted(parser.ids & logged_ids(events)):
-        errors.append(Finding("ids-taken-by-events", values={"ids": logged}))
-    return errors
-
-
-def _authored_document_checks(
-    page_dir, document, events, registry, readings, thread_ids
-):
-    """The same authored-page gate for the root and each isolated child document.
-
-    The stylesheets a document's delivery rewrites, its children's among them, and
-    the files it names are read once for the whole document: by the capture
-    (`revision_artifact.capture_artifact`) and `check_source`'s `document_drops`,
-    or for a message no capture reads, by its gate (`admission`)."""
-
-    def own():
-        yield from _page_errors(events, document, registry, thread_ids)
-        if registry is not None:
-            yield from data_document_errors(readings)
-
-    return markup_findings(document, registry, own)
-
-
-def sample_errors(
-    page_dir: Path,
-    parent: SourceDocument,
-    events: list,
-    holder: SourceDocument,
-    registry: dict | None,
-    contracts: dict,
-) -> list[Finding]:
-    """Check each live sample `holder` declares as allocation would build it.
-
-    `holder` is `parent` for a page's own templates, or a message in `events`, the
-    log of `parent`. Each child is checked as a page against its initial history,
-    and then the samples it declares in turn."""
-    errors = []
-    pending = [(parent, events, holder, ())]
-    for document, document_events, declaring, outer in pending:
-        for sample in declaring.samples:
-            samples = (*outer, sample["attrs"].get("id"))
-            child = sample["document"]
-            selected = set(sample["attrs"].get("data-sample-threads", "").split())
-            # A template may precede its seed log, and the selection reads against
-            # whatever the log holds — so the child checked here is the child
-            # allocation would build from this document and this history.
-            try:
-                child_events = (
-                    initial_sample_events(
-                        page_dir,
-                        document,
-                        document_events,
-                        declaring,
-                        sample,
-                        registry,
-                        contracts,
-                    )
-                    if registry is not None
-                    else []
-                )
-            except Rejected as error:
-                errors.extend(found.but(samples=samples) for found in error.findings)
-                child_events = []
-            pending.append((child, child_events, child, samples))
-            child_readings = initial_data_document_readings(
-                child, child_events, registry or {}
-            )
-            child_errors = _authored_document_checks(
-                page_dir,
-                child,
-                child_events,
-                registry,
-                child_readings,
-                selected | thread_ids(child_events),
-            )
-            errors.extend(error.but(samples=samples) for error in child_errors)
-    return errors
-
-
-def uncaptured_sample_errors(page_dir: Path, holder: SourceDocument) -> list[Finding]:
-    """Each /media/ file the page won't answer that an attribute names in a live
-    sample child of the message `holder`, or a child of one, which the message's own
-    reading leaves out. Its stylesheets, those in its samples included, the message
-    gate reads whole (`revision_artifact.uncaptured_errors`). A page's own children
-    are captured with it; no capture reads a message."""
-    errors = []
-    pending = [(holder, ())]
-    for declaring, outer in pending:
-        for sample in declaring.samples:
-            samples = (*outer, sample["attrs"].get("id"))
-            pending.append((sample["document"], samples))
-            errors.extend(
-                error.but(samples=samples)
-                for error in unanswered_media(
-                    sample["document"].authoring.media_refs, page_dir
-                )
-            )
-    return errors
 
 
 def _page_file_drops(page_dir: Path) -> list[Finding]:
@@ -368,8 +219,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         if registry is not None
         else []
     )
-    document_errors = _authored_document_checks(
-        page_dir,
+    document_errors = authored_document_checks(
         document,
         events,
         registry,
@@ -382,8 +232,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     )
     # The capture reads the document and the files it names whatever the markup
     # holds, so one check reports both; it needs only the vocabulary. Each problem
-    # has one of the two as its owner (`_authored_document_checks`), and a source
-    # with errors keeps no capture.
+    # has one of the two as its owner (`documents.authored_document_checks`), and a
+    # source with errors keeps no capture.
     artifact = None
     if registry is not None:
         assert page_registry is not None

@@ -54,7 +54,7 @@ class PageRead:
 
     @cached_property
     def work(self):
-        from leaf.serving.served_state.work import work_state
+        from leaf.records.work_state import work_state
 
         active = self.active
         return work_state(
@@ -71,8 +71,8 @@ class PageRead:
     @cached_property
     def layer(self) -> dict:
         """The layer identity a page with no active revision is served under. Read
-        on first use, so a reader that never serves the page, such as delivery, does
-        not need the page's registry to be readable."""
+        on first use, so a reader that never serves the page does not need its layer
+        to be readable."""
         return self.stored_layer()
 
     @cached_property

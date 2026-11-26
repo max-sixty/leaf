@@ -613,7 +613,7 @@ def basis(session_id: str) -> dict | None:
 
 def turn_ended(session_id: str) -> dict | None:
     """Leaf's answer to the end of a main-loop turn the model answered
-    (`carrier.step`): the fork to make with the turn-end check's question, where the
+    (`hooks.cmd_fork`): the fork to make with the turn-end check's question, where the
     session holds a page. Its basis is the turn the fork reads (`basis`), which its
     answer comes back with (`checked`)."""
     import uuid
@@ -629,12 +629,12 @@ def turn_ended(session_id: str) -> dict | None:
 
 def checked(session_id: str, payload: dict) -> dict:
     """What Leaf wrote and told from the turn-end check's fork as the module reports
-    it (`carrier.step`): its `answer`, or why there is none (`failed`), with its
+    it (`hooks.cmd_fork`): its `answer`, or why there is none (`failed`), with its
     `usage`, `elapsed_ms` and what it resent of the main thread's conversation
     (`resent`, noted as `request`) where the harness gives them (`take_answer`), and a
     line for the module's debug log saying what came of it. An answer `ANSWER` refuses
     writes nothing, and says why (`refused`)."""
-    from leaf.agents.forks import run_facts
+    from leaf.agents.carrier import run_facts
     from leaf.base.refusals import Refused
 
     basis = payload["basis"]
@@ -720,7 +720,7 @@ def take_answer(
 
 def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) -> None:
     """Note what came of a turn-end fork in `page_dir`'s diagnostics."""
-    from leaf.agents.forks import note
+    from leaf.log.interaction_log import note
 
     note(
         page_dir,

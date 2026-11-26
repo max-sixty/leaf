@@ -27,7 +27,7 @@ from leaf.log.events import (
     undo_error,
     unshown,
 )
-from leaf.log.obligations import questions_in_words, quoted_in
+from leaf.log.obligations import questions_in_words
 from leaf.log.projection import (
     AuthoredOrders,
     container_owner,
@@ -62,6 +62,7 @@ from leaf.source.registry.kernel import (
 from leaf.source.registry.reactions import reaction_tokens
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
+from leaf.source.structure import quoted_in
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:

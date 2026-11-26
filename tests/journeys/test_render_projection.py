@@ -72,7 +72,7 @@ from leaf.pages.render_gate.preview import preview_server
 from leaf.serving import http as http_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry.storage import layer_record
 from leaf.source.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -316,7 +316,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         in_force_ids,
     )
     page.close()
-    registry = registry_storage.load_registry(serve.page_dir)
+    registry = vocabulary_model.load_registry(serve.page_dir)
     declared = {
         (tag, verb)
         for tag, entry in registry.items()

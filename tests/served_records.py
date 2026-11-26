@@ -36,7 +36,7 @@ from leaf.log.projection import (
     authored_rank,
     obligation_value,
 )
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import state_definition
 from leaf.source.structure import SourceDocument
 

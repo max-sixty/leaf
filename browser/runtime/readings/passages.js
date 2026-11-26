@@ -649,7 +649,7 @@ const segmentIn = (node, ctx, breakBefore) => ({
 // Which text each named reading keeps. `says` skips the runtime's own words and whatever
 // is silenced; `wrote` skips everything an upgrade generated, a declared label included;
 // `named`, the words that name an element, is `wrote` less a popover's (`POPOVER`), as
-// Python's name text is (gesture_words.py, `_text`).
+// Python's name text is (passages.py, `_text`).
 // `unsilenced` is `says` with nothing silenced, for the one reader asking whether words
 // the page silences are still on screen (render-checks, `retiredSlots`). Like every
 // reading its chrome is bounded at the root's frame, so chrome above that widget is not

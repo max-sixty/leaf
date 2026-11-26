@@ -464,7 +464,7 @@ flowchart TD
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"
-leaf thread create ./review --obligation --text "Which queue policy fits the importer?"
+leaf thread create ./review --title "Importer queue policy" --obligation --text "Which queue policy fits the importer?"
 leaf server start ./review</code></pre>
               <p id="handoff-checkpoint">
                 This example is a record meant to be revisited, so the agent reviews and
@@ -548,7 +548,7 @@ leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
-leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
+leaf thread create ./review --title "Revised policy" --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
                 registry entry declares <code>awaits</code>, creates an
@@ -3612,7 +3612,9 @@ EOF</code></pre>
             <p id="titles-agent">
               A title names a thread in Threads, in a few words of plain text. The agent
               sets one with <code>--title</code> on the command that first handles the
-              thread, and can rename it later with
+              thread: <code>leaf thread create</code> requires it, and
+              <code>leaf thread reply</code> refuses to post into an untitled thread
+              without one. The agent can rename a thread later with
               <code>leaf thread edit --title</code>.
             </p>
             <p id="titles-model">

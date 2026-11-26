@@ -49,10 +49,12 @@ from leaf.commands import cli as cli_model
 from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import tasks as tasks_model
 from leaf.log import event_log as events_model
+from leaf.log.events import build_threads
 from leaf.log.thread_context import logged_fragment
 from leaf.records import revisioning as revisioning_model
 from leaf.records import todos as todos_model
 from leaf.records import transaction as transaction_model
+from leaf.source.revision_artifact import active_enclosing
 
 
 class ResponseOptions(TypedDict, total=False):
@@ -106,10 +108,52 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
             response_reference(page_dir, second["id"]),
             "--text",
             "Used B.",
+            "--title",
+            "Thread title",
         ],
     )
     assert current.exit_code == 0, current.output
     assert events_model.read_events(page_dir)[-1]["responds"] == second["id"]
+
+
+def test_the_agents_reply_names_a_thread_nobody_titled(page_dir):
+    """Every thread has a title. Where nothing titled a user's thread as they posted,
+    as on a page no session claims, the agent's reply is refused without --title,
+    progress or answer, and names the thread with one; a later reply needs none.
+    Leaf's own writes, such as a line fork's working line, owe no title."""
+
+    def titles() -> dict:
+        events = events_model.read_events(page_dir)
+        threads = build_threads(events, active_enclosing(page_dir))
+        return {thread: read["title"] for thread, read in threads.items()}
+
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which store?"}
+    )
+    reference = response_reference(page_dir, asked)
+    before = events_model.read_events(page_dir)
+    for declared in ("--ephemeral", "--done"):
+        [refused] = command_findings(
+            "thread", "reply", reference, declared, "--text", "Checking."
+        )
+        assert (refused.code, refused.severity) == ("untitled-thread", "error")
+        assert refused.values == {"thread": asked["id"]}
+    assert events_model.read_events(page_dir) == before
+
+    progress = ["--ephemeral", "--text", "Checking.", "--title", "Choosing a store"]
+    assert command_notes("thread", "reply", reference, *progress) == []
+    assert titles() == {asked["id"]: "Choosing a store"}
+    assert (
+        command_notes("thread", "reply", reference, "--done", "--text", "SQLite") == []
+    )
+
+    other = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "And the cache?"}
+    )
+    thread_model.post_reply(
+        page_dir, {"responds": other["id"]}, "On it.", ephemeral=True
+    )
+    assert titles()[other["id"]] is None
 
 
 def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
@@ -125,8 +169,20 @@ def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
         {"kind": "comment", "author": "user", "revision": 1, "text": "Which one?"},
     )
     for command, question in (
-        (["thread", "reply", response_reference(page_dir, asked)], QUESTION),
-        (["thread", "create", str(page_dir)], QUESTION.replace("question", "again")),
+        (
+            [
+                "thread",
+                "reply",
+                response_reference(page_dir, asked),
+                "--title",
+                "Thread title",
+            ],
+            QUESTION,
+        ),
+        (
+            ["thread", "create", str(page_dir), "--title", "Agent thread"],
+            QUESTION.replace("question", "again"),
+        ),
     ):
         noted = command_notes(
             *command, "--obligation", "--text", f"Which?\n\n{question}"
@@ -150,6 +206,7 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
     delivery_ack_model.receive_delivery(earlier)
     ref = delivered_ref(claimed, asked["id"])
     reply = ["thread", "reply", str(claimed), asked["id"], "--text", "B"]
+    reply += ["--title", "Why B"]
 
     def owed_note() -> str:
         posted = CliRunner().invoke(cli_model.cli, reply)
@@ -199,7 +256,14 @@ def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, e
         )
         posted = CliRunner().invoke(
             cli_model.cli,
-            ["thread", "reply", response_reference(page_dir, asked), "--done"]
+            [
+                "thread",
+                "reply",
+                response_reference(page_dir, asked),
+                "--done",
+                "--title",
+                "Thread title",
+            ]
             + ["--text", "Tidied."],
         )
         assert posted.exit_code == 0, posted.output
@@ -257,15 +321,10 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
     refs = [batch["events"][0]["answer"]["ref"] for batch in payload["batches"]]
     assert refs[0] != refs[1]
     for page, reference in zip((page_dir, other), refs, strict=True):
-        posted = CliRunner().invoke(
-            cli_model.cli,
-            ["thread", "reply", "--done", reference, "--text", str(page)],
-        )
+        answer = ["thread", "reply", "--done", reference, "--text", str(page)]
+        posted = CliRunner().invoke(cli_model.cli, [*answer, "--title", "Why"])
         assert posted.exit_code == 0, posted.output
-        retry = CliRunner().invoke(
-            cli_model.cli,
-            ["thread", "reply", "--done", reference, "--text", str(page)],
-        )
+        retry = CliRunner().invoke(cli_model.cli, [*answer, "--title", "Why"])
         assert retry.exit_code == 0, retry.output
         assert json.loads(posted.output) == json.loads(retry.output)
         # Reworded, it is another answer, to an update already answered.
@@ -298,7 +357,8 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_d
 
     def reply(*flags):
         posted = CliRunner().invoke(
-            cli_model.cli, ["thread", "reply", reference, *flags]
+            cli_model.cli,
+            ["thread", "reply", reference, *flags, "--title", "Thread title"],
         )
         assert posted.exit_code == 0, posted.output
         return json.loads(posted.stdout)
@@ -346,6 +406,8 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "--ephemeral",
             "--text",
             "Checking the options.",
+            "--title",
+            "Options",
         ],
     )
     assert progress.exit_code == 0, progress.output
@@ -382,8 +444,6 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             reference,
             "--text",
             f"Choose here.\n\n{markup}",
-            "--title",
-            "Options",
             "--section",
             "plan",
         ],
@@ -393,7 +453,10 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert [event["kind"] for event in records] == ["reply"]
     assert markup in records[0]["text"]
     assert records[0]["anchor"]["section"] == "plan"
-    assert records[0]["title"] == "Options"
+    threads = build_threads(
+        events_model.read_events(page_dir), active_enclosing(page_dir)
+    )
+    assert threads[asked["id"]]["title"] == "Options"
     selected = append_command(
         page_dir,
         {
@@ -555,6 +618,8 @@ def test_delegated_response_survives_its_coordinators_end_without_a_competing_cl
             reference,
             "--text",
             "The queue survives reconnect.",
+            "--title",
+            "Thread title",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -647,6 +712,8 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
             "--ephemeral",
             "--text",
             "Looking into it.",
+            "--title",
+            "Thread title",
         ],
     )
     assert progress.exit_code == 0, progress.output
@@ -1116,6 +1183,8 @@ def test_a_message_by_id_beside_a_reserved_answer_names_the_addressed_reply(page
             comment["id"],
             "--text",
             "Choosing next.",
+            "--title",
+            "Thread title",
         ],
     )
     assert beside.exit_code == 0, beside.output
@@ -1277,6 +1346,8 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
             earlier,
             "--text",
             "Committed by author",
+            "--title",
+            "Thread title",
         ],
     )
     assert authored.exit_code == 0, authored.output
@@ -1300,6 +1371,8 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
             earlier,
             "--text",
             "Committed by author",
+            "--title",
+            "Thread title",
         ],
     )
     assert retried.exit_code == 0, retried.output

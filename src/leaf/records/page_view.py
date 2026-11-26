@@ -19,10 +19,11 @@ from pathlib import Path
 
 from leaf.base.files import list_revisions
 from leaf.source.data import read_contracts
-from leaf.source.passages import SourceReading, enclosing_ids
-from leaf.source.registry.storage import page_vocabulary
+from leaf.source.passages import enclosing_ids
+from leaf.source.reading import SourceReading
 from leaf.source.revision_artifact import active_enclosing, read_revision
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import page_vocabulary
 
 
 class PageView:

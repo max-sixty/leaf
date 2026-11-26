@@ -77,8 +77,9 @@ from leaf.serving.drafts import DRAFTS
 from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import render_checks as render_checks_model
+from leaf.source.layer import selected_layer
 from leaf.source.passages import enclosing_ids
-from leaf.source.registry.storage import layer_packages, layer_record, selected
+from leaf.source.registry.storage import layer_packages, layer_record
 from leaf.source.render_checks import rendered, wait_until_ready
 from leaf.source.revision_artifact import read_artifact
 from leaf.source.structure import SourceDocument
@@ -379,7 +380,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
         record = layer_record(site / "examples" / source.stem)
         assert record is not None
         theme = (
-            selected(record, site / "examples" / source.stem)
+            selected_layer(record, site / "examples" / source.stem)
             .top_files["theme.css"]
             .decode()
         )

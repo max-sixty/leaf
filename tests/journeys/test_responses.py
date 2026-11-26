@@ -18,7 +18,7 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
     refused = CliRunner().invoke(
         cli_model.cli,
         ["thread", "reply", response_reference(page_dir, asked)]
-        + ["--text", f"Edit it?\n\n{shown}"],
+        + ["--title", "Wording", "--text", f"Edit it?\n\n{shown}"],
     )
 
     assert refused_on(refused.stdout).values == {

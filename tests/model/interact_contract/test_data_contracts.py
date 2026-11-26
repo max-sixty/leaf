@@ -34,8 +34,8 @@ from leaf.records import revisioning as revisioning_model
 from leaf.records.authored_checks.declarations import declaration_advice
 from leaf.source import data as data_model
 from leaf.source import revision_artifact as artifact_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
-from leaf.source.registry import storage as registry_storage
 from leaf.source.registry import validation as registry_validation
 from leaf.source.structure import SourceDocument
 from model.interact_contract import declare_vocabulary, vocabulary
@@ -291,7 +291,7 @@ def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
     assert result.exit_code == 0, result.output
     assert data_model.read_contracts(page_dir)["report"] == "text-document"
     assert (
-        data_model.read_data(page_dir, registry_storage.load_registry(page_dir))[
+        data_model.read_data(page_dir, vocabulary_model.load_registry(page_dir))[
             "sources"
         ]["report"]["value"]
         == "New report."
@@ -411,7 +411,7 @@ def test_page_owned_data_contracts_can_change_after_publication(page_dir, change
     page_data_model.cmd_data_set(page_dir, "files", value)
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    current = registry_storage.require_registry(page_dir)
+    current = vocabulary_model.require_registry(page_dir)
     assert data_model.read_data(page_dir, current)["sources"]["files"]["value"] == value
     old = data_model.read_data(page_dir, old_registry)["sources"]["files"]
     if change == "records":
@@ -434,7 +434,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     )
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.created
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     events = [
         {
             "id": "feed-reply",

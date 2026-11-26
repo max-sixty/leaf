@@ -1322,7 +1322,13 @@ def ask_agent(tab: Tab) -> Goals:
     enough to scroll, so the panel's pinned reply row takes each arriving turn."""
     if not tab.bench.thread:
         created = tab.bench.leaf(
-            "thread", "create", tab.bench.directory, "--text", THREAD_TEXT
+            "thread",
+            "create",
+            "--title",
+            "Bench thread",
+            tab.bench.directory,
+            "--text",
+            THREAD_TEXT,
         )
         tab.bench.thread = json.loads(created)["id"]
         told(tab.page)

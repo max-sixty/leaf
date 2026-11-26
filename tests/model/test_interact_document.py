@@ -87,9 +87,11 @@ from leaf.serving import samples as samples_model
 from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.page import read_served_page
 from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import capture_refusals as capture_refusals_model
 from leaf.source import data as data_model
 from leaf.source import data_contracts as data_contracts_model
 from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
 from leaf.source import revision_artifact as artifact_model
 from leaf.source import structure as structure_model
 from leaf.source.registry.contract import (
@@ -99,12 +101,9 @@ from leaf.source.registry.contract import (
     stamp_words,
 )
 from leaf.source.registry.schema import schema_error
-from leaf.source.registry.storage import (
-    load_registry,
-    read_page_registry,
-)
 from leaf.source.registry.validation import incoming_registry
 from leaf.source.runtime_selection import executing
+from leaf.source.vocabulary import load_registry, read_page_registry
 from leaf_dev.example_data import captured_value, patch_manifest
 
 # PAGE's group asking, and the same group once the author settles it.
@@ -558,7 +557,7 @@ def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
     revision = files_model.latest_revision(page_dir)
     _replace_manifest(page_dir, revision)
 
-    with pytest.raises(artifact_model.ArtifactError) as refused:
+    with pytest.raises(capture_refusals_model.ArtifactError) as refused:
         assert revision is not None
         artifact_model.read_artifact(page_dir, revision)
     assert [finding.code for finding in refused.value.findings] == ["manifest-digest"]
@@ -753,7 +752,15 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert "anchor" not in event
 
     [anchored] = command_findings(
-        "thread", "create", page_dir, "--quote", "Plan", "--text", "Change this"
+        "thread",
+        "create",
+        page_dir,
+        "--quote",
+        "Plan",
+        "--text",
+        "Change this",
+        "--title",
+        "Agent thread",
     )
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
@@ -913,7 +920,7 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     doc = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{source}</pre></lf-draft></main>'
     )
-    reading = passages_model.SourceReading(doc, registry)
+    reading = reading_model.SourceReading(doc, registry)
     assert reading.spoken["note"].words == "Keep --dry-run. First Second"
     spec = {"record": {"kind": "body"}}
     assert (
@@ -1115,13 +1122,13 @@ def test_a_moves_revision_is_read_under_its_own_vocabulary():
     }
     column = '<lf-column id="c" label="C"><lf-card id="k1">K1</lf-card><lf-card id="k2">K2</lf-card></lf-column>'
     readings = {
-        1: passages_model.SourceReading(
+        1: reading_model.SourceReading(
             structure_model.SourceDocument(
                 f'<main><lf-board id="board"><lf-wrap id="w">{column}</lf-wrap></lf-board></main>'
             ),
             then,
         ),
-        2: passages_model.SourceReading(
+        2: reading_model.SourceReading(
             structure_model.SourceDocument(
                 f'<main><lf-board id="board">{column}<lf-wrap id="w"></lf-wrap></lf-board></main>'
             ),
@@ -1778,7 +1785,13 @@ def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
     version.write_text(PAGE)
     publish(page_dir)
     noted = command_notes(
-        "thread", "create", page_dir, "--text", f"Panes:\n\n<div>\n{panes}\n</div>"
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        f"Panes:\n\n<div>\n{panes}\n</div>",
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values["line"]) for f in noted] == [
         ("pane-header-first", 3),
@@ -2070,6 +2083,8 @@ def test_a_reply_carrying_a_suggestion_posts_and_says_what_deciding_it_changes(
             response_reference(page_dir, "c1"),
             "--text",
             'Fixed: read <lf-suggestion id="sug-x"><lf-old>daily</lf-old><lf-new>weekly</lf-new></lf-suggestion>.',
+            "--title",
+            "Thread title",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -2118,6 +2133,8 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
             reference,
             "--text",
             "Updated.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -2173,6 +2190,8 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
             response_reference(page_dir, "c2"),
             "--text",
             "Updated.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -2208,6 +2227,8 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
             response_reference(page_dir, "c1"),
             "--text",
             "Updated.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -2453,6 +2474,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             'Which store?\n\n<lf-group id="t-ask" label="Store?">\n<h3 id="t-ask-h">Store?</h3>\n<lf-options id="t-store">'
             '<lf-option id="t-sqlite" label="sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-group>",
+            "--title",
+            "Agent thread",
         ).output.splitlines()
     ]
     [renamed] = json.loads(run("thread", "edit", "t-store", "--title", "Store").output)[
@@ -4122,6 +4145,7 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
         return native(*args, **kwargs)
 
     monkeypatch.setattr(passages_model, "page_passages", counted)
+    monkeypatch.setattr(reading_model, "page_passages", counted)
     with fresh_process():
         read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
         assert walks
@@ -4169,6 +4193,7 @@ def test_an_activated_revision_adopts_the_reading_its_check_took(page_dir, monke
 
     monkeypatch.setattr(artifact_model, "SourceDocument", no_parse)
     monkeypatch.setattr(passages_model, "page_passages", counted)
+    monkeypatch.setattr(reading_model, "page_passages", counted)
     assert activated.revision is not None
     reading = artifact_model.read_revision(page_dir, activated.revision)
     marker = files_model.revision_path(page_dir, activated.revision)
@@ -4501,7 +4526,7 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
         '<lf-suggestion id="cut"><lf-old><p>Cut words.</p></lf-old></lf-suggestion>'
         '<p id="after">After.</p></main>'
     )
-    reading = passages_model.SourceReading(document, registry)
+    reading = reading_model.SourceReading(document, registry)
 
     elsewhere = {"not-here": "accepted"}
     assert reading.decided_passages(elsewhere) is reading.passages

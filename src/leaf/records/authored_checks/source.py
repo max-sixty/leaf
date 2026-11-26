@@ -32,12 +32,12 @@ from leaf.records.markup_checks.markup import (
     page_boundary_errors,
     unpointable_blocks,
 )
+from leaf.records.page_data import initial_data_document_readings
 from leaf.records.sample_content import initial_sample_events
 from leaf.source.data import read_contracts, read_data
 from leaf.source.data_contracts import (
     data_document_errors,
     data_document_readings,
-    initial_data_document_readings,
     measurement_lag,
 )
 from leaf.source.passages import SourceReading

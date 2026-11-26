@@ -738,7 +738,7 @@ def command_notes(*args) -> list[Finding]:
 
 def read_page_data(page_dir) -> dict:
     """Every source the page records, judged against the vocabulary a write to it
-    takes: the page's layer with its own declarations (`data._write_source`)."""
+    takes: the page's layer with its own declarations (`page_data._write_source`)."""
     return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 

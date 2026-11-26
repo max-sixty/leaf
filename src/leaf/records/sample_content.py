@@ -30,12 +30,10 @@ from leaf.records.authored_checks.admission import (
 )
 from leaf.records.event_contracts import admitted_event, command_error
 from leaf.records.event_meaning import AdmissionReadings
+from leaf.records.page_data import initial_data_document_readings
 from leaf.records.page_view import InitialPageView
 from leaf.source.anchor_capture import capture_anchor
-from leaf.source.data_contracts import (
-    data_document_errors,
-    initial_data_document_readings,
-)
+from leaf.source.data_contracts import data_document_errors
 from leaf.source.registry.kernel import kernel_event_kinds
 from leaf.source.registry.schema import aware_instant
 from leaf.source.structure import SourceDocument

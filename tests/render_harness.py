@@ -2263,8 +2263,8 @@ def show_done(page):
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
-# (state/thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
-# thread; null until the saved inventory has arrived. It leaves the reading as
+# (state/thread/model.js, `threadCounts`): those not resolved; null until the saved
+# inventory has arrived. It leaves the reading as
 # `window.__lfOpenThreads` for a wait to poll.
 OPEN_THREAD_COUNT = """async () => {
   const { readThreads } = await window.__lfWidgetApi();

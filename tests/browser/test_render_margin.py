@@ -7,7 +7,6 @@ from interact_support import (
     append_carried_log_record,
 )
 from journeys.test_render_margin import (
-    MARGIN_ACTIONS_EVENTS,
     OBLIGATION_IN_LONG_PAGE,
     SUGGESTION_PINS,
     THREAD_CARD_PAGE,
@@ -84,49 +83,6 @@ def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser,
 
     assert position["before"]["y"] == position["before"]["end"]
     assert position["after"] == position["before"]
-
-
-def test_a_settled_page_with_a_reaction_in_force_stops_rendering_its_margin(
-    browser, serve
-):
-    """A page standing still with a reaction in its margin renders no margin per frame.
-
-    A margin render ends in `paintKeys`, which ends in the shared repaint, and that
-    repaint runs chrome layout. Anything chrome layout did that restated a reaction
-    seat's offer would close a cycle — chrome layout, margin render, paint, chrome
-    layout — that runs a whole margin render every frame with nothing dispatched and
-    nothing on the page moving, so every Playwright read of that page waits on it.
-
-    The reaction seat is asserted first, because it is the ingredient that cycle needed:
-    a page with no seat passes this without saying anything. The heartbeat is the one
-    render a settled page is allowed here, and it comes every two seconds, so at most
-    one of these frames can carry it.
-    """
-    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
-    resized(page, 1280, 900)
-    margins_laid_out(page)
-    assert (
-        page.locator(
-            '[data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
-        ).count()
-        >= 1
-    )
-
-    layouts = page.evaluate(
-        """async frames => {
-          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
-          for (let i = 0; i < 10; i++) await frame();
-          let seen = 0;
-          const count = () => { seen += 1; };
-          document.addEventListener('lf-margin-layout', count);
-          for (let i = 0; i < frames; i++) await frame();
-          document.removeEventListener('lf-margin-layout', count);
-          return seen;
-        }""",
-        30,
-    )
-
-    assert layouts <= 1, layouts
 
 
 def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, serve):

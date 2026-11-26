@@ -4,7 +4,6 @@ goes on a press elsewhere is held to that one press, so a drag between it and th
 leaves it standing, a finger's tap away and a mouse's click away both put it away, a
 finger scrolling the page does not, and Escape, its keyboard route, puts it away too."""
 
-from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_harness import (
@@ -94,41 +93,6 @@ def test_a_press_away_puts_the_panel_s_view_away(browser, serve):
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
-
-
-def test_a_press_away_takes_back_a_reaction_s_offered_remove(browser, serve):
-    url = serve(PANEL_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "emoji": "👍",
-            "anchor": {"section": "how-store"},
-        },
-    )
-    page = open_page(browser, url)
-    mark = page.get_by_role("button", name="👍 reaction actions", exact=True)
-    remove = page.locator('[aria-label="Undo 👍 reaction"]:visible')
-    outside = centre(page.locator("h1"))
-    mark.click()
-    expect(remove).to_be_visible()
-    drag(page, outside, centre(remove))
-    expect(mark).to_have_attribute("aria-expanded", "true")
-    drag(page, centre(remove), outside)
-    expect(mark).to_have_attribute("aria-expanded", "true")
-    tap(page, outside)
-    expect(mark).to_have_attribute("aria-expanded", "false")
-    mark.click()
-    expect(remove).to_be_visible()
-    page.mouse.click(*outside)
-    expect(mark).to_have_attribute("aria-expanded", "false")
-    mark.focus()
-    mark.press("Enter")
-    expect(remove).to_be_focused()
-    remove.press("Escape")
-    expect(mark).to_have_attribute("aria-expanded", "false")
 
 
 def test_a_press_away_folds_a_pin_s_unfolded_actions(browser, serve):

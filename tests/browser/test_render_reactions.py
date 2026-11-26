@@ -71,19 +71,17 @@ from leaf_dev.browser import PANEL_THREAD
 pytestmark = pytest.mark.shifts_unsurveyed
 
 MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
-# The margin entry of a reaction in force, which discloses its removal.
-REACTION_MARK = (
-    '[data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
-)
+# A thread's marker in its target's margin item, which a reaction's thread wears as a
+# comment's does.
+THREAD_MARKER = '.lf-margin-marker[data-lf-kinds~="comment"]'
 
-# The wash and the glyphs a reaction in force paints, read off the page: the ranges in
-# the highlight registry (their words, whitespace dropped, the way the corpus reads a
-# comment's mark) and every seated glyph by its target and accessible action name.
+# What the threads on the page paint, read off it: the ranges in the comment highlight
+# (their words, whitespace dropped, the way the corpus reads a comment's mark) and the
+# target of every thread marker in the margin.
 PAINTED = """() => ({
-  washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
-  glyphs: [...document.querySelectorAll('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]')]
-    .map(m => [m.closest('[data-lf-margin-for]').dataset.lfMarginFor,
-               m.getAttribute('aria-label')]),
+  washed: [...(CSS.highlights.get('lf-mark') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
+  threads: [...document.querySelectorAll('.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"]')]
+    .map(m => m.closest('[data-lf-margin-for]').dataset.lfMarginFor),
   projected: [...document.querySelectorAll('[data-lf-mark]')].length,
 })"""
 
@@ -142,17 +140,13 @@ def focus_item(page, selector):
     expect(item).to_be_focused()
 
 
-def painted(page, glyphs):
-    """Wait for the page's reaction paint to show exactly these seated glyphs, then
+def painted(page, targets):
+    """Wait for the margin to show a thread marker at exactly these targets, then
     return the whole reading. `data-lf-applied` counts replayed actions and covers no
     comment, so the paint itself is the fact a reaction's arrival states."""
     page.wait_for_function(
-        "(want) => JSON.stringify((" + PAINTED + ")().glyphs) === want",
-        arg=json.dumps(
-            [[target, f"{emoji} reaction actions"] for target, emoji in glyphs],
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ),
+        "(want) => JSON.stringify((" + PAINTED + ")().threads) === want",
+        arg=json.dumps(targets, separators=(",", ":")),
     )
     return page.evaluate(PAINTED)
 
@@ -175,7 +169,7 @@ def test_a_late_reaction_in_force_does_not_move_the_readable_column(browser, ser
         },
     )
     told(page)
-    painted(page, [["how-store", "👍"]])
+    painted(page, ["how-store"])
     assert (
         page.locator("main").evaluate(
             "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
@@ -184,18 +178,17 @@ def test_a_late_reaction_in_force_does_not_move_the_readable_column(browser, ser
     )
 
 
-def test_a_reaction_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
+def test_a_reaction_press_opens_a_thread_and_a_second_press_takes_it_back(
     browser, serve
 ):
     """The cheapest legal answer to a passage: select, press one emoji. What the log
     gets is a comment carrying the emoji in place of words, on the anchor a comment
     from the same bar would carry — the same capture — so the file meets it the way it
-    meets a comment. What the page gets is paint and nothing else: the words washed
-    through the highlight registry, a glyph in the margin level with the paragraph,
-    no card in the panel and nothing in its count, because a reaction is a mark and not
-    a thread. Pressing the glyph reveals a separately named remove control;
-    pressing that sends the ordinary undo naming the event, and the paint goes with the
-    gesture."""
+    meets a comment. What the page gets is what a comment gets: the words marked as a
+    comment's, a thread marker in the margin level with the paragraph, a row in Threads
+    and its count, and a card that opens on the emoji. Pressing the emoji again on the
+    same passage sends the ordinary undo naming the event, and the thread goes with
+    the gesture."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -248,7 +241,7 @@ def test_a_reaction_press_marks_the_passage_and_its_revealed_remove_takes_it_bac
     surface.locator('.lf-react[data-lf-emoji="✂️"]').click()
     holding(page, held, 1, "the reaction the press marks with")
     expect(bar).to_be_hidden()
-    shown = painted(page, [["how-store", "✂️"]])
+    shown = painted(page, ["how-store"])
     assert "holdseveryedit" in shown["washed"], shown
 
     held[0].continue_()
@@ -258,15 +251,15 @@ def test_a_reaction_press_marks_the_passage_and_its_revealed_remove_takes_it_bac
     assert sent["kind"] == "comment" and sent["emoji"] == "✂️" and "text" not in sent
     assert sent["anchor"]["section"] == "how-store"
     assert "holds every edit" in sent["anchor"]["quote"]
-    expect(bar).to_be_hidden()  # the mark is the receipt
+    expect(bar).to_be_hidden()  # the thread is the receipt
     assert shown["projected"] == 0
-    # The receipt contributes to the target's one complete RHS item, which stands level
+    # The thread's marker joins the target's one complete RHS item, which stands level
     # with the block's first line in the margin.
     level = page.evaluate(
         """() => {
           const p = document.querySelector('#how-store').getBoundingClientRect();
-          const receipt = document.querySelector('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]');
-          const item = receipt.closest('.lf-margin-cluster');
+          const marker = document.querySelector('.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"]');
+          const item = marker.closest('.lf-margin-cluster');
           const g = item.getBoundingClientRect();
           return { dy: g.top - p.top, right: g.left - p.right,
                    target: item.dataset.lfMarginFor,
@@ -280,25 +273,29 @@ def test_a_reaction_press_marks_the_passage_and_its_revealed_remove_takes_it_bac
         and level["target"] == "how-store"
         and level["clusters"] == 1
     ), level
-    # A mark, not a thread: nothing in the panel, and nothing in its count.
-    expect_open_threads(page, 0)
+    # A thread like any other: Threads lists it and counts it, and its card opens on
+    # the emoji.
+    expect_open_threads(page, 1)
     open_threads(page)
-    expect(page.locator(".lf-fp-thread")).to_have_count(0)
-    # The bar raised on the same passage again says the reaction stands. Its general
-    # response disclosure keeps those choices with the field, while the reaction's glyph
-    # remains the margin receipt and removal disclosure.
+    expect(page.locator(".lf-fp-thread")).to_have_count(1)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    receipt_item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
-    expect(receipt_item).to_have_attribute("data-lf-place", "rail")
+    item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
+    expect(item).to_have_attribute("data-lf-place", "rail")
+    item.locator(THREAD_MARKER).click()
+    root = page.locator(f'.lf-margin-preview .lf-msg[data-lf-event="{sent["id"]}"]')
+    expect(root.locator(".lf-react-said")).to_have_text("✂️")
+    page.keyboard.press("Escape")
+    expect(root).to_have_count(0)
+    # The bar raised on the same passage again says the reaction stands, and pressing
+    # its emoji again takes it back.
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
     surface = bar
-    expect(receipt_item).to_have_count(1)
-    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
-    expect(receipt_item.locator(MARGIN_RESPONSES)).to_have_count(0)
+    expect(item).to_have_count(1)
+    expect(item.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     expect(surface.locator('.lf-react[data-lf-emoji="✂️"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -306,43 +303,13 @@ def test_a_reaction_press_marks_the_passage_and_its_revealed_remove_takes_it_bac
     expect(surface.locator('.lf-react[data-lf-emoji="👍"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    page.mouse.click(40, 300)  # the bar down, the reaction's glyph remains
-    expect(bar).to_be_hidden()
-    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
-    mark = receipt_item.get_by_role("button", name="✂️ reaction actions", exact=True)
-    remove = page.locator('[aria-label="Undo ✂️ reaction"]:visible')
-    face = """button => {
-      const style = getComputedStyle(button);
-      return [style.color, style.backgroundColor, style.borderTopColor, style.boxShadow];
-    }"""
-    mark.hover()
-    resting_face = mark.evaluate(face)
-    before_reveal = events_model.read_events(serve.page_dir)[-1]
-    mark.click()
-    expect(mark).to_have_attribute("aria-expanded", "true")
-    expect(remove).to_be_visible()
-    expect(mark).to_have_attribute("aria-keyshortcuts", "Escape")
-    assert mark.evaluate(face) == resting_face
-    assert events_model.read_events(serve.page_dir)[-1] == before_reveal
-    page.locator("h1").click()
-    expect(mark).to_have_attribute("aria-expanded", "false")
-    expect(remove).to_be_hidden()
-    mark.focus()
-    mark.press("Enter")
-    expect(remove).to_be_focused()
-    remove.press("Escape")
-    expect(mark).to_be_focused()
-    expect(remove).to_be_hidden()
-    expect(mark).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
-    mark.click()
-    # The dedicated remove press is in the wire before the log is read: behind a bare
-    # trip the read answers with the comment this press is taking back, which is the
-    # shape run 33845381848 failed in.
-    with sending(page, "the take-back the glyph makes"):
-        remove.click()
+    with sending(page, "the take-back the second press makes"):
+        surface.locator('.lf-react[data-lf-emoji="✂️"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
-    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
+    round_trip(page)
+    assert painted(page, []) == {"washed": "", "threads": [], "projected": 0}
+    expect_open_threads(page, 0)
 
 
 def test_e_immediately_opens_the_selection_s_reactions_and_digit_chooses(
@@ -543,7 +510,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
         "✂️",
         "how-cap",
     )
-    painted(page, [["how-cap", "✂️"]])
+    painted(page, ["how-cap"])
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     # The sentence behind the row, off the register: the reference's z row names the
     # reaction and the passage it stands on, where it promised a generic take-back before.
@@ -972,8 +939,8 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
 
 def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
     """A declared visual part is the same anchor for a reaction and a comment. The
-    send announcement names the part's declared label, and replay seats the glyph
-    beside the diagram that owns its stable id without drawing on either."""
+    send announcement names the part's declared label, and replay seats its thread's
+    marker beside the diagram that owns its stable id without drawing on either."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
@@ -996,7 +963,7 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
         "section": "flow",
         "visual": "node:S",
     }
-    shown = painted(page, [["flow", "🎯"]])
+    shown = painted(page, ["flow"])
     assert shown["washed"] == "", shown
     # Keyboard return may project focus; the reaction itself adds no contour.
     rendered(page)
@@ -2482,12 +2449,13 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     assert len(events_model.read_events(serve.page_dir)) == count
 
 
-def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, serve):
-    """A reaction grows into a thread only when someone replies to it: the agent
-    answers a puzzling `no` on the reaction itself, and the panel then lists it as a
-    thread whose root is the mark, painted as a comment's mark rather than a reaction's.
-    Resolving it — the agent's, once it has acted — is the floor: the paint clears and
-    nothing new is invented to absorb it."""
+def test_a_reaction_is_a_thread_before_any_reply_and_resolve_is_its_floor(
+    browser, serve
+):
+    """A reaction is a thread from the moment it is put on: the panel lists it and its
+    passage wears a comment's mark before anyone answers, and the agent's answer to a
+    puzzling `no` joins it under the emoji. Resolving it — the agent's, once it has
+    acted — is the floor: the paint clears and nothing new is invented to absorb it."""
     url = serve(PANEL_PAGE)
     reaction = append_carried_log_record(
         serve.page_dir,
@@ -2500,8 +2468,9 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
         },
     )
     page = open_page(browser, url)
-    painted(page, [["merge-both", "❌"]])
-    expect_open_threads(page, 0)
+    shown = painted(page, ["merge-both"])
+    assert "onedocumentoffline" in shown["washed"], shown
+    expect_open_threads(page, 1)
 
     thread_model.post_reply(
         serve.page_dir,
@@ -2512,8 +2481,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     expect_open_threads(page, 1)
     thread = open_panel_thread(page, reaction["id"])
     expect(thread.locator(".lf-react-said")).to_have_text("❌")
-    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
-    assert page.evaluate("() => CSS.highlights.get('lf-mark').size") > 0
+    expect(thread).to_contain_text("Which part — the case, or the answer?")
 
     thread_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
@@ -2525,7 +2493,7 @@ def test_undo_takes_back_a_reaction_the_agent_answered_into_its_place(browser, s
     """A reaction someone has answered is the user's to take back, as one nobody has
     answered is. Taking it back
     draws its place in the thread Deleted in the press, before the log answers, above
-    the answer, which stays, as does the thread; the mark stays off the page."""
+    the answer, which stays, as does the thread and its marker."""
     url = serve(PANEL_PAGE)
     reaction = append_carried_log_record(
         serve.page_dir,
@@ -2568,7 +2536,7 @@ def test_undo_takes_back_a_reaction_the_agent_answered_into_its_place(browser, s
     root = thread.locator(f'.lf-msg[data-lf-event="{reaction["id"]}"]')
     expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
     expect(thread).to_contain_text("Which part — the case, or the answer?")
-    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
+    painted(page, ["merge-both"])
 
 
 def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):

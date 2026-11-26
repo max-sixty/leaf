@@ -69,7 +69,7 @@ from leaf.base import files as files_model
 from leaf.base import schema as schema_model
 from leaf.base.state import kernel_protocol
 from leaf.log.event_log import read_events
-from leaf.log.events import bare_reaction, build_threads
+from leaf.log.events import build_threads
 from leaf.pages import hosting as hosting_model
 from leaf.pages.render_gate import version as render_gate_model
 from leaf.records.transaction import acknowledged
@@ -1601,14 +1601,12 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     page = open_page(browser, url)
     source = named_source("ship-review")
     events = read_events(page_dir)
-    threads = [
-        thread
-        for thread in build_threads(
+    threads = list(
+        build_threads(
             events,
             enclosing_ids(SourceDocument(source.read_text(encoding="utf-8"))),
         ).values()
-        if not bare_reaction(thread)
-    ]
+    )
     opened = sum(not thread["resolved"] for thread in threads)
     resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"

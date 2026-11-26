@@ -180,21 +180,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             return event["id"]
 
         # Read the roots in force through the same fold as the page. A resolved root keeps
-        # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
+        # its thread and attachment but owes no paint.
         page_ids = enclosing_ids(structure_model.SourceDocument(example.read_text()))
-        threads = thread_model.build_threads(logged, page_ids)
-        reacted = [
-            thread["root"]
-            for thread in threads.values()
-            if thread_model.bare_reaction(thread)
-            and not thread["resolved"]
-            and thread["anchor"]
-        ]
-        listed = [
-            thread
-            for thread in threads.values()
-            if not thread_model.bare_reaction(thread)
-        ]
+        listed = list(thread_model.build_threads(logged, page_ids).values())
         sample_threads = set(
             page.eval_on_selector_all(
                 "template[data-sample-threads]",
@@ -248,51 +236,6 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                         '[data-lf-margin-entry-key="reading:threads"]'
                     )
                 ).to_have_count(0)
-        for reaction in reacted:
-            section = reaction["anchor"]["section"]
-            tab = page.locator(f"#{section}").evaluate(
-                "el => el.closest('lf-tab')?.getAttribute('label')"
-            )
-            if tab:
-                page.get_by_role("tab", name=tab, exact=True).click()
-            page.locator(f"#{section}").scroll_into_view_if_needed()
-            item = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{section}"]')
-            expect(item).to_have_count(1)
-            # A crowded target may expose this exact reaction through overflow. Follow
-            # its visible route rather than requiring every margin entry to stand at rest.
-            visible = item.locator(
-                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]:visible'
-            )
-            more = item.locator(":scope > .lf-margin-more")
-            if not visible.count() and more.is_visible():
-                more.click()
-                expect(item).to_have_attribute("data-lf-options-open", "")
-            if visible.count():
-                expect(visible).to_be_visible()
-            else:
-                item.locator(".lf-margin-spill").click()
-                sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-                expect(
-                    sheet.locator(
-                        '[data-lf-margin-entry-owner="reactions"]'
-                        f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
-                    )
-                ).to_be_visible()
-                page.keyboard.press("Escape")
-                expect(sheet).to_be_hidden()
-            if reaction["anchor"].get("quote"):
-                painted = re.sub(
-                    r"\s",
-                    "",
-                    page.evaluate(
-                        "() => [...CSS.highlights.get('lf-react')]"
-                        ".map(r => r.toString()).join('')"
-                    ),
-                )
-                assert re.sub(r"\s", "", reaction["anchor"]["quote"]) in painted, (
-                    f"{example.stem}: the reaction's passage is painted nowhere; the "
-                    f"wash reads {painted[:120]!r}"
-                )
         detached = detached_threads(page, [thread["id"] for thread in listed])
         assert detached == retained, (
             f"{example.stem} has unexpected detached anchors: {detached - retained}. "

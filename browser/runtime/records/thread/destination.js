@@ -126,7 +126,7 @@ import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../../dom/widget-elements.js";
 import { visibleTargetParts } from "../../readings/visible-target-parts.js";
 import { renderedUnder, closestAcross } from "../../lib/shadow-tree.js";
-import { deleted, discussed, editable } from "../../state/thread/model.js";
+import { deleted, editable } from "../../state/thread/model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
@@ -320,8 +320,7 @@ export function createThreadDestinations({
     const departure = navigationStep && history ? prepareNavigationStep() : null;
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
-    const primary =
-      selected && thread && discussed(thread) ? { selected, thread } : null;
+    const primary = selected && thread ? { selected, thread } : null;
     if (selected && !primary) return null;
     // A message whose widgets the primary reader holds is reached there, in whichever
     // of its views draws it, though the reader declines to show the thread.

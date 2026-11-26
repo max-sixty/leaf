@@ -148,7 +148,6 @@ export interface Thread {
       >["views"][string]["thread"]["threads"][number]["resolved"]
     | { author: "user"; pending: true }
   > | null;
-  bare_reaction: boolean;
   seat: string | null;
   summaries: readonly (Pick<
     EventMap["summary"],

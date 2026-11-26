@@ -1,24 +1,15 @@
 /* Retained controls derived from the canonical current anchor reading.
  *
- * This view owns visual comment proxies, controls for reactions in force, and message
- * fragment state. The dedicated anchor-note projection owns accessible comment notes.
- * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
+ * This view owns visual comment proxies and message fragment state. The dedicated
+ * anchor-note projection owns accessible comment notes. Visual proxies are keyed Lit
+ * controls, one group per drawing's seat, standing on the
  * details shelf with the seat naming the group as its details (features/details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
  * declared part through the target picker (`s`). A failed thread presentation withdraws
- * visual proxies until a valid reading replaces them. A reaction in force is a message
- * the agent owes an answer, so its entry carries its thread's receipt while the agent
- * works on it, as a thread's margin entry does (`threadMarks`), and the agent's answer
- * turns it into a thread the margin draws as one. It first reveals its dedicated removal
- * action; only that action withdraws the reaction. The removal
- * wears the neutral undo icon and says "Undo", the word of every other control that takes
- * a gesture back, because removing a reaction is an undo of it. A red ✕ read as "close
- * this", nearly matched the ❌ reaction, and caught phone taps meant to dismiss the
- * cluster; Max chose undo over it. Commands enter only through the
+ * visual proxies until a valid reading replaces them. Commands enter only through the
  * constructor.
  */
-import { nextRender } from "../lib/frame-pass.js";
-import { holdFocus, onPressAway } from "../dom/focus.js";
+import { holdFocus } from "../dom/focus.js";
 import { fragmentId } from "../base/anchor-coordinate.js";
 import { sameAnchor } from "../base/anchor-coordinate.js";
 import { sectionLabel } from "../readings/addressable-names.js";
@@ -28,7 +19,6 @@ import { html, nothing, render as renderTemplate, repeat } from "/vendor/lit.js"
 import {
   fragmentTarget,
   annotationAt,
-  lightSeat,
   resolveAnchor,
   sectionOf,
   unclaimedVisualGesture,
@@ -36,8 +26,6 @@ import {
   visualParts,
   visualTags,
 } from "../readings/anchor-resolution.js";
-import { registerContribution } from "../features/contributions.js";
-import { commandScope } from "../dom/keyboard/scopes.js";
 import {
   authoredScope,
   elementById,
@@ -56,10 +44,6 @@ import {
 } from "../readings/resolved-target.js";
 import { offer, offeredAction } from "../lib/controls.js";
 import { keeps, keepsText } from "../lib/keeps.js";
-import { retainUserIntent } from "../dom/user-intent.js";
-import { bareReaction } from "../state/thread/model.js";
-import { threadMarks } from "../features/margin-model.js";
-import { agentName } from "../state/semantic-state.js";
 import { raiseError } from "../transport/errors.js";
 import { inChrome } from "../base/ui-marks.js";
 
@@ -70,74 +54,40 @@ const MSG_REF = '.lf-msg-body a[href^="#"]';
 const missingReference = (id) => `§ ${id} isn't in the version shown`;
 
 /** @typedef {import("../../types/domain.js").Anchor} Anchor */
-/** @typedef {import("../records/thread/thread-card.js").ThreadRecord["root"] & {emoji: string}} ReactionRoot */
-/** @typedef {{root: ReactionRoot, receipt: import("../../types/domain.js").Workflow | null}} ReactionMark */
-/** @typedef {{before: ReactionMark[], inside: ReactionMark[]}} ReactionGroup */
 /** @typedef {{anchor: Anchor, label: string, key: string}} VisualAction */
 /** @typedef {HTMLButtonElement & {lfAnchor: Anchor}} VisualActionControl */
 /** @typedef {NonNullable<ReturnType<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["read"]>>} AnchorReading */
 /** @typedef {AnchorReading["readings"][number]} ThreadReading */
-/** @typedef {{reaction: {at: Element, before: boolean} | null, notes: Element[]}} Seats */
 /** @param {{
  * commentOnTarget: ReturnType<typeof import("./composing/surface.js").createResponseSurface>["commentOnTarget"],
  * openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"],
- * withdrawReaction: ReturnType<typeof import("../records/undo.js").createUndo>["withdraw"],
  * labelAnchor: typeof import("../records/thread/messages.js").anchorLabel,
  * invalidateThread: () => unknown, invalidatePageGeometry: () => unknown,
  * placement: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "hearPlaced" | "placedAt">,
- * messageReferenceRoot: Element, draftQuote: Element, focused: typeof import("../dom/focus.js").focused,
- * paintKeys: typeof import("../dom/keyboard/scopes.js").paintKeys}} dependencies */
+ * messageReferenceRoot: Element, draftQuote: Element}} dependencies */
 
 export function createAnchorControls({
   commentOnTarget,
   openThread,
-  withdrawReaction,
   labelAnchor,
   invalidateThread,
   invalidatePageGeometry,
   placement,
   messageReferenceRoot,
   draftQuote,
-  focused,
-  paintKeys,
 }) {
   /** @type {Map<Element, HTMLDivElement>} */
   const visualActionHolders = new Map();
-  /** @type {Map<Element, ReactionSeat>} */
-  const reactionSeats = new Map();
   const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
-  /** @type {ReturnType<typeof onPressAway> | null} */
-  let mounted = null;
+  let mounted = false;
   /** @type {(() => void) | null} */
   let stopHearing = null;
-  // Each thread the last render read, and where it seated the thread's controls.
-  /** @type {Map<string, {thread: ThreadReading["thread"], seats: Seats}>} */
+  // Each thread the last render read, and the blocks it seated the thread's notes at.
+  /** @type {Map<string, {thread: ThreadReading["thread"], seats: Element[]}>} */
   let seated = new Map();
   let invalidationQueued = false;
   /** @type {Map<Element, VisualAction[]>} */
   let pendingVisualActions = new Map();
-
-  /** @param {ReactionSeat} record @param {string | null} eventId
-   * @param {{focus?: boolean, surface?: import("../features/contributions.js").ContributionSurface | null}} [options] */
-  function setReactionRemoval(record, eventId, { focus = false, surface = null } = {}) {
-    if (eventId)
-      for (const other of reactionSeats.values())
-        if (other !== record && other.expanded) {
-          other.expanded = null;
-          other.margin.update({ immediate: true });
-        }
-    record.expanded = eventId;
-    record.margin.update({ immediate: true });
-    paintKeys();
-    if (!focus || !eventId) return;
-    // The remove action draws on the next render; a newer input the user gave meanwhile
-    // keeps them where it put them.
-    const mayFocus = retainUserIntent();
-    const remove = `reaction:${eventId}:remove`;
-    nextRender(() =>
-      mayFocus.handoff(() => record.margin.focus(remove, "move", surface)),
-    );
-  }
 
   /** @param {Anchor | null | undefined} anchor */
   const visualActionAnchor = (anchor) => {
@@ -287,137 +237,6 @@ export function createAnchorControls({
     reconcileVisualActions(pendingVisualActions);
   }
 
-  // Each target contributes its complete reading of its reactions in force. Only the selected
-  // removal disclosure is local state; both rendered surfaces read the same entry keys.
-  class ReactionSeat {
-    /** @type {readonly ReactionMark[]} */
-    marks;
-    /** @type {string | null} */
-    expanded = null;
-    /** @type {import("../features/contributions.js").ContributionSurface | null} */
-    surface = null;
-    /** @type {ReturnType<typeof commandScope>} */
-    scope;
-    /** @type {ReturnType<typeof registerContribution>} */
-    margin;
-    /** @param {readonly ReactionMark[]} marks @param {Element} at */
-    constructor(marks, at) {
-      this.marks = marks;
-      this.scope = commandScope(
-        "On a reaction",
-        [
-          {
-            id: "reaction.removal.close",
-            keys: ["Escape"],
-            title: "hide remove",
-            when: () => Boolean(this.expanded),
-            run: () => {
-              const eventId = this.expanded;
-              const entryKey = `reaction:${eventId}:open`;
-              /** @type {readonly import("../features/contributions.js").ContributionSurface[]} */
-              const surfaces = ["map", "margin", "inline"];
-              const surface =
-                surfaces.find((candidate) =>
-                  [entryKey, `reaction:${eventId}:remove`].some(
-                    (key) => this.margin.control(key, candidate) === focused(),
-                  ),
-                ) ?? this.surface;
-              setReactionRemoval(this, null);
-              this.margin.focus(entryKey, "return", surface);
-            },
-          },
-        ],
-        { escape: "inner" },
-      );
-      this.margin = registerContribution({
-        key: "reactions",
-        target: at,
-        read: () => ({
-          side: "after",
-          state: this.expanded ? "engaged" : "idle",
-          entries: this.marks.flatMap(({ root, receipt }) => [
-            {
-              key: `reaction:${root.id}:open`,
-              glyph: root.emoji,
-              label: `${root.emoji} reaction actions`,
-              behavior: "disclosure",
-              rank: "secondary",
-              workflowReceipt: receipt,
-              scope: this.scope,
-              relation: {
-                kind: "entries",
-                keys: [`reaction:${root.id}:remove`],
-                expanded: this.expanded === root.id,
-              },
-            },
-            {
-              key: `reaction:${root.id}:remove`,
-              action: "undo",
-              label: `Undo ${root.emoji} reaction`,
-              rank: "secondary",
-              scope: this.scope,
-              visible: this.expanded === root.id,
-            },
-          ]),
-          readings: this.marks.map(({ root }) => ({
-            id: `reaction:${root.id}`,
-            text: `${root.emoji} reaction actions`,
-            activate: () => this.margin.focus(`reaction:${root.id}:open`, "move"),
-          })),
-        }),
-        activate: (activation, context) => {
-          const root = this.marks.find(
-            ({ root: candidate }) =>
-              activation === `reaction:${candidate.id}:open` ||
-              activation === `reaction:${candidate.id}:remove`,
-          )?.root;
-          if (!root) return;
-          if (activation === `reaction:${root.id}:remove`) {
-            withdrawReaction(root);
-            return;
-          }
-          this.surface = context.surface ?? null;
-          const currentLocation = focused();
-          setReactionRemoval(this, this.expanded === root.id ? null : root.id, {
-            focus: context.input === "keyboard" && context.origin === currentLocation,
-            surface: this.surface,
-          });
-        },
-      });
-    }
-  }
-
-  /** @param {Map<Element, ReactionGroup>} seats */
-  function seatReactions(seats) {
-    const kept = new Set();
-    for (const [at, held] of seats) {
-      const marks = [...held.before, ...held.inside];
-      const record = reactionSeats.get(at);
-      kept.add(at);
-      if (!record) {
-        reactionSeats.set(at, new ReactionSeat(marks, at));
-        continue;
-      }
-      const changed =
-        record.marks.length !== marks.length ||
-        marks.some(
-          ({ root, receipt }, index) =>
-            root.id !== record.marks[index]?.root.id ||
-            root.emoji !== record.marks[index].root.emoji ||
-            receipt !== record.marks[index].receipt,
-        );
-      record.marks = marks;
-      if (!marks.some(({ root }) => root.id === record.expanded))
-        record.expanded = null;
-      if (changed) record.margin.update();
-    }
-    for (const [at, record] of reactionSeats)
-      if (!kept.has(at)) {
-        record.margin.unregister();
-        reactionSeats.delete(at);
-      }
-  }
-
   function paintMessageReferences() {
     // Missing targets share the quote's detached meaning, but retain the message
     // link's own contour: muted ink and a dashed underline, its press refused. A live
@@ -440,22 +259,12 @@ export function createAnchorControls({
     draftQuote.classList.toggle("lf-quiet", !label || (located && !about));
   }
 
-  // Where a thread's controls stand, by its placement: a bare reaction's receipt at one
-  // element, or a note at each block its passage spans. A resolved thread, and one the
-  // shown version doesn't hold, stand nowhere.
+  // Where a thread's notes stand, by its placement: at each block its passage spans. A
+  // resolved thread, and one the shown version doesn't hold, stand nowhere.
   /** @param {ThreadReading["thread"]} thread @param {ThreadReading["placement"] | undefined} found
-   * @returns {Seats} */
+   * @returns {Element[]} */
   function seatsOf(thread, found) {
-    if (!found || found.status === "outdated" || thread.resolved)
-      return { reaction: null, notes: [] };
-    if (bareReaction(thread)) {
-      // An element target's receipt goes before it, as does a passage seated at a
-      // shadow host; a light-DOM passage's receipt goes inside its seat.
-      const element = Boolean(targetElement(found));
-      const at = element ? found.place : lightSeat(found.place);
-      const before = element || at !== found.place;
-      return { reaction: at && !inChrome(at) ? { at, before } : null, notes: [] };
-    }
+    if (!found || found.status === "outdated" || thread.resolved) return [];
     // A passage seats a note at each block it spans, by the rule its `place` follows:
     // inside a datum, the datum stands for text no block holds.
     const fallback = found.datumElement ? () => found.datumElement : undefined;
@@ -472,41 +281,27 @@ export function createAnchorControls({
     const holders = [];
     for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
       if (holder && !inChrome(holder)) holders.push(holder);
-    return { reaction: null, notes: holders };
+    return holders;
   }
-  /** @param {Seats} a @param {Seats} b */
+  /** @param {Element[]} a @param {Element[]} b */
   const sameSeats = (a, b) =>
-    a.reaction?.at === b.reaction?.at &&
-    a.reaction?.before === b.reaction?.before &&
-    a.notes.length === b.notes.length &&
-    a.notes.every((holder, index) => holder === b.notes[index]);
+    a.length === b.length && a.every((holder, index) => holder === b[index]);
 
   /** @param {AnchorReading} reading */
   function render({ readings, draft }) {
-    // These controls stand on elements of the shown document: a note's block, a
-    // reaction's seat, the section a message's link names. Reading the document here
+    // These controls stand on elements of the shown document: a note's block and the
+    // section a message's link names. Reading the document here
     // draws them again when a revision replaces it, as one that writes its own
     // `aria-details` on a commented block it keeps, which the note's relation must then
     // follow (features/details-shelf.js).
     shownDocument();
     /** @type {Map<Element, [string, ...string[]]>} */
     const notes = new Map();
-    /** @type {Map<Element, ReactionGroup>} */
-    const reactions = new Map();
     seated = new Map();
     for (const { thread, placement: found } of readings) {
       const seats = seatsOf(thread, found);
       seated.set(thread.id, { thread, seats });
-      if (seats.reaction && bareReaction(thread)) {
-        const { at, before } = seats.reaction;
-        const held = reactions.get(at) ?? { before: [], inside: [] };
-        held[before ? "before" : "inside"].push({
-          root: thread.root,
-          receipt: threadMarks(thread, agentName()).workflowReceipt,
-        });
-        reactions.set(at, held);
-      }
-      for (const holder of seats.notes) {
+      for (const holder of seats) {
         const threads = notes.get(holder);
         if (threads) threads.push(thread.id);
         else notes.set(holder, [thread.id]);
@@ -514,7 +309,6 @@ export function createAnchorControls({
     }
     prepareVisualActions();
     anchorNotes.present(notes);
-    seatReactions(reactions);
     paintDraft(draft);
     paintMessageReferences();
   }
@@ -554,23 +348,14 @@ export function createAnchorControls({
     raiseError(missingReference(fragmentId(href)));
   };
 
-  // A press away from a reaction whose removal stands offered takes the offer back
-  // (dom/focus.js, `onPressAway`).
-  /** @param {readonly EventTarget[]} path */
-  const offeredAway = (path) =>
-    [...reactionSeats.values()].filter(
-      (record) =>
-        record.expanded &&
-        !path.some((node) => node instanceof Node && record.margin.contains(node)),
-    );
-
   function mount() {
     if (mounted) return;
+    mounted = true;
     document.addEventListener("lf-layout", onLayoutInvalidated);
     // A script can move a thread with no widget to announce it, as one that draws its
     // block anew or moves its words into another block does. Placement hears it and
     // names the threads it placed again (anchor-placement.js, `hearPlaced`), and where
-    // one of them now seats its note or reaction elsewhere than the last render did, a
+    // one of them now seats its note elsewhere than the last render did, a
     // pass seats it there, as a widget's `lf-layout` asks. Words rewritten inside a
     // block, as a counter redrawn each frame, move no seat and ask for none. A thread
     // the last render didn't read is the anchor paint's to present (anchor-paint.js,
@@ -584,12 +369,6 @@ export function createAnchorControls({
       });
       if (moved) queueInvalidation();
     });
-    mounted = onPressAway(
-      (path) => offeredAway(path).length > 0,
-      (path) => {
-        for (const record of offeredAway(path)) setReactionRemoval(record, null);
-      },
-    );
     messageReferenceRoot.addEventListener("click", onMessageReference);
   }
 
@@ -598,12 +377,9 @@ export function createAnchorControls({
       document.removeEventListener("lf-layout", onLayoutInvalidated);
       stopHearing?.();
       stopHearing = null;
-      mounted();
       messageReferenceRoot.removeEventListener("click", onMessageReference);
     }
-    mounted = null;
-    for (const record of reactionSeats.values()) record.margin.unregister();
-    reactionSeats.clear();
+    mounted = false;
     anchorNotes.destroy();
     withholdVisualActions();
   }

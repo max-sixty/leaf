@@ -21,7 +21,6 @@ import {
 import { elementFromPointAcross, pageWords } from "../readings/passages.js";
 import { presentDocument } from "../state/semantic-state.js";
 import { WORKS } from "../dom/control-selectors.js";
-import { bareReaction } from "../state/thread/model.js";
 import { threadNamed } from "../records/thread/state.js";
 import { threadPreview } from "../records/thread/messages.js";
 import { declareRanges, pointRange } from "./preview.js";
@@ -38,7 +37,6 @@ import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 
 const MARK = "lf-mark";
 const PENDING = "lf-pending";
-const REACT = "lf-react";
 const HOVER = "lf-mark-hover";
 const HERE = "lf-mark-here";
 const MARKED_WORDS = RUNTIME_PAINT_ATTRIBUTE.markedWords;
@@ -141,8 +139,6 @@ export function createAnchorPaint({
   /** @typedef {{order: number, segments: readonly import("../readings/passages.js").Segment[], ranges: readonly Range[]}} Painted */
   /** @type {Map<string, Painted>} */
   const passages = new Map();
-  /** @type {Map<string, readonly Range[]>} */
-  const reacted = new Map();
   // The threads the last paint marks nothing for by their own state: resolved, or
   // drawn rather than marked.
   /** @type {Set<string>} */
@@ -175,37 +171,32 @@ export function createAnchorPaint({
   let resting = false;
   let pointed = false;
 
-  // A comment's and a reaction's marks on words are the annotation layer's, and hiding
-  // the layer (`g H`) registers their highlights empty, so the words wear whatever the page
-  // and the highlights under them give them. Restyling them instead fails in Firefox and
+  // A comment's marks on words are the annotation layer's, and hiding the layer
+  // (`g H`) registers their highlight empty, so the words wear whatever the page and the
+  // highlights under them give them. Restyling them instead fails in Firefox and
   // WebKit, which read a highlight's `color: currentColor` as the element's colour and
   // paint it over a text document's syntax colours. The marks of a gesture (hover, the
   // thread the user is in, the draft) paint either way.
-  /** @param {typeof MARK | typeof REACT} name */
-  function paintDurable(name) {
+  function paintDurable() {
     const ranges = annotationsHidden()
       ? []
-      : name === MARK
-        ? [...passages.values()].flatMap(({ ranges }) => ranges)
-        : [...reacted.values()].flat();
-    CSS.highlights.set(name, new Highlight(...ranges));
+      : [...passages.values()].flatMap(({ ranges }) => ranges);
+    CSS.highlights.set(MARK, new Highlight(...ranges));
   }
   watchAnnotations(() => {
-    if (!mounted) return;
-    paintDurable(MARK);
-    paintDurable(REACT);
+    if (mounted) paintDurable();
   });
 
   // The highlights' rules name the elements whose words they paint (marks.css),
-  // so each such element carries MARKED_WORDS while it holds a comment's, a reaction's or
-  // the draft's words, hidden or shown. A mark then takes its colours from its own
+  // so each such element carries MARKED_WORDS while it holds a comment's or the draft's
+  // words, hidden or shown. A mark then takes its colours from its own
   // element's tokens and `color-scheme` in every engine, with or without highlight
   // inheritance (notes/browser-support.md, "Highlight style inheritance"). The element is
   // the words' parent in their own tree, the light parent of slotted words, which is the
   // one element whose rule paints them in Firefox, or the host of a shadow tree holding
-  // them directly. A paint of the page that changes a comment's or a reaction's marks
-  // holds exactly the elements their passages stand in (`holdOnlyWords`), and one that
-  // changes none, as a keystroke in a comment box may start, reads none of them. A
+  // them directly. A paint of the page that changes a comment's marks holds exactly the
+  // elements their passages stand in (`holdOnlyWords`), and one that changes none, as a
+  // keystroke in a comment box may start, reads none of them. A
   // placement that moves some and a new draft add theirs, and the next paint that
   // changes a mark lets go of the rest.
   /** @type {Set<Element>} */
@@ -224,7 +215,6 @@ export function createAnchorPaint({
     const before = wordsHeld;
     wordsHeld = new Set();
     holdWords([...passages.values()].flatMap(({ ranges }) => ranges));
-    holdWords([...reacted.values()].flat());
     holdWords(CSS.highlights.get(PENDING)?.keys() ?? []);
     for (const element of before)
       if (!wordsHeld.has(element)) element.removeAttribute(MARKED_WORDS);
@@ -243,7 +233,7 @@ export function createAnchorPaint({
     if (element && surface) visualTargets.set(element, surface);
   };
 
-  // An element's threads and reactions draw nothing on it at rest: its margin entry
+  // An element's threads draw nothing on it at rest: its margin entry
   // already says it holds them, and a contour means "this, now". Only a moment projects
   // one — a draft, an action, the pointer on the thread's row in Threads, the thread the
   // user is in.
@@ -514,17 +504,15 @@ export function createAnchorPaint({
       paintVisualStates();
     }
     const arrived = ids.some((id) => {
-      if (passages.has(id) || reacted.has(id) || unmarked.has(id)) return false;
+      if (passages.has(id) || unmarked.has(id)) return false;
       const found = placedAt(id);
       return Boolean(found && found.status !== "outdated");
     });
     if (arrived) return void presentDocument();
-    const affected = new Set(ids.filter((id) => passages.has(id) || reacted.has(id)));
+    const affected = new Set(ids.filter((id) => passages.has(id)));
     if (!affected.size) return;
-    // Hidden, the durable highlights hold nothing, and showing them reads the maps.
-    const shown = !annotationsHidden();
-    const mark = shown ? CSS.highlights.get(MARK) : undefined;
-    const react = shown ? CSS.highlights.get(REACT) : undefined;
+    // Hidden, the durable highlight holds nothing, and showing it reads the map.
+    const mark = annotationsHidden() ? undefined : CSS.highlights.get(MARK);
     /** @type {Set<Node>} */
     const nodes = new Set();
     let whole = false;
@@ -533,14 +521,6 @@ export function createAnchorPaint({
       const segments = targetSegments(found);
       const ranges =
         found?.kind === "passage" && found.status !== "outdated" ? found.ranges : null;
-      const was = reacted.get(id);
-      if (was) {
-        for (const range of was) react?.delete(range);
-        reacted.set(id, ranges ?? []);
-        holdWords(ranges ?? []);
-        for (const range of ranges ?? []) react?.add(range);
-        continue;
-      }
       const old = /** @type {Painted} */ (passages.get(id));
       for (const segment of old.segments) nodes.add(segment.node);
       for (const range of old.ranges) mark?.delete(range);
@@ -699,10 +679,8 @@ export function createAnchorPaint({
   function paint({ readings, draft, action }) {
     const before = outlined();
     const last = new Map(marked);
-    const lastReacted = new Map(reacted);
     marked.clear();
     passages.clear();
-    reacted.clear();
     unmarked.clear();
     orderOf.clear();
     pendingOutline = [];
@@ -720,11 +698,6 @@ export function createAnchorPaint({
       if (found.status === "outdated" || thread.resolved) continue;
 
       const ranges = found.kind === "passage" ? (found.ranges ?? []) : [];
-      if (bareReaction(thread)) {
-        reacted.set(thread.id, ranges);
-        continue;
-      }
-
       const kept = last.get(thread.id);
       orderOf.set(thread.id, orderOf.size);
       if (targetElement(found)) {
@@ -750,24 +723,15 @@ export function createAnchorPaint({
       marked.size !== last.size ||
       [...marked].some(([id, marks], at) => order[at] !== id || last.get(id) !== marks);
     if (remarked) index();
-    const rereacted =
-      reacted.size !== lastReacted.size ||
-      [...reacted].some(([id, ranges]) => {
-        const was = lastReacted.get(id);
-        return (
-          !was || was.length !== ranges.length || ranges.some((r, at) => r !== was[at])
-        );
-      });
     draftDraws = Boolean(draft.drawing);
     paintPending(draft.resolved);
-    if (remarked || rereacted) holdOnlyWords();
+    if (remarked) holdOnlyWords();
 
     actionOutline = targetElement(action) ? targetParts(action) : [];
     if (action) rememberVisual(action);
     paintOutlines(before);
 
-    if (remarked) paintDurable(MARK);
-    paintDurable(REACT);
+    if (remarked) paintDurable();
     paintCurrentLocation(false);
     // A pass that made new marks rebinds the hover to them even when the semantic id
     // did not change, then updates the shared visual projection once.
@@ -803,7 +767,6 @@ export function createAnchorPaint({
     const before = outlined();
     marked.clear();
     passages.clear();
-    reacted.clear();
     unmarked.clear();
     index();
     pendingOutline = [];
@@ -812,7 +775,7 @@ export function createAnchorPaint({
     for (const element of hereParts) element.classList.toggle(HERE, false);
     for (const element of [...hoverParts, hoveredRow])
       element?.classList.toggle(HOVER, false);
-    for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
+    for (const name of [MARK, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
     holdOnlyWords();
     targetPaint.setTargets([]);
     visualTargets.clear();

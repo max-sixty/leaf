@@ -78,7 +78,7 @@ import {
   savedReadingSettled,
 } from "../dom/keyboard/bindings.js";
 import { emojiChoices, reactionsAt } from "../state/thread/model.js";
-import { allThreads, readThreads } from "../records/thread/state.js";
+import { readThreads, threadList } from "../records/thread/state.js";
 import { effect, untracked } from "/vendor/signals-core.js";
 import { annotationSelection } from "../features/annotation-inventory.js";
 import { readPart } from "../state/semantic-state.js";
@@ -105,7 +105,7 @@ export const reactionAvailable = () => readThreads().phase === "ready";
 /** @param {Anchor | null} anchor */
 const anchorChoices = (anchor) =>
   reactionAvailable()
-    ? emojiChoices(reactionEmoji(), anchor ? reactionsAt(allThreads(), anchor) : [])
+    ? emojiChoices(reactionEmoji(), anchor ? reactionsAt(threadList(), anchor) : [])
     : [];
 
 // One reaction as a press in the response bar; a reply's strip builds its own
@@ -605,7 +605,7 @@ export function createReactionController({
     // change to either may retire or move the offer's target. This reads the margin's
     // nodes, which the watcher cannot track, so it reads those parts itself.
     const margin = readPart((root) => ({
-      threads: root.effective.thread.all,
+      threads: root.effective.thread.collection.threads,
       annotations: annotationSelection(root),
     }));
     effect(() => {

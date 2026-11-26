@@ -18,7 +18,7 @@
    this renderer to finish. Its caret follows the actual returned editor; its failures
    reach the page's existing asynchronous error channel. */
 import { reportPageError } from "../../transport/layer-client.js";
-import { threadState, readThreads } from "./state.js";
+import { readThreads, threadList } from "./state.js";
 import { holdThreadPlace } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
 import { surfaceFocusTarget } from "./surfaces.js";
@@ -83,7 +83,7 @@ export function createThreadPresentation({
     region: "thread",
     after: PRESENTATION_DOM.projection,
     reading: () =>
-      runtime.statePhase === "waiting" && !threadState().all.length ? "waiting" : true,
+      runtime.statePhase === "waiting" && !threadList().length ? "waiting" : true,
     // A pass reads the latest root. The time it shows is followed with the rest of what
     // it reads, so a clock change claims another pass through the same presenter, whose
     // current predicate also retires in-flight preparation.
@@ -123,8 +123,8 @@ export function createThreadPresentation({
     /** @type {ReturnType<typeof renderSurfaces> | null} */
     let surfaces = null;
     try {
-      const { all: threads } = threadState();
       const collection = readThreads();
+      const { threads } = collection;
       const continueReplies = holdReplyCompositions(threads, continueThread);
       const readTargets = () => {
         const anchors = anchorPlacement.read({

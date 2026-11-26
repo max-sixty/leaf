@@ -7,7 +7,7 @@
    defaults to the active revision; a resumed draft supplies the revision captured
    with its anchor, even after the active document has changed. */
 import { randomId } from "../../base/ids.js";
-import { discussed, editable } from "../../state/thread/model.js";
+import { editable } from "../../state/thread/model.js";
 import { threadNamed } from "./state.js";
 
 /** @typedef {import("../../../types/domain.js").PendingCommand} PendingCommand */
@@ -42,18 +42,10 @@ export function createThreadActions({
     });
     return Object.freeze({ key: attempt, delivery });
   };
-  // A visible local thread is a current root while saved history is loading too.
-  // Its replies and settlement use the same ledger dependency on that opening send.
-  /** @param {string} key */
-  const find = (key) => {
-    const thread = threadNamed(key);
-    return thread && discussed(thread) ? thread : null;
-  };
-
   /** @param {string} key @param {string} text @param {{attempt?: string}} [options] */
   const reply = (key, text, { attempt } = {}) => {
     if (!text) return null;
-    const thread = find(key);
+    const thread = threadNamed(key);
     if (!thread) return null;
     const revision = currentRevision();
     if (revision === null) return null;
@@ -72,7 +64,7 @@ export function createThreadActions({
   /** @param {string} key @param {string} messageId @param {string} text
    * @param {{attempt?: string, base?: string}} [options] */
   const edit = (key, messageId, text, { attempt, base } = {}) => {
-    const thread = find(key);
+    const thread = threadNamed(key);
     if (!thread) return null;
     const message = thread.msgs.find((item) => item.id === messageId);
     if (!message || !editable(message) || text === message.text) return null;
@@ -89,7 +81,7 @@ export function createThreadActions({
   // card still draws it open (held-news.js), sends nothing.
   /** @param {string} key @param {boolean} resolved @param {{attempt?: string}} [options] */
   const settle = (key, resolved, { attempt } = {}) => {
-    const thread = find(key);
+    const thread = threadNamed(key);
     if (!thread || Boolean(thread.resolved) === resolved) return null;
     return post({
       kind: resolved ? "resolve" : "unresolve",
@@ -104,7 +96,7 @@ export function createThreadActions({
   const setReaction = (key, messageKey, emoji, active) => {
     if (typeof active !== "boolean")
       throw new TypeError("A reaction needs its desired state");
-    const thread = find(key);
+    const thread = threadNamed(key);
     const message = thread?.msgs.find((item) => item.key === messageKey);
     const choice =
       message && message.reactions?.choices.find((item) => item.emoji === emoji);
@@ -128,7 +120,7 @@ export function createThreadActions({
     /** @param {string} key
      * @param {{message?: string | null} & Parameters<ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]>[1]} options */
     async open(key, { message = null, ...options } = {}) {
-      const thread = find(key);
+      const thread = threadNamed(key);
       if (!thread) return null;
       const target =
         message === null ? thread : thread.msgs.find((item) => item.key === message);

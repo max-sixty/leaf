@@ -275,13 +275,11 @@ user's turn as a reply in words does. Admission takes any one emoji, in the form
 record schema's `emoji` pattern states; the layer's `$reactions` lists the emoji the
 browser offers the user to pick from, held to the same form.
 
-The browser draws two kinds of reaction as a mark on what they are on: the reaction that
-opened a thread nothing else has been said in, on its anchor (`events.bare_reaction`),
-and the user's reaction on the agent's message, as a chip on that message. It draws
-the agent's reactions as messages in their thread, and a thread a reaction opened as a
-thread once anything else is said in it. The user takes back a reaction of theirs by
-pressing its emoji again, while its thread is open and stands where the reaction was
-put, whatever has been said since.
+The browser draws the user's reaction on the agent's message as a chip on that
+message, and every other reaction as a message in its thread, so a thread a reaction
+opened is a thread like any other from the moment it is put on. The user takes back a
+reaction of theirs by pressing its emoji again, while its thread is open and stands
+where the reaction was put, whatever has been said since.
 
 ### Read state
 

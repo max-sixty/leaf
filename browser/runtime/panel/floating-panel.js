@@ -245,7 +245,6 @@ import {
   threadNamed,
 } from "../records/thread/state.js";
 import {
-  discussed,
   isNews,
   lastChange,
   newestFirst,
@@ -1740,10 +1739,7 @@ export function createFloatingPanel({
   const threads = () => readThreads().threads;
   const inventoried = () => readThreads().phase === "ready";
   /** @param {string | null | undefined} key */
-  const threadByKey = (key) => {
-    const thread = key ? threadNamed(key) : null;
-    return thread && discussed(thread) ? thread : null;
-  };
+  const threadByKey = (key) => (key ? threadNamed(key) : null);
   // The thread a route shows, where it shows one the reading holds.
   /** @param {PanelRoute | null | undefined} route */
   const threadOf = (route) => (route?.thread ? threadByKey(route.thread) : null);

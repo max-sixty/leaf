@@ -96,7 +96,7 @@ import {
 } from "./runtime/readings/target-paint.js";
 import { pointerAt } from "./runtime/base/pointer.js";
 import { createWritingResume } from "./runtime/records/drafts.js";
-import { allThreads } from "./runtime/records/thread/state.js";
+import { threadList } from "./runtime/records/thread/state.js";
 import { anchorLabel } from "./runtime/records/thread/messages.js";
 import { createThreadAddress } from "./runtime/records/thread/address.js";
 import {
@@ -173,12 +173,7 @@ import {
 import { mountRepaint, repaint, repaintPage } from "./runtime/dom/repaint.js";
 import { openDocumentLayout } from "./runtime/readings/content-layout.js";
 import { createNavigation, placeThreadEdge } from "./runtime/panel/navigation.js";
-import {
-  declareReading,
-  focusDestination,
-  releaseFocus,
-  focused,
-} from "./runtime/dom/focus.js";
+import { declareReading, focusDestination, releaseFocus } from "./runtime/dom/focus.js";
 import { announce, liveEl, notice } from "./runtime/transport/notifications.js";
 import { mediaViewer } from "./runtime/records/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/dom/user-intent.js";
@@ -305,7 +300,7 @@ async function boot() {
   anchorPlacement.hearPlaced((change) => anchorPaint.replace(change));
   const drawingPaint = createDrawingInk({
     drawings: () => [
-      ...(annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? []),
+      ...(annotationRenderer?.postedDrawings(threadList(), anchorPlacement) ?? []),
       ...drawing.drawings(),
     ],
   });
@@ -372,15 +367,12 @@ async function boot() {
   const anchorControls = createAnchorControls({
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
     openThread: (...args) => app.threadDestinations.openPageThread(...args),
-    withdrawReaction: (...args) => app.withdraw(...args),
     labelAnchor: anchorLabel,
     invalidateThread: () => app.refreshThread(),
     invalidatePageGeometry: pageGeometry.invalidate,
     placement: anchorPlacement,
     messageReferenceRoot: chromeRoot,
     draftQuote: composerQuote,
-    focused,
-    paintKeys,
   });
 
   // Where the user is in the chrome's thread views, a margin card or entry and the

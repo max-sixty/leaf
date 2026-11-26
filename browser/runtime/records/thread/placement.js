@@ -68,7 +68,7 @@ import { kept } from "../../state/kept.js";
 /** @typedef {(id: string) => {place: Element | null} | null | undefined} PlacedAt */
 /** Where anchor placement puts a thread, a saved draft or the comment being composed
  * (annotations/anchor-placement.js), as the readers it is handed to read it.
- * @typedef {ReturnType<typeof import("./state.js").allThreads>[number]} Thread
+ * @typedef {ReturnType<typeof import("./state.js").threadList>[number]} Thread
  * @typedef {import("../../../types/contract.js").CompleteUnion<import("../../readings/resolved-target.js").ResolvedTarget & {message?: string}>} ResolvedTarget
  * @typedef {ResolvedTarget & {messageTarget: ReturnType<typeof import("./messages.js").messageHolding>,
  * point: Element | null, pointRow: string | null, pointWords: string | null}} Placement
@@ -215,7 +215,7 @@ export function partTrail(node) {
 // page.
 /** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations */
 const gatherConversations = kept(() => {
-  const { all, bySection } = threadState();
+  const { collection, bySection } = threadState();
   const agent = agentName();
   /** @type {Map<Element, Conversations>} */
   const inside = new Map();
@@ -236,7 +236,7 @@ const gatherConversations = kept(() => {
   for (const [id, positions] of bySection) {
     const element = elementById(id);
     if (!element || !inPage(element)) continue;
-    const threads = positions.flatMap((at) => all[at] ?? []);
+    const threads = positions.flatMap((at) => collection.threads[at] ?? []);
     const these = {
       threads: threads.length,
       turn:

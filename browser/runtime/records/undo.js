@@ -170,7 +170,7 @@ import { signal } from "/vendor/signals-core.js";
  * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "emoji" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
- * @typedef {import("../../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("../base/snapshot.js").Immutable<import("../../types/domain.js").Event | import("../../types/domain.js").Message>>>} UndoEvent
+ * @typedef {import("../../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").threadList>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("../base/snapshot.js").Immutable<import("../../types/domain.js").Event | import("../../types/domain.js").Message>>>} UndoEvent
  * @typedef {typeof runtime.undo[number]} UndoEntry
  * @typedef {Omit<import("./drafts.js").Discarded, "at"> & {kind: "discard", attempt: string, ts: string,
  * before: {seq: number, attempts: ReadonlySet<string>}, message: string | null, widget: string | null}} Discard

@@ -42,7 +42,7 @@ import { registry } from "../../state/registry.js";
 import { watchArrivals } from "../../dom/arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads, threadIdNamed, threadNamed } from "./state.js";
-import { discussed, seatOf, seatRoot } from "../../state/thread/model.js";
+import { seatOf, seatRoot } from "../../state/thread/model.js";
 import { threadFocusDestination } from "./focus.js";
 import { under, closestAcross } from "../../lib/shadow-tree.js";
 import { declareSide } from "../current-target.js";
@@ -171,7 +171,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     reveal(key) {
       if (registrations.get(owner) !== registration) return false;
       const thread = threadNamed(key);
-      return thread && discussed(thread) ? reveal(thread.id) : false;
+      return thread ? reveal(thread.id) : false;
     },
     open(node) {
       if (registrations.get(owner) !== registration) return false;

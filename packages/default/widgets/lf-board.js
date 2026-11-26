@@ -37,8 +37,7 @@
  *
  * The user chose this over the board reading the widget's state and recording the
  * widget's own verb, which tied the board to each widget's verbs, record kinds and
- * members, did nothing off Leaf, and needed a package function that reads any widget's
- * state. An Answer record, or a value on the question's group, would move the answer
+ * members, and needed a package function that reads any widget's state. An Answer record, or a value on the question's group, would move the answer
  * off the widget that owns its words, options and obligation.
  *
  * `page check` and message admission refuse a `shows` naming a widget that holds no
@@ -46,8 +45,8 @@
  * refusal over the board reporting a bad `shows` as it draws, since a contract-bound
  * input gives it without a registry map of the widgets a card may show. The append
  * door admits a board move of a card with `shows`, so the board never sends its own
- * move for one (#movable, #send) and draws it by its choice whatever the board's move
- * state holds.
+ * move for one (#movable, #send) and, once the choice has arrived, draws it by its
+ * choice whatever the board's move state holds.
  * Where the choice offers no value but the empty one, no pick puts the card in a column
  * with a `value`, and the board reports it to the author as the page's error
  * (#reportUnshown). Nothing draws a message before the user opens its thread, so there
@@ -692,14 +691,17 @@ customElements.define(
         // The choice moves the card, through its widget's `--choose`; a move within its
         // column asks for nothing. Either way the release below draws the card where
         // the choice the widget then holds puts it, so a refused or unchanged choice
-        // puts the card back.
-        if (to !== from)
-          this.#ask(
-            card,
-            this.#holds(to),
-            `Moved “${this.#title(card)}” to ${to.getAttribute("label")}`,
-          );
-        this.#finishGesture();
+        // puts the card back, as does a request that throws.
+        try {
+          if (to !== from)
+            this.#ask(
+              card,
+              this.#holds(to),
+              `Moved “${this.#title(card)}” to ${to.getAttribute("label")}`,
+            );
+        } finally {
+          this.#finishGesture();
+        }
         return;
       }
       this.record(
@@ -732,13 +734,12 @@ customElements.define(
     // (`package-data.md`, "Asking another widget to act").
     /** @param {Element} card @param {string} value @param {string} says */
     #ask(card, value, says) {
-      const owner = elementById(showsId(card) ?? "", card);
-      const button = document.createElement("button");
-      button.value = JSON.stringify({ value, says });
-      owner?.dispatchEvent(
+      elementById(showsId(card) ?? "", card)?.dispatchEvent(
         new CommandEvent("command", {
           command: "--choose",
-          source: button,
+          source: Object.assign(document.createElement("button"), {
+            value: JSON.stringify({ value, says }),
+          }),
           cancelable: true,
         }),
       );
@@ -863,6 +864,9 @@ customElements.define(
       if (!this.state) return nothing;
       this.#reportUnshown();
       this.#arrange(this.#placement());
+      // The columns a card showing a choice offers follow the choice, which may arrive
+      // after the board has set up and move no card.
+      this.#names();
       this.#paintAvailability();
       return nothing;
     }

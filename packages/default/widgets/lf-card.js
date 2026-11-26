@@ -1,7 +1,7 @@
 /* lf-card: one card on a board. A card whose `shows` names another widget is a view of
    the pick that widget holds as its `choice`, which the card binds as an input
    (`inputs`), so Leaf sets it on `choice` as the pick moves. Its board stands the card
-   in the column the pick names and asks the widget for a move (lf-board.js), so the
+   in the column the pick names and asks the widget for a pick (lf-board.js), so the
    card only asks its board to draw again. The class exists so that Leaf drives the
    card, since Leaf sets nothing on an element whose class isn't defined; every card is
    driven, whether or not it has `shows`. */

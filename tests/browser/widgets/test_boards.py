@@ -16,6 +16,7 @@ from render_harness import (
     PREVIEW,
     clocked,
     consume_browser_errors,
+    holding,
     http_error_console,
     leaf_page,
     open_page,
@@ -32,6 +33,7 @@ from render_harness import (
 )
 
 from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -954,6 +956,33 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
     page.unroute("**/api/event")
     consume_browser_errors(page, http_error_console(400))
     assert len(picks()) == 2
+
+
+def test_a_card_offers_the_columns_its_choice_takes_once_the_choice_arrives(
+    browser, serve
+):
+    """A board can set up before the question's choice reaches its card, as when the
+    options' module loads last. A card the markup already stands in its choice's
+    column then still offers a button for each other column the choice takes, once
+    the choice arrives."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    held = []
+    page.route("**/widgets/lf-options.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    holding(page, held, 1, "the options module")
+    expect(page.locator("#card-rail .lf-grip")).to_be_attached()
+    held[0].continue_()
+    page.unroute("**/widgets/lf-options.js")
+    wait_until_ready(page)
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+    for column, offered in (
+        ("col-open", True),
+        ("col-next", True),
+        ("col-later", False),
+    ):
+        expect(
+            page.locator(f'#card-rail [data-lf-board-target="{column}"]')
+        ).to_have_js_property("hidden", not offered)
 
 
 def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):

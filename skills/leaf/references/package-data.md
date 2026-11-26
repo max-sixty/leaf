@@ -75,10 +75,11 @@ nothing, with no error.
 The target decides what a request does: it takes the request as its own change,
 adjusts it, as a budget holds an amount to its cap, or refuses it with
 `event.preventDefault()`. So the asker draws the target's value, never what it asked
-for, and draws again from that value after every request, taken or not. Leaf sets the
-asker's input before `dispatchEvent` returns where the value changed and sets nothing
-where it didn't, so a slider that kept its thumb at the 60 the user dragged to would
-go on showing 60 while the budget holds 40.
+for, and draws again from that value after every request, taken or not. Where the
+target sets its value inside its `command` listener, Leaf has set the asker's input by
+the time `dispatchEvent` returns. Where the value stays as it was, Leaf sets nothing,
+so a slider that kept its thumb at the 60 the user dragged to would go on showing 60
+while the budget holds 40.
 
 A request no button on the page makes, such as a dragged handle, a typed number or a
 drop on a board, is the same event, which the module dispatches on the target itself

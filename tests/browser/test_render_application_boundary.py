@@ -675,7 +675,7 @@ def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
     expect_obligations_answered(page, "1/1")
 
 
-def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):
+def test_page_owned_registry_and_widget_use_the_captured_controller(browser, serve):
     # The widget the test takes out and puts back stands last in the page, where neither
     # moves anything else.
     source = LIVE_V1.replace(

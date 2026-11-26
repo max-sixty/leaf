@@ -49,7 +49,7 @@ from browser.threads import (
     open_panel_thread,
     thread_row,
 )
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed

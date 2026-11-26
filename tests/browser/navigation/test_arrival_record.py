@@ -34,7 +34,7 @@ from render_harness import (
 from browser.startup.test_readiness import answer_as_another_runtime
 from browser.test_render_drawing import draw_over
 from browser.threads import open_panel_thread
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel, on_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed

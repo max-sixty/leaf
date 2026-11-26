@@ -28,7 +28,7 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import choose_threads_in_panel
 
 
@@ -144,7 +144,7 @@ from render_harness import (
     page_comment,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

@@ -32,7 +32,7 @@ The table lists each fact the fold reads, and when it stops being believed.
 | the turn ending this page last nudged its session after                | `messaged_ending` in the claim                                                                  | `PageTransaction.note_messaged`, once a nudge lands or a watch wakes the session                                                                                                                                                 | a later ending differs from it                                                                                                                                                                                                     |
 | wait lease                                                             | `waiter.lock`, or `sessions/<session>.wait` for a harness session                               | `leaf wait`, or a harness's watch between turns; the kernel lock proves it live, never the file (`leases.py`)                                                                                                                    | process exit, a crash included, or a later watch superseding it; and by a Leaf at a later page protocol than the one the file names, which that watch can't read (`leases.wait_is_live`)                                           |
 | the harness runs Leaf's hooks for this session                         | `sessions/<session>.hooks`                                                                      | every Leaf hook                                                                                                                                                                                                                  | SessionEnd                                                                                                                                                                                                                         |
-| acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`service.acknowledged`)                          | `delivery.receive_batch` or `delivery.receive_passed`, called by whatever confirms a delivery reached its consumer                                                                                                               | never; it only advances within its log                                                                                                                                                                                             |
+| acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`transaction.acknowledged`)                      | `delivery.receive_batch` or `delivery.receive_passed`, called by whatever confirms a delivery reached its consumer                                                                                                               | never; it only advances within its log                                                                                                                                                                                             |
 | pickup transition                                                      | a `pickup` event                                                                                | `queued`: Codex's adapter, when Codex accepts a batch it can't observe; `opened`, with session and turn: whatever puts the batch into a turn                                                                                     | never; each transition is idempotent                                                                                                                                                                                               |
 | page claim: acquisition, session generation, display name, harness     | `<state-home>/claims/<page-key>.json`, located from the session's partition (`page-storage.md`) | `server start` from an agent harness, or its prompt hook serving the page again                                                                                                                                                  | its generation ended or was replaced, or the harness lifetime is gone: the pid, the background job's record, the Claude desktop app's record of the session, or a desktop Codex chat's native transcript (`service.session_lives`) |
 | service lifetime                                                       | `service.json`                                                                                  | `server start`: session or persistent                                                                                                                                                                                            | `leaf server stop`; a session server also retires when no live claim holds it                                                                                                                                                      |
@@ -310,11 +310,21 @@ its session's record alone, whatever harness the claim names
 (`service.held_elsewhere`). So no other Leaf moves a held page to a protocol its
 session's hooks can't read, whatever the two protocols are.
 
-Every Leaf reads a session's lifecycle record and its claims whichever Leaf wrote
-them, through the keys every shape of each keeps (`state.Record.read_any`). So a
-session goes on in its generation when an update changes either record's shape: its
-claims stay live, the server of its page follows it to the new copy, and its input
-stays its own. A page whose session ended under another Leaf is free.
+A Leaf reads a session's lifecycle record and its claims only at its own shapes,
+and reads a page as held while a claim of another shape stands, or a lifecycle of
+another shape for a claim's session whose generation this Leaf's record doesn't name
+(`service.page_holder`). So across an update that changes either record's
+shape, the session's pages stay held: no terminal re-initializes them, no `leaf wait`
+takes their input, and another session takes them only by claiming them, which ends
+the claim at every shape (`service.publish_claim`). One that changes the lifecycle's
+shape meets the session as a resumed one: its first prompt under the new Leaf starts
+a generation and serves its pages again (`reconnect`). One that changes the claim's
+shape leaves the new Leaf no claim of the session's to read, so nothing follows its
+pages to the new copy and their input waits until the session takes each again with
+`leaf server start`, which the refusals of its other commands on the page name. A
+session that ended under the older Leaf leaves that Leaf's lifecycle standing, so its
+pages stay held for the newer one until an agent's session takes each over the same
+way.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):
@@ -372,8 +382,8 @@ A serving producer holds the page's transition lock from bind through acceptance
 second start or a stop waits for it and never adopts an uncommitted listener. A
 refusal or cancellation before acceptance leaves the previous claim, service and
 preview watcher as they were. The lock order is page, then session
-(`service.publishing_claim`): the commit publishes the service and then the claim, and
-does no harness or network work while it holds them. Each acquisition has its own id,
+(`transaction.PageTransaction.publishing_claim`): the commit publishes the service and
+then the claim, and does no harness or network work while it holds them. Each acquisition has its own id,
 so a rollback compares claim publications rather than lifecycle fields or timestamps.
 `hosting.claim_and_start` and `detached.py` own the handshake that accepts a start and
 the cleanup an unconfirmed one leaves.

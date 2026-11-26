@@ -33,10 +33,10 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, panel_tab, scroll_settled
 
 PAGE = leaf_page(

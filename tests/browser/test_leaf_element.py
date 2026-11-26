@@ -5,7 +5,7 @@ import json
 from playwright.sync_api import expect
 from smoke.test_plain_page import ROOT, host_page, install
 
-from leaf.revision_delivery import layer_import_map
+from leaf.serving.revision_delivery import layer_import_map
 
 
 def test_a_host_updates_and_reconnects_a_portable_element(browser):

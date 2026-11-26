@@ -25,15 +25,15 @@ from interact_support import (
 )
 from model.interact_contract import _value_verb
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage
+from leaf.agents import thread as thread_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
 from leaf_dev.page_fixtures import package_selection_args
 
 

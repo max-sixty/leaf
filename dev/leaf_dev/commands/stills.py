@@ -73,10 +73,10 @@ from PIL import Image
 from playwright.sync_api import Page, expect
 from selenium.webdriver.remote.webdriver import WebDriver
 
-from leaf.render_checks import open_render_context, open_render_page
-from leaf.revision_artifact import resource_type
-from leaf.runtime_selection import read_runtime
-from leaf.schema import DEFAULT_PACKAGE
+from leaf.base.schema import DEFAULT_PACKAGE
+from leaf.source.render_checks import open_render_context, open_render_page
+from leaf.source.revision_artifact import resource_type
+from leaf.source.runtime_selection import read_runtime
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
 from leaf_dev.browser import (

@@ -67,9 +67,9 @@ from render_harness import (
 
 from browser.margin import MARGIN_EDITOR_ROOTS, MARGIN_TEXT_LINES
 from browser.threads import append_agent_reply
-from leaf import event_log
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.agents import thread as thread_model
+from leaf.log import event_log
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 # One source line, so a phrase's offset in the source is its offset in the text node.

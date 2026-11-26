@@ -42,9 +42,9 @@ from browser.margin import (
     _unfold,
     _unfold_suggestion_undo,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

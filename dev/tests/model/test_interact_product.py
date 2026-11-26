@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from leaf.structure import SourceDocument
+from leaf.source.structure import SourceDocument
 from leaf_dev import corpus
 from leaf_dev.example_data import (
     CORPUS,

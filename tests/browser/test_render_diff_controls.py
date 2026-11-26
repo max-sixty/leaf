@@ -17,8 +17,8 @@ from render_harness import (
     sending,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.source import data as data_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 

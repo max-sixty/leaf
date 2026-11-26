@@ -12,7 +12,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 
 def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):

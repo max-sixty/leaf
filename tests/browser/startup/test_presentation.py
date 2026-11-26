@@ -20,9 +20,9 @@ from render_harness import (
 )
 
 from browser.startup import _hold_startup
-from leaf import data as data_model
-from leaf import user_views as user_views_model
-from leaf.render_checks import wait_until_ready
+from leaf.serving import user_views as user_views_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

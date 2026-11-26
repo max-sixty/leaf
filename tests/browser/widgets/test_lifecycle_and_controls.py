@@ -12,7 +12,7 @@ from render_harness import displayed, leaf_page, open_page
 from browser.widgets import (
     _bound_diff,
 )
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

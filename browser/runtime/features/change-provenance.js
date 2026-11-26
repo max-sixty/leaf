@@ -7,7 +7,7 @@
 
    The server says which, with the base's document the comparison asks for
    (`/api/view`, `saved_after`), each revision of the version judged by the log up to
-   where it went live (src/leaf/provenance.py, `saved_after`, whose header says how far
+   where it went live (src/leaf/log/provenance.py, `saved_after`, whose header says how far
    the order holds), or says nothing, for a comparison across several versions. This
    module says it in words (`versionProvenance`), naming the version by its stamp,
    else Draft.

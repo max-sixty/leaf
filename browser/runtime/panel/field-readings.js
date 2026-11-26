@@ -85,7 +85,7 @@ import { noticeWords } from "../transport/notifications.js";
 
 /** @typedef {import("../base/voice.js").Words} Words
  * @typedef {import("../base/voice.js").Said} Said
- * @typedef {import("../annotations/composing/input.js").BoxPress} BoxPress
+ * @typedef {import("../records/composition-input.js").BoxPress} BoxPress
  * @typedef {"key" | "comment" | "moment" | "none"} End
  */
 

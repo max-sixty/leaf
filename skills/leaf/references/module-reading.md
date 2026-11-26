@@ -243,7 +243,7 @@ arrives. Each `source.kind` adds its own facts:
 
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{emoji}` for a
-  settling reaction). Once its
+  reaction). Once its
   thread is resolved after it, it stays `waiting` with no `next_actor`, even when the
   thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's

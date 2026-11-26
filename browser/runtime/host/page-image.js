@@ -56,8 +56,8 @@ export const pageRenderer = async () => {
   return { snapdom, isSampleFrame, sampleFrameImage };
 };
 
-/** @typedef {{left: number, right: number, top: number, bottom: number}} Bounds */
-/** @param {Bounds} a @param {Bounds} b */
+/** @import { Box } from "../base/box.js" */
+/** @param {Box} a @param {Box} b */
 const holds = (a, b) =>
   a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
 
@@ -100,7 +100,7 @@ function* laidOut(parent, skip) {
   }
 }
 
-/** @param {Bounds} region @param {string} skip */
+/** @param {Box} region @param {string} skip */
 function captureRoot(region, skip) {
   let root = document.body;
   const ground = [getComputedStyle(document.documentElement).backgroundColor];
@@ -138,7 +138,7 @@ function captureRoot(region, skip) {
   return { root, ground: `rgba(${channels.join(", ")})` };
 }
 
-/** @typedef {{blob: Blob, warnings: string[]}} PageImage */
+/** @import { PageImage } from "../base/sample-protocol.js" */
 /** @param {{x: number, y: number, width: number, height: number}} clip @param {{exclude?: string[]}} [options] @returns {Promise<PageImage>} */
 export async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();

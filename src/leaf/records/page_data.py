@@ -26,7 +26,14 @@ from leaf.base.schema import DATA_SOURCE_NAME
 from leaf.base.state import now_iso
 from leaf.log.thread_context import thread_structure
 from leaf.records.transaction import PageTransaction
-from leaf.source.data import PUBLICATION, read_source, source_file, write_data
+from leaf.source.data import (
+    PUBLICATION,
+    data_of,
+    read_data,
+    read_source,
+    source_file,
+    write_data,
+)
 from leaf.source.data_contracts import (
     DataError,
     authored_readings,
@@ -35,6 +42,7 @@ from leaf.source.data_contracts import (
     merge_data_document_readings,
     payload_error,
 )
+from leaf.source.file_bindings import bound_paths
 from leaf.source.revision_artifact import read_revision, revision_history
 from leaf.source.vocabulary import read_page_registry
 
@@ -89,6 +97,16 @@ def working_data_bindings(
     )
 
 
+def bound_data(page_dir: Path, registry: dict, events: list) -> dict:
+    """The page's data (`data.read_data`) less each source no revision or message of
+    the page binds, such as a file the page grants an editor alone or one only an
+    unpublished source binds (`data.data_of`)."""
+    bindings, _errors = merge_data_document_readings(
+        page_data_document_readings(page_dir, events, registry)
+    )
+    return data_of(read_data(page_dir, registry), bindings)
+
+
 def page_data_binding_inventory(
     page_dir: Path,
     registry: dict,
@@ -120,6 +138,19 @@ def page_data_binding_inventory(
     return {source: inventory[source] for source in sorted(inventory)}
 
 
+def _published(page_dir: Path, source: str) -> None:
+    """Refuse a write or clear of `source` that no publication of the page could
+    take: a malformed id, or a bound file's, whose file is its source
+    (`data.file_sources`) and what a write changes."""
+    if re.fullmatch(DATA_SOURCE_NAME, source) is None:
+        raise DataError(f"invalid source name {source!r}")
+    if source in bound_paths(page_dir):
+        raise DataError(
+            f"source {source!r} is a bound file; write the file itself, and the page "
+            "shows each write"
+        )
+
+
 def _write_source(page_dir: Path, source: str, value) -> dict:
     """Validate and atomically replace one source's value, returning its reading."""
     try:
@@ -130,9 +161,8 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
         value = json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
     except (TypeError, ValueError) as error:
         raise DataError(f"source {source!r} value is not JSON: {error}") from error
-    if re.fullmatch(DATA_SOURCE_NAME, source) is None:
-        raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir) as page:
+        _published(page_dir, source)
         registry = read_page_registry(page_dir).registry
         bindings, binding_errors = working_data_bindings(
             page_dir, registry, page.events
@@ -177,9 +207,8 @@ def cmd_data_set(page_dir: Path, source: str, value) -> dict:
 def cmd_data_clear(page_dir: Path, source: str) -> dict:
     """Remove one source's publication, its value with the contract it was set
     under; its next write takes the binding it has then."""
-    if re.fullmatch(DATA_SOURCE_NAME, source) is None:
-        raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir):
+        _published(page_dir, source)
         try:
             PUBLICATION.file(source_file(page_dir, source)).unlink()
             cleared = True

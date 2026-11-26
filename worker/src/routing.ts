@@ -24,8 +24,9 @@ interface SitePage {
   layer: string;
   /** The current revision's entry in `states`. */
   state: string;
-  /** Each revision's published projection, keyed by revision number. */
-  states: Record<string, string>;
+  /** Each revision's published projection, keyed by revision number. A request may
+   * name a revision the page lacks. */
+  states: Partial<Record<string, string>>;
   title: string;
 }
 

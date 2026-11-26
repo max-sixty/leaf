@@ -43,12 +43,21 @@ def write_clock() -> int:
     return time.clock_gettime_ns(WRITE_CLOCK)
 
 
-def file_stamp(path: Path):
+def file_stamp(path: Path, *, changed: bool = False):
     """What the filesystem says a file or directory is: which one, when it was last
     written, and how big it is. A page directory holds files that are written once and
     read on every request, so what each one says is worked out once and kept under this
     stamp, and one rewritten since wears a different one. A path with nothing there
     stamps as None, which keeps nothing and reads every time.
+
+    With `changed`, the stamp also carries the change time (`st_ctime_ns`), which moves
+    with every write and with a change to anything else the filesystem says of the
+    file, its permissions and its modification time among them. So it moves for a
+    file that becomes unreadable, and for a same-size rewrite that puts the old
+    modification time back, which leave the plain stamp as it was. A file someone
+    else edits takes it (`file_bindings.observed`). Leaf's own files don't, since a
+    hard link moves the change time too, and Leaf links a revision's files into the
+    next revision.
 
     Every freshness key in leaf is built from these stamps — the page's reading that
     `leaf wait`, browser freshness reads and activation follow, neighbour discovery, and the
@@ -57,10 +66,11 @@ def file_stamp(path: Path):
     write inside it, to the same size, would leave the stamp unmoved — a data file
     rewritten in place, an entry added beside a removed one, an atomic replace whose
     staging file reused the inode the one before it freed. So a stamp is not taken
-    until the clock has moved past the time it would carry. That is a wait of at most
-    one tick for a reader right behind a writer, and none for anyone else. The stamp
-    is then exact and stays the same while the path does, so a cache or a follower
-    keyed on it neither misses a write nor wakes for one that did not happen.
+    until the clock has moved past the time it would carry, the later of the two
+    times where it carries both. That is a wait of at most one tick for a reader right
+    behind a writer, and none for anyone else. The stamp is then exact and stays the
+    same while the path does, so a cache or a follower keyed on it neither misses a
+    write nor wakes for one that did not happen.
 
     A time the clock does not pass within `SETTLE_NS` — a file dated ahead of the
     clock, or one rewritten on every tick — is not waited out. Its stamp carries what
@@ -75,12 +85,13 @@ def file_stamp(path: Path):
         try:
             stat = path.stat()
             stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
-            if stat.st_mtime_ns < looked:
+            latest = stat.st_mtime_ns
+            if changed:
+                stamp = (*stamp, stat.st_ctime_ns)
+                latest = max(latest, stat.st_ctime_ns)
+            if latest < looked:
                 return stamp
-            if (
-                stat.st_mtime_ns - looked >= SETTLE_NS
-                or time.monotonic_ns() >= settle_by
-            ):
+            if latest - looked >= SETTLE_NS or time.monotonic_ns() >= settle_by:
                 return (*stamp, _contents(path, stat.st_mode))
         except OSError:
             return None

@@ -39,7 +39,7 @@ const ancestorStyles = new MutationObserver((records) => {
 function watchAncestorStyles(scope) {
   const tree = scope.getRootNode();
   const root = "documentElement" in tree ? tree.documentElement : tree;
-  if (!root || styleRoots.has(root) || !root.isConnected) return;
+  if (styleRoots.has(root) || !root.isConnected) return;
   styleRoots.add(root);
   ancestorStyles.observe(root, {
     subtree: true,
@@ -234,7 +234,7 @@ export function reachScrollers(root) {
         const classes = el.getAttribute("class");
         const style = el.getAttribute("style");
         const previous = seenDeclarations.get(el);
-        if (previous?.classes === classes && previous?.style === style) continue;
+        if (previous?.classes === classes && previous.style === style) continue;
         seenDeclarations.set(el, { classes, style });
         reread(el);
       }

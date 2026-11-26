@@ -98,7 +98,7 @@ import { pageRung } from "../dom/keyboard/register.js";
 
 /** @typedef {import("./version.js").Change} Change
  * @typedef {import("../readings/target-paint-geometry.js").Placement} Placement
- * @typedef {{left: number, top: number, right: number, bottom: number}} Box */
+ * @typedef {import("../base/box.js").Box} Box */
 
 // The bar's width, and how far every bar stands clear of the marks Leaf draws round its
 // target, in CSS pixels: one lane for both kinds, so no ring or bracket touches a bar.

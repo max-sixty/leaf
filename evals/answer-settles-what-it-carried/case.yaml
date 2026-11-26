@@ -5,7 +5,7 @@
 # still waiting in a thread about the widget (`waiting`), with a clause to end the
 # ones the pick settles by resolving the question's thread. The envelopes are real
 # deliveries frozen from a page, with the handling the kernel registry gives at
-# 850e0bfb36c6; the old arm drops `waiting` and its clause.
+# 232ddc4e41f4; the old arm drops `waiting` and its clause.
 description: answer-settles-what-it-carried
 metadata:
   purpose:
@@ -27,7 +27,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/58",
+     "format": "leaf-delivery/59",
      "id": "70f3afed",
      "created_at": 1792975809.950627,
      "acknowledge": null,
@@ -152,7 +152,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "f3afc2a0",
          "created_at": 1792975809.919296,
          "acknowledge": null,

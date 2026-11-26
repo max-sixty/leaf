@@ -77,8 +77,9 @@ export class ElementData {
     );
     if (this.#inputs.length)
       element.addEventListener("drawn", (event) => {
+        // The widget's own event: one sent with no detail names no property (`#drawn`).
         if (event.target === element)
-          this.#drawn(/** @type {CustomEvent} */ (event).detail);
+          this.#drawn(/** @type {CustomEvent} */ (event).detail ?? {});
       });
   }
 
@@ -145,8 +146,8 @@ export class ElementData {
   #drawn(detail) {
     const element = this.#element;
     try {
-      const named = this.#inputs.filter(
-        ({ property }) => detail && Object.hasOwn(detail, property),
+      const named = this.#inputs.filter(({ property }) =>
+        Object.hasOwn(detail, property),
       );
       const entry = named[0];
       if (!entry || named.length !== 1 || Object.keys(detail).length !== 1)

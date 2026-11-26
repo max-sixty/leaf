@@ -122,7 +122,7 @@
   // `handingOn`), each where the control holds it: the words in a text box or in an
   // input other than a file input, whose value only the browser sets; the tick of a
   // checkbox or radio; and whether a disclosure is open.
-  /** @param {Element} node @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
+  /** @param {Element} node @returns {node is HTMLElement & {value: string}} */
   const holdsValue = (node) =>
     node instanceof HTMLElement &&
     (node.matches(textBox) ||

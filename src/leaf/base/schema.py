@@ -46,6 +46,14 @@ WIDGET_NAME_RULE = (
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
+# An element property Leaf sets on a widget it drives: a recorded value's (`property`)
+# and a bound input's. It is never `state`, the widget's reading, which Leaf also sets
+# on the element (host/element-integration.js), so the two would overwrite each other.
+_SET_PROPERTY = {
+    "type": "string",
+    "pattern": "^[a-z][A-Za-z0-9]*$",
+    "not": {"const": "state"},
+}
 # The record forms one vocabulary of declared state draws on ($verbs in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
@@ -81,7 +89,7 @@ _RECORD_VALUE = {
     "properties": {
         "kind": {"const": "value"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+        "property": _SET_PROPERTY,
         "event": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9:._-]*$"},
     },
     "required": ["kind", "attr"],
@@ -311,7 +319,7 @@ DATA_INPUTS_SCHEMA = {
             **dict.fromkeys(INPUT_BINDINGS, _ATTRIBUTE_NAME),
             # The element property the runtime sets to the delivered value
             # (host/element-data.js, "Bound values").
-            "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+            "property": _SET_PROPERTY,
             # The widget attribute holding the receipt of the source's run that
             # produced the value written in the element's content.
             "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -495,7 +503,9 @@ _CLAUSES = {
 # The shape of each shared layer fact a complete vocabulary carries, every one
 # required and each held to its schema on its own (`registry.validation.check_layer_facts`).
 # Its consumers read each directly: a string `$tones.names` would answer the tone
-# check's membership test by substring, and a blank reaction emoji paints nothing.
+# check's membership test by substring, and a reaction the picker offers that is no
+# emoji is one admission refuses. A `leaf:` reference names a kernel record's field
+# (`registry.schema.leaf_resources`).
 # What names another fact, or needs more than a shape (a clause's `when` and a
 # contract's `schema` are JSON Schemas, `resources` are JMESPath), the same module's
 # `validate_layer_declarations` checks.
@@ -559,14 +569,10 @@ LAYER_FACTS = {
         "type": "object",
         "properties": {
             "emoji": {
-                "type": "object",
-                # An emoji is a mark: at most four code points.
-                "propertyNames": {"pattern": r"\S", "maxLength": 4},
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {"settles": {"type": "boolean"}},
-                    "additionalProperties": False,
-                },
+                "type": "array",
+                # One emoji, by the form a reaction's record holds it to.
+                "items": {"$ref": "leaf:event/comment#/properties/emoji"},
+                "uniqueItems": True,
             }
         },
         "required": ["emoji"],

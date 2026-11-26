@@ -212,10 +212,11 @@ export function createFloatingResponsePlacement({
   /** @type {{anchor: Anchor, range: Range, start: Node, end: Node} | null} */
   let selectedPassage = null;
   // The box's frame as its rectangles read, shifted back by `lag`.
-  /** @param {{x: number, y: number}} lag */
+  /** @param {{x: number, y: number}} lag
+   * @returns {import("../../../records/thread/destination.js").SendFrame | null} */
   const frameShifted = (lag) => {
     if (!response.open || !response.floating) return null;
-    /** @param {import("../../../dom/rect.js").Box} rect */
+    /** @param {import("../../../base/box.js").Box} rect */
     const shown = (rect) =>
       new DOMRect(
         rect.left - lag.x,

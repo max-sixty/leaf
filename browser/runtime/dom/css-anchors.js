@@ -71,7 +71,7 @@ import { inlineStyle, keeps, layoutPx } from "../lib/keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "../base/chrome.js";
 
-/** @typedef {import("./rect.js").Box} Box
+/** @typedef {import("../base/box.js").Box} Box
  * @typedef {{scroller: Element, name: string, getBoundingClientRect(): DOMRect}} ContentStart
  * @typedef {Element | ContentStart} Anchor
  * @typedef {{el: Element, name: string, write?: string, part?: boolean} | {el?: never, name: string, write?: never, part?: never}} AnchorReading

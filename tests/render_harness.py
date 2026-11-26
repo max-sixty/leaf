@@ -1117,7 +1117,7 @@ def _accessibility(page):
     not the DOM attributes that asked for it."""
     cdp = page.context.new_cdp_session(page)
 
-    def ax(selector=None, *, locator=None, **at):
+    def ax(selector=None, *, locator=None, subtree=False, **at):
         if selector is not None:
             root = cdp.send("DOM.getDocument")["root"]["nodeId"]
             at = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
@@ -1134,9 +1134,34 @@ def _accessibility(page):
                 },
             )
             at = {"objectId": held["result"]["objectId"]}
-        return cdp.send(
+        node = cdp.send(
             "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
         )["nodes"][0]
+        if not subtree:
+            return node
+        nodes = {
+            n["nodeId"]: n for n in cdp.send("Accessibility.getFullAXTree")["nodes"]
+        }
+
+        def read(node):
+            children = [
+                reading
+                for child in node.get("childIds", [])
+                if child in nodes
+                for reading in read(nodes[child])
+            ]
+            if node.get("ignored"):
+                return children
+            return [
+                {
+                    "role": node["role"]["value"],
+                    "name": node.get("name", {}).get("value", ""),
+                    "value": node.get("value", {}).get("value", ""),
+                    "children": children,
+                }
+            ]
+
+        return read({**nodes[node["nodeId"]], "ignored": False})[0]
 
     try:
         yield ax
@@ -1144,13 +1169,15 @@ def _accessibility(page):
         cdp.detach()
 
 
-def accessible_node(locator):
-    """What a screen reader is given for the element `locator` names: the node the
-    browser's accessibility tree holds for it, with its `role` and `name`, or `ignored`
-    and the reasons. A role locator can't stand in for it, since Playwright's own
-    reading misses `aria-hidden` on a shadow ancestor of slotted content."""
+def accessible_tree(locator):
+    """What a screen reader is given at and under the element `locator` names: the node
+    the browser's accessibility tree holds for it, as `role`, `name`, `value` and
+    `children`, each child read the same way, with each node the browser ignores
+    replaced by its children. A role locator can't stand in for it, since Playwright's
+    own reading misses `aria-hidden` on a shadow ancestor of slotted content, and reads
+    no value."""
     with _accessibility(locator.page) as ax:
-        return ax(locator=locator)
+        return ax(locator=locator, subtree=True)
 
 
 def accessible_details(page, selector):
@@ -3312,7 +3339,7 @@ def without_end_room(page):
     (layouts.css), so the page ends where its content does, as one with no Layout
     does. A test whose subject is what happens where no scroll is left, a destination
     at the page's foot or content leaving below that clamps the page, needs it."""
-    page.add_style_tag(content="body { padding-bottom: 0 !important; }")
+    page.add_style_tag(content="body { --lf-end-room: 0px !important; }")
 
 
 def resized(page, width, height):

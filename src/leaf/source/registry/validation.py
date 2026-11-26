@@ -33,6 +33,7 @@ from leaf.source.registry.schema import (
     json_validator,
     schema_reading,
     unresolved_schema_reference,
+    with_leaf_resources,
 )
 from leaf.source.registry.widgets import (
     validate_widget_relations,
@@ -96,7 +97,9 @@ def check_layer_facts(registry: dict, path) -> None:
     findings = []
     for fact, schema in {**LAYER_FACTS, **OPTIONAL_LAYER_FACTS}.items():
         required = [fact] if fact in LAYER_FACTS else []
-        reader = json_validator({"properties": {fact: schema}, "required": required})
+        reader = json_validator(
+            with_leaf_resources({"properties": {fact: schema}, "required": required})
+        )
         if error := min(reader.iter_errors(registry), key=str, default=None):
             findings.append(
                 registry_finding("layer-facts", path, **schema_reading(error))

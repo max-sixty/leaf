@@ -443,7 +443,7 @@
             </p>
             <p id="on-me-answer">
               The user answers an item where it asks: with the widget's own pick, or
-              with a reply or a settling reaction, such as 👍, in its thread. Leaf adds
+              with a reply in its thread, in words or a reaction such as 👍. Leaf adds
               no control of its own to end one. The tab named for the agent holds what
               it still owes: answers to the user's updates, and its open to-dos. Done
               holds each list's finished items.
@@ -546,9 +546,10 @@
               thread opens in the panel.
             </p>
             <p id="reactions">
-              A reaction puts one emoji on a passage or an agent's reply without opening
-              a thread. The reaction carries no word, so the agent reads the emoji
-              itself, and asks when it can't tell what you meant.
+              A reaction is a message of one emoji, put on a passage or an agent's
+              reply. It reaches the agent as words do, and the agent acts on it, asks
+              what you meant, or answers in a line saying how it read it. The agent can
+              answer with an emoji too.
             </p>
           </section>
           <section id="practice">
@@ -621,8 +622,9 @@
                 </tr>
                 <tr id="reading-word">
                   <td>
-                    Its status: Your turn, On it, Still to do, Waiting, or how far the
-                    agent has got with the latest update
+                    Its status: Your turn, On it, Still to do, what a to-do waits on
+                    (Waiting on CI), Waiting, or how far the agent has got with the
+                    latest update
                   </td>
                   <td>
                     Threads and the floating panel, as the card's status; the margin and
@@ -667,16 +669,17 @@
               does the agent's in a thread the agent resolved. In a thread the user
               resolved, the agent's message goes in without reopening it, unless it asks
               them a question; the agent reopens the thread itself where it judges they
-              would want to stop and read what it said. A reaction, a progress message
-              or a failure notice reopens nothing.
+              would want to stop and read what it said. A progress message or a failure
+              notice reopens nothing.
             </p>
             <p id="withdrawing">
               Outside a text box, <kbd>⌘Z</kbd> takes back the user's latest action, a
-              message they just sent included: a comment, reply or reaction. A
-              reaction's mark also has an undo control of its own. An undone message
-              leaves the page, with any thread it started. Where something has already
-              answered it, it stays in its place instead and reads Deleted. To delete an
-              older message, the user rewrites it to no words.
+              message they just sent included: a comment, reply or reaction. Pressing a
+              reaction's emoji again, where the reactions are offered, takes it back
+              while its thread is open. An undone message leaves the page, with any
+              thread it started. Where something has already answered it, it stays in
+              its place instead and reads Deleted. To delete an older message, the user
+              rewrites it to no words.
             </p>
             <p id="unsent-words">
               Words typed but not sent stay with what they are about after their box

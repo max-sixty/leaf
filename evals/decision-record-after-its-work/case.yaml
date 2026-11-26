@@ -4,7 +4,7 @@
 # the pick's delivery names ("write the answer into the markup") and stop there. The
 # main prompt replays the minute #4542 merged with that page's revision and the
 # pick's real delivery; the variant replays a pick that keeps today's behavior. Both
-# deliveries carry the handling the kernel registry gives at 850e0bfb36c6. The
+# deliveries carry the handling the kernel registry gives at 232ddc4e41f4. The
 # delivery asks for the record once the work is done, since one naming only writing
 # in can leave the question open. For the earlier picks, delivered before that
 # wording, SKILL.md states the goal (bring the whole page up to date; decisions you
@@ -33,7 +33,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/58",
+     "format": "leaf-delivery/59",
      "id": "483d8a07",
      "created_at": 1793155375.4377432,
      "acknowledge": null,
@@ -578,7 +578,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "7b924a8e",
          "created_at": 1793137004.122991,
          "acknowledge": null,

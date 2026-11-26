@@ -412,7 +412,7 @@ commit and result in its header, as earlier re-freezes did. Open one pull reques
 the week's cases, naming any whose result fell: the shipped handling regressed there,
 or the case's criterion needs revisiting.
 
-## Weekly: vendored browser dependencies
+## Weekly: dependencies
 
 Dependency automation rebuilds committed browser bundles on Dependabot's PR.
 Read each `*.LICENSES.txt` diff: a package listed at two versions means the bump
@@ -420,3 +420,12 @@ split a closure (Shiki's packages pin each other exactly);
 `pnpm update <package> --no-save` moves a locked dependency within its dependant's
 range. Drop a Lit bump the Web Awesome build refuses. Bump `esbuild` by hand when a
 bundle needs it, and rebuild everything.
+
+Dependabot reports a failed update job only in the run list, so check each
+ecosystem's job each week: `gh run list --event dynamic` names them
+`<ecosystem> in /. - Update`, one each for `npm_and_yarn`, `uv` and
+`github_actions`. When an ecosystem's newest job failed, fix the cause its log
+names. When one ran none in the past week, start a run by merging a pull request
+that edits `.github/dependabot.yml`: any change to that file starts every
+ecosystem's update run. If that starts none either, assign the maintainer, since
+only an admin can see whether Dependabot is paused.

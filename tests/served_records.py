@@ -154,7 +154,8 @@ REWRITTEN_TWICE = (
     {"kind": "edit", "message": "e1", "text": "Chart 2026."},
 )
 
-# A reaction the agent answered, and the user's own reaction on that answer.
+# A reaction the agent answered, the user's own reaction on that answer, and the
+# agent's answer to it.
 ANSWERED_REACTION = (
     {"kind": "comment", "emoji": "❌"},
     {
@@ -165,6 +166,13 @@ ANSWERED_REACTION = (
         "text": "Which part?",
     },
     {"kind": "reply", "parent": "e2", "emoji": "👍"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e3",
+        "text": "Keeping it.",
+    },
 )
 
 # A reply the user sent in a thread, and the agent's answer to it.
@@ -330,6 +338,10 @@ def build() -> dict:
             },
             # The agent asked the user a question, the only thing On Me holds.
             "question": served_answer(PAGE, (QUESTION,)),
+            # The user's reaction on the page, which the agent owes an answer.
+            "a reaction waiting": served_answer(
+                PAGE, ({"kind": "comment", "emoji": "✂️"},)
+            ),
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,

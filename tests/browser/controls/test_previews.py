@@ -39,6 +39,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -68,9 +69,7 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
     page = open_page(clocked(request.getfixturevalue(engine)), url)
     view = open_panel_thread(page, thread)
     resolve = page.locator(".lf-fp-thread-controls .lf-resolve")
-    reply = page.get_by_role(
-        "textbox", name="Reply to Could the mobile cohort wait a week?"
-    )
+    reply = text_field(page, name="Reply to Could the mobile cohort wait a week?")
     preview = page.locator(PREVIEW)
     expect(resolve).to_be_visible()
     # Off Leaf its word is the browser's tooltip; on Leaf it writes no title, so the
@@ -1707,7 +1706,7 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     """An element whose aim moves inside it, as a chart's point does, says its preview
     changed (`lf-preview`): the preview standing for it reads the element again and
     draws the new words where it stands, still open, for a resting pointer and for the
-    keyboard's focus."""
+    keyboard's focus, and a pointer's still goes once the pointer has left."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1740,17 +1739,83 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     rendered(page)
     expect(tip).to_be_visible()
 
+    # Redrawn as the pointer leaves for nothing, it still goes once the pointer has.
     page.mouse.move(2, 2)
+    page.evaluate(moved)
     expect(tip).to_be_hidden()
     page.keyboard.press("Shift")
     value.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
-    expect(tip.locator(".lf-preview-word")).to_have_text("Point 2")
-    page.evaluate(moved)
     expect(tip.locator(".lf-preview-word")).to_have_text("Point 3")
+    page.evaluate(moved)
+    expect(tip.locator(".lf-preview-word")).to_have_text("Point 4")
     rendered(page)
     expect(tip).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_news_from_what_the_pointer_rests_on_keeps_its_dwell_s_deadline(
+    engine, request, serve
+):
+    """An element saying its preview changed (`lf-preview`) more often than the dwell
+    lasts still previews to a pointer resting on it once the dwell its rest began
+    ends, and says its latest words."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Live", '<p><span id="value" tabindex="0">A value</span></p>')),
+    )
+    page.evaluate(
+        """() => {
+          const value = document.getElementById('value');
+          window.lfTick = 0;
+          value.lfPreview = () => ({name: `Tick ${window.lfTick}`});
+          setInterval(() => {
+            window.lfTick += 1;
+            value.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
+          }, 150);
+        }"""
+    )
+    page.mouse.move(2, 2)
+    page.locator("#value").hover()
+    expect(page.locator(PREVIEW)).to_be_visible()
+    expect(page.locator(f"{PREVIEW} .lf-preview-word")).to_have_text(
+        re.compile(r"^Tick \d+$")
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_that_found_no_place_to_stand_warms_no_next_one(
+    engine, request, serve
+):
+    """A reading whose place lies out of the window shows nothing, so the next target
+    the pointer reaches waits its own dwell and fades in, as with no preview before it
+    (annotations/preview.js, `WARM`)."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "Out of sight",
+                '<p><span id="gone">Gone</span> and <span id="next">next</span></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => {
+          document.getElementById('gone').lfPreview = () =>
+            ({name: 'Out of the window', at: {left: -80, top: -80, right: -60, bottom: -60}});
+          document.getElementById('next').lfPreview = () => ({name: 'The one after'});
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#gone").hover()
+    dwelt(page)
+    assert not tip.is_visible(), "a reading out of the window showed"
+    page.locator("#next").hover()
+    dwelt(page)
+    expect(tip.locator(".lf-preview-word")).to_have_text("The one after")
+    expect(tip).to_have_attribute("data-lf-fade", "")
 
 
 def test_a_standing_preview_reads_its_element_again_as_the_page_presents_news(
@@ -3320,7 +3385,8 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     the preview where it stands without closing it, on the side it stood, even where
     the next reading is longer than that side's room; the control it left hears its
     reading end after the next was read. Crossing to a control whose preview stands by
-    itself closes the preview and shows the next."""
+    itself closes the preview and shows the next at once, with none of the fade the
+    first preview came in with, so a pointer reading along a row moves one preview."""
     page = open_page(request.getfixturevalue(engine), serve(SHARED_ROW))
     page.evaluate(SHARED_ROW_LOG)
     tip = page.locator(PREVIEW)
@@ -3329,6 +3395,7 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     page.locator("#one").hover()
     expect(word).to_have_text("Reads one")
     expect(tip).to_have_attribute("data-lf-y", "below")
+    expect(tip).to_have_attribute("data-lf-fade", "")
     _crossed(page)
 
     two = page.locator("#two").bounding_box()
@@ -3344,6 +3411,7 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     )
     expect(word).to_have_text("Reads three")
     assert "closed" in _crossed(page)
+    expect(tip).not_to_have_attribute("data-lf-fade", "")
 
 
 def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_place(

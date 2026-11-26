@@ -488,7 +488,7 @@ const pressKeys = (press) =>
 // each ask, so a box standing it rechecks its keys without reading the field's words
 // again (annotations/composing/input.js, `pressing`), and what it does: its own `run`, else the
 // command it names.
-/** @param {FieldPress} press @returns {import("../annotations/composing/input.js").BoxPress} */
+/** @param {FieldPress} press @returns {import("../records/composition-input.js").BoxPress} */
 const pressReading = (press) => ({
   word: actionName(press.action),
   get keys() {
@@ -1260,7 +1260,7 @@ export function createFloatingPanel({
   // the news showed, where it showed one (`shown`, the messages drawn before it); and
   // reopened where the user had read it to (`reading`, records/thread/reply-landing.js,
   // `restoreCurrentLocation`).
-  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../records/thread/reply-landing.js").ThreadReading} | null} */
+  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../base/held-place.js").ThreadReading} | null} */
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -3582,7 +3582,7 @@ export function createFloatingPanel({
         ?data-lf-resolved=${thread.resolved}
         data-lf-turn=${attention?.turn === "user" ? "user" : nothing}
         .lfPreview=${(
-          /** @type {import("../annotations/preview.js").Route} */ route,
+          /** @type {import("../base/preview-declaration.js").Route} */ route,
         ) => {
           const read = threadPreview(
             [thread],
@@ -3975,7 +3975,7 @@ export function createFloatingPanel({
   // taken back (records/undo.js).
   /** @param {import("../state/semantic-application.js").ObligationRecord} item */
   const answerGesture = (item) => {
-    const id = item?.answer?.event?.id ?? item?.answer?.event;
+    const id = item.answer?.event?.id ?? item.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
@@ -4066,10 +4066,11 @@ export function createFloatingPanel({
     failed: "Failed",
     dropped: "Dropped",
   });
-  // A blocked step says why in the word its item says on every other surface.
+  // A blocked step says why, and a waiting one what it waits on, in the word its item
+  // says on every other surface.
   /** @param {import("../../types/contract.js").ServedPlanStep} step */
   const planWord = (step) =>
-    step.state === "blocked"
+    step.state === "blocked" || step.waiting_on
       ? todoWord(step).text
       : PLAN_STATES[step.state === "done" ? (step.outcome ?? "done") : step.state];
   const PLAN_MARKS = Object.freeze({
@@ -4129,7 +4130,9 @@ export function createFloatingPanel({
             ? html`<span class="lf-fp-plan-detail"
                 >${voiced(agentSays(step.detail))}</span
               >`
-            : nothing
+            : step.waiting_on
+              ? html`<span class="lf-fp-plan-detail">${voiced(todoWord(step))}</span>`
+              : nothing
       }${
         step.steps.length
           ? html`<ol class="lf-fp-plan-steps">
@@ -4318,13 +4321,13 @@ export function createFloatingPanel({
       ? ""
       : asking
         ? messageReading(asking, { workflows: [] }).body.plainText
-        : record?.prompt?.text;
+        : record?.prompt.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     // The other questions the user answers at this card's place (`also`): further
     // messages its thread's reply answers, and on an obligation's card those asked in a
     // thread about it, so an answer about a decision rides on the decision. Each reads
     // as its message, as a question asked in words does above.
-    const carried = (also ?? []).flatMap((id) => {
+    const carried = also.flatMap((id) => {
       const other = readObligations().byId.get(id);
       if (!other) return [];
       const where = other.thread ? threadByKey(other.thread) : null;
@@ -4551,7 +4554,7 @@ export function createFloatingPanel({
     /** @type {unknown} */
     let end = nothing;
     // The clock time behind the age the line's end shows, which its preview says.
-    /** @type {import("../annotations/preview.js").Line} */
+    /** @type {import("../base/preview-declaration.js").Line} */
     let ageSaid = null;
     const work = list === "agent" ? workOn(item) : null;
     if (work) {
@@ -4722,7 +4725,7 @@ export function createFloatingPanel({
       carrying.set(key, [
         ...new Set([
           ...(carrying.get(key) ?? []),
-          ...(item.also ?? []).filter((id) => !elsewhere.has(id)),
+          ...item.also.filter((id) => !elsewhere.has(id)),
         ]),
       ]);
     }
@@ -4800,18 +4803,31 @@ export function createFloatingPanel({
     )}`;
   }
   // On <agent>: the work as the user chose to see it, a list or a summary. The list's
-  // groups are states, not places: what the agent has in hand, what is up next, and
-  // what it finished, folded under Done. While the agent has a plan, its goals head
-  // the list, which then holds only the items no step names.
+  // groups are states, not places: what the agent has in hand, what is up next, what
+  // waits on something the agent named (`waiting_on`), and what it finished, folded
+  // under Done. While the agent has a plan, its goals head the list, which then holds
+  // only the items no step names.
+  /** @param {ReturnType<typeof queueLists>["agent"][number]} item */
+  const waits = (item) =>
+    "waiting_on" in item.obligation && Boolean(item.obligation.waiting_on);
   /** @param {ReturnType<typeof queueLists>} lists */
   function workView(lists) {
     /** @param {ReturnType<typeof queueLists>["agent"]} items */
     const held = (items) => items.filter((item) => inHand(item.obligation));
     /** @param {ReturnType<typeof queueLists>["agent"]} items */
-    const queued = (items) => items.filter((item) => !inHand(item.obligation));
+    const queued = (items) =>
+      items.filter((item) => !inHand(item.obligation) && !waits(item));
+    /** @param {ReturnType<typeof queueLists>["agent"]} items */
+    const waiting = (items) =>
+      items.filter((item) => !inHand(item.obligation) && waits(item));
     if (layoutOf() === "summary") {
       forgetOpened([]);
-      return workSummary(held(lists.agent), queued(lists.agent), lists.done);
+      return workSummary(
+        held(lists.agent),
+        queued(lists.agent),
+        waiting(lists.agent),
+        lists.done,
+      );
     }
     const goals = readPlan()?.steps ?? [];
     const named = new Set(goals.flatMap(namedIn));
@@ -4820,6 +4836,7 @@ export function createFloatingPanel({
     const groups = [
       { key: "in-hand", title: "In hand", items: held(agent) },
       { key: "queued", title: "Up next", items: queued(agent) },
+      { key: "waiting", title: "Waiting", items: waiting(agent) },
       { key: "done:agent", title: "Done", items: done, folds: true },
     ].filter((group) => group.items.length);
     forgetOpened([...agent, ...(unfolded.has("done:agent") ? done : [])]);
@@ -4832,26 +4849,30 @@ export function createFloatingPanel({
     )}`;
   }
   // The work said in a few sentences: how much the agent has in hand and for how long,
-  // what is queued, what its newest step says, how far the plan has come, and what it
-  // finished last. Leaf says them, around the agent's own line and an item's name.
-  /** @param {ReturnType<typeof queueLists>["agent"]} inHand @param {ReturnType<typeof queueLists>["agent"]} queued @param {ReturnType<typeof queueLists>["done"]} done */
-  function workSummary(inHand, queued, done) {
+  // what is queued or waiting, what its newest step says, how far the plan has come,
+  // and what it finished last. Leaf says them, around the agent's own line and an
+  // item's name.
+  /** @param {ReturnType<typeof queueLists>["agent"]} inHand @param {ReturnType<typeof queueLists>["agent"]} queued @param {ReturnType<typeof queueLists>["agent"]} waiting @param {ReturnType<typeof queueLists>["done"]} done */
+  function workSummary(inHand, queued, waiting, done) {
     const work = inHand.map(workOn);
     const since = work
       .map((each) => each.since)
       .filter(Boolean)
       .toSorted()[0];
     const longest = since && shortAgo(since) !== "now" ? since : null;
-    const waiting = queued.length ? `${queued.length} up next` : "";
+    const owed = [
+      queued.length ? `${queued.length} up next` : "",
+      waiting.length ? `${waiting.length} waiting` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
     const first = inHand.length
       ? html`${voiced(
           leafSays(`Working on ${inHand.length}${longest ? ", the longest for " : ""}`),
         )}${longest ? panelAge(longest, { spoken: true }) : nothing}${voiced(
-          leafSays(waiting ? `; ${waiting}.` : "."),
+          leafSays(owed ? `; ${owed}.` : "."),
         )}`
-      : voiced(
-          leafSays(waiting ? `${capitalized(waiting)}.` : "Nothing to do right now."),
-        );
+      : voiced(leafSays(owed ? `${capitalized(owed)}.` : "Nothing to do right now."));
     const now = work.find(
       (each) => each.line && each.line.text !== each.word?.text,
     )?.line;
@@ -4940,7 +4961,9 @@ export function createFloatingPanel({
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
   // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
   // On <agent>'s, where they would press it from where the user is, so the user meets
-  // the key where they reach for the list.
+  // the key where they reach for the list. A tab is named for its list alone and
+  // described by its count, so a screen reader hears "Threads", then "2", and its
+  // preview's keys follow "Threads", not "Threads 2".
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count @param {(name: T) => string | null} door */
@@ -4954,6 +4977,8 @@ export function createFloatingPanel({
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
+            aria-label=${label(name)}
+            aria-description=${counted === null ? nothing : String(counted)}
             .lfPreview=${() => {
               const steps = opens && current !== name ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
@@ -5390,7 +5415,7 @@ export function createFloatingPanel({
   // first, so Close leaves the end. A finger, shown no keys, has the ✕ as its way out,
   // so Close stands only where the page shows keys. It asks the dispatcher whether a
   // stance stands now (`innermostStance`), as `fieldExit` does.
-  /** @returns {import("../annotations/composing/input.js").BoxPress | null} */
+  /** @returns {import("../records/composition-input.js").BoxPress | null} */
   function stanceClose() {
     const held = innermostStance();
     const exit = held ? rows().find((entry) => entry.exit) : null;
@@ -5527,7 +5552,7 @@ export function createFloatingPanel({
     // The field's search, the menu's or Threads', clears its words first; then, empty,
     // the menu's closes the menu and Threads' returns to Threads, as a find box returns
     // to its panel (dom/keyboard/AGENTS.md, "Escape").
-    if (focused()?.matches?.(".lf-fp-search"))
+    if (focused()?.matches(".lf-fp-search"))
       return query
         ? {
             root: host,
@@ -5610,7 +5635,7 @@ export function createFloatingPanel({
         : null;
   };
   /** @returns {HTMLElement | null} */
-  const tabOn = () => focused()?.closest?.(".lf-fp-tab") ?? null;
+  const tabOn = () => focused()?.closest(".lf-fp-tab") ?? null;
   // Whether the user stands where ← and → turn the On view's tabs: on a tab, or where
   // ↑ and ↓ walk its rows, a list that holds none included.
   const atTabs = () =>
@@ -5866,7 +5891,7 @@ export function createFloatingPanel({
   };
   /** @param {Element | null} node */
   const onMeHolds = (node) => doors.queue.shows() && onMe.lists(node);
-  /** @param {Pick<import("../features/anchor-travel.js").Arrival, "where" | "focus">} destination
+  /** @param {Pick<import("../dom/arrival-plan.js").Arrival, "where" | "focus">} destination
    * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
     if (!focus && ownPassage(where)) return;
@@ -6100,7 +6125,7 @@ export function createFloatingPanel({
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
   async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
-    if (!thread || !currentLocation) return false;
+    if (!thread) return false;
     const { reading, focus } = currentLocation;
     const intent = retainUserIntent();
     const returnFocus = () => {

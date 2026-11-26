@@ -40,6 +40,7 @@ from browser.threads import (
 )
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -174,7 +175,7 @@ def test_a_rewrite_at_the_foot_of_a_card_that_scrolls_keeps_its_whole_ring(
     resized(page, 1200, 600)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    card.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(card, name="Reply", exact=True).click()
     page.keyboard.press("ArrowUp")
     field = card.locator(".lf-msg-editor .lf-compose-field")
     expect(field.locator("leaf-text")).to_be_focused()

@@ -85,7 +85,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
       if (at < 0) continue;
       matches++;
       assert.equal(
-        markdownSourceOffset(body, node, at + 2),
+        markdownSourceOffset(body, source, node, at + 2, false),
         source.indexOf("word300") + 2,
         source,
       );
@@ -94,15 +94,20 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
   }
   // A caret before an escaped first character stands before its backslash, which a
   // key there would otherwise split from the character it escapes, and one before
-  // code's first character stays in the code.
+  // code's first character stays in the code, though the fence's language spells it.
   for (const [source, word, at] of [
     ["```py\nalpha()\n```", "alpha", 6],
+    ["```sh\nsh run.sh\n```", "sh", 6],
     ["Run:\n\n    alpha()", "alpha", 10],
   ]) {
     const body = document.createElement("div");
     paintMarkdown(body, source);
     const node = body.querySelector("code").firstChild;
-    assert.equal(markdownSourceOffset(body, node, node.data.indexOf(word)), at, source);
+    assert.equal(
+      markdownSourceOffset(body, source, node, node.data.indexOf(word), false),
+      at,
+      source,
+    );
   }
   for (const source of ["\\*word300", "Say **\\*word300**."]) {
     const body = document.createElement("div");
@@ -111,7 +116,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     for (let node; (node = walker.nextNode());) {
       const at = node.data.indexOf("*word300");
       if (at < 0) continue;
-      const offset = markdownSourceOffset(body, node, at);
+      const offset = markdownSourceOffset(body, source, node, at, false);
       assert.ok(
         offset !== null && offset <= source.indexOf("\\*"),
         `${source}: ${offset}`,
@@ -126,10 +131,70 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     const at = node.data.indexOf("word300");
     for (const offset of [0, 2])
       assert.equal(
-        markdownSourceOffset(body, node, at + offset),
+        markdownSourceOffset(body, source, node, at + offset, false),
         source.indexOf("word300") + offset,
         source,
       );
+  }
+});
+
+test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds its source", async () => {
+  const { loadMarkdown, makeMarkdown, markdownSourceOffset } =
+    await import("/runtime/lib/markdown.js");
+  await loadMarkdown();
+  const module = await import("/vendor/markdown-it.esm.js");
+  // The header's markup spells its visible word in an attribute, a comment and a style
+  // before the line that shows it.
+  const source = [
+    '<p title="Gizmo" align="center">',
+    "  <!-- Gizmo's logo -->",
+    '  <img src="logo.svg" alt="">',
+    "  <style>.Gizmo { color: red }</style>",
+    "  Gizmo &amp; friends",
+    "</p>",
+    "",
+    '<div title="a > b">',
+    "&#65;&#66;cd &copy tail <span",
+    ' title="tip">next</span>',
+    "</div>",
+    "",
+    "<details>",
+    "<summary>From source</summary>",
+    "",
+    "Run the build.",
+    "",
+    "</details>",
+    "",
+    "Last words.",
+  ].join("\n");
+  // The file's HTML draws as its tags say, less the style the preview's sanitizer takes
+  // out (`markdownFileFragment`, whose sanitizer keeps it under happy-dom), and the fold
+  // holds the paragraph inside it.
+  const body = document.createElement("div");
+  body.innerHTML = makeMarkdown(module, false, true).render(source, { links: {} });
+  body.querySelector("style")?.remove();
+  assert.ok(body.querySelector("details > p"));
+  // A quoted `>` in an attribute ends no tag, a character reference stands for its
+  // character, with or without its semicolon, and a caret where markup between two
+  // texts spans lines stands on the line of the text it is in.
+  for (const [word, caret, at] of [
+    ["Gizmo", 2, source.indexOf("Gizmo &amp;") + 2],
+    ["friends", 2, source.indexOf("friends") + 2],
+    ["cd", 1, source.indexOf("cd &copy") + 1],
+    ["tail ", 5, source.indexOf("tail ") + 5],
+    ["next", 0, source.indexOf("next")],
+    ["source", 2, source.indexOf("source") + 2],
+    ["build", 2, source.indexOf("build") + 2],
+    ["Last", 2, source.indexOf("Last") + 2],
+  ]) {
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node && !node.data.includes(word)) node = walker.nextNode();
+    assert.equal(
+      markdownSourceOffset(body, source, node, node.data.indexOf(word) + caret, true),
+      at,
+      word,
+    );
   }
 });
 
@@ -564,7 +629,13 @@ test("a table cell's words and a caret in them stand in its own cell, past the p
     paintMarkdown(body, source, {});
     for (const [index, cell] of body.querySelectorAll("th").entries()) {
       const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT).nextNode();
-      const offset = markdownSourceOffset(body, words, words.data.length);
+      const offset = markdownSourceOffset(
+        body,
+        source,
+        words,
+        words.data.length,
+        false,
+      );
       const [from, to] = spans[index];
       assert.ok(from < offset && offset <= to, `${source}: cell ${index} at ${offset}`);
     }

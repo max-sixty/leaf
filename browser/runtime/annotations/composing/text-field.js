@@ -106,8 +106,9 @@
  * assistive technology, which reads them as the content node's `aria-placeholder`.
  * A child in slot `end` is a press of the box's own at the placeholder's far end, such
  * as a Resolve's Next thread: it wears the placeholder's face and stands exactly while the
- * words do, the words shorten before it, and it stays in the accessibility tree and
- * takes the pointer, so a press on it is its own and never a press on the field.
+ * words do, the words shorten before it, and it stays in the accessibility tree, beside
+ * the textbox rather than in it (below), and takes the pointer, so a press on it is its
+ * own and never a press on the field.
  * Rejected: the press among the slotted words, whose `aria-hidden` took it out of the
  * accessibility tree.
  *
@@ -130,13 +131,18 @@
  * loading CodeMirror with the page, adding its bytes to those before the server's
  * state shows, for a capability most openings never use.
  *
- * The host is also the control accessibility tooling addresses, since nothing outside a
- * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
- * unless the page gave it its own, and it carries the name, description and busy state
- * the page writes on it. The content node inside is where focus and assistive
- * technology land, so it wears the same `aria-label`, the placeholder as
- * `aria-placeholder`, and the host's description through `ariaDescribedByElements`,
- * the one reference that reaches from inside a shadow root to the page around it.
+ * The content node inside is the field's one textbox, where focus and assistive
+ * technology land: it wears the host's `aria-label`, the placeholder as
+ * `aria-placeholder`, whether it holds one line as `aria-multiline`, and the host's
+ * description through `ariaDescribedByElements`, the one reference that reaches from
+ * inside a shadow root to the page around it. The host is the group around that
+ * textbox and the box's own press, and the control accessibility tooling addresses,
+ * since nothing outside a closed root sees into it: it takes `role="group"` and a tab
+ * stop unless the page gave it its own, and it carries the name, description and busy
+ * state the page writes on it. Rejected: the host as a textbox too, which the browser
+ * reads the way it reads any textbox that isn't a native one, its slotted words as its
+ * value, hidden ones included, and its slotted press as content, so a screen reader
+ * heard an empty box hold its placeholder and its press, beside a second textbox.
  *
  * A box whose Send action stands in the field's trailing corner sets
  * `--lf-field-end-room` to the room the action takes beyond the field's end padding.
@@ -161,9 +167,9 @@
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
  * editing route is explicit. Shift+Enter inserts a line and continues each quote and
  * list item the caret stands in; on a line holding only their markers, it leaves the
- * innermost (`continueBlocks`, field-editor.js). A host the page marks
- * `aria-multiline="false"`, such as an option's title, holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
- * way becomes a space, and its owner reserves Return. Mod+Z
+ * innermost (`continueBlocks`, field-editor.js). A host the page marks `one-line`,
+ * such as an option's title, holds one line: Shift+Enter inserts nothing, a line break
+ * pasted or inserted any other way becomes a space, and its owner reserves Return. Mod+Z
  * and Mod+Shift+Z walk one history: the words' edits, and the steps an owner records
  * for what its draft holds beside them (`record`), such as a composer's drawing, each
  * taken back or redone in the order it was made.
@@ -581,7 +587,7 @@ class LeafText extends HTMLElement {
     const right = rtl ? box.left + size * scaleX : box.right;
     const top = box.bottom - size * scaleY;
     const middle = box.bottom - (size * scaleY) / 2;
-    /** @param {import("../../dom/rect.js").Box} rect @param {number} leading */
+    /** @param {import("../../base/box.js").Box} rect @param {number} leading */
     const reaches = (rect, leading) =>
       rect.left < right &&
       rect.right > left &&
@@ -595,7 +601,7 @@ class LeafText extends HTMLElement {
         lineStyle.translate === "none"
           ? []
           : lineStyle.translate.split(/\s+/).map(Number.parseFloat);
-      /** @param {import("../../dom/rect.js").Box} rect */
+      /** @param {import("../../base/box.js").Box} rect */
       const back = (rect) => ({
         left: rect.left - ox * scaleX,
         right: rect.right - ox * scaleX,
@@ -621,7 +627,7 @@ class LeafText extends HTMLElement {
   static observedAttributes = [
     "aria-label",
     "aria-describedby",
-    "aria-multiline",
+    "one-line",
     "placeholder",
   ];
 
@@ -829,9 +835,7 @@ class LeafText extends HTMLElement {
     // A move by `insertBefore` reconnects within the task, keeping the view
     // (`disconnectedCallback`); the hold that returns the user restores the caret.
     if (this.#view) return;
-    if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
-    if (!this.hasAttribute("aria-multiline"))
-      this.setAttribute("aria-multiline", "true");
+    if (!this.hasAttribute("role")) this.setAttribute("role", "group");
     // A tab stop, as a textarea is: delegation already stops Tab in the words, and a
     // host reading -1 is one every stop-counting walk would miss.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
@@ -1031,7 +1035,7 @@ class LeafText extends HTMLElement {
   }
 
   get #oneLine() {
-    return this.getAttribute("aria-multiline") === "false";
+    return this.hasAttribute("one-line");
   }
 
   #contentAttributes() {
@@ -1053,6 +1057,7 @@ class LeafText extends HTMLElement {
     else this.#states.add("placeholder-shown");
   }
 
+  /** @returns {string} */
   get value() {
     return this.#text;
   }
@@ -1123,6 +1128,9 @@ class LeafText extends HTMLElement {
     );
   }
 
+  /** As a textarea's, a missing value writes no words: a widget may seed the box from
+   * a draft that doesn't exist yet (module-input.md, "Text entry and drafts").
+   * @param {string | null | undefined} text */
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;

@@ -10,6 +10,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
 from pathlib import Path
+from typing import Protocol
 
 from leaf.base.findings import Finding
 from leaf.base.harness import message_identity
@@ -59,10 +60,21 @@ from leaf.source.registry.kernel import (
     kinds_declaring,
     verb_writers,
 )
-from leaf.source.registry.reactions import reaction_emoji
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
 from leaf.source.structure import quoted_in
+
+
+class OpenTransaction(Protocol):
+    """An open page transaction (`transaction.PageTransaction`), as admission reads the
+    log under its lease and appends to it."""
+
+    @property
+    def page_dir(self) -> Path: ...
+    @property
+    def events(self) -> list: ...
+
+    def _append_record(self, event: dict) -> dict: ...
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -309,7 +321,11 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
 
     Source values are replaceable and nothing keeps the ones they replaced, so a
     revision other than the source's current one is admitted as a comment on a
-    value that has since changed: the reader and a replacement may have raced.
+    value that has since changed: the reader and a replacement may have raced. A
+    current revision that holds an error rather than a value is refused, since no
+    widget drew it. A revision digests the value alone, so a reading under another
+    contract than the seat's may still name a value the seat drew under its own, and
+    that is left to `page check` (`data.bound_file_conflicts`).
     """
     anchor = event.get("anchor") or {}
     source = anchor.get("source")
@@ -328,8 +344,19 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     ]
     if not bindings:
         return Finding("datum-unbound-source", values=named)
-    if source not in view.contracts:
-        return Finding("datum-unsupplied-source", values=named)
+    reading = view.source(source, registry)
+    if reading is None:
+        return (
+            None
+            if source in view.contracts
+            else Finding("datum-unsupplied-source", values=named)
+        )
+    if anchor.get("source_revision") != reading["revision"]:
+        return None
+    if "error" in reading:
+        return Finding(
+            "datum-undrawn-source", values={**named, "why": reading["error"]}
+        )
     return None
 
 
@@ -544,18 +571,6 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
     return record_contract_error(view, event, spec, readings)
 
 
-def _reaction_error(event: dict, registry: dict) -> Finding | None:
-    if not event.get("emoji"):
-        return None
-    declared = reaction_emoji(registry)
-    if event["emoji"] not in declared:
-        return Finding(
-            "unknown-reaction",
-            values={"emoji": event["emoji"], "declared": list(declared)},
-        )
-    return None
-
-
 def _anchored_comment_error(view, event: dict, registry: dict):
     """Why a comment's declared target is not a place on the page it names.
 
@@ -719,7 +734,6 @@ def admission_error(
         or _revision_error(view, event)
         or _action_error(view, event, readings)
         or _report_error(view, event, readings)
-        or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
         or _named_question_error(event, events)
@@ -910,7 +924,9 @@ def voiced(event: dict) -> dict:
     return {"kind": event["kind"], "author": "agent", **message_identity(), **event}
 
 
-def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
+def append_admitted(
+    page: OpenTransaction, event: dict, *, view=None
+) -> tuple[dict, bool]:
     """Admit one event and append it, under the page transaction's log lease; the
     record, and whether this call appended it.
 
@@ -939,7 +955,7 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     return record, True
 
 
-def append_all_admitted(page, events: list[dict]) -> list[dict]:
+def append_all_admitted(page: OpenTransaction, events: list[dict]) -> list[dict]:
     """Admit `events` in order, each against the log as the ones before it leave it,
     then append them; their records. A refusal of any appends none, so a command that
     writes several events writes all of them or none. An event keeps the `id` it

@@ -193,7 +193,7 @@ import { excerptWords } from "../../lib/words.js";
 // the page's title, where no heading stands over them: a label of quoted words with no
 // place of their own, and the head's title for any other.
 /** @param {ThreadRecord} thread
- * @param {Pick<ReturnType<typeof import("../../annotations/anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
+ * @param {Pick<import("./placement.js").ThreadPlacements, "placedAt">} anchors */
 function quoteReading(thread, anchors) {
   const quoted = threadPassage(thread);
   const place = anchorPlace(quoted, thread.root.about);
@@ -273,7 +273,7 @@ function workingMessage(thread, messages) {
   const running = workflows.find(inHand);
   const runningLine = running && hasWorkflowLine(running) ? running : null;
   const stopped = workflows.find(
-    /** @returns {workflow is Extract<import("../../state/semantic-application.js").Workflow, {detail: string}>} */
+    /** @returns {workflow is Extract<import("../../../types/domain.js").Workflow, {detail: string}>} */
     (workflow) =>
       workflow.state === "blocked" &&
       workflow.reason !== null &&
@@ -724,8 +724,7 @@ export class ThreadView {
   /** @param {string} id */
   ownsMessage(id) {
     return (
-      this.#model?.id === id ||
-      this.#model?.messages.some((message) => message.id === id)
+      this.#model.id === id || this.#model.messages.some((message) => message.id === id)
     );
   }
 
@@ -755,7 +754,7 @@ export class ThreadView {
     const { endNewsMoves, standsAtEnd } = this.#outlets;
     if (endNewsMoves) {
       if (news.settled) return false;
-      const last = this.#model?.messages.at(-1);
+      const last = this.#model.messages.at(-1);
       const list = this.#transcript.node;
       const follows =
         list.scrollHeight > list.clientHeight + 0.5 && Boolean(standsAtEnd?.());
@@ -801,7 +800,7 @@ export class ThreadView {
     if (!prior || !drawnWith) return false;
     // A card holding news draws on every pass: what it shows then moves with time and
     // the reader, not with its reading.
-    if (this.#model?.news) return false;
+    if (this.#model.news) return false;
     const { reread: _priorReread, ...was } = prior;
     const { reread: _reread, ...now } = model;
     const outside = this.#outside(model);
@@ -840,7 +839,7 @@ export class ThreadView {
       this.#retainHeaderSlot({ observe: false });
     // The rewrites the user has open, and the messages leaving, change their own room.
     const bodyPlace = published
-      ? this.#continuity?.before([
+      ? this.#continuity.before([
           ...this.#transcript.views
             .filter((view) => view.editing)
             .map(({ node }) => node),
@@ -920,7 +919,7 @@ export class ThreadView {
     render(
       html`
         ${inLine ? body : html`<div class="lf-thread-content">${body}</div>`}
-        ${this.#continuity?.gap ?? nothing} ${replyApart ? nothing : this.#reply.node}
+        ${this.#continuity.gap} ${replyApart ? nothing : this.#reply.node}
       `,
       this.node,
     );
@@ -936,7 +935,7 @@ export class ThreadView {
     else this.#releaseHeaderSlot();
     if (inLine && model.news) measure(this.node, () => this.#watchLineNews());
     else this.#releaseLineNews();
-    this.#continuity?.after(bodyPlace);
+    this.#continuity.after(bodyPlace);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
@@ -1297,7 +1296,7 @@ export class ThreadView {
   }
 
   #retainHeaderSlot({ observe = true } = {}) {
-    const news = this.#model?.news;
+    const news = this.#model.news;
     if (observe && !news) {
       this.#releaseHeaderSlot();
       return;
@@ -1536,7 +1535,7 @@ export class ThreadView {
   // takes the pressed control away, as a held settlement does Resolve, the press leaves
   // the user on the thread's title.
   #showNews() {
-    if (!this.#model?.news) return;
+    if (!this.#model.news) return;
     const restoreFocus = holdFocus(this.node);
     this.#model.news.open();
     restoreFocus?.(this.node);
@@ -1665,7 +1664,7 @@ export class ThreadView {
     this.#quoteSize.disconnect();
     this.#quoteEffect?.();
     this.#quoteEffect = null;
-    this.#continuity?.release();
+    this.#continuity.release();
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;

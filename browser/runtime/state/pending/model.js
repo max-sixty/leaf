@@ -11,14 +11,11 @@ import { MESSAGE_KINDS } from "../kernel-facts.js";
  */
 export const isThreadEvent = (event) => MESSAGE_KINDS.has(event.kind);
 
+// A gesture that speaks in a thread, so hands it to the agent: a message, in words or
+// an emoji, or the user rewriting words of theirs (`events.exchange`).
+// `tests/turn_cases.json` holds this and `turnMessage` to the server's reading.
 /** @param {import("../../../types/domain.js").Command} event */
-export const isMessageEvent = (event) => isThreadEvent(event) && !event.emoji;
-
-// A gesture that speaks in a thread, so hands it to the agent: words, or the user
-// rewriting words of theirs (`events.exchange`). `tests/turn_cases.json` holds this and
-// `turnMessage` to the server's reading.
-/** @param {import("../../../types/domain.js").Command} event */
-export const isTurnEvent = (event) => isMessageEvent(event) || event.kind === "edit";
+export const isTurnEvent = (event) => isThreadEvent(event) || event.kind === "edit";
 
 // The message a turn shows on: a rewrite's message, else its own (`events.turn_message`).
 /** @param {{kind: string, id: string, message?: string}} turn @returns {string} */

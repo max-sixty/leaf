@@ -9,8 +9,8 @@ The inventory is complete even when a work queue hides a resolved thread or an
 older prompt.
 
 On the page, the user answers an obligation only through its source: a widget
-through the actions its `awaits` declares, an agent message through a reply or
-settling reaction in its thread. Leaf adds no control of its own, such as a generic
+through the actions its `awaits` declares, an agent message through a message of
+theirs in its thread, words or a reaction. Leaf adds no control of its own, such as a generic
 Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
 the decision). Any widget may ask by declaring `awaits`; content that doesn't is
 asked about in a thread anchored to it.
@@ -23,8 +23,7 @@ answered it; `response_address` derives the operation that answers it. A thread 
 never an obligation itself: its messages publish them.
 
 An agent message carrying `obligation` asks a question the user answers in words:
-their next message in its thread, or a reaction there whose emoji settles it, is its
-answer. The message owns identity and prompt; its thread only locates it.
+their next message in its thread, words or a reaction, is its answer. The message owns identity and prompt; its thread only locates it.
 
 That answer takes effect at once, whatever the words say, so the user can clear On Me
 without waiting for the agent. Only the agent can read whether they answered, and
@@ -60,13 +59,11 @@ from bisect import bisect_right
 from collections.abc import Callable
 from functools import partial
 from math import inf
-from typing import TYPE_CHECKING
 
 from leaf.base import standing
 from leaf.base.page_memory import Slot
 from leaf.base.standing import ended, is_open, on
 from leaf.log.events import (
-    is_reaction,
     owed_turns,
     report_settled_at,
     taken_back,
@@ -88,10 +85,6 @@ from leaf.source.obligation_sources import ObligationSources, obligation_sources
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import verb_writers
-from leaf.source.registry.reactions import reaction_emoji
-
-if TYPE_CHECKING:
-    from leaf.records.todos import TodoReading
 
 
 def question_ids(message: dict) -> list[str]:
@@ -122,18 +115,6 @@ def settle_by_words(record: dict, answer: dict | None) -> None:
             "value": {key: answer[key] for key in ("text", "emoji") if key in answer},
             "event": event_reference(answer),
         }
-
-
-def settles(reaction: dict, turn: str, emoji: dict) -> bool:
-    """Whether a message is the user's reaction on the agent's `turn` with an emoji
-    the registry declares `settles` (`$reactions`), which answers the question that
-    turn asks as a reply would. `emoji` is `$reactions.emoji`."""
-    return (
-        is_reaction(reaction)
-        and reaction["author"] == "user"
-        and reaction.get("parent") == turn
-        and bool((emoji.get(reaction["emoji"]) or {}).get("settles"))
-    )
 
 
 def event_reference(event: dict | None) -> dict | None:
@@ -819,7 +800,7 @@ def page_obligation_readings(
     dropped: set,
     threads: dict,
     within: dict,
-    log: "TodoReading",
+    owed: list[dict],
     *,
     settled_away: set[str] | None = None,
     prior=None,
@@ -828,13 +809,12 @@ def page_obligation_readings(
 ) -> dict:
     """Obligations in one document basis; a discussion changes attention, not answer:
     an obligation a thread with the agent is about is the agent's (`anchors_with_agent`).
-    `log` is the page's `todos.TodoReading`: its `owed` holds the work the agent's
-    replies promised."""
+    `owed` is the work the agent's replies promised (`todos.TodoReading.owed`)."""
     reducer = _ObligationReducer(
         sources, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
-    discussed(records, anchors_with_agent(threads, log.owed), within)
+    discussed(records, anchors_with_agent(threads, owed), within)
     return collection(records)
 
 
@@ -842,7 +822,7 @@ def thread_obligation_readings(
     events: list,
     registry: dict,
     threads: dict,
-    log: "TodoReading",
+    owed: list[dict],
     *,
     reading: ThreadMarkupReading,
 ) -> dict:
@@ -851,8 +831,8 @@ def thread_obligation_readings(
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
     obligation does (`anchors_with_agent`). That turn instead answers a message
-    obligation, as does a reaction on the message whose emoji settles it; `log` is the
-    page's `todos.TodoReading`, whose `owed` holds the work replies promised."""
+    obligation, whether it says words or an emoji. `owed` is
+    the work replies promised (`todos.TodoReading.owed`)."""
     reducer = _ObligationReducer(
         obligation_sources(reading.structure, registry),
         reading.projection,
@@ -891,10 +871,9 @@ def thread_obligation_readings(
         }
         for question, (identity, message) in newest.items()
     )
-    emoji = reaction_emoji(registry)
     # The newest open to-do on each thread.
     newest_todo: dict[str, int] = {}
-    for todo in log.owed:
+    for todo in owed:
         subject = todo["source"]["subject"]
         if subject["kind"] == "thread":
             newest_todo[subject["id"]] = max(
@@ -904,7 +883,7 @@ def thread_obligation_readings(
     for record in records:
         thread = threads[record["thread"]]
         if record["thread"] not in readings:
-            readings[record["thread"]] = ThreadAnswers(thread, emoji)
+            readings[record["thread"]] = ThreadAnswers(thread)
         answers = readings[record["thread"]]
         in_words = answered_in_words(record)
         asked = answers.seq(record["message"])
@@ -925,13 +904,14 @@ def thread_obligation_readings(
                 settle_by_words(record, answer)
         if record["next_actor"] is None:
             continue
-        owed = answers.owed
+        turn = answers.owed
         if closed is not None:
             record["next_actor"] = None
-        # Only the user's words answer a question asked in words, so a turn the agent
-        # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
+        # Only the user's message answers a question asked in words, so a turn the
+        # agent owes after it, such as one a user's edit up the thread opens, leaves it
+        # theirs.
         elif not in_words and (
-            (owed is not None and owed["seq"] > asked)
+            (turn is not None and turn["seq"] > asked)
             or newest_todo.get(record["thread"], 0) > asked
         ):
             record["next_actor"] = "agent"
@@ -940,41 +920,29 @@ def thread_obligation_readings(
 
 class ThreadAnswers:
     """What answers the questions one thread asks, read once for every obligation
-    in it: where each message stands, the user's messages in words, each message's
-    first reaction whose emoji settles it (`settles`), and the turn the agent owes
-    (`unanswered_agent_turn`)."""
+    in it: where each message stands, the user's messages, and the turn the agent
+    owes (`unanswered_agent_turn`)."""
 
-    def __init__(self, thread: dict, emoji: dict):
+    def __init__(self, thread: dict):
         self.messages = thread["msgs"]
         self.position = {message["id"]: i for i, message in enumerate(self.messages)}
-        # A message the user deleted has no words left to answer.
-        self.words = [
+        # A message the user deleted or took back says nothing left to answer.
+        self.said = [
             i
             for i, message in enumerate(self.messages)
             if message["author"] == "user"
-            and not is_reaction(message)
-            and bool(message.get("text"))
+            and bool(message.get("text") or message.get("emoji"))
             and not message.get("ephemeral")
         ]
-        self.settling: dict[str, int] = {}
-        for i, message in enumerate(self.messages):
-            parent = message.get("parent")
-            if parent is not None and settles(message, parent, emoji):
-                self.settling.setdefault(parent, i)
         self.owed = unanswered_agent_turn(thread)
 
     def seq(self, message: str) -> int:
         return self.messages[self.position[message]]["seq"]
 
     def first_answer(self, message: str) -> dict | None:
-        """The first message after `message` that answers it: the user's words, or
-        their reaction on it whose emoji settles it."""
-        at = self.position[message]
-        later = bisect_right(self.words, at)
-        found = [i for i in (self.settling.get(message),) if i is not None]
-        if later < len(self.words):
-            found.append(self.words[later])
-        return self.messages[min(found)] if found else None
+        """The user's first message after `message`, which answers it."""
+        later = bisect_right(self.said, self.position[message])
+        return self.messages[self.said[later]] if later < len(self.said) else None
 
 
 def settled_by_message(records: list[dict]) -> dict[str, list[dict]]:

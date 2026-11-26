@@ -89,6 +89,13 @@ the whole thread with `leaf page state <page> <message>`, paginated with
 thread may also carry `summary_hint`
 ([threads, "Summarize a long discussion"](threads.md#summarize-a-long-discussion)).
 
+The batch's `held` lists your open to-dos on the page whose work waits on something
+you named with `--waiting-on` ([threads](threads.md)), each with its `id`, `text`
+and `waiting_on`. Leaf can't tell which input ends a wait, so it lists them with
+every batch. Where the batch's input ends what one waits on, whether or not it owes
+an answer, start that to-do with `leaf task start <page> <id> --text "<the work, in
+a line>"`, which ends its wait, and take its work up.
+
 ## Delivery and acknowledgement
 
 Confirm a delivery only once every part is in context, by following its

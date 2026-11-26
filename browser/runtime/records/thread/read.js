@@ -18,7 +18,10 @@
    only then, and a pass runs when it turns active; the edge refuses a read sent
    before. A pass also runs on each change to what the page shows of its window
    (dom/geometry.js, `watchRoom`), which includes a nonmodal surface closing: it can reveal
-   a body without moving it or closing its permanent native ancestor.
+   a body without moving it or closing its permanent native ancestor; on each change of a
+   body's size; and as a body enters the window or comes wholly into it, which a layout
+   moving it without a scroll does, as a thread card's placement does when it stands the
+   card at the window's foot after the scroll that opened it.
 
    The same rendered-body and room observations record first visible agent words in
    the best-effort interaction trace. Those diagnostics need neither focus, unread
@@ -74,7 +77,7 @@ function mergeIntervals(intervals) {
   return merged;
 }
 
-/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../dom/rect.js").Box} band
+/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../base/box.js").Box} band
  * @returns {{interval: Interval, height: number, width: number, contentHeight: number} | null} */
 function visibleInterval(body, clips, band) {
   if (!presented(body)) return null;
@@ -100,7 +103,7 @@ function visibleInterval(body, clips, band) {
 
 // An element's box can intersect the viewport while all its words are clipped or
 // below it. Measure the text itself through the one reading of what is seen.
-/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../dom/rect.js").Box} band */
+/** @param {Element} body @param {import("../../dom/geometry.js").ClipCache} clips @param {import("../../base/box.js").Box} band */
 function wordsAreVisible(body, clips, band) {
   if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
     return false;
@@ -125,7 +128,7 @@ function wordsAreVisible(body, clips, band) {
 }
 
 /** @param {{
- * markRead: (items: ContentVersion[]) => ReturnType<typeof import("../../host/delivery.js").deliverBookkeeping>,
+ * markRead: (items: ContentVersion[]) => Promise<"accepted" | "refused" | "unreached">,
  * openThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
  * }} dependencies */
 export function createReadTracking({ markRead, openThread }) {
@@ -138,6 +141,9 @@ export function createReadTracking({ markRead, openThread }) {
   /** @type {Set<string>} */
   const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
+  const crossings = new IntersectionObserver(() => scheduleScan(), {
+    threshold: [0, 1],
+  });
   /** @type {(() => void)[]} */
   const frameWatches = [];
   // The threads the last presented pass drew. A signal, because the first-unread
@@ -206,7 +212,6 @@ export function createReadTracking({ markRead, openThread }) {
   function scan(sampleBand) {
     if (document.visibilityState !== "visible" || sampleBand?.visible === false) return;
     const band = sampleBand ?? layoutWindow();
-    if (!band) return;
     const candidates = new Map(
       (threadsPresented ? actionableUnread() : []).map(({ item }) => [
         item.message,
@@ -222,6 +227,7 @@ export function createReadTracking({ markRead, openThread }) {
       const { body, items, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
+        crossings.unobserve(body);
         renderedBodies.delete(node);
         continue;
       }
@@ -365,6 +371,7 @@ export function createReadTracking({ markRead, openThread }) {
       exposureGeneration++;
       if (event.persisted) return;
       sizes.disconnect();
+      crossings.disconnect();
       for (const unwatch of frameWatches) unwatch();
       frameWatches.length = 0;
     });
@@ -372,7 +379,10 @@ export function createReadTracking({ markRead, openThread }) {
 
   /** @param {Element} body @param {BodyReading} reading */
   function observeBody(body, reading) {
-    if (!renderedBodies.has(body)) sizes.observe(body);
+    if (!renderedBodies.has(body)) {
+      sizes.observe(body);
+      crossings.observe(body);
+    }
     const registration = {
       body,
       ...reading,
@@ -382,6 +392,7 @@ export function createReadTracking({ markRead, openThread }) {
     return () => {
       if (renderedBodies.get(body) !== registration) return;
       sizes.unobserve(body);
+      crossings.unobserve(body);
       renderedBodies.delete(body);
     };
   }

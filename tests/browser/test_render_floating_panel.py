@@ -32,7 +32,7 @@ from render_harness import (
     FAKE_RECOGNITION,
     LONG_PAGE,
     PREVIEW,
-    accessible_node,
+    accessible_tree,
     clocked,
     close_panel_menu,
     consume_browser_errors,
@@ -410,11 +410,21 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     press = field_press(page)
     expect(press.locator(".lf-compose-press-word")).to_have_text("Next thread")
     expect(press.locator("kbd")).to_have_text("t")
-    # A screen reader is given the press too, though the field's words are hidden
-    # from it as its placeholder.
-    node = accessible_node(press)
-    assert not node.get("ignored") and node["role"]["value"] == "button", node
-    assert node["name"]["value"].startswith("Next thread"), node
+    # A screen reader finds the field's one textbox empty, since its words are its
+    # placeholder, and the press as a button beside that textbox rather than in it.
+    field = accessible_tree(page.locator(".lf-fp-field leaf-text"))
+
+    def within(node):
+        for child in node["children"]:
+            yield child
+            yield from within(child)
+
+    nodes = [field, *within(field)]
+    [textbox] = [node for node in nodes if node["role"] == "textbox"]
+    assert not textbox["value"].strip(), field
+    assert "button" not in {node["role"] for node in within(textbox)}, field
+    [button] = [node for node in nodes if node["role"] == "button"]
+    assert button["name"].startswith("Next thread"), field
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     undo(page)
@@ -2619,6 +2629,9 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
+    # The box shrinks to the row after the view goes, and stands over the paragraph
+    # for the start of that motion, so the paragraph reads whole once it rests.
+    panel_settled(page, open=False)
     whole = page.evaluate(
         """async () => {
           const {seenRect} = await window.__lfCheckApi();
@@ -4320,8 +4333,8 @@ def test_only_an_open_thread_says_new_in_threads(browser, serve):
 
 def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, serve):
     """On Claude is the agent's work list: what it has in hand, what is queued behind
-    that, and what it finished, a line each with its stage and how long it has stood
-    there, and under the work in hand, what its running step wrote. The chooser at its foot shows the same work as a summary instead, a choice
+    that, what waits on something the agent named, and what it finished, a line each
+    with its stage and how long it has stood there, and under the work in hand, what its running step wrote. The chooser at its foot shows the same work as a summary instead, a choice
     the browser keeps across a reload."""
     url = serve(LONG_PAGE)
     page_dir = serve.page_dir
@@ -4336,6 +4349,15 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         "create", str(page_dir), "page", "--title", "Draft the release note"
     )
     task("create", str(page_dir), "page", "--title", "Check the rollout")
+    task(
+        "create",
+        str(page_dir),
+        "page",
+        "--title",
+        "Merge the release",
+        "--waiting-on",
+        "its review",
+    )
     tidied = task("create", str(page_dir), "page", "--title", "Tidy the wording")
     task("end", str(page_dir), tidied["id"], "done")
     task(
@@ -4356,17 +4378,24 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         [
             re.compile(r"^\s*In hand\s*1\s*$"),
             re.compile(r"^\s*Up next\s*1\s*$"),
+            re.compile(r"^\s*Waiting\s*1\s*$"),
             re.compile(r"^\s*Done\s*1\s*$"),
         ]
     )
     lines = view.locator(".lf-fp-on-line")
     expect(lines.locator(".lf-fp-label")).to_have_text(
-        ["Draft the release note", "Check the rollout", "Tidy the wording"]
+        [
+            "Draft the release note",
+            "Check the rollout",
+            "Merge the release",
+            "Tidy the wording",
+        ]
     )
     expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         [
             re.compile(r"^On it \S+$"),
             re.compile(r"^Still to do \S+$"),
+            re.compile(r"^Waiting on its review \S+$"),
             re.compile(r"^Done \S+$"),
         ]
     )
@@ -4388,7 +4417,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     # Leaf says the summary, and the agent's own words, its line and a to-do's title,
     # stand in its own face within it.
     expect(summary).to_contain_text(
-        "Working on 1; 1 up next. Now: Drafting the note's first line."
+        "Working on 1; 1 up next, 1 waiting. Now: Drafting the note's first line."
     )
     expect(summary).to_contain_text("Last done: Tidy the wording")
     # Its age is a time, which says when to a pointer, as every age the panel shows:
@@ -4964,8 +4993,12 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     on_mark.click()
     queue = page.locator(panel_view("queue"))
     expect(queue).to_be_focused()
-    expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
-    expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text("2")
+    # Each tab is named for its list and described by its count.
+    on_me = page.get_by_role("button", name="On Me", exact=True)
+    expect(on_me).to_have_accessible_description("2")
+    threads = page.get_by_role("button", name="Threads", exact=True)
+    expect(threads).to_have_accessible_description("2")
+    expect(threads.locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
     page.keyboard.press("ArrowDown")

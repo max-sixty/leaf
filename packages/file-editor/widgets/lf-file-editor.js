@@ -41,8 +41,9 @@
  * The editor reads the open file when it connects, when the tab is shown again, when
  * the reader opens it and when the page's state stamps its binding anew
  * (`boundFile().watch`). A read asked for while another request on that file is in
- * flight, or while a failure or conflict holds it, stays owed until a later read or
- * save covers it.
+ * flight, while a conflict holds it, or while a failure holds it with a draft or a
+ * save whose answer was lost, stays owed until a later read or save covers it; a
+ * clean file whose last request failed, as before the page bound it, reads again.
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
@@ -316,8 +317,15 @@ customElements.define(
         const of = file;
         if (of.busy) return;
         const operation = of.failure;
-        // A failed save with nothing left to write is settled by reading the file.
-        if (operation?.kind === "save" && unsaved(of, operation.replace))
+        // A failed save is settled by reading the file where nothing is left to write,
+        // and where the save may have reached the file, since a second send would
+        // forget the first one's words (`sent`) and take them, found on disk, for a
+        // write from elsewhere.
+        if (
+          operation?.kind === "save" &&
+          of.sent === null &&
+          unsaved(of, operation.replace)
+        )
           void flush(of, operation.replace, returnFrom);
         else void refresh(of, returnFrom);
       };
@@ -750,7 +758,11 @@ customElements.define(
       /** @param {OpenFile} of @param {HTMLElement | null} [returnFrom] */
       async function refresh(of, returnFrom = null) {
         if (!connected) return;
-        if (of.busy || ((of.failure || of.latest) && !returnFrom)) {
+        // A failure holds the file only while it holds words a read could set against
+        // the file: a draft, or a save whose answer was lost. A clean editor whose read
+        // failed, as before the page bound its file, reads again.
+        const held = of.failure && (dirty(of) || of.sent !== null);
+        if (of.busy || ((held || of.latest) && !returnFrom)) {
           of.owed = true;
           return;
         }

@@ -187,13 +187,13 @@ export const tabStops = (root) =>
 // playground's preview holds, belongs to another window's `Element`.
 export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
-/** @typedef {[start: number, end: number, direction?: "forward" | "backward" | "none"]} Caret
- * @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
+/** @import { Caret } from "../base/held-place.js" */
+/** @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
 /** The element a destination puts the user on. @param {FocusDestination} destination */
 export const focusElement = (destination) =>
   isElement(destination) ? destination : destination.element;
 /** @param {FocusDestination} destination @param {"move" | "step" | "return" | "press"} cause
- * @param {{caret?: Caret | null}} [options] */
+ * @param {{caret?: Caret | null}} [options] @returns {Element | null} where focus landed */
 export function focusDestination(
   destination,
   cause,
@@ -203,7 +203,7 @@ export function focusDestination(
   const unexpected = Object.keys(unknown);
   if (unexpected.length)
     throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
-  if (!canPlaceFocus()) return;
+  if (!canPlaceFocus()) return null;
   const element = focusElement(destination);
   // Firefox otherwise inherits a pointer arrival's invisible focus through a
   // keyboard route, including a composer return. Ask the platform to show that
@@ -212,13 +212,37 @@ export function focusDestination(
     preventScroll: true,
     ...(!pressLed() && { focusVisible: true }),
   };
-  placed(cause, () => {
+  const landed = placed(cause, () => {
     if (!isElement(destination) && drawn(element)) destination.settle();
-    nativeFocusTarget(element).focus(options);
-    if (!landedOn(element) && lendable(element)) lendStop(element, options);
+    return placeOn(element, options);
   });
   if (caret && holdsCaret(element)) element.setSelectionRange(...caret);
+  return landed;
 }
+// Focus on `node`, with a stop lent where it is no control of its own. An element laid
+// out `display: contents` draws no box, and no engine focuses one unless it hands focus
+// on, as a host delegating its focus does, so the user stands on the first thing it
+// draws that takes them: where its content starts, past anything hidden or disabled.
+/** @param {Element} node @param {FocusOptions} options @returns {Element | null} */
+function placeOn(node, options) {
+  nativeFocusTarget(node).focus(options);
+  if (!landedOn(node) && lendable(node)) lendStop(node, options);
+  if (landedOn(node)) return node;
+  /** @type {Element | null} */
+  let landed = null;
+  if (boxless(node))
+    eachRenderedElement(node, (child) => {
+      if (!landed && placeable(child) && hasNativeFocus(child))
+        landed = placeOn(child, options);
+    });
+  return landed;
+}
+/** @param {Element} node */
+const boxless = (node) => getComputedStyle(node).display === "contents";
+// Whether a placement can put the user on `node`, or on what it draws.
+/** @param {Element | null | undefined} node */
+const placeable = (node) =>
+  Boolean(drawn(node) || (node?.isConnected && boxless(node)));
 // The cause of the placement running now, null outside one. The outermost placement
 // names it, since whatever focus runs inside it is part of the same act.
 /** @type {PlacementCause | null} */
@@ -300,7 +324,7 @@ function lendStop(destination, options) {
 // on any other throws rather than returning null.
 const CARETED = new Set(["text", "search", "url", "tel", "password"]);
 /** @param {Element} node
- * @returns {node is HTMLInputElement | HTMLTextAreaElement | import('../annotations/composing/text-field.js').LeafTextElement} */
+ * @returns {node is HTMLInputElement | (HTMLElement & Pick<HTMLTextAreaElement, "selectionStart" | "selectionEnd" | "selectionDirection" | "setSelectionRange">)} */
 const holdsCaret = (node) =>
   isHTML(node) &&
   (node.matches(TEXT_BOX) || (isHTML(node, "input") && CARETED.has(node.type)));
@@ -600,7 +624,7 @@ function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
   if (!present) {
-    if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
+    if (node.part.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
   } else if (
     node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
     node.hasAttribute("part")
@@ -1489,7 +1513,7 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!key) return restore;
   /** @type {Element | null} */
   let item = node;
-  while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
+  while (item && !item.matches(`[${key}]`)) item = renderedParent(item);
   if (!item || item === scope || !renderedUnder(item, scope)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
@@ -1554,7 +1578,7 @@ export function holdFocus(scope, { key = null } = {}) {
     };
     /** @param {string | null | undefined} value */
     const find = (value) => {
-      const found = keyed(value).filter(drawn);
+      const found = keyed(value).filter(placeable);
       return (
         found.find((each) => each.matches(like)) ??
         found.map(matching).find(Boolean) ??
@@ -1567,9 +1591,7 @@ export function holdFocus(scope, { key = null } = {}) {
     /** @param {string | null | undefined} value */
     const neighbour = (value) => () => {
       const place = find(value);
-      if (!place || !drawn(place)) return null;
-      focusDestination(place, "return");
-      return landedOn(place);
+      return Boolean(place && focusDestination(place, "return"));
     };
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
   };
@@ -1730,19 +1752,16 @@ function holdOn(held) {
           });
         });
       if (place === true) return true;
-      if (!isElement(place) || !drawn(place)) continue;
+      if (!isElement(place) || !placeable(place)) continue;
       if (place === held && deepFocus() === held) return true;
-      const landed = land(() => {
-        focusDestination(place, "return", { caret });
-        return landedOn(place);
-      });
+      const landed = land(() => focusDestination(place, "return", { caret }));
       if (landed) {
         // Two holds in a row with no input between carry the same place on, so the
         // record names the node the first one held.
         const before = carriedFrom(held);
-        if (place !== held)
+        if (landed !== held)
           carried.set(
-            place,
+            landed,
             before?.inputs === inputCount()
               ? before
               : { from: held, inputs: inputCount() },
@@ -1885,8 +1904,8 @@ export function landAtReading(from = null) {
   const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
   else {
-    focusDestination(block, "move");
-    block.blur();
+    const landed = focusDestination(block, "move");
+    if (landed) nativeFocusTarget(landed).blur();
   }
   // A page an open modal holds inert takes no focus, so the landing above moved nothing.
   held?.blur();
@@ -1918,10 +1937,9 @@ export function handBack(...destinations) {
     const at = placements;
     return places.some((place) => {
       if (placements !== at) return true;
-      const node = focusElement(place);
-      if (!drawn(node)) return false;
-      focusDestination(place, "return");
-      return landedOn(node);
+      return (
+        placeable(focusElement(place)) && Boolean(focusDestination(place, "return"))
+      );
     });
   };
   if (landed()) return;

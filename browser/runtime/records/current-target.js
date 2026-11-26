@@ -59,7 +59,6 @@ import { userCaret } from "../dom/native-selection.js";
 import { focused, onCurrentLocation, onLetGo, onUserInput } from "../dom/focus.js";
 import { seenAhead } from "../readings/scroll-containers.js";
 import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
-import { isReaction } from "../state/thread/model.js";
 import { threadNamed } from "./thread/state.js";
 import { keptEach } from "../state/kept.js";
 import {
@@ -206,9 +205,7 @@ export function questionAsked(node) {
   const held = obligationHolding(all, node ?? null);
   if (held && under(obligationPlace(held, all).source, whole)) return null;
   const thread = threadNamed(drawnThreadId(view) ?? "");
-  const latest = thread?.msgs.findLast(
-    (message) => message.author === "agent" && !isReaction(message),
-  );
+  const latest = thread?.msgs.findLast((message) => message.author === "agent");
   const asked =
     (latest && thread?.obligations.filter((item) => item.message === latest.id)) || [];
   const drawn = byRenderedOrder(
@@ -245,7 +242,7 @@ const PLACELESS = `${THREAD}, ${ON_CARD}`;
 // The page place a surface beside the page holds while the user stands in it, as the
 // floating panel holds where they stepped in from (`readPlace`, history.js). It is still
 // their place on the page, so `z` aligns it and a walk pressed there starts on it.
-/** @type {() => import("./history.js").WorkingPlace | null} */
+/** @type {() => import("../base/held-place.js").WorkingPlace | null} */
 let heldPlace = () => null;
 /** @param {typeof heldPlace} read */
 export function holdPagePlace(read) {

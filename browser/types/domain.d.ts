@@ -7,8 +7,10 @@ import type {
   BrowserCommand,
   CompleteUnion,
   MessageKind,
+  ServedReading,
   ServedState,
   ServedVerb,
+  ServedWorkflow,
   WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
@@ -27,7 +29,57 @@ type OptionalAttempt<T> = T extends unknown
   ? Omit<T, "attempt"> & { attempt?: string }
   : never;
 export type PendingCommand = OptionalAttempt<Command>;
+/** One piece of news a reading carries (host/semantic-news.js), as the announcer queues
+ * it (transport/notifications.js). */
+export type SemanticNews = ContentNews | FailureNews | ObligationNews | EmptiedNews;
+type ContentNews = {
+  kind: "agent_content";
+  key: string;
+  thread: string;
+  message: Message;
+  version: string;
+};
+type FailureNews = {
+  kind: "response_failure";
+  key: string;
+  condition: "failed" | "interrupted";
+  input: string;
+  thread: string | null;
+  seq: number;
+};
+export type ObligationNews = {
+  kind: "user_obligation";
+  key: string;
+  sourceKey: string;
+  episode: number;
+  source: string;
+  thread: string | null;
+  message: string | null;
+};
+type EmptiedNews = {
+  kind: "on_me_empty";
+  key: string;
+};
+/** A publication as `leaf.source.data.read_source` serves it, before widget delivery. */
+export type SourceReading = NonNullable<ServedReading["data"]["sources"]>[string];
+/** A workflow as the application state publishes it, local sends included before the
+ * server can classify them: a `local` send waits on the agent, or is blocked where the
+ * server refused it, and a widget move has no coordinate the server has read. A send
+ * `launching` waits for the server to launch the page's agent first. */
+export type Workflow = Published<ServedWorkflow>;
+type Published<T> = T extends unknown
+  ? Omit<T, "coordinate"> & {
+      coordinate: readonly (string | null)[] | null;
+      local?: boolean;
+      launching?: boolean;
+    }
+  : never;
 export type Anchor = NonNullable<EventMap["comment"]["anchor"]>;
+/** A comment's drawing as its draft holds it, with `at`, the matrix from its local frame
+ * into its anchor's section when last drawn on (annotations/composing/drawing-record.js). */
+export type DraftDrawing = NonNullable<EventMap["comment"]["drawing"]> & {
+  at?: readonly [number, number, number, number, number, number];
+};
 export interface ContentVersion {
   message: string;
   version: string;
@@ -172,6 +224,24 @@ export interface AuthoredWidget {
   specs: ReadonlyMap<string, ActionSpec>;
 }
 export type AuthoredMap = ReadonlyMap<string, Immutable<AuthoredWidget>>;
+/** A widget's reading as the `state` property Leaf sets on an element it drives
+ * (host/widget-controller.js, `widgetState`): each declared verb's folded state, whether
+ * the user may act on it now and the reason they may not, and whether Undo would take
+ * back the action in force, on each unit of a verb that holds a state for each. */
+export type WidgetState = Immutable<
+  Record<
+    string,
+    | (UndoableAction & OfferedVerb)
+    | (Omit<UnitValue, "units"> & {
+        units: Record<string, UndoableAction>;
+      } & OfferedVerb)
+    | (Omit<PositionValue, "units"> & {
+        units: Record<string, UndoableAction>;
+      } & OfferedVerb)
+  >
+>;
+type UndoableAction = ActionValue & { undoable: boolean };
+type OfferedVerb = { available: boolean; unavailable: string | null };
 
 export type ClassifiedEntry =
   | ProjectionEntry

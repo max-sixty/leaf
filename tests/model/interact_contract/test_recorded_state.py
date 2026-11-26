@@ -312,6 +312,8 @@ def test_a_value_record_may_name_the_property_and_event_the_element_holds_it_by(
         {"kind": "value", "attr": "value", "property": "aria-valuenow"},
         # Only a value record is one scalar an element's property can hold.
         {"kind": "body", "property": "value"},
+        # `state` is the widget's reading, which Leaf sets on the same element.
+        {"kind": "value", "attr": "value", "property": "state"},
     ],
 )
 def test_only_a_value_record_names_a_property_and_an_event_needs_one(page_dir, record):
@@ -726,6 +728,7 @@ def test_member_records_compose_without_claiming_each_others_state(tmp_path):
             reading.registry,
             {"sources": {}},
             tmp_path,
+            files={},
             outcomes=retirement_outcomes(projection.actions),
             retired=set(),
             thread="thread",

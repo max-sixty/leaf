@@ -106,8 +106,8 @@
    too, and the pointer couldn't reach a preview there. It holds no control, so it is
    no layer the keyboard tiers its scopes over (layer-stack.js). A pointer's preview
    takes the pointer, a point's excepted (below), so the pointer can cross from the
-   target onto it and read it there; leaving it puts it away after a dwell, and reaching another target from it
-   shows that one at once (WCAG 1.4.13, "Hoverable").
+   target onto it and read it there; leaving it puts it away after `LINGER`, and
+   reaching another target from it shows that one at once (WCAG 1.4.13, "Hoverable").
 
    Where it stands is one decision (`stand`), made again whenever what it rests on may
    have changed, and drawn by the browser from that decision alone, with no fallback of
@@ -175,15 +175,16 @@
 
    Its routes:
 
-   - A pointer resting on a target for `DWELL` shows its preview; moving onto another
-     target within `WARM` of the last one shows the next at once, so reading along a row
-     of controls waits once. Where the next one stands by the element the last one
+   - A pointer resting on a target for `DWELL` shows its preview, fading in; moving onto
+     another target within `WARM` of the last one the user saw going shows the next at
+     once and with no fade, so reading along a row of controls waits once and then moves
+     one preview along the row. Where the next one stands by the element the last one
      stands by, as each of a widget's controls may stand its preview by the widget, the
-     preview redraws where it stands, with no fade, so the reading changes under a face
-     that holds still. Leaving the
-     target hides it, and so do a press and any key but Escape, as the platform's
-     tooltip goes, while the key does its own work; the target then stays quiet until
-     the pointer comes back to it. A modifier alone is
+     preview redraws where it stands, so the reading changes under a face that holds
+     still. A pointer that leaves its target for nothing, as on its way onto the
+     preview, puts the preview away after `LINGER`. A press hides it, and so does any key
+     but Escape, as the platform's tooltip goes, while the key does its own work; the
+     target then stays quiet until the pointer comes back to it. A modifier alone is
      half a press rather than a key (dom/control-selectors.js, `MODIFIER_KEYS`), so ⌥ held
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
@@ -262,8 +263,14 @@
    preview stands, so its surface can keep it where the finger held it (margin-layout.js,
    `HELD`).
 
-   Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
-   holding the user up, over the margin labels' 90 ms and the platform's tooltips' second.
+   Decisions: a pointer's dwell, 500 ms, is the platforms' own tooltip delay (Windows'
+   initial delay, a little under Radix's 700 ms and the 650 ms Wikipedia's link previews
+   wait), so a pointer passing over a control or resting on the words the user reads
+   shows nothing, and once one preview has shown the next comes at once, as theirs do.
+   The user asked for a longer wait than 200 ms, which showed a preview wherever the
+   pointer paused on its way, each a control's name the user could already see beside a
+   key they hadn't reached for. Leaving for nothing keeps the preview `LINGER`, 200 ms,
+   long enough to cross onto it.
    A finger's is the platform's long press, since a press let go sooner is a
    tap, which presses: Android's, as the user set it, and 500 ms where WebKit says
    nothing, UIKit's default for a long press. A preview says its words whole, wrapping
@@ -364,22 +371,15 @@ import { linkPreview } from "./place-preview.js";
 import { markRoom } from "../readings/mark-room.js";
 import { anchorBox } from "../dom/css-anchors.js";
 
-/** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
- * @typedef {Word | readonly Word[]} Words
- * @typedef {readonly (readonly string[])[]} Presses
- * @typedef {Words | null | undefined | false} Line
- * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
- * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("../dom/rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
- * @typedef {Preview | null | undefined | false} Declared
- * @typedef {"pointer" | "focus" | "hold"} Route
- * @typedef {(route: Route) => Declared} Read
- * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("../dom/rect.js").Box | null, about: Element | null, excerpt: boolean, unseen: boolean, restates: boolean, declared: Preview | null}} Reading
- * @typedef {import("../dom/rect.js").Box} Box
+/** @import { Box } from "../base/box.js" */
+/** @import { Words, Presses, List, Preview, Declared, Route, Read } from "../base/preview-declaration.js" */
+/** @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | Box | null, about: Element | null, excerpt: boolean, unseen: boolean, restates: boolean, declared: Preview | null}} Reading
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, away?: boolean, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
  * @typedef {{pointerId: number, node: Node | null, parent: Element | null, element: Element | null, range: Range | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
 
-const DWELL = 200;
+const DWELL = 500;
+const LINGER = 200;
 const HOLD = 500;
 // Whether the engine says nothing as a touch press grows long: WebKit, which alone
 // exposes `GestureEvent`, desktop Safari's included, where no touch reaches a hold.
@@ -387,7 +387,7 @@ const holdsUntold = () => "GestureEvent" in window;
 const WARM = 400;
 // The timers above, for a reader outside the page that runs the page's clock past one
 // (check-api.js).
-export const PREVIEW_TIMERS = Object.freeze({ DWELL, HOLD, WARM });
+export const PREVIEW_TIMERS = Object.freeze({ DWELL, LINGER, HOLD, WARM });
 
 // The one element every preview draws in.
 const tip = document.createElement("div");
@@ -809,7 +809,7 @@ function markupName(control) {
   const by = labelledBy(control);
   if (by.length)
     return by
-      .map((el) => el.textContent?.trim() ?? "")
+      .map((el) => el.textContent.trim())
       .join(" ")
       .trim();
   return labelText(control) || titleOf(control) || "";
@@ -1021,7 +1021,7 @@ function stepMoved() {
   stoodForEscape = !stoodForEscape;
   paintCloseRequests();
 }
-// When the last preview went, for the warm switch.
+// When the last preview the user saw went, for the warm switch.
 let cooled = -Infinity;
 // What a hovering pointer rests on, in two layers, each kept until whoever said it says
 // otherwise: the element `pointerover` found that previews itself (`over`), and the
@@ -1044,6 +1044,13 @@ let pointingRead = null;
 let pointingAt;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let dwell;
+// The target the dwell counts for, until it ends or stops (`stopDwell`).
+/** @type {Target | null} */
+let dwelling = null;
+function stopDwell() {
+  clearTimeout(dwell);
+  dwelling = null;
+}
 // The target under the pointer whose wait is over, by its dwell or at once while warm,
 // so a new aim inside it shows at once (`changed`).
 /** @type {Target | null} */
@@ -1164,6 +1171,15 @@ function show(from, route, read = null, at, again = false, aim = false) {
     if (standing.target !== found.target) ended(standing);
   } else hide();
   const { target, holder, reading } = found;
+  // The first preview a pointer or a finger reads fades in; one that takes another's
+  // place, or comes while the last has only just gone, is there at once, as focus's
+  // always is, so reading along a row of controls moves one preview rather than fading
+  // a new one in at each (chrome.css, `data-lf-fade`).
+  keeps(
+    tip,
+    "data-lf-fade",
+    route !== "focus" && !standing && performance.now() - cooled >= WARM ? "" : null,
+  );
   render(face(reading), body);
   /** @type {Shown} */
   const record = {
@@ -1364,7 +1380,7 @@ function open(source, standing, moved) {
     else mark.after(tip);
   }
   anchored = new WeakRef(source);
-  said = tip.textContent ?? "";
+  said = tip.textContent;
   showNativeLayer(tip, { source });
 }
 
@@ -1880,11 +1896,13 @@ function hide() {
     record.holder.removeAttribute("data-lf-touch-held");
   follow(null);
   awaitView(null);
+  // Only a preview that stood (`placed`) warms the next: one that found no place to
+  // stand was never seen.
+  if (placed) cooled = performance.now();
   placed = null;
   // Its words stay in the closed popover, so the next preview that says the same
   // writes nothing.
   closeNativeLayer(tip);
-  cooled = performance.now();
   stepMoved();
   ended(record);
 }
@@ -1902,8 +1920,8 @@ function ended(record) {
 // The pointer's target changed: start its dwell, or show it at once while warm or where
 // it aims again inside the target it rested on (`again`). A
 // pointer that leaves its target for nothing, as on its way onto the preview, puts the
-// preview away only after a dwell, which its reaching the preview or the target cancels;
-// one that reaches another target shows that one at once.
+// preview away only after `LINGER`, which its reaching the preview or the target
+// cancels; one that reaches another target shows that one at once.
 /** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] */
 function point(target, read = null, at, again = false) {
   riding = false;
@@ -1915,14 +1933,17 @@ function point(target, read = null, at, again = false) {
   pointingRead = read;
   pointingAt = at;
   rested = null;
-  clearTimeout(dwell);
+  stopDwell();
   // The preview the pointer leaves, which a focus preview never is.
   const left =
     shown && shown.route !== "focus" && !sameTarget(shown.from, target) ? shown : null;
   if (left?.route === "pointer" && !target) {
+    // By its target, not its record, since a redraw meanwhile (`changed`, `refresh`)
+    // draws a new record for the same target.
     leaving = setTimeout(() => {
-      if (shown === left && !pointing) hide();
-    }, DWELL);
+      if (!pointing && shown?.route === "pointer" && sameTarget(shown.from, left.from))
+        hide();
+    }, LINGER);
     return;
   }
   if (!target) {
@@ -1937,12 +1958,15 @@ function point(target, read = null, at, again = false) {
   if (left || again || performance.now() - cooled < WARM) {
     rested = target;
     if (!show(target, "pointer", read, at) && shown === left) hide();
-  } else
+  } else {
+    dwelling = target;
     dwell = setTimeout(() => {
+      dwelling = null;
       if (pointing !== target) return;
       rested = target;
       show(target, "pointer", pointingRead, pointingAt);
     }, DWELL);
+  }
 }
 
 // Whether the pointer is on the pointer's preview, the one answer for an element's
@@ -1988,7 +2012,7 @@ function ride() {
 
 // Put the standing preview away for its target, until the user comes to another.
 function quieten() {
-  clearTimeout(dwell);
+  stopDwell();
   if (!shown) return;
   quiet = shown.from;
   hide();
@@ -2121,6 +2145,9 @@ function changed(node, aim) {
   } else if (aim && on && within(on) && on.matches(":focus-visible")) showFocus(on);
   else if (beneath && under(beneath, node) && !within(quiet)) {
     over = node;
+    // A dwell counting for it reads it as it ends, so news meanwhile, however often,
+    // keeps the deadline the pointer's rest set.
+    if (!aim && dwelling === node) return;
     pointing = null;
     point(node, null, undefined, aim && within(rested));
   }
@@ -2135,8 +2162,7 @@ function here() {
   const on = focused() ?? document.body;
   const caret = userCaret();
   const at = caret?.element;
-  if (at && renderedUnder(at, on) && seenRect(caret?.letter ?? at, new Map()))
-    return at;
+  if (at && renderedUnder(at, on) && seenRect(caret.letter ?? at, new Map())) return at;
   return on === document.body ? null : on;
 }
 // Whether a keyboard reading is of what focus is on: its target is the focused element
@@ -2247,7 +2273,7 @@ export function mountPreviews(chrome) {
           pointing = target;
           pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
         }
-        if (!stays || event.buttons) clearTimeout(dwell);
+        if (!stays || event.buttons) stopDwell();
         if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
       } else aim();
     },

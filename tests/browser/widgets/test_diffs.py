@@ -1,12 +1,13 @@
 """Diffs: comments, filtering and refreshes that keep the reader's inspection, file rows
-and their paths, the pinned file header, hunk landing, and print."""
+and their paths, the pinned file header, hunk landing, print, and a file compared
+with its committed text."""
 
 import json
 import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import panel_comment
+from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import MARK
 from render_cases_widgets import (
     DIFF_CLIPPING,
@@ -50,7 +51,9 @@ from browser.widgets import (
 from leaf.log import event_log as events_model
 from leaf.records import page_data as page_data_model
 from leaf.source import render_checks as render_checks_model
+from leaf.source.file_bindings import bind_file
 from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -904,6 +907,67 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     ), gutters
 
 
+def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
+    browser, serve, tmp_path
+):
+    """A diff given a file's committed text and the file's editor compares the two after
+    each save, as `git diff` would: Git's three lines of context and only the rows that
+    patch holds, so the one unchanged line on either side of the change stays out of the
+    drawing, with no control to bring it in. Two equal texts say there are no changes,
+    and two plain strings, which name no file, compare as the unnamed file. A patch
+    written beside the two texts is reported, since the diff never reads it."""
+    text = "".join(f"Line {number}\n" for number in range(1, 10))
+    file = tmp_path / "notes.md"
+    file.write_text(text)
+    url = serve(
+        leaf_page(
+            "Changes",
+            '<h1>Changes</h1><lf-file-editor id="notes-file" binding="notes">'
+            '</lf-file-editor><lf-diff id="changes" before="committed" for="notes-file">'
+            '</lf-diff><lf-diff id="plain" before="plain-before" after="plain-after">'
+            '</lf-diff><lf-diff id="written" before="plain-before" after="plain-after">'
+            "<pre>unread</pre></lf-diff>",
+        )
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page_data_model.cmd_data_set(
+        serve.page_dir, "committed", {"name": "notes.md", "text": text}
+    )
+    for source in ("plain-before", "plain-after"):
+        page_data_model.cmd_data_set(serve.page_dir, source, "one\n")
+    page = open_page(browser, live_url(url))
+    diff = page.locator("#changes")
+    expect(diff.locator(".lf-rows-empty")).to_have_text("No changes.")
+    plain = page.locator("#plain")
+    expect(plain.locator(".lf-rows-empty")).to_have_text("No changes.")
+    page_data_model.cmd_data_set(serve.page_dir, "plain-after", "two\n")
+    expect(plain.locator(".lf-diff-head")).to_contain_text("(unnamed file)")
+    expect(plain.locator(".lf-diff-line")).to_have_count(2)
+    consume_browser_errors(page, "a diff comparing two texts holds no patch <pre>")
+
+    page.locator("lf-file-editor .cm-line", has_text="Line 5").click()
+    page.keyboard.press("End")
+    page.keyboard.type(" edited")
+    expect(diff.locator(".lf-diff-head")).to_contain_text("notes.md")
+    expect(diff.locator(".lf-diff-line")).to_have_count(8)
+    sides = diff.evaluate("""d => [...d.shadowRoot.querySelectorAll('[data-lf-datum]')]
+      .map(row => JSON.parse(row.dataset.lfDatum)).filter(d => d.length > 2)
+      .map(([, side, line]) => `${side}${line}`)""")
+    assert sides == [
+        "both2",
+        "both3",
+        "both4",
+        "old5",
+        "new5",
+        "both6",
+        "both7",
+        "both8",
+    ]
+    expect(diff.locator("[data-separator]")).to_have_text(["1 unmodified line"])
+    expect(diff.locator("[data-expand-button]")).to_have_count(0)
+    assert file.read_text() == text.replace("Line 5", "Line 5 edited")
+
+
 def test_a_closed_diff_file_reads_current_evidence_across_source_forms(browser, serve):
     """File disclosure keeps its owner and loads the current patch in either form: the
     evidence goes from a raw patch to a manifest while the file is closed, then back."""
@@ -1612,7 +1676,7 @@ def test_a_diff_conversation_s_reply_rests_as_the_margin_card_s_field(browser, s
     )
     resized(page, 1280, 720)
     thread = page.locator("lf-diff .lf-diff-thread-outlet .lf-page-thread")
-    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(thread, name="Reply", exact=True)
     face = """field => {
       const box = field.parentElement, style = getComputedStyle(box);
       return {

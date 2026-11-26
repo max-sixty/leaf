@@ -30,7 +30,7 @@ import {
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { keeps } from "../lib/keeps.js";
 
-/** @typedef {import('./rect.js').Box} Box
+/** @typedef {import("../base/box.js").Box} Box
  * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},
  * placer: Element | null | undefined, scrolls: boolean}} ClipEntry
  * @typedef {Map<Element, ClipEntry>} ClipCache
@@ -151,7 +151,7 @@ export const coverBoxes = (item = null, { rest = false } = {}) =>
 // takes no room from what it holds (`coverBoxes`), as the floating panel's open view
 // covers none of the thread it shows. A chrome owner that changes the box it covers
 // says so (`announceRoom`), since no scroll or resize tells a reader.
-/** @param {{within?: Partial<import('./rect.js').Box> | null,
+/** @param {{within?: Partial<import("../base/box.js").Box> | null,
  * gap?: number, viewport?: "visual" | "layout",
  * across?: {left: number, right: number} | null, item?: Node | null}} [options] */
 export function shownWindow({
@@ -261,7 +261,7 @@ function viewBoxFit(svg) {
   const width = svg.width.animVal.value;
   const height = svg.height.animVal.value;
   const view = svg.viewBox.animVal;
-  if (!view?.width || !view.height) return new window.DOMMatrix().translate(x, y);
+  if (!view.width || !view.height) return new window.DOMMatrix().translate(x, y);
   const { align, meetOrSlice } = svg.preserveAspectRatio.animVal;
   const fits = align !== window.SVGPreserveAspectRatio.SVG_PRESERVEASPECTRATIO_NONE;
   const slices = meetOrSlice === window.SVGPreserveAspectRatio.SVG_MEETORSLICE_SLICE;
@@ -1160,7 +1160,7 @@ export function presented(node) {
   /** @type {Element | null} */
   let at = node;
   for (; at; at = renderedParent(at))
-    if (at.getAttribute?.("aria-hidden") === "true") return false;
+    if (at.getAttribute("aria-hidden") === "true") return false;
   return true;
 }
 // What this page shows of a sample's frame it holds, in the frame's own viewport

@@ -6,6 +6,8 @@
 # pulled that way. Where the to-do leaves the decision on On Me, an agent can also
 # withdraw `c13-pick` in a revision and plan to ask again under a new id; while the
 # to-do holds the decision, the decision stays off On Me.
+# The to-do names the backing-box change as what it waits on (`--waiting-on`), so the
+# thread reads as waiting on that change rather than as work still to do.
 description: deferral-holds-a-todo
 metadata:
   purpose: "Conversation loop: a decision the user puts off until other work lands is
@@ -48,3 +50,11 @@ assert:
       decision is never put back to the user. Fail too if this turn withdraws,
       restates or removes `c13-pick` to take it off On Me: the user put the decision
       off, not away, and the to-do is what holds it.
+  - type: llm-rubric
+    metric: names-the-wait
+    value: |
+      Pass only if the to-do that holds the c13 decision says what it waits on, the
+      backing-box change, with `--waiting-on` (on the `--todo` reply or on a `leaf
+      task create`), so the thread reads as waiting on that change rather than as work
+      still to do. Fail if the to-do carries no `--waiting-on`, or one naming
+      something other than the backing-box change.

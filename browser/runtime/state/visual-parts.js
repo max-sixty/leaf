@@ -105,7 +105,7 @@ const markedParts = (source) =>
     for (let at = element.parentElement; at && at !== source; at = at.parentElement)
       if (isVisual(at)) return [];
     const id = element.getAttribute("data-lf-part") ?? "";
-    const label = element.getAttribute("aria-label") ?? element.textContent ?? "";
+    const label = element.getAttribute("aria-label") ?? element.textContent;
     return [{ id, element, label }];
   });
 
@@ -244,7 +244,7 @@ export function registeredVisualPartAt(source, target, admits = () => true) {
 /** Where Leaf puts the user for part `id`: its element, or the visual itself, settled
  * on the part by its `focus(id)` as focus is placed there.
  * @param {Element} source @param {string} id
- * @returns {import("../dom/focus.js").FocusDestination | null} */
+ * @returns {Element | {element: Element, settle: () => void} | null} */
 export function visualPartFocus(source, id) {
   const part = registeredVisualPart(source, id);
   const focus = partsOf(source)?.focus;

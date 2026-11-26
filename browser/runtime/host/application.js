@@ -46,7 +46,7 @@ import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "../features/margin-bars.js";
 import { renderMarginThread } from "../records/thread/inline.js";
 import { showHeld } from "../records/thread/held-news.js";
-import { isMessageEvent } from "../state/pending/model.js";
+import { isThreadEvent } from "../state/pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
   renderSurfaces,
@@ -64,30 +64,53 @@ import { raiseError } from "../transport/errors.js";
  */
 /** @template {PresentationSpec} [T=PresentationSpec]
  * @typedef {{owner: Element, spec: T, attached: {reader: ReturnType<typeof createPrimaryReader>, detach: () => void} | null}} PresentationEntry */
-/** @typedef {{
- * createEngagement: typeof import("../annotations/composing/engagement.js").createEngagement,
+/** What host hands the factory of the margin overlay
+ * (annotations/annotation-overlay/margin-projection.js, `createMarginProjection`).
+ * @typedef {Pick<import("../features/annotation-inventory.js").PageMapCommands, "leavePageMap" | "openPageMap" | "pageMapDialogContains"> & {
+ * inventory: ReturnType<typeof createAnnotationInventory>,
+ * refreshInventory: ReturnType<typeof createAnnotationInventory>["collect"],
+ * renderAnnotations: (() => void) & {refresh: () => void},
+ * openPageThread: ThreadDestinations["openPageThread"], returnToPage: ThreadDestinations["returnToPage"],
+ * designModeActive: () => boolean, pointerModeActive: () => boolean,
+ * scrollThreadIntoView: typeof import("../records/thread/reply-landing.js").scrollThreadIntoView,
+ * renderMarginThread: (host: HTMLElement, thread: import("../records/thread/workflow.js").ThreadRecord,
+ * outlets: import("../records/thread/thread-card.js").ViewOutlets) => {drawn: ReturnType<typeof import("../records/thread/inline.js").renderMarginThread>, stop: () => void},
+ * placedAt: import("../records/thread/placement.js").ThreadPlacements["placedAt"],
+ * marksFor: (id: string | null) => (Element | Range)[],
+ * scrollToElement: ReturnType<typeof import("../features/anchor-travel.js").createAnchorTravel>["scrollToElement"],
+ * openInPanel: (id: string) => unknown}} MarginProjectionOptions */
+/** What host calls of the overlay. The boot entry reads the rest of it, which host hands
+ * back whole (`mounted.overlay`), so its type is a parameter of the application's.
+ * @typedef {{paint: (entries: ReturnType<MarginProjectionOptions["refreshInventory"]>) => unknown, flushLayout: () => unknown,
+ * threadPreview: NonNullable<Parameters<typeof createThreadDestinations>[0]["preview"]>,
+ * entryThread: (node: Element | null) => string | null}} MarginOverlay
+ */
+/** @template {MarginOverlay} [Overlay=MarginOverlay]
+ * @typedef {{
+ * createEngagement: (options: {hasPending: () => boolean, fabAnchorAt: () => import("../../types/domain.js").Anchor | null,
+ * targetPickerOpen: () => boolean}) => {unaccountedGesture: () => boolean, midComposition: Parameters<typeof import("../features/version.js").createVersionController>[0]["midComposition"]},
  * activeActionAnchor: ThreadPresentationOptions["activeActionAnchor"],
  * targetPickerOpen: () => boolean,
- * anchorPlacement: ThreadPresentationOptions["anchorPlacement"],
- * anchorPaint: ReturnType<typeof import("../annotations/anchor-paint.js").createAnchorPaint>,
+ * anchorPlacement: ThreadPresentationOptions["anchorPlacement"] & Pick<import("../records/thread/placement.js").ThreadPlacements, "savedAt">,
+ * anchorPaint: ThreadPresentationOptions["anchorPaint"] & Pick<MarginProjectionOptions, "marksFor">,
  * anchorControls: ThreadPresentationOptions["anchorControls"],
  * drawingPaint: ThreadPresentationOptions["drawingPaint"],
  * pageGeometry: ThreadPresentationOptions["pageGeometry"],
  * readThreadDraft: ThreadPresentationOptions["readDraft"],
  * anchorTravel: ReturnType<typeof import("../features/anchor-travel.js").createAnchorTravel>,
- * wireInput: ReturnType<typeof import("../annotations/composing/input.js").createCompositionInputs>["wireInput"],
+ * wireInput: import("../records/composition-input.js").WireInput,
  * landInThread: typeof import("../records/thread/landing.js").landInThread,
  * landSent: typeof import("../records/thread/landing.js").landSent,
  * sendReaction: Parameters<typeof createThreadActions>[0]["sendReaction"],
- * registerReactSurface: ReturnType<typeof import("../annotations/reactions.js").createReactionController>["registerReactSurface"],
+ * registerReactSurface: import("../records/thread/reaction-strips.js").ReactionCommands["registerSurface"],
  * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],
- * arriveAtQueueItem: ReturnType<typeof import("../panel/queue-walk.js").createQueueWalk>["arriveAtItem"],
+ * arriveAtQueueItem: Parameters<typeof createQueueActions>[0]["arrive"],
  * showTodo: import("../records/thread/messages.js").MessageCommands["showTodo"],
- * nextObligationWithin: ReturnType<typeof import("../panel/queue-walk.js").createQueueWalk>["nextWithin"],
- * goToObligation: ReturnType<typeof import("../panel/queue-walk.js").createQueueWalk>["goToObligation"],
+ * nextObligationWithin: (options: {within: Element, dir?: number}) => Promise<boolean>,
+ * goToObligation: Parameters<typeof createAnnotationInventory>[0]["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("../panel/page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("../annotations/annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel"> & {resumeDraft: (context: string, route?: import("../records/drafts.js").DraftRoute) => Promise<void>},
- * createMarginProjection?: typeof import("../annotations/annotation-overlay/margin-projection.js").createMarginProjection | undefined,
+ * annotationCommands: import("../features/annotation-inventory.js").PageMapCommands & Pick<MarginProjectionOptions, "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel"> & {resumeDraft: (context: string, route?: import("../records/drafts.js").DraftRoute) => Promise<void>},
+ * createMarginProjection?: ((options: MarginProjectionOptions) => Overlay) | undefined,
  * }} ApplicationDependencies */
 
 const commandDispatch = createCommandDispatch();
@@ -99,14 +122,15 @@ const app = () => {
   return application;
 };
 
-/** @param {ApplicationDependencies} dependencies */
+/** @template {MarginOverlay} Overlay @param {ApplicationDependencies<Overlay>} dependencies */
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
-  application = createApplication(dependencies);
-  return application;
+  const mounted = createApplication(dependencies);
+  application = mounted;
+  return mounted;
 }
 
-/** @param {ApplicationDependencies} dependencies */
+/** @template {MarginOverlay} Overlay @param {ApplicationDependencies<Overlay>} dependencies */
 function createApplication(dependencies) {
   // A renderer's rejection reaches the coordinator after a paint may have reported it.
   setPresentationFailureReporter(reportCarried);
@@ -208,7 +232,8 @@ function createApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message added");
+      // A reaction announces its own emoji and place as it is sent (reactions.js).
+      if (isThreadEvent(entry.event) && !entry.event.emoji) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -793,5 +818,5 @@ export const obligationActions = Object.freeze({
     ...args
   ) => app().nextObligation(...args),
 });
-/** @type {ReturnType<typeof import("../annotations/composing/input.js").createCompositionInputs>["wireInput"]} */
+/** @type {import("../records/composition-input.js").WireInput} */
 export const wireInput = (...args) => app().wireInput(...args);

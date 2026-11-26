@@ -6,9 +6,10 @@
    same words.
 
    A renderer returns an HTML string, such as for Lit's `unsafeHTML`;
-   `inlineMarkdownFragment` returns a fragment and `paintMarkdown` writes into an
-   element. Each is safe for any source, since it shows a tag as the words that spell it,
-   except `renderAuthoredMarkdown`, which keeps raw HTML. A destination the reading
+   `inlineMarkdownFragment` and `markdownFileFragment` return a fragment and
+   `paintMarkdown` writes into an element. Each is safe for any source, since it shows a
+   tag as the words that spell it, except `renderAuthoredMarkdown`, which keeps raw HTML,
+   and `markdownFileFragment`, which keeps a file's HTML but its script. A destination the reading
    doesn't admit leaves its words and no link. The caller passes `links`
    (`MarkdownLinks`), which say how to write each link and picture the reading admits:
    `{}` writes each as the source wrote it, and a Leaf page's are `pageLinks`, from
@@ -59,7 +60,9 @@ let render = escapedSource;
 let renderInline = escapedSource;
 /** @type {(text: string, links: MarkdownLinks) => string} */
 let renderAuthored = escapedSource;
-/** @type {((source: string, message: boolean) => NativeToken[]) | null} */
+/** @type {(text: string) => Promise<string>} */
+let renderFile = async (text) => escapedSource(text);
+/** @type {((source: string, message: boolean, html: boolean) => NativeToken[]) | null} */
 let tokenize = null;
 /** @type {Promise<void> | undefined} */
 let ready;
@@ -87,6 +90,42 @@ export const renderMarkdown = (text, links, message = true) =>
 // Markdown.
 /** @param {string} text @param {MarkdownLinks} links */
 export const renderAuthoredMarkdown = (text, links) => renderAuthored(text, links);
+// A Markdown file with the HTML its author wrote, so a README's folds, pictures, styles
+// and centred headers draw. DOMPurify's defaults take out what would run script, which
+// would act as the user on the page, and elements HTML doesn't define, such as Leaf's
+// widgets, whose controls would act for the page. A `data-` attribute goes
+// too, since Leaf's own marks are spelled so, and a file's would speak for Leaf. Only a
+// file's preview reads a file so. A draft's body shows a tag as the words that spell
+// it, since the server draws a body too (`leaf.source.passages.markdown_markup`) and
+// has no sanitizer. The host's `links` apply after the sanitizer, to each link and
+// picture of the file's HTML as of its Markdown, so what they add is the host's. The
+// rest of a file's HTML draws in the page's own tree, so a hostile file can still
+// restyle or cover the page, with a `<style>` or a fixed box, point a `<label for>` at
+// a page control, or take the tab elsewhere with a form, as a link can. Only a
+// document of its own would stop that, and comments couldn't reach inside one; a list
+// of tags to forbid would stop some of it and leave the rest, as GitHub's did.
+/** @param {string} text @param {MarkdownLinks} links @returns {Promise<DocumentFragment>} */
+export async function markdownFileFragment(text, links) {
+  const parsed = document.createElement("template");
+  parsed.innerHTML = await renderFile(text);
+  for (const link of parsed.content.querySelectorAll("a[href]"))
+    for (const [name, value] of Object.entries(
+      links.link?.(/** @type {string} */ (link.getAttribute("href"))) ?? {},
+    ))
+      link.setAttribute(name, value);
+  // An image of an HTML `<picture>` stays its own, since its sources choose among
+  // themselves only while it stands in the `<picture>`.
+  const picture = links.picture;
+  if (picture)
+    for (const image of parsed.content.querySelectorAll("img")) {
+      if (image.parentElement?.localName === "picture") continue;
+      // `picture` may move the image into what it returns, so that takes its place.
+      const place = image.ownerDocument.createTextNode("");
+      image.before(place);
+      place.replaceWith(picture(image));
+    }
+  return parsed.content;
+}
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 // With `imageAlt`, an image counts as the words its control is named by, its alt text,
@@ -125,8 +164,9 @@ export function inlineMarkdownFragment(text, links, message = true) {
   return parsed.content;
 }
 
-// Keep the exact source on its reading surface, as `data-lf-source-words`, which
-// `markdownSourceOffset` reads. Passage capture reads the rendered children; revision
+// Keep the exact source on its reading surface, as `data-lf-source-words`, so a click
+// on the rendering finds its place in the source (`markdownSourceOffset`). Passage
+// capture reads the rendered children; revision
 // comparison reads source, so formatting never becomes state. An element stamped with
 // this source already holds its rendering and is left as it is; a paint before the
 // parser loads leaves the element unstamped, so the next paint renders. The body reads
@@ -223,9 +263,11 @@ const isBeforeJoinedInline = (token) => token.type === "inline";
 export const isBlockPlacement = (placed, type) => placed.token.type === type;
 
 /** @param {string} source @param {boolean} [message] the reading (`renderMarkdown`)
+ * @param {boolean} [html] whether the reading keeps the source's HTML
+ * (`markdownFileFragment`) rather than showing its tags as words
  * @returns {PlacedToken[]} */
-export function placedMarkdownTokens(source, message = true) {
-  const tokens = markdownTokens(source, message);
+export function placedMarkdownTokens(source, message = true, html = false) {
+  const tokens = markdownTokens(source, message, html);
   if (!tokens) return [];
   const starts = [0];
   for (let at = 0; at < source.length; at++) {
@@ -235,6 +277,11 @@ export function placedMarkdownTokens(source, message = true) {
   starts.push(source.length);
   /** @type {PlacedToken[]} */
   const found = [];
+  // The blockquotes and list items open around the token, outermost first. Only their
+  // markers can stand on an inline's first line, so an inline reads these rather than
+  // every block placed before it.
+  /** @type {(PlacedToken | null)[]} */
+  const open = [];
   let inlineAt = 0;
   /** @type {NativeToken | undefined} */
   let previous;
@@ -249,26 +296,39 @@ export function placedMarkdownTokens(source, message = true) {
     const from = map ? parserItem(starts, map[0]) : 0;
     const to = map ? parserItem(starts, map[1]) : source.length;
     if (!isPositionedInline(token)) {
-      if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
-        /** @type {PlacedToken} */
-        const placed = {
-          token,
-          from,
-          to,
-          markers: token.lfSource?.markers?.map(([line, a, b]) => [
-            parserItem(starts, line) + a,
-            parserItem(starts, line) + b,
-          ]),
-          words: token.nesting ? null : token.content,
-        };
-        found.push(placed);
-      }
+      /** @type {PlacedToken | null} */
+      const placed =
+        token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))
+          ? {
+              token,
+              from,
+              to,
+              markers: token.lfSource?.markers?.map(([line, a, b]) => [
+                parserItem(starts, line) + a,
+                parserItem(starts, line) + b,
+              ]),
+              // A block of HTML shows the words its source draws (`htmlText`). The
+              // white space around them belongs to no word, and a caret just past it
+              // stands at the next block's first word, not at this block's end.
+              words: token.nesting
+                ? null
+                : token.type === "html_block"
+                  ? htmlText(token.content).text.trim()
+                  : token.content,
+            }
+          : null;
+      if (placed) found.push(placed);
+      if (token.type === "blockquote_open" || token.type === "list_item_open")
+        open.push(placed);
+      else if (token.type === "blockquote_close" || token.type === "list_item_close")
+        open.pop();
       continue;
     }
     // Container prefixes precede the inline words; a list marker is not emphasis.
     let wordsAt = Math.max(from, inlineAt);
-    for (const block of found)
+    for (const block of open)
       if (
+        block &&
         map &&
         (isBlockPlacement(block, "blockquote_open") ||
           isBlockPlacement(block, "list_item_open"))
@@ -347,20 +407,23 @@ export function placedMarkdownTokens(source, message = true) {
 // exact source and rendered text. The history diff's bounded whole-document alignment
 // is unsuitable here: its deliberate coarse replacement must never send a caret to
 // the end of a long formatted document. Token placement gives an ordered source span;
-// the local exact alignment handles omitted delimiters, entities and escapes.
-/** @param {HTMLElement} body @param {Node} node @param {number} offset */
-export function markdownSourceOffset(body, node, offset) {
+// the local exact alignment handles omitted delimiters, entities and escapes. `body`
+// holds the rendering of `source`, read as a Markdown file, and `html` says which
+// rendering: one that keeps the file's HTML (`markdownFileFragment`), or one that shows
+// its tags as words (`paintMarkdown`). Placement parses the source as that rendering
+// did, so the HTML's words, and the Markdown it wraps, stand in the order drawn.
+/** @param {HTMLElement} body @param {string} source @param {Node} node @param {number} offset
+ * @param {boolean} html */
+export function markdownSourceOffset(body, source, node, offset, html) {
   if (!body.contains(node)) return null;
   const range = document.createRange();
   range.selectNodeContents(body);
   const shown = fragmentWords(range.cloneContents());
   range.setEnd(node, offset);
   const aim = fragmentWords(range.cloneContents()).length;
-  const source = body.dataset.lfSourceWords;
-  if (source === undefined) return null;
   let shownAt = 0;
   let sourceEnd = 0;
-  for (const placed of placedMarkdownTokens(source, false)) {
+  for (const placed of placedMarkdownTokens(source, false, html)) {
     const { token, from, to } = placed;
     if (token.nesting) continue;
     const words = placed.words;
@@ -369,25 +432,39 @@ export function markdownSourceOffset(body, node, offset) {
     if (start < 0) continue;
     if (aim < start) return from;
     if (aim <= start + words.length) {
-      let sourceAt = from;
+      // A fence's code starts on the line after its opening marker, whose info string
+      // can spell the code's first word, as `sh` does in a fence of shell commands.
+      const begin = token.type === "fence" ? lineAfter(source, from) : from;
+      // A block of HTML aligns its words with what its source draws (`htmlText`), so a
+      // word never lands in a tag's attribute or a comment. A caret where markup
+      // stands between two characters takes the side of the text it is in: the next
+      // character's at a text's start, else the previous one's.
+      const drawn = token.type === "html_block" && htmlText(source.slice(begin, to));
+      const text = drawn ? drawn.text : source.slice(begin, to);
+      /** @param {number} index */
+      const place = (index) =>
+        begin +
+        (!drawn
+          ? index
+          : offset === 0 && index < drawn.starts.length
+            ? parserItem(drawn.starts, index)
+            : index > 0
+              ? parserItem(drawn.ends, index - 1)
+              : 0);
+      let index = 0;
       let tokenAt = start;
-      for (const run of alignText(
-        source.slice(from, to),
-        words,
-        characters,
-        Infinity,
-      )) {
+      for (const run of alignText(text, words, characters, Infinity)) {
         // A caret before an escaped first character stands before its backslash, which
         // a key there would split from the character.
         if (run.kind === "delete") {
-          if (aim === tokenAt && placed.spelled?.some(([a]) => a === sourceAt))
-            return sourceAt;
-          sourceAt += run.text.length;
+          if (aim === tokenAt && placed.spelled?.some(([a]) => a === place(index)))
+            return place(index);
+          index += run.text.length;
         } else {
           if (aim <= tokenAt + run.text.length)
-            return sourceAt + (run.kind === "same" ? aim - tokenAt : 0);
+            return place(index + (run.kind === "same" ? aim - tokenAt : 0));
           tokenAt += run.text.length;
-          if (run.kind === "same") sourceAt += run.text.length;
+          if (run.kind === "same") index += run.text.length;
         }
       }
       return to;
@@ -396,6 +473,54 @@ export function markdownSourceOffset(body, node, offset) {
     sourceEnd = to;
   }
   return sourceEnd;
+}
+
+// How a span of HTML source reads: markup, which draws no words (a comment, a tag, whose
+// quoted attributes may hold a `>`, a declaration or processing instruction, and a
+// script or style with what it holds), a character reference, or a line ending.
+const HTML_READING =
+  /(<!--[\s\S]*?(?:-->|$)|<(script|style)\b[\s\S]*?(?:<\/\2\s*>|$)|<(?:\/?[a-z](?:[^>"']|"[^"]*"|'[^']*')*|[!?][^>]*)>?)|&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);?|\r\n?/gi;
+
+// The words a span of HTML source draws, as a rendering's words read them
+// (`fragmentWords`): its text outside markup, each character reference as what the
+// browser reads it as, each line ending as a newline, and a `<br>`, which a browser
+// also reads `</br>` as, as a line break. For each character of `text`, `starts` holds
+// where in the span it starts and `ends` where it ends, so a caret between two
+// characters can stand on either one's line, wherever markup puts the other.
+/** @param {string} span @returns {{text: string, starts: number[], ends: number[]}} */
+function htmlText(span) {
+  let text = "";
+  /** @type {number[]} */
+  const starts = [];
+  /** @type {number[]} */
+  const ends = [];
+  /** @param {string} words @param {number} start @param {number} end */
+  const read = (words, start, end) => {
+    text += words;
+    for (let at = 0; at < words.length; at++) {
+      starts.push(start);
+      ends.push(end);
+    }
+  };
+  let from = 0;
+  for (const { index, 0: found, 1: markup } of span.matchAll(HTML_READING)) {
+    for (let at = from; at < index; at++) read(span.charAt(at), at, at + 1);
+    const end = index + found.length;
+    if (markup === undefined) {
+      probe.innerHTML = found;
+      read(found.startsWith("&") ? probe.content.textContent : "\n", index, end);
+    } else if (/^<\/?br\b/i.test(markup)) read("\n", index, end);
+    from = end;
+  }
+  for (let at = from; at < span.length; at++) read(span.charAt(at), at, at + 1);
+  return { text, starts, ends };
+}
+
+/** Where the line after the one holding `at` starts. @param {string} source @param {number} at */
+function lineAfter(source, at) {
+  const ending = /\r\n|\r|\n/g;
+  ending.lastIndex = at;
+  return ending.exec(source) ? ending.lastIndex : source.length;
 }
 
 // Whether a rendering taken now is the parser's or the escaped source location in for
@@ -427,8 +552,8 @@ function renderedElement(markup, tag) {
 
 // Native Markdown tokens are the editor's reading, too. Link admission annotates the
 // opening token before it reaches either renderer, so both draw the same safe label.
-/** @param {string} text @param {boolean} message */
-const markdownTokens = (text, message) => tokenize?.(text, message) ?? null;
+/** @param {string} text @param {boolean} message @param {boolean} html */
+const markdownTokens = (text, message, html) => tokenize?.(text, message, html) ?? null;
 
 // Source spans are recorded where the parser consumes them, before its presentation
 // passes join text tokens or recognize bare links. No second Markdown grammar lives
@@ -681,7 +806,7 @@ const linksOf = (env) =>
   /** @type {{links?: MarkdownLinks} | undefined} */ (env)?.links;
 
 // The blocks the parser emits whole, with no opening and closing pair.
-const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
+const BLOCK_LEAVES = new Set(["fence", "code_block", "hr", "html_block"]);
 
 // Each code span between a text's closing `$` and the next text's opening one, before
 // text joining, while an escaped `\$` is still a token of its own.
@@ -716,6 +841,26 @@ function inlineFormulas(state) {
     }
   }
 }
+
+// The sanitizer of a file's HTML (`markdownFileFragment`), loaded for the first file
+// that holds some (`holdsHtml`).
+/** @type {Promise<import("dompurify").DOMPurify> | undefined} */
+let purifier;
+const sanitizer = () =>
+  (purifier ??= import("/vendor/purify.esm.js").then(
+    ({ DOMPurify }) => DOMPurify,
+    (error) => {
+      // A later draw tries again, as a failed parser load does (`loadMarkdown`).
+      purifier = undefined;
+      throw error;
+    },
+  ));
+
+/** @param {NativeToken} token @returns {boolean} */
+const holdsHtml = (token) =>
+  token.type === "html_block" ||
+  token.type === "html_inline" ||
+  Boolean(token.children?.some(holdsHtml));
 
 // The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`), which
 // passages.py reads the same (`markdown_dialect`).
@@ -862,14 +1007,25 @@ export function loadMarkdown(onError = null) {
     let authored;
     renderAuthored = (text, links) =>
       (authored ??= makeMarkdown(module, true, true)).render(text, { links });
-    /** @type {Map<boolean, MarkdownIt>} */
+    /** @type {MarkdownIt | undefined} */
+    let fileHtml;
+    renderFile = async (text) => {
+      const parser = (fileHtml ??= makeMarkdown(module, false, true));
+      const env = { links: {} };
+      const tokens = parser.parse(text, env);
+      const markup = parser.renderer.render(tokens, parser.options, env);
+      return tokens.some(holdsHtml)
+        ? (await sanitizer()).sanitize(markup, { ALLOW_DATA_ATTR: false })
+        : markup;
+    };
+    /** @type {Map<string, MarkdownIt>} */
     const positioned = new Map();
-    tokenize = (text, message) => {
-      let parser = positioned.get(message);
+    tokenize = (text, message, html) => {
+      let parser = positioned.get(`${message} ${html}`);
       if (!parser) {
-        parser = makeMarkdown(module, message);
+        parser = makeMarkdown(module, message, html);
         sourcePositions(parser);
-        positioned.set(message, parser);
+        positioned.set(`${message} ${html}`, parser);
       }
       return parser.parse(text, {});
     };

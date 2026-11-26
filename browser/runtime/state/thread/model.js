@@ -1,13 +1,15 @@
 // @ts-check
 /* Pure thread structure and turn-taking projected by the server.
 
-   This reads projected threads by `isReaction`, `spoken`, `turns`, and `bareReaction`,
-   the names `events.py` reads them by. The panel lists `discussed` threads only.
-   Every drawing of a thread, a card or the message parts a presentation names
-   (records/thread/primary-reader.js), shows its turns: its spoken messages and its root, so a
-   thread that grew out of a reaction opens on the mark, whose body records/thread/messages.js
-   writes as its emoji, or as Deleted once the user takes the mark back
-   (`deleted`), and any other reaction stands as its chip on the message it answers. Whose turn a thread is is read
+   A reaction is a message whose content is an emoji, and takes its turn as words do
+   (events.md, "Reactions"). The panel lists `discussed` threads only: a thread that holds
+   only the reaction that opened it is a mark on its anchor (`bareReaction`). Every drawing
+   of a thread, a card or the message parts a presentation names
+   (records/thread/primary-reader.js), shows its turns: each message but the user's
+   reactions, which stand as chips in the strip of the agent's message they are on. So a
+   thread that grew out of a reaction opens on the mark, and an agent's emoji stands as
+   its message, whose body records/thread/messages.js writes as its emoji, or as Deleted
+   once the user takes the mark back (`deleted`). Whose turn a thread is is read
    from the complete browser Thread's `attention` and nothing else, the obligation
    record that speaks for it: a user obligation outranks concurrent agent work, which
    stays the card's secondary status.
@@ -46,7 +48,7 @@ const reactionChoices = (thread, message, latest, emoji, inForce) => ({
   choices: emojiChoices(emoji, inForce),
 });
 
-// The declared reactions as choices on one target, each its emoji with the reaction in
+// The offered reactions as choices on one target, each its emoji with the reaction in
 // force a press takes back. The bar, a reply's strip and the margin form render these;
 // each surface keeps its own face, and the emoji is the control's face and its name on
 // all of them.
@@ -55,17 +57,17 @@ const reactionChoices = (thread, message, latest, emoji, inForce) => ({
  * @param {readonly S[]} inForce
  */
 export const emojiChoices = (emoji, inForce) =>
-  Object.keys(emoji).map((choice) => ({
+  emoji.map((choice) => ({
     emoji: choice,
     inForce: inForce.find((item) => item.emoji === choice) ?? null,
   }));
-/** @param {Thread} thread */
-const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
-/** @template {{id: string, emoji?: string, [field: string]: unknown}} T @param {{msgs: readonly T[], root: {id: string}}} thread */
+// The user's reaction on a message, which its strip draws as a chip.
+/** @param {{id: string, emoji?: string, author?: string}} message @param {{root: {id: string}}} thread */
+const chip = (message, thread) =>
+  isReaction(message) && message.author === "user" && message.id !== thread.root.id;
+/** @template {{id: string, emoji?: string, author?: string, [field: string]: unknown}} T @param {{msgs: readonly T[], root: {id: string}}} thread */
 export const turns = (thread) =>
-  thread.msgs.filter(
-    (message) => message.id === thread.root.id || !isReaction(message),
-  );
+  thread.msgs.filter((message) => !chip(message, thread));
 // The name for a thread that the log's answer does not change: the user's own attempt
 // where their gesture opened the thread, else the id the log gave it. Anything
 // that has to outlive that transition with the user in it — a reply draft, a
@@ -178,8 +180,7 @@ export function threadCounts(threads) {
  * rows by: a closed thread's closing, the event its row's age dates; an open thread's
  * latest turn as it last moved (`moved`), so a rewrite counts. The user's own reply,
  * rewrite or resolve on its way, which the log doesn't hold yet, is newer than all of
- * it. A reaction is no turn, and neither is a reply still streaming, which counts once
- * the log holds it. A message that reaches a closed thread without reopening it, as the
+ * it. A reply still streaming counts once the log holds it. A message that reaches a closed thread without reopening it, as the
  * agent's unannounced one does, leaves the thread where its closing put it, so a row's
  * place and its age agree.
  * @template {{id: string, token?: string, seq?: number, edited?: {seq?: number, ts: string} | undefined, [field: string]: unknown}} T
@@ -187,7 +188,7 @@ export function threadCounts(threads) {
 export function lastChange(thread) {
   if (thread.resolved) return thread.resolved.seq ?? Infinity;
   let last = -Infinity;
-  for (const message of turns(thread))
+  for (const message of thread.msgs)
     if (!message.provisional) last = Math.max(last, moved(message).seq ?? Infinity);
   return last;
 }
@@ -287,13 +288,18 @@ export function foldThreads(threads, gestures) {
   // threads this fold made, which a gesture may change in place.
   /** @type {Set<Thread>} */
   const owned = new Set();
+  // The press keeps the place of each message it takes back, a reaction included,
+  // as the log does where something stands on it. A chip nothing answers takes no
+  // place, so it comes off: the message naming it as its parent is what the log's
+  // answer keeps it for (`events.standing_withdrawn`).
   /** @param {Thread} thread @returns {Thread[]} */
   const without = (thread) => {
     if (thread.bare_reaction && withdrawn.has(thread.root.id)) return [];
+    const answered = new Set(thread.msgs.map((message) => message.parent));
     const msgs = thread.msgs.flatMap((message) =>
       !withdrawn.has(message.id) || message.withdrawn
         ? [unedited(thread, message, withdrawn)]
-        : isReaction(message) && message.id !== thread.root.id
+        : chip(message, thread) && !answered.has(message.id)
           ? []
           : [takenBack(thread, message)],
     );
@@ -341,7 +347,6 @@ export function foldThreads(threads, gestures) {
   const opened = [];
   for (const gesture of gestures) {
     if (gesture.kind === "comment") {
-      const reaction = isReaction(gesture);
       /** @type {Thread} */
       const thread = {
         id: gesture.id,
@@ -353,11 +358,11 @@ export function foldThreads(threads, gestures) {
         msgs: [gesture],
         revisions: [],
         resolved: null,
-        bare_reaction: reaction,
+        bare_reaction: isReaction(gesture),
         seat: seatOf(gesture),
         summaries: [],
         unread: {},
-        attention: reaction ? null : sending(gesture),
+        attention: sending(gesture),
       };
       opened.push(thread);
       owned.add(thread);
@@ -370,8 +375,7 @@ export function foldThreads(threads, gestures) {
       // user's message joins the thread above it and its acceptance moves nothing.
       const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
       thread.msgs = thread.msgs.toSpliced(thread.msgs.length - streaming, 0, gesture);
-      // A reaction is no turn, so it reopens nothing.
-      if (!isReaction(gesture)) thread.resolved = null;
+      thread.resolved = null;
     } else if (gesture.kind === "edit") {
       // An edit shows as its message's new words, and is a turn as a reply is, under
       // the edit's own pending id (`events.exchange`).
@@ -403,21 +407,26 @@ export function foldThreads(threads, gestures) {
     }
   }
   for (const thread of opened)
-    thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;
+    thread.bare_reaction = isReaction(thread.root) && thread.msgs.length === 1;
   return [...copies, ...opened];
 }
 
-// The bare reactions in force on exactly this anchor — the bar's own question, asked
-// so its chips can say which emoji are already there. Anchors are compared as
-// records, the way the file compares them.
-/** @template {Pick<Thread, "bare_reaction" | "resolved" | "anchor"> & {root: unknown}} T
+// The user's reactions in force on exactly this anchor — the bar's own question, asked
+// so its chips can say which emoji are already there and a press can take one back:
+// the root of each open thread a reaction of theirs opened there, whether or not the
+// agent has answered it. Anchors are compared as records, the way the file compares
+// them.
+/** @template {Pick<Thread, "resolved" | "anchor"> & {root: {emoji?: string, author?: string}}} T
  * @param {readonly T[]} threads @param {Anchor} anchor
  * @returns {T["root"][]} */
 export const reactionsAt = (threads, anchor) =>
   threads
     .filter(
       (thread) =>
-        !discussed(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor),
+        isReaction(thread.root) &&
+        thread.root.author === "user" &&
+        !thread.resolved &&
+        sameAnchor(thread.anchor, anchor),
     )
     .map((thread) => thread.root);
 
@@ -456,9 +465,9 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    hold every message's. */
 
 // The reactions a registry declares none of.
-/** @typedef {Readonly<Record<string, {readonly settles?: boolean}>>} Reactions */
+/** @typedef {readonly string[]} Reactions */
 /** @type {Reactions} */
-const NO_REACTIONS = Object.freeze({});
+const NO_REACTIONS = Object.freeze([]);
 
 /** @type {readonly never[]} */
 const NONE = Object.freeze([]);
@@ -472,7 +481,7 @@ function grouped(items, key) {
 }
 
 /** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../../types/domain.js").AuthoredWidget["state"]}} Unit */
-/** @typedef {import("../semantic-application.js").Workflow} Workflow */
+/** @typedef {import("../../../types/domain.js").Workflow} Workflow */
 /** @typedef {import("../semantic-application.js").ObligationRecord} ObligationRecord */
 /** @typedef {import("../../../types/domain.js").ContentVersion} ContentVersion */
 /** @typedef {ReadonlyMap<string, CapturedBody>} ThreadBodies */
@@ -635,12 +644,12 @@ const threadRecord = keptEach(
     );
     // A user's reaction in force on each message, and the agent's newest message the
     // user may address, read once for the thread rather than once per message.
-    const reacts = ready && Object.keys(emoji).length > 0 && !thread.resolved;
+    const reacts = ready && emoji.length > 0 && !thread.resolved;
     const latest = msgs.findLast(
       (message) => message.author === "agent" && isAddressable(message),
     );
     const reactionsOn = grouped(
-      msgs.filter((message) => isReaction(message) && message.author === "user"),
+      msgs.filter((message) => chip(message, thread)),
       (message) => message.parent,
     );
     const published = msgs.map((message) => {

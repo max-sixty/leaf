@@ -123,7 +123,7 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
 test("a reply to a thread reads its own message and the reactions it moves", () => {
   const reacting = {
     ...NO_DOCUMENT,
-    registry: { $reactions: { emoji: { "👍": {} } } },
+    registry: { $reactions: { emoji: ["👍"] } },
   };
   const root = agent("root", { kind: "comment", author: "user" });
   const first = agent("first", { seq: 2 });

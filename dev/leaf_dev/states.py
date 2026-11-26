@@ -32,6 +32,7 @@ from playwright.sync_api import Locator, Page, expect
 from leaf.source.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
+    CHECK_API,
     PANEL,
     QUOTE_RANGE,
     WINDOWS,
@@ -43,6 +44,7 @@ from leaf_dev.browser import (
     panel_view,
     scroll_settled,
     settle,
+    text_field,
 )
 from leaf_dev.corpus import sources as corpus_sources
 
@@ -445,6 +447,23 @@ def panel_status_hover(page: Page) -> None:
     preview_shown(page)
 
 
+def panel_tab_hover(page: Page) -> None:
+    """The On view on On Me while the pointer rests over the Threads tab, whose preview
+    names the list and the Go-to keys that open it."""
+    go_to_threads(page)
+    page.locator(".lf-fp-tab", has_text="On Me").click()
+    page.locator(".lf-fp-tab", has_text="Threads").hover()
+    preview_shown(page)
+
+
+def message_copy_hover(page: Page) -> None:
+    """A message's Copy at its head's end, beside its Edit and Copy link, while the
+    pointer rests over it, whose preview names it."""
+    floating_thread(page)
+    page.locator(f"{panel_view('thread')} .lf-msg-copy").first.hover()
+    preview_shown(page)
+
+
 def panel_status_cut(page: Page) -> None:
     """The panel's field cutting the agent's long status short under a resting pointer,
     which reads the status whole (panel/floating-panel.js, `pageEditor`). A runtime that
@@ -467,8 +486,7 @@ def panel_status_cut(page: Page) -> None:
     )
     wait_until_ready(page, client.state(), through="state")
     page.locator(".lf-fp-field leaf-text").hover()
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def panel_errors(page: Page) -> None:
@@ -661,24 +679,61 @@ def reaction_resting(page: Page) -> None:
     reaction_palette(page)
     strip = page.locator(f"{panel_view('thread')} .lf-react-strip").first
     strip.locator(".lf-react").first.hover()
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def reaction_thread(page: Page) -> None:
     """The thread the agent's answer to the user's reaction on a passage opens, from
     Threads: its first message is the reaction, drawn as its emoji."""
-    as_agent(
-        "thread",
-        "reply",
-        "0f47b3ce",
-        "--text",
-        "Good to hear the stalls all recovered; the workaround stays documented.",
-        "--title",
-        "Forced stalls",
-    )
-    wait_until_ready(page, PageClient(served_page.get().address).state())
     open_thread(page, "0f47b3ce")
+    settle(page)
+
+
+def reaction_working(page: Page) -> None:
+    """The user's ✂️ on a passage, a message the agent owes an answer, under a pointer
+    resting on its mark once the agent has started work on it: the mark says the work's
+    line, as a thread's margin entry does."""
+    cut = PageClient(served_page.get().address).post(
+        {
+            "kind": "comment",
+            "attempt": "stills-reaction-working-cut",
+            "emoji": "✂️",
+            "anchor": {"section": "off-t-workaround", "quote": "After 20 seconds"},
+        }
+    )
+    as_agent("task", "start", cut["id"], "--text", "Cutting the resend timing")
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    mark = page.locator('[data-lf-margin-entry-owner="reactions"]:visible')
+    expect(mark).to_have_count(1)
+    mark.hover()
+    rest_past_dwell(page)
+
+
+def agent_emoji_answer(page: Page) -> None:
+    """The agent's answer of one emoji to the user's thanks, heard through `leaf wait`
+    and answered by its reference, which the thread draws as the agent's message."""
+    served = served_page.get()
+    thanks = PageClient(served.address).post(
+        {
+            "kind": "reply",
+            "parent": "7b3e0a41",
+            "attempt": "stills-agent-emoji-thanks",
+            "text": "Thanks, that's clear.",
+        }
+    )
+    waited = served.leaf("wait", str(served.directory), timeout=60)
+    delivery = json.loads(
+        next(line for line in waited.stdout.splitlines() if line.startswith("{"))
+    )
+    reference = next(
+        event["answer"]["ref"]
+        for batch in delivery["batches"]
+        for event in batch["events"]
+        if event["id"] == thanks["id"]
+    )
+    served.leaf("thread", "reply", reference, "--done", "--emoji", "👍")
+    wait_until_ready(page, PageClient(served.address).state())
+    floating_thread(page)
     settle(page)
 
 
@@ -788,9 +843,15 @@ def preview_shown(page: Page) -> None:
     )
 
 
-# Longer than a preview's dwell (annotations/preview.js, `DWELL`), so a runtime that previews what
-# the pointer rests on has shown it, and one that doesn't shows the page as it stands.
-PREVIEW_DWELL_MS = 400
+def rest_past_dwell(page: Page) -> None:
+    """Wait out the dwell before a resting pointer's preview shows, as the page's own
+    runtime sets it (annotations/preview.js, `DWELL`), and settle, so a runtime that
+    previews what the pointer rests on has shown it, and one that doesn't shows the
+    page as it stands."""
+    page.wait_for_timeout(
+        page.evaluate(f"async () => (await {CHECK_API}).PREVIEW_TIMERS.DWELL")
+    )
+    settle(page)
 
 
 def word_lines(page: Page, words: str) -> list[dict]:
@@ -817,8 +878,7 @@ def thread_preview(page: Page) -> None:
     line = word_lines(page, STOP_PASSAGE)[0]
     page.mouse.move(line["left"] - 20, line["top"] - 20)
     page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def passage_reaction(page: Page) -> None:
@@ -852,8 +912,7 @@ def age_preview(page: Page) -> None:
     # pointer moves.
     page.mouse.move(box["x"] - 30, box["y"] + box["height"] + 30)
     age.hover()
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def link_preview(page: Page) -> None:
@@ -1024,7 +1083,7 @@ def own_turn_in_card(page: Page) -> tuple[Locator, int]:
     card = page.locator(".lf-margin-preview")
     messages = card.locator(".lf-msg")
     sent = messages.count() + 1
-    card.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(card, name="Reply", exact=True).click()
     page.keyboard.insert_text("And over the weekend?")
     page.keyboard.press("ControlOrMeta+Enter")
     expect(messages).to_have_count(sent)
@@ -1101,7 +1160,7 @@ def card_rewrite_at_foot(page: Page) -> None:
     ↑ from the reply box, so its frame and ring stand in the room below the turns."""
     own_turn_in_card(page)
     card = page.locator(".lf-margin-preview")
-    card.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(card, name="Reply", exact=True).click()
     page.keyboard.press("ArrowUp")
     expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
     settle(page)
@@ -1384,7 +1443,7 @@ def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
     the agent's reply and the user's own message from another tab, which the thread
     holds behind its notice (held-news.js)."""
     if drafting:
-        thread.get_by_role("textbox", name="Reply", exact=True).click()
+        text_field(thread, name="Reply", exact=True).click()
         page.keyboard.insert_text("Drafting a reply while the news arrives")
     root = thread.get_attribute("data-lf-thread")
     assert root
@@ -1423,7 +1482,7 @@ def card_held_step(page: Page) -> None:
     in it, which its notice doesn't say (held-news.js)."""
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
     thread = page.locator(".lf-margin-preview .lf-page-thread")
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(thread, name="Reply", exact=True).click()
     page.keyboard.insert_text("Drafting a reply while the agent works")
     root = thread.get_attribute("data-lf-thread")
     assert root
@@ -1466,7 +1525,7 @@ def card_after_interjection(page: Page) -> None:
     """An arriving answer grows a card after Send has fitted its reply against the window."""
     card_held_step(page)
     card = page.locator(".lf-margin-preview")
-    card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
+    text_field(card, name="Reply", exact=True).press("Enter")
     # Messages are picked by their words, which every arm's runtime draws alike.
     reply = card.locator(
         ".lf-msg", has_text="Drafting a reply while the agent works"
@@ -2698,7 +2757,7 @@ def diff_file_reply(page: Page) -> None:
         "#dfg-patch .lf-page-thread"
     )
     expect(threads).to_have_count(2)
-    field = threads.first.get_by_role("textbox", name="Reply", exact=True)
+    field = text_field(threads.first, name="Reply", exact=True)
     field.click()
     page.keyboard.insert_text(
         "Keep the file conversations clear while this reply is drafted."
@@ -3596,6 +3655,8 @@ STATES = (
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("panel-tab-hover", "ship-review", panel_tab_hover),
+    State("message-copy-hover", "ship-review", message_copy_hover),
     State("panel-status-cut", "review-a-plan", panel_status_cut),
     State("panel-errors", "review-a-plan", panel_errors, region=".lf-floating-panel"),
     State(
@@ -4051,6 +4112,10 @@ STATES = (
     State("reaction-pressed", "ship-review", reaction_pressed),
     State("reaction-resting", "ship-review", reaction_resting),
     State("reaction-thread", "ship-review", reaction_thread),
+    State("reaction-working", "ship-review", reaction_working),
+    State(
+        "agent-emoji-answer", "ship-review", agent_emoji_answer, region=".lf-fp-opened"
+    ),
     State(
         "margin-reaction-choices",
         "release-notes",

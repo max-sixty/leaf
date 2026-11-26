@@ -18,7 +18,7 @@ import { threadNamed } from "./state.js";
 /** @param {{
  * post: Post,
  * withdraw: ReturnType<typeof import("../undo.js").createUndo>["withdraw"],
- * sendReaction: typeof import("../../annotations/reactions.js").sendReaction,
+ * sendReaction: (event: Extract<Parameters<Post>[0], {kind: "comment" | "reply"}>, where: string, postReaction: Post) => Promise<Awaited<ReturnType<Post>>>,
  * currentRevision: () => number | null,
  * open: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
  * }} dependencies */

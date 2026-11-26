@@ -5247,17 +5247,15 @@ def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
     return layer_model.selected_layer(manifest["layer"], page).files
 
 
-def test_init_merges_reactions_merge_patch_style(tmp_path, monkeypatch):
-    """The shipped reactions are the default layer's statement, not core's. A project's
-    entry under an emoji replaces that emoji's facts whole, a new emoji joins after
-    the shipped ones, and `null` removes one — which is the only way a layer can take
-    a reaction off the bar without restating the whole set. The order used by the
-    optional digit accelerators is the merged map's."""
+def test_a_package_restates_the_reactions_it_offers(tmp_path, monkeypatch):
+    """The shipped reactions are the default layer's list, not core's, and a project's
+    list replaces it whole, in the project's order, which the optional digit
+    accelerators follow."""
     project = tmp_path / "proj"
     layer = project / ".leaf"
     layer.mkdir(parents=True)
     (layer / "registry.json").write_text(
-        json.dumps({"$reactions": {"emoji": {"👍": {}, "✂️": None, "🙂": {}}}})
+        json.dumps({"$reactions": {"emoji": ["🙂", "👍"]}})
     )
     monkeypatch.chdir(project)
 
@@ -5267,34 +5265,28 @@ def test_init_merges_reactions_merge_patch_style(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    emoji = vocabulary_model.load_registry(page)["$reactions"]["emoji"]
-    assert list(emoji) == ["👍", "❌", "🤔", "🔎", "🎯", "🙂"]
-    assert emoji["👍"] == {}
-    assert emoji["🙂"] == {}
+    assert vocabulary_model.load_registry(page)["$reactions"]["emoji"] == ["🙂", "👍"]
 
 
 @pytest.mark.parametrize(
-    ("emoji", "facts"),
+    "emoji",
     [
-        (" ", {}),
-        ("thumbs up", {}),  # a word in an emoji's place
-        ("✓", {"means": "x"}),  # prose the layer does not declare
-        ("✓", {"settle": True}),  # a flag nothing reads
-        ("✓", {"settles": "yes"}),
+        [" "],
+        ["ok"],  # a word in an emoji's place
+        ["👍", "👍"],
+        {"👍": {}},  # facts the list no longer carries
     ],
 )
-def test_package_check_refuses_a_malformed_reaction(
-    tmp_path, monkeypatch, emoji, facts
-):
-    """Consumers read declared fields directly, so an emoji that is no mark, an
-    undeclared field, or a misspelled behavior must fail at the package boundary
-    instead of disappearing."""
+def test_package_check_refuses_a_malformed_reaction(tmp_path, monkeypatch, emoji):
+    """Consumers read the list directly, so a blank or worded emoji, a repeat, or a
+    map in the list's place must fail at the package boundary instead of
+    disappearing."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$reactions"] = {"emoji": {emoji: facts}}
+    registry["$reactions"] = {"emoji": emoji}
     registry_path.write_text(json.dumps(registry))
 
     status, [refused] = package_findings(".leaf")

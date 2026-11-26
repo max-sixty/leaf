@@ -119,7 +119,7 @@ import { notice } from "../transport/notifications.js";
 import { inChrome } from "../base/ui-marks.js";
 
 /** @typedef {import("../state/queue-api.js").CurrentQueueItem} QueueItem
- * @typedef {import("../records/obligations/answer.js").AnswerableObligation} Obligation
+ * @typedef {import("../state/obligations/source.js").AnswerableObligation} Obligation
  * @typedef {import("../../types/contract.js").ServedPlanStep} PlanStep
  * @typedef {import("../records/current-target.js").WalkOrigin} Origin
  * @typedef {import("../dom/keyboard/bindings.js").Step} Step

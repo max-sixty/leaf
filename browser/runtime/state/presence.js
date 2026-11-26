@@ -45,7 +45,7 @@ export const clockValue = (read) =>
     return read(serverNow());
   }).value;
 
-/** @param {typeof import("../transport/layer-client.js").reportCarried} reportError */
+/** @param {(reason: unknown, context: string) => unknown} reportError */
 export async function tickClock(reportError) {
   try {
     tick(pulse);
@@ -157,7 +157,7 @@ export function saidAt(ts) {
 // instant its element holds, a `<time>` or an `lf-age`, so every one the page draws
 // declares one function and holds its instant once, in `datetime`, where the platform
 // keeps it.
-/** @this {Element} @returns {import("../annotations/preview.js").Preview | null} */
+/** @this {Element} @returns {import("../base/preview-declaration.js").Preview | null} */
 export function agePreview() {
   const at = clockTime(this.getAttribute("datetime"));
   return at ? { name: at } : null;

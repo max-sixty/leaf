@@ -21,7 +21,7 @@ import hashlib
 import os
 import secrets
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Protocol
 
 from leaf.base.files import read_json
 from leaf.base.machine import pid_alive, sandbox_remedy
@@ -54,8 +54,19 @@ from leaf.base.state import (
     standing_claims,
 )
 
-if TYPE_CHECKING:
-    from leaf.base.harness import Harness
+
+class Claimant(Protocol):
+    """The harness of a session that claims a page or asks who holds one
+    (`harness.Harness`)."""
+
+    @property
+    def name(self) -> str: ...
+    @property
+    def session(self) -> str: ...
+    @property
+    def agent(self) -> str: ...
+
+    def lifetime(self) -> dict: ...
 
 
 def delivery_reply_attempt(delivery_id: str) -> str:
@@ -241,7 +252,7 @@ def page_holder(
     return None
 
 
-def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
+def claimant_matches(claim: dict | None, harness: Claimant | None) -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
     Harness identity is independent of liveness: readers pass the active claim
@@ -255,7 +266,7 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     )
 
 
-def held_elsewhere(page_dir: Path, harness: Harness | None) -> str | None:
+def held_elsewhere(page_dir: Path, harness: Claimant | None) -> str | None:
     """Who holds `page_dir`, where a session other than `harness`'s does, or None
     (`page_holder`), whatever harness the holder names."""
     holder = page_holder(
@@ -266,7 +277,7 @@ def held_elsewhere(page_dir: Path, harness: Harness | None) -> str | None:
     return holder
 
 
-def refuse_held(page_dir: Path, harness: Harness | None) -> None:
+def refuse_held(page_dir: Path, harness: Claimant | None) -> None:
     """Refuse to serve `page_dir` or change its layer record for anyone but the
     session holding it (`held_elsewhere`). Another session takes the page over first
     by claiming it (`leaf server start`). Since only the Leaf a session's hooks run
@@ -317,7 +328,7 @@ def claim_records(session_id: str | None = None) -> list:
     return claims
 
 
-def prepare_claim(harness: Harness, page_dir: Path) -> dict:
+def prepare_claim(harness: Claimant, page_dir: Path) -> dict:
     """Capture an unpublished acquisition in the claimant's process.
 
     Lifetime and cwd come from the launching harness, not a detached child. Preparing

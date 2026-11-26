@@ -1,7 +1,6 @@
 """Commenting with `c`: what a comment lands on, where its box opens, and how its keys
 type and send."""
 
-import json
 import math
 import re
 
@@ -21,7 +20,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     RELEASE_FOCUS,
-    ROOT,
     WORDS_RECTS,
     draft_control,
     expect_obligations_answered,
@@ -74,11 +72,9 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     browser, serve
 ):
     """A reactionless layer keeps Suggest in the compact response fallback."""
-    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    removed = {emoji: None for emoji in registry["$reactions"]["emoji"]}
     page = open_page(
         browser,
-        serve(INLINE_PAGE, layer_registry={"$reactions": {"emoji": removed}}),
+        serve(INLINE_PAGE, layer_registry={"$reactions": {"emoji": []}}),
     )
     page.locator("#p").click(click_count=3)
     box = page.locator(".lf-fab-input")

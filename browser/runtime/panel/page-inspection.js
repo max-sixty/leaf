@@ -180,7 +180,11 @@ async function showOnPage(row) {
   const target = destinations.get(row)?.deref();
   const view = report?.current_view;
   if (!view) return;
-  if (runtime.currentRevision !== view.revision || !target?.isConnected) {
+  // Whether the place still stands in the version the report read, before the reveal
+  // and after it.
+  const stands = (/** @type {Element} */ place) =>
+    place.isConnected && runtime.currentRevision === view.revision;
+  if (!target || !stands(target)) {
     navigationError =
       "This location changed. Close and reopen diagnostics to inspect the current page.";
     present();
@@ -190,8 +194,7 @@ async function showOnPage(row) {
   if (!intent.handoff(() => dismiss(false))) return;
   const exposure = reveal(target, intent);
   await exposure.ready;
-  if (!intent() || !target.isConnected || runtime.currentRevision !== view.revision)
-    return;
+  if (!intent() || !stands(target)) return;
   focusDestination(target, "move");
   scrollIntoView(target, { block: "center", behavior: scrollBehavior() });
 }
@@ -420,7 +423,6 @@ export async function openPageInspection(intent) {
       ...layout.arrangement,
     ];
     for (const observation of observations) {
-      if (!observation.place) continue;
       const target = resolver.resolvePlace(observation.place);
       if (target) destinations.set(observation, new WeakRef(target));
     }

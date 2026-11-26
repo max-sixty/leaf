@@ -231,7 +231,7 @@ import { errorOver } from "../../transport/errors.js";
  * @typedef {import("../../features/margin-model.js").ThreadItem} Item
  * @typedef {import("../../features/margin-model.js").ThreadChoice} Choice
  * @typedef {import("../../records/thread/workflow.js").ThreadRecord} ThreadRecord
- * @typedef {NonNullable<ReturnType<ReturnType<typeof import("./composing/floating-response.js").createFloatingResponsePlacement>["frame"]>>} Origin
+ * @typedef {import("../../records/thread/destination.js").SendFrame} Origin
  * @typedef {{entry: Entry, choice: Choice, threadItem: string, control: Element | null,
  * accompanies: boolean, forced: boolean, disclosed: boolean}} Selection
  * @typedef {Selection & {item: Item, preparing: boolean,
@@ -505,7 +505,7 @@ export function createThreadPreview({
     session.transcript = transcript;
     // The card scrolls its transcript, which grows only at its end (browser/AGENTS.md,
     // `data-lf-reflow`).
-    if (transcript) keeps(transcript, "data-lf-reflow", "append");
+    keeps(transcript, "data-lf-reflow", "append");
     // A reader at the transcript's end stays there, whatever moves the end: the reply
     // box taking room or giving it back, a fit, a turn drawn or growing. One read back
     // keeps their offset, as the card hangs from its passage (dom/scrolling.js,
@@ -513,14 +513,12 @@ export function createThreadPreview({
     // turn (`showArrival`), and where the thread places an answer to the user's turn
     // (thread-card.js, `placesEnd`).
     session.end?.stop();
-    session.end = transcript
-      ? followEnd(
-          transcript,
-          (before) => session.arriving || Boolean(session.placesEnd?.(before)),
-        )
-      : null;
+    session.end = followEnd(
+      transcript,
+      (before) => session.arriving || Boolean(session.placesEnd?.(before)),
+    );
     session.gutter = null;
-    if (previewRegionMounted && transcript) {
+    if (previewRegionMounted) {
       // Once its turns overflow, the transcript holds its scrollbar's gutter
       // (`data-lf-overflows`, annotation-chrome.css) until its width or the number of
       // turns it shows changes. The gutter narrows the turns, and a narrowed picture is
@@ -678,12 +676,12 @@ export function createThreadPreview({
     const mayFocus = retainUserIntent();
     const pending = { holding: focused() };
     session.focusPending = pending;
-    void positioned?.then((placed) => {
+    void positioned.then((placed) => {
       if (previewSession !== session || session.focusPending !== pending) return;
       session.focusPending = null;
       const holdingGone =
         focused() === document.body &&
-        (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
+        (!pending.holding?.isConnected || !pending.holding.checkVisibility());
       if (placed && (focused() === pending.holding || holdingGone))
         mayFocus.handoff(focus);
     });
@@ -858,7 +856,7 @@ export function createThreadPreview({
     }
     const thread = threadCardThread(session);
     const words =
-      !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
+      !point && thread.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
     const place = commentAttachment({ target, point, passage: words });
     // Floating UI follows the scrollers around what the card stands by, so a card on a
     // row deep in a target follows the box that scrolls that row, not only the target's.
@@ -1240,11 +1238,11 @@ export function createThreadPreview({
     const restoreFocus = holdFocus(preview);
     const focusedItem = restoreFocus
       ? (focused(document)
-          ?.closest?.("[data-lf-margin-entry]")
+          ?.closest("[data-lf-margin-entry]")
           ?.getAttribute("data-lf-margin-entry") ?? null)
       : null;
     const threadItems = choice.items;
-    const wanted = requestedItem ?? current.threadItem ?? focusedItem;
+    const wanted = requestedItem ?? current.threadItem;
     // A thread that left the cluster the card shows, as one resolved there leaves it,
     // gives its place to the thread after it, else the one before (`landing`).
     const stood = current.choice.items.findIndex((item) => item.id === wanted);
@@ -1268,8 +1266,8 @@ export function createThreadPreview({
       // margin entry's title: a card headed "aside · The fallback cookie is
       // read-only…" over a comment on the aside's last sentence was a third name for
       // one thread, and the least exact.
-      const passage = selected.thread && threadPassage(selected.thread);
-      const quoted = passage ? anchorLabel(passage, selected.thread?.root.about) : null;
+      const passage = threadPassage(selected.thread);
+      const quoted = passage ? anchorLabel(passage, selected.thread.root.about) : null;
       const title = labelWords(quoted || entry.title);
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
@@ -1310,7 +1308,6 @@ export function createThreadPreview({
 
   /** @param {number} step */
   function stepPreviewThread(step) {
-    if (!previewSession) return;
     const session = previewSession;
     if (!session) return;
     const threadItems = session.choice.items;
@@ -1536,8 +1533,7 @@ export function createThreadPreview({
       () => {
         const thread = previewList.querySelector(".lf-page-thread");
         if (!thread) return;
-        const target =
-          threadFocusDestination(thread, { part: openingPart() }) ?? thread;
+        const target = threadFocusDestination(thread, { part: openingPart() });
         focusDestination(target, cause);
         scrollThreadIntoView(thread, thread);
       },

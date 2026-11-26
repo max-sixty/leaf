@@ -655,7 +655,7 @@ export function createUndo({
     // log has read through none of it.
     const before = {
       seq: runtime.lastEventSeq ?? 0,
-      attempts: new Set(sending().filter((one) => one !== undefined)),
+      attempts: new Set(sending()),
     };
     discard.value = {
       ...discarded,

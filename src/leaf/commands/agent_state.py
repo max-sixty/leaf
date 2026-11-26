@@ -34,7 +34,6 @@ from leaf.base.refusals import Refused
 from leaf.base.schema import DATA_DIR
 from leaf.base.server import running_server
 from leaf.log.construction import constructed_content
-from leaf.log.events import bare_reaction, is_reaction
 from leaf.log.projection import (
     AuthoredOrders,
     StateProjection,
@@ -56,7 +55,7 @@ from leaf.serving.served_state.page import read_served_page
 from leaf.serving.user_views import read_user_views, viewed_at
 from leaf.source.data import data_errors
 from leaf.source.data_contracts import measurement_lag_entries
-from leaf.source.file_bindings import granted_files
+from leaf.source.file_bindings import bound_paths, granted_files
 from leaf.source.passages import page_passages
 from leaf.source.registry.contract import state_specs
 from leaf.source.registry.storage import IncompatibleLayer, layer_metadata
@@ -186,9 +185,7 @@ def _base_state(
         "obligations": [],
         # Current semantic facts only. A thread's history belongs to
         # `page state PAGE MESSAGE`; keeping its sequence list here would make this
-        # default snapshot grow with every thread turn. A reaction nobody
-        # has replied to opened no thread: it is paint on the page and
-        # stands under `reactions` below.
+        # default snapshot grow with every thread turn.
         "threads": [
             {
                 "id": thread_id,
@@ -201,26 +198,6 @@ def _base_state(
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for thread_id, thread in threads.items()
-            if not bare_reaction(thread)
-        ],
-        # Every reaction still in force — the agent-side reading of the marks
-        # the page paints. On the page (`anchor`, or none for the page whole) while
-        # its thread is unresolved; in a thread (`parent`) while that thread is open.
-        "reactions": [
-            {
-                "id": message["id"],
-                "emoji": message["emoji"],
-                "anchor": message.get("anchor"),
-                "about": message.get("about"),
-                "parent": message.get("parent"),
-                "thread": thread_id,
-                "revision": message.get("revision"),
-                "seq": message["seq"],
-            }
-            for thread_id, thread in threads.items()
-            if not thread["resolved"]
-            for message in thread["msgs"]
-            if is_reaction(message)
         ],
     }
 
@@ -571,11 +548,6 @@ def page_state(
             for report in state["reports"]
             if thread_reading.subject_thread(report["target"]) == thread_id
         ]
-        reactions = [
-            reaction
-            for reaction in state["reactions"]
-            if reaction["thread"] == thread_id
-        ]
         content = []
         content_source = {
             "kind": "thread",
@@ -599,6 +571,7 @@ def page_state(
         outcomes = retirement_outcomes(thread_reading.projection.actions)
         # Each message as it now reads, with the facts its delivery carried.
         message_facts = facts(shown)
+        granted = bound_paths(page_dir)
         for event in shown:
             fragment = thread_reading.structure.fragments.get(event["id"])
             message = {
@@ -631,8 +604,9 @@ def page_state(
             ):
                 if key in event:
                     message[key] = event[key]
-            if "text" in event:
-                message["text"] = event["text"]
+            for key in ("text", "emoji"):
+                if key in event:
+                    message[key] = event[key]
             if "drawing" in event:
                 message["drawing"] = event["drawing"]
             message.update(message_facts[event["id"]])
@@ -647,6 +621,7 @@ def page_state(
                 registry,
                 stored_data,
                 page_dir,
+                files=granted,
                 outcomes=outcomes,
                 retired=set(passages.retired) | set(passages.gone),
                 thread=thread_id,
@@ -664,7 +639,6 @@ def page_state(
             "content": content,
             "elements": elements,
             "state": in_force,
-            "reactions": reactions,
             "reports": reports,
             "activity": {
                 "obligations": [

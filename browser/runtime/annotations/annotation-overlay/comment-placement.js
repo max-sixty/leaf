@@ -186,7 +186,7 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
-/** @typedef {import("../../dom/rect.js").Box} Box */
+/** @typedef {import("../../base/box.js").Box} Box */
 /** @typedef {Box & {width: number, height: number}} Extent */
 /** @typedef {Pick<Box, "left" | "right">} Columns */
 /** @typedef {import("@floating-ui/dom").Side} Side */
@@ -196,7 +196,7 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {DOMRectReadOnly & {holders: {top: Element | null, bottom: Element | null}}} Room */
 /** @typedef {Room & {across: (columns: Columns | null) => Room,
  * cut: Box | null, scroller: Element, key: BoundaryKey}} Boundary */
-/** @typedef {{side: Side | null, boundary: BoundaryKey | null, moved: boolean}} CapturedPlacement */
+/** @import { CapturedPlacement } from "../../records/thread/destination.js" */
 /** @typedef {{box: Extent, placement: CapturedPlacement}} AdoptedFrame */
 /** @typedef {{top: number, height: number, under: number}} HeldBox */
 /** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,

@@ -134,10 +134,18 @@ const originPath = (who, key, text) => {
   return path;
 };
 
-/** @type {{projectMarked: (root: Element, snapshot: import("../../host/data.js").DataSnapshot | null) => void} | null} */
+/** Where a drawn value came from, which a stamp writes as `data-lf-origin`: the input,
+ * source, contract and revision a source's value came through, or the widgets whose
+ * output it is (host/data.js builds it).
+ * @typedef {{input: string, source: string, contract: string, revision: string}
+ *   | {derived: readonly {widget: string}[]}} DataOrigin */
+/** What a stamp reads of the snapshot that supplied a drawn value (host/data.js,
+ * `DataSnapshot`): the source and revision it came from, and its origin.
+ * @typedef {{source?: string, revision?: string, origin: DataOrigin}} DrawnSnapshot */
+/** @type {{projectMarked: (root: Element, snapshot: DrawnSnapshot | null) => void} | null} */
 let constructed = null;
 /** Stamp the items a widget marked under `root` (`createDataProjection`).
- * @param {Element} root @param {import("../../host/data.js").DataSnapshot | null} snapshot */
+ * @param {Element} root @param {DrawnSnapshot | null} snapshot */
 export function projectMarked(root, snapshot) {
   if (!constructed) throw new Error("Leaf's data projection has not been constructed");
   constructed.projectMarked(root, snapshot);
@@ -169,7 +177,7 @@ export function createDataProjection({ invalidateDom }) {
   /** Stamp the items a widget marked under `root` with the snapshot that supplied the
    *  value it drew, or null for words no bound value supplied; host/element-data.js has
    *  matched the value to the snapshot.
-   *  @param {Element} root @param {import("../../host/data.js").DataSnapshot | null} snapshot */
+   *  @param {Element} root @param {DrawnSnapshot | null} snapshot */
   function projectMarked(root, snapshot) {
     if (!root.id)
       throw new TypeError(`<${root.localName}> needs an id to name its drawn data`);

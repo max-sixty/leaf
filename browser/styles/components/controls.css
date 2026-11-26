@@ -504,6 +504,16 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 :where([data-lf-scroll]:not(leaf-text)) {
   position: relative;
 }
+/* A page's scroll area (`.lf-scroll`) clips at its edges and pads nothing, so a box it
+   holds stands flush with them, as a table filling its width does, and the area cuts
+   whatever mark stands outside the box there: an Alt-clicked table would lose both its
+   brackets, and a focused one its ring's sides. So what the area holds stands its
+   marks one band inside its own edge (tokens.css, "Where it stands"). A module's
+   surface (`data-lf-scroll`) holds the module's own boxes, whose rules say where their
+   marks stand. */
+:where(.lf-scroll) > * {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
  * surface owner opts into the shared primitive): across it, and down
  * a reading region (reachReadingScroller). Scrolling is the honest answer when the room
@@ -954,20 +964,26 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   background: none;
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
-   of words of its own; the button inside fills the face and takes the press. The host
-   stretches the vendor's unparted wrapper, which would otherwise shrink to the icon
-   and take the button with it. */
+   of words of its own; the button inside fills the face out to its edge, the face's
+   border included, and takes the press. So the box a press, a hover's preview and the
+   focus ring take is the face's whole box, as each symbol beside it is its own. The
+   host stretches the vendor's unparted wrapper, which would otherwise shrink to the
+   icon and take the button with it, and the button stands out from the wrapper, which
+   the vendor positions (its `.copy-button__trigger`), by the face's border
+   (styles/vendor/webawesome-native.css). */
 wa-copy-button.lf-icon-action {
   place-items: stretch;
   font-size: 0;
   line-height: 0;
 }
 .lf-icon-action.lf-ui::part(button) {
-  position: relative;
+  position: absolute;
+  inset: calc(-1 * max(1px, var(--wa-form-control-border-width)));
+  inline-size: auto;
+  block-size: auto;
+  aspect-ratio: auto;
   display: grid;
   place-items: center;
-  inline-size: 100%;
-  block-size: 100%;
   padding: 0;
   border: 0;
   background: none;

@@ -1538,10 +1538,10 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
       },
       folded: folded.has(row),
       bounds: {
-        left: Math.max(within?.left ?? 0, clipped?.left ?? 0) + pinInset,
-        right: Math.min(within?.right ?? shell, clipped?.right ?? shell) - pinInset,
-        top: Math.max(within?.top ?? -Infinity, clipped?.top ?? -Infinity),
-        bottom: Math.min(within?.bottom ?? Infinity, clipped?.bottom ?? Infinity),
+        left: Math.max(within.left ?? 0, clipped?.left ?? 0) + pinInset,
+        right: Math.min(within.right ?? shell, clipped?.right ?? shell) - pinInset,
+        top: Math.max(within.top, clipped?.top ?? -Infinity),
+        bottom: Math.min(within.bottom ?? Infinity, clipped?.bottom ?? Infinity),
       },
     };
   }
@@ -1695,7 +1695,7 @@ function samePassages(a, b) {
     one.length === other.length &&
     one.every(
       ({ node, start, end }, i) =>
-        other[i]?.node === node && other[i]?.start === start && other[i]?.end === end,
+        other[i]?.node === node && other[i].start === start && other[i].end === end,
     )
   );
 }
@@ -2056,7 +2056,7 @@ function layoutMountedRows(layer) {
     for (const parent of around) {
       if (parents.has(parent)) continue;
       parents.add(parent);
-      for (const sibling of parent.children ?? [])
+      for (const sibling of parent.children)
         if (!inChrome(sibling)) geometry.add(sibling);
     }
   }

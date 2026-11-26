@@ -809,7 +809,7 @@ function markupName(control) {
   const by = labelledBy(control);
   if (by.length)
     return by
-      .map((el) => el.textContent?.trim() ?? "")
+      .map((el) => el.textContent.trim())
       .join(" ")
       .trim();
   return labelText(control) || titleOf(control) || "";
@@ -1380,7 +1380,7 @@ function open(source, standing, moved) {
     else mark.after(tip);
   }
   anchored = new WeakRef(source);
-  said = tip.textContent ?? "";
+  said = tip.textContent;
   showNativeLayer(tip, { source });
 }
 
@@ -2162,8 +2162,7 @@ function here() {
   const on = focused() ?? document.body;
   const caret = userCaret();
   const at = caret?.element;
-  if (at && renderedUnder(at, on) && seenRect(caret?.letter ?? at, new Map()))
-    return at;
+  if (at && renderedUnder(at, on) && seenRect(caret.letter ?? at, new Map())) return at;
   return on === document.body ? null : on;
 }
 // Whether a keyboard reading is of what focus is on: its target is the focused element

@@ -252,7 +252,7 @@ export function createDrawingController({
   /** @param {{x: number, y: number}} point */
   function targetNearest({ x, y }) {
     const near = visibleTargets()
-      .filter(({ rect }) => rect?.width && rect?.height)
+      .filter(({ rect }) => rect.width && rect.height)
       .map((target) => ({
         target,
         distance: Math.hypot(
@@ -652,7 +652,7 @@ export function createDrawingController({
     if (found?.status === "fallback") return null;
     const at = held.at;
     const section = at && sectionOf(anchor);
-    return section && at
+    return section
       ? { target: section, drawing: inSection(held, at), detached: true }
       : null;
   }

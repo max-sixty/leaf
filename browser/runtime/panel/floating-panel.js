@@ -3975,7 +3975,7 @@ export function createFloatingPanel({
   // taken back (records/undo.js).
   /** @param {import("../state/semantic-application.js").ObligationRecord} item */
   const answerGesture = (item) => {
-    const id = item?.answer?.event?.id ?? item?.answer?.event;
+    const id = item.answer?.event?.id ?? item.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
@@ -4318,13 +4318,13 @@ export function createFloatingPanel({
       ? ""
       : asking
         ? messageReading(asking, { workflows: [] }).body.plainText
-        : record?.prompt?.text;
+        : record?.prompt.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     // The other questions the user answers at this card's place (`also`): further
     // messages its thread's reply answers, and on an obligation's card those asked in a
     // thread about it, so an answer about a decision rides on the decision. Each reads
     // as its message, as a question asked in words does above.
-    const carried = (also ?? []).flatMap((id) => {
+    const carried = also.flatMap((id) => {
       const other = readObligations().byId.get(id);
       if (!other) return [];
       const where = other.thread ? threadByKey(other.thread) : null;
@@ -4722,7 +4722,7 @@ export function createFloatingPanel({
       carrying.set(key, [
         ...new Set([
           ...(carrying.get(key) ?? []),
-          ...(item.also ?? []).filter((id) => !elsewhere.has(id)),
+          ...item.also.filter((id) => !elsewhere.has(id)),
         ]),
       ]);
     }
@@ -5531,7 +5531,7 @@ export function createFloatingPanel({
     // The field's search, the menu's or Threads', clears its words first; then, empty,
     // the menu's closes the menu and Threads' returns to Threads, as a find box returns
     // to its panel (dom/keyboard/AGENTS.md, "Escape").
-    if (focused()?.matches?.(".lf-fp-search"))
+    if (focused()?.matches(".lf-fp-search"))
       return query
         ? {
             root: host,
@@ -5614,7 +5614,7 @@ export function createFloatingPanel({
         : null;
   };
   /** @returns {HTMLElement | null} */
-  const tabOn = () => focused()?.closest?.(".lf-fp-tab") ?? null;
+  const tabOn = () => focused()?.closest(".lf-fp-tab") ?? null;
   // Whether the user stands where ← and → turn the On view's tabs: on a tab, or where
   // ↑ and ↓ walk its rows, a list that holds none included.
   const atTabs = () =>
@@ -6104,7 +6104,7 @@ export function createFloatingPanel({
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
   async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
-    if (!thread || !currentLocation) return false;
+    if (!thread) return false;
     const { reading, focus } = currentLocation;
     const intent = retainUserIntent();
     const returnFocus = () => {

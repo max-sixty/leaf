@@ -470,7 +470,7 @@ export function createSelectionComposer({
   /** @param {boolean} open */
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
-    if (!open) syncComposer?.cancelDictation();
+    if (!open) syncComposer.cancelDictation();
     // Hiding keeps the words and says so: a hide that says nothing lets a press on the
     // chrome take the box off screen with the user's sentence in it and leaves no sign the
     // sentence still exists — recoverable only by reselecting that exact passage on that

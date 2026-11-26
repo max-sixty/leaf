@@ -46,7 +46,7 @@ import { pageCommand, pageRung, pageScope } from "../../dom/keyboard/register.js
 function currentLocationOn(name, title, sel, rows) {
   const at = () => {
     const el = focused();
-    return Boolean(el?.matches?.(sel)) && !inChrome(el);
+    return Boolean(el?.matches(sel)) && !inChrome(el);
   };
   pageScope(name, {
     title,

@@ -18,12 +18,12 @@ from render_harness import (
     sending,
 )
 
-from leaf import cli as cli_model
-from leaf import exporting as exporting_model
-from leaf import server as server_model
-from leaf import state as cleanup_model
-from leaf.render_checks import wait_until_ready
-from leaf.served_state.service import LivePage
+from leaf.agents import server as server_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.pages import exporting as exporting_model
+from leaf.serving.served_state.service import LivePage
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

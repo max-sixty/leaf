@@ -36,9 +36,9 @@ from render_harness import (
 
 from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

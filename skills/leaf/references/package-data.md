@@ -491,7 +491,7 @@ leaf data clear PAGE release-ci
 ```
 
 `leaf data set` validates the value against the source's contract and replaces
-`data/<source>.json` in one step, or leaves it untouched. Open tabs pick up the new
+the source's file under `data/` in one step, or leaves it untouched. Open tabs pick up the new
 value at once. `leaf data clear` removes the value, and each bound widget receives
 `null`. A value that stops fitting a later contract shows users an error for that
 source, and `page check` and `page state` report it. A stamped version keeps the

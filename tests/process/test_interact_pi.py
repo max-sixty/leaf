@@ -20,10 +20,11 @@ from interact_support import (
     serving,
 )
 
-from leaf import harness as harness_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf.refusals import Refused
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base.refusals import Refused
+from leaf.commands import session as session_model
+from leaf.records import transaction as transaction_model
 
 DRIVER = Path(__file__).parents[1].joinpath("pi_driver.mjs")
 
@@ -148,7 +149,7 @@ def start_pi_fixture(page_dir, monkeypatch, spawn, sessionless):
         hooks_run_this_tree(driven.session)
         monkeypatch.setenv("LEAF_PI_PID", str(driven.pid))
         hooks_run_this_tree(driven.session)
-        service_model.claim_page(page_dir)
+        transaction_model.claim_page(page_dir)
         serving(page_dir, 1)
         session_model.cmd_waiting(page_dir)
         driven.emit("session_start", idle=True, reason="startup")
@@ -217,5 +218,5 @@ def test_a_pi_session_without_the_leaf_extension_is_refused(
     monkeypatch.setenv("PI_SESSION_ID", "pi-bare")
     hooks_run_this_tree("pi-bare")
     with pytest.raises(Refused, match="extension"):
-        service_model.claim_page(page_dir)
+        transaction_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir) is None

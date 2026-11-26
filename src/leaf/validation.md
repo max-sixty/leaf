@@ -5,7 +5,7 @@ directly:
 
 - an event, whether a browser posted it or a command wrote it, at the append door
   ([events.md, "Admission"](events.md#admission));
-- a page's authored source at `check_source` (`authored_checks/source.py`), which
+- a page's authored source at `check_source` (`records/authored_checks/source.py`), which
   `page check`, activation, `page stamp` and `page init` all run ("Static
   validation");
 - the HTML in an agent's message at `authored_checks.admission.check_markup`, which
@@ -21,7 +21,7 @@ directly:
 The static check reads the exact `index.html` with no browser. It is deterministic and
 near-free, which is what makes running it on every save affordable, so keep a new
 check that way and put anything needing a browser in the browser half. The rules live
-in `authored_checks/source.py` and `markup_checks/markup.py`; these are the decisions
+in `records/authored_checks/source.py` and `records/markup_checks/markup.py`; these are the decisions
 behind them:
 
 - Page code may be any script, classic or module, inline or a file, with its literal
@@ -84,15 +84,15 @@ successful reply publishes the source it checked (`thread._compose_and_append`, 
 Plain `page check` runs one browser reading as well. A page that runs code of its own,
 or places a data widget or a widget naming page media, is run once, and fails on each
 `error` event its runtime posts, the same events `leaf wait` delivers
-(`render_gate/page_code.py`). A thread command runs message markup placing one of those
+(`pages/render_gate/page_code.py`). A thread command runs message markup placing one of those
 widgets the same way before it posts, apart from the page lease, and refuses it on the
-same reports (`render_gate/command.message_check`); markup without one waits on no
+same reports (`pages/render_gate/command.message_check`); markup without one waits on no
 browser.
 
 Leaf runs without a browser. Where the host has none, every browser gate (this run,
 `--render` and `package check --render`) is skipped with a note and leaves the status
 alone, since the page posts the same `error` events whenever a browser draws it
-(`render_gate/command.run_in_browser`).
+(`pages/render_gate/command.run_in_browser`).
 
 ## Delivery policy
 
@@ -118,12 +118,12 @@ become a script module.
 ## Browser validation
 
 `page check --render` loads the exact current source in the host's browser once
-before a page's URL is first handed over (`render_gate/browser.py` says which browser
+before a page's URL is first handed over (`pages/render_gate/browser.py` says which browser
 and why). It refuses a version only for a fault its author can fix by editing the
 page; a fault in Leaf's own chrome or theme belongs in the suite
-(`render_gate/readings.py`, header). Another live Leaf page the page frames is checked
+(`pages/render_gate/readings.py`, header). Another live Leaf page the page frames is checked
 on its own, so the gate shows a stand-in in its frame
-(`render_gate/scheme.stand_in_other_leaves`). `render_gate/version.render_version` is
+(`pages/render_gate/scheme.stand_in_other_leaves`). `pages/render_gate/version.render_version` is
 the one implementation the command and the `tests/*/test_render_*.py` modules call
 over the shipped examples, and `_render_version_attempt`'s docstring lists what it
 reads. Its desktop is the window of the browser that last reported viewing the page,
@@ -150,7 +150,7 @@ Every check behind `page check` reports a record (`findings.py` owns its fields 
 words), and the browser probes return those records rather than sentences.
 
 A render reading gets screens for its author to read, including when it reports
-findings (`render_gate/screens.py`). A screen is taken of a ready page. A reading that
+findings (`pages/render_gate/screens.py`). A screen is taken of a ready page. A reading that
 stopped early, as at a page that cannot start, or that found the page never got ready,
 gets none, because the page would be no readier for a screen. A page that is not ready
 when the check opens it for a screen, as one whose module fails only on a phone, fails
@@ -183,7 +183,7 @@ A visual part an agent names (`thread create --part`) passes where its visual's
 declaration admits the id (`registry.contract.visual_parts`), and is then checked
 against what the page drew of that visual: the page's render reading of the version and
 data it shows (`render_reading.py`), or else a drawing the command makes itself
-(`render_gate/drawn_anchor.py`). `anchor_capture.drawn_part` says which parts each
+(`pages/render_gate/drawn_anchor.py`). `anchor_capture.drawn_part` says which parts each
 drawing admits.
 
 The render gate holds each `verbatim` owner to the file reading

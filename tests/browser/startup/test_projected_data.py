@@ -43,10 +43,10 @@ from browser.threads import (
     open_panel_thread,
     thread_row,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -901,7 +901,9 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
         told(page)
         return page.evaluate("window.publications")
 
-    publication_file = data_model.source_file(serve.page_dir, "deployments")
+    publication_file = data_model.PUBLICATION.file(
+        data_model.source_file(serve.page_dir, "deployments")
+    )
     original = json.loads(publication_file.read_text())
     first = page.evaluate("window.publications")[0]
     datum = page.locator('[data-lf-datum="api"]')

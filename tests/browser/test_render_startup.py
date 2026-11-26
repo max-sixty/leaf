@@ -16,7 +16,7 @@ from render_harness import (
     told,
 )
 
-from leaf import hosting as hosting_model
+from leaf.pages import hosting as hosting_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -6,8 +6,8 @@ from browser.threads.test_rewrites import PICTURE, PICTURED, _rewrite_surface
 from playwright.sync_api import expect
 from render_harness import round_trip
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

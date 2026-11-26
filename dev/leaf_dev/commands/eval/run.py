@@ -60,7 +60,7 @@ import click
 import yaml
 from click.core import ParameterSource
 
-from leaf.harness import ClaudeCodeHarness, claude_code_config
+from leaf.base.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT, state_home
 from leaf_dev.arms import (
     HARNESSES,

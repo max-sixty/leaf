@@ -20,10 +20,9 @@ instructions (`llm.py`), which the page leaves out.
 import json
 from pathlib import Path
 
-from leaf import clerk, forks, inference, summary_fork, thread_titles
-from leaf.delivery import DELIVERY, envelope, handled
-from leaf.hook_transport import inline_context
-from leaf.state import kernel_registry
+from leaf.agents import clerk, forks, inference, summary_fork, thread_titles
+from leaf.agents.delivery import DELIVERY, envelope, handled, inline_context
+from leaf.base.state import kernel_registry
 
 # The values Leaf wrote each of its messages around in the 10:55 PT run of the
 # claude-code agent journey on 20 November 2026 (`leaf-dev journey run claude-code`),

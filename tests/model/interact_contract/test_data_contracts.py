@@ -20,20 +20,20 @@ from interact_support import (
     registry_refusal,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import revisioning as revisioning_model
-from leaf import thread as thread_model
-from leaf.authored_checks.declarations import declaration_advice
-from leaf.findings import Rejected
-from leaf.page import page_instructions
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
-from leaf.registry import validation as registry_validation
-from leaf.structure import SourceDocument
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base.findings import Rejected
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages.page import page_instructions
+from leaf.records import revisioning as revisioning_model
+from leaf.records.authored_checks.declarations import declaration_advice
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry import validation as registry_validation
+from leaf.source.structure import SourceDocument
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -534,7 +534,7 @@ def test_page_owned_data_contract_can_change_without_changing_source_meaning(
 
 
 def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings():
-    from leaf.markup_checks.instances import reference_errors, widget_errors
+    from leaf.records.markup_checks.instances import reference_errors, widget_errors
 
     registry = {
         "lf-producer": {

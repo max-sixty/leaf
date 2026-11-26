@@ -37,20 +37,21 @@ from interact_support import (
     state_json,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.events import logged_fragment
-from leaf.refusals import Refused
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.log.events import logged_fragment
+from leaf.records import revisioning as revisioning_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
 
 
 class ResponseOptions(TypedDict, total=False):
@@ -163,7 +164,7 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
     hooks_run_this_tree("s2")
-    assert service_model.claim_page(claimed)
+    assert transaction_model.claim_page(claimed)
     noted = owed_note()
     assert ref not in noted
     assert f"`leaf wait {claimed}` delivers for {asked['id']}" in noted
@@ -249,7 +250,7 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
         asked = append_carried_log_record(
             page, {"kind": "comment", "id": "same-id", "author": "user", "text": "Why?"}
         )
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             batches.append(delivery_model.batch_data(page, transaction, [asked]))
     payload = delivery_model.freeze_delivery(batches)
     refs = [batch["events"][0]["answer"]["ref"] for batch in payload["batches"]]
@@ -511,11 +512,11 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
             sys.executable,
             "-c",
             (
-                "from click.testing import CliRunner; from leaf.cli import cli; import sys; "
-                "assert 'leaf.delivery' not in sys.modules; "
+                "from click.testing import CliRunner; from leaf.commands.cli import cli; import sys; "
+                "assert 'leaf.agents.delivery' not in sys.modules; "
                 "result = CliRunner().invoke(cli, ['thread', 'reply', '--help']); "
                 "assert result.exit_code == 0, result.output; "
-                "assert 'leaf.delivery' not in sys.modules"
+                "assert 'leaf.agents.delivery' not in sys.modules"
             ),
         ],
         capture_output=True,
@@ -577,7 +578,7 @@ def test_superseded_response_stays_refused_after_successor_ends(claimed):
         },
     )
     reference = response_reference(claimed, comment)
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("successor", "Successor", os.getpid())
         )
@@ -607,7 +608,7 @@ def test_delegated_author_write_survives_same_owner_process_restart(claimed):
     original = service_model.page_claim(claimed)
     assert original is not None
     cleanup_model.ensure_session(original["id"], {"pid": os.getppid()})
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert original is not None
         page.take_claim(
             harness_model.EmbeddedHarness(original["id"], "Coordinator", os.getpid())
@@ -872,7 +873,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     before = cleanup_model.session_record("codex-thread")
     cleanup_model.ensure_session("codex-thread", {"pid": os.getppid()})
     if reacquired:
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(
                 harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
@@ -1011,14 +1012,25 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     prepared = _codex_delivery(page_dir)
     identity = prepared.payload["id"]
     path = codex_model.record_path("codex-thread", identity)
-    record = files_model.read_json(path)
-    if obsolete == "record":
-        record["format"] = "leaf-codex-delivery-v2"
-    else:
-        payload = dict(prepared.payload, format="leaf-delivery-v4")
-        cleanup_model.write_json(delivery_model.delivery_path(identity), payload)
+    record = files_model.read_json(codex_model.RECORD.file(path))
     record.update(state="queued", pending=[0])
-    cleanup_model.write_json(path, record)
+    if obsolete == "record":
+        # The record is one a Leaf of another shape wrote.
+        file = path.with_name(f"{path.stem}@999{path.suffix}")
+        codex_model.RECORD.remove(path)
+        record["format"] = "leaf-codex-delivery/999"
+    else:
+        # The envelope this Leaf's record addresses is one a Leaf of another shape
+        # froze.
+        envelope = delivery_model.delivery_path(identity)
+        delivery_model.DELIVERY.remove(envelope)
+        cleanup_model.write_json(
+            envelope.with_name(f"{envelope.stem}@999{envelope.suffix}"),
+            dict(prepared.payload, format="leaf-delivery/999"),
+        )
+        file = codex_model.RECORD.file(path)
+    cleanup_model.write_json(file, record)
+    held = file.read_bytes()
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
     assert acknowledged_through(page_dir) == 0
@@ -1030,7 +1042,8 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     assert fresh.payload["batches"][0]["events"][0]["answer"]["ref"].startswith(
         fresh.payload["id"]
     )
-    assert path.exists()  # another checkout's record is not ours to retire
+    # Another checkout's record is not ours to retire.
+    assert file.read_bytes() == held
 
 
 def test_explicit_rich_reply_is_committed_before_later_invalid_source(page_dir):
@@ -1059,7 +1072,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Another thread"},
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [newer])
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)
@@ -1201,7 +1214,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         delivery_model.record_pickup(
             page, [action], phase="failed", failure="turn_failed"
         )
@@ -1224,7 +1237,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     comment = append_command(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "Why?"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
@@ -1336,7 +1349,7 @@ def test_a_final_into_a_thread_the_user_resolved_leaves_it_closed(page_dir, capf
 def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, settled):
     comment, _target, _delivery_id, old = _reserved_author_response(page_dir)
     # A later delivery reserves the same captured input under a different attempt.
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [comment])
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)

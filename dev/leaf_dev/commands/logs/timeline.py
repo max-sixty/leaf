@@ -8,13 +8,13 @@ line per message saying how long each step took after the user sent it.
 PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 `observations.jsonl`, as a journey's evidence directory does. The records it reads:
 
-- the page's log and diagnostics (`leaf.interaction_log.read_interactions`): each
+- the page's log and diagnostics (`leaf.log.interaction_log.read_interactions`): each
   message and the agent's words, pickups and receipts, and the records Leaf's hooks
   and commands leave: `follower`, as the session's pages follower first reads the page
-  (`leaf.hooks.cmd_pages`), so a message that got no line fork shows whether one ran;
+  (`leaf.commands.hooks.cmd_pages`), so a message that got no line fork shows whether one ran;
   `fork_asked`, as Leaf gave a line fork its question; `fork_outcome`, what came of it
-  (`leaf.forks`); `turn_end_check`, the clerk's fork (`leaf.clerk`); `leaf_command`,
-  with the error where Leaf refused it; and `watch` (`leaf.interaction_log`); and the
+  (`leaf.agents.forks`); `turn_end_check`, the clerk's fork (`leaf.agents.clerk`); `leaf_command`,
+  with the error where Leaf refused it; and `watch` (`leaf.log.interaction_log`); and the
   browser's own `event_submit` and `reply_visible`;
 - each Claude Code session the page names: its transcript, from `claude/` in the PAGE
   directory, where a journey keeps it, or Claude Code's configuration directory
@@ -44,14 +44,14 @@ from pathlib import Path
 
 import click
 
-from leaf.event_log import read_stored_events
-from leaf.events import is_answer
-from leaf.harness import claude_code_config
-from leaf.hook_transport import inline_delivery
-from leaf.interaction_log import interaction_time, read_interactions
-from leaf.registry.kernel import kinds_declaring
-from leaf.state import now_iso
-from leaf.thread_context import thread_names
+from leaf.agents.delivery import inline_delivery
+from leaf.base.harness import claude_code_config
+from leaf.base.state import now_iso
+from leaf.log.event_log import read_stored_events
+from leaf.log.events import is_answer
+from leaf.log.interaction_log import interaction_time, read_interactions
+from leaf.log.thread_context import thread_names
+from leaf.source.registry.kernel import kinds_declaring
 from leaf_dev.page_timings import page_timings
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
@@ -458,7 +458,7 @@ def subagent_entries(meta: Path, session: str) -> list[dict]:
         "",
     )
     # What the agent did on the page: the `leaf` commands it ran, and any input a
-    # hook handed it, which Leaf's hooks never do (`leaf.state.worker_tool_batch`).
+    # hook handed it, which Leaf's hooks never do (`leaf.base.state.worker_tool_batch`).
     done = []
     for record in dated:
         if record.get("type") == "assistant":

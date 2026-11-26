@@ -37,8 +37,8 @@ from browser.controls import (
     RING_NEW_STOP,
 )
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf.render_checks import rendered
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

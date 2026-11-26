@@ -18,8 +18,8 @@ from render_harness import (
     told,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.source import data as data_model
+from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 

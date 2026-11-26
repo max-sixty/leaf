@@ -22,7 +22,7 @@ change what is under test: Claude Code then holds admission's nudge, which reach
 the session as a message from another session (`crossSessionInbound`), unread.
 
 As in every Claude Code session, Leaf hands each comment to the session as it does
-any input, while a line fork posts the agent's working line on it (`leaf.forks`),
+any input, while a line fork posts the agent's working line on it (`leaf.agents.forks`),
 and the session decides who does its work: itself, or a subagent that would answer
 in its place. So each delivery step's comment asks for a change to the page, which
 the session makes itself, and the step tests the session's own delivery from then
@@ -129,18 +129,23 @@ from pathlib import Path
 import click
 import psutil
 
-from leaf.delivery import DELIVERY, delivery_pointer_prompt
-from leaf.event_log import read_events
-from leaf.harness import (
+from leaf.agents.delivery import (
+    DELIVERY,
+    INLINE_OPENING,
+    delivery_pointer_prompt,
+    inline_delivery,
+)
+from leaf.agents.server import running_server
+from leaf.base.harness import (
     NUDGE_WORDS,
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
 )
-from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, inline_delivery
-from leaf.server import running_server
-from leaf.service import page_claim
-from leaf.state import turn_open
+from leaf.base.service import page_claim
+from leaf.base.state import turn_open
+from leaf.commands.hook_transport import ATTENTION_OPENING
+from leaf.log.event_log import read_events
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, PageClient, claude_environment, claude_home
 from leaf_dev.commands.journey._journey import (

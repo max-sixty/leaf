@@ -43,12 +43,12 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import http as http_model
-from leaf import thread as thread_model
-from leaf.findings import Finding
-from leaf.render_checks import (
+from leaf.agents import thread as thread_model
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving import http as http_model
+from leaf.source.render_checks import (
     rendered,
     wait_until_ready,
 )

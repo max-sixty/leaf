@@ -31,28 +31,29 @@ from interact_support import (
     state_json,
 )
 
-from leaf import activity as activity_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import obligations as obligations_model
-from leaf import projection as projection_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import standing as standing_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf.event_meaning import AdmissionReadings
-from leaf.events import ThreadStructure
-from leaf.findings import Rejected
-from leaf.registry import storage as registry_storage
-from leaf.served_state import work as work_served_model
-from leaf.workflows import attention_reading
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Rejected
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.log import obligations as obligations_model
+from leaf.log import projection as projection_model
+from leaf.log.events import ThreadStructure
+from leaf.records import activity as activity_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.records.event_meaning import AdmissionReadings
+from leaf.records.workflows import attention_reading
+from leaf.serving.served_state import work as work_served_model
+from leaf.source.registry import storage as registry_storage
 
 
 @pytest.mark.parametrize(
@@ -888,7 +889,7 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
     assert _start(page_dir, "c1", "reading the traces").exit_code == 0
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     append_carried_log_record(
         page_dir,
@@ -1004,7 +1005,7 @@ def test_pickup_from_an_older_turn_reads_blocked_quiet(claimed, capsys):
     assert old is not None
     cleanup_model.close_session_turn(old["id"])
     cleanup_model.prompt_turn("s1")
-    assert service_model.claim_page(claimed)
+    assert transaction_model.claim_page(claimed)
     claim_record = service_model.page_claim(claimed)
     assert claim_record is not None
     assert claim_record["turn"] != old["turn"]
@@ -1573,7 +1574,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
     assert [item["widget"] for item in obligations_on_user(selecting)] == ["regions"]
     assert owed(selecting) == []
     assert selecting["workflows"] == []
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 

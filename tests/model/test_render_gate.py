@@ -9,22 +9,24 @@ from types import SimpleNamespace
 import pytest
 from interact_support import publish
 
-from leaf import page_snapshot, render_checks, user_views
-from leaf.findings import Finding, Rejected
-from leaf.leases import lock_is_held
-from leaf.render_gate import command as render_gate_command
-from leaf.render_gate import readings as render_gate_readings
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.command import (
+from leaf.base.findings import Finding, Rejected
+from leaf.base.leases import lock_is_held
+from leaf.base.state import EVENTS_FILE
+from leaf.pages import page_snapshot
+from leaf.pages.render_gate import command as render_gate_command
+from leaf.pages.render_gate import readings as render_gate_readings
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.pages.render_gate.command import (
     PIN_VARIABLE,
     BrowserCheck,
     WidgetQuality,
     desktop_viewport,
     user_engine,
 )
-from leaf.state import EVENTS_FILE
-from leaf.structure import SourceDocument
-from leaf.validation.command import check_page
+from leaf.pages.validation.command import check_page
+from leaf.serving import user_views
+from leaf.source import render_checks
+from leaf.source.structure import SourceDocument
 from model.test_user_views import report
 
 
@@ -488,8 +490,8 @@ def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
 
 
 def test_output_contract_failures_refuse_page_and_package_checks():
-    from leaf.data_contracts import output_findings
-    from leaf.render_gate.version import RenderReading
+    from leaf.pages.render_gate.version import RenderReading
+    from leaf.source.data_contracts import output_findings
 
     registry = {
         "$data": {
@@ -534,7 +536,7 @@ def test_a_failed_request_names_the_document_that_made_it_without_its_marks():
     """A failed request names the frame's document as the user sees it, read as the
     failure arrives: neither the bootstrap's marks, which a failure can reach the
     check ahead of, nor a document the frame navigated to before collection."""
-    from leaf.render_gate.page_code import _failed_requests
+    from leaf.pages.render_gate.page_code import _failed_requests
 
     frame = SimpleNamespace(url="http://leaf.test/v1.html?view=a&t=key&_leaf-recovered")
     handlers = {}
@@ -563,7 +565,7 @@ def test_a_failed_request_names_the_document_that_made_it_without_its_marks():
 def test_a_marked_address_reads_as_the_address_the_bootstrap_leaves():
     """The bootstrap rewrites the address with `URLSearchParams`, so a failure that
     arrives before the rewrite names the same address as one that arrives after."""
-    from leaf.render_gate.page_code import frame_address
+    from leaf.pages.render_gate.page_code import frame_address
 
     marked = "http://leaf.test/v1.html?q=~*%20+a!%27()%C3%A9&t=key&_leaf-recovered#f"
     rewritten = "http://leaf.test/v1.html?q=%7E*++a%21%27%28%29%C3%A9#f"
@@ -572,7 +574,7 @@ def test_a_marked_address_reads_as_the_address_the_bootstrap_leaves():
 
 
 def test_a_marked_address_keeps_an_empty_fragment():
-    from leaf.render_gate.page_code import frame_address
+    from leaf.pages.render_gate.page_code import frame_address
 
     rewritten = "http://leaf.test/v1.html?q=%7E*#"
     assert frame_address("http://leaf.test/v1.html?q=~*&t=key#") == rewritten
@@ -583,7 +585,7 @@ def test_a_marked_address_keeps_an_empty_fragment():
 
 
 def test_the_address_marks_are_the_ones_the_bootstrap_takes_off():
-    from leaf.schema import ASSETS
+    from leaf.base.schema import ASSETS
 
     bootstrap = (ASSETS / "runtime" / "bootstrap.js").read_text()
     marks = re.search(r"const marks = \[([^\]]*)\]", bootstrap)

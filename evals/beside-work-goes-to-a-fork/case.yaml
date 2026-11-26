@@ -6,9 +6,9 @@
 # working line doesn't start it, and send the thread's later messages to a fork. The
 # failures it invites are doing the work inline, which holds up both the user and the
 # session's change, and skipping the start because the thread already shows a working
-# line. Each context is the hook's output as Leaf writes it
-# (`hook_transport.carry_turn`'s `inline_context`), rendered from `delivery.handled`
-# with the kernel registry's clauses, its ids, page and claim substituted. The `later`
+# line. Each context is the hook's output as Leaf writes it (`hook_transport.carry_turn`
+# through `delivery.inline_context`), rendered from `delivery.handled` with the kernel
+# registry's clauses, its ids, page and claim substituted. The `later`
 # variant is the thread's next message after the fork answered. The `next-turn`
 # variant is a turn opened for a message in another thread while the fork still works
 # on the message the session started, which Leaf names nowhere then

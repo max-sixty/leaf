@@ -31,8 +31,8 @@ from browser.threads import open_panel_thread
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

@@ -11,11 +11,11 @@ from interact_support import (
     record_claim,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.records import activity as activity_model
 
 
 def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
@@ -87,11 +87,17 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     declare(claimed, ts=now.isoformat())
     assert activity_reading(claimed)["presence"] == "here"
 
-    # A claim an older Leaf wrote, with no `turn_opened`, owes no belief either.
+    # A session whose record a Leaf of another shape wrote, with no
+    # `turn_opened`, owes no belief either: this Leaf reads no record of it.
     lifecycle = cleanup_model.session_record("s1")
     assert lifecycle is not None
+    path = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    cleanup_model.SESSION.remove(path)
     cleanup_model.write_json(
-        cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX),
-        {key: value for key, value in lifecycle.items() if key != "turn_opened"},
+        path.with_name(f"{path.stem}@13{path.suffix}"),
+        {
+            "format": "leaf-session/13",
+            **{key: value for key, value in lifecycle.items() if key != "turn_opened"},
+        },
     )
     assert activity_reading(claimed)["presence"] == "gone"

@@ -35,23 +35,24 @@ from interact_support import (
     state_json,
 )
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as contracts_model
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import plans as plans_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import standing as standing_model
-from leaf import state as state_model
-from leaf import tasks as tasks_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.event_contracts import append_admitted
-from leaf.findings import Rejected
-from leaf.served_state.page import full_state
-from leaf.state import EVENTS_FILE
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as state_model
+from leaf.base.findings import Rejected
+from leaf.base.state import EVENTS_FILE
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.records import event_contracts as contracts_model
+from leaf.records import plans as plans_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
+from leaf.records.event_contracts import append_admitted
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving.served_state.page import full_state
 
 
 def leaf(*args):
@@ -867,7 +868,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
             refusals.append(refused)
 
     claiming = threading.Thread(target=run_claim, name="claim")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         claiming.start()
         assert claim_waits.wait(STATED_TIMEOUT)
         # Another session's resolve answers for the thread; the user's own would
@@ -1774,7 +1775,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
         "blocked": 0,
         "unseen": 1,
     }
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
     *_, pickup = (
@@ -1852,7 +1853,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     ]
 
     claim = record_claim(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [answer],

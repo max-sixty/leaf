@@ -1343,7 +1343,7 @@ sequenceDiagram
                 </p>
                 <lf-text-document
                   id="prompt-turn-end-check"
-                  label="fork_prompt, src/leaf/clerk.py"
+                  label="fork_prompt, src/leaf/agents/clerk.py"
                   preview="markdown"
                   data-prompt="turn-end"
                 ></lf-text-document>
@@ -3637,12 +3637,12 @@ EOF</code></pre>
               </p>
               <lf-text-document
                 id="prompt-title-system"
-                label="system prompt, src/leaf/thread_titles.py and src/leaf/inference.py"
+                label="system prompt, src/leaf/agents/thread_titles.py and src/leaf/agents/inference.py"
                 data-prompt="title-system"
               ></lf-text-document>
               <lf-text-document
                 id="prompt-title-request"
-                label="request: title_text, src/leaf/thread_titles.py"
+                label="request: title_text, src/leaf/agents/thread_titles.py"
                 data-prompt="title-request"
               ></lf-text-document>
             </details>
@@ -3843,7 +3843,7 @@ flowchart TD
               </p>
               <lf-text-document
                 id="prompt-summary-fork"
-                label="prompt, src/leaf/summary_fork.py"
+                label="prompt, src/leaf/agents/summary_fork.py"
                 data-prompt="summary"
               ></lf-text-document>
             </details>
@@ -4283,7 +4283,7 @@ flowchart TD
                 </p>
                 <lf-text-document
                   id="prompt-line-fork"
-                  label="line_prompt, src/leaf/forks.py"
+                  label="line_prompt, src/leaf/agents/forks.py"
                   data-prompt="line"
                 ></lf-text-document>
               </details>
@@ -4321,7 +4321,7 @@ flowchart TD
                 </p>
                 <lf-text-document
                   id="prompt-delivery"
-                  label="inline_context, src/leaf/hook_transport.py"
+                  label="inline_context, src/leaf/agents/delivery.py"
                   data-prompt="delivery"
                 ></lf-text-document>
               </details>
@@ -4488,8 +4488,9 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
             <h2>Where each rule is written</h2>
             <ul id="forks-sources-list">
               <li id="source-forks">
-                <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/forks.py"
-                  ><code>src/leaf/forks.py</code></a
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/forks.py"
+                  ><code>src/leaf/agents/forks.py</code></a
                 >: its header holds when a thread awaits a line and when the line goes
                 in, the decisions behind the line fork, and the user's choices that the
                 main thread judge every message and spawn the fork that does its work,
@@ -4506,14 +4507,14 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
               </li>
               <li id="source-summary-fork">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/summary_fork.py"
-                  ><code>src/leaf/summary_fork.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/summary_fork.py"
+                  ><code>src/leaf/agents/summary_fork.py</code></a
                 >: the fork beside the line fork that summarizes a long thread.
               </li>
               <li id="source-work">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/served_state/work.py"
-                  ><code>src/leaf/served_state/work.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/serving/served_state/work.py"
+                  ><code>src/leaf/serving/served_state/work.py</code></a
                 >: the waiting messages a progress message of the agent's, such as the
                 working line, came after, which read On it (<code>lined</code>).
               </li>
@@ -4526,24 +4527,26 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                 contract other modules rely on.
               </li>
               <li id="source-state">
-                <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"
-                  ><code>src/leaf/state.py</code></a
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/base/state.py"
+                  ><code>src/leaf/base/state.py</code></a
                 >: the turn a <code>leaf</code> command acts in, the session's whoever
                 ran it, a fork subagent included (<code>acting_turn</code>), and the
                 subagent's tool boundary Leaf's hooks skip
                 (<code>worker_tool_batch</code>).
               </li>
               <li id="source-clerk">
-                <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/clerk.py"
-                  ><code>src/leaf/clerk.py</code></a
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/clerk.py"
+                  ><code>src/leaf/agents/clerk.py</code></a
                 >: Leaf's clerk, which queues lines for the main thread, such as the
                 summary fork's news, and decides which queued lines wake an idle
                 session.
               </li>
               <li id="source-carrier">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/carrier.py"
-                  ><code>src/leaf/carrier.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/carrier.py"
+                  ><code>src/leaf/agents/carrier.py</code></a
                 >: the instructions Leaf's Python gives the hooks module, what the
                 module reports back for each, and the step that takes each report.
               </li>
@@ -4554,8 +4557,8 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                 >
                 and
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hook_transport.py"
-                  ><code>src/leaf/hook_transport.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/commands/hook_transport.py"
+                  ><code>src/leaf/commands/hook_transport.py</code></a
                 >: the module that makes the forks and leaves a subagent's calls alone,
                 and the hooks that hand the main thread its input with the queued lines.
               </li>

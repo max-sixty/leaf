@@ -22,7 +22,7 @@ listens for the task between turns:
   With `--sandbox`, the task's shell commands run in Codex's `workspace-write`
   sandbox, which may write the task's directory but not the state home, and nothing
   approves an escalation, so the task must serve through the plugin's MCP server
-  (`leaf.codex_tool`);
+  (`leaf.agents.codex_tool`);
 - `release`, which a turn Leaf starts answers while the task is idle;
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
@@ -67,12 +67,12 @@ from pathlib import Path
 import click
 import psutil
 
-from leaf.agent_state import cmd_page_state
-from leaf.codex import private_app_server
-from leaf.event_log import read_events
-from leaf.events import logged_fragment
-from leaf.leases import adapter_is_live, hooks_ran
-from leaf.server import running_server
+from leaf.agents.codex import private_app_server
+from leaf.agents.server import running_server
+from leaf.base.leases import adapter_is_live, hooks_ran
+from leaf.commands.agent_state import cmd_page_state
+from leaf.log.event_log import read_events
+from leaf.log.events import logged_fragment
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,

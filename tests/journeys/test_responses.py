@@ -3,7 +3,7 @@
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, refused_on, response_reference
 
-from leaf import cli as cli_model
+from leaf.commands import cli as cli_model
 
 
 def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):

@@ -31,8 +31,8 @@ from playwright.sync_api import Page
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver
 
-from leaf.event_log import read_events
-from leaf.render_gate.scheme import collect_page_errors
+from leaf.log.event_log import read_events
+from leaf.pages.render_gate.scheme import collect_page_errors
 from leaf_dev import ios_safari
 from leaf_dev.arms import Arm, own_source, served_page, serving_source
 from leaf_dev.browser import Window, load, settle, slow_cpu, tab

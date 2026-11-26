@@ -24,17 +24,18 @@ a `text-document` valued `{key, name, text, revision}`, the binding, the file's 
 its text and the revision a save names, read again whenever what the filesystem says
 of the file moves (`file_sources`). Its revision digests that value, as every
 source's does, so a new label is a new revision, as a new text is. Its run digests
-that observation, the path and the label, so it moves with every write, a rewrite of
-the same bytes included, and `updated` is when the file was last written. Readers judge its
-value as they judge a publication's. Nothing else writes it: `leaf data set` and
-`leaf data clear` refuse its id (`page_data`), and a publication under that id stands
-behind it. A file the page can't read is a source holding the reason as its error. A
-widget input of another contract can't draw it, which `page check` refuses
-(`bound_file_conflicts`).
+the path, the label and what the filesystem says of the file the bytes came from, so
+it moves with every write, a rewrite of the same bytes included, and `updated` is when
+that file was last written. Readers judge its value as they judge a publication's.
+Nothing else writes it: `leaf data set` and `leaf data clear` refuse its id
+(`page_data`), and a publication under that id stands behind it. A file the page
+can't read is a source holding the reason as its error. A widget input of another
+contract can't draw it, which `page check` refuses (`bound_file_conflicts`).
 """
 
 import hashlib
 import json
+from collections.abc import Container
 from datetime import datetime
 from pathlib import Path
 
@@ -53,6 +54,7 @@ from leaf.base.state import (
 )
 from leaf.source.data_contracts import data_bindings, payload_error
 from leaf.source.file_bindings import (
+    FileAccessError,
     FileBindingError,
     bound_paths,
     labels,
@@ -222,9 +224,9 @@ def _judged(source: str, reading: dict, registry: dict) -> dict:
 
 class _Files:
     """Each bound file's source by binding, kept under the observation of the file
-    that also names its run and moves the page's news (`page_inputs`): its path, its
-    label and what `file_bindings.observed` says of it, which moves with whatever
-    moves the read's answer, an error's included."""
+    that moves the page's news (`page_inputs`): its path, its label and what
+    `file_bindings.observed` says of it, which moves with whatever moves the read's
+    answer, but for a failed access (`_file_source`)."""
 
     def __init__(self) -> None:
         self.held: dict[str, tuple] = {}
@@ -235,9 +237,14 @@ def _file_reading(page_dir: Path, binding: str, path: Path, label: str) -> dict:
     seen = (str(path), label, observed(path))
     held = memo(page_dir, _Files).held
     kept = held.get(binding)
-    if kept is None or kept[0] != seen:
-        kept = held[binding] = (seen, _file_source(binding, path, seen))
-    return kept[1]
+    if kept is not None and kept[0] == seen:
+        return kept[1]
+    reading, settled = _file_source(page_dir, binding, path, label)
+    if settled:
+        held[binding] = (seen, reading)
+    else:
+        held.pop(binding, None)
+    return reading
 
 
 def file_sources(page_dir: Path) -> dict[str, dict]:
@@ -253,37 +260,46 @@ def file_sources(page_dir: Path) -> dict[str, dict]:
     }
 
 
-def _file_source(binding: str, path: Path, seen: tuple) -> dict:
-    """The source of the file at `path` as `seen` found it, its path, label and
-    what the filesystem says of it: a write, a rewrite of the same bytes included, or
-    a new label moves the run, as a rerun of a publication does."""
-    label = seen[1]
-    run = hashlib.sha256(repr(seen).encode()).hexdigest()[:16]
+def _file_source(
+    page_dir: Path, binding: str, path: Path, label: str
+) -> tuple[dict, bool]:
+    """The source of the file at `path`, and whether its file's observation names it,
+    so it can be kept under that observation: a value or a refusal of the file's bytes
+    can, and a failed access, which the next read may not meet, can't. The run digests
+    the path, the label and what the filesystem says of the file the bytes were read
+    from, so a write, a rewrite of the same bytes included, or a new label moves it,
+    as a rerun of a publication does."""
+
+    def run(*stamp) -> str:
+        return hashlib.sha256(repr((str(path), label, stamp)).encode()).hexdigest()[:16]
+
     try:
-        read, written = read_bound(path, label)
+        read, stat = read_bound(page_dir, path, label)
     except FileBindingError as error:
-        return {
+        reading = {
             "contract": FILE_CONTRACT,
             "revision": value_revision(str(error)),
-            "run": run,
+            "run": run(str(error)),
             "updated": now_iso(),
             "error": str(error),
         }
+        return reading, not isinstance(error, FileAccessError)
     value = {
         "key": binding,
         "name": label,
         "text": read["text"],
         "revision": read["revision"],
     }
-    return {
+    reading = {
         "contract": FILE_CONTRACT,
         "revision": value_revision(value),
-        "run": run,
-        "updated": datetime.fromtimestamp(written)
+        "run": run(stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size),
+        "updated": datetime.fromtimestamp(stat.st_mtime)
         .astimezone()
         .isoformat(timespec="milliseconds"),
         "value": value,
     }
+    return reading, True
 
 
 def source_reading(page_dir: Path, source: str, registry: dict) -> dict | None:
@@ -345,6 +361,17 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
     )
     sources = {
         source: reading for source, reading in readings.items() if reading is not None
+    }
+    return {"version": data_version(sources), "sources": sources}
+
+
+def data_of(stored: dict, chosen: Container[str]) -> dict:
+    """The data `stored` (`read_data`) holds of the sources `chosen` names, with the
+    version of exactly those, so a reader naming that version is sent them."""
+    sources = {
+        source: reading
+        for source, reading in stored["sources"].items()
+        if source in chosen
     }
     return {"version": data_version(sources), "sources": sources}
 

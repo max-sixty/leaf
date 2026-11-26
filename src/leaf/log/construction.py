@@ -22,7 +22,6 @@ from leaf.log.projection import (
     record_members,
 )
 from leaf.source.data import PUBLICATION, source_file
-from leaf.source.file_bindings import bound_paths
 from leaf.source.registry.contract import recorded, state_specs, upgraded
 from leaf.source.structure import SourceDocument
 
@@ -37,12 +36,13 @@ def event_origin(event: dict) -> dict:
     }
 
 
-def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> dict:
+def input_readings(
+    attrs: dict, entry: dict, stored: dict, page_dir: Path, files: dict[str, Path]
+) -> dict:
     """Read the current value of the source that constructs each input, and the file
-    that changes it: a bound file's own (`data.file_sources`), else the source's
-    publication."""
+    that changes it: a bound file's own, among `files`, the page's grants
+    (`file_bindings.bound_paths`), else the source's publication."""
     inputs = {}
-    files = bound_paths(page_dir) if entry.get("inputs") else {}
     for name, spec in entry.get("inputs", {}).items():
         source = attrs.get(spec.get("source"))
         if source is None:
@@ -94,6 +94,7 @@ def constructed_content(
     stored: dict,
     page_dir: Path,
     *,
+    files: dict[str, Path],
     outcomes: dict,
     retired: set,
     thread: str,
@@ -130,7 +131,7 @@ def constructed_content(
             entry = registry.get(node["tag"], {})
             if upgraded(registry, node["tag"]):
                 node["vocabulary"] = node["tag"]
-            inputs = input_readings(node["attrs"], entry, stored, page_dir)
+            inputs = input_readings(node["attrs"], entry, stored, page_dir, files)
             if inputs:
                 node["inputs"] = inputs
             prepare(node["content"], identity or parent)

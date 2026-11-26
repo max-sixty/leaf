@@ -90,7 +90,10 @@ export function boundFile(binding) {
       let subscribing = true;
       const stop = applicationState
         .select((root) => {
-          const name = root.authoritative?.files[binding]?.label ?? "";
+          // A source under the id is the file's only while the page grants it; a
+          // publication under an unbound id is not.
+          const name = root.authoritative?.files[binding]?.label;
+          if (!name) return "";
           const file = Object.hasOwn(root.data.sources, binding)
             ? root.data.sources[binding]
             : null;

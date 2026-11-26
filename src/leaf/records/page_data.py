@@ -28,7 +28,7 @@ from leaf.log.thread_context import thread_structure
 from leaf.records.transaction import PageTransaction
 from leaf.source.data import (
     PUBLICATION,
-    data_version,
+    data_of,
     read_data,
     read_source,
     source_file,
@@ -100,18 +100,11 @@ def working_data_bindings(
 def bound_data(page_dir: Path, registry: dict, events: list) -> dict:
     """The page's data (`data.read_data`) less each source no revision or message of
     the page binds, such as a file the page grants an editor alone or one only an
-    unpublished source binds, and the version of what is left, so a reader that names
-    it is sent these sources and no others."""
-    stored = read_data(page_dir, registry)
+    unpublished source binds (`data.data_of`)."""
     bindings, _errors = merge_data_document_readings(
         page_data_document_readings(page_dir, events, registry)
     )
-    sources = {
-        source: reading
-        for source, reading in stored["sources"].items()
-        if source in bindings
-    }
-    return {"version": data_version(sources), "sources": sources}
+    return data_of(read_data(page_dir, registry), bindings)
 
 
 def page_data_binding_inventory(

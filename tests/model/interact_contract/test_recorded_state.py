@@ -728,6 +728,7 @@ def test_member_records_compose_without_claiming_each_others_state(tmp_path):
             reading.registry,
             {"sources": {}},
             tmp_path,
+            files={},
             outcomes=retirement_outcomes(projection.actions),
             retired=set(),
             thread="thread",

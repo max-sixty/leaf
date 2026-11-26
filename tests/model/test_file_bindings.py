@@ -36,6 +36,7 @@ from leaf.source.file_bindings import (
     StaleFileError,
     bind_file,
     bound_files,
+    bound_paths,
     labels,
     read_file,
     save_file,
@@ -135,7 +136,9 @@ def test_page_state_names_each_bound_file_for_the_agent(page_dir, tmp_path):
 
 def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
     """A grant inside the page names its file from there, so a copy of the page,
-    such as a published example in its visitor's container, edits its own copy."""
+    such as a published example in its visitor's container, edits its own copy, and
+    reads it under the revision the original reads its own under, as a comment on the
+    published page's file records it."""
     target = page_dir / "files" / "deploy" / "values.yaml"
     target.parent.mkdir(parents=True)
     target.write_text("replicas: 3\n")
@@ -146,7 +149,9 @@ def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
     copy = tmp_path / "copy"
     shutil.copytree(page_dir, copy)
     current = read_file(copy, "values")
-    assert current is not None
+    original = read_file(page_dir, "values")
+    assert current is not None and original is not None
+    assert current["revision"] == original["revision"]
     save_file(
         copy, "values", {"revision": current["revision"], "text": "replicas: 4\n"}
     )
@@ -552,6 +557,7 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
         registry["lf-text-document"],
         read_page_data(page_dir),
         page_dir,
+        bound_paths(page_dir),
     )
     assert readings["document"]["edit"]["file"] == str(target.resolve())
 
@@ -581,5 +587,6 @@ def test_an_input_of_another_contract_can_t_take_a_bound_file(page_dir, tmp_path
         registry["lf-num"],
         read_page_data(page_dir),
         page_dir,
+        bound_paths(page_dir),
     )["measurement"]
     assert (measurement["available"], "value" in measurement) == (False, False)

@@ -436,8 +436,9 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 
 def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
     """An element's comment draws no contour at rest, nor while the pointer rests inside
-    the element, which is where a reader's mouse sits. The hand still says a press opens
-    the thread."""
+    the element, which is where a reader's mouse sits, and the pointer shows no hand
+    there, since a press there leaves the thread alone (annotations/anchor-paint.js,
+    header)."""
     context = browser.new_context(
         viewport={"width": 1801, "height": 900},
         color_scheme="light",
@@ -467,11 +468,8 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
         box = target.bounding_box()
         inside = (box["x"] + 6, box["y"] + box["height"] / 2)
         page.mouse.move(*inside)
-        page.wait_for_function(
-            "([x, y]) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
-            " === 'pointer'",
-            arg=inside,
-        )
+        rendered(page)
+        expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
         expect(target).not_to_have_attribute("data-lf-mark", re.compile(".*"))
         rest = mark_edges(page, ident, ink)
         assert all(seen == {0} for seen in rest.values()), (

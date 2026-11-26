@@ -394,68 +394,66 @@ export function createReactionController({
       return;
     }
     closeSurface(reactSurface);
-    if (on) {
-      openLayer(reactLayer);
-      if (surface) reactSurface = surface;
-      else {
-        const target = reactionTarget();
-        if (target?.kind === "surface") reactSurface = target.surface;
-        else if (target?.kind === "anchor" || target?.kind === "target") {
-          if (target.kind === "target") {
-            // The target's margin row may stand where the target itself is
-            // off screen. Keep the semantic anchor without
-            // asking a floating bar to find geometry; the shared element is the surface.
-            showFab(target.target.anchor, {
-              place: false,
-            });
-            reactRaised = true;
-          }
-          if (!raiseMarginSurface()) {
-            if (reactRaised) showFab(null);
-            reactRaised = false;
-            reactSurface = null;
-            openLayer(reactLayer, null);
-            raiseError("That reaction target is no longer available");
-            return;
-          }
-          reactSurface = marginSurface;
-        } else {
+    openLayer(reactLayer);
+    if (surface) reactSurface = surface;
+    else {
+      const target = reactionTarget();
+      if (target?.kind === "surface") reactSurface = target.surface;
+      else if (target?.kind === "anchor" || target?.kind === "target") {
+        if (target.kind === "target") {
+          // The target's margin row may stand where the target itself is
+          // off screen. Keep the semantic anchor without
+          // asking a floating bar to find geometry; the shared element is the surface.
+          showFab(target.target.anchor, {
+            place: false,
+          });
+          reactRaised = true;
+        }
+        if (!raiseMarginSurface()) {
+          if (reactRaised) showFab(null);
+          reactRaised = false;
           reactSurface = null;
           openLayer(reactLayer, null);
+          raiseError("That reaction target is no longer available");
           return;
         }
-      }
-      const picker = pickerFor(reactSurface);
-      if (reactSurface !== marginSurface && !picker) {
+        reactSurface = marginSurface;
+      } else {
         reactSurface = null;
         openLayer(reactLayer, null);
         return;
       }
-      reactArmed = true;
-      if (picker) {
-        // `e` opens the latest reply of the thread the user is in, which may be
-        // scrolled out of the list: it comes into view to be answered, since a list
-        // hung from a trigger out of view would neither show nor stay open, and it
-        // closes once none of the trigger is within the window and the boxes around it
-        // (`shownRect`). The list stands in the top layer, above the floating panel, so
-        // the room the panel takes does not take it away; a scroll carrying the trigger
-        // out of sight does.
-        scrollIntoView(picker.trigger, { block: "nearest", behavior: "instant" });
-        showNativeLayer(picker.palette, { source: picker.trigger });
-        const opened = reactSurface;
-        /** @param {Element} trigger */
-        const seen = (trigger) => shownRect(trigger, new Map());
-        reactDeparture = whenNone([picker.trigger], seen, () => {
-          if (reactSurface === opened) setReact(false);
-        });
-        const first =
-          surface &&
-          reactFrom() === picker.trigger &&
-          picker.palette.querySelector(".lf-react");
-        if (first) focusDestination(first, "move");
-      }
-      announce(() => ["React", saying(REACT.rows)].filter(Boolean).join(" — "));
     }
+    const picker = pickerFor(reactSurface);
+    if (reactSurface !== marginSurface && !picker) {
+      reactSurface = null;
+      openLayer(reactLayer, null);
+      return;
+    }
+    reactArmed = true;
+    if (picker) {
+      // `e` opens the latest reply of the thread the user is in, which may be
+      // scrolled out of the list: it comes into view to be answered, since a list
+      // hung from a trigger out of view would neither show nor stay open, and it
+      // closes once none of the trigger is within the window and the boxes around it
+      // (`shownRect`). The list stands in the top layer, above the floating panel, so
+      // the room the panel takes does not take it away; a scroll carrying the trigger
+      // out of sight does.
+      scrollIntoView(picker.trigger, { block: "nearest", behavior: "instant" });
+      showNativeLayer(picker.palette, { source: picker.trigger });
+      const opened = reactSurface;
+      /** @param {Element} trigger */
+      const seen = (trigger) => shownRect(trigger, new Map());
+      reactDeparture = whenNone([picker.trigger], seen, () => {
+        if (reactSurface === opened) setReact(false);
+      });
+      const first =
+        surface &&
+        reactFrom() === picker.trigger &&
+        picker.palette.querySelector(".lf-react");
+      if (first) focusDestination(first, "move");
+    }
+    announce(() => ["React", saying(REACT.rows)].filter(Boolean).join(" — "));
     repaint();
   }
 
@@ -476,7 +474,7 @@ export function createReactionController({
       fabBar.contains(from) ||
       marginOffer?.contains(active) ||
       active === document.body ||
-      active?.closest?.(".lf-react-palette");
+      active?.closest(".lf-react-palette");
     // Which candidates the user may go back to is read before the close, since it ends
     // the reading of where the press came from; which of them stand is read after it,
     // since the close itself may show one, as putting the bar back does its field.

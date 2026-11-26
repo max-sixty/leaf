@@ -431,8 +431,8 @@ export function createTargetPicker({
       left.every(
         (segment, index) =>
           segment.node === right[index]?.node &&
-          segment.start === right[index]?.start &&
-          segment.end === right[index]?.end,
+          segment.start === right[index].start &&
+          segment.end === right[index].end,
       )
     );
   }

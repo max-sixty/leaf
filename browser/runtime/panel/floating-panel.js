@@ -3975,7 +3975,7 @@ export function createFloatingPanel({
   // taken back (records/undo.js).
   /** @param {import("../state/semantic-application.js").ObligationRecord} item */
   const answerGesture = (item) => {
-    const id = item?.answer?.event?.id ?? item?.answer?.event;
+    const id = item.answer?.event?.id ?? item.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
@@ -5531,7 +5531,7 @@ export function createFloatingPanel({
     // The field's search, the menu's or Threads', clears its words first; then, empty,
     // the menu's closes the menu and Threads' returns to Threads, as a find box returns
     // to its panel (dom/keyboard/AGENTS.md, "Escape").
-    if (focused()?.matches?.(".lf-fp-search"))
+    if (focused()?.matches(".lf-fp-search"))
       return query
         ? {
             root: host,
@@ -5614,7 +5614,7 @@ export function createFloatingPanel({
         : null;
   };
   /** @returns {HTMLElement | null} */
-  const tabOn = () => focused()?.closest?.(".lf-fp-tab") ?? null;
+  const tabOn = () => focused()?.closest(".lf-fp-tab") ?? null;
   // Whether the user stands where ← and → turn the On view's tabs: on a tab, or where
   // ↑ and ↓ walk its rows, a list that holds none included.
   const atTabs = () =>
@@ -6104,7 +6104,7 @@ export function createFloatingPanel({
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
   async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
-    if (!thread || !currentLocation) return false;
+    if (!thread) return false;
     const { reading, focus } = currentLocation;
     const intent = retainUserIntent();
     const returnFocus = () => {

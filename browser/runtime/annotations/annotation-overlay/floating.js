@@ -208,7 +208,7 @@ export const floatingSelections = () => [...stood.values()];
 
 // Whether the user is in an editor a floating box holds, said on the root (header).
 function readFloatingEditor() {
-  const editing = focused()?.closest?.("[data-lf-plane] leaf-text");
+  const editing = focused()?.closest("[data-lf-plane] leaf-text");
   keeps(
     document.documentElement,
     RUNTIME_PAINT_ATTRIBUTE.floatingEditor,
@@ -433,7 +433,7 @@ export function floatingPlacement({ floating, update }) {
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
       const context = reference.contextNode ?? beside;
-      const anchor = anchorFor(context ?? null);
+      const anchor = anchorFor(context);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
       const anchorStood = geometry.anchors.get(anchor);

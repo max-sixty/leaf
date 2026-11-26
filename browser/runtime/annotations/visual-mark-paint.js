@@ -16,7 +16,7 @@ export function createVisualMarkPaint() {
 
   /** @param {Iterable<VisualTarget>} next */
   function setTargets(next) {
-    const targets = [...next].filter((target) => target.states?.size);
+    const targets = [...next].filter((target) => target.states.size);
     /** @type {Map<Element, string>} */
     const marks = new Map();
     for (const { surface, states } of targets)

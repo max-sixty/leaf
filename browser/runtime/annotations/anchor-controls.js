@@ -118,10 +118,10 @@ export function createAnchorControls({
       for (const other of reactionSeats.values())
         if (other !== record && other.expanded) {
           other.expanded = null;
-          other.margin?.update({ immediate: true });
+          other.margin.update({ immediate: true });
         }
     record.expanded = eventId;
-    record.margin?.update({ immediate: true });
+    record.margin.update({ immediate: true });
     paintKeys();
     if (!focus || !eventId) return;
     // The remove action draws on the next render; a newer input the user gave meanwhile
@@ -129,7 +129,7 @@ export function createAnchorControls({
     const mayFocus = retainUserIntent();
     const remove = `reaction:${eventId}:remove`;
     nextRender(() =>
-      mayFocus.handoff(() => record.margin?.focus(remove, "move", surface)),
+      mayFocus.handoff(() => record.margin.focus(remove, "move", surface)),
     );
   }
 
@@ -396,7 +396,7 @@ export function createAnchorControls({
         roots.some(
           (root, index) =>
             root.id !== record.roots[index]?.id ||
-            root.emoji !== record.roots[index]?.emoji,
+            root.emoji !== record.roots[index].emoji,
         );
       record.roots = roots;
       if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;

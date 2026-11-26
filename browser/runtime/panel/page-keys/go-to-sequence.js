@@ -115,7 +115,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 /** @typedef {import("../../dom/keyboard/bindings.js").Command} Command
  * @typedef {{kind: string, member: Element, go: () => unknown, exposure: "self" | "across"}} TargetMember
  * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
- * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
+ * targetId: string | null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
  * @typedef {{id: string, key: string, words: [string, string], matches: (target: TargetMember) => boolean}} TargetFilter
  * `words` names one target it keeps and many, as `counted` takes them (lib/words.js).
  * @typedef {Object} GoToOptions
@@ -432,8 +432,6 @@ export function createGoToSequence({
       kind: candidate.kind,
       marginEntryKey: marginEntryKey || null,
       targetId: targetId || null,
-      commandId: null,
-      address: null,
       sequence: keySequenceModel(progressSteps(steps, [...hints.prefix()])),
     });
   };
@@ -442,12 +440,10 @@ export function createGoToSequence({
   const goToHintTemplate = (model) => html`
     <span
       class=${model.className}
-      data-lf-hint-code=${model.hintCode ?? nothing}
-      data-lf-go-to-kind=${model.kind ?? nothing}
+      data-lf-hint-code=${model.hintCode}
+      data-lf-go-to-kind=${model.kind}
       data-lf-go-to-margin-entry=${model.marginEntryKey ?? nothing}
       data-lf-go-to-target=${model.targetId ?? nothing}
-      data-lf-go-to-command=${model.commandId ?? nothing}
-      data-lf-go-to-address=${model.address ?? nothing}
       >${keySequenceTemplate(model.sequence)}</span
     >
   `;

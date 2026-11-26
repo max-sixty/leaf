@@ -69,10 +69,10 @@ as any architectural problem they leave stays easy to fix.
 
 Make the improvements the repository's goals and code already justify. A call
 outside the list below is yours, and the work doesn't wait on the maintainer for
-it. Name the call in the pull request, with the passage that settled it where one
-did, so they can reverse it. Ask them only where a choice depends on a purpose or
-intent the code can't tell you, or shapes what every later user, package author or
-change works with:
+it. Name the call, with the passage that settled it where one did, so they can
+reverse it. Ask them only where a choice depends on a purpose or intent the code
+can't tell you, or shapes what every later user, package author or change works
+with:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
 - **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
@@ -305,10 +305,11 @@ rule covers. A rule whose goal nobody can name is a candidate to cut once
 Place an instruction by who must act on it and by what a session that misses it gets
 wrong. Every session in the repository reads this file, including subagents and the
 runs of Tend, the agent that reviews and maintains the repository from GitHub
-Actions, so other instructions neither repeat a rule this file states nor point
-their reader to it. A session that changes or reviews an area also reads that
-area's `AGENTS.md`. A skill reaches only the sessions that load it, and subagents and
-Tend's runs often don't load one. So an `AGENTS.md` holds the instructions whose
+Actions, so other instructions neither repeat this file's rules nor send their reader
+back to them, though they may point to a detail it holds. A session that changes or
+reviews an area also reads that area's `AGENTS.md`. A skill reaches only the sessions
+that load it, and subagents and Tend's runs often don't load one. So an `AGENTS.md`
+holds the instructions whose
 omission could let a change break something: goals, invariants that span modules,
 who owns what, the criteria a change or review is judged by, and the checks to run,
 each stated as a goal rather than as steps. Instructions for one kind of task, such
@@ -646,8 +647,7 @@ makes Leaf harder to develop than it is worth:
 
 A choice about how something looks or moves can't be judged from a description, so
 every UI option you leave to the user carries a picture of its result: a still pair,
-a sketch, a diagram or a live sample. That holds for the UI decisions a PR body
-leaves to the user too, and for a page that relays them.
+a sketch, a diagram or a live sample.
 
 Before writing words the user sees, such as a label, status line or placeholder, and
 before naming anything the user operates or choosing an identifier for it, read

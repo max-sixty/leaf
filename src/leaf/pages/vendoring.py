@@ -137,7 +137,9 @@ def cmd_init(
     return {"page": str(page_dir), "packages": layer_packages(page_dir)}
 
 
-def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
+def renew_layer(
+    page_dir: Path, harness: Harness | None, still: Callable[[], bool] = lambda: True
+) -> Finding | None:
     """Take a page at an older page protocol, which this Leaf cannot serve
     (`event_contracts.write_refusal`), to this Leaf's, for the session `harness`
     names, and say what still holds the page back, for its agent to act on.
@@ -156,7 +158,8 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     session does: another session may still run the
     Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
-    initialized, which `_plan_page` refuses.
+    initialized, which `_plan_page` refuses. `still` says whether the caller still
+    wants the renewal, asked wherever the renewal reads the page again (`_reinit`).
 
     What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -171,7 +174,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
         refusal = write_refusal(page_dir)
         if refusal is None or refusal.code != "foreign-layer":
             return False
-        return held_elsewhere(page_dir, harness) is None
+        return held_elsewhere(page_dir, harness) is None and still()
 
     if not renewable():
         return None
@@ -184,7 +187,9 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     return _unready(page_dir, errors)
 
 
-def renew_held(page_dir: Path, session_id: str) -> Finding | None:
+def renew_held(
+    page_dir: Path, session_id: str, still: Callable[[], bool] = lambda: True
+) -> Finding | None:
     """`renew_layer` for a reader acting for `session_id`, the session holding the
     page: a hook that reads the session's pages (`hook_transport.read_plans`), as the
     prompt and Stop hooks do and a tool boundary does with something to carry or a
@@ -201,7 +206,7 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
     held = page_claim(page_dir)
     if held is None or held["id"] != session_id or not hooks_run_here(session_id):
         return None
-    return renew_layer(page_dir, claim_harness(held))
+    return renew_layer(page_dir, claim_harness(held), still)
 
 
 def follow_copy(page_dir: Path, server_id: str) -> None:
@@ -217,7 +222,10 @@ def follow_copy(page_dir: Path, server_id: str) -> None:
     next step (`clerk.queue`). After an update in place, no hook runs before this
     renewal, so the successors of the session's watch and of Codex's adapter read the
     page once it lands. The renewal restarts the server itself, and takes turns with a
-    hook's renewal of the same page (`_reinit`).
+    hook's renewal of the same page (`_reinit`). It renews only while no server but
+    the one that asked serves the page, asked with each of the renewal's readings
+    under its locks, since its restart would stop a server another start put in place
+    of the one that asked.
 
     Otherwise the restart (`hosting.restarting_server`) follows, for the session
     holding the page, unless the page changed since the server asked: a page this
@@ -226,10 +234,17 @@ def follow_copy(page_dir: Path, server_id: str) -> None:
     as a checkout's or a renewal's, keeps running; and a session service whose
     session has ended retires after its grace, as it would have on the old copy.
     These checks come last, so that little time passes between them and the stop."""
+
+    def no_other_server() -> bool:
+        # The renewal's own restart stops the server that asked before its last
+        # reading, so a page no server serves still counts as that server's.
+        running = running_server(page_dir)
+        return running is None or running["server_id"] == server_id
+
     held = page_claim(page_dir)
     if held is None or not claim_is_active(held):
-        renew_layer(page_dir, None)
-    elif unready := renew_held(page_dir, held["id"]):
+        renew_layer(page_dir, None, no_other_server)
+    elif unready := renew_held(page_dir, held["id"], no_other_server):
         from leaf.agents.clerk import queue
 
         queue(held["id"], [str(unready)], wake=True)

@@ -915,7 +915,6 @@ lf-tabs[data-lf-views] > lf-tab {
       :where(:scope:is(lf-tabs)) {
         --lf-tab-end: 0px;
         margin-block: 0 32px;
-        min-block-size: calc(100dvh - var(--lf-top));
         border: 0;
         border-radius: 0;
         background: transparent;

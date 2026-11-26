@@ -1687,7 +1687,7 @@ wa-copy-button.lf-icon-action {
 }
 /* A toolbar of marks (`.lf-mark-bar`, integration.css) is a patch of the card ground in
    a hairline frame, and so is a mark that stands as a toolbar of its own
-   (`data-lf-bar`), as a code block's Copy does. */
+   (`data-lf-bar`), as a code block's Copy and a thread's jumps over its messages do. */
 .lf-mark-bar,
 .lf-mark-action[data-lf-bar] {
   border: 1px solid var(--lf-border);
@@ -2256,7 +2256,7 @@ wa-copy-button.lf-icon-action {
    mark far below it, in a later lane, still reads against it. The widget places their
    layer behind its lanes, from the ruler's foot to the drawing's, and lets the pointer
    through it. The line is dotted, so it reads under a lane's solid rule, in the
-   contour ink, so it reads on either scheme's ground. A flipped tick's line stands at
+   border ink, so it reads on either scheme's ground. A flipped tick's line stands at
    its box's end, so its gridline does too. */
 .lf-axis-gridline {
   inset-block: 0;

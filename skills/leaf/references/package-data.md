@@ -373,9 +373,11 @@ defines; list it in `required` when the widget can't work without the input. A w
 with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text is:
 where the markup binds the input whose `property` is `value` to nothing, Leaf sets
 `value` to the `<pre>`'s text, a string, so the widget reads one property either way, as
-`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
-`page check` refuses a `<pre>` on an element binding it. Its other inputs leave the
-`<pre>` alone, as `lf-code`'s `playhead` does. Leaf leaves the property of any other
+`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string.
+A widget with that input takes its data from its inputs or its `<pre>`, so `page check`
+refuses a `<pre>` on an element binding any of its inputs, as `lf-diff` comparing two
+bound texts holds no patch. A widget without one keeps its `<pre>` whatever it binds,
+as `lf-code` keeps its text beside its `playhead`. Leaf leaves the property of any other
 unbound input to the widget. Tell page authors how to bind it in `instructions`, and
 whoever produces the data in the contract's `instructions` (`packages.md`, "Package
 contract").

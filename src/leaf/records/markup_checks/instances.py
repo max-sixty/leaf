@@ -129,17 +129,19 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
         # Tags that name this declaration in `owners` are its admissible members
-        # under any content model. "data" and "markdown" take one <pre>, or none where
-        # the markup binds the input (`inputs`) whose property is `value`, which is then
-        # the text; "members" takes element members only, and "empty" takes nothing.
+        # under any content model. "data" and "markdown" take one <pre>; "members"
+        # takes element members only, and "empty" takes nothing. Where the declaration
+        # has an input (`inputs`) whose property is `value`, the <pre> is that input's
+        # text, and the element's data comes from its inputs or its <pre>: it holds
+        # none once the markup binds any input, as a diff binding the two texts it
+        # compares holds no patch. Without such an input, every input, as a code
+        # block's playhead, leaves the <pre> its text.
         content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
-        bound = any(
-            rec["attrs"].get(spec.get(key))
-            for spec in entry.get("inputs", {}).values()
-            if spec.get("property") == "value"
-            for key in INPUT_BINDINGS
+        inputs = entry.get("inputs", {}).values()
+        bound = any(spec.get("property") == "value" for spec in inputs) and any(
+            rec["attrs"].get(spec.get(key)) for spec in inputs for key in INPUT_BINDINGS
         )
         if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(found_at("content-empty", rec))

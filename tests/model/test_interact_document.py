@@ -1618,10 +1618,13 @@ def test_check_rejects_widget_violations(page_dir):
 
 
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
-    """A data widget's text is its <pre> or its bound `value` input, never both, so
-    text written under a binding, which the widget would never show, is refused. An
-    input with another property, as a code block's playhead, leaves the <pre> its text.
-    Written text names its origin with a label, as a bound document names its file."""
+    """A data widget's text is its <pre> or its bound inputs, never both, so text
+    written under a binding, which the widget would never show, is refused. That holds
+    for each input of a widget whose `value` the <pre> supplies, as a diff comparing two
+    bound texts holds no patch; a widget with no such input keeps its <pre> beside an
+    input, as a code block keeps its text beside its playhead. Written text names its
+    origin with a label, as a bound document names its file, and a diff binds both texts
+    it compares."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1633,16 +1636,27 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
             '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
             "</lf-text-document>"
             '<lf-code id="bare-code"></lf-code>'
-            '<lf-code id="following" for="written"><pre>x = 1</pre></lf-code>',
+            '<lf-code id="following" for="written"><pre>x = 1</pre></lf-code>'
+            '<lf-diff id="compared" before="committed" after="current"></lf-diff>'
+            '<lf-diff id="compared-written" before="committed" after="current">'
+            "<pre>Unseen</pre></lf-diff>"
+            '<lf-diff id="half" before="committed"></lf-diff>'
+            '<lf-diff id="unpaired" after="current"></lf-diff>',
         )
     )
     _, findings = check_findings(page_dir)
     assert [(f.at, f.values["bound"]) for f in found(findings, "data-body")] == [
         ("<lf-text-document>", True),
         ("<lf-code>", False),
+        ("<lf-diff>", True),
     ]
-    assert [f.at for f in found(findings, "attribute-schema")] == ["<lf-text-document>"]
-    assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
+    assert [
+        (f.at, f.values["keyword"]) for f in found(findings, "attribute-schema")
+    ] == [
+        ("<lf-text-document>", "required"),
+        ("<lf-diff>", "anyOf"),
+        ("<lf-diff>", "dependentRequired"),
+    ]
 
 
 def test_check_advises_on_markdown_the_page_shows_as_typed(page_dir):

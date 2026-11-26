@@ -233,6 +233,8 @@ def restore(site_root: Path) -> bool:
                         output.write(blobs.body(digest))
                 os.utime(target, (content["modified"], content["modified"]))
                 files += 1
+        # The store sends only the drafts stores written at this release's drafts
+        # shape (the manifest's `drafts_format`, `worker/src/storage.ts`).
         for root, drafts in snapshot["drafts"].items():
             if root not in manifest["pages"]:
                 continue

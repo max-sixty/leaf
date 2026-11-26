@@ -49,6 +49,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
+from leaf.drafts import DRAFTS
 from leaf.event_log import initialized
 from leaf.files import latest_revision, list_revisions, revision_path
 from leaf.live_shell import write_live_shell
@@ -362,6 +363,9 @@ def publish_live_shells(
         # The Worker keys a visitor's private record by it, so the record outlives a
         # deploy until the protocol moves (`worker/src/index.ts`).
         "protocol": kernel_protocol(),
+        # The Worker keys a page's drafts store by it, so a release reads and replaces
+        # only the stores written at its own drafts shape (`worker/src/storage.ts`).
+        "drafts_format": DRAFTS.format,
         "frame_ancestors": FRAME_ANCESTORS_CSP,
         "routes": {
             "layer": list(BROWSER_DIRS),

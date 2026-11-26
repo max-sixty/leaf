@@ -968,16 +968,16 @@ export function readMarkRoom(boxes) {
 // past it only for `overflow: clip`, never for a box that scrolls. The window is no
 // such clip: a box that a layout stands at the window's edge, as a full-height
 // workspace's body, says where its marks stand (layouts.css). Read half a pixel of the
-// box's own short, for the whole pixels of a scroll size. A box whose stamp is in force reads no room, so it keeps the stamp while its mark
-// shows, standing the mark inside, whole, until it goes. A painter reads before it
-// marks, so a fresh mark reads the box's own room, and a stamp left on a box no longer
-// marked, which isn't in force, decides nothing.
+// box's own short, for the whole pixels of a scroll size.
+// A box whose stamp is in force (`--lf-flush-at`) reads where the stamp stands its
+// marks, so it keeps the stamp while a mark shows, standing the mark inside, whole,
+// until it goes. A painter reads before it marks, so a fresh mark reads the box as its
+// kind and layout leave it, and a stamp left on a box no longer marked decides nothing.
 /** @param {Element} box @param {ClipCache} clips */
 function clipsMarks(box, clips) {
-  const room = bandRoom(box);
-  if (room <= 0) return box.hasAttribute(RUNTIME_PAINT_ATTRIBUTE.flush);
+  if (getComputedStyle(box).getPropertyValue("--lf-flush-at")) return true;
   const scale = scaleOf(box);
-  const marked = markedOf(box, room, scale);
+  const marked = markedOf(box, bandRoom(box), scale);
   const { cuts } = clipWalk(box, clips, false);
   return /** @type {const} */ (["x", "y"]).some((axis) => {
     const cut = cuts.find(({ axes }) => axes[axis]);

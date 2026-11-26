@@ -216,6 +216,10 @@ const slides = (node) =>
 // How far down the window the page shows (dom/geometry.js, `shownWindow`) the reader is
 // taken to read where nothing they hold marks their place.
 const READING_LINE = 0.25;
+export const readingLine = () => {
+  const window = shownWindow();
+  return window.top + (window.bottom - window.top) * READING_LINE;
+};
 
 // What stands at the reading line in the middle of `column`'s span across the window:
 // a range over the letter of the words nearest the line, so a gap between two
@@ -230,7 +234,7 @@ export function readingAt(column) {
   const box = column.getBoundingClientRect();
   const left = Math.max(box.left, window.left);
   const right = Math.min(box.right, window.right);
-  const line = window.top + (window.bottom - window.top) * READING_LINE;
+  const line = readingLine();
   if (right <= left) return null;
   const x = (left + right) / 2;
   // The document answers for words in a shadow tree with their host, which can be a

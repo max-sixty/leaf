@@ -97,6 +97,7 @@ import {
 import { inUi, inChrome } from "../base/ui-marks.js";
 import {
   blockAt,
+  layoutBox,
   HEADING,
   pageDocument,
   readsDocument,
@@ -135,7 +136,7 @@ import {
 import { runtime } from "../state/context.js";
 import { retainUserIntent } from "../dom/user-intent.js";
 import { recentPlaceInput, focused } from "../dom/focus.js";
-import { focusPlace, readingAt } from "./user-place.js";
+import { focusPlace, readingAt, readingLine } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { heldTravel, seenAhead, seenGlided, seenLanded } from "./scroll-containers.js";
 import { shifted, union } from "../dom/rect.js";
@@ -809,12 +810,31 @@ function pageReading({ bodies }) {
 // What the user is at where the screen shows no text block, as a stretch of blank space
 // between two asks or a figure: what stands at the reading line (user-place.js,
 // `readingAt`), so a walk steps on from there and a let-go lands there, rather than at
-// the top of the page.
+// the top of the page. Where the line meets only the page's own boxes below the last
+// block the page draws, as in the room a document keeps below its last line
+// (layouts.css), the user has read to the end and is at that last block.
 const shownAtLine = () => {
   const at = readingAt(pageDocument());
   const node = at && placeHolder(at);
+  if (node && !under(layoutBox(), node)) return node;
+  const last = lastDrawn(pageDocument());
+  if (last && last.getBoundingClientRect().bottom <= readingLine()) return last;
   return node && node !== document.body ? node : null;
 };
+// The last block the page draws: the deepest of its last children that draw a box, past
+// Leaf's chrome and what the page doesn't show, as a tab not chosen.
+/** @param {Element} body */
+function lastDrawn(body) {
+  /** @type {Element | null} */
+  let last = null;
+  for (let at = body.lastElementChild; at;) {
+    if (!inChrome(at) && at.checkVisibility() && at.getBoundingClientRect().height) {
+      last = at;
+      at = at.lastElementChild;
+    } else at = at.previousElementSibling;
+  }
+  return last;
+}
 export const pageReadingBlock = () => pageReading({ bodies: false });
 
 // Whether the reader sees a node where they read `block` (`readingBlock`): in its

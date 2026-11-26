@@ -24,8 +24,8 @@ from render_harness import (
 from browser.drafts import (
     choose_comment_target,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

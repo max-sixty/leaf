@@ -17,7 +17,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.file_bindings import bind_file
+from leaf.source.file_bindings import bind_file
 
 
 def test_file_editor_saves_quietly_and_preserves_inflight_edits(

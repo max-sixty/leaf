@@ -25,7 +25,7 @@ from render_harness import (
     told,
 )
 
-from leaf import render_checks as render_checks_model
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

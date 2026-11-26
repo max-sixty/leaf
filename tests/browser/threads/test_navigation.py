@@ -20,7 +20,7 @@ from render_harness import (
 
 from browser.margin import CARD_AT_REST
 from browser.threads import append_agent_reply, open_panel_thread, summarize_thread
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

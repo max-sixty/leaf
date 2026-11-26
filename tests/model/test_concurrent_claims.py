@@ -8,10 +8,11 @@ import pytest
 from click.testing import CliRunner
 from interact_support import STATED_TIMEOUT, record_claim
 
-from leaf import cli as cli_model
-from leaf import service, state
-from leaf.service import claim_path, claim_records, page_claim
-from leaf.state import held_claims
+from leaf.base import service, state
+from leaf.base.service import claim_path, claim_records, page_claim
+from leaf.base.state import held_claims
+from leaf.commands import cli as cli_model
+from leaf.records.transaction import PageTransaction
 
 
 def test_session_discovery_reads_only_its_canonical_claim_partition(
@@ -53,7 +54,7 @@ def test_resident_flat_claim_updates_preserve_session_discovery(page_dir):
     prior_locator = service.session_claims("prior") / canonical.name
     assert canonical.is_file() and not canonical.is_symlink()
     assert prior_locator.is_symlink()
-    with service.PageTransaction(page) as transaction:
+    with PageTransaction(page) as transaction:
         transaction.note_messaged("idle-turn-ending")
     assert claim_records("prior")[0]["messaged_ending"] == "idle-turn-ending"
     assert prior_locator.is_symlink()

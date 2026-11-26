@@ -14,7 +14,7 @@ from render_harness import (
     wait_for_check_api,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -477,7 +477,7 @@ RECORD_RESIZES = """() => {
 def test_the_deck_grows_to_the_end_frame_it_lands_on(browser, serve):
     """The last answer brings up the end frame with its record of the pass, and the
     deck's height glides to the frame's whole height, where the frame is taller than the
-    height the deck holds, rather than to an empty frame's and then jumps."""
+    card it follows, rather than to an empty frame's and then jumps."""
     page = open_page(browser, serve(DECK_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     page.evaluate(RECORD_RESIZES)

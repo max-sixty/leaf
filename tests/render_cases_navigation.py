@@ -19,13 +19,13 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.registry.storage import read_page_registry
-from leaf.render_checks import rendered
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.registry.storage import read_page_registry
+from leaf.source.render_checks import rendered
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):

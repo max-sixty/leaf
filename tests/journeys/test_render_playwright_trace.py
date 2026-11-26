@@ -29,10 +29,10 @@ from render_harness import (
     told,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.pages import exporting as exporting_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 

@@ -26,21 +26,22 @@ from interact_support import (
     working,
 )
 
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import handover_pass as handover_pass_model
-from leaf import hooks as hooks_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as state_model
-from leaf.authored_checks.source import check_source
-from leaf.event_log import read_events
-from leaf.files import latest_revision
-from leaf.findings import Finding
-from leaf.render_reading import read_reading
-from leaf.revision_artifact import read_artifact
-from leaf.revisioning import activate_source
-from leaf.served_state.context import read_page
+from leaf.agents import delivery as delivery_model
+from leaf.base import state as state_model
+from leaf.base.files import latest_revision
+from leaf.base.findings import Finding
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.source import check_source
+from leaf.records.render_reading import read_reading
+from leaf.records.revisioning import activate_source
+from leaf.serving import handover_pass as handover_pass_model
+from leaf.serving.served_state.context import read_page
+from leaf.source import data as data_model
+from leaf.source.revision_artifact import read_artifact
 
 FAILURE: dict[str, Any] = {
     "code": "past-column",
@@ -256,8 +257,8 @@ def test_a_page_nobody_holds_has_nobody_to_tell(pass_page):
 def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     save(pass_page.dir, "last words")
     state_model.close_session_turn("s1")
-    with service_model.PageTransaction(pass_page.dir) as page:
-        page.set_status("idle")
+    with transaction_model.PageTransaction(pass_page.dir) as page:
+        set_status(page, "idle")
     pass_page.passes.look()
     assert pass_page.reads == []
 
@@ -344,12 +345,12 @@ def told(claimed):
 
 
 def events_of(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return list(page.events)
 
 
 def deliverable(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return delivery_model.deliverable(page)
 
 

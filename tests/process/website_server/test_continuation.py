@@ -11,11 +11,11 @@ from interact_support import owed_answers
 from websockets.exceptions import ConnectionClosedError
 
 import leaf_website as website_server
-from leaf.event_log import read_events
-from leaf.interaction_log import read_interactions
-from leaf.refusals import Refused
-from leaf.state import session_record
-from leaf.thread import cmd_resolve
+from leaf.agents.thread import cmd_resolve
+from leaf.base.refusals import Refused
+from leaf.base.state import session_record
+from leaf.log.event_log import read_events
+from leaf.log.interaction_log import read_interactions
 
 
 def unfollowed_turn(harness, page_dir, *, following=None, event_ids=("first-event",)):

@@ -17,7 +17,7 @@ import click
 from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import (
+from leaf.source.render_checks import (
     one_frame,
     open_render_context,
     open_render_page,

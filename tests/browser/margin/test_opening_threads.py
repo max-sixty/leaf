@@ -58,9 +58,9 @@ from browser.margin import (
     put_card_away,
     seeded_thread,
 )
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

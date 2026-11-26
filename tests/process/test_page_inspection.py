@@ -5,7 +5,7 @@ import json
 from interact_support import fetch, write_revision
 from model_folds import leaf_page
 
-from leaf.page_inspection import cmd_inspect
+from leaf.serving.page_inspection import cmd_inspect
 
 
 def test_inspection_route_requires_and_preserves_the_displayed_revision(

@@ -29,19 +29,20 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     first = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "first"}
     )
@@ -74,7 +75,7 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
 
 
 def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Answer"}
     )
@@ -103,7 +104,7 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
 
 
 def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     original = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Original"}
     )
@@ -125,11 +126,11 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     shutil.copytree(page_dir, other)
     batches = []
     for page in (page_dir, other):
-        service_model.claim_page(page)
+        transaction_model.claim_page(page)
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
         )
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
@@ -144,7 +145,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
         assert (obligations[0]["state"], obligations[0]["seen"]) == ("waiting", True)
     assert page_state(other)["pending"] == 1
     assert (
-        service_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]
+        transaction_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]
         == later["id"]
     )
 
@@ -152,23 +153,24 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
 def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
     page_dir, spawn, monkeypatch
 ):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     event = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Answer"}
     )
     payload = freeze_events(page_dir, [event])
-    with service_model.PageTransaction(page_dir):
+    with transaction_model.PageTransaction(page_dir):
         # The command must wait behind the same lock that protects ownership changes.
         receiving = spawn_probe(
             spawn,
             page_dir,
             """
-from leaf import delivery, service
-original_enter = service.PageTransaction.__enter__
+from leaf.agents import delivery
+from leaf.records import transaction
+original_enter = transaction.PageTransaction.__enter__
 def entered(transaction):
     print("locking", flush=True)
     return original_enter(transaction)
-service.PageTransaction.__enter__ = entered
+transaction.PageTransaction.__enter__ = entered
 delivery.receive_delivery(os.environ["DELIVERY"])
 """,
             DELIVERY=payload["id"],
@@ -234,7 +236,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
     """A persistent watcher ends the wait after an acknowledgement as it ends any
     `leaf wait`, on 2. The acknowledgement still landed: the cursor names the
     event the batch reached."""
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -311,7 +313,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     the successor's live page as an ended leaf.
     """
     serving(page_dir, 1)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     first = append_carried_log_record(
         page_dir,
@@ -339,7 +341,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
     hooks_run_this_tree("successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
 
     out, err = waiting.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert waiting.returncode == 2, out + err
@@ -387,7 +389,7 @@ def test_reading_a_pointer_never_confirms_unread_input(claimed):
     event = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         payload = delivery_model.freeze_delivery(
             [delivery_model.batch_data(claimed, page, [event])]
         )
@@ -426,14 +428,14 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
         claimed,
         {"kind": "comment", "author": "user", "text": ("A\\B\n🪴" * 9000)},
     )
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         payload = delivery_model.freeze_delivery(
             [delivery_model.batch_data(claimed, page, [event])]
         )
     if transport == "pointer":
         output = read_part(payload["id"])
     else:
-        with service_model.PageTransaction(claimed) as page:
+        with transaction_model.PageTransaction(claimed) as page:
             reading = session_model.PageTick(
                 claimed, page.status, [event], True, "watching", False, None, page
             )
@@ -492,7 +494,7 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
         codex_model.accept_codex_delivery(
             "reader", prepared.payload["id"], "reader-turn"
         )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("successor", "Codex", os.getpid())
         )

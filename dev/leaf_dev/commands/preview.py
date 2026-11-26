@@ -42,7 +42,7 @@ previews end together.
 The preview serves the selected checkout in place, with its runtime's source modules,
 so a runtime edit reaches the page with no build.
 
-While it runs, a native subscription (`leaf.file_changes`) reports edits.
+While it runs, a native subscription (`leaf.log.file_changes`) reports edits.
 Initialization decides whether the layer actually changed; identical saves leave the
 browser and server alone. A source or `.page/` companion edit is stamped into the
 live page at the same URL. A package or runtime edit restarts the server, which
@@ -80,12 +80,16 @@ from typing import NamedTuple
 
 import click
 
-from leaf.file_changes import FileChanges
-from leaf.locations import canonical_path
-from leaf.publishing import authored_digest, authored_files, write_authored_files
-from leaf.refusals import Refused
-from leaf.runtime_selection import forget_tree, read_runtime
-from leaf.schema import LAYER_FILE, PACKAGES_DIR
+from leaf.base.locations import canonical_path
+from leaf.base.refusals import Refused
+from leaf.base.schema import LAYER_FILE, PACKAGES_DIR
+from leaf.log.file_changes import FileChanges
+from leaf.records.publishing import (
+    authored_digest,
+    authored_files,
+    write_authored_files,
+)
+from leaf.source.runtime_selection import forget_tree, read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     STOP_SIGNALS,
@@ -133,7 +137,7 @@ REVIVE_INTERVAL_SECS = 1
 
 def worker_inputs(runtime: Path) -> list[Path]:
     """Inputs loaded by Python, which a server restart alone cannot refresh."""
-    from leaf.layer import payload_python_inputs
+    from leaf.source.layer import payload_python_inputs
 
     return [
         *payload_python_inputs(runtime),
@@ -147,7 +151,7 @@ def worker_inputs(runtime: Path) -> list[Path]:
 
 
 def worker_identity(runtime: Path) -> str:
-    from leaf.layer import files_identity
+    from leaf.source.layer import files_identity
 
     return files_identity(
         {
@@ -238,7 +242,7 @@ def mark_preview(
     watcher can distinguish source edits from competing page edits. The page's own
     authored files and event log remain authoritative.
     """
-    from leaf.service import PREVIEW
+    from leaf.base.service import PREVIEW
 
     PREVIEW.write(
         page / "preview.json",
@@ -333,7 +337,7 @@ class PreviewService:
     @contextlib.contextmanager
     def starting(self):
         """Prepare serving; claim the page only when the caller accepts on exit."""
-        from leaf.hosting import claim_and_start
+        from leaf.pages.hosting import claim_and_start
 
         if not self.user:
             yield self._serve_temporary()
@@ -346,7 +350,7 @@ class PreviewService:
     def note(self) -> str:
         """Describe the committed service: a `--user` one as `leaf server start`
         reads it (`hosting.server_reading`), as one JSON line."""
-        from leaf.hosting import server_reading
+        from leaf.pages.hosting import server_reading
 
         return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
 
@@ -358,9 +362,9 @@ class PreviewService:
         closed, and it starts only a service still enabled, so a stop that lands
         first is kept. A refused start is retried on later watcher polls; the same
         refusal is printed once while it stands."""
-        from leaf.detached import StartRefused
-        from leaf.harness import claim_harness
-        from leaf.hosting import start_server
+        from leaf.base.detached import StartRefused
+        from leaf.base.harness import claim_harness
+        from leaf.pages.hosting import start_server
 
         if time.monotonic() < self.revive_at:
             return
@@ -392,8 +396,8 @@ class PreviewService:
             if initializing:
                 yield
                 return
-            from leaf.harness import claim_harness
-            from leaf.hosting import restarting_server
+            from leaf.base.harness import claim_harness
+            from leaf.pages.hosting import restarting_server
 
             with restarting_server(
                 self.page, claim_harness(self.claim) if self.claim else None
@@ -410,7 +414,7 @@ class PreviewService:
         self._serve_temporary()
 
     def _serve_temporary(self) -> str:
-        from leaf.hosting import TemporaryPageServer
+        from leaf.pages.hosting import TemporaryPageServer
 
         self.temporary = TemporaryPageServer(self.page, **self.address).start()
         self.address = {
@@ -426,8 +430,8 @@ class PreviewService:
 
     def stop(self) -> None:
         """Stop serving and withdraw this preview's acquisition, keeping successors."""
-        from leaf.hosting import cmd_stop
-        from leaf.service import ClaimTransition, PageTransaction
+        from leaf.pages.hosting import cmd_stop
+        from leaf.records.transaction import ClaimTransition, PageTransaction
 
         if self.user:
             cmd_stop(self.page, owner=self.claim)
@@ -440,7 +444,7 @@ class PreviewService:
     @property
     def running(self) -> bool:
         """Whether the server is up. A `--user` one also ends with its claim."""
-        from leaf.server import running_server
+        from leaf.agents.server import running_server
 
         if not self.user:
             return self.temporary is not None and self.temporary.running
@@ -455,8 +459,8 @@ class PreviewService:
         A `--user` service still enabled but down is not ended. That is a server
         that died, or one `page init` restarted but could not start again (the
         recorded port was taken), and the watcher tries it again."""
-        from leaf.server import read_service
-        from leaf.service import claim_is_active, page_claim, same_claim
+        from leaf.agents.server import read_service
+        from leaf.base.service import claim_is_active, page_claim, same_claim
 
         if not self.user:
             return not self.running
@@ -472,7 +476,7 @@ class PreviewService:
 def source_roots(source: Path, runtime: Path) -> list[Path]:
     """The package roots the source's selection names, where `page init` runs from
     (`leaf`), whose edits reach the page as copies at its next init."""
-    from leaf.layer import layer_inputs
+    from leaf.source.layer import layer_inputs
 
     return layer_inputs(tuple(source_packages(source, runtime)), runtime)
 
@@ -616,7 +620,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     Every path is resolved: `input_paths` answers in resolved paths, so a package
     root reached through a symlink or `..` would otherwise match nothing.
     """
-    from leaf.layer import input_paths, payload_server_inputs
+    from leaf.source.layer import input_paths, payload_server_inputs
 
     runtime = runtime.resolve()
     scripts = runtime / "src"
@@ -740,9 +744,9 @@ def discard_preview(page: Path) -> None:
     service a `--user` preview left behind when it was killed outright is stopped
     first, since its record goes with the page.
     """
-    from leaf.hosting import cmd_stop
-    from leaf.service import claim_path
-    from leaf.state import CLAIM
+    from leaf.base.service import claim_path
+    from leaf.base.state import CLAIM
+    from leaf.pages.hosting import cmd_stop
 
     if page.exists():
         cmd_stop(page)
@@ -758,7 +762,7 @@ def run_preview(
     user: bool,
 ) -> None:
     """Take the slot, resume a user's page or build a plain preview, then serve."""
-    from leaf.leases import release_lease, take_lease
+    from leaf.base.leases import release_lease, take_lease
 
     lease = take_lease(preview_lease(page))
     if lease is None:
@@ -782,7 +786,7 @@ def serve_preview(
     user: bool,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
-    from leaf.service import PREVIEW
+    from leaf.base.service import PREVIEW
 
     loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent

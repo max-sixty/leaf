@@ -61,44 +61,49 @@ from interact_support import (
     write_revision,
 )
 
-from leaf import agent_state as agent_state_model
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import leases as leases_model
-from leaf import page_memory as page_memory_model
-from leaf import passages as passages_model
-from leaf import projection as projection_model
-from leaf import publishing as publishing_model
-from leaf import reports as reports_model
-from leaf import revision_artifact as artifact_model
-from leaf import revision_delivery as revision_delivery_model
-from leaf import revisioning as revisioning_model
-from leaf import samples as samples_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf.authored_checks.admission import message_markup_findings
-from leaf.authored_checks.source import check_source
-from leaf.authored_checks.source_history import predecessor_reading
-from leaf.refusals import Refused
-from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema, stamp_words
-from leaf.registry.schema import schema_error
-from leaf.registry.storage import (
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import page_memory as page_memory_model
+from leaf.base import schema as schema_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import agent_state as agent_state_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log import projection as projection_model
+from leaf.pages.render_gate import readings as render_gate_readings
+from leaf.records import publishing as publishing_model
+from leaf.records import reports as reports_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.admission import message_markup_findings
+from leaf.records.authored_checks.source import check_source
+from leaf.records.authored_checks.source_history import predecessor_reading
+from leaf.serving import revision_delivery as revision_delivery_model
+from leaf.serving import samples as samples_model
+from leaf.serving.served_state.context import read_page
+from leaf.serving.served_state.page import read_served_page
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source import passages as passages_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import structure as structure_model
+from leaf.source.registry.contract import (
+    DECLARED_WORDS,
+    RANK,
+    detail_schema,
+    stamp_words,
+)
+from leaf.source.registry.schema import schema_error
+from leaf.source.registry.storage import (
     load_registry,
     read_page_registry,
 )
-from leaf.registry.validation import incoming_registry
-from leaf.render_gate import readings as render_gate_readings
-from leaf.runtime_selection import executing
-from leaf.served_state.context import read_page
-from leaf.served_state.page import read_served_page
+from leaf.source.registry.validation import incoming_registry
+from leaf.source.runtime_selection import executing
 from leaf_dev.example_data import captured_value, patch_manifest
 
 # PAGE's group asking, and the same group once the author settles it.
@@ -1092,7 +1097,7 @@ def test_a_moves_revision_is_read_under_its_own_vocabulary():
     the wrapper's tag a position declaration of its own. The board authors `c` the
     same way in both, so a move made on revision 1 stands; reading revision 1 under
     revision 2's vocabulary would hand `c` to the wrapper and absorb the move."""
-    from leaf.registry.contract import state_definition
+    from leaf.source.registry.contract import state_definition
 
     record = {"kind": "position", "within": "lf-column"}
     then = model_layer()
@@ -1332,7 +1337,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
 
 def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
     """An unfinished declaration remains author feedback, not a broken state read."""
-    from leaf.revision_artifact import read_revision
+    from leaf.source.revision_artifact import read_revision
 
     registry = page_dir / "page" / "registry.json"
     registry.parent.mkdir(exist_ok=True)
@@ -2089,8 +2094,8 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2141,8 +2146,8 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
                 },
             )
         )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2185,8 +2190,8 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2577,7 +2582,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     _tasks_version(page_dir, "review")
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_record = service_model.PageTransaction._append_record
+    original_append_record = transaction_model.PageTransaction._append_record
 
     def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
@@ -2588,7 +2593,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         return original_append_record(page, event)
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "_append_record", held_append_record
+        transaction_model.PageTransaction, "_append_record", held_append_record
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
@@ -4272,7 +4277,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     A history larger than the parse cache doesn't parse every predecessor on every
     read. Count parses rather than time, so contention cannot change the result.
     """
-    from leaf.work_reading import WorkReading
+    from leaf.records.work_reading import WorkReading
 
     source = PAGE.replace(PAGE_GROUP, ASKING)
     for edit in range(4):
@@ -4512,7 +4517,7 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
 
 
 def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
-    from leaf.registry.contract import state_definition
+    from leaf.source.registry.contract import state_definition
 
     registry: dict[str, dict] = {
         "lf-draft": {
@@ -4623,7 +4628,7 @@ def test_projected_verbatim_includes_generated_children():
         "seq": 1,
     }
 
-    from leaf.registry.contract import state_definition
+    from leaf.source.registry.contract import state_definition
 
     event["meaning"]["state"] = state_definition(
         "lf-list", registry["lf-list"], registry["lf-list"]["verbs"]["add"]

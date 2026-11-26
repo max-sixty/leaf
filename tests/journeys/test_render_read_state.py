@@ -24,10 +24,10 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import (
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import (
     PROBE_POLL_MS,
     SERVED_TIMEOUT_MS,
     rendered,

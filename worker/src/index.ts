@@ -407,7 +407,7 @@ export class LeafSession extends DurableObject<Env> {
     // the request, so a request Python answers the same way twice gets one more
     // attempt, once the container answers its health route again or a new one has
     // started, rather than showing the visitor a 500: a read, or a view report,
-    // which replaces only an older report of its session (`leaf.user_views`).
+    // which replaces only an older report of its session (`leaf.serving.user_views`).
     // Any other write may already have reached Python, so its loss reaches the
     // caller instead.
     const replay =
@@ -848,7 +848,7 @@ async function staticState(
   const state = (await response.json()) as ServedState;
   prepareStateDelivery(state, request);
   // Stored and asked for again before each reuse, as every Leaf server's state answer
-  // is (`CACHE_CONTROL`, `src/leaf/http.py`), so it names the request headers its body
+  // is (`CACHE_CONTROL`, `src/leaf/serving/http.py`), so it names the request headers its body
   // turns on.
   const answer = Response.json(state, {
     headers: {

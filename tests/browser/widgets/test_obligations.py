@@ -43,7 +43,7 @@ from browser.widgets import (
     expect_accept_all,
     observe_live_region,
 )
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

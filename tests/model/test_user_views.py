@@ -5,9 +5,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from leaf import user_views
-from leaf.files import read_json
-from leaf.state import write_json
+from leaf.base.files import read_json
+from leaf.base.state import write_json
+from leaf.serving import user_views
 
 # A Chrome's user agent, as `runtime/state/page-identity.js` reports it.
 CHROME = (

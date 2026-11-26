@@ -21,9 +21,9 @@ browser applies the patch to the reading it named (`completeState` in
 leaves alone keeps the identity it had there, down to each message and each source's
 value, which is what lets every reader downstream skip it.
 
-A source's value is compared by a digest `data.read_data` already took of it
-(`_compared`, `data.value_key`), and sent whole when that moves: encoding every value
-again to compare it would cost each answer about what sending them all did.
+A source's value is compared by its `revision`, the digest `data.read_data` already
+took of it (`_compared`), and sent whole when that moves: encoding every value again
+to compare it would cost each answer about what sending them all did.
 
 The patch is a list of changes, each at a path of keys from the root of what it
 changes through its objects:
@@ -64,8 +64,6 @@ from collections import OrderedDict
 from pathlib import Path
 
 from leaf.base.page_memory import memo
-from leaf.source.data import value_key
-from leaf.source.file_bindings import bound_paths
 
 # How many readings this process remembers of each page: a reading for each of a few
 # tabs, and the answers each received but had not adopted yet when it next asked.
@@ -298,15 +296,12 @@ def _changes(held: tuple, current: tuple, value, path: list, patch: list) -> Non
             patch.append(change)
 
 
-def _compared(reading: dict, page_dir: Path) -> dict:
-    """`reading` as its parts are taken: each data source's value stood in for by what
-    names it (`data.value_key`)."""
+def _compared(reading: dict) -> dict:
+    """`reading` as its parts are taken: each data source's value stood in for by its
+    `revision`, which digests it."""
     data = reading["data"]
-    files = bound_paths(page_dir)
     sources = {
-        source: {**held, "value": value_key(page_dir, source, held, files)}
-        if "value" in held
-        else held
+        source: {**held, "value": held["revision"]} if "value" in held else held
         for source, held in data["sources"].items()
     }
     return {**reading, "data": {**data, "sources": sources}}
@@ -329,7 +324,7 @@ def answer(state: dict, held: str | None, page_dir: Path) -> dict:
     with served.lock:
         before = readings.get(held) if held is not None else None
         latest = next(reversed(readings.values()), None)
-    current = _parts(_compared(patched, page_dir), (before or latest or (0, None))[1])
+    current = _parts(_compared(patched), (before or latest or (0, None))[1])
     key = basis["key"] = current[1].hex()
     with served.lock:
         if held is not None and held in readings:

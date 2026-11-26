@@ -22,11 +22,10 @@ binds a source id nothing rewrites.
 A file the page binds (`file_bindings`) is a source too, under its binding's id:
 a `text-document` valued `{key, name, text, revision}`, the binding, the file's label,
 its text and the revision a save names, read again whenever what the filesystem says
-of the file moves (`file_sources`). The source's revision is
-the first 16 digits of the file's, so a comment on what a widget drew from it records
-the version of the file a save names, and a new label leaves it as it was. Its run
-digests that observation, the path and the label, so it moves with every write and
-every new label, and `updated` is when the file was last written. Readers judge its
+of the file moves (`file_sources`). Its revision digests that value, as every
+source's does, so a new label is a new revision, as a new text is. Its run digests
+that observation, the path and the label, so it moves with every write, a rewrite of
+the same bytes included, and `updated` is when the file was last written. Readers judge its
 value as they judge a publication's. Nothing else writes it: `leaf data set` and
 `leaf data clear` refuse its id (`page_data`), and a publication under that id stands
 behind it. A file the page can't read is a source holding the reason as its error. A
@@ -36,7 +35,6 @@ widget input of another contract can't draw it, which `page check` refuses
 
 import hashlib
 import json
-from collections.abc import Container
 from datetime import datetime
 from pathlib import Path
 
@@ -208,16 +206,13 @@ def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
     )
 
 
-def _judged(source: str, reading: dict, registry: dict, key: str | None = None) -> dict:
+def _judged(source: str, reading: dict, registry: dict) -> dict:
     """`reading` as readers receive it: its value, or the error that keeps the value
-    from fitting its contract's declaration in `registry`. `key` names the value
-    (`value_key`), its revision unless given."""
+    from fitting its contract's declaration in `registry`."""
     if "value" not in reading:
         return reading
-    contract, value = reading["contract"], reading["value"]
-    if error := _value_error(
-        source, contract, value, key or reading["revision"], registry
-    ):
+    contract, value, revision = (reading[k] for k in ("contract", "value", "revision"))
+    if error := _value_error(source, contract, value, revision, registry):
         return {
             **{name: item for name, item in reading.items() if name != "value"},
             "error": error,
@@ -226,35 +221,27 @@ def _judged(source: str, reading: dict, registry: dict, key: str | None = None) 
 
 
 class _Files:
-    """Each bound file's source by binding, and the digest of its whole value, kept
-    under the observation of the file that also names its run and moves the page's
-    news (`page_inputs`): its path, its label and what `file_bindings.observed` says
-    of it, which moves with whatever moves the read's answer, an error's included."""
+    """Each bound file's source by binding, kept under the observation of the file
+    that also names its run and moves the page's news (`page_inputs`): its path, its
+    label and what `file_bindings.observed` says of it, which moves with whatever
+    moves the read's answer, an error's included."""
 
     def __init__(self) -> None:
         self.held: dict[str, tuple] = {}
 
 
-def _file_reading(
-    page_dir: Path, binding: str, path: Path, label: str
-) -> tuple[dict, str]:
-    """The source of the bound file at `path`, and what names its value (`value_key`)."""
+def _file_reading(page_dir: Path, binding: str, path: Path, label: str) -> dict:
+    """The source of the bound file at `path`."""
     seen = (str(path), label, observed(path))
     held = memo(page_dir, _Files).held
     kept = held.get(binding)
-    if kept is not None and kept[0] == seen:
-        return kept[1], kept[2]
-    reading = _file_source(binding, path, seen)
-    key = (
-        value_revision(reading["value"]) if "value" in reading else reading["revision"]
-    )
-    held[binding] = (seen, reading, key)
-    return reading, key
+    if kept is None or kept[0] != seen:
+        kept = held[binding] = (seen, _file_source(binding, path, seen))
+    return kept[1]
 
 
-def file_sources(page_dir: Path) -> dict[str, tuple[dict, str]]:
-    """Each file the page binds as a source, by binding (the module header), with
-    what names its value (`value_key`)."""
+def file_sources(page_dir: Path) -> dict[str, dict]:
+    """Each file the page binds as a source, by binding (the module header)."""
     paths = bound_paths(page_dir)
     named = labels(paths)
     held = memo(page_dir, _Files).held
@@ -264,21 +251,6 @@ def file_sources(page_dir: Path) -> dict[str, tuple[dict, str]]:
         binding: _file_reading(page_dir, binding, path, named[binding])
         for binding, path in paths.items()
     }
-
-
-def value_key(page_dir: Path, source: str, reading: dict, files: Container) -> str:
-    """What names `reading`'s value where two readings of `source` are compared, as the
-    served state's tail compares them: its revision, which digests a publication's
-    value, or for a source among `files`, the page's bound files, a digest of its whole
-    value, since the file's revision leaves out the label its value names. That digest
-    is kept with the reading this process last read of the file, and taken afresh of
-    any other."""
-    if source not in files:
-        return reading["revision"]
-    kept = memo(page_dir, _Files).held.get(source)
-    if kept is not None and kept[1] is reading:
-        return kept[2]
-    return value_revision(reading["value"])
 
 
 def _file_source(binding: str, path: Path, seen: tuple) -> dict:
@@ -297,19 +269,20 @@ def _file_source(binding: str, path: Path, seen: tuple) -> dict:
             "updated": now_iso(),
             "error": str(error),
         }
+    value = {
+        "key": binding,
+        "name": label,
+        "text": read["text"],
+        "revision": read["revision"],
+    }
     return {
         "contract": FILE_CONTRACT,
-        "revision": read["revision"][:16],
+        "revision": value_revision(value),
         "run": run,
         "updated": datetime.fromtimestamp(written)
         .astimezone()
         .isoformat(timespec="milliseconds"),
-        "value": {
-            "key": binding,
-            "name": label,
-            "text": read["text"],
-            "revision": read["revision"],
-        },
+        "value": value,
     }
 
 
@@ -318,10 +291,8 @@ def source_reading(page_dir: Path, source: str, registry: dict) -> dict | None:
     only that source, the file it names where it is a bound file's."""
     paths = bound_paths(page_dir)
     if source in paths:
-        reading, key = _file_reading(
-            page_dir, source, paths[source], labels(paths)[source]
-        )
-        return _judged(source, reading, registry, key)
+        reading = _file_reading(page_dir, source, paths[source], labels(paths)[source])
+        return _judged(source, reading, registry)
     return read_source(page_dir, source, registry)
 
 
@@ -365,8 +336,8 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
         {
             **{source: read_source(page_dir, source, registry) for source in names},
             **{
-                binding: _judged(binding, reading, registry, key)
-                for binding, (reading, key) in file_sources(page_dir).items()
+                binding: _judged(binding, reading, registry)
+                for binding, reading in file_sources(page_dir).items()
             },
         }
         if registry is not None

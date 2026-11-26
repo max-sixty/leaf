@@ -27,6 +27,7 @@ from leaf.base.locations import PATH_LOCKS, path_lock_key
 from leaf.commands.cli import cli
 from leaf.log.construction import input_readings
 from leaf.records.page_data import cmd_data_clear, cmd_data_set
+from leaf.source.data import read_source, write_data
 from leaf.source.data_contracts import DataError
 from leaf.source.file_bindings import (
     BINDINGS,
@@ -458,11 +459,12 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
 ):
     """A widget shows a bound file by binding its id as it would any source, with no
     editor on the page: a `text-document` of the file's label, text and revision, read
-    again as the file changes. A comment on what the widget drew records the file's
-    own revision, which a new label for the file leaves as it was, and the door refuses
-    one on a value the widget can't draw, as a file it can't read, while admitting one
-    on a value since replaced. The file is what changes the source, so `leaf data set`
-    and `leaf data clear` refuse the id and the widget's construction names the file to
+    again as the file changes. Its revision digests that value, as every source's
+    does, so a copy of it, as a live sample takes, reads as the same revision, and a
+    new label is a new revision a held tab is sent. The door refuses a comment on a
+    value the widget can't draw, as a file it can't read, while admitting one on a
+    value since replaced. The file is what changes the source, so `leaf data set` and
+    `leaf data clear` refuse the id and the widget's construction names the file to
     edit."""
     (tmp_path / "sub").mkdir()
     target = tmp_path / "sub" / "README.md"
@@ -479,9 +481,8 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
     read = read_page_data(page_dir)["sources"]["readme"]
     saved = read_file(page_dir, "readme")
     assert saved is not None
-    assert (read["contract"], read["revision"], read["value"]) == (
+    assert (read["contract"], read["value"]) == (
         "text-document",
-        saved["revision"][:16],
         {
             "key": "readme",
             "name": "README.md",
@@ -489,6 +490,16 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
             "revision": saved["revision"],
         },
     )
+    copied = tmp_path / "copy"
+    copied.mkdir()
+    write_data(
+        copied,
+        {"readme": {k: read[k] for k in ("contract", "run", "updated", "value")}},
+    )
+    registry = read_page_registry(page_dir).registry
+    copy = read_source(copied, "readme", registry)
+    assert copy is not None
+    assert copy["revision"] == read["revision"]
 
     def comment(source_revision, attempt):
         event = {
@@ -516,7 +527,7 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
     bind_file(page_dir, "other", tmp_path / "other.md")
     relabelled = read_page_data(page_dir)["sources"]["readme"]
     assert relabelled["value"]["name"] == "sub/README.md"
-    assert relabelled["revision"] == read["revision"]
+    assert relabelled["revision"] != read["revision"]
     tail = json.loads(
         fetch(f"{server}/api/state", headers={"Leaf-Held-Basis": held})[1]
     )
@@ -536,7 +547,6 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
         cmd_data_set(page_dir, "readme", "# Notes\n")
     with pytest.raises(DataError, match="'readme' is a bound file"):
         cmd_data_clear(page_dir, "readme")
-    registry = read_page_registry(page_dir).registry
     readings = input_readings(
         {"id": "readme-preview", "source": "readme"},
         registry["lf-text-document"],

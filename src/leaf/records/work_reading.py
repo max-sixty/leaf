@@ -103,7 +103,6 @@ class WorkReading:
 
     @cached_property
     def _handover(self):
-
         return handed_over(
             self.threads,
             self.thread if self.page is not None else None,

@@ -298,7 +298,6 @@ def reload_skill(session_id: str) -> str | None:
     widget's instructions in context, where those written before one have them. Restating a rule on every prompt weighs on every turn and covers only
     that rule, so this message names what the compaction removed and
     leaves the rules to the skill and its routes."""
-
     pages = owned_pages(session_id)
     if not pages:
         return None
@@ -550,7 +549,6 @@ def main(
     after the next run, as any failed watch does; the session's hooks can't run
     until that copy can start either.
     """
-
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
@@ -596,7 +594,6 @@ def _watch_from_new_copy(harness: str, payload: dict) -> NoReturn:
     would fill. The environment drops the host's choice of launcher
     (`LEAF_HOST_LAUNCHER`, which `bin/leaf` reads), since that would send the call
     back to the host's."""
-
     with tempfile.TemporaryFile() as incoming:
         incoming.write(json.dumps(payload).encode())
         incoming.seek(0)

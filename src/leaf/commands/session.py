@@ -76,7 +76,6 @@ def set_status(page: PageTransaction, state: str) -> dict:
     a declaration puts every start before it down (`todos.item_starts`). The stream
     the harness observes carries across a `waiting`, and `idle` clears it with the
     leaf."""
-
     record, _ = append_admitted(
         page, {"kind": "status", "author": "agent", "state": state}
     )
@@ -115,7 +114,6 @@ def cmd_idle(page_dir: Path) -> dict:
     holds the page for every open to-do too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
-
     with PageTransaction(page_dir) as page:
         events = page.events
         work = read_work(page_dir, events)
@@ -532,7 +530,6 @@ def wait_acknowledgement(
 def delivery_record(reading: PageTick, harness: Harness | None) -> dict:
     """Freeze a watcher reading and present its bounded first part, as `delivery
     read` prints it."""
-
     payload = freeze_delivery(
         [
             batch_data(
@@ -684,7 +681,6 @@ def cmd_wait(page_dir: Path | None = None) -> int:
         wait it has superseded prints nothing, since that watch carries the input.
         The delivery carries what the wait noted before it (`with_held`).
         """
-
         if not watch.holds():
             return False
         print(jsonl_line(with_held(delivery_record(reading, harness))), flush=True)
@@ -712,7 +708,6 @@ def left_owed(page: PageTransaction) -> list[dict]:
     has named since their delivery (`activity.left_owed`). The Stop hook lets such
     a turn end on its answer, and the watch wakes a turn of its own for them, whose
     prompt hook names them."""
-
     if not turn_closed(page.active_claim):
         return []
     work = read_work(page.page_dir, page.events)
@@ -830,7 +825,6 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
         it: new input; or, unless Escape ended the turn, an answer the closed turn
         left owed, or a queued line telling the session of work it now owes once
         its turn has closed."""
-
         page = reading.transaction
         # A pass hands `ready` only pages it has not lost, whose work it read.
         assert reading.work is not None
@@ -923,7 +917,6 @@ def woke_after(session: str) -> None:
 def nudge_pending(session: str) -> None:
     """Nudge the session for each page it holds whose input could wake it, as
     admission would have with no watch holding the lease (`nudge_unwatched`)."""
-
     for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             work = read_work(page_dir, page.events)

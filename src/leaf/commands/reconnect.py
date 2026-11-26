@@ -98,7 +98,6 @@ def _deadline(started: float) -> float:
 def to_serve(harness: Harness) -> list[Path]:
     """The pages `harness`'s session still means to serve whose ownership or server
     is down, by the rules the module header gives."""
-
     pages = []
     for claim in claim_records(harness.session):
         page_dir = Path(claim["page"])

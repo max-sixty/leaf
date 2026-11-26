@@ -24,7 +24,6 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     """Append a report of `verb` on `widget`, stamped with the posting session's
     voice. Each field is `name=value`; values are strings, since the declared detail
     schemas for reports speak in attribute values, which is all a report may move."""
-
     detail = {}
     for field in fields:
         name, eq, value = field.partition("=")

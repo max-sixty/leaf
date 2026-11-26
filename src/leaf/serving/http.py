@@ -1653,7 +1653,6 @@ def page_endpoint(
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-
     if page_snapshot is None:
         identity = layer_metadata(page_dir)
         selected_layer(identity, page_dir)

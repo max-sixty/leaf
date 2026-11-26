@@ -324,7 +324,6 @@ def unset_properties(package: Path, composition: LayerComposition) -> list:
     read is usually a token Leaf renamed, and the declaration computes to nothing with
     no error anywhere. It is advice, since a page may set the property itself, as a
     package's instructions can ask it to."""
-
     names, prefixes = _runtime_properties()
     composed, built = set_properties(
         data.decode("utf-8", errors="replace")

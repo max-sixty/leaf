@@ -745,7 +745,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a declared widget, an element, or the page; a
     `todo_end` names an open to-do; and a start names explicit agent work or an owed
     update (`todos.todo_error`)."""
-
     if start := start_reading(event):
         event = start
     elif event["kind"] not in {"todo", "todo_end"}:

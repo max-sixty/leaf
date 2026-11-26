@@ -54,7 +54,6 @@ def is_browser_url(value) -> bool:
     `new URL` would then throw on a value `data set` accepted. pywhatwgurl avoids
     a native compiler requirement; its IDNA handling can differ from browsers
     for unusual internationalized domains."""
-
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
     return URL.can_parse(value)
@@ -117,7 +116,6 @@ def leaf_resources() -> dict[str, dict]:
     `unevaluatedProperties` or leaves it open. The served state and the delivery
     envelope refer to these, and the browser build types the same references
     (`build/browser/contract-types.mjs`)."""
-
     kinds = kernel_event_kinds()
     events = {
         f"leaf:event/{kind}": {

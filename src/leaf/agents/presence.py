@@ -230,7 +230,6 @@ def page_list() -> list[dict]:
     The counts a row carries (`on_user`, `threads`) are a serving page's; a page
     with no live row, stopped or closed, has none here, and `page state` reads it
     whole. Its title is its latest revision's."""
-
     rows = {page.resolve(): row for page, row in live_leaves()}
     claims = {Path(claim["page"]).resolve(): claim for claim in claim_records()}
     listed = []

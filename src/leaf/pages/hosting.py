@@ -540,7 +540,6 @@ def _announce_server(page_dir: Path, url: str) -> bool:
     """Print a committed foreground server's reading (`started_server`), with what
     the command noted (`findings.with_held`), before it serves, since the command
     returns only when the server stops."""
-
     print(jsonl_line(with_held(started_server(page_dir, url))), flush=True)
     return True
 
@@ -551,7 +550,6 @@ def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | N
     A server another Leaf started keeps serving a page this Leaf cannot write, so the
     page is judged here as a fresh bind judges it (`http.page_endpoint`), before its
     URL is handed out as this Leaf's."""
-
     existing = running_server(page_dir)
     if not existing:
         return None

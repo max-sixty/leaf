@@ -55,7 +55,6 @@ class Reported(NamedTuple):
 def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     """The page a command names. A write may renew an older layer for its owning
     session (`vendoring.renew_layer`); reads and service stops leave it alone."""
-
     page_dir = page_path(dir_arg)
     if page_dir.is_file():
         raise click.ClickException(
@@ -78,7 +77,6 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
 
 def page_path(dir_arg: str) -> Path:
     """The directory a page argument spells, whether or not it holds a page yet."""
-
     return canonical_path(Path(dir_arg).expanduser())
 
 
@@ -140,7 +138,6 @@ def _print_result(result: dict | None) -> None:
     """Print what a command returned, with what it noted (`findings.with_held`), as
     one JSON line; a command that returned nothing and noted nothing prints
     nothing."""
-
     record = with_held(result or {})
     if result is not None or record:
         click.echo(jsonl_line(record))
@@ -214,7 +211,6 @@ class LeafGroup(click.Group):
         return name, command, remaining
 
     def invoke(self, ctx: click.Context):
-
         try:
             return super().invoke(ctx)
         except Refused as error:
@@ -245,7 +241,6 @@ class LeafGroup(click.Group):
             )
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
-
         hold()
         try:
             self._run_held(args, prog_name, complete_var, **extra)
@@ -255,7 +250,6 @@ class LeafGroup(click.Group):
             note(*release())
 
     def _run_held(self, args, prog_name, complete_var, **extra) -> None:
-
         def refuse(said: dict, status: int):
             # Another protocol owns the stdout of a command that prints itself.
             to = sys.stderr if extra["obj"].get("prints_itself") else sys.stdout
@@ -327,7 +321,6 @@ def hook(harness: str, watch: bool, pages: bool, fork: bool) -> None:
 @cli.command(cls=PrintsItself, hidden=True)
 def session_end() -> None:
     """End the harness instance named by the JSON payload on stdin."""
-
     main()
 
 
@@ -855,7 +848,6 @@ def events(page_dir: Path, after: int, follow: bool) -> None:
     acknowledge user events. `page state PAGE MESSAGE_OR_WIDGET` reads one thread or
     widget.
     """
-
     cmd_events(page_dir, after, follow=follow)
 
 
@@ -896,7 +888,6 @@ def interactions(
     Retries are deduplicated and sequence gaps remain visible even with a type
     filter. Stored timestamps use the host clock.
     """
-
     try:
         start = interaction_time(since) if since else None
         stop = interaction_time(until) if until else None

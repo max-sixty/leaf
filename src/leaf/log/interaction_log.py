@@ -69,7 +69,6 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
     Diagnostics are best effort across a process crash; unlike admitted user
     decisions they do not claim disk durability in the HTTP response.
     """
-
     stamp = now_iso()
     records = [{"ts": stamp, **record} for record in records]
     data = "".join(jsonl_line(record) + "\n" for record in records).encode()
@@ -234,7 +233,6 @@ def read_interactions(
     filter; an unsent tail leaves no evidence. Server/developer records have
     no browser session association.
     """
-
     lines: list[dict] = [
         {
             "source": "semantic",

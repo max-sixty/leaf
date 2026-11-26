@@ -38,7 +38,6 @@ class AdmissionReadings:
 
     @cached_property
     def log(self):
-
         return TodoReading(self.events)
 
     @cached_property

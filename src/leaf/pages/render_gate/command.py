@@ -309,7 +309,6 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     A caller runs it before it takes the page lease to admit the message, since a
     browser run takes about a second. The run's capture holds the lease only while
     it reads the log (`page_snapshot.capture_page_snapshot`)."""
-
     if repair_errors(SourceDocument(markup, fragment=True)):
         # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
         # with the paragraph Markdown drew around it, is the markup gate's to

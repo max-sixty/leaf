@@ -109,7 +109,6 @@ def moved_threads(
     or taking back the reaction that opened it leaves the move out. `page check` asks for the moves at the active revision,
     and the first reply on a revision (`thread._revision_advice`) for those since
     the agent's last reply."""
-
     pending = {finding.values["thread"]: finding for finding in checked.advice}
     names = thread_names(events)
     placed = {}

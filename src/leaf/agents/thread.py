@@ -162,7 +162,6 @@ def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]
     """The thread `name` names (`work.page_subject`), and the message a write into it
     names (`thread_context.thread_message`). Refuses a name that reaches no thread,
     with what the log holds it as instead, and a widget on the page."""
-
     subject = page_subject(page_dir, events, name)
     if subject is None:
         _unknown_message(page_dir, events, name)
@@ -505,7 +504,6 @@ def ask_again(
     asked in its thread (`thread_questions`). `OwedAnswer` where the thread owes the
     user a reply, which the question waits on. Refused, as an agent's reply is, where
     its HTML doesn't validate (`check_markup`)."""
-
     message = question.removeprefix("message:")
     name = f"message:{message}"
     try:
@@ -1456,7 +1454,6 @@ def cmd_edit(
     (`event_contracts.append_all_admitted`), so a refused title leaves the text
     unedited.
     """
-
     title = agent_title(title)
     body = (
         checked_text(page_dir, text, html=True)
@@ -1581,7 +1578,6 @@ def cmd_summarize(
     thread its first message sits in; or nothing, where `fence`, given the page
     under its lock, says the writer no longer should, as a fork that summarizes a
     thread for the agent (`summary_fork`)."""
-
     body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:
         if fence is not None and not fence(page):

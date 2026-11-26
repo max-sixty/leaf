@@ -557,7 +557,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
         follower of its own first claim takes to start would read wrong. The notice
         records this process, so the user hears it once per process, and a module
         loaded later, as `/reload-plugins` loads one, records it again."""
-
         pid = self.process_pid()
         if pid is None or module_process(self.session) == pid:
             return None
@@ -1005,7 +1004,6 @@ def claude_code_turn(prompt: str, record: dict | None) -> str:
     session's record: the latest turn run under `prompt` while it is open, and once
     it has closed, a later one under the same prompt, named by the next ordinal
     (`ClaudeCodeHarness.hook_payload`)."""
-
     turn = record["turn"] if record else None
     if turn is None or claude_code_prompt(turn) != prompt:
         return prompt

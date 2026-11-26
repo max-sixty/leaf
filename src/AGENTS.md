@@ -12,6 +12,11 @@ packages stand in one order, a module imports only from its own package and the
 packages below it, and the modules inside a package import each other without a cycle
 (`../.config/importlinter.ini`, whose header says what to do when a change breaks
 either rule).
+A module imports what it uses at its top, so the top lists what the module depends
+on. An import goes inside a function only to keep a module out of a process that
+starts often and doesn't otherwise load it, such as a hook, the sandbox's bridge
+client or an agent's `leaf` command; `tests/model/test_hook_registration.py` checks
+the dependencies each hook loads.
 Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
 transport boundary exits, prints or answers HTTP. A command returns its result and
 never prints it (`cli.py`'s header).

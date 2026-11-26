@@ -170,7 +170,6 @@ def renew_layer(
     older, may re-initialize the page or another session take it in between."""
 
     def renewable() -> bool:
-
         refusal = write_refusal(page_dir)
         if refusal is None or refusal.code != "foreign-layer":
             return False

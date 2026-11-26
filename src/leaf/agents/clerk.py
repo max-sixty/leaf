@@ -692,7 +692,6 @@ def take_answer(
     `asked`, its `basis` (`apply_answer`); `run` holds the fork's usage and time, and
     why it failed where `text` is None. A fork that failed, or whose answer `ANSWER`
     refuses, writes only its note in each page's diagnostics."""
-
     run = run or {}
 
     def note(outcome: dict) -> None:
@@ -712,7 +711,6 @@ def take_answer(
 
 def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) -> None:
     """Note what came of a turn-end fork in `page_dir`'s diagnostics."""
-
     note(
         page_dir,
         {

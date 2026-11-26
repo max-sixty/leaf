@@ -612,7 +612,6 @@ def state_definition(
     `attention` declaration changes delivery, not the state operation; admission
     records that decision separately on the event.
     """
-
     return deepcopy(
         {
             "origin": origin,

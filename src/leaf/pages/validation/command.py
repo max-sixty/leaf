@@ -48,7 +48,6 @@ def other_version_drafts(page_dir: Path) -> list[Finding]:
     directory, which this Leaf reads none of (`state.Record.others`): the user's
     unsent words, which only the user can say are no longer wanted. The page's other
     records of other shapes are disposable, so `page check` names none of them."""
-
     return [
         Finding(
             "other-version-drafts", values={"page": str(page_dir), "file": str(file)}

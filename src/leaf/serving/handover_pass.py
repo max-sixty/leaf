@@ -167,7 +167,6 @@ def cmd_read(page_dir: Path, check: Callable) -> None:
 
 
 def _read_and_tell(page_dir: Path, check: Callable) -> None:
-
     started = time.monotonic()
     _, read = check(page_dir, render=True, screens=False)
     found = _finished(read[2]) if read is not None else None
@@ -199,7 +198,6 @@ def _tell(
     version `data`, that the page's latest reading didn't hold, and leave them, with
     the `visuals` it read, as its reading, where that version is still live and no
     reading of it beside this one told first. The findings told."""
-
     with PageTransaction(page_dir) as page:
         live = _live(page_dir, page)
         before = read_reading(page_dir)

@@ -1294,7 +1294,6 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
-
     entered = {
         event["id"]
         for context in harness.entered_context(payload, INLINE_OPENING)

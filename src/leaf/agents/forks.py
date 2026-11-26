@@ -166,7 +166,6 @@ BESIDE = {"summary": summary_fork.take_answer}
 def _threads(page: PageTransaction) -> dict[str, dict]:
     """The page's threads as the fold builds them, with the page's containment
     (`events.build_threads`)."""
-
     return build_threads(page.events, active_enclosing(page.page_dir))
 
 
@@ -201,7 +200,6 @@ def look(session_id: str, page_dir: Path, after: int | None) -> tuple[list[dict]
     beside its line fork are due all the same (`ask`), and a delivery leaves their
     work to them by the same reading. A follower's first look at the page passes
     None, and takes the log's last seq, so it lists no round older than itself."""
-
     with PageTransaction(page_dir) as page:
         if after is None:
             return [], page.events[-1]["seq"] if page.events else 0
@@ -238,7 +236,6 @@ def step(session_id: str, payload: dict) -> dict | None:
     make beside it, and the line fork's answer, or a failed step, is posted or
     recorded (`route`). For a fork beside it (`beside`), Leaf writes what it answered
     by the duty its basis names (`BESIDE`)."""
-
     basis = payload["basis"]
     kind = basis["kind"]
     if kind == "beside":
@@ -345,7 +342,6 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
     """The thread's waiting messages `inputs` as Leaf delivers them
     (`delivery.batch_data`), with the thread whole, or None where the newest owes
     no reply."""
-
     work = read_work(page.page_dir, page.events)
     responses = current_responses(page.page_dir, page.events, work)
     owed = responses.get(inputs[-1])
@@ -428,7 +424,6 @@ def route(
     reason), or its answer doesn't fit `ANSWER`. What came of it is recorded in the
     page's diagnostics, with what `carrier.run_facts` read of the fork's run
     (`run`)."""
-
     read = None
     if answer is not None:
         try:
@@ -471,7 +466,6 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
     still awaits one (`_awaits_line`, asked as the line is appended): `{"outcome":
     "posted", "text", "line"}` with the posted message's id, or why Leaf posted
     nothing."""
-
     try:
         record = post_reply(
             Path(basis["page"]),

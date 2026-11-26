@@ -1151,32 +1151,30 @@ def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
     assert events_model.read_events(page_dir)[-1]["text"] == "Filed it."
 
 
-def test_a_pick_that_came_back_keeps_its_place_before_a_message(page_dir):
-    """A turn delivered the user's pick and reserved its answer there. Before it
-    answers, the user changes the pick, sends a message, and takes the change back,
-    which brings the first pick back where it was made. The thread's one answer goes
-    to the message. The turn's late answer names the pick, older than the message it
-    never read, so it goes in answering nothing, and the one answer to the message
-    settles both."""
+@pytest.mark.parametrize("resolved", [False, True], ids=["open", "agent-resolved"])
+def test_a_pick_an_undo_brings_back_is_the_threads_newest_input(page_dir, resolved):
+    """The user changes their pick, sends a message, and takes the change back, which
+    brings the first pick back after the message, even once the agent has resolved
+    the thread. The thread's one answer goes to that pick, and a reply at the
+    message, written before the pick came back, is refused."""
     asked = offer_choice(page_dir)
     first = choose(page_dir, "file")
-    choose_again = choose(page_dir, "skip")
+    changed = choose(page_dir, "skip")
     message = say(page_dir, asked, "File it only after I approve the draft.")
+    [before] = owed(state_json(page_dir))
+    assert before["input"] == message["id"]
+    if resolved:
+        thread_model.cmd_resolve(page_dir, asked["id"])
+        assert owed(state_json(page_dir)) == []
     append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": choose_again["id"]}
+        page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
     )
     [answer] = owed(state_json(page_dir))
-    assert answer["input"] == message["id"]
-    late = thread_model.post_reply(
-        page_dir,
-        {"parent": asked["id"], "responds": first["id"]},
-        "Filing it.",
-        settlement=thread_model.ProviderFinal("earlier-turn"),
-    )
-    assert late is not None and "responds" not in late
-    [answer] = owed(state_json(page_dir))
-    assert answer["input"] == message["id"]
-    thread_model.post_reply(page_dir, answer["answer"], "Waiting for your approval.")
+    assert answer["input"] == first["id"]
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(page_dir, before["answer"], "Waiting for approval.")
+    assert refused.value.findings[0].code == "superseded-reply"
+    thread_model.post_reply(page_dir, answer["answer"], "Filing it once you approve.")
     assert owed(state_json(page_dir)) == []
 
 

@@ -808,8 +808,11 @@ def settle(thread: dict) -> Settled:
     thread's newest standing input (`thread.post_reply`), so it answers everything
     the thread held up to there. An input taken back before the answer, with its rewrites, is no part
     of what it settles, and one taken back after it leaves the settlement standing.
-    An action an undo brings back while it still waits keeps the place it was made,
-    and one brought back after it was settled waits again at the place it came back.
+    An action an undo brings back enters again at the place it came back, whether it
+    was still waiting or settled, so a write at the thread's newest input after it
+    answers it. A reference names an input by id, so a write still holding the
+    reference the action had before it changed and came back answers up to the
+    later place too.
     A failure receipt names its input as an answer does, so it settles here too;
     `is_answer` tells the two apart.
 
@@ -828,11 +831,12 @@ def settle(thread: dict) -> Settled:
             for identity in [gone, *rewrites.pop(gone, ())]:
                 waiting.pop(identity, None)
         elif turn["author"] != "agent":
-            if turn["id"] not in waiting:
-                waiting[turn["id"]] = turn
-                places[turn["id"]] = turn["seq"]
-                if turn["kind"] == "edit":
-                    rewrites.setdefault(turn["message"], []).append(turn["id"])
+            if turn["id"] in waiting:
+                waiting.move_to_end(turn["id"])
+            elif turn["kind"] == "edit":
+                rewrites.setdefault(turn["message"], []).append(turn["id"])
+            waiting[turn["id"]] = turn
+            places[turn["id"]] = turn["seq"]
         elif (responds := turn.get("responds")) in places:
             taken = []
             while waiting and places[next(iter(waiting))] <= places[responds]:

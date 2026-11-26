@@ -162,7 +162,7 @@ threadActions.open(thread.key, { part: "thread" });
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
-threadActions.setReaction(thread.key, agentMessage.key, token, true);
+threadActions.setReaction(thread.key, agentMessage.key, emoji, true);
 ```
 
 `open(key, {part, focus, travel, message})` takes the user to the Thread wherever a

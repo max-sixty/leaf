@@ -39,7 +39,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
     thread_model.cmd_resolve(page_dir, "question")
     for message in (
-        {"author": "user", "token": "keep"},
+        {"author": "user", "emoji": "👍"},
         {
             "author": "agent",
             "text": "Delivery failed",

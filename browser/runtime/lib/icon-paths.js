@@ -7,8 +7,8 @@
    wherever it is offered; an icon an action doesn't name marks what something is or
    holds, such as a kind or a state. */
 
-// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
-// are authored content and may supply emoji; structural Leaf faces keep their line
+// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reactions
+// are authored content, each its emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 
@@ -133,6 +133,9 @@ export const ACTIONS = {
   edit: { name: "Edit", icon: "edit" },
   expand: { name: "Expand", icon: "expand" },
   find: { name: "Find", icon: "search" },
+  // A thread's jumps over its messages (records/thread/thread-card.js, `#jumps`).
+  "first-message": { name: "Go to the first message", icon: "up" },
+  "latest-message": { name: "Go to the latest message", icon: "down" },
   "collapse-all": { name: "Collapse all", icon: "fold" },
   "expand-all": { name: "Expand all", icon: "unfold" },
   fit: { name: "Fit", icon: "fit" },

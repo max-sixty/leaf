@@ -1785,7 +1785,7 @@ def test_a_link_to_a_folded_message_opens_its_fold(browser, serve):
 @pytest.mark.parametrize(
     "named",
     [
-        {"author": "user", "token": "keep"},
+        {"author": "user", "emoji": "👍"},
         {"author": "agent", "agent": "Claude", "text": "Reading.", "ephemeral": True},
     ],
     ids=["reaction", "progress"],

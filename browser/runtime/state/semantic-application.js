@@ -232,7 +232,7 @@ function advance(entry, signal, admitted = null) {
  *       [name: string]: unknown;
  *     }
  *   > & {
- *     $reactions?: { tokens: Record<string, { glyph: string; settles?: boolean }> };
+ *     $reactions?: { emoji: Record<string, { settles?: boolean }> };
  *     $states: import("./registry-contract.js").StampedRegistry["$states"];
  *   };
  *   authored: AuthoredMap;
@@ -1568,7 +1568,7 @@ export function createSemanticApplication({ presentation } = {}) {
     enqueue(
       event,
       timestamp,
-      plainText = event.text ?? event.token ?? "",
+      plainText = event.text ?? event.emoji ?? "",
       launching = false,
     ) {
       if (entry(event.attempt)) return null;

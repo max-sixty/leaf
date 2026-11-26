@@ -37,6 +37,7 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
   scrollDirection: "data-lf-scroll-direction",
+  moreAbove: "data-lf-more-above",
   moreBelow: "data-lf-more-below",
   goto: "data-lf-go-to-active",
   // On the root while the user is in an editor a floating surface holds

@@ -24,7 +24,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/52",
+     "format": "leaf-delivery/58",
      "id": "62dd1d37",
      "created_at": 1792941346.000992,
      "acknowledge": null,
@@ -119,7 +119,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/58",
          "id": "62dd1d37",
          "created_at": 1792941346.000992,
          "acknowledge": null,
@@ -215,7 +215,7 @@ variants:
 
         Leaf''s app-server transport handed you this complete inline delivery:
 
-        {"format": "leaf-delivery/52", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
+        {"format": "leaf-delivery/58", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
         null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": "d5d241d2-f142-4de9-94b8-f2c442e0796c",
         "through_seq": 15, "threads": [{"id": "e6bd279e", "title": "Request for link previews", "anchor":
         {"section": "proto-timeline-ask"}, "detached_from": null, "rewritten_from": null, "resolved": null, "elided": {"messages":
@@ -272,7 +272,7 @@ variants:
 
         Leaf''s app-server transport handed you this complete inline delivery:
 
-        {"format": "leaf-delivery/52", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
+        {"format": "leaf-delivery/58", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
         null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": "d5d241d2-f142-4de9-94b8-f2c442e0796c",
         "through_seq": 30, "threads": [{"id": "47c79859", "title": "Progress table layout", "anchor":
         {"section": "progress-table"}, "detached_from": null, "rewritten_from": null, "resolved": null, "elided": {"messages":
@@ -323,7 +323,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/58",
          "id": "62dd1d37",
          "created_at": 1792941346.000992,
          "acknowledge": null,

@@ -653,11 +653,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(
         reactions.locator('[data-lf-margin-entry-owner="responses"]').first
     ).to_have_class(re.compile(r"lf-margin-entry"))
-    ok = reactions.get_by_role("button", name="keep", exact=True)
-    expect(ok).to_have_attribute("aria-label", "keep")
+    ok = reactions.get_by_role("button", name="👍", exact=True)
+    expect(ok).to_have_attribute("aria-label", "👍")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
-    ok.hover()
-    expect(page.locator(PREVIEW)).to_have_text("keep")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -747,10 +745,10 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
-    with sending(page, "the keep reaction"):
-        reactions.get_by_role("button", name=re.compile(r"^keep\b")).click()
+    with sending(page, "the 👍 reaction"):
+        reactions.get_by_role("button", name="👍", exact=True).click()
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
+    assert sent["emoji"] == "👍" and sent["anchor"] == {"section": "sug-refill"}
 
 
 def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(

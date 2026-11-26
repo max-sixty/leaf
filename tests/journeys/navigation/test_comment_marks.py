@@ -54,7 +54,7 @@ def test_marked_words_are_seen_and_told_apart(request, serve, engine):
                 _comment_on(PASSAGES[state], id=f"c-{n}", text="Why these words?")
                 for n, state in enumerate(("mark", "pointed at", "open thread"))
             ]
-            + [_comment_on(PASSAGES["reaction"], token="keep")],
+            + [_comment_on(PASSAGES["reaction"], emoji="👍")],
         ),
     )
     page.wait_for_function(
@@ -133,7 +133,7 @@ def test_hiding_annotations_gives_marked_words_their_own_colours_back(
             OWN_COLOURS_PAGE,
             events=[
                 _comment_on(PASSAGES["mark"], id="c-link", text="Why this link?"),
-                _comment_on(PASSAGES["reaction"], token="keep"),
+                _comment_on(PASSAGES["reaction"], emoji="👍"),
                 # Words in a text document are anchored on its one datum, as capture
                 # writes them.
                 {

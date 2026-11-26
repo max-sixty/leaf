@@ -320,7 +320,7 @@ def write_failure_receipt(
     responds: str,
     failure: str,
     *,
-    also: list[str] | None = None,
+    also: tuple[str, ...] | list[str] = (),
     only_if_unclaimed: bool = True,
 ) -> dict | None:
     """Write the one receipt that tells a user no answer to their move is coming.
@@ -347,9 +347,9 @@ def write_failure_receipt(
     by nobody at all.
 
     `also` is what that turn's delivery carried of the other inputs the move's answer
-    covered, which the failure hands back with the move; input the user sent since,
-    and input another delivery carried, stay owed. A boundary that gave up before any
-    delivery names none (`thread.fail_answer`).
+    covered, which the failure hands back with the move. A boundary that gave up
+    before any delivery hands back the move alone, so input a running turn holds
+    stays with it (`thread.fail_answer`).
     """
     accepted = fail_answer(
         page_dir,

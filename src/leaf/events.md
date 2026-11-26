@@ -291,7 +291,8 @@ An agent reply records the delivery event it answers as `responds`, including an
 answer whose update was settled during the turn; a proactive `leaf thread reply`
 carries none, and leaves an answer its thread owes owed. The other inputs its
 thread owed when its delivery was captured, the user's messages and their actions on
-widgets sent there alike, it lists as `also`. An answer settles exactly those inputs
+widgets sent there alike, it lists as `also`, where that delivery or an earlier one
+let the agent read them. An answer settles exactly those inputs
 and the one `responds` names (`events.settle`), so neither newer input nor a pick
 an undo brought back after a delivery that didn't carry it is settled by it. A
 `--done` answer to an update the agent's earlier answer already settled

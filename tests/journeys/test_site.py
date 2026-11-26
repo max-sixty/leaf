@@ -1617,9 +1617,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(show_resolved(page)).to_have_count(resolved)
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
-    row = page.locator(".lf-fp-thread").filter(
-        has_text="One reconnect in forty is worse"
-    )
+    row = page.locator('.lf-fp-thread[data-lf-key="7b3e0a41"]')
     expect(row).to_have_count(1)
     choose_threads_in_panel(page)
     row.click()

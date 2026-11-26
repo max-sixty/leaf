@@ -19,6 +19,7 @@ from pathlib import Path
 from leaf.base.files import list_revisions
 from leaf.base.findings import Finding
 from leaf.base.leases import page_locked
+from leaf.base.schema import DRAFTS_FILE
 from leaf.log.event_log import read_events
 from leaf.records.authored_checks.source import (
     check_source,
@@ -45,7 +46,6 @@ def other_version_drafts(page_dir: Path) -> list[Finding]:
     directory, which this Leaf reads none of (`state.Record.others`): the user's
     unsent words, which only the user can say are no longer wanted. The page's other
     records of other shapes are disposable, so `page check` names none of them."""
-    from leaf.base.schema import DRAFTS_FILE
     from leaf.serving.drafts import DRAFTS
 
     return [

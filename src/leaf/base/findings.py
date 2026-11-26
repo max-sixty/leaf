@@ -473,10 +473,9 @@ def _bearing(at: str, v: dict, value: str) -> str:
 
 
 def _seat(seat: dict) -> str:
-    return (
-        f"{seat['document']} <{seat['tag']}> input `{seat['input']}`"
-        f" (line {seat['line']})"
-    )
+    document = f"{seat['document']} " if "document" in seat else ""
+    element = element_at(seat["tag"], seat.get("widget", ""))
+    return f"{document}{element} input `{seat['input']}` (line {seat['line']})"
 
 
 def _unservable_layer(v: dict, why: str, action: str) -> str:
@@ -492,12 +491,9 @@ def _invalid_record(v: dict) -> str:
     return f"<{v['tag']}> {v['kind']} {v['verb']!r} is invalid: "
 
 
-def admitted_parts(prefixes: Sequence[str], every: bool) -> str:
-    """The part ids a visual admits as `anchor.visual`, in words: every part it
-    draws, or ids starting with one of `prefixes` (`registry.contract.VisualParts`).
-    """
-    if every:
-        return "the parts the visual draws"
+def admitted_parts(prefixes: Sequence[str]) -> str:
+    """The part ids a visual admits as `anchor.visual`, in words: ids starting with
+    one of `prefixes` (`registry.contract.VisualParts`)."""
     if prefixes:
         return f"ids starting with {' or '.join(map(repr, prefixes))}"
     return "no visual parts"
@@ -2173,7 +2169,7 @@ _TEXT = {
         _ADMITS,
         lambda at, v: (
             f"visual anchor {v['visual']!r} is not declared on section {v['section']!r};"
-            f" {admitted_parts(v['declared']['prefixes'], v['declared']['all'])}"
+            f" {admitted_parts(v['prefixes'])}"
         ),
     ),
     # A message, an edit, and a thread's presentation.

@@ -132,7 +132,7 @@ from leaf.agents.delivery import (
 )
 from leaf.base.codex_transcript import reverse_transcript_lines
 from leaf.base.harness import CodexHarness, Harness
-from leaf.base.json_block import json_block
+from leaf.base.json_block import json_block, json_value
 from leaf.base.refusals import Refused
 from leaf.base.service import delivery_reply_attempt
 from leaf.base.state import (
@@ -157,6 +157,7 @@ from leaf.records.transaction import (
 )
 
 if TYPE_CHECKING:
+    from leaf.agents.thread import MessageCheck
     from leaf.records.work_state import WorkState
 
 START_TIMEOUT = 20
@@ -383,8 +384,6 @@ def app_server_request(
         message = json.loads(socket.recv())
         if message.get("id") == request_id and "method" not in message:
             if error := message.get("error"):
-                from leaf.base.json_block import json_value
-
                 raise AppServerRequestRejected(
                     error.get("message") or json_value(error)
                 )
@@ -1072,9 +1071,9 @@ class AppServerReplyStream:
     and commit its final answer.
 
     The provider owns this lifecycle; `thread.post_response` owns admission of the
-    opening and the durable answer, both under the delivery's reply reservation.
-    Partial answer text survives interruption and disconnect without becoming thread
-    history.
+    opening and the durable answer, both under the delivery's reply reservation, and
+    runs `check` on the HTML of each (`thread.MessageCheck`). Partial answer text
+    survives interruption and disconnect without becoming thread history.
     """
 
     def __init__(
@@ -1083,11 +1082,13 @@ class AppServerReplyStream:
         turn_id: str,
         delivery_id: str,
         target: dict,
+        check: "MessageCheck | None" = None,
     ):
         self.session_id = session_id
         self.turn_id = turn_id
         self.target = dict(target)
         self.delivery_id = delivery_id
+        self.check = check
         self.attempt = delivery_reply_attempt(delivery_id)
         self.text = ""
         self.withheld = False
@@ -1139,6 +1140,7 @@ class AppServerReplyStream:
                 self.target["ref"],
                 " ".join(text.split()),
                 reservation=self.attempt,
+                check=self.check,
                 ephemeral=True,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
@@ -1270,6 +1272,7 @@ class AppServerReplyStream:
                 self.target["ref"],
                 text,
                 reservation=self.attempt,
+                check=self.check,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
             )
@@ -1347,7 +1350,8 @@ class TurnFold:
     and the activity reaches every page the task claims. When the delivery the turn
     carries owes a `turn` answer, the reply streams under that delivery's reply
     reservation, and the completion commits the answer or releases the reservation
-    before it closes the turn on the page.
+    before it closes the turn on the page. The reply's HTML runs the `check` the
+    client passes (`thread.MessageCheck`) before it posts.
 
     The fold observes the session lifecycle under the provider turn id, which
     Codex's hooks name too. Its producer passes the publication it admitted;
@@ -1381,12 +1385,14 @@ class TurnFold:
         reply_target: dict | None = None,
         *,
         lifecycle: dict | None,
+        check: "MessageCheck | None" = None,
     ):
         self.generation = lifecycle["generation"] if lifecycle is not None else None
         self.session_id = session_id
         self.turn_id = turn_id
         self.delivery_id = delivery_id
         self.reply_target = reply_target
+        self.check = check
         self.events = AppServerEvents(session_id, turn_id)
         self.reply_stream: AppServerReplyStream | None = None
         self.last_activity_update = 0.0
@@ -1412,6 +1418,7 @@ class TurnFold:
                 self.turn_id,
                 self.delivery_id,
                 self.reply_target,
+                self.check,
             )
             if self.events.joined:
                 self.reply_stream.withhold()
@@ -1594,9 +1601,15 @@ class CarriedTurn(TurnFold):
         buffered=(),
         *,
         lifecycle: dict | None,
+        check: "MessageCheck | None" = None,
     ):
         super().__init__(
-            session_id, turn_id, delivery_id, reply_target, lifecycle=lifecycle
+            session_id,
+            turn_id,
+            delivery_id,
+            reply_target,
+            lifecycle=lifecycle,
+            check=check,
         )
         self.socket = socket
         self.stream = TurnStream(socket, buffered, silence=self.silence)

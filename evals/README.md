@@ -246,7 +246,7 @@ keep these, leaving out one only where the campaign has nothing for it:
     </section>
     <section id="campaign-journey">
       <h2>Campaign journey</h2>
-      <lf-diagram id="campaign-flow" parts="all">
+      <lf-diagram id="campaign-flow">
         <pre>
 flowchart TD
   accTitle: Campaign study

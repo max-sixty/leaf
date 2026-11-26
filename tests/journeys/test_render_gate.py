@@ -457,33 +457,33 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
     The whole-page contracts (the gate, axe, print, export, reachability) are what
     would catch a renderer-specific failure, and the structural types also exercise
-    every kind of source id accepted by `parts`: a state diagram's generated markers
+    every kind of source id a box is named by: a state diagram's generated markers
     after a comment, authored state ids that resemble those markers, and a class in a
     namespace, whose identity comes from the parser rather than its rendered label.
     The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
     family it can draw is no failure, whether or not the guide names it.
     """
     extra = (
-        """<lf-diagram id="authored-life" parts="all"><pre>
+        """<lf-diagram id="authored-life"><pre>
 stateDiagram-v2
   [*] --&gt; _start2
   _start2 --&gt; _end2
   _end2 --&gt; [*]
 </pre></lf-diagram>
-<lf-diagram id="namespaced" parts="all"><pre>
+<lf-diagram id="namespaced"><pre>
 classDiagram
   namespace Jobs {
     class Job
   }
   Runner --&gt; Job
 </pre></lf-diagram>
-<lf-diagram id="quoted-name" parts="all"><pre>
+<lf-diagram id="quoted-name"><pre>
 erDiagram
   "Line Item" ||--o{ ORDER : in
 </pre></lf-diagram>
 """
         + "\n".join(
-            f'<lf-diagram id="namespace-{mode}" parts="all"><pre>\n'
+            f'<lf-diagram id="namespace-{mode}"><pre>\n'
             f"---\nconfig:\n  class:\n    hierarchicalNamespaces: {mode}\n---\n"
             "classDiagram\n  namespace Org.Unit {\n    class Job\n  }\n"
             "</pre></lf-diagram>"
@@ -513,8 +513,6 @@ erDiagram
     }
     assert drawn["namespaced"]["node:Jobs"] == "Jobs"
     assert drawn["quoted-name"]["node:Line%20Item"] == "Line Item"
-    # A diagram that admits no part lists none, as `thread create --part` takes none.
-    assert drawn["er-quoted-name"] == {}
     assert set(drawn["namespace-true"]) == {"node:Job", "node:Org", "node:Org.Unit"}
     assert set(drawn["namespace-false"]) == {"node:Job", "node:Org.Unit"}
 
@@ -1539,7 +1537,7 @@ def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
     page = PART_DIAGRAM_PAGE.replace(
         "</lf-diagram>",
         """</lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
+<lf-diagram id="model"><pre>
 classDiagram
   namespace Job {
     class Job
@@ -1708,8 +1706,7 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
         "lf-callout"
     ]
-    callout["attributes"]["properties"]["parts"] = {"type": "string", "minLength": 1}
-    callout["visual"] = {"parts": "parts"}
+    callout["visual"] = {"prefixes": ["box:"]}
     prefixed = prefixed_visual_layer("out", "inn")["lf-test-visual"]
     layer = {
         **GENERIC_VISUAL_LAYER,

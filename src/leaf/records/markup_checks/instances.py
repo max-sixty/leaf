@@ -16,6 +16,7 @@ from leaf.records.markup_checks.markup import (
     repair_errors,
     structure_errors,
 )
+from leaf.source.data_contracts import declared_data_bindings
 from leaf.source.obligation_sources import group_tags, widget_groups
 from leaf.source.passages import element_name
 from leaf.source.registry.contract import (
@@ -554,6 +555,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         widget_errors(lf_elements, registry)
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
+        + declared_data_bindings(lf_elements, registry)[1]
         + pane_advice(document, registry)
         + workspace_advice(document, registry)
         + unnamed_card_advice(document, registry)

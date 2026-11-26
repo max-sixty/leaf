@@ -67,6 +67,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from xml.etree import ElementTree
 
+from leaf.base.findings import Finding
 from leaf.base.json_block import json_block, read_json_block
 from leaf.base.refusals import Refused
 from leaf.base.service import may_receive
@@ -87,9 +88,11 @@ from leaf.log.event_log import jsonl_line
 from leaf.log.interaction_log import acting_on
 from leaf.records.transaction import (
     PageTransaction,
+    owned_pages,
     requires_agent_attention,
     unacknowledged,
 )
+from leaf.source.registry.kernel import kinds_declaring
 
 if TYPE_CHECKING:
     from leaf.records.work_state import WorkState
@@ -968,7 +971,6 @@ def earlier_pickup(payload: dict, session_id: str):
     agent's memory, so the turn acknowledging it again repeats no work and still
     answers what the earlier turn left owed."""
     from leaf.agents.presence import read_work
-    from leaf.base.findings import Finding
     from leaf.records.activity import answer_command
 
     record = session_record(session_id)
@@ -1225,14 +1227,18 @@ def wake_inputs(batch: list[dict], work: "WorkState") -> list[dict]:
     `deliverable` hands over again (`unreferenced`). An opened record without the
     completed `receipt` does not prove delivery. Other admitted attention (including
     reports, errors, reactions and widget actions) remains transport input,
-    independent of whether it carries a response obligation.
+    independent of whether it carries a response obligation. Only what admission
+    marked for the agent's attention wakes a hook (`requires_agent_attention`):
+    advice rides in the batch beside such input (`deliverable`) and wakes nobody,
+    even once that input has settled.
     """
     from leaf.records.workflows import agent_inputs
-    from leaf.source.registry.kernel import kinds_declaring
 
     agents = agent_inputs(work.durable)
     pending = []
     for event in batch:
+        if not requires_agent_attention(event):
+            continue
         if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
             continue
         pending.append(event)
@@ -1288,8 +1294,6 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
-    from leaf.records.transaction import owned_pages
-
     entered = {
         event["id"]
         for context in harness.entered_context(payload, INLINE_OPENING)

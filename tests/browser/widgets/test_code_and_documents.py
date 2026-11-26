@@ -1127,26 +1127,47 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
 
 def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serve):
     """Changing evidence beside a selected passage keeps its native selection, in a
-    plain document and in one whose tokens split the text into coloured spans."""
+    plain document, in one whose tokens split the text into coloured spans, and in a
+    Markdown preview's coloured code block or list."""
     tags = (
         '<lf-text-document id="plain-document" source="plain-text"></lf-text-document>'
         '<lf-text-document id="python-document" source="python-text" class="language-python">'
         "</lf-text-document>"
+        '<lf-text-document id="markdown-document" source="markdown-text" '
+        'label="NOTES.md" preview="markdown"></lf-text-document>'
+        '<lf-text-document id="markdown-list" source="markdown-list" '
+        'label="LIST.md" preview="markdown"></lf-text-document>'
     )
     source = LONG_LINE_DIFF_PAGE.replace(
         '<lf-diff id="patch" source="review-patch"></lf-diff>', tags
     )
     url = serve(source)
-    for name in ("plain-text", "python-text"):
-        page_data_model.cmd_data_set(
-            serve.page_dir, name, 'first = "old"\nsecond = "selected"\n'
-        )
+    for name in SELECTED_TEXTS:
+        page_data_model.cmd_data_set(serve.page_dir, name, SELECTED_TEXTS[name][0])
     page = open_page(browser, url)
     for document, name in (
         ("#plain-document", "plain-text"),
         ("#python-document", "python-text"),
+        ("#markdown-document .lf-text-document-preview", "markdown-text"),
+        ("#markdown-list .lf-text-document-preview", "markdown-list"),
     ):
         refresh_keeps_selection(page, serve, document, name)
+
+
+# Each source before and after a change beside its selected word.
+CODE_TEXTS = ('first = "old"\nsecond = "selected"\n', 'first = "new beginning"\n')
+SELECTED_TEXTS = {
+    "plain-text": CODE_TEXTS,
+    "python-text": CODE_TEXTS,
+    "markdown-text": (
+        'First, old.\n\n```python\nsecond = "selected"\n```\n',
+        "First, new beginning.\n",
+    ),
+    "markdown-list": (
+        '- First, old.\n- Second:\n\n  ```python\n  second = "selected"\n  ```\n',
+        "- First, new beginning.\n",
+    ),
+}
 
 
 def refresh_keeps_selection(page, serve, document, name):
@@ -1169,12 +1190,11 @@ def refresh_keeps_selection(page, serve, document, name):
     reading = "() => ({selection: getSelection().toString(), scroll: scrollY})"
     before = page.evaluate(reading)
     assert before["selection"] == "selected"
-    page_data_model.cmd_data_set(
-        serve.page_dir, name, 'first = "new beginning"\nsecond = "selected"\n'
-    )
+    old, changed = SELECTED_TEXTS[name]
+    page_data_model.cmd_data_set(serve.page_dir, name, changed + old.split("\n", 1)[1])
     told(page)
     rendered(page)
-    expect(code).to_contain_text('first = "new beginning"')
+    expect(page.locator(document)).to_contain_text(changed.strip("-\n "))
     assert page.evaluate(reading) == before, document
 
 

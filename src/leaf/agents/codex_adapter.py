@@ -120,6 +120,7 @@ from leaf.base.state import (
 from leaf.records.transaction import PageTransaction, owned_pages
 
 if TYPE_CHECKING:
+    from leaf.agents.thread import MessageCheck
     from leaf.records.work_state import WorkState
 
 QUEUE_TIMEOUT = 20
@@ -261,9 +262,13 @@ class TaskConnection:
     record, whose revision every hook offer compares against.
     """
 
-    def __init__(self, endpoint: str, thread_id: str):
+    def __init__(
+        self, endpoint: str, thread_id: str, check: "MessageCheck | None" = None
+    ):
         self.endpoint = endpoint
         self.thread_id = thread_id
+        # The check each turn's answer runs before it posts (`TurnFold`).
+        self.check = check
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
         self.lifecycle = session_record(thread_id)
@@ -722,7 +727,9 @@ class TaskConnection:
             self.turns.pop(turn_id)
             fold = None
         if fold is None and follow:
-            fold = TurnFold(self.thread_id, turn_id, lifecycle=self.lifecycle)
+            fold = TurnFold(
+                self.thread_id, turn_id, lifecycle=self.lifecycle, check=self.check
+            )
             if not fold.open():
                 return None
             self.turns[turn_id] = fold
@@ -734,7 +741,9 @@ class TaskConnection:
                 or (self.lifecycle is not None and self.lifecycle["turn"] == turn_id)
             )
         ):
-            fold = TurnFold(self.thread_id, turn_id, lifecycle=self.lifecycle)
+            fold = TurnFold(
+                self.thread_id, turn_id, lifecycle=self.lifecycle, check=self.check
+            )
         if fold is not None and delivery_id is not None and fold.delivery_id is None:
             accept_codex_delivery(self.thread_id, delivery_id, turn_id)
             fold.bind(

@@ -1960,7 +1960,6 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
             registry,
             page,
             set(),
-            [],
             {},
             None,
         )
@@ -1994,7 +1993,6 @@ def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
             registry,
             page,
             set(),
-            [],
             {},
             None,
         )
@@ -2059,7 +2057,6 @@ def test_a_message_names_only_its_own_document_and_the_page(page_dir):
             registry,
             structure_model.SourceDocument(PAGE),
             set(),
-            [],
             {},
             None,
         ),
@@ -4938,11 +4935,7 @@ def test_transition_attributes_do_not_require_earned_or_first_version_retraction
 
 def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_dir):
     source = page_dir / "index.html"
-    source.write_text(
-        FLOW_PAGE.replace(
-            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-        )
-    )
+    source.write_text(FLOW_PAGE)
     publish(page_dir)
     root = append_command(
         page_dir,
@@ -4954,7 +4947,13 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
             "text": "Explain this node.",
         },
     )
-    source.write_text(source.read_text().replace(' parts="all"', ""))
+    # The drawing becomes one with no parts to name, under the same id.
+    source.write_text(
+        FLOW_PAGE.replace(
+            '<lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>',
+            '<figure id="flow"><figcaption>A, then B</figcaption></figure>',
+        )
+    )
     assert stamp(page_dir, "revise drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] == {"section": "flow"}

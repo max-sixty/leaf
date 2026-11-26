@@ -284,12 +284,12 @@ update it in place, so the session's next hook runs the update. A path names no
 version there, so Leaf identifies a copy by its path and commit
 (`state.installed_copy`, `layer.payload_provenance`).
 
-Each hook records the root of the Leaf it runs (`leases.mark_skill`). At the
+Each hook records the root of the Leaf it runs (`leases.mark_root`). At the
 session's next hook, a page at an older protocol is renewed (`layer-registry.md`,
-"Page protocol"), and where the hook runs another Leaf than the session's previous
-hook, and that Leaf ships another skill, the agent is told to read it again
-(`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
-restarts a page's server under that one at the same address (`hosting.start_page`).
+"Page protocol"). The skill the agent read is the harness's to renew: Leaf tells
+the agent nothing when an update or a merge changes it (`commands/hooks.py`).
+`server start` from another Leaf restarts a page's server under that one at the
+same address (`hosting.start_page`).
 
 A command acts for the session its environment names only from a Leaf that runs
 that session: an installed copy, as the copy the session loaded is, or a checkout
@@ -361,9 +361,8 @@ Every file a session keeps in the state home's `sessions/` carries its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`). While a claim still names the session, its lifecycle and
 session lock stay, since the page shows that session's turn from the lifecycle, and
-so does the record of the Leaf its hooks last ran and the skill it ships
-(`leases.mark_skill`), which the first hook of a resumed session compares with its
-own. A
+so does the record of the Leaf its hooks last ran (`leases.mark_root`), which a
+resumed process's page servers and commands read before its first hook. A
 session holding no claim on a page that still stands (`state.held_claims`) loses every
 file no other process holds a lock on, so a lease still held, such as a watch's, stays
 with its holder. A session that never used Leaf ends without writing a file, and one

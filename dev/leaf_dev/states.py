@@ -507,7 +507,7 @@ def floating_thread(page: Page) -> None:
     back, Show on page, Resolve and Close."""
     choose_threads_in_panel(page)
     go_to_threads(page)
-    page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
+    page.locator('.lf-fp-thread[data-lf-key="7b3e0a41"]').click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
 
 
@@ -524,8 +524,6 @@ def thread_code_copy(page: Page) -> None:
     as_agent(
         "thread",
         "reply",
-        "--title",
-        "Reconnect rate",
         "7b3e0a41",
         "--text",
         "Run this command:\n\n```sh\necho hello\n```\n\nThen continue.",
@@ -540,8 +538,6 @@ def floating_thread_unread(page: Page) -> None:
     as_agent(
         "thread",
         "reply",
-        "--title",
-        "Reconnect rate",
         "7b3e0a41",
         "--text",
         "The resend recovers every one of them. "
@@ -881,8 +877,6 @@ def summarize_plan_stop() -> None:
     as_agent(
         "thread",
         "reply",
-        "--title",
-        "Stopping background children",
         root,
         "--text",
         "Export now checks the sandbox first.",
@@ -979,8 +973,6 @@ def long_reply(root: str) -> None:
     as_agent(
         "thread",
         "reply",
-        "--title",
-        "Resend coverage",
         root,
         "--text",
         "The resend recovers every one of them. "
@@ -1831,8 +1823,6 @@ def threads_returning(page: Page) -> None:
     as_agent(
         "thread",
         "reply",
-        "--title",
-        "Cold start resend",
         returning,
         "--text",
         "The resend covers a cold start too.",

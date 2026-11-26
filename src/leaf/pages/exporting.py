@@ -87,6 +87,12 @@ from leaf.serving.served_state.service import PageStateService
 from leaf.source.data import read_data
 from leaf.source.data_contracts import data_bindings
 from leaf.source.registry.kernel import verb_writers
+from leaf.source.render_checks import (
+    RENDER_VIEWPORT,
+    PageNotReady,
+    open_render_page,
+    wait_until_ready,
+)
 from leaf.source.revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -509,12 +515,6 @@ def static_document(package: str) -> str:
     Refused where the host has no browser, or the page cannot start, since there is
     then no drawing to keep."""
     from leaf.pages.render_gate.command import NoBrowser, run_in_browser
-    from leaf.source.render_checks import (
-        RENDER_VIEWPORT,
-        PageNotReady,
-        open_render_page,
-        wait_until_ready,
-    )
 
     def draw(browser) -> str:
         page = open_render_page(browser, viewport=RENDER_VIEWPORT)

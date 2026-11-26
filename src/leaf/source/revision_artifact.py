@@ -68,6 +68,7 @@ from leaf.base.schema import (
 from leaf.base.state import fsync_parents
 from leaf.source.capture_refusals import ArtifactError, artifact_error, capture_finding
 from leaf.source.layer import (
+    LayerVocabulary,
     layer_vocabulary,
     layer_widgets,
     selected_layer,
@@ -1140,13 +1141,21 @@ class _Revisions(Stamped):
 
 
 def revision_vocabulary(
-    manifest: dict, declarations: bytes | None, page_dir: Path
+    manifest: dict,
+    declarations: bytes | None,
+    page_dir: Path,
+    *,
+    layer: LayerVocabulary | None = None,
 ) -> dict:
     """The vocabulary this Leaf reads a revision of the page at `page_dir` in: the
     declarations it captured, `declarations`, over the layer its `manifest` selects,
     with the page widgets it captured. Every revision of the page selecting the same
-    layer and declaring the same shares one read-only reading (`_Revisions`)."""
-    return _revision_composition(manifest, declarations, page_dir)[0]
+    layer and declaring the same shares one read-only reading (`_Revisions`).
+
+    A caller that also reads the layer's files passes the vocabulary they were
+    composed with as `layer`, so both come from one installation
+    (`layer.selected_vocabulary`); without it, the selection is resolved here."""
+    return _revision_composition(manifest, declarations, page_dir, layer)[0]
 
 
 def revision_inputs(
@@ -1157,41 +1166,49 @@ def revision_inputs(
     `page.compose_page_registry` takes a composition already validated. The layer
     is the one that composition read, so a package installed since pairs with
     nothing it wasn't validated over."""
-    return _revision_composition(manifest, declarations, page_dir)[1]
+    return _revision_composition(manifest, declarations, page_dir, None)[1]
 
 
 def _revision_composition(
-    manifest: dict, declarations: bytes | None, page_dir: Path
+    manifest: dict,
+    declarations: bytes | None,
+    page_dir: Path,
+    layer: LayerVocabulary | None,
 ) -> tuple[dict, tuple[dict, dict]]:
     widgets = tuple(
         implementation["path"].lstrip("/")
         for implementation in manifest["implementations"].values()
         if implementation["owner"] == "page"
     )
-    layer = manifest["layer"]
+    record = manifest["layer"]
+    if layer is None:
+        layer = selected_vocabulary(record, page_dir)
+    # The composition is kept beside the one resolution it reads.
     held = memo(page_dir, _Revisions).of(
-        (json.dumps(layer, sort_keys=True), declarations, widgets),
-        (selected_vocabulary(layer, page_dir),),
+        (json.dumps(record, sort_keys=True), declarations, widgets), (layer,)
     )
     return once(
         held,
         "composition",
-        lambda: _compose_revision(layer, declarations, widgets, page_dir),
+        lambda: _compose_revision(record, layer, declarations, widgets),
     )
 
 
 def _compose_revision(
-    record: dict, declarations: bytes | None, widgets: tuple[str, ...], page_dir: Path
+    record: dict,
+    layer: LayerVocabulary,
+    declarations: bytes | None,
+    widgets: tuple[str, ...],
 ) -> tuple[dict, tuple[dict, dict]]:
     # The selected layer is validated where a Leaf composes its files
     # (`layer-registry.md`), so a revision declaring nothing over it is not
     # validated on a read.
-    vocabulary = layer_vocabulary(record, page_dir)
+    vocabulary = layer_vocabulary(record, layer)
     declared = json.loads(declarations) if declarations else {}
     composed = compose_page_registry(
         vocabulary,
         declared,
-        [*layer_widgets(record, page_dir), *widgets],
+        [*layer_widgets(layer), *widgets],
         validated=(vocabulary, {}),
     )
     return composed.registry, (vocabulary, declared)

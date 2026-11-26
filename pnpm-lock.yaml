@@ -27,9 +27,9 @@ patchedDependencies:
   '@types/sortablejs':
     hash: 8f399c7b8ef692d8358fbf89f41a16df2f1a7c284d442ab8e5e1130904082c60
     path: build/@types__sortablejs.patch
-  pele@1.9.0:
+  pele@1.13.0:
     hash: 1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d
-    path: build/pele@1.9.0.patch
+    path: build/pele@1.13.0.patch
 
 importers:
 
@@ -190,8 +190,8 @@ importers:
         specifier: 8.0.1
         version: 8.0.1
       pele:
-        specifier: 1.9.0
-        version: 1.9.0(patch_hash=1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d)
+        specifier: 1.13.0
+        version: 1.13.0(patch_hash=1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d)
       photoswipe:
         specifier: 5.4.4
         version: 5.4.4
@@ -4139,8 +4139,8 @@ packages:
     resolution: {integrity: sha512-DlOzet0HO7OEnmUmB6wWGJrrdvbyJKftI1bhMitK7O2N8W2gc757yyYBbINy9IDafXAV9wmKr9t7xsTaNKRG5Q==}
     engines: {node: '>=20.16.0 || >=22.3.0'}
 
-  pele@1.9.0:
-    resolution: {integrity: sha512-KUmBt7P5JduVKQaP6FKfXiRgH3LBVIKsmdgPJZU7jD3ye6F+Z8fbms+OjivE7rWY09Qx+5X65VKe/9ywKFJ9Sw==}
+  pele@1.13.0:
+    resolution: {integrity: sha512-Ie8UKY9x00MsuR3jO6AzUwzK2Z6MIV3Tf4EDdITiuk8Uaz8K7g0R082WqsqNaSU8DdgkrRvZThzhit83mi/uiw==}
     engines: {node: '>=20'}
 
   pem@1.14.8:
@@ -8986,7 +8986,7 @@ snapshots:
       '@napi-rs/canvas': 0.1.80
     optional: true
 
-  pele@1.9.0(patch_hash=1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d): {}
+  pele@1.13.0(patch_hash=1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d): {}
 
   pem@1.14.8:
     dependencies:

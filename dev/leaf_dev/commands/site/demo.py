@@ -31,10 +31,9 @@ from leaf.agents import inference, thread_titles
 from leaf.agents.delivery import freeze_delivery, receive_held
 from leaf.agents.thread import post_reply
 from leaf.base.harness import detached_environment, session_harness
-from leaf.base.leases import mark_skill
-from leaf.base.state import session_record
+from leaf.base.leases import mark_root
+from leaf.base.state import PLUGIN_ROOT, session_record
 from leaf.commands.hook_transport import read_plans
-from leaf.commands.hooks import skill_mark
 from leaf.commands.session import cmd_waiting
 from leaf.commands.tasks import cmd_start
 from leaf.log.interaction_log import read_interactions
@@ -498,7 +497,7 @@ def demo_session(scratch: Path):
     """Own the recorder's state and delivery loop, independently of its invoking agent.
 
     The recorder's session is one whose hooks run this checkout, as its first hook
-    would record (`leases.mark_skill`), so this Leaf acts for it."""
+    would record (`leases.mark_root`), so this Leaf acts for it."""
     previous = os.environ.copy()
     session = f"leaf-demo-{uuid4()}"
     recording_environment = detached_environment(None) | {
@@ -509,7 +508,7 @@ def demo_session(scratch: Path):
     }
     os.environ.clear()
     os.environ.update(recording_environment)
-    mark_skill(session, skill_mark())
+    mark_root(session, PLUGIN_ROOT)
     try:
         yield
     finally:

@@ -47,7 +47,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from leaf.base.schema import INTERACTIONS_FILE
-from leaf.base.state import now_iso
+from leaf.base.state import kernel_protocol, now_iso
 from leaf.source.registry.schema import aware_instant
 
 BATCH_SCHEMA = json.loads(
@@ -148,8 +148,6 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     an error. A watch that held a page it couldn't read shows its older protocol,
     and one killed outright leaves no record. Dropped where the page can't be
     written, as `record_command` is."""
-    from leaf.source.registry.kernel import kernel_protocol
-
     record = {
         "source": "cli",
         "type": "watch",

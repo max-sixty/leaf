@@ -837,7 +837,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     registry = admitting_registry(view, event)
     # The kernel's records are this Leaf's own, whichever Leaf initialized the page: no
     # layer can change them, and a page at this protocol reads what they add
-    # (`registry.kernel.kernel_protocol`).
+    # (`state.kernel_protocol`).
     contracts = kernel_event_kinds()
     if error := command_error(event, contracts):
         raise EventRefused(error, event)

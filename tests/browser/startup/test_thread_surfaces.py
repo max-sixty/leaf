@@ -24,6 +24,7 @@ from browser.threads import open_panel_thread
 from leaf.base.findings import Finding
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -446,7 +447,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
       const {claimed} = await __lfCheckApi();
       return claimed(document.querySelector('#review .lf-page-thread').dataset.lfThread);
     }""")
-    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(thread, name="Reply", exact=True)
     write(reply, "Can the archive keep that naming?")
     reply.press("Enter")
     expect(thread).to_contain_text("Can the archive keep that naming?")
@@ -596,8 +597,8 @@ customElements.define('lf-test-seat', class extends LeafElement {
     expect(page.locator("#review .lf-page-thread")).to_have_count(1)
     expect(page.locator("#review")).to_contain_text("Passage conversation")
     # An actual page-presented reply stands at its source, not its authored rail.
-    reply = page.locator("#review .lf-page-thread").get_by_role(
-        "textbox", name="Reply", exact=True
+    reply = text_field(
+        page.locator("#review .lf-page-thread"), name="Reply", exact=True
     )
     reply.click()
     assert (

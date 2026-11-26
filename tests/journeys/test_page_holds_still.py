@@ -54,7 +54,7 @@ from render_harness import (
 from leaf.commands import cli as cli_model
 from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import rendered
-from leaf_dev.browser import choose_threads_in_panel, go_to_threads, settle
+from leaf_dev.browser import choose_threads_in_panel, go_to_threads, settle, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -949,7 +949,7 @@ def put_card(thread, *, words=False, on=None, tabbed=False, left=False):
     def put(page, built):
         card = open_card(page, built, thread)
         if words:
-            card.get_by_role("textbox", name="Reply", exact=True).click()
+            text_field(card, name="Reply", exact=True).click()
             page.keyboard.type("Half a thought")
         if left:
             page.keyboard.press("Escape")

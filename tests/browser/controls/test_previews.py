@@ -39,6 +39,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -68,9 +69,7 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
     page = open_page(clocked(request.getfixturevalue(engine)), url)
     view = open_panel_thread(page, thread)
     resolve = page.locator(".lf-fp-thread-controls .lf-resolve")
-    reply = page.get_by_role(
-        "textbox", name="Reply to Could the mobile cohort wait a week?"
-    )
+    reply = text_field(page, name="Reply to Could the mobile cohort wait a week?")
     preview = page.locator(PREVIEW)
     expect(resolve).to_be_visible()
     # Off Leaf its word is the browser's tooltip; on Leaf it writes no title, so the

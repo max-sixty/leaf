@@ -70,6 +70,7 @@ from leaf.agents import delivery as delivery_model
 from leaf.log import event_log as events_model
 from leaf.records import transaction as transaction_model
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -364,7 +365,7 @@ def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
     page.keyboard.press("2")
     expect(page.locator("#two")).to_have_attribute("selected", "")
     round_trip(page)
-    field = group.get_by_role("textbox", name="Another option")
+    field = text_field(group, name="Another option")
     write(field, "1")
     expect(field).to_have_js_property("value", "1")
     expect(page.locator("#one")).not_to_have_attribute("selected", "")
@@ -385,7 +386,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
         ),
     )
     group = page.locator("#choices")
-    field = group.get_by_role("textbox", name="Another option")
+    field = text_field(group, name="Another option")
     added = group.locator(":scope > lf-option[data-lf-added]")
     page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
@@ -2971,7 +2972,7 @@ def test_an_added_option_renders_its_markdown_and_keeps_its_source(browser, serv
     the words as typed."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     group = page.locator("#jobs")
-    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
+    write(text_field(group, name="Another option"), "Keep **both** routes")
     group.get_by_role("button", name="Add and select option").click()
     added = group.locator(":scope > lf-option[data-lf-added]")
     expect(added.locator("strong")).to_have_text("both")

@@ -47,7 +47,7 @@ from leaf.agents import thread as thread_model
 from leaf.log import event_log as events_model
 from leaf.log import interaction_log as interaction_model
 from leaf.source.render_checks import one_frame, rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
@@ -1907,7 +1907,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         }""")
     else:
         workspace.get_by_role("button", name=mode, exact=True).click()
-    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(workspace, name="Reply", exact=True)
     editor.click()
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
@@ -2000,7 +2000,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     )
     workspace = page.locator("#workspace")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
-    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(workspace, name="Reply", exact=True)
     words = "Keep this unfinished answer across the revision."
     write(editor, words)
     editor.evaluate("node => node.setSelectionRange(2, 8, 'backward')")
@@ -2020,7 +2020,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     assert page.evaluate("performance.timeOrigin === originalDocument")
     assert page.evaluate("!originalWorkspace.isConnected")
     replacement = page.locator("#replacement")
-    reply = replacement.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(replacement, name="Reply", exact=True)
     expect(reply).to_have_js_property("value", words)
     assert reply.evaluate("node => [node.selectionStart, node.selectionEnd]") == before
     expect(
@@ -2038,7 +2038,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         email.click()
     expect(replacement.locator(".counts")).to_contain_text("Email")
     replacement.get_by_role("button", name="Keep it concise.", exact=True).click()
-    reply = replacement.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(replacement, name="Reply", exact=True)
     expect(reply).to_have_js_property("value", words)
     with sending(page, "send the thread draft carried across reader replacement"):
         reply.press("Control+Enter")

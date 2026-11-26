@@ -1707,8 +1707,13 @@ def prepare_reply_correction(
                         ):
                             return candidate
             original = read_delivery(delivery_id)
+            # A delivery can hold more than one batch from a page, as when Codex was
+            # busy across two watch passes, so the batch is the one holding the input.
             batch = next(
-                batch for batch in original["batches"] if batch["page"] == str(page_dir)
+                batch
+                for batch in original["batches"]
+                if batch["page"] == str(page_dir)
+                and any(event["id"] == target["responds"] for event in batch["events"])
             )
             captured = {
                 **batch,

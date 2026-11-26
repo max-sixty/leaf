@@ -609,11 +609,19 @@
             }
           },
           "text": "The widget is in a thread message: continue the work the user's answer selects or unblocks, and answer in that thread."
+        },
+        {
+          "when": { "required": ["held"] },
+          "text": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
         }
       ],
       "markup": [
         {
           "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+        },
+        {
+          "when": { "required": ["held"] },
+          "text": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
         }
       ]
     },

@@ -1,0 +1,307 @@
+# A to-do the agent holds with `--waiting-on` reads Waiting on <what> until the
+# agent starts it, and Leaf reads nothing from the words, so nothing but the agent's
+# memory brings the work back when the wait ends. Late in a long session that memory
+# is the earlier turns, which a compaction may have dropped. Each delivery from the
+# page lists such to-dos under `held`. Here the user presses Done on the choice the
+# held to-do waits on, in a delivery that carries no thread of the to-do's, so only
+# `held` names it; the control's input is a question elsewhere on the page, which
+# frees nothing. The envelopes are the real delivery's shape at the commit that adds
+# this case; a handling change is scored by regenerating them with each wording.
+description: held-todo-returns-with-its-input
+metadata:
+  purpose:
+    "Conversation loop: input that ends what a held to-do waits on brings the to-do
+    back, so the agent takes its work up without remembering it; input that ends
+    nothing leaves it held."
+  tags:
+    - wait-loop
+    - threads
+vars:
+  prompt: |-
+    You are a Claude Code session using Leaf, four hours into a page with the
+    user at /Users/max/.local/state/leaf/pages/thread-card: open designs for Leaf's thread
+    card. You loaded the Leaf skill and the references it routes to at the start of the session and have
+    answered a dozen of their comments since, so act on this without reloading them.
+
+    Leaf's prompt hook handed you this complete inline delivery:
+
+    ```json
+    {
+     "format": "leaf-delivery/59",
+     "id": "fbdbc9462e31f3af",
+     "created_at": 1795728309.725555,
+     "acknowledge": null,
+     "batches": [
+      {
+       "page": "/Users/max/.local/state/leaf/pages/thread-card",
+       "claim": null,
+       "through_seq": 5,
+       "threads": [],
+       "handling": {
+        "h1": "The user already sees the action applied.",
+        "h2": "Every later version keeps the action without an edit.",
+        "h3": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
+        "h4": "This action owes no answer of its own.",
+        "h5": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it.",
+        "h6": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
+       },
+       "events": [
+        {
+         "kind": "action",
+         "author": "user",
+         "revision": 1,
+         "widget": "who-pick",
+         "action": "choose",
+         "detail": {
+          "value": [
+           "band"
+          ]
+         },
+         "id": "71823605",
+         "meaning": {
+          "scope": "page",
+          "unit": "who-pick",
+          "depends": [
+           "band",
+           "who-pick"
+          ],
+          "state": {
+           "origin": "lf-options",
+           "unit": "widget",
+           "record": {
+            "kind": "attribute",
+            "attr": "selected"
+           },
+           "creates": null,
+           "decides": false,
+           "detail": {
+            "type": "object",
+            "properties": {
+             "value": {
+              "type": "array",
+              "items": {
+               "type": "string",
+               "minLength": 1
+              },
+              "uniqueItems": true
+             }
+            },
+            "required": [
+             "value"
+            ],
+            "additionalProperties": false
+           }
+          },
+          "answer": null
+         },
+         "attention": true,
+         "ts": "2026-11-26T13:25:09.723-08:00",
+         "seq": 4,
+         "subject": {
+          "kind": "widget",
+          "id": "who-pick"
+         },
+         "threads": [],
+         "says": {
+          "band": "Your grey band"
+         },
+         "names": {
+          "band": "Your grey band"
+         },
+         "handling": [
+          "h1",
+          "h2",
+          "h3",
+          "h4"
+         ]
+        },
+        {
+         "kind": "action",
+         "author": "user",
+         "revision": 1,
+         "widget": "who-pick",
+         "action": "answer",
+         "detail": {},
+         "id": "3577f1d4",
+         "meaning": {
+          "scope": "page",
+          "unit": "who-pick",
+          "depends": [
+           "who-pick"
+          ],
+          "state": {
+           "origin": "lf-options",
+           "unit": "widget",
+           "record": null,
+           "creates": null,
+           "decides": false,
+           "detail": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+           }
+          }
+         },
+         "attention": true,
+         "ts": "2026-11-26T13:25:09.724-08:00",
+         "seq": 5,
+         "subject": {
+          "kind": "widget",
+          "id": "who-pick"
+         },
+         "threads": [],
+         "says": {
+          "who-pick": "Your grey band A green wash on yours"
+         },
+         "names": {
+          "who-pick": "Your grey band A green wash on yours"
+         },
+         "handling": [
+          "h1",
+          "h3",
+          "h5",
+          "h6"
+         ],
+         "answer": {
+          "kind": "markup",
+          "action": "3577f1d4",
+          "ref": "fbdbc9462e31f3af:0:3577f1d4"
+         }
+        }
+       ],
+       "held": [
+        {
+         "id": "32ea2e94",
+         "text": "Take up the card's top line",
+         "waiting_on": "Whose words"
+        }
+       ]
+      }
+     ]
+    }
+    ```
+
+    The page and services are unreachable in this exercise. Write out, in order, each
+    command you would run on the page in this turn, with the text of any reply, then end
+    your answer.
+assert:
+  - type: llm-rubric
+    metric: takes-it-up
+    value: |
+      The user's Done on `who-pick` answers the "Whose words" choice, and the agent's
+      to-do 32ea2e94, "Take up the card's top line", waits on "Whose words". Pass
+      only if this turn starts that to-do (`leaf task start <page> 32ea2e94`, with
+      any line) as it takes up the top-line work. Fail if the answer leaves the top line
+      held or never mentions it, or if it ends that to-do with a `leaf task end` that
+      names no outcome (`done`, `failed` or `dropped`). How it records the pick in the
+      markup, and whether it also starts the pick's own event, don't matter.
+variants:
+  unrelated-input:
+    metadata:
+      purpose: A question elsewhere on the page frees nothing, so the held to-do stays held.
+    vars:
+      prompt: |-
+        You are a Claude Code session using Leaf, four hours into a page with the
+        user at /Users/max/.local/state/leaf/pages/thread-card: open designs for Leaf's thread
+        card. You loaded the Leaf skill and the references it routes to at the start of the session and have
+        answered a dozen of their comments since, so act on this without reloading them.
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "8aadb8b5d073ad9c",
+         "created_at": 1795728309.7274828,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/thread-card",
+           "claim": null,
+           "through_seq": 6,
+           "threads": [
+            {
+             "id": "5f8422bd",
+             "title": null,
+             "anchor": {
+              "section": "intro",
+              "quote": "open designs"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply.",
+            "h4": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
+           },
+           "events": [
+            {
+             "attention": true,
+             "kind": "comment",
+             "author": "user",
+             "revision": 1,
+             "text": "can you say what 'open designs' means here?",
+             "anchor": {
+              "section": "intro",
+              "quote": "open designs"
+             },
+             "id": "5f8422bd",
+             "ts": "2026-11-26T13:25:09.726-08:00",
+             "seq": 6,
+             "subject": {
+              "kind": "thread",
+              "id": "5f8422bd"
+             },
+             "threads": [
+              "5f8422bd"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3",
+              "h4"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "5f8422bd",
+              "responds": "5f8422bd",
+              "ref": "8aadb8b5d073ad9c:0:5f8422bd",
+              "writer": "agent"
+             }
+            }
+           ],
+           "held": [
+            {
+             "id": "32ea2e94",
+             "text": "Take up the card's top line",
+             "waiting_on": "Whose words"
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page and services are unreachable in this exercise. Write out, in order, each
+        command you would run on the page in this turn, with the text of any reply, then end
+        your answer.
+    assert:
+      - type: llm-rubric
+        metric: leaves-it-held
+        value: |
+          The user's comment asks what "open designs" means in the page's intro.
+          Pass only if the agent answers that comment and leaves its to-do
+          32ea2e94, "Take up the card's top line", held: it neither starts nor
+          ends that to-do nor begins the top-line work, since the "Whose words" choice
+          it waits on is still unanswered. Mentioning the held to-do is fine.

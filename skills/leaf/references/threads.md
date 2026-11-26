@@ -202,7 +202,9 @@ Every answer declares whose move it leaves:
 
   Where the work can't start until something you don't control happens, such as the
   user's pick elsewhere on the page or another change landing, add
-  `--waiting-on "<what>"`, naming it in a few words as the user knows it.
+  `--waiting-on "<what>"`, naming it in a few words as the user knows it. Each
+  delivery from the page lists the to-do under `held`, so you meet it again when
+  input that may end its wait arrives ([event batches](event-batches.md)).
 
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
   nothing to decide.

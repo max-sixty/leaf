@@ -57,6 +57,7 @@ from leaf.base.refusals import Refused
 from leaf.commands import cli as cli_model
 from leaf.commands import hook_transport as hook_transport_model
 from leaf.commands import hooks as hooks_model
+from leaf.commands import tasks as tasks_model
 from leaf.commands.session import set_status
 from leaf.log import event_log as events_model
 from leaf.log import interaction_log as interaction_log_model
@@ -4582,3 +4583,50 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
     assert [(event["responds"], event["text"]) for event in replies] == [
         (comment["id"], "Corrected the source.")
     ]
+
+
+def test_a_correction_answers_the_batch_that_held_its_input(page_dir):
+    """A delivery Codex took while busy across two watch passes holds two batches from
+    one page. A correction of the reply to the second batch's input carries that input
+    again, with the page's held to-dos, not the first batch's events."""
+    publish(page_dir)
+    session = "codex-thread"
+    harness = harness_model.EmbeddedHarness(session, "Codex", os.getpid())
+    with transaction_model.PageTransaction(page_dir) as page:
+        page.take_claim(harness)
+    error = append_carried_log_record(
+        page_dir, {"kind": "error", "author": "user", "text": "A widget failed"}
+    )
+    with transaction_model.PageTransaction(page_dir) as page:
+        assert codex_adapter_model.capture_batch(session, page, [error])
+    tasks_model.cmd_create(page_dir, "page", "Update the design", "Design approval")
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Design approved"}
+    )
+    with transaction_model.PageTransaction(page_dir) as page:
+        assert codex_adapter_model.capture_batch(session, page, [comment])
+    payload = codex_model.prepare_codex_delivery(page_dir, harness).payload
+    first, second = payload["batches"]
+    assert first["page"] == second["page"] == str(page_dir)
+    target = delivery_model.stream_reply_target(payload)
+    assert target is not None and target["responds"] == comment["id"]
+    lifecycle = cleanup_model.start_session_turn(
+        session, "delivery-turn", cleanup_model.session_record(session)
+    )
+    assert lifecycle is not None
+    codex_model.accept_codex_delivery(session, payload["id"], "delivery-turn")
+
+    correction = codex_model.prepare_reply_correction(
+        session,
+        "delivery-turn",
+        payload["id"],
+        target,
+        Refused("The final reply was rejected"),
+        generation=lifecycle["generation"],
+    )
+
+    assert correction is not None
+    assert delivery_model.stream_reply_target(correction) == target
+    [corrected] = correction["batches"]
+    assert [event["id"] for event in corrected["events"]] == [comment["id"]]
+    assert corrected["held"] == second["held"]

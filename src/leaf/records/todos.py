@@ -38,7 +38,9 @@ says the agent has taken the work up, so a later lapse reads stalled rather than
 waiting again, or until the to-do ends. Leaf reads nothing from the words: it shows them, and never decides
 the wait is over. They are words rather than the id of a record on the page, since
 what work waits on is as often off the page, such as a review or another session's
-change.
+change. So that the agent needn't remember a held to-do across a long session, each
+delivery from the page lists it (`delivery.batch_data`, `held`), and the agent
+judges at each input whether that input ends the wait.
 
 A `todo_end` names only a to-do. A question the agent asked in a thread, which the
 user answered elsewhere or which no longer applies, ends when the agent resolves the

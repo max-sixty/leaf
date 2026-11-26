@@ -34,9 +34,10 @@
 #    `$events.handling.comment` in the page's copy of registry.json, then those
 #    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
 #    and may have a `when`, a JSON Schema that must hold for the clause to apply.
-#    It is tested against the log line together with its `answer` and its
-#    `thread`'s entry in the delivery's `threads` (step 4). There are
-#    11; here they all are, with whether the comment satisfies each `when`:
+#    It is tested against the log line together with its `answer`, its
+#    `thread`'s entry in the delivery's `threads` (step 4) and its batch's `held`
+#    to-dos, of which this page has none. There are
+#    12; here they all are, with whether the comment satisfies each `when`:
 #
 #      clause 1, does not apply:
 #        when: {"required": ["viewing"]}
@@ -153,6 +154,15 @@
 #        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}
 #        text: The widget is in a thread message: continue the work the user's answer
 #              selects or unblocks, and answer in that thread.
+#      clause 12, does not apply:
+#        when: {"required": ["held"]}
+#        text: Your to-dos in the batch's `held` wait on what each one's `waiting_on`
+#              names. Where this input is what one waits on, or ends it, it frees that
+#              to-do: take its work up now, starting the to-do as well as this input
+#              with `leaf task start <page> <id> --text "<the work, in a line>"`,
+#              which ends its wait, and once the work is done end it with `leaf task
+#              end <page> <id> done --text "<where the result is>"`. Leave held a
+#              to-do this input doesn't free.
 #
 # 4. The wait prints the delivery as JSON. The delivery's event is the log line
 #    from step 2 less `attempt`, the browser's retry key, and with these fields added:
@@ -165,7 +175,7 @@
 #    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
-#        "format": "leaf-delivery/58",
+#        "format": "leaf-delivery/59",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf delivery ack e8417b8a && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
@@ -564,6 +574,65 @@ comment with a pasted image:
         such as a rule, a file or a message, quote the whole passage it turns on,
         conditions included, so the user can check your answer against it there;
         put a passage longer than a few lines in a `<details>` in your reply.
+
+comment on a page with a held to-do:
+  event:
+    kind: comment
+    thread:
+      title: null
+    held:
+      - id: t1
+        text: Redo the top line
+        waiting_on: Q1
+    answer:
+      kind: reply
+      writer: agent
+  told:
+    - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
+      text: >-
+        The thread has no title yet. Name its subject with `--title "<a few words>"`
+        on your reply.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        If the event asks for work, first post one line in its thread saying what
+        you will do, before any other command, even a read: `leaf thread reply <answer.ref>
+        --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
+        the result on the page with what shows it (captures, a figure, the numbers),
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
+        what changed and where it shows, in a sentence or two. If the event asks
+        for no work, answer it with that reply at once. The reply checks your saved
+        page edit and makes it live before posting. The declaration says whose move
+        your answer leaves, which delivering what was asked doesn't settle. `--obligation`
+        when it is the user's: it leaves them a decision, or something to try or
+        review before making one, or asks them for an answer or permission. That
+        puts your answer on their On Me list until they reply or resolve the thread,
+        even where the decision itself is already there. Where your answer asks
+        a question of its own whose answers you can list, such as which of two ways
+        to proceed or whether to take an action, put them in your reply in place
+        of `--obligation`, in a widget that asks, such as `<lf-options id="…">`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
+        "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
+    - text: >-
+        Your reply renders as Markdown in a narrow card or panel. The thread already
+        reaches the passage or section it is on, as a card beside it or by Show
+        on page, so say in words what changed there, and link a page section elsewhere
+        as `[its name](#section-id)`. Give each point its own short paragraph or
+        list item, and fence code or markup. Where your answer rests on a source,
+        such as a rule, a file or a message, quote the whole passage it turns on,
+        conditions included, so the user can check your answer against it there;
+        put a passage longer than a few lines in a `<details>` in your reply.
+    - when: {"required": ["held"]}
+      text: >-
+        Your to-dos in the batch's `held` wait on what each one's `waiting_on` names.
+        Where this input is what one waits on, or ends it, it frees that to-do:
+        take its work up now, starting the to-do as well as this input with `leaf
+        task start <page> <id> --text "<the work, in a line>"`, which ends its wait,
+        and once the work is done end it with `leaf task end <page> <id> done --text
+        "<where the result is>"`. Leave held a to-do this input doesn't free.
 
 comment a newer message answers through:
   event:
@@ -1334,6 +1403,43 @@ option the user added:
     - when: {"not": {"required": ["answer"]}}
       text: >-
         This action owes no answer of its own.
+
+pick on a page with a held to-do:
+  event:
+    kind: action
+    meaning:
+      scope: page
+    held:
+      - id: t1
+        text: Redo the top line
+        waiting_on: Q1
+    answer:
+      kind: markup
+  told:
+    - text: >-
+        The user already sees the action applied.
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
+      text: >-
+        If you need clarification, ask in a thread on the picked option. To override
+        the pick in a later version, mark the element `restated` and say why in
+        the version note.
+    - text: >-
+        It answers the page's obligation, which waits on you until the markup records
+        the answer. Before starting the work it selects or unblocks, name it with
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it and write the answer into the markup. Once the work is done, make
+        the question a record of the decision (`references/authoring-revisions.md`,
+        "Keep the current page current"), such as an `lf-options` marked `settled`
+        with what came of it beside it, and stamp a version. An option the user
+        added needs no writing in; the page keeps it where the user put it.
+    - when: {"required": ["held"]}
+      text: >-
+        Your to-dos in the batch's `held` wait on what each one's `waiting_on` names.
+        Where this input is what one waits on, or ends it, it frees that to-do:
+        take its work up now, starting the to-do as well as this input with `leaf
+        task start <page> <id> --text "<the work, in a line>"`, which ends its wait,
+        and once the work is done end it with `leaf task end <page> <id> done --text
+        "<where the result is>"`. Leave held a to-do this input doesn't free.
 
 pick before Done:
   event:

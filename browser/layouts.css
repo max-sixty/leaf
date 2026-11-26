@@ -49,7 +49,12 @@
      * the start. A block left shorter than a line, as a one-line summary in a smaller
      * face can be, moves by the difference. The room is the body's, below everything
      * the Layout draws, so a Layout nested in the page keeps its own end. A workspace
-     * fills the window, and a block sample's frame takes its body's height (base.css). */
+     * fills the window, and a block sample's frame takes its body's height (base.css).
+     * The room leaves out the headers a package marks over the page
+     * (`--lf-root-headers`, dom/root-headers.js), so a page with one can lift its last
+     * line under it: their heights reach the root from a ResizeObserver, and a room
+     * that read them would resize the body inside that observer's pass, which the
+     * browser reports as a ResizeObserver loop error. */
     html[data-lf-interactive]:is(
         [data-lf-layout~="column"],
         [data-lf-layout~="sidebar"]
@@ -57,7 +62,7 @@
       body {
       padding-bottom: max(
         0px,
-        100dvh - var(--lf-top-covered) - var(--lf-landing-room) - 1lh -
+        100dvh - var(--lf-head-room) - var(--lf-landing-room) - 1lh -
           var(--lf-page-pad-end)
       );
     }

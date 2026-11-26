@@ -64,6 +64,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     watched,
+    without_end_room,
     write,
 )
 from render_harness import leaf_page as titled_page
@@ -2661,6 +2662,8 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
         '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
     )
     page = floating(browser, serve(LONG_PAGE.replace("</main>", foot, 1), comments=12))
+    # The page ends at its last stop, with no room kept below it.
+    without_end_room(page)
     page.evaluate(
         "() => scrollTo({top: document.scrollingElement.scrollHeight,"
         " behavior: 'instant'})"
@@ -2678,10 +2681,11 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#foot")).to_be_focused()
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    # The box shrinks only once the leaving view's fade ends (panel/floating-panel.js),
+    # so wait for the panel to stand closed rather than for the motions playing now.
+    panel_settled(page, open=False)
     seen = page.evaluate(
         """async () => {
-          await Promise.all(document.getAnimations().map((motion) => motion.finished
-            .catch(() => {})));
           const {seenRect} = await window.__lfCheckApi();
           return Boolean(seenRect(document.querySelector('#foot'), new Map()));
         }"""

@@ -745,6 +745,9 @@ export function createAnnotationInventory({
         text: labelWords(`${face.word.text} · ${account}`),
         // The same name as its rows show it, the receipt's word in its speaker's face.
         words: [face.word, ` · ${labelWords(account)}`],
+        // What the receipt is about, which its marker names after the receipt's word
+        // (margin-projection.js, `markerName`).
+        subject: labelWords(account),
         workflowFace: Object.freeze({
           ...KINDS[face.kind],
           label: face.word.text,
@@ -870,6 +873,7 @@ export function createAnnotationInventory({
         // A start running on it is the agent at work there (margin-bars.js).
         atWork: todo.state === "running",
         text: labelWords(account),
+        subject: labelWords(account),
         words: [
           ...(todo.agent ? [`${todo.agent} · `] : []),
           agentSays(labelWords(line?.text ?? title)),

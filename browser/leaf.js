@@ -534,7 +534,10 @@ async function boot() {
     announce,
   });
   createChangeWalk();
-  const commandHints = createCommandHints({ presentedControl });
+  const commandHints = createCommandHints({
+    presentedControl,
+    coveredEntry: () => responseSurface.coveredEntry(),
+  });
 
   const currentTarget = createCurrentTarget({
     currentLocationIn: items.currentLocationIn,

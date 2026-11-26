@@ -373,13 +373,15 @@ defines; list it in `required` when the widget can't work without the input. A w
 with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text is:
 where the markup binds the input whose `property` is `value` to nothing, Leaf sets
 `value` to the `<pre>`'s text, a string, so the widget reads one property either way, as
-`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
-`page check` refuses a `<pre>` on an element binding it, and requires one on an element
-binding no input. Another input may supply the widget's data in the `<pre>`'s place, as
-`lf-diff`'s two compared texts do, or go beside the `<pre>`, as `lf-code`'s `playhead`
-does, so `page check` takes an element binding one with or without its `<pre>`; say
-which in the widget's `instructions`. Leaf leaves the property of any other unbound
-input to the widget. Tell page authors how to bind it in `instructions`, and
+`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string.
+`page check` refuses a `<pre>` on an element that binds it, and requires one on an
+element that binds no input. An element that binds only the widget's other inputs may
+hold a `<pre>` or not, since those inputs may supply the data in its place, as
+`lf-diff`'s two compared texts do; say which in the widget's `instructions`, and report
+a `<pre>` the widget won't read as an `error` (`module-plain-elements.md`, "`error`"). A
+widget without a `value` input reads its `<pre>` whatever it binds, as `lf-code` does
+beside its `playhead`. Leaf leaves the property of any other unbound input to the
+widget. Tell page authors how to bind it in `instructions`, and
 whoever produces the data in the contract's `instructions` (`packages.md`, "Package
 contract").
 

@@ -1620,11 +1620,12 @@ def test_check_rejects_widget_violations(page_dir):
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
     """A data widget's text is its <pre> or its bound `value` input, never both, so
     text written under a binding, which the widget would never show, is refused, and a
-    widget binding nothing needs its <pre>. Another input may stand in the <pre>'s
-    place, as a diff's two compared texts do, or beside it, as a code block's playhead
-    does, so binding one leaves the <pre> to the widget. Written text names its origin
-    with a label, as a bound document names its file, and a diff binds both texts it
-    compares and no patch beside them."""
+    widget binding nothing needs its <pre>. A widget with a `value` input that binds
+    only others may hold its <pre> or not, since those may stand in its place, as a
+    diff's two compared texts do; one without a `value` input always reads its <pre>,
+    as a code block does beside its playhead. Written text names its origin with a
+    label, as a bound document names its file, and a diff binds both texts it compares
+    and no patch source beside them."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1637,6 +1638,7 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
             "</lf-text-document>"
             '<lf-code id="bare-code"></lf-code>'
             '<lf-code id="following" for="written"><pre>x = 1</pre></lf-code>'
+            '<lf-code id="following-bare" for="written"></lf-code>'
             '<lf-diff id="compared" before="committed" after="current"></lf-diff>'
             '<lf-diff id="half" before="committed"></lf-diff>'
             '<lf-diff id="unpaired" after="current"></lf-diff>'
@@ -1647,6 +1649,7 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
     _, findings = check_findings(page_dir)
     assert [(f.at, f.values["bound"]) for f in found(findings, "data-body")] == [
         ("<lf-text-document>", True),
+        ("<lf-code>", False),
         ("<lf-code>", False),
     ]
     assert [

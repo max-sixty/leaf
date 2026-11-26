@@ -914,7 +914,8 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
     each save, as `git diff` would: Git's three lines of context and only the rows that
     patch holds, so the one unchanged line on either side of the change stays out of the
     drawing, with no control to bring it in. Two equal texts say there are no changes,
-    and two plain strings, which name no file, compare as the unnamed file."""
+    and two plain strings, which name no file, compare as the unnamed file. A patch
+    written beside the two texts is reported, since the diff never reads it."""
     text = "".join(f"Line {number}\n" for number in range(1, 10))
     file = tmp_path / "notes.md"
     file.write_text(text)
@@ -924,7 +925,8 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
             '<h1>Changes</h1><lf-file-editor id="notes-file" binding="notes">'
             '</lf-file-editor><lf-diff id="changes" before="committed" for="notes-file">'
             '</lf-diff><lf-diff id="plain" before="plain-before" after="plain-after">'
-            "</lf-diff>",
+            '</lf-diff><lf-diff id="written" before="plain-before" after="plain-after">'
+            "<pre>unread</pre></lf-diff>",
         )
     )
     bind_file(serve.page_dir, "notes", file)
@@ -941,6 +943,7 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
     page_data_model.cmd_data_set(serve.page_dir, "plain-after", "two\n")
     expect(plain.locator(".lf-diff-head")).to_contain_text("(unnamed file)")
     expect(plain.locator(".lf-diff-line")).to_have_count(2)
+    consume_browser_errors(page, "a diff comparing two texts holds no patch <pre>")
 
     page.locator("lf-file-editor .cm-line", has_text="Line 5").click()
     page.keyboard.press("End")

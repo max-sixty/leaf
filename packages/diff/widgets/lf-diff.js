@@ -47,7 +47,7 @@ import {
 } from "/runtime/portable-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
-import { failSoft } from "/runtime/lib/failure.js";
+import { failSoft, reportFailure } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
@@ -1184,6 +1184,13 @@ customElements.define(
       );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
+      // A diff comparing two texts draws no patch, and `page check` can't tell its
+      // `<pre>` from one an input beside it leaves in place, so the diff says so.
+      if (this.hasAttribute("before") && this.querySelector(":scope > pre"))
+        reportFailure(
+          this,
+          new Error("a diff comparing two texts holds no patch <pre>"),
+        );
       whileConnected(this, () => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
@@ -1504,9 +1511,10 @@ customElements.define(
     // Marks each drawn file row, and each line of a loaded file, as data drawn from
     // `source`, and reports it. A manifest names the field each datum came from; a
     // patch text's datums take the whole delivery's origin, and an inline patch has no
-    // delivery. The rows of two compared texts are the widget's own composition of both,
-    // a deleted row's words the earlier text's and the rest the current one's, so no one
-    // bound value supplied them, and they take no origin.
+    // delivery. Two compared texts report the `afterText` they drew, since a widget's
+    // marks carry one input's origin: the current text is the one each save moves, so a
+    // comment on a row records the save it saw. A deleted row's words are the earlier
+    // text's, which that origin leaves unnamed.
     /** @param {DiffSource | null | undefined} source */
     markFiles(source) {
       const compared =
@@ -1528,7 +1536,9 @@ customElements.define(
       for (const node of this.#marked) if (!marked.has(node)) unmark(node);
       this.#marked = marked;
       this.dispatchEvent(
-        new CustomEvent("drawn", { detail: { value: compared ? null : source } }),
+        new CustomEvent("drawn", {
+          detail: compared ? { afterText: source.after } : { value: source },
+        }),
       );
     }
 

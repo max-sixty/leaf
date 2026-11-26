@@ -125,8 +125,9 @@ export function inlineMarkdownFragment(text, links, message = true) {
   return parsed.content;
 }
 
-// Keep the exact source on its reading surface, as `data-lf-source-words`, which
-// `markdownSourceOffset` reads. Passage capture reads the rendered children; revision
+// Keep the exact source on its reading surface, as `data-lf-source-words`, so a click
+// on the rendering finds its place in the source (`markdownSourceOffset`). Passage
+// capture reads the rendered children; revision
 // comparison reads source, so formatting never becomes state. An element stamped with
 // this source already holds its rendering and is left as it is; a paint before the
 // parser loads leaves the element unstamped, so the next paint renders. The body reads
@@ -235,6 +236,11 @@ export function placedMarkdownTokens(source, message = true) {
   starts.push(source.length);
   /** @type {PlacedToken[]} */
   const found = [];
+  // The blockquotes and list items open around the token, outermost first. Only their
+  // markers can stand on an inline's first line, so an inline reads these rather than
+  // every block placed before it.
+  /** @type {(PlacedToken | null)[]} */
+  const open = [];
   let inlineAt = 0;
   /** @type {NativeToken | undefined} */
   let previous;
@@ -249,26 +255,32 @@ export function placedMarkdownTokens(source, message = true) {
     const from = map ? parserItem(starts, map[0]) : 0;
     const to = map ? parserItem(starts, map[1]) : source.length;
     if (!isPositionedInline(token)) {
-      if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
-        /** @type {PlacedToken} */
-        const placed = {
-          token,
-          from,
-          to,
-          markers: token.lfSource?.markers?.map(([line, a, b]) => [
-            parserItem(starts, line) + a,
-            parserItem(starts, line) + b,
-          ]),
-          words: token.nesting ? null : token.content,
-        };
-        found.push(placed);
-      }
+      /** @type {PlacedToken | null} */
+      const placed =
+        token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))
+          ? {
+              token,
+              from,
+              to,
+              markers: token.lfSource?.markers?.map(([line, a, b]) => [
+                parserItem(starts, line) + a,
+                parserItem(starts, line) + b,
+              ]),
+              words: token.nesting ? null : token.content,
+            }
+          : null;
+      if (placed) found.push(placed);
+      if (token.type === "blockquote_open" || token.type === "list_item_open")
+        open.push(placed);
+      else if (token.type === "blockquote_close" || token.type === "list_item_close")
+        open.pop();
       continue;
     }
     // Container prefixes precede the inline words; a list marker is not emphasis.
     let wordsAt = Math.max(from, inlineAt);
-    for (const block of found)
+    for (const block of open)
       if (
+        block &&
         map &&
         (isBlockPlacement(block, "blockquote_open") ||
           isBlockPlacement(block, "list_item_open"))
@@ -347,17 +359,16 @@ export function placedMarkdownTokens(source, message = true) {
 // exact source and rendered text. The history diff's bounded whole-document alignment
 // is unsuitable here: its deliberate coarse replacement must never send a caret to
 // the end of a long formatted document. Token placement gives an ordered source span;
-// the local exact alignment handles omitted delimiters, entities and escapes.
-/** @param {HTMLElement} body @param {Node} node @param {number} offset */
-export function markdownSourceOffset(body, node, offset) {
+// the local exact alignment handles omitted delimiters, entities and escapes. `body`
+// holds the rendering of `source`, read as a Markdown file.
+/** @param {HTMLElement} body @param {string} source @param {Node} node @param {number} offset */
+export function markdownSourceOffset(body, source, node, offset) {
   if (!body.contains(node)) return null;
   const range = document.createRange();
   range.selectNodeContents(body);
   const shown = fragmentWords(range.cloneContents());
   range.setEnd(node, offset);
   const aim = fragmentWords(range.cloneContents()).length;
-  const source = body.dataset.lfSourceWords;
-  if (source === undefined) return null;
   let shownAt = 0;
   let sourceEnd = 0;
   for (const placed of placedMarkdownTokens(source, false)) {
@@ -369,10 +380,12 @@ export function markdownSourceOffset(body, node, offset) {
     if (start < 0) continue;
     if (aim < start) return from;
     if (aim <= start + words.length) {
-      let sourceAt = from;
+      // A fence's code starts on the line after its opening marker, whose info string
+      // can spell the code's first word, as `sh` does in a fence of shell commands.
+      let sourceAt = token.type === "fence" ? lineAfter(source, from) : from;
       let tokenAt = start;
       for (const run of alignText(
-        source.slice(from, to),
+        source.slice(sourceAt, to),
         words,
         characters,
         Infinity,
@@ -396,6 +409,13 @@ export function markdownSourceOffset(body, node, offset) {
     sourceEnd = to;
   }
   return sourceEnd;
+}
+
+/** Where the line after the one holding `at` starts. @param {string} source @param {number} at */
+function lineAfter(source, at) {
+  const ending = /\r\n|\r|\n/g;
+  ending.lastIndex = at;
+  return ending.exec(source) ? ending.lastIndex : source.length;
 }
 
 // Whether a rendering taken now is the parser's or the escaped source location in for

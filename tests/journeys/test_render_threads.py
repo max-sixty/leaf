@@ -46,8 +46,8 @@ from render_harness import (
 )
 
 from journeys import detached_threads
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 

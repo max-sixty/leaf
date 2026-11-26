@@ -16,18 +16,18 @@ from render_harness import (
     leaf_page,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import exporting as exporting_model
-from leaf import leases as leases_model
-from leaf import media as media_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import transaction as transaction_model
-from leaf.event_log import read_events
-from leaf.files import published_versions
-from leaf.served_state.service import PageStateService
-from leaf.structure import SourceDocument
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base.files import published_versions
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log.event_log import read_events
+from leaf.pages import exporting as exporting_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import media as media_model
+from leaf.serving.served_state.service import PageStateService
+from leaf.source import data as data_model
+from leaf.source.structure import SourceDocument
 from leaf_dev.example_data import patch_manifest
 
 

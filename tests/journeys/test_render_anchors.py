@@ -46,16 +46,16 @@ from render_harness import (
 )
 
 from journeys import detached_threads, listed_threads
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import structure as structure_model
-from leaf import transaction as transaction_model
-from leaf.registry.storage import read_page_registry
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.agents import delivery as delivery_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import data as data_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.registry.storage import read_page_registry
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 

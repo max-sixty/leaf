@@ -22,12 +22,12 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.event_log import read_events
-from leaf.passages import page_passages
-from leaf.render_checks import wait_until_ready
-from leaf.structure import SourceDocument
+from leaf.commands import cli as cli_model
+from leaf.log.event_log import read_events
+from leaf.source import data as data_model
+from leaf.source.passages import page_passages
+from leaf.source.render_checks import wait_until_ready
+from leaf.source.structure import SourceDocument
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

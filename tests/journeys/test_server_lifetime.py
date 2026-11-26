@@ -28,18 +28,18 @@ from interact_support import (
     woken,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import presence as presence_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
-from leaf.registry.storage import layer_record
+from leaf.agents import presence as presence_model
+from leaf.agents import server as server_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry.storage import layer_record
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -269,8 +269,8 @@ from model.test_server_lifetime import (
     reaper_retires,
 )
 
-from leaf import harness as harness_model
-from leaf import schema as schema_model
+from leaf.base import harness as harness_model
+from leaf.base import schema as schema_model
 
 
 def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):

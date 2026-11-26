@@ -8,7 +8,7 @@ from threading import Event
 
 from interact_support import STATED_TIMEOUT
 
-from leaf import data as data_model
+from leaf.source import data as data_model
 
 REGISTRY = {"$data": {"contracts": {"integer": {"schema": {"type": "integer"}}}}}
 

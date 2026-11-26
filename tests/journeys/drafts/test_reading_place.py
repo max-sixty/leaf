@@ -12,8 +12,8 @@ from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
 from render_harness import leaf_page, open_page, resized, scroll_settled
 
-from leaf import data as data_model
-from leaf.render_checks import one_frame
+from leaf.source import data as data_model
+from leaf.source.render_checks import one_frame
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

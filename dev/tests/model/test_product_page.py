@@ -6,9 +6,9 @@ from typing import cast
 
 import pytest
 
-from leaf.delivery import DELIVERY
-from leaf.registry.schema import json_validator, with_leaf_resources
-from leaf.structure import SourceDocument
+from leaf.agents.delivery import DELIVERY
+from leaf.source.registry.schema import json_validator, with_leaf_resources
+from leaf.source.structure import SourceDocument
 from leaf_dev import docs, prompts
 from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import catalog_sources, document_metadata, named_source

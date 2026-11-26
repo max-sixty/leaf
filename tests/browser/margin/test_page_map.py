@@ -43,9 +43,9 @@ from browser.margin import (
     COMMENT_ON_OBLIGATION,
     DENSE_SUGGESTIONS_PAGE,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

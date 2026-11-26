@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-from leaf.structure import authored_classes
+from leaf.source.structure import authored_classes
 
 NAME = re.compile(r"(?<![\w-])--[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\w-])")
 CLASS = re.compile(r"(?<![\w/-])lf-[a-z0-9]+(?:-[a-z0-9]+)*(?![\w-])")

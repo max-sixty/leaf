@@ -44,13 +44,13 @@ from browser.threads import (
     stream_reply,
     thread_row,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import tasks as tasks_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.commands import cli as cli_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed

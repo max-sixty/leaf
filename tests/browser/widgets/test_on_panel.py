@@ -34,9 +34,9 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import open_on_me as open_on_me_by_pointer
 from leaf_dev.browser import panel_tab
 

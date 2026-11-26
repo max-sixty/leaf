@@ -10,11 +10,11 @@ from render_cases_interaction import (
 )
 from render_harness import open_page, panel_field, told
 
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf.session import set_status
+from leaf.agents import thread as thread_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.commands.session import set_status
+from leaf.records import transaction as transaction_model
 
 
 def said(page):

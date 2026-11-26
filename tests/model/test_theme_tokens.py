@@ -7,8 +7,8 @@ import re
 
 from interact_support import shipped_sheets
 
-from leaf.schema import ASSETS, BUNDLED_PACKAGES
-from leaf.state import PLUGIN_ROOT
+from leaf.base.schema import ASSETS, BUNDLED_PACKAGES
+from leaf.base.state import PLUGIN_ROOT
 from leaf_dev.styling_names import (
     CLASS,
     NAME,

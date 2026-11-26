@@ -36,21 +36,21 @@ from interact_support import (
     with_modules,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hook_transport as hook_transport_model
-from leaf import passages as passages_model
-from leaf import render_reading as render_reading_model
-from leaf import structure as structure_model
-from leaf.anchor_capture import Drawing, drawn_part
-from leaf.data import read_data
-from leaf.delivery import current_responses
-from leaf.events import build_threads
-from leaf.render_gate import browser as browser_model
-from leaf.revision_artifact import read_artifact, read_revision
-from leaf.revisioning import activate_source
-from leaf.thread_context import logged_fragment
+from leaf.agents.delivery import current_responses
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.log import event_log as events_model
+from leaf.log.events import build_threads
+from leaf.log.thread_context import logged_fragment
+from leaf.pages.render_gate import browser as browser_model
+from leaf.records import render_reading as render_reading_model
+from leaf.records.revisioning import activate_source
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.anchor_capture import Drawing, drawn_part
+from leaf.source.data import read_data
+from leaf.source.revision_artifact import read_artifact, read_revision
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -101,7 +101,7 @@ def test_a_quote_resolves_where_the_browser_resolves_it(case):
     """A stored quote resolves to the passage the browser's `findQuote` resolves it to,
     told by how many of its section's letters stand before it
     (`tests/quote_cases.json`)."""
-    from leaf.anchor_capture import resolve_quote
+    from leaf.source.anchor_capture import resolve_quote
 
     passages = passages_model.page_passages(
         structure_model.SourceDocument(f"<main>{case['markup']}</main>"),
@@ -115,7 +115,7 @@ def test_a_quote_resolves_where_the_browser_resolves_it(case):
 
 def test_an_empty_quote_neighbour_is_an_exact_boundary():
     """The browser treats a missing side as the page edge, never a wildcard."""
-    from leaf.anchor_capture import resolve_quote
+    from leaf.source.anchor_capture import resolve_quote
 
     anchor = {"section": "labels", "quote": "Alpha", "suffix": "Beta Alpha Beta"}
     previous = passages_model.page_passages(
@@ -147,7 +147,7 @@ def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
 
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
     """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
-    from leaf.anchor_capture import resolve_quote
+    from leaf.source.anchor_capture import resolve_quote
 
     repeated = "<p>Repeated passed text.</p>"
     unique = "<p>Unique passed text.</p>"
@@ -858,7 +858,7 @@ def test_a_revision_moves_a_comment_on_a_formatted_label_to_its_section(page_dir
     """The browser captures a passage's context as the page shows it, a chip's label
     apart from the formatted title beside it, so the file reads the revision's
     predecessor the same way and sees the passage leave."""
-    from leaf.revisioning import activate_source
+    from leaf.records.revisioning import activate_source
 
     labels = (
         '<div id="labels"><small>MARK</small><strong><em>one</em></strong>'
@@ -892,7 +892,7 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     """The server activates a valid save before anyone checks it, so the moves are
     in the log by then. `page check` still names every thread the active revision
     moved, and so does the reply, except the one it moves itself."""
-    from leaf.revisioning import activate_source
+    from leaf.records.revisioning import activate_source
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
@@ -956,7 +956,7 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
 def test_page_check_names_no_move_of_a_withdrawn_reaction(page_dir):
     """A reaction the user took back opens no thread, so a save that moved it
     before the undo leaves `page check` nothing to name."""
-    from leaf.revisioning import activate_source
+    from leaf.records.revisioning import activate_source
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
@@ -993,7 +993,7 @@ def test_page_check_names_no_move_of_a_withdrawn_reaction(page_dir):
 
 
 def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
-    from leaf.events import build_threads
+    from leaf.log.events import build_threads
 
     original = SUGGESTED.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>'
@@ -1114,8 +1114,8 @@ def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
 def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     page_dir, monkeypatch
 ):
-    from leaf import revisioning
-    from leaf.transaction import PageTransaction
+    from leaf.records import revisioning
+    from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
@@ -1161,8 +1161,8 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
 def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     page_dir, monkeypatch
 ):
-    from leaf import revisioning
-    from leaf.transaction import PageTransaction
+    from leaf.records import revisioning
+    from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
     (page_dir / "index.html").write_text(original)
@@ -1211,7 +1211,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
 def test_an_interrupted_activation_finishes_all_anchor_transitions(
     page_dir, monkeypatch
 ):
-    from leaf import revisioning
+    from leaf.records import revisioning
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'

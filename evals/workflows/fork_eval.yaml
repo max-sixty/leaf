@@ -1538,7 +1538,7 @@ cases:
     assert:
       - *line
   # A long thread whose delivery would suggest a range to summarize: the summary fork
-  # Leaf makes beside the line fork (`src/leaf/summary_fork.py`), scored on what it
+  # Leaf makes beside the line fork (`src/leaf/agents/summary_fork.py`), scored on what it
   # wrote. The range takes in an earlier summary, s1, which leaves out the
   # three-minute comparison its originals hold, so a summary written only from s1
   # misses a decision.

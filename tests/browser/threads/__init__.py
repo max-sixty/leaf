@@ -31,13 +31,13 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import transaction as transaction_model
-from leaf.render_checks import rendered
-from leaf.session import set_status
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.commands.session import set_status
+from leaf.records import transaction as transaction_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's

@@ -38,10 +38,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log
-from leaf.schema import PLUGIN_ROOT
+from leaf.base.schema import PLUGIN_ROOT
+from leaf.commands import cli as cli_model
+from leaf.log import event_log
+from leaf.source import data as data_model
 
 FIXTURES = PLUGIN_ROOT / "tests" / "fixtures" / "packages"
 VERDICT = FIXTURES / "verdict"

@@ -41,13 +41,13 @@ from browser.margin import (
     leave_card,
 )
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import transaction as transaction_model
-from leaf.render_checks import rendered
-from leaf.served_state import context as served_context
+from leaf.agents import delivery as delivery_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.serving.served_state import context as served_context
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

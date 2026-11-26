@@ -8,7 +8,7 @@
  * working line on a thread's waiting messages, and completions on the session's
  * model, such as a thread's title. Leaf's Python decides each one and what its
  * result means, as instructions the module runs and reports on
- * (`src/leaf/carrier.py`, whose header holds that contract), so a change to Leaf's
+ * (`src/leaf/agents/carrier.py`, whose header holds that contract), so a change to Leaf's
  * forks needs no change here. The module adds what only it sees: the tool calls the
  * main thread is running (`running`), the main thread's last request (`lastStep`)
  * and a main-loop turn's end (`turnEnded`). A subagent the session spawns runs these
@@ -88,7 +88,7 @@
  * --if-claimed --pages`) prints that list, with the instructions Leaf has for the
  * module, whenever either changes, and exits once the session holds no page; the
  * launcher answers it without starting uv in a session holding none. It is also the
- * session's forks lane (`src/leaf/forks.py`), listing a line fork for each thread
+ * session's forks lane (`src/leaf/agents/forks.py`), listing a line fork for each thread
  * message as it is admitted. The session takes a page only through a `leaf`
  * command, so the
  * module starts the follower as the session starts, after each Bash call that
@@ -143,7 +143,7 @@ type Leaf = {
   };
 };
 
-// An instruction Leaf gives the module (`src/leaf/carrier.py`, whose header holds the
+// An instruction Leaf gives the module (`src/leaf/agents/carrier.py`, whose header holds the
 // contract): its id, unique among the session's; what to run (`do`); the basis the
 // module hands back untouched with each report of it; and the `request` the module
 // passes as it stands to the call `do` names.
@@ -492,7 +492,7 @@ let endedAgain = false;
 
 /** Tell Leaf that a main-loop turn the model answered has ended, and carry what it
  * answers with, such as the fork its turn-end check asks of the conversation
- * (`src/leaf/clerk.py`, whose header says what it writes and why). It runs off the
+ * (`src/leaf/agents/clerk.py`, whose header says what it writes and why). It runs off the
  * turn's path, one at a time, and a turn that ends while one runs reports once more
  * after it. */
 async function turnEnded($: EngineInterface, session: string) {
@@ -616,7 +616,7 @@ const running = new Map<string, { tool: string; input: Record<string, string> }>
 const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
 
 /** Make the completion `request`, as Leaf wrote it, on the session's own model client
- * (`src/leaf/completions.py`, whose header says how the request reaches the module),
+ * (`src/leaf/agents/completions.py`, whose header says how the request reaches the module),
  * and what it came to: the text or why there is none, with its usage and time. */
 async function complete(
   $: EngineInterface,

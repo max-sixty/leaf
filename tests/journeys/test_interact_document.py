@@ -37,16 +37,16 @@ from model.test_interact_document import (
     _write_board,
 )
 
-from leaf import agent_state as agent_state_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import revision_artifact as artifact_model
-from leaf import revisioning as revisioning_model
-from leaf import vendoring as vendoring_model
-from leaf.registry.storage import load_registry
+from leaf.base import files as files_model
+from leaf.commands import agent_state as agent_state_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source.registry.storage import load_registry
 
 
 def test_check_accepts_authored_module_scripts(page_dir):
@@ -785,8 +785,8 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
 import gc
 
-from leaf import page_memory as page_memory_model
-from leaf import samples as samples_model
+from leaf.base import page_memory as page_memory_model
+from leaf.serving import samples as samples_model
 
 
 def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):

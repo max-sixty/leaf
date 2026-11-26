@@ -21,12 +21,12 @@ from interact_support import (
 )
 
 import leaf_website as website_server
-from leaf import drafts as drafts_model
-from leaf import media as media_model
-from leaf.event_log import read_events
-from leaf.files import latest_revision, revision_path
-from leaf.structure import SourceDocument
-from leaf.transaction import PageTransaction
+from leaf.base.files import latest_revision, revision_path
+from leaf.log.event_log import read_events
+from leaf.records.transaction import PageTransaction
+from leaf.serving import drafts as drafts_model
+from leaf.serving import media as media_model
+from leaf.source.structure import SourceDocument
 from leaf_dev.page_fixtures import example_media
 from process.website_server import (
     write_manifest,
@@ -182,7 +182,7 @@ def durable_page_store():
 def test_public_and_private_snapshots_keep_a_stored_revisions_publication_date(
     page_dir, monkeypatch
 ):
-    from leaf import page_snapshot
+    from leaf.pages import page_snapshot
 
     activation = website_server.activate_source(page_dir)
     assert activation.error is None
@@ -302,7 +302,7 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
     None of those readings is one a tab goes on to extend, so they leave the server's
     remembered readings alone, and the tab's next answer is still only what changed
     (`served_state.tail`), even where the server remembers a single reading."""
-    from leaf.served_state import tail
+    from leaf.serving.served_state import tail
     from leaf_website.storage import PUBLISHER, restore
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)

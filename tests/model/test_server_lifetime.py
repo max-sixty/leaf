@@ -32,23 +32,23 @@ from interact_support import (
     write_record,
 )
 
-from leaf import clerk as clerk_model
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import presence as presence_model
-from leaf import schema as schema_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
-from leaf import vendoring as vendoring_model
-from leaf.detached import StartRefused
-from leaf.findings import Finding
-from leaf.refusals import Refused
+from leaf.agents import clerk as clerk_model
+from leaf.agents import codex as codex_model
+from leaf.agents import presence as presence_model
+from leaf.agents import server as server_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.detached import StartRefused
+from leaf.base.findings import Finding
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
 
 
 def reaper_retires(page: Path, monkeypatch) -> bool:
@@ -455,7 +455,9 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
     Advance maintenance after a log append and then a service withdrawal. Both
     loops must still read the files and act on the next look.
     """
-    from leaf import file_changes, rows, server_rows
+    from leaf.base import rows
+    from leaf.log import file_changes
+    from leaf.serving import server_rows
 
     fixture_service(page_dir, available_loopback_port(), lifetime="persistent")
 
@@ -718,7 +720,7 @@ def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
 OLDER_SERVER = """
 import sys, time
 from pathlib import Path
-from leaf.leases import take_lease
+from leaf.base.leases import take_lease
 page, record = Path(sys.argv[1]), Path(sys.argv[2])
 lease = take_lease(page / "server.lock")
 print("held" if lease else "refused", flush=True)

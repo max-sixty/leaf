@@ -10,12 +10,12 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors
 
-from leaf import cli as cli_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import command as render_command_model
-from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
-from leaf.revision_delivery import json_script
+from leaf.commands import cli as cli_model
+from leaf.pages import exporting as exporting_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.pages.render_gate.widget_quality import UnreadablePage, widget_findings
+from leaf.serving.revision_delivery import json_script
+from leaf.source.render_checks import wait_until_ready
 
 
 def test_the_starter_widgets_leave_the_render_check_nothing_to_advise(

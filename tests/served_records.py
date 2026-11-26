@@ -28,17 +28,17 @@ from model_folds import (
     served_reading,
 )
 
-from leaf.event_log import EventRefused
-from leaf.passages import SourceReading
-from leaf.projection import (
+from leaf.log.event_log import EventRefused
+from leaf.log.projection import (
     AuthoredOrders,
     StateProjection,
     attribute_marks,
     authored_rank,
     obligation_value,
 )
-from leaf.registry.contract import state_definition
-from leaf.structure import SourceDocument
+from leaf.source.passages import SourceReading
+from leaf.source.registry.contract import state_definition
+from leaf.source.structure import SourceDocument
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 

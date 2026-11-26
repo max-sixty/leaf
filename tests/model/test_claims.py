@@ -29,17 +29,17 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import cli as cli_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import machine as machine_model
-from leaf import presence as presence_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
-from leaf.refusals import Refused
+from leaf.agents import presence as presence_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import machine as machine_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.records import transaction as transaction_model
 
 
 def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
@@ -75,7 +75,7 @@ def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
     command is the one running it, so a Codex task's command is Codex's; with no
     codex above it, the same environment is Claude Code's."""
     probe = (
-        "from leaf.harness import session_harness; h = session_harness(); "
+        "from leaf.base.harness import session_harness; h = session_harness(); "
         "print(type(h).__name__, h.session)"
     )
     env = os.environ | {"CODEX_THREAD_ID": "inner-codex"}
@@ -114,7 +114,7 @@ def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
     assert nearer.returncode == 0, nearer.stderr
     assert nearer.stdout.split() == ["ClaudeCodeHarness", f"pytest-{os.getpid()}"]
     detached = (
-        "from leaf.harness import detached_environment as d, session_harness; "
+        "from leaf.base.harness import detached_environment as d, session_harness; "
         "print(sorted(set(d(session_harness())) & "
         "{'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
     )
@@ -166,9 +166,9 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     assert claim_record_2["cwd"] == str(work)
     assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
     # Diagnostic joins survive replacement/ending of the live claim and lifecycle.
-    from leaf.event_log import read_events
-    from leaf.interaction_log import read_interactions
-    from leaf.tasks import take_in_hand
+    from leaf.commands.tasks import take_in_hand
+    from leaf.log.event_log import read_events
+    from leaf.log.interaction_log import read_interactions
 
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "input", "author": "user", "text": "why?"}
@@ -457,7 +457,7 @@ def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
         """\
 import signal
 import weakref
-from leaf import session
+from leaf.commands import session
 
 def receive_termination():
     signal.raise_signal(signal.SIGTERM)
@@ -572,7 +572,7 @@ def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
             "-c",
             (
                 "from pathlib import Path; import sys; "
-                "from leaf.leases import take_lease; "
+                "from leaf.base.leases import take_lease; "
                 "lease = take_lease(Path(sys.argv[1])); "
                 "assert lease is not None; print('held', flush=True); sys.stdin.read()"
             ),
@@ -856,7 +856,7 @@ def test_desktop_start_requires_its_validated_native_chat(
         native_codex_chat(sid).unlink()
     elif evidence == "other-chat":
         other = native_codex_chat("another-chat")
-        from leaf.hooks import cmd_hook
+        from leaf.commands.hooks import cmd_hook
 
         cmd_hook(
             "codex",

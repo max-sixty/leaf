@@ -55,7 +55,7 @@ from typing import TYPE_CHECKING, Protocol, TypedDict
 import click
 from starlette.responses import Response
 
-from leaf.codex import (
+from leaf.agents.codex import (
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -67,40 +67,40 @@ from leaf.codex import (
     private_app_server,
     start_app_server_delivery,
 )
-from leaf.delivery import read_delivery, stream_reply_target
-from leaf.file_bindings import bound_files
-from leaf.files import latest_revision, revision_path
-from leaf.harness import EmbeddedHarness
-from leaf.hosting import LeafHTTPServer
-from leaf.http import PageEndpoint, PostRoute, scope_page_urls
-from leaf.interaction_log import append_interactions
-from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
-from leaf.page_memory import Slot, memo
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata, layer_record, selected
-from leaf.revision_artifact import read_revision
-from leaf.revision_delivery import Delivery, runtime_element
-from leaf.revisioning import activate_source
-from leaf.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
-from leaf.served_state.context import read_page
-from leaf.served_state.service import PageStateService
-from leaf.server import preview_metadata
-from leaf.service import page_claim
-from leaf.session import set_status
-from leaf.state import (
+from leaf.agents.delivery import read_delivery, stream_reply_target
+from leaf.agents.server import preview_metadata
+from leaf.agents.thread import (
+    fail_answer,
+    release_delivery_reply,
+)
+from leaf.agents.thread_titles import app_server_title, name_thread
+from leaf.base.files import latest_revision, revision_path
+from leaf.base.harness import EmbeddedHarness
+from leaf.base.leases import release_lease, take_wait_lease, waiter_lease_path
+from leaf.base.page_memory import Slot, memo
+from leaf.base.refusals import Refused
+from leaf.base.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
+from leaf.base.service import page_claim
+from leaf.base.state import (
     advance_turn,
     close_session_turn,
     flocked,
     session_lock_path,
     session_record,
 )
-from leaf.thread import (
-    fail_answer,
-    release_delivery_reply,
-)
-from leaf.thread_titles import app_server_title, name_thread
-from leaf.transaction import PageTransaction, restore_page_claim
+from leaf.commands.session import set_status
+from leaf.log.interaction_log import append_interactions
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.records.revisioning import activate_source
+from leaf.records.transaction import PageTransaction, restore_page_claim
+from leaf.serving.http import PageEndpoint, PostRoute, scope_page_urls
+from leaf.serving.revision_delivery import Delivery, runtime_element
+from leaf.serving.served_state.context import read_page
+from leaf.serving.served_state.service import PageStateService
+from leaf.source.file_bindings import bound_files
+from leaf.source.registry.storage import layer_metadata, layer_record, selected
+from leaf.source.revision_artifact import read_revision
 
 if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
@@ -270,7 +270,7 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`), refusing a page at another protocol, as reading its layer
+    (`leaf.base.page_memory`), refusing a page at another protocol, as reading its layer
     record does (`registry.storage.layer_record`)."""
 
     def bind() -> tuple[dict, dict | None]:

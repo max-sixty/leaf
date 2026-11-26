@@ -33,18 +33,18 @@ from interact_support import (
     woken,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import session as session_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
-from leaf.session import set_status
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import schema as schema_model
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.commands.session import set_status
+from leaf.log import event_log as events_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import storage as registry_storage
 from model.interact_contract import _stateful_page_declaration
 
 
@@ -374,8 +374,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
 def test_recordless_requests_wake_without_user_obligations(
     page_dir, sessionless, capsys
 ):
-    from leaf.files import latest_revision
-    from leaf.served_state.context import read_page
+    from leaf.base.files import latest_revision
+    from leaf.serving.served_state.context import read_page
 
     (page_dir / "page").mkdir(exist_ok=True)
     declaration = _stateful_page_declaration(page_dir, "lf-archive")
@@ -1249,7 +1249,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 
 
 def test_successful_replies_require_an_exact_agent_answer():
-    from leaf.thread import successful_replies
+    from leaf.agents.thread import successful_replies
 
     comment = {
         "kind": "comment",
@@ -1299,8 +1299,8 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
     `freeze_delivery`."""
     import yaml
 
-    from leaf.json_block import read_json_block
-    from leaf.registry.schema import schema_error, with_leaf_resources
+    from leaf.base.json_block import read_json_block
+    from leaf.source.registry.schema import schema_error, with_leaf_resources
 
     def strings(value):
         if isinstance(value, str):

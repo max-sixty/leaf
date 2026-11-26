@@ -28,7 +28,7 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
-from leaf.render_checks import one_frame, rendered
+from leaf.source.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

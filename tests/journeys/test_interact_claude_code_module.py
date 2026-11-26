@@ -11,11 +11,11 @@ from interact_support import (
 )
 from process.test_interact_claude_code_module import band_lines
 
-from leaf import rows as rows_model
-from leaf import server as server_model
-from leaf import server_rows as server_rows_model
-from leaf import thread as thread_model
-from leaf import transaction as transaction_model
+from leaf.agents import server as server_model
+from leaf.agents import thread as thread_model
+from leaf.base import rows as rows_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import server_rows as server_rows_model
 
 
 def test_the_band_follows_the_pages_the_session_holds(

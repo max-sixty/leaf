@@ -15,7 +15,7 @@ from render_harness import (
     sending,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

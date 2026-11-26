@@ -29,16 +29,16 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import transaction as transaction_model
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir):
@@ -164,7 +164,8 @@ def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
             spawn,
             page_dir,
             """
-from leaf import delivery, transaction
+from leaf.agents import delivery
+from leaf.records import transaction
 original_enter = transaction.PageTransaction.__enter__
 def entered(transaction):
     print("locking", flush=True)

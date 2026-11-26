@@ -1,5 +1,5 @@
-"""What Leaf's Claude Code hooks module (`hooks/claude-code.ts`) runs for Leaf, and the
-step that takes each result back. Leaf's Python decides every model call the session
+"""What Leaf's Claude Code hooks module (`hooks/claude-code.ts`) runs for Leaf, and what
+it reports back of each. Leaf's Python decides every model call the session
 makes for it, as instructions, and the module runs each with Claude Code and reports
 what it came to. The module adds only what it alone sees: the tool calls the main
 thread is running, the main thread's last request, which a fork resends, and the end
@@ -22,9 +22,9 @@ An instruction is an object: its `id`, unique among the session's instructions, 
 the module runs each id once however often it is listed; `do`, what to run;
 `request`, which the module passes to that call as it stands; and `basis`, which the
 module hands back untouched with every report of it, and whose `kind` names the step
-that takes the result (`step`). A basis can come back to a newer Leaf than wrote it,
-as when the follower that listed it runs on under an older one, so a change to a
-basis's shape is one to this contract.
+that takes the result. A basis can come back to a newer Leaf than wrote it, as when
+the follower that listed it runs on under an older one, so a change to a basis's shape
+is one to this contract.
 
 | `do` | the module runs `request` through | its report adds |
 | --- | --- | --- |
@@ -32,13 +32,13 @@ basis's shape is one to this contract.
 | `fork` | `$.model.fork`, a fork of the conversation that can call no tool (`fork`) | `answer`, or why there is none (`failed`); `usage`, `elapsed_ms` and what it resent of the main thread's conversation (`resent`) |
 | `complete` | `$.model.complete`, on the session's model client | `text`, or `failed` with an API error's `status` and `error`; `usage`, `elapsed_ms` |
 
-A report is `leaf hook --fork`, whose payload carries `running`, the calls the main
-thread is running, each `{"tool", "input"}`, and either `turn_end`, as a main-loop
-turn the model answered ends, or the instruction's `done` (its id), `do` and `basis`
-with what came of it. The answer may list instructions to run next (`do`) and a line
-for Claude Code's debug log (`log`); the module reads nothing else of it. Where the
-step that takes an instruction's result fails, the module reports it once more with
-`failed`, so whatever waits on it moves on.
+A report is `leaf hook --fork` (`hooks.cmd_fork`), whose payload carries `running`,
+the calls the main thread is running, each `{"tool", "input"}`, and either `turn_end`,
+as a main-loop turn the model answered ends, or the instruction's `done` (its id),
+`do` and `basis` with what came of it. The answer may list instructions to run next
+(`do`) and a line for Claude Code's debug log (`log`); the module reads nothing else
+of it. Where the step that takes an instruction's result fails, the module reports it
+once more with `failed`, so whatever waits on it moves on.
 Turn ends report one at a time: the report, the instructions its answer lists and
 their reports all finish before the next, and turns that end meanwhile report once
 after. The pages follower lists instructions too (`hooks.cmd_pages`), the module's way
@@ -69,26 +69,13 @@ def fork(instruction: str, prompt: str, basis: dict) -> dict:
     }
 
 
-def step(session_id: str, payload: dict) -> dict | None:
-    """Leaf's answer to the module's report `payload` (the header): a turn's end goes
-    to the turn-end check (`clerk.turn_ended`), and an instruction's result to the step
-    its basis's `kind` names: the turn-end check's fork (`check`), a completion
-    (`completion`), or a thread's line fork or a fork beside it (`line`, `beside`).
-    A kind no step takes answers with a line for the log,
-    so the module stops reporting it."""
-    if not session_id:
-        return None
-    if payload.get("turn_end"):
-        from leaf.agents.clerk import turn_ended
-
-        return turn_ended(session_id)
-    kind = payload["basis"]["kind"]
-    if kind == "check":
-        from leaf.agents.clerk import checked as taken
-    elif kind == "completion":
-        from leaf.agents.completions import replied as taken
-    elif kind in ("line", "beside"):
-        from leaf.agents.forks import step as taken
-    else:
-        return {"log": f"no step of this Leaf takes a {kind!r} instruction's report"}
-    return taken(session_id, payload)
+def run_facts(payload: dict) -> dict:
+    """What a page's diagnostics note of a fork's run, from the module's report of it
+    (`fork`): its `usage`, its time (`elapsedMs`) and what it resent of the main
+    thread's conversation (`request`), each where the report gives it."""
+    facts = {
+        "usage": payload.get("usage"),
+        "elapsedMs": payload.get("elapsed_ms"),
+        "request": payload.get("resent"),
+    }
+    return {name: value for name, value in facts.items() if value is not None}

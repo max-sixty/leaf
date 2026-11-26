@@ -67,6 +67,7 @@ from leaf.agents.clerk import queue, read_answer, reference_paragraph
 from leaf.agents.thread import cmd_summarize
 from leaf.base.refusals import Refused
 from leaf.log.events import active_summaries, build_threads, spoken_turns
+from leaf.log.interaction_log import note
 from leaf.log.thread_context import summary_hint
 from leaf.records.transaction import PageTransaction
 from leaf.source.revision_artifact import active_enclosing
@@ -102,16 +103,13 @@ ANSWER = {
 }
 
 # The id the summary takes while `_fence` asks whether it would still be in force.
-# `forks` imports this module, so this module imports from `forks` where it calls it.
 _WEIGHED = "summary-fork"
 
 
-def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
-    """The fork to make beside the line fork for the round `basis` names,
-    as `{"prompt", "basis"}`, where Leaf suggests a range of it to summarize; else
-    None. `data` is the thread whole, as `forks._thread_data` reads it from `page`."""
-    from leaf.agents.forks import thread_json
-
+def due(page: PageTransaction, basis: dict) -> dict | None:
+    """The basis of the fork to make beside the line fork for the round `basis`
+    names on `page`, where Leaf suggests a range of its thread to summarize (`from`,
+    `through`); else None."""
     threads = build_threads(page.events, active_enclosing(page.page_dir))
     thread = threads.get(basis["thread"])
     if thread is None:
@@ -121,23 +119,21 @@ def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
     if hint is None:
         return None
     return {
-        "prompt": prompt(thread_json(data), hint),
-        "basis": {
-            "duty": "summary",
-            "page": basis["page"],
-            "thread": basis["thread"],
-            "from": hint["from"],
-            "through": hint["through"],
-            "inputs": basis["inputs"],
-            "seq": page.events[-1]["seq"],
-        },
+        "duty": "summary",
+        "page": basis["page"],
+        "thread": basis["thread"],
+        "from": hint["from"],
+        "through": hint["through"],
+        "inputs": basis["inputs"],
+        "seq": page.events[-1]["seq"],
     }
 
 
 def prompt(thread: str, hint: dict) -> str:
-    """The one message the fork answers: what it is for, the thread whole, the range
-    Leaf suggests and the agent's guidance for choosing a range and writing its
-    summary."""
+    """The one message the fork answers: what it is for, the thread whole as
+    `forks.thread_json` renders it (`thread`), the range Leaf suggests (`hint`'s
+    `from` and `through`, as `due` gives them) and the agent's guidance for choosing
+    a range and writing its summary."""
     folds, holds = (
         "\n".join(
             f"> {line}" if line else ">"
@@ -174,10 +170,8 @@ def take_answer(
     agent; or nothing, where the fork folds nothing or `_fence` stops it; or tell the
     agent the range `basis` suggested, where the fork failed, its answer doesn't fit
     `ANSWER`, or Leaf can't take its range (`_fence`, admission). What came of it is
-    noted in the page's diagnostics, with what `forks.run_facts` read of the fork's run
-    (`run`)."""
-    from leaf.agents.forks import note
-
+    noted in the page's diagnostics, with what `carrier.run_facts` read of the fork's
+    run (`run`)."""
     page_dir = Path(basis["page"])
     outcome: dict
     chosen: dict = {}

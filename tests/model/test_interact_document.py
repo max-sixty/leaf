@@ -1947,7 +1947,6 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
             registry,
             page,
             set(),
-            [],
             {},
             None,
         )
@@ -1981,7 +1980,6 @@ def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
             registry,
             page,
             set(),
-            [],
             {},
             None,
         )
@@ -2046,7 +2044,6 @@ def test_a_message_names_only_its_own_document_and_the_page(page_dir):
             registry,
             structure_model.SourceDocument(PAGE),
             set(),
-            [],
             {},
             None,
         ),

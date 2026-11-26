@@ -13,7 +13,6 @@ from pathlib import Path
 
 from leaf.base.findings import Finding
 from leaf.records.markup_checks.instances import markup_findings
-from leaf.source.data_contracts import declared_data_bindings
 from leaf.source.registry.contract import (
     is_element_name,
     read_registry_declarations,
@@ -64,12 +63,7 @@ def _example_advice(tag: str, registry: dict, path) -> list[Finding]:
     layer's examples."""
     if (example := registry[tag].get("example")) is None:
         return []
-    parser = SourceDocument(example, fragment=True)
-    errors = markup_findings(
-        parser,
-        registry,
-        lambda: declared_data_bindings(parser.lf_elements, registry)[1],
-    )
+    errors = markup_findings(SourceDocument(example, fragment=True), registry)
     if refused := [error for error in errors if error.refuses]:
         return [
             registry_finding(

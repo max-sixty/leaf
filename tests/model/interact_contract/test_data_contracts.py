@@ -10,12 +10,15 @@ from interact_support import (
     PAGE,
     ROOT,
     append_carried_log_record,
+    bound_twice,
     check_findings,
+    command_findings,
     declare_data_input,
     element_declaration,
     found,
     package_findings,
     package_path,
+    published,
     read_page_data,
     registry_refusal,
 )
@@ -465,6 +468,19 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
             ],
         }
     }
+
+
+def test_a_message_is_refused_only_for_its_own_bindings(page_dir):
+    """A conflicting binding lies within one document, so a message's gate reads the
+    message's bindings alone: an unsaved edit that binds one source twice is the
+    source check's to refuse, and the agent can still post a message meanwhile."""
+    published(page_dir)
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", bound_twice("shared") + "</main>")
+    )
+    assert found(check_findings(page_dir)[1], "contract-conflict", source="shared")
+    message = "The plan:\n\n<p><strong>Flag first</strong></p>"
+    assert command_findings("thread", "create", str(page_dir), "--text", message) == []
 
 
 @pytest.mark.parametrize(

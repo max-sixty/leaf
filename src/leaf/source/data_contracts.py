@@ -85,9 +85,17 @@ def data_bindings(lf_elements: list, registry: dict):
 def declared_data_bindings(
     lf_elements: list,
     registry: dict,
-    document: str = "markup",
+    document: str | None = None,
 ) -> tuple[dict, list[Finding]]:
-    """Read concrete source ids and their first seats from one document."""
+    """Read concrete source ids and their first seats from one document.
+
+    Two contracts for one source conflict only within one document. Every gate
+    reads its own document's bindings and no other's
+    (`markup_checks.instances.instance_errors`), and a sample's child is a document
+    of its own, with its own gate. Each revision and logged fragment passed its gate
+    as it entered, so a page's history holds no conflict. `document` names the
+    document in each seat for a reader holding several, as a page's history is; a
+    gate's finding names none, since the gate says which document it read."""
     bindings = {}
     seats = {}
     errors = []
@@ -95,7 +103,7 @@ def declared_data_bindings(
         contract = spec["contract"]
         seat = {
             "contract": contract,
-            "document": document,
+            **({"document": document} if document is not None else {}),
             "tag": rec["tag"],
             "input": input_name,
             "line": rec["line"],
@@ -254,29 +262,6 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[Fin
         )
         for entry in measurement_lag_entries(lf_elements, registry, stored)
     ]
-
-
-def data_binding_errors(
-    page_dir: Path,
-    registry: dict,
-    incoming: list[tuple[SourceDocument, str]],
-) -> list[Finding]:
-    """Conflicting simultaneous bindings inside the current source or an incoming
-    document.
-
-    A conflict lies within one document (`merge_data_document_readings`), and each
-    revision and logged fragment was refused for one as it entered, so the history
-    holds none to find."""
-    documents = authored_readings(page_dir, registry)
-    for document, label in incoming:
-        documents.extend(data_document_readings(document, label, registry))
-    return data_document_errors(documents)
-
-
-def data_document_errors(documents: list[tuple[list, str, dict]]) -> list[Finding]:
-    """Ambiguous simultaneous bindings within each authored document."""
-    _bindings, errors = merge_data_document_readings(documents)
-    return list(dict.fromkeys(errors))
 
 
 def payload_error(producer: str, contract: str, value, registry: dict) -> str | None:

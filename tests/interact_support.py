@@ -634,6 +634,15 @@ graph LR
 )
 
 
+def bound_twice(source: str) -> str:
+    """Markup binding the data source `source` under two contracts, which no document
+    may do (`contract-conflict`)."""
+    return (
+        f'<p><lf-num source="{source}" run="r1">3</lf-num></p>'
+        f'<lf-text-document id="{source}-text" source="{source}"></lf-text-document>'
+    )
+
+
 def package_path(path: Path) -> str:
     """Select a checkout fixture from the caller's cwd, wherever HOME lives."""
     return "./" + os.path.relpath(path)

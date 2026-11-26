@@ -58,7 +58,6 @@ from leaf.records.markup_checks.markup import (
 )
 from leaf.records.page_view import InitialPageView
 from leaf.source.anchor_capture import capture_anchor
-from leaf.source.data_contracts import data_document_errors, data_document_readings
 from leaf.source.passages import JOINS_WORDS_TAGS, markdown_dialect
 from leaf.source.registry.kernel import kernel_event_kinds
 from leaf.source.revision_artifact import (
@@ -102,7 +101,7 @@ def _page_errors(
     return errors
 
 
-def authored_document_checks(document, events, registry, readings, thread_ids):
+def authored_document_checks(document, events, registry, thread_ids):
     """The same authored-page gate for the root and each isolated child document.
 
     The stylesheets a document's delivery rewrites, its children's among them, and
@@ -111,12 +110,9 @@ def authored_document_checks(document, events, registry, readings, thread_ids):
     `document_drops`, or for a message no capture reads, by its gate
     (`message_markup_findings`)."""
 
-    def own():
-        yield from _page_errors(events, document, registry, thread_ids)
-        if registry is not None:
-            yield from data_document_errors(readings)
-
-    return markup_findings(document, registry, own)
+    return markup_findings(
+        document, registry, lambda: _page_errors(events, document, registry, thread_ids)
+    )
 
 
 def text_media_errors(
@@ -184,7 +180,6 @@ def message_markup_findings(
     registry: dict,
     page: SourceDocument,
     prior_ids: AbstractSet[str],
-    extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
     *,
@@ -192,11 +187,10 @@ def message_markup_findings(
 ) -> list[Finding]:
     """The shared message-fragment gate for a stored or newly constructed page.
 
-    Callers supply their lifetime's binding checks. The
-    fragment's structure, vocabulary, presentation, media, ids, references and
-    live sample children have one gate regardless of whether its page has been
-    allocated yet. `thread_id` is the thread the message joins, where known, and
-    `replacing` the message an edit rewrites: its markup leaves the page as this
+    The fragment's structure, vocabulary, data bindings, presentation, media, ids,
+    references and live sample children have one gate regardless of whether its page
+    has been allocated yet. `thread_id` is the thread the message joins, where known,
+    and `replacing` the message an edit rewrites: its markup leaves the page as this
     takes its place, and an id any of its wordings held is its own to keep
     (`thread_context.thread_structure`). Each stage reads only a fragment the stages
     before it accept, so the gate gives the findings of the first stage that refuses
@@ -210,7 +204,6 @@ def message_markup_findings(
         registry,
         page,
         prior_ids,
-        extra_errors,
         contracts,
         thread_id,
         replacing,
@@ -228,7 +221,6 @@ def _message_stages(
     registry: dict,
     page: SourceDocument,
     prior_ids: AbstractSet[str],
-    extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
     replacing: str | None,
@@ -241,7 +233,6 @@ def _message_stages(
         registry,
         lambda: [
             *message_settlement_advice(frag, registry),
-            *extra_errors,
             *fragment_style_errors(frag),
             *uncaptured_errors(frag, page_dir),
         ],
@@ -326,14 +317,10 @@ def sample_errors(
                 errors.extend(found.but(samples=samples) for found in error.findings)
                 child_events = []
             pending.append((child, child_events, child, samples))
-            child_readings = initial_data_document_readings(
-                child, child_events, registry or {}
-            )
             child_errors = authored_document_checks(
                 child,
                 child_events,
                 registry,
-                child_readings,
                 selected | thread_ids(child_events),
             )
             errors.extend(error.but(samples=samples) for error in child_errors)
@@ -359,18 +346,6 @@ def uncaptured_sample_errors(page_dir: Path, holder: SourceDocument) -> list[Fin
                 )
             )
     return errors
-
-
-def initial_data_document_readings(
-    authored: SourceDocument, events: list, registry: dict
-) -> list:
-    """A fresh page's source and seeded messages share its initial registry."""
-    documents = data_document_readings(authored, "index.html", registry)
-    for message, fragment in thread_structure(events).fragments.items():
-        documents.extend(
-            data_document_readings(fragment, f"event {message!r} markup", registry)
-        )
-    return documents
 
 
 def _non_json_number(value: str):
@@ -530,10 +505,6 @@ def initial_sample_events(
                     findings=[found.json(text=False) for found in errors],
                 )
             if fragment:
-                readings = initial_data_document_readings(child, events, registry)
-                readings.append(
-                    (fragment.lf_elements, f"incoming {kind} markup", registry)
-                )
                 found = message_markup_findings(
                     page_dir,
                     fragment,
@@ -541,7 +512,6 @@ def initial_sample_events(
                     registry,
                     child,
                     set(),
-                    data_document_errors(readings),
                     contracts,
                     event["id"]
                     if kind == "comment"

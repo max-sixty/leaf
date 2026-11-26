@@ -117,7 +117,9 @@ def run_adapter(
         def capture(tick: PageTick) -> bool:
             """Capture the batch a pass found on one page into the task's collecting
             record, which the next offer delivers."""
-            return capture_batch(harness.session, tick.transaction, tick.batch)
+            return capture_batch(
+                harness.session, tick.transaction, tick.batch, work=tick.work
+            )
 
         if app_server is not None:
             connection = TaskConnection(app_server, harness.session)

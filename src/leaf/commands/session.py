@@ -530,7 +530,14 @@ def delivery_record(reading: PageTick, harness: Harness | None) -> dict:
     from leaf.agents.delivery import batch_data, delivery_reading, freeze_delivery
 
     payload = freeze_delivery(
-        [batch_data(reading.page_dir, reading.transaction, reading.batch)],
+        [
+            batch_data(
+                reading.page_dir,
+                reading.transaction,
+                reading.batch,
+                work=reading.work,
+            )
+        ],
         acknowledge=wait_acknowledgement(harness, reading.page_dir),
     )
     return delivery_reading(payload)

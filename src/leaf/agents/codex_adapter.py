@@ -59,6 +59,7 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from pathlib import Path
 from types import EllipsisType
+from typing import TYPE_CHECKING
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.agents.codex` holds their
 # one binding: whatever takes a turn's readings there takes every client's too.
@@ -117,6 +118,9 @@ from leaf.base.state import (
     turn_closed,
 )
 from leaf.records.transaction import PageTransaction, owned_pages
+
+if TYPE_CHECKING:
+    from leaf.records.work_state import WorkState
 
 QUEUE_TIMEOUT = 20
 ADAPTER = Record(
@@ -809,11 +813,18 @@ def adapter_start_lock_path(session_id: str) -> Path:
     return session_file(session_id, "start")
 
 
-def capture_batch(session_id: str, page: PageTransaction, batch: list[dict]) -> bool:
+def capture_batch(
+    session_id: str,
+    page: PageTransaction,
+    batch: list[dict],
+    *,
+    work: "WorkState | None" = None,
+) -> bool:
     """Persist `batch`, read under the page's transaction `page`, in the session's
-    collecting record."""
+    collecting record, by the page's work, `work` where the caller has already
+    read it (`codex.append_batch`)."""
     with flocked(delivery_lock_path(session_id)):
-        captured = append_batch(session_id, page.page_dir, page, batch)
+        captured = append_batch(session_id, page.page_dir, page, batch, work=work)
     return captured is not None
 
 

@@ -101,7 +101,7 @@ from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
-from typing import ClassVar, Literal, TypedDict
+from typing import TYPE_CHECKING, ClassVar, Literal, TypedDict
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
@@ -155,6 +155,9 @@ from leaf.records.transaction import (
     owned_pages,
     restore_page_claim,
 )
+
+if TYPE_CHECKING:
+    from leaf.records.work_state import WorkState
 
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
@@ -2137,8 +2140,11 @@ def append_batch(
     page_dir: Path,
     transaction: PageTransaction,
     batch: list[dict],
+    *,
+    work: "WorkState | None" = None,
 ) -> tuple[Path, int, dict] | None:
-    """Append fresh events to the task's one collecting record."""
+    """Append fresh events to the task's one collecting record, by the page's
+    work (`presence.read_work`), `work` where the caller has already read it."""
     current = _collecting_record(session_id)
     if current is None:
         path = record_path(session_id, new_delivery_id())
@@ -2171,7 +2177,8 @@ def append_batch(
     )
     from leaf.agents.presence import read_work
 
-    work = read_work(page_dir, transaction.events)
+    if work is None:
+        work = read_work(page_dir, transaction.events)
     responses = current_responses(page_dir, transaction.events, work)
     selected = []
     for event in fresh:

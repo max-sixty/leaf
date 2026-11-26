@@ -7,7 +7,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
 from playwright.sync_api import expect
-from render_cases_interaction import LIST_ORDER, PANEL_PAGE, live_url, panel_comment
+from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
 from render_harness import (
     EXAMPLE_PACKAGES,
     RELEASE_FOCUS,
@@ -16,7 +16,6 @@ from render_harness import (
     expect_design_mode,
     leaf_page,
     open_page,
-    open_threads,
     panel_settled,
     put_preview_away,
     resized,
@@ -240,7 +239,8 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
 
     The host is the element the page holds, and where the page holds it is where those
     words are. So the thread reads after the paragraphs above the widget and before
-    the ones below it."""
+    the ones below it. The `t` walk reads the page's order (Threads lists the newest
+    first), so the walk from the page's top steps through the three in that order."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
@@ -257,7 +257,6 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     both = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 
     page = open_page(browser, url)
-    open_threads(page)
     # The passage really is inside the widget's shadow tree, so the reading under test is
     # the cross-tree one rather than an ordinary document comparison.
     assert page.evaluate(
@@ -267,11 +266,12 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
                .some((r) => root.contains(r.startContainer));
            }"""
     ), "the fixture's passage is not marked inside a shadow tree"
-    assert page.evaluate(LIST_ORDER) == [
-        lede,
-        patch,
-        both,
-    ], "the thread on the widget's words does not stand where the widget does"
+    for thread in (lede, patch, both):
+        page.keyboard.press("t")
+        # A thread on the diff's words opens in the diff, the others in the margin.
+        expect(
+            page.locator(f'.lf-page-thread[data-lf-thread="{thread}"]')
+        ).to_be_focused()
 
 
 # A page long enough to hold a reading position worth losing, and a change to decide

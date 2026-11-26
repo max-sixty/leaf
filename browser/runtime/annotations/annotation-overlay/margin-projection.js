@@ -719,7 +719,7 @@ export function createMarginProjection({
   /** @param {Parameters<typeof focusDestination>[0]} control @param {Parameters<typeof focusDestination>[1]} cause @param {Parameters<typeof focusDestination>[2]} [options] */
   function focusForNavigation(control, cause, options) {
     reveal(focusElement(control));
-    focusDestination(control, cause, options);
+    return focusDestination(control, cause, options);
   }
 
   // Obligation decisions name a semantic entry through whichever retained projection control

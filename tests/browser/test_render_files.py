@@ -1,6 +1,7 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import io
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -20,6 +21,7 @@ from render_harness import (
     scroll_settled,
     told,
     wait_until_ready,
+    word_point,
 )
 
 from browser.test_render_gate import AIM_BOXES, aim_selectors
@@ -1145,3 +1147,74 @@ def test_a_page_presents_without_a_file_whose_first_read_has_waited_a_second(
     expect(editor).to_have_text("Notes.")
     expect(placeholder).to_have_count(0)
     wait_until_ready(page)
+
+
+def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
+    browser, serve, tmp_path
+):
+    """A double-click on a word in the rendered copy of the editor's file puts the
+    editor's caret at the start of the word's line, whichever block holds it, and leaves
+    no word selected in the copy. A double-click on a link in the copy only follows the
+    link, though the link scrolls other words under the second press, and one on a copy
+    that names no editor selects its word as the browser does."""
+    file = tmp_path / "README.md"
+    file.write_text(
+        "[To the end](#the-end)\n\nA paragraph's first line\nwraps onto a second line."
+        "\n\n- one\n- two\n\n```sh\nsh run.sh\n```\n\n"
+        "| a | b |\n| --- | --- |\n| x | gamma |\n\n"
+        + "\n\n".join(f"Paragraph {number}." for number in range(1, 41))
+        + "\n\n## The end\n"
+    )
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<h1>Notes</h1><div style="display: grid; '
+            'grid-template-columns: repeat(3, minmax(0, 1fr))">'
+            '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+            '<lf-text-document id="preview" for="notes-file" preview="markdown">'
+            '</lf-text-document><lf-text-document id="written" label="NOTE.md" '
+            'preview="markdown"><pre>One written word.</pre></lf-text-document></div>',
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    preview = page.locator("#preview .lf-text-document-preview")
+    expect(preview.get_by_role("cell", name="gamma")).to_be_visible()
+
+    def double_click(locator, word):
+        point = word_point(locator, word)
+        page.mouse.dblclick(point["x"], point["y"])
+
+    double_click(page.locator("#written .lf-text-document-preview"), "written")
+    assert page.evaluate("() => getSelection().toString()") == "written"
+
+    # The first double-click lands on selected words, and a fenced command's first word
+    # is also the fence's language.
+    preview.locator("p", has_text="wraps").evaluate(
+        "p => getSelection().selectAllChildren(p)"
+    )
+    for word, line in [
+        ("wraps", "wraps onto a second line."),
+        ("two", "- two"),
+        ("sh", "sh run.sh"),
+        ("gamma", "| x | gamma |"),
+    ]:
+        double_click(preview, word)
+        expect(editor).to_be_focused()
+        expect(editor.locator(".cm-activeLine")).to_have_text(line)
+        assert page.evaluate("() => getSelection().toString()") == "", word
+    page.keyboard.insert_text("Z")
+    expect(editor.locator(".cm-activeLine")).to_have_text("Z| x | gamma |")
+
+    # The link's scroll lands before the double-click's second press.
+    point = word_point(preview, "To the end")
+    page.mouse.click(point["x"], point["y"])
+    expect(preview.get_by_role("heading", name="The end")).to_be_in_viewport()
+    page.mouse.down(click_count=2)
+    page.mouse.up(click_count=2)
+    expect(page).to_have_url(re.compile("#preview:preview:the-end$"))
+    expect(editor).not_to_be_focused()

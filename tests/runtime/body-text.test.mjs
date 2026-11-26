@@ -85,7 +85,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
       if (at < 0) continue;
       matches++;
       assert.equal(
-        markdownSourceOffset(body, node, at + 2),
+        markdownSourceOffset(body, source, node, at + 2),
         source.indexOf("word300") + 2,
         source,
       );
@@ -94,15 +94,20 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
   }
   // A caret before an escaped first character stands before its backslash, which a
   // key there would otherwise split from the character it escapes, and one before
-  // code's first character stays in the code.
+  // code's first character stays in the code, though the fence's language spells it.
   for (const [source, word, at] of [
     ["```py\nalpha()\n```", "alpha", 6],
+    ["```sh\nsh run.sh\n```", "sh", 6],
     ["Run:\n\n    alpha()", "alpha", 10],
   ]) {
     const body = document.createElement("div");
     paintMarkdown(body, source);
     const node = body.querySelector("code").firstChild;
-    assert.equal(markdownSourceOffset(body, node, node.data.indexOf(word)), at, source);
+    assert.equal(
+      markdownSourceOffset(body, source, node, node.data.indexOf(word)),
+      at,
+      source,
+    );
   }
   for (const source of ["\\*word300", "Say **\\*word300**."]) {
     const body = document.createElement("div");
@@ -111,7 +116,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     for (let node; (node = walker.nextNode());) {
       const at = node.data.indexOf("*word300");
       if (at < 0) continue;
-      const offset = markdownSourceOffset(body, node, at);
+      const offset = markdownSourceOffset(body, source, node, at);
       assert.ok(
         offset !== null && offset <= source.indexOf("\\*"),
         `${source}: ${offset}`,
@@ -126,7 +131,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     const at = node.data.indexOf("word300");
     for (const offset of [0, 2])
       assert.equal(
-        markdownSourceOffset(body, node, at + offset),
+        markdownSourceOffset(body, source, node, at + offset),
         source.indexOf("word300") + offset,
         source,
       );
@@ -564,7 +569,7 @@ test("a table cell's words and a caret in them stand in its own cell, past the p
     paintMarkdown(body, source, {});
     for (const [index, cell] of body.querySelectorAll("th").entries()) {
       const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT).nextNode();
-      const offset = markdownSourceOffset(body, words, words.data.length);
+      const offset = markdownSourceOffset(body, source, words, words.data.length);
       const [from, to] = spans[index];
       assert.ok(from < offset && offset <= to, `${source}: cell ${index} at ${offset}`);
     }

@@ -3842,10 +3842,10 @@ sequenceDiagram
 
 def test_every_box_a_diagram_names_takes_its_own_comment(browser, serve):
     """Each box an author names takes a comment of its own in every kind of diagram
-    that draws its boxes under their names, keyed by its kind and name, and a box that
-    holds others is marked on its own frame. A name drawn twice, a group Pele numbers
-    for want of a name, and a journey, whose steps Pele numbers on a phone, take the
-    whole diagram's comment, and the diagram still draws."""
+    that draws its boxes under their names, and a box that holds others is marked on
+    its own frame. A group leaves a name it shares to the box. A name drawn twice, a
+    group Pele numbers for want of a name, and a journey, whose steps Pele numbers on a
+    phone, take the whole diagram's comment, and the diagram still draws."""
     page = open_page(
         browser,
         serve(
@@ -3896,12 +3896,12 @@ journey
     )
     assert parts == {
         "board": [
-            ["group:Todo", "Todo 2", "rect"],
+            ["node:Todo", "Todo 2", "rect"],
             ["node:t1", "Write docs", "g"],
-            ["group:Done", "Done 1", "rect"],
+            ["node:Done", "Done 1", "rect"],
         ],
         "years": [["node:2025", "2025 Ship", "g"]],
-        "model": [["group:Job", "Job", "g"], ["node:Job", "Job", "g"]],
+        "model": [["node:Job", "Job", "g"]],
         "blocks": [["node:a", "a", "g"]],
         "release": [],
     }

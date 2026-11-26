@@ -54,8 +54,7 @@ const COMPACT = { flowchart: { wrappingWidth: 84, nodeSpacing: 8 } };
 // In most kinds of diagram Pele draws each box its author named as a node or a cluster
 // carrying the name as `data-id`, the same at every width: the Mermaid id, or the box's
 // words where the language gives it none, as a kanban card or a timeline's period has.
-// So each such box takes a comment of its own, keyed by its kind and its name: a
-// sequence diagram's `box A` is a group and its `participant A` a node. A start or end
+// So each such box takes a comment of its own, keyed by its name. A start or end
 // point, a state's divider and a note are Pele's own, numbered in order, and a sequence
 // diagram's foot row draws the participants its head row draws again, so none of those
 // is a part. Nor is a group its author left unnamed, as an untitled block group or a
@@ -64,9 +63,12 @@ const COMPACT = { flowchart: { wrappingWidth: 84, nodeSpacing: 8 } };
 // a phone's width, and charts, such as a Gantt chart or a pie, number their items. A
 // numbered key would move a comment to another box once the author adds one above it.
 //
-// A name drawn twice, as one label on two periods of a timeline, points at no one box,
-// so each copy takes the whole diagram's comment rather than one of them taking it by
-// its place in the drawing.
+// A group that shares its name with a box, as a sequence diagram's `box A` with its
+// `participant A`, or a namespace with its class, leaves the name to the box, so a
+// state keeps its comment when it gains substates and Pele draws it as a group. A name
+// drawn twice otherwise, as one label on two periods of a timeline, points at no one
+// box, so each copy takes the whole diagram's comment rather than one of them taking it
+// by its place in the drawing.
 const NAMING = new Set([
   "architecture",
   "block",
@@ -88,17 +90,20 @@ const NAMED =
  * @returns {[key: string, box: Element][]} */
 function namedParts(model, drawn) {
   if (!NAMING.has(model.type)) return [];
-  /** @type {[key: string, box: Element][]} */
-  const parts = [...drawn.querySelectorAll(NAMED)].flatMap((box) => {
-    const id = box.getAttribute("data-id") ?? "";
-    const group = box.matches(".pele-cluster");
-    if (group && /^(?:id-|subGraph)\d+$/.test(id)) return [];
-    return [[`${group ? "group" : "node"}:${encodeURIComponent(id)}`, box]];
-  });
+  const boxes = [...drawn.querySelectorAll(NAMED)];
+  const id = (/** @type {Element} */ box) => box.getAttribute("data-id") ?? "";
+  const group = (/** @type {Element} */ box) => box.matches(".pele-cluster");
+  const named = new Set(boxes.filter((box) => !group(box)).map(id));
+  const kept = boxes.filter(
+    (box) =>
+      !group(box) || !(named.has(id(box)) || /^(?:id-|subGraph)\d+$/.test(id(box))),
+  );
   /** @type {Map<string, number>} */
   const seen = new Map();
-  for (const [key] of parts) seen.set(key, (seen.get(key) ?? 0) + 1);
-  return parts.filter(([key]) => seen.get(key) === 1);
+  for (const box of kept) seen.set(id(box), (seen.get(id(box)) ?? 0) + 1);
+  return kept.flatMap((box) =>
+    seen.get(id(box)) === 1 ? [[`node:${encodeURIComponent(id(box))}`, box]] : [],
+  );
 }
 
 // The words a drawn box says, with a space where a line wraps. Pele sets each line of a

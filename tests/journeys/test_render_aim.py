@@ -408,7 +408,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     page = open_page(browser, live_url(serve(TYPED_PARTS_PAGE)))
 
     expected_parts = {
-        "life": {"Queued", "group:Working", "Fetch", "Build", "Done"},
+        "life": {"Queued", "Working", "Fetch", "Build", "Done"},
         "shape": {"RUNNER", "JOB"},
         "path": {"A", "B"},
         "exchange": {"User", "Server"},
@@ -419,7 +419,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
       Object.fromEntries(diagrams.map(diagram => [diagram.id,
         [...diagram.visualParts.keys()].sort()]))
     """) == {
-        diagram: sorted(name if ":" in name else f"node:{name}" for name in parts)
+        diagram: sorted(f"node:{name}" for name in parts)
         for diagram, parts in expected_parts.items()
     }
 

@@ -6,7 +6,7 @@
     },
     "content": "data",
     "visual": {
-      "prefixes": ["node:", "group:"]
+      "prefixes": ["node:"]
     },
     "space": "available",
     "height": true,

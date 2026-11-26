@@ -16,7 +16,7 @@ from leaf.records.markup_checks.markup import (
     repair_errors,
     structure_errors,
 )
-from leaf.source.obligation_sources import group_tags, shown_in, widget_groups
+from leaf.source.obligation_sources import group_tags, widget_groups
 from leaf.source.passages import element_name
 from leaf.source.registry.contract import (
     authored_inert,
@@ -35,6 +35,7 @@ from leaf.source.structure import (
     enclosing_widgets,
     layout_boxes,
     layout_names,
+    shown_in,
 )
 
 # The `command` keywords HTML gives an element itself. Chromium, Firefox and WebKit

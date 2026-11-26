@@ -87,11 +87,11 @@ from leaf.serving import samples as samples_model
 from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.page import read_served_page
 from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import capture_refusals as capture_refusals_model
 from leaf.source import data as data_model
 from leaf.source import data_contracts as data_contracts_model
 from leaf.source import passages as passages_model
 from leaf.source import reading as reading_model
-from leaf.source import resource_urls as resource_urls_model
 from leaf.source import revision_artifact as artifact_model
 from leaf.source import structure as structure_model
 from leaf.source.registry.contract import (
@@ -557,7 +557,7 @@ def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
     revision = files_model.latest_revision(page_dir)
     _replace_manifest(page_dir, revision)
 
-    with pytest.raises(resource_urls_model.ArtifactError) as refused:
+    with pytest.raises(capture_refusals_model.ArtifactError) as refused:
         assert revision is not None
         artifact_model.read_artifact(page_dir, revision)
     assert [finding.code for finding in refused.value.findings] == ["manifest-digest"]

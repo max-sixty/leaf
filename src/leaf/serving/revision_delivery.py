@@ -47,13 +47,8 @@ from leaf.source.layer import DOCUMENT_LAYER_ORDER
 from leaf.source.passages import markdown_markup
 from leaf.source.registry.contract import authored_inert, holds_for, is_element_name
 from leaf.source.registry.kernel import kernel_marks
-from leaf.source.resource_urls import dependency_reference
-from leaf.source.revision_artifact import (
-    Resource,
-    RevisionArtifact,
-    authored_imports,
-    bind_imports,
-)
+from leaf.source.resource_urls import authored_imports, dependency_reference
+from leaf.source.revision_artifact import Resource, RevisionArtifact, bind_imports
 from leaf.source.structure import (
     UTF8_BOM,
     SourceDocument,

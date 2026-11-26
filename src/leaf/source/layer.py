@@ -24,7 +24,6 @@ from functools import cache, cached_property, lru_cache
 from pathlib import Path
 
 from leaf.base.files import file_stamp
-from leaf.base.findings import Finding
 from leaf.base.locations import first_overlap, located, paths_same
 from leaf.base.machine import package_store
 from leaf.base.page_memory import Stamped, memo, once
@@ -48,8 +47,7 @@ from leaf.base.schema import (
 )
 from leaf.base.server import running_server
 from leaf.base.state import PLUGIN_ROOT, installed_copy
-from leaf.source.registry.contract import MODULES, RegistryError, is_element_name
-from leaf.source.registry.storage import layer_metadata_of
+from leaf.source.registry.contract import MODULES, is_element_name, registry_error
 
 
 def named_package(name: str) -> Path | None:
@@ -759,7 +757,7 @@ def selected_layer(record: dict, page_dir: Path) -> LayerComposition:
             ),
         )
     except Refused as error:
-        raise _unavailable(error) from None
+        raise registry_error("layer-unavailable", error=str(error)) from None
 
 
 def selected_vocabulary(record: dict, page_dir: Path) -> LayerVocabulary:
@@ -771,17 +769,17 @@ def selected_vocabulary(record: dict, page_dir: Path) -> LayerVocabulary:
     try:
         return _vocabulary(*_held(tuple(record["packages"]), page_dir))
     except Refused as error:
-        raise _unavailable(error) from None
-
-
-def _unavailable(error: Refused) -> RegistryError:
-    return RegistryError([Finding("layer-unavailable", values={"error": str(error)})])
+        raise registry_error("layer-unavailable", error=str(error)) from None
 
 
 def layer_vocabulary(record: dict, page_dir: Path) -> dict:
     """The vocabulary of the layer `record` selects, with the selection and the
     generation the browser speaks under `$layer`. Each call makes a new copy of the
     layer's registry, sharing its entries."""
+    # Imported here: a hook that only hashes the skill (`files_identity`) reads no
+    # page's layer record.
+    from leaf.source.registry.storage import layer_metadata_of
+
     vocabulary = selected_vocabulary(record, page_dir)
     return {**vocabulary.registry, "$layer": layer_metadata_of(record)}
 

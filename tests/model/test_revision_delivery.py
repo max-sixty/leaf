@@ -21,7 +21,7 @@ from leaf.serving.revision_delivery import (
     mark_declared,
     rebase_document,
 )
-from leaf.source.resource_urls import ArtifactError
+from leaf.source.capture_refusals import ArtifactError
 from leaf.source.revision_artifact import (
     Resource,
     capture_artifact,

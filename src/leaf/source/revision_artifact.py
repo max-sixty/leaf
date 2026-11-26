@@ -1,7 +1,7 @@
 """Complete immutable inputs of one authored revision, and its one held reading.
 
 A capture follows the resources each captured file names, as its readers find them
-(`resource_urls.javascript_imports`, `styles.css_dependencies`), and admits only what
+(`resource_urls.authored_imports`, `styles.css_dependencies`), and admits only what
 the page owns and the layer's public entry points (`resource_urls.resolve_dependency`).
 Neither the layer nor the runtime is captured: the Leaf delivering a revision supplies
 both (`runtime_selection`), the layer composed from the selection the manifest names, so
@@ -66,6 +66,7 @@ from leaf.base.schema import (
     SERVED_PATH,
 )
 from leaf.base.state import fsync_parents
+from leaf.source.capture_refusals import ArtifactError, artifact_error, capture_finding
 from leaf.source.layer import (
     layer_vocabulary,
     layer_widgets,
@@ -79,9 +80,7 @@ from leaf.source.registry.contract import MODULES
 from leaf.source.registry.page import compose_page_registry
 from leaf.source.resource_urls import (
     PUBLIC_MODULES,
-    ArtifactError,
-    artifact_error,
-    capture_finding,
+    authored_imports,
     dependency_reference,
     javascript_imports,
     resolve_dependency,
@@ -433,16 +432,13 @@ def resource_dependencies(
     path: str, data: bytes, mime: str, refused: list[Finding] | None = None
 ) -> tuple[str, ...]:
     """The local dependencies of an authored module or stylesheet, collecting each
-    reference it refuses as `javascript_imports` does, with what delivery's reader
+    reference it refuses as `authored_imports` does, with what delivery's reader
     can't read in a stylesheet (`css_dependencies`). A file that can't be read as
     text has no references to follow."""
     problems = []
     edges = []
     if mime == "application/javascript" and path.startswith("/page/"):
-        for _, _, specifier in javascript_imports(data, path, problems):
-            edges.append(
-                _collect(problems, resolve_dependency, specifier, path, module=True)
-            )
+        edges.extend(target for _, _, target in authored_imports(data, path, problems))
     elif mime == "text/css" and path.startswith("/page/"):
         try:
             css = data.decode("utf-8")
@@ -532,12 +528,12 @@ def _capture_artifact(
         for script in authored.authoring.inline_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
-            for _, _, specifier in javascript_imports(
-                script["body"].encode("utf-8"), "/index.html", refused
-            ):
-                entries.append(
-                    admit(resolve_dependency, specifier, "/index.html", module=True)
+            entries.extend(
+                target
+                for _, _, target in authored_imports(
+                    script["body"].encode("utf-8"), "/index.html", refused
                 )
+            )
         for script in authored.authoring.external_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
@@ -1017,7 +1013,7 @@ class _Readings:
 
 
 def _inventory_size(value):
-    """Charge retained compact objects once, including each future dynamic slot."""
+    """Charge retained compact objects once."""
     seen = set()
 
     def size(item):
@@ -1029,14 +1025,6 @@ def _inventory_size(value):
             return held + sum(size(key) + size(value) for key, value in item.items())
         if isinstance(item, (tuple, list, frozenset)):
             return held + sum(size(value) for value in item)
-        if isinstance(item, Slot):
-            # Reserve the dict, pair and digest before the bool answer is filled.
-            return (
-                held
-                + sys.getsizeof(vars(item))
-                + sys.getsizeof((None, None))
-                + sys.getsizeof(bytes(32))
-            )
         return held
 
     return size(value)
@@ -1048,9 +1036,7 @@ class _CompactReadings:
     Element identities, obligation registration and data consumers are small facts
     about immutable documents. Keeping them separately prevents long-history scans
     from evicting their own completed work with full parses. Each owner charges its retained
-    representation; an obligation source also reserves its last dynamic answer,
-    keyed by the event basis the canonical fold reads. Keys include the marker
-    stamp. No document, full registry, SourceReading or event log is retained.
+    representation. Keys include the marker stamp. No document, full registry, SourceReading or event log is retained.
     """
 
     BUDGET = 8 * 1024 * 1024
@@ -1246,14 +1232,6 @@ def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
     return artifact
 
 
-def authored_imports(data: bytes, logical_path: str):
-    """Yield each literal import of an authored module as its span and logical path."""
-    for start, end, specifier in javascript_imports(data, logical_path):
-        target = resolve_dependency(specifier, logical_path, module=True)
-        if target is not None:
-            yield start, end, target
-
-
 def bind_imports(data: bytes, imports, address) -> bytes:
     """Rewrite each ``(start, end, target)`` import span to ``address(target)``."""
     return splice(
@@ -1264,7 +1242,7 @@ def bind_imports(data: bytes, imports, address) -> bytes:
 def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Resource]):
     """Yield each literal import of one captured module as its span and target.
 
-    Page modules resolve through :func:`resolve_dependency`, whose public-import
+    Page modules resolve through `resource_urls.authored_imports`, whose public-import
     boundary is intentionally narrower. The layer's modules and the runtime's are
     trusted, so a local import need only be among `resources`, which a caller passes
     as the revision runs them (`runtime_selection.executing`). An import from another

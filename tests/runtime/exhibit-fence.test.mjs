@@ -1,7 +1,7 @@
 /* Mention, not use: a widget strictly inside an element the registry marks `exhibit` is
    quoted. The descriptor staged before upgrade carries the answer, and `quoted` gives
    the same one for an element no descriptor holds. The server reads it off
-   the holder chain (`obligation_sources.quoted_in`); `tests/exhibit_cases.json` holds
+   the holder chain (`structure.quoted_in`); `tests/exhibit_cases.json` holds
    both runtimes to one set of cases. */
 import assert from "node:assert/strict";
 import test from "node:test";

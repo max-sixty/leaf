@@ -33,6 +33,7 @@ from leaf.records.markup_checks.markup import (
 )
 from leaf.records.page_data import initial_data_document_readings
 from leaf.records.sample_content import initial_sample_events
+from leaf.source.capture_refusals import ArtifactError
 from leaf.source.data import read_contracts, read_data
 from leaf.source.data_contracts import (
     data_document_errors,
@@ -43,7 +44,6 @@ from leaf.source.layer import other_serving_leaf
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import RegistryError
 from leaf.source.registry.storage import IncompatibleLayer
-from leaf.source.resource_urls import ArtifactError
 from leaf.source.revision_artifact import (
     RevisionArtifact,
     capture_artifact,

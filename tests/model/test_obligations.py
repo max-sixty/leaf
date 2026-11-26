@@ -16,7 +16,7 @@ from leaf.log import obligations as obligations_model
 from leaf.log.projection import page_reading
 from leaf.records.work_reading import WorkReading
 from leaf.serving.served_state.browser import browser_state
-from leaf.source import obligation_sources as obligation_sources_model
+from leaf.source import structure as structure_model
 from leaf.source.passages import element_name
 from leaf.source.reading import SourceReading
 from leaf.source.structure import SourceDocument
@@ -1166,9 +1166,7 @@ def test_a_widget_is_quoted_where_the_browser_fences_it(case):
     the rule the browser's descriptors' `quoted` flag reads off the page."""
     document = SourceDocument(model.leaf_page("Exhibits", case["markup"]))
     assert {
-        rec["attrs"]["id"]: obligation_sources_model.quoted_in(
-            rec, EXHIBITS["registry"]
-        )
+        rec["attrs"]["id"]: structure_model.quoted_in(rec, EXHIBITS["registry"])
         for rec in document.lf_elements
     } == case["quoted"]
 

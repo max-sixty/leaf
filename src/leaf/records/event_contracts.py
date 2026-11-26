@@ -45,7 +45,6 @@ from leaf.records.read_state import read_contract_error
 from leaf.records.todos import todo_error
 from leaf.records.work import widget_seat_error
 from leaf.records.workflows import agent_inputs, attention_reading
-from leaf.source.obligation_sources import quoted_in
 from leaf.source.registry.contract import (
     created_child,
     detail_schema,
@@ -63,6 +62,7 @@ from leaf.source.registry.kernel import (
 from leaf.source.registry.reactions import reaction_tokens
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
+from leaf.source.structure import quoted_in
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:

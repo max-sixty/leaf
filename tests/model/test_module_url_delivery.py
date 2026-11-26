@@ -96,7 +96,7 @@ def test_nonlocal_and_fragment_resources_stay_as_written(reference):
 @pytest.mark.parametrize("path", ["/page/image.svg", "page/image.svg"])
 def test_scheme_dependent_html_resources_are_refused(tmp_path, scheme, path):
     from leaf.serving.revision_delivery import page_path
-    from leaf.source.resource_urls import ArtifactError
+    from leaf.source.capture_refusals import ArtifactError
     from leaf.source.revision_artifact import capture_artifact
     from leaf.source.structure import SourceDocument
 
@@ -117,7 +117,7 @@ def test_scheme_dependent_html_resources_are_refused(tmp_path, scheme, path):
     "reference", ["https:", "http:", "https:#paint", "http:#paint", "https://["]
 )
 def test_invalid_or_scheme_dependent_resource_urls_reach_admission(tmp_path, reference):
-    from leaf.source.resource_urls import ArtifactError
+    from leaf.source.capture_refusals import ArtifactError
     from leaf.source.revision_artifact import capture_artifact
     from leaf.source.structure import SourceDocument
 
@@ -448,7 +448,7 @@ def test_media_attributes_share_normalized_resource_identity():
     "reference", ["/page/%00.svg", "/page/../secret.svg", "/page/%2e%2e/secret.svg"]
 )
 def test_actual_resource_attributes_reach_capture_admission(tmp_path, reference):
-    from leaf.source.resource_urls import ArtifactError
+    from leaf.source.capture_refusals import ArtifactError
     from leaf.source.revision_artifact import capture_artifact
     from leaf.source.structure import SourceDocument
 

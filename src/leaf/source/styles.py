@@ -1,9 +1,10 @@
 """CSS readings of authored HTML.
 
-Delivery's reader (`_read_css`) reads a sheet's URLs once for every address it is
-delivered at: what the sheet loads (`css_dependencies`), what no address can deliver
-in it, and the sheet re-addressed (`rewrite_css`). Capture, export, delivery and
-layer composition all read a sheet through it.
+Delivery's reader (`_read_css`) parses a sheet once for its text and parsing mode,
+whichever address delivers it, and reads from that parse what the sheet loads
+(`css_dependencies`), what no address can deliver in it, and the sheet re-addressed
+(`rewrite_css`). Capture, export, delivery and layer composition all read a sheet
+through it.
 
 Bounded readings of exact CSS text keep state requests from reparsing unchanged
 stylesheets. Their results are read-only; edits select a new cache entry.
@@ -20,11 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from leaf.base.findings import Finding
-from leaf.source.resource_urls import (
-    ArtifactError,
-    capture_finding,
-    dependency_reference,
-)
+from leaf.source.capture_refusals import ArtifactError, capture_finding
 
 
 def css_block(css):
@@ -161,6 +158,10 @@ def _css_meaningful(tokens) -> list:
 def _is_stylesheet_url(url: str) -> bool:
     """Whether an `@import` names a stylesheet. A URL no sheet may load is refused
     where the sheet's references are resolved, so it isn't refused here."""
+    # Imported here: the URL reader loads a WHATWG URL parser, which `package run`,
+    # reading only a sheet's declarations, never needs.
+    from leaf.source.resource_urls import dependency_reference
+
     try:
         reference = dependency_reference(url, "/index.css")
     except ArtifactError:
@@ -280,7 +281,8 @@ _CSS_MARK = ("", "")
 
 @lru_cache(maxsize=512)
 def _read_css(source: str, declarations: bool) -> _CssReading:
-    """Parse a stylesheet once for every address it is delivered at.
+    """Parse a stylesheet, kept by its text and parsing mode (`declarations`) rather than
+    by the address that delivers it.
 
     A sheet's text is the same for every page that selects the same layer and every
     revision that captured it, while the address it is delivered at names one

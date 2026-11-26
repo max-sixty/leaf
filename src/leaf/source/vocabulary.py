@@ -1,5 +1,6 @@
 """The vocabulary each of a page's documents is read in (`page_vocabulary`): a
-revision's, frozen at its capture (`revision_artifact.revision_vocabulary`), or the
+revision's, the page declarations its capture kept, composed by this Leaf over the layer
+of the package selection it kept (`revision_artifact.revision_vocabulary`), or the
 candidate's, the page's own declarations over the layer its record selects
 (`read_page_registry`)."""
 
@@ -112,10 +113,12 @@ def compose_candidate(
 def page_vocabulary(page_dir: Path, revision: int | None) -> dict | None:
     """The vocabulary one of the page's documents is read in.
 
-    A revision's is the registry its capture froze, which a later `page init` or page
-    declaration cannot reach. With no revision, the document is the candidate, so its
-    vocabulary is the layer composed with the page's own declarations — the same one
-    the candidate would be captured under. None before `page init`.
+    A revision's is composed from the page declarations and package selection its
+    capture kept (`revision_artifact.revision_vocabulary`), so the page's later
+    declarations and layer record don't change it. With no revision, the document is
+    the candidate, so its vocabulary is the layer its record selects composed with the
+    page's own declarations, the inputs a capture of it would keep. None before
+    `page init`.
     """
     if revision is not None:
         return read_revision(page_dir, revision).registry

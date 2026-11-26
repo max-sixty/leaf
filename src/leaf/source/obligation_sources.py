@@ -2,19 +2,18 @@
 vocabulary alone.
 
 A widget asks by declaring `awaits` (`local_obligation_entry`), unless it stands in an
-exhibit, where it is shown rather than asked (`shown_in`), or quoted and takes no input
-at all (`quoted_in`). Its prompt is the name of the group the author declares round it,
-or else its own (`widget_groups`). Every reading of a document's obligations against
-the log starts from its asking widgets and their prompts (`ObligationSources`,
-`obligations.page_obligation_readings`), and a revision's history keeps a compact
-registration of each (`ObligationRegistration`). Nothing here reads the log."""
+exhibit, where it is shown rather than asked (`structure.shown_in`). Its prompt is the
+name of the group the author declares round it, or else its own (`widget_groups`). Every
+reading of a document's obligations against the log starts from its asking widgets and
+their prompts (`ObligationSources`, `obligations.page_obligation_readings`), and a
+revision's history keeps a compact registration of each (`ObligationRegistration`).
+Nothing here reads the log."""
 
 from typing import NamedTuple
 
-from leaf.base.page_memory import Slot
 from leaf.source.passages import element_name
-from leaf.source.registry.contract import exhibits, matches_when
-from leaf.source.structure import enclosing_widgets
+from leaf.source.registry.contract import matches_when
+from leaf.source.structure import shown_in
 
 
 def local_obligation_entry(entry: dict) -> bool:
@@ -64,43 +63,12 @@ def widget_groups(content: list, registry: dict):
     yield from walk(content, None)
 
 
-def shown_in(rec: dict, registry: dict) -> bool:
-    """Inside an element whose tag declares `exhibit`, a widget is shown rather than
-    asked, so it puts nothing on the user's list, whether or not the declaration's
-    condition holds there. The condition decides only whether it also takes no input
-    (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
-    page's log and Undo as a demonstration, and a page's On Me holds only what the page
-    itself asks. Same holder-chain walk as `quoted_in`."""
-    return any(
-        bool(registry.get(node["tag"], {}).get("exhibit"))
-        for node in enclosing_widgets(rec)
-    )
-
-
-def quoted_in(rec: dict, registry: dict) -> bool:
-    """Inside an element the registry marks `exhibit` where its condition holds, a
-    widget is a mention rather than a use: it takes no input and asks nothing.
-
-    The holder chain answers it, which is the walk `projection.enclosing_slot` makes
-    and the one `quotedBy` makes over the DOM for a descriptor's own `quoted` flag.
-    Asked of `spoken` instead, containment became a question about the page's words:
-    the reading that says what stands around one widget walks every character of the
-    version to do it, so an action POST on a 90KB page spent forty milliseconds
-    finding out what a single id sat in. It reads a record rather than an id for the
-    same reason `quotedBy` takes an element — an element the author left unnamed
-    stands where it stands."""
-    return any(
-        exhibits(node["attrs"], registry.get(node["tag"], {}))
-        for node in enclosing_widgets(rec)
-    )
-
-
 class ObligationSources(NamedTuple):
     """The widgets one document declares that can ask the user, read under one
     vocabulary.
 
     `asking` holds each declared widget, with whether it stands inside an exhibit
-    (`shown_in`).
+    (`structure.shown_in`).
     `prompts` maps each one's id to its prompt: `text`, the words naming it, its group's
     name (`widget_groups`) or else its own, and `target`, the id of the element going
     to it starts at, its group or else itself.
@@ -143,17 +111,14 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
 
 
 class ObligationRegistration(NamedTuple):
-    """Compact registration inputs and the last event-dependent registration.
-
-    No parser records or holder chains survive here. The last dynamic answer uses
-    the canonical state fold and is keyed by its complete historical event basis.
-    """
+    """Compact registration inputs: no parser records or holder chains survive here.
+    Whether a widget whose `triggers` were written asked in its revision is the log
+    fold's to read (`obligations.previously_requested`)."""
 
     tag: str
     asking: bool
     restated: bool
     triggers: frozenset[str]
-    requested: Slot
 
 
 def obligation_registrations(
@@ -171,7 +136,6 @@ def obligation_registrations(
                 if (spec.get("record") or {}).get("kind") == "value"
                 and spec["record"]["attr"] in declaration.get("when", {})
             ),
-            Slot(),
         )
         for unit, record in document.by_id.items()
         if (declaration := registry.get(record["tag"], {}).get("awaits")) is not None

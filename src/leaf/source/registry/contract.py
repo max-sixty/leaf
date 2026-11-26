@@ -67,7 +67,7 @@ def holds_for(attrs: dict, rule):
     `False` otherwise; any other declaration is returned as declared. Delivery's paint
     and every reader asking of one occurrence read a fact through this, as `exhibits`
     does; a reader asking whether the tag declares the fact at all reads the
-    declaration whatever its condition, as `obligation_sources.shown_in` does."""
+    declaration whatever its condition, as `structure.shown_in` does."""
     when = fact_condition(rule)
     return rule if when is None else matches_when(attrs, when)
 

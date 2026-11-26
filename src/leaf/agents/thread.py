@@ -49,13 +49,13 @@ from leaf.records.event_contracts import append_admitted
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
 from leaf.source.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
-from leaf.source.obligation_sources import local_obligation_entry, shown_in
+from leaf.source.obligation_sources import local_obligation_entry
 from leaf.source.passages import holds_html, message_markup
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import kinds_declaring, title_limit
 from leaf.source.revision_artifact import active_enclosing, read_revision
-from leaf.source.structure import SourceDocument
+from leaf.source.structure import SourceDocument, shown_in
 
 
 def drawn_markup(text: str) -> str:

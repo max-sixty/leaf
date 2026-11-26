@@ -55,6 +55,7 @@ revision."""
 
 import hashlib
 import json
+import weakref
 from bisect import bisect_right
 from collections.abc import Callable
 from functools import partial
@@ -62,6 +63,7 @@ from math import inf
 from typing import TYPE_CHECKING
 
 from leaf.base import standing
+from leaf.base.page_memory import Slot
 from leaf.base.standing import ended, is_open, on
 from leaf.log.events import (
     is_reaction,
@@ -83,6 +85,7 @@ from leaf.log.projection import (
 )
 from leaf.log.thread_context import widget_messages
 from leaf.source.obligation_sources import ObligationSources, obligation_sources
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import verb_writers
 from leaf.source.registry.reactions import reaction_tokens
@@ -569,6 +572,19 @@ def answering_action(
     )
 
 
+# For each earlier revision's reading and widget, the last answer to whether the widget
+# asked there, keyed by the event basis it read (`_ObligationReducer.inventory`). It
+# lasts as long as the reading, so a fold over an unchanged log folds that revision
+# again only once its reading is gone.
+_REQUESTED: "weakref.WeakKeyDictionary[SourceReading, dict[str, Slot]]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _requested(reading: SourceReading, unit: str) -> Slot:
+    return _REQUESTED.setdefault(reading, {}).setdefault(unit, Slot())
+
+
 class _ObligationReducer:
     """One page or thread-markup obligation fold over a shared state projection."""
 
@@ -730,7 +746,7 @@ class _ObligationReducer:
                                     sort_keys=True,
                                 ).encode()
                             ).digest()
-                        if registration.requested.get(
+                        if _requested(old, unit).get(
                             history_keys[old_revision],
                             partial(historical_request, old_revision, old, unit),
                         ):

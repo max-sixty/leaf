@@ -6,8 +6,9 @@ Logical resource URLs are rooted at the page (``/page/app.js``,
 strings, which Tree-sitter reads (`javascript_imports`); a stylesheet's URLs are
 `styles.css_dependencies`. Only the declared public layer entry points
 (`PUBLIC_MODULES`) may cross from authored code into the layer
-(`resolve_dependency`). A reference no revision can hold is refused as a capture
-problem (`ArtifactError`), whoever reads it."""
+(`resolve_dependency`), and an authored module's imports are read through that gate
+(`authored_imports`). A reference no revision can hold is refused as a capture
+problem (`capture_refusals`), whoever reads it."""
 
 import posixpath
 from functools import cache, lru_cache
@@ -16,8 +17,9 @@ from urllib.parse import quote, unquote
 
 from pywhatwgurl import URL
 
-from leaf.base.findings import Finding, Rejected
+from leaf.base.findings import Finding
 from leaf.base.schema import JAVASCRIPT_SUFFIXES, kernel_registry
+from leaf.source.capture_refusals import ArtifactError, artifact_error, capture_finding
 
 
 class ReferenceError(ValueError):
@@ -98,27 +100,6 @@ def resource_reference(
     return resolved, url.search + url.hash
 
 
-class ArtifactError(Rejected):
-    """A candidate cannot be captured as a complete local revision, refused with every
-    finding that says why. A capture reports each problem in every file it reads, so
-    an author repairs them all from one check (`revision_artifact._collect`)."""
-
-
-def capture_finding(code: str, file=None, specifier=None, /, **values) -> Finding:
-    """One capture problem: `code` names it, `file` the file it was read in,
-    `specifier` the reference in that file it concerns."""
-    if file is not None:
-        values["file"] = str(file)
-    if specifier is not None:
-        values["specifier"] = specifier
-    return Finding(code, values=values)
-
-
-def artifact_error(code: str, file=None, specifier=None, /, **values):
-    """The refusal of one capture problem (`capture_finding`)."""
-    return ArtifactError([capture_finding(code, file, specifier, **values)])
-
-
 PUBLIC_MODULES = tuple(kernel_registry()["$public-modules"]["paths"])
 
 
@@ -144,6 +125,31 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     elif not resolved.startswith(("/page/", "/media/")):
         raise artifact_error("dependency-outside-page", importer, specifier)
     return resolved
+
+
+def authored_imports(
+    data: bytes, path: str, refused: list[Finding] | None = None
+) -> tuple[tuple[int, int, str], ...]:
+    """Each literal import of the authored module at `path`, as its span and the page
+    file or public entry point it resolves to (`resolve_dependency`), less those that
+    load from another server. Each import it refuses, as `javascript_imports` reads it
+    or as the gate admits it, is added to `refused`, and the rest are returned;
+    without a list to collect them, every refused import is raised together."""
+    problems: list[Finding] = []
+    imports = []
+    for start, end, specifier in javascript_imports(data, path, problems):
+        try:
+            target = resolve_dependency(specifier, path, module=True)
+        except ArtifactError as error:
+            problems.extend(error.findings)
+            continue
+        if target is not None:
+            imports.append((start, end, target))
+    if refused is not None:
+        refused.extend(problems)
+    elif problems:
+        raise ArtifactError(problems)
+    return tuple(imports)
 
 
 def javascript_imports(

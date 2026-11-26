@@ -107,8 +107,9 @@ fork (`ask`'s `beside`), each for a duty the line fork's moment suits, such as
 summarizing a long thread's earlier discussion (`summary_fork`). The module makes
 each at once and hands its answer back with the basis Leaf gave it, and Leaf writes
 what it answered by the duty the basis names (`BESIDE`). Each fork answers on its
-own, so none holds back the line, and a new duty needs only its module and its entry
-in `BESIDE`, with no change to the module.
+own, so none holds back the line. A new duty needs its module, the calls in `ask`
+that say when its fork is due and write its prompt from the thread `ask` renders
+once, and its entry in `BESIDE`, with no change to the hooks module.
 
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
 and nothing once the page is no longer the session's. The page's diagnostics
@@ -305,17 +306,18 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
                 return None
             awaits = _awaits_line(page, basis)
             data = _thread_data(page, basis["inputs"])
-            beside = [
-                fork
-                for fork in (
-                    [summary_fork.ask(page, thread_json(data), basis)] if data else []
-                )
-                if fork is not None
-            ]
+            summary = summary_fork.due(page, basis) if data else None
     except FileNotFoundError:
         return None
-    if data is None or not (awaits or beside):
+    if data is None or not (awaits or summary):
         return None
+    # Rendered once, for whichever prompts are due.
+    whole = thread_json(data)
+    beside = (
+        [{"prompt": summary_fork.prompt(whole, summary), "basis": summary}]
+        if summary
+        else []
+    )
     if not awaits:
         return {"thread": basis, "beside": beside}
     note(
@@ -329,7 +331,7 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
         },
     )
     return {
-        "prompt": line_prompt(data, running),
+        "prompt": line_prompt(whole, running),
         "thread": basis,
         **({"beside": beside} if beside else {}),
     }
@@ -356,6 +358,8 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
 
 
 def thread_json(data: dict) -> str:
+    """The thread whole as the forks' prompts show it, from `data` as
+    `_thread_data` reads it."""
     return json_block(
         {
             "page": data["page"],
@@ -387,9 +391,10 @@ def _running_line(running: list[dict]) -> str:
     )
 
 
-def line_prompt(data: dict, running: list[dict]) -> str:
+def line_prompt(thread: str, running: list[dict]) -> str:
     """The one message a fork answers: what it is for, the thread as Leaf would
-    deliver it (`delivery.batch_data`) but whole, and what the session is running."""
+    deliver it (`delivery.batch_data`) but whole, as `thread_json` renders it
+    (`thread`), and what the session is running."""
     return f"""{LINE_OPENING}
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds. You are a fork of the session, and Leaf asks you for the working line it posts in the thread at once, saying what the agent will do about the message.
 
@@ -397,7 +402,7 @@ Every tool call is denied here, so don't call tools, and reply straight away wit
 
 {_running_line(running)} The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
 
-{thread_json(data)}
+{thread}
 
 The line stands in the thread as the agent's until the agent's answer replaces it. Write what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer out of the line, even where the conversation above holds it.
 

@@ -23,9 +23,10 @@ time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one 
 sandbox bridge runs for Claude Code is timed from the bridge's start of it.
 
 Claude Code's pages follower records in each page the session holds that it runs
-there, listing line forks for the page's rounds (`record_follower`). Leaf notes what
-it asks each fork of the session's conversation and what came of it (`note`, as
-`forks`, `summary_fork` and `clerk` call it).
+there, listing line forks for the page's rounds (`record_follower`). The line fork
+notes each question Leaf gives the hooks module for it (`fork_asked`), and the line
+fork, the summary fork and the clerk's turn-end check each note what came of their
+fork (`fork_outcome`, `summary_fork`, `turn_end_check`), all through `note`.
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
@@ -121,7 +122,6 @@ def record_command(command: str, *, refused: str | None = None) -> None:
         harness = session_harness()
         session = harness.session if harness is not None else None
         record = {
-            "source": "cli",
             "type": "leaf_command",
             "command": command,
             "started": datetime.fromtimestamp(started, UTC).isoformat(),
@@ -134,10 +134,11 @@ def record_command(command: str, *, refused: str | None = None) -> None:
         return
     for page_dir in pages:
         try:
-            if initialized(page_dir):
-                append_interactions(page_dir, [record])
+            page = initialized(page_dir)
         except OSError:
             continue
+        if page:
+            note(page_dir, record)
 
 
 def record_watch(pages: list[Path], session: str, began: float, ended: str) -> None:

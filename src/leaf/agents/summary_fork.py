@@ -106,11 +106,10 @@ ANSWER = {
 _WEIGHED = "summary-fork"
 
 
-def ask(page: PageTransaction, whole: str, basis: dict) -> dict | None:
-    """The fork to make beside the line fork for the round `basis` names,
-    as `{"prompt", "basis"}`, where Leaf suggests a range of it to summarize; else
-    None. `whole` is the thread whole from `page`, as the line fork's prompt
-    shows it (`forks.thread_json`)."""
+def due(page: PageTransaction, basis: dict) -> dict | None:
+    """The basis of the fork to make beside the line fork for the round `basis`
+    names on `page`, where Leaf suggests a range of its thread to summarize (`from`,
+    `through`); else None."""
     threads = build_threads(page.events, active_enclosing(page.page_dir))
     thread = threads.get(basis["thread"])
     if thread is None:
@@ -120,23 +119,21 @@ def ask(page: PageTransaction, whole: str, basis: dict) -> dict | None:
     if hint is None:
         return None
     return {
-        "prompt": prompt(whole, hint),
-        "basis": {
-            "duty": "summary",
-            "page": basis["page"],
-            "thread": basis["thread"],
-            "from": hint["from"],
-            "through": hint["through"],
-            "inputs": basis["inputs"],
-            "seq": page.events[-1]["seq"],
-        },
+        "duty": "summary",
+        "page": basis["page"],
+        "thread": basis["thread"],
+        "from": hint["from"],
+        "through": hint["through"],
+        "inputs": basis["inputs"],
+        "seq": page.events[-1]["seq"],
     }
 
 
 def prompt(thread: str, hint: dict) -> str:
-    """The one message the fork answers: what it is for, the thread whole, the range
-    Leaf suggests and the agent's guidance for choosing a range and writing its
-    summary."""
+    """The one message the fork answers: what it is for, the thread whole as
+    `forks.thread_json` renders it (`thread`), the range Leaf suggests (`hint`'s
+    `from` and `through`, as `due` gives them) and the agent's guidance for choosing
+    a range and writing its summary."""
     folds, holds = (
         "\n".join(
             f"> {line}" if line else ">"

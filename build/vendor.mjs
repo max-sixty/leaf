@@ -589,8 +589,7 @@ const bundles = {
   // (#2239): a tip leaves out every channel whose values are all literal, not only
   // colours, so a symbol channel naming its symbols says no "[object Object]". The
   // patch applies to whichever Plot version is installed, and on 0.6.18 or later,
-  // which already has the fix, it fails the install (`ignorePatchFailures` in
-  // `pnpm-workspace.yaml`) until the hunk is deleted.
+  // which already has the fix, it fails the install until the hunk is deleted.
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],

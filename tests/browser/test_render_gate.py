@@ -3772,7 +3772,10 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
 ):
     """A text block starts at its holder's edge, so a wrapper reaching before the prose
     moves its words off the column, on a page the rest of which stands on it. A wide
-    wrapper keeps the prose's start edge, and a caption belongs to its figure."""
+    wrapper keeps the prose's start edge, a figure's caption stays on the column, and a
+    widget in the figure that declares a width of its own, as a board or a diagram
+    does, is no words. A plain box that declares a width keeps the words it holds at
+    its own edge, so it still takes them off the column."""
     source = leaf_page(
         "Words off the column",
         """<h1>Words off the column</h1><p>Prose sets the column.</p>
@@ -3784,6 +3787,11 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
         <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
         <figure id="pictured" data-width="available"><div>Picture.</div>
           <figcaption>Caption.</figcaption></figure>
+        <figure id="drawn" data-width="available">
+          <lf-board id="board"><lf-column id="ready" label="Ready"></lf-column></lf-board>
+          <figcaption>Caption.</figcaption></figure>
+        <section id="boxed" data-width="available"><div data-width="available">
+          <p>Words.</p></div></section>
         <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>""",
     )
     page = open_page(browser, serve(source))
@@ -3794,10 +3802,15 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
         for finding in reading["contained"]
         if finding["code"] == "words-off-column"
     ]
-    assert found == ["<section id=words>", "<details id=more>", "<section id=inner>"]
+    assert found == [
+        "<section id=words>",
+        "<details id=more>",
+        "<section id=inner>",
+        "<section id=boxed>",
+    ]
     advice = render_gate_readings.swept_faults([(1440, reading)])
     worded = [finding for finding in advice if finding.code == "words-off-column"]
-    assert all(finding.severity == "advice" for finding in worded) and len(worded) == 3
+    assert all(finding.severity == "advice" for finding in worded) and len(worded) == 4
     assert "move data-width to the block inside" in str(worded[0])
 
 

@@ -1175,7 +1175,8 @@ class TextDocument extends LeafElement {
 
   // Puts the editor's caret at the start of the double-clicked word's line in the
   // file. The dialect's alignment of rendered words to source finds the word in the
-  // file (`markdownSourceOffset`), and the widget `for` names reveals `<key>:<line>`,
+  // file (`markdownSourceOffset`), reading the file's HTML as the preview draws it
+  // (`markdownFileFragment`), and the widget `for` names reveals `<key>:<line>`,
   // as the file editor does for a link to that line (lf-file-editor.js,
   // `lfRevealDatum`). The widget is assumed to answer such a key: the file editor is
   // the one widget whose `text-document` value names a file by `key`. A double-click
@@ -1191,6 +1192,7 @@ class TextDocument extends LeafElement {
         words.text,
         words.caret.offsetNode,
         words.caret.offset,
+        true,
       );
     if (!words || offset === null) return;
     const line = words.text.slice(0, offset).split(/\r\n|\r|\n/).length;
@@ -1204,8 +1206,8 @@ class TextDocument extends LeafElement {
   // (`dressCode`); a changed block is dressed before it stands, so the reconciliation
   // keeps every node the text leaves as it was, and any selection in it, and the
   // dressing costs only what the text changed. A first draw stands undressed, and
-  // `show` dresses it in place. The file reads as GitHub reads it, its HTML included
-  // (`markdownFileFragment`), and as GitHub's rendering of the file answers them, a
+  // `show` dresses it in place. The file reads with its HTML (`markdownFileFragment`),
+  // and as GitHub's rendering of the file answers them, a
   // link the file makes to one of its own places names that place in the preview
   // (`filePlaces`), and a picture or a file it names by a path is the one beside the
   // file, where the page binds the file (`boundFile`). A link to another file opens
@@ -1215,13 +1217,11 @@ class TextDocument extends LeafElement {
   /** @param {string} source @param {string | null} file @param {string | null} binding @param {number} rendering */
   async preparePreview(source, file, binding, rendering) {
     const content = await markdownFileFragment(source, pageLinks);
-    for (const element of content.querySelectorAll(
-      '[id^="user-content-"], a[name^="user-content-"]',
-    )) {
+    for (const element of content.querySelectorAll("[id], a[name]")) {
       const name = element.getAttribute("id") ?? element.getAttribute("name") ?? "";
       element.removeAttribute("id");
       if (element.localName === "a") element.removeAttribute("name");
-      element.setAttribute("data-lf-place", name.slice("user-content-".length));
+      element.setAttribute("data-lf-place", name);
     }
     const places = filePlaces(content);
     for (const link of content.querySelectorAll('a[href^="#"]')) {

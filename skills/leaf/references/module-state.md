@@ -247,9 +247,9 @@ file the page binds, or `null` until the page's state names it. `read()` returns
 file is still at `revision`, and resolves the saved `{label, text, revision}`. Where the server refuses the save, which then wrote nothing,
 it resolves `{refused, current}` instead: `refused` is the server's reason, and
 `current` the newer file where the file was no longer at `revision`, else `null`. It
-rejects where the page isn't `writable`, and where no reason from the server came, as
-when the request went unanswered or a proxy answered in the server's place; then the
-save may have reached the file. `watch(callback)` calls
+rejects where the page isn't `writable`, and where the server gave no refusal, as when
+the request went unanswered, a proxy answered in the server's place or the server
+failed after writing; then the save may have reached the file. `watch(callback)` calls
 back whenever the file may have changed on disk or its label changed, the widget's own
 save included, so read it again then. `beside(path)` gives the address the page's own
 server answers a file at by its path from the bound file's folder, such as a picture

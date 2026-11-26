@@ -304,7 +304,8 @@ column and sidebar pages:
   and extends toward its end edge to `--lf-wide`, as far as the window allows.
 - `data-width="available"` is for a surface that uses every pixel, such as a board, a
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
-  leave free, into both margins.
+  leave free, into both margins. A `figure` with it keeps its `figcaption` under the
+  prose by the caption's inline margins, so space the caption with `margin-block`.
 
 A `table` with either value is only as wide as its columns need, up to that width.
 A block widens when it is a child of the `layout-column`, or of a `section`,

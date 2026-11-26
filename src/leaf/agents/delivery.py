@@ -386,7 +386,22 @@ _BATCH = object_schema(
             "what the delivery reads of it (`batch_data`, `handled`).",
             {"type": "array", "items": _DELIVERED_EVENT},
         ),
-    }
+    },
+    {
+        "held": described(
+            "The agent's open to-dos on the page whose work waits on something it "
+            "named (`todos`, `waiting_on`), each its `id`, the `text` naming the work "
+            "and its `waiting_on`, so the input that ends a wait arrives beside it. A "
+            "`when` clause reads it on each of the batch's events as `held`. Absent "
+            "where none waits.",
+            {
+                "type": "array",
+                "items": object_schema(
+                    {"id": STRING, "text": STRING, "waiting_on": STRING}
+                ),
+            },
+        ),
+    },
 )
 DELIVERY = Record(
     "delivery",
@@ -395,7 +410,7 @@ DELIVERY = Record(
         "(`references/event-batches.md`), in the state home's "
         "`deliveries/<id>.json`: the updates that need the agent's attention, one batch per page. Registry "
         "`when` clauses read its events, with an event's thread digest as `thread` "
-        "(`registry.contract.event_clauses`).",
+        "and its batch's `held` as `held` (`registry.contract.event_clauses`).",
         object_schema(
             {
                 "id": described(
@@ -456,7 +471,7 @@ DELIVERY = Record(
             },
         ),
     ),
-    since=58,
+    since=59,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 
@@ -575,7 +590,9 @@ def batch_data(
     for its transport: the address of a thread reply, and the `handling` that follows
     from it, by the page's work (`presence.read_work`), `work` where the caller has
     already read it. `whole` carries each thread whole
-    (`thread_context.batch_threads`)."""
+    (`thread_context.batch_threads`). The batch lists the page's to-dos that wait
+    on something (`held`) whatever its input, since Leaf reads nothing from a wait's
+    words and so can't tell which input ends one."""
     from leaf.agents.presence import read_work
     from leaf.base.leases import lane_up
     from leaf.log.events import thread_structure
@@ -649,10 +666,16 @@ def batch_data(
         if _users_reply_in_a_thread(event) and event["id"] in settled:
             entry["settled"] = settled[event["id"]]
         captured.append(entry)
+    held = [
+        {"id": todo["id"], "text": todo["prompt"]["text"], "waiting_on": waits}
+        for todo in work.durable.log.owed
+        if (waits := todo["waiting_on"])
+    ]
     return {
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
+        **({"held": held} if held else {}),
         "threads": batch_threads(
             events,
             batch,
@@ -733,8 +756,9 @@ def handled(
     """One captured batch with exact references, writer hints and handling, the
     clauses its page's `registry` declares.
 
-    A clause's `when` reads the event, the answer it owes, and its thread's
-    digest, so each event is told only its own case and the answer it owes. The
+    A clause's `when` reads the event, the answer it owes, its thread's digest
+    and the batch's `held`, so each event is told only its own case and the answer
+    it owes. The
     answer's address is a fact of the freeze, not of the capture: a Codex record
     collects batches before it knows which transport will offer it, and only the
     freeze does."""
@@ -775,7 +799,7 @@ def handled(
             else {}
         )
         digest = next((digests[c] for c in event["threads"] if c in digests), None)
-        read = {**entry, **owed}
+        read = {**entry, **owed, **({"held": batch["held"]} if "held" in batch else {})}
         if digest is not None:
             read["thread"] = digest
         clauses = event_clauses(read, registry)
@@ -807,7 +831,8 @@ def envelope(
         "acknowledge": acknowledge,
         **({"correction": correction} if correction is not None else {}),
         "batches": [
-            {field: batch[field] for field in _BATCH["properties"]} for batch in batches
+            {field: batch[field] for field in _BATCH["properties"] if field in batch}
+            for batch in batches
         ],
     }
 

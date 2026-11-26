@@ -776,6 +776,8 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
             "reply",
             "--done",
             response_reference(d, asked),
+            "--title",
+            "Beta wording",
             "--text",
             "Beta reads another way now.",
         ],

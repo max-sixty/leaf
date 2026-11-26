@@ -304,6 +304,7 @@ _SELECTED = "the page draws with the packages it selected"
 _RETRIED = "a retried write returns the event it first made, never a second"
 _OWED = "what an answer leaves owed stays on the user's or agent's list"
 _NEWER = "the user's newer message stays owed until the agent answers it"
+_TITLED = "every thread the agent writes in has a title naming its subject"
 _REACHES = "the user can see and reach everything the page draws"
 _MARKS = "each comment marks and reaches the element or part it anchors to"
 _WORKS = "the user sees the page's widgets and scripts work as written"
@@ -2591,6 +2592,13 @@ _TEXT = {
         " without bringing it back to their list, which suits the answer or result"
         f" they asked for; `{v['command']}` brings it back where the message holds"
         " news they would want to stop and read"
+    ),
+    "untitled-thread": _refuses(
+        _TITLED,
+        lambda at, v: (
+            f"thread {v['thread']!r} has no title yet; name its subject with"
+            ' --title "<a few words>" on this reply'
+        ),
     ),
     "title-kept": lambda at, v: (
         f"the thread is already titled {v['title']!r}, so the reply's title went"

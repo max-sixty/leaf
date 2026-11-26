@@ -43,8 +43,8 @@ from leaf.serving.served_state.page import read_served_page
 from leaf.serving.served_state.service import LivePage, PageStateService
 from leaf.serving.served_state.tail import answer
 from leaf.source.data import data_version, value_revision
-from leaf.source.passages import SourceReading
-from leaf.source.registry.storage import served_layer
+from leaf.source.layer import served_layer
+from leaf.source.reading import SourceReading
 from leaf.source.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"

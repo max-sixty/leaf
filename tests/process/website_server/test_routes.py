@@ -29,10 +29,10 @@ from leaf.serving.http import page_delivery
 from leaf.serving.revision_delivery import compose_document
 from leaf.serving.served_state import page as served_page
 from leaf.source.file_bindings import bind_file
-from leaf.source.registry.storage import load_registry
 from leaf.source.revision_artifact import capture_artifact
 from leaf.source.runtime_selection import executing, serving_runtime
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.page_fixtures import example_media
 from leaf_dev.website import activation_url

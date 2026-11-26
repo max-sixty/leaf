@@ -719,6 +719,8 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
                 "thread",
                 "create",
                 str(d),
+                "--title",
+                "Chart check",
                 "--text",
                 'See this.\n\n<lf-chart id="t-bad">\n<pre>\n{ marks: [ }\n</pre></lf-chart>',
             ],

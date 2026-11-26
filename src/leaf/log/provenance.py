@@ -67,7 +67,7 @@ from leaf.log.events import build_threads, settlements
 
 if TYPE_CHECKING:
     from leaf.records.event_facts import EventFacts
-    from leaf.source.passages import SourceReading
+    from leaf.source.reading import SourceReading
 
 
 def revision_places(events: list) -> dict[int, int]:

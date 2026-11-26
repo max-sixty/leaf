@@ -1,4 +1,6 @@
-"""One parsed source document and its structural readings."""
+"""One parsed source document and its structural readings, among them the widgets an
+element stands in (`enclosing_widgets`) and whether one is an exhibit (`shown_in`,
+`quoted_in`)."""
 
 import hashlib
 import json
@@ -11,6 +13,7 @@ import turbohtml
 
 from leaf.base.findings import Finding
 from leaf.base.schema import ASSETS, MEDIA_DIR
+from leaf.source.registry.contract import exhibits
 from leaf.source.registry.kernel import kernel_authored
 from leaf.source.resource_urls import ReferenceError, resource_reference
 
@@ -581,6 +584,45 @@ class SourceDocument:
     def spaced_ids(self) -> list:
         """Ids holding ASCII whitespace, which HTML forbids in one (see id_errors)."""
         return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
+
+
+def enclosing_widgets(rec: dict):
+    """The lf-* elements standing around one, innermost first."""
+    rec = rec["holder"]
+    while rec is not None:
+        yield rec
+        rec = rec["holder"]
+
+
+def shown_in(rec: dict, registry: dict) -> bool:
+    """Inside an element whose tag declares `exhibit`, a widget is shown rather than
+    asked, so it puts nothing on the user's list, whether or not the declaration's
+    condition holds there. The condition decides only whether it also takes no input
+    (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
+    page's log and Undo as a demonstration, and a page's On Me holds only what the page
+    itself asks. Same holder-chain walk as `quoted_in`."""
+    return any(
+        bool(registry.get(node["tag"], {}).get("exhibit"))
+        for node in enclosing_widgets(rec)
+    )
+
+
+def quoted_in(rec: dict, registry: dict) -> bool:
+    """Inside an element the registry marks `exhibit` where its condition holds, a
+    widget is a mention rather than a use: it takes no input and asks nothing.
+
+    The holder chain answers it, which is the walk `projection.enclosing_slot` makes
+    and the one `quotedBy` makes over the DOM for a descriptor's own `quoted` flag.
+    Asked of `spoken` instead, containment became a question about the page's words:
+    the reading that says what stands around one widget walks every character of the
+    version to do it, so an action POST on a 90KB page spent forty milliseconds
+    finding out what a single id sat in. It reads a record rather than an id for the
+    same reason `quotedBy` takes an element — an element the author left unnamed
+    stands where it stands."""
+    return any(
+        exhibits(node["attrs"], registry.get(node["tag"], {}))
+        for node in enclosing_widgets(rec)
+    )
 
 
 class Authoring:

@@ -24,9 +24,9 @@ from leaf.serving.drafts import no_drafts
 from leaf.serving.served_state.context import PageRead
 from leaf.source.data import read_data
 from leaf.source.data_contracts import resource_urls
+from leaf.source.layer import served_layer
 from leaf.source.page_inputs import join_reading
-from leaf.source.passages import SourceReading
-from leaf.source.registry.storage import read_page_registry, served_layer
+from leaf.source.reading import SourceReading
 from leaf.source.revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -38,6 +38,7 @@ from leaf.source.revision_artifact import (
 )
 from leaf.source.runtime_selection import executing
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import read_page_registry
 
 
 @dataclass(frozen=True, slots=True)

@@ -47,7 +47,7 @@ from leaf.records import revisioning as revisioning_model
 from leaf.source import data as data_model
 from leaf.source import data_contracts as data_contracts_model
 from leaf.source import revision_artifact as artifact_model
-from leaf.source.registry.storage import load_registry
+from leaf.source.vocabulary import load_registry
 
 
 def test_check_accepts_authored_module_scripts(page_dir):

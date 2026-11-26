@@ -27,7 +27,7 @@ from leaf.records import event_contracts as event_contracts_model
 from leaf.records import event_meaning as event_meaning_model
 from leaf.records import page_view as page_view_model
 from leaf.records import transaction as transaction_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 
 
 def test_a_page_obligation_that_settles_a_thread_carries_its_thread(page_dir, capsys):
@@ -49,7 +49,7 @@ def test_a_page_obligation_that_settles_a_thread_carries_its_thread(page_dir, ca
             event_meaning_model.AdmissionReadings(
                 page_view_model.PageView(page_dir),
                 events,
-                registry_storage.require_registry(page_dir),
+                vocabulary_model.require_registry(page_dir),
             ),
         )
         is None

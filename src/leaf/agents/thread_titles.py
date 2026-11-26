@@ -2,10 +2,11 @@
 through the harness the page's agent runs in.
 
 An opening or reply may carry its untitled thread's first title atomically;
-`thread_title` names one independently or renames it. An agent answering with
-`leaf thread reply` can supply a title even when the provider owns final commit.
-That reply comes when the agent's work does, which can be minutes, so Leaf also
-asks for a title as soon as it can reach the harness's model:
+`thread_title` names one independently or renames it. The agent's `leaf thread
+create` always names its thread, and its `leaf thread reply` names one still
+untitled, which the command requires (`untitled-thread`). That reply comes
+when the agent's work does, which can be minutes, so Leaf also asks for a title as
+soon as it can reach the harness's model:
 
 - a page server, as the user's comment or reply in the untitled thread is admitted
   (`name_admitted_thread`), through the claimant harness's widget inference
@@ -65,10 +66,13 @@ The title is fitted to one line and the title limit (`thread.fit_title`), and wr
 as the session that holds the page's claim, and only while the thread is still
 untitled (`thread.name_untitled`), so a name the agent gave first stands, and an
 agent's reply that comes later leaves this one in place. A request that fails or
-finds no words leaves the thread untitled, and tells the caller's `record`. A delivery the agent answers with its own reply asks it to name an
-untitled thread; one a Codex turn's final message answers does not, so its thread
+finds no words leaves the thread untitled, and tells the caller's `record`. A delivery
+the agent answers with its own reply asks it to name an untitled thread, and the reply
+refuses to go in without one; a Codex turn's final message names none, so its thread
 stays untitled until the user's next message in it asks again. The retry above makes
-that rare: only a refusal past its cap, or a failure of another kind, leaves one.
+that rare: only a refusal past its cap, or a failure of another kind, leaves one. A
+page no session claims has no harness to ask, so the agent's reply names each of its
+threads.
 """
 
 import threading

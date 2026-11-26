@@ -35,7 +35,7 @@ appends nothing, its revision included.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NamedTuple, Protocol
+from typing import TYPE_CHECKING, NamedTuple
 
 from leaf.base.files import latest_revision, list_revisions
 from leaf.records.authored_checks.source_history import (
@@ -43,7 +43,7 @@ from leaf.records.authored_checks.source_history import (
     PredecessorReading,
     revision_reanchors,
 )
-from leaf.records.event_contracts import append_admitted
+from leaf.records.event_contracts import OpenTransaction, append_admitted
 from leaf.records.page_view import CandidatePageView
 from leaf.source.revision_artifact import (
     publish_artifact,
@@ -56,16 +56,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from leaf.records.authored_checks.source import SourceCheck
-
-
-class Transaction(Protocol):
-    """The page transaction the caller holds (`transaction.PageTransaction`): its page
-    and the log it appends to through admission."""
-
-    @property
-    def page_dir(self) -> Path: ...
-    @property
-    def events(self) -> list: ...
 
 
 class Activation(NamedTuple):
@@ -97,7 +87,7 @@ def _append_reanchors(page, revision, moves, *, view=None):
         )
 
 
-def finish_publications(page: Transaction, publications: list[dict]) -> None:
+def finish_publications(page: OpenTransaction, publications: list[dict]) -> None:
     """Finish each journaled publication `files.unfinished_publications` found,
     before any transaction consumer reads the page.
 
@@ -192,12 +182,14 @@ def _publish_checked_source(page, checked, event=None):
     return activation, accepted
 
 
-def activate_checked_source(page: Transaction, checked: SourceCheck) -> Activation:
+def activate_checked_source(page: OpenTransaction, checked: SourceCheck) -> Activation:
     """Activate inputs checked under this same transaction and preserve every quote."""
     return _publish_checked_source(page, checked)[0]
 
 
-def publish_checked_event(page: Transaction, checked: SourceCheck, event: dict) -> dict:
+def publish_checked_event(
+    page: OpenTransaction, checked: SourceCheck, event: dict
+) -> dict:
     """Publish checked inputs and their required reply or version note as one transition."""
     activation, accepted = _publish_checked_source(page, checked, event)
     if activation.error:

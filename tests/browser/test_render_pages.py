@@ -2247,6 +2247,63 @@ def test_a_column_stated_in_font_units_gives_every_breakout_the_same_room(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize(
+    ("engine", "layout", "direction"),
+    [
+        (engine, layout, "ltr")
+        for engine in ("browser", "firefox_browser", "webkit_browser")
+        for layout in ("column", "sidebar")
+    ]
+    + [("browser", "sidebar", "rtl")],
+)
+def test_a_figure_that_takes_the_room_keeps_its_caption_under_the_prose(
+    request, serve, engine, layout, direction
+):
+    """A figure given `data-width="available"` takes the room on both sides of the
+    prose, and its caption, being words, stays on the column: under the prose and as
+    wide. Beside a sidebar the room before the prose is narrower than the room after,
+    so a caption centred in the figure would stand off the prose's edge. A caption
+    written in the other direction from the page stands there too."""
+    browser = request.getfixturevalue(engine)
+    other = "rtl" if direction == "ltr" else "ltr"
+    body = (
+        '<p id="prose">A paragraph at the measure, long enough to fill the column it '
+        "stands in from one edge to the other.</p>"
+        '<figure id="figure" data-width="available"><div id="exhibit">Exhibit</div>'
+        '<figcaption id="caption">A caption long enough to fill the measure it '
+        "keeps, so its width shows where it stands.</figcaption></figure>"
+        '<figure data-width="available"><div>Exhibit</div>'
+        f'<figcaption id="turned" dir="{other}">A caption written the other way.'
+        "</figcaption></figure>"
+    )
+    if layout == "sidebar":
+        body = (
+            "<aside><div class='layout-track'><p>Summary.</p></div></aside>"
+            f"<div class='layout-column'>{body}</div>"
+        )
+    source = leaf_page("Figure caption", body, layout=layout).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    at = page.evaluate(
+        """() => Object.fromEntries(['prose', 'figure', 'caption', 'turned'].map((id) => {
+          const box = document.getElementById(id).getBoundingClientRect();
+          return [id, {left: box.left, right: box.right}];
+        }))"""
+    )
+    prose, figure = at["prose"], at["figure"]
+    assert figure["left"] < prose["left"] - 1 and figure["right"] > prose["right"] + 1
+    if layout == "sidebar":
+        before = prose["left"] - figure["left"]
+        after = figure["right"] - prose["right"]
+        assert abs(before - after) > 16, at
+    for caption in ("caption", "turned"):
+        for edge in ("left", "right"):
+            assert at[caption][edge] == pytest.approx(prose[edge], abs=1), at
+    assert root_overflow(page) == 0
+
+
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):
     """A revision's replacement can put a breakout in a list deeper than the one it
     replaced. The breakout keeps to its list item from the first paint that shows it,

@@ -598,6 +598,30 @@
         &:dir(rtl) > .layout-sidebar {
           margin-right: calc(-1 * var(--lf-free-start));
         }
+        /* A figure's caption is words, so in a figure that takes the room it starts
+         * where the prose does, by a margin on the holder's start side as the figure's
+         * is, and keeps the measure. The prose is a measure wide and stands in the
+         * middle of the room where the room on each side is the same, as on a column
+         * page. Beside a sidebar the sides differ, so the figure also states how far
+         * the prose's centre stands from its own toward the holder's end. It can't
+         * pass the room itself, which is stated against the width of the box that
+         * reads it, the prose for the figure but the figure for its caption; the
+         * difference between the sides doesn't depend on that width. A page that
+         * widens the column's box past the measure moves the prose off the middle of
+         * the room, and the caption then starts off the prose's edge. */
+        > figure[data-lf-space="available"] {
+          --lf-prose-shift: calc((var(--lf-free-start) - var(--lf-free-end)) / 2);
+        }
+        &:dir(ltr) > figure[data-lf-space="available"] > figcaption {
+          margin-left: calc(
+            (100% - min(var(--lf-measure), 100%)) / 2 + var(--lf-prose-shift)
+          );
+        }
+        &:dir(rtl) > figure[data-lf-space="available"] > figcaption {
+          margin-right: calc(
+            (100% - min(var(--lf-measure), 100%)) / 2 + var(--lf-prose-shift)
+          );
+        }
         > table[data-lf-space] {
           max-inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));
         }
@@ -697,6 +721,7 @@
       margin-inline: 0;
       translate: none;
       --lf-breakout: 0;
+      --lf-prose-shift: 0px;
     }
   }
   /* A sidebar and its body are authored siblings. Their inner track is authored

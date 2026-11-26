@@ -58,7 +58,9 @@ export function geometryReading(open) {
 
 // Whether a box that broke out takes words off the column: a text block starts at its
 // holder's edge (base.css), so in a box reaching before the prose it starts there too. A
-// widget arranges its own contents, and a caption belongs to its figure.
+// widget arranges its own contents, so neither a widget nor one in it that declares a
+// width of its own, as a diagram does, is words. A figure's caption stays on the column
+// (layouts.css).
 /** @param {Element} el */
 function takesItsWords(el) {
   const holder = el.parentElement;
@@ -72,6 +74,7 @@ function takesItsWords(el) {
   return [...el.children].some((child) => {
     if (
       child.matches("figcaption") ||
+      (child.localName.includes("-") && child.hasAttribute("data-lf-space")) ||
       !child.checkVisibility() ||
       getComputedStyle(child).maxInlineSize === "none"
     )

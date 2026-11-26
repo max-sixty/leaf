@@ -325,6 +325,10 @@ formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
 `page check --render` reports a formula it can't read, and a comment quotes a formula
 by its LaTeX.
 
+Show quoted text as a reader of its language reads it, whoever wrote the text and
+whoever it is for: code and data coloured, Markdown rendered, and only text in no
+language, such as a log, literal and uncoloured.
+
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
 put the same block inside a code excerpt with numbered lines for a walkthrough. Name
 the actual language from `$languages.names` or a bundled grammar's alias, such as
@@ -337,13 +341,16 @@ it working when you reformat it. Quote source verbatim when quoting it.
 Data in a language Leaf colours, such as JSON a tool returned, goes in a code block
 named for its language, even beside plain samples, with its values exact, `…` included,
 and laid out so the reader can pick out each field and compare values down a column.
-Text in no such language, such as a log or a message as an agent receives it, stays
-literal and uncoloured.
+A code block wraps lines longer than the column's 80 or so characters, which breaks the
+indentation the reader follows. Give a block with longer lines `data-width="wide"`
+(`page-layout.md`, "Bounds and widths").
 
-Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
-from a doc or a pull request's description, in a text document that previews it, with
-its exact Markdown a tab away (`authoring-evidence.md`, "Source files and media").
-Where Markdown syntax is itself the subject, show it literally in `<pre><code>`.
+Show Markdown you quote, such as a rule from a doc, a pull request's description or a
+prompt an agent receives, in a text document that previews it, with its exact Markdown
+a tab away (`authoring-evidence.md`, "Source files and media"). The preview draws
+tags in the text as HTML, so show text whose own tags carry its meaning, such as a
+prompt's `<example>` blocks, as its source alone, coloured as Markdown. Where Markdown
+syntax is itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="lf-scroll"` to that same box. Leaf contains its positioned descendants and

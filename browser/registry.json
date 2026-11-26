@@ -253,7 +253,7 @@
     "example": "<details>\n  <summary>Full diagnostic output</summary>\n  <pre>\u2026</pre>\n</details>"
   },
   "pre > code[class*=\"language-\"]": {
-    "description": "A literal the user can select and quote, such as a command, a config file or a snippet of output. To color it, add `class=\"language-NAME\"` with a name from `$languages`; leave the class off where the body isn't source. For a walkthrough with numbered lines, highlighted ranges or remarks at a line, use `lf-code` instead.",
+    "description": "A literal the user can select and quote, such as a command, a config file or a snippet of output. To color it, add `class=\"language-NAME\"` with a name from `$languages`; leave the class off where the body is in no language, such as a log. For a walkthrough with numbered lines, highlighted ranges or remarks at a line, use `lf-code` instead.",
     "example": "<pre><code class=\"language-bash\">leaf page check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
   }
 }

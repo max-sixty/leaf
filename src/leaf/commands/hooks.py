@@ -553,9 +553,10 @@ def _lines(sid: str, page_dir, looked: dict) -> list[dict]:
 
 def cmd_fork(payload: dict) -> dict | None:
     """Leaf's answer to the hooks module's report `payload` (`carrier.py`): a turn's
-    end goes to the turn-end check (`clerk.turn_ended`), and an instruction's result
-    to the step its basis's `kind` names: the turn-end check's fork (`check`), a
-    completion (`completion`), or a thread's line fork or a fork beside it (`line`,
+    end goes to the turn-end check (`clerk.turn_ended`) with what its fork is shown of
+    each page the session holds (`agent_state.turn_end_facts`), and an instruction's
+    result to the step its basis's `kind` names: the turn-end check's fork (`check`),
+    a completion (`completion`), or a thread's line fork or a fork beside it (`line`,
     `beside`). A kind no step takes answers with a line for the log, so the module
     stops reporting it."""
     sid = payload.get("session_id") or ""
@@ -563,8 +564,9 @@ def cmd_fork(payload: dict) -> dict | None:
         return None
     if payload.get("turn_end"):
         from leaf.agents.clerk import turn_ended
+        from leaf.commands.agent_state import turn_end_facts
 
-        return turn_ended(sid)
+        return turn_ended(sid, turn_end_facts(sid))
     kind = payload["basis"]["kind"]
     if kind == "check":
         from leaf.agents.clerk import checked as taken

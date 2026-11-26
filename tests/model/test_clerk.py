@@ -30,9 +30,12 @@ def hook(capsys, event: str, prompt_id: str = "p1") -> str:
 
 
 def asked() -> dict:
-    question = clerk_model.question("s1")
-    assert question is not None
-    return question
+    """The turn-end check's question as the hooks module gets it at a turn's end
+    (`hooks.cmd_fork`), with the turn its fork reads (`clerk.basis`)."""
+    answer = hooks_model.cmd_fork({"session_id": "s1", "turn_end": True})
+    assert answer is not None
+    [check] = answer["do"]
+    return {"prompt": check["request"]["prompt"], "basis": clerk_model.basis("s1")}
 
 
 def reply(page, *titles: str, passage: str = "", again: str = "", choice="") -> str:

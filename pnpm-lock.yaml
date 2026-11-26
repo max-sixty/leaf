@@ -183,7 +183,7 @@ settings:
 
 overrides:
   '@anthropic-ai/claude-agent-sdk': 0.3.331
-  lit-html: 3.3.3
+  lit-html: 3.3.0
   get-uri>basic-ftp: 6.2.6
   minimatch@<11.0.1: ^11.0.4
   '@hono/node-server@<2.1.6': ^2.1.6
@@ -191,7 +191,7 @@ overrides:
 patchedDependencies:
   '@awesome.me/webawesome': fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653
   '@floating-ui/dom': a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3
-  '@observablehq/plot': f602482c1f245ba15df1a45fef7b5cb6a1c1258918796f27cff4efabe93ba4d4
+  '@observablehq/plot': f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3
   '@pierre/diffs': 3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1
   '@types/sortablejs': 8f399c7b8ef692d8358fbf89f41a16df2f1a7c284d442ab8e5e1130904082c60
   pele: 1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d
@@ -260,16 +260,16 @@ importers:
         version: 1.0.3
       '@observablehq/plot':
         specifier: 0.6.19
-        version: 0.6.19(patch_hash=f602482c1f245ba15df1a45fef7b5cb6a1c1258918796f27cff4efabe93ba4d4)
+        version: 0.6.19(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)
       '@openai/codex-sdk':
         specifier: 0.171.0
         version: 0.171.0
       '@pierre/diffs':
-        specifier: 1.7.1
-        version: 1.7.1(patch_hash=3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 1.6.1
+        version: 1.6.1(patch_hash=3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@pierre/trees':
         specifier: 1.0.0
-        version: 1.0.0(@pierre/theme@2.1.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)
+        version: 1.0.0(@pierre/theme@2.0.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)
       '@preact/signals-core':
         specifier: 1.14.5
         version: 1.14.5
@@ -340,8 +340,8 @@ importers:
         specifier: 3.3.3
         version: 3.3.3
       lit-html:
-        specifier: 3.3.3
-        version: 3.3.3
+        specifier: 3.3.0
+        version: 3.3.0
       markdown-it:
         specifier: 15.0.3
         version: 15.0.3
@@ -1898,8 +1898,8 @@ packages:
   '@parse5/tools@0.3.0':
     resolution: {integrity: sha512-zxRyTHkqb7WQMV8kTNBKWb1BeOFUKXBXTBWuxg9H9hfvQB3IwP6Iw2U75Ia5eyRxPNltmY7E8YAlz6zWwUnjKg==}
 
-  '@pierre/diffs@1.7.1':
-    resolution: {integrity: sha512-saKteoCq9tWbRqLruIixV6sKgxIcY0OK6RkKcr8lYv7r4iJhXQJbmVPN3VBmjBHivgMIG2Att6tV/AOXXzEvvg==}
+  '@pierre/diffs@1.6.1':
+    resolution: {integrity: sha512-XTfLW4bFETyosZfFNUoyRh1zPE4tmAijOoxdHx4X805tlaq/7/fuQXIiJSm21+jLkDo8vn5elQ+2O4YtMTKM0Q==}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
@@ -1909,14 +1909,11 @@ packages:
       react-dom:
         optional: true
 
-  '@pierre/highlights@0.5.2':
-    resolution: {integrity: sha512-CV+yFa8dodaU3w7U42FR+AfoavrsfcH0/n3rckDu1A/UXan1Dzo6OdM/MPOAAsGM/EbKhDxD6k+qMcNUtnLfsg==}
+  '@pierre/highlights@0.2.0':
+    resolution: {integrity: sha512-hTpcOU1EzDAP4bYtEhxmMu2jwMvtkUydRUBUpWMSHTs3dw0IaC3Ld5ansMy18L0GE3b6Vfl2OGkLK+pWWpnBmw==}
 
-  '@pierre/patches@0.0.1':
-    resolution: {integrity: sha512-NycJQVQNuqmBdr7u1LsUcmkiIz1fRm9xhWZyRbm21oJYd0MVVCa45t9Lsuj5IKrTMBonxOuh4LMv+R3BpL4bmQ==}
-
-  '@pierre/theme@2.1.0':
-    resolution: {integrity: sha512-GIE3AD8eqUlZN2sFrMmp9gt+rNZsT+EhrdwB0KmLcwkqunrp2jU2j14SeAb64Ol/srWo4rHyNaWf20+bPzFbvg==}
+  '@pierre/theme@2.0.0':
+    resolution: {integrity: sha512-yNDd9GYLQl1mEUJR8AneJ5e4ohLIHQd/wZLWr4fagt78vS2RwwZNW530vVgHqXFAyFVcFlRmGUD5ramXH46OXw==}
     engines: {vscode: ^1.0.0}
 
   '@pierre/theming@1.0.2':
@@ -4084,8 +4081,8 @@ packages:
   lit-element@4.2.2:
     resolution: {integrity: sha512-aFKhNToWxoyhkNDmWZwEva2SlQia+jfG0fjIWV//YeTaWrVnOxD89dPKfigCUspXFmjzOEUQpOkejH5Ly6sG0w==}
 
-  lit-html@3.3.3:
-    resolution: {integrity: sha512-el8M6jK2o3RXBnrSHX3ZKrsN8zEV63pSExTO1wYJz7QndGYZ8353e2a5PPX+qHe2aGayfnchQmkAojaWAREOIA==}
+  lit-html@3.3.0:
+    resolution: {integrity: sha512-RHoswrFAxY2d8Cf2mm4OZ1DgzCoBKUKSPvA1fhtSELxUERq2aQQ2h05pO9j81gS1o7RIRJ+CePLogfyahwmynw==}
 
   lit@3.3.3:
     resolution: {integrity: sha512-fycuvZg/hkpozL00lm1pEJH5nN/lr9ZXd6mJI2HSN4+Bzc+LDNdEApJ6HFbPkdFNHLvOplIIuJvxkS4XUxqirw==}
@@ -6765,7 +6762,7 @@ snapshots:
     dependencies:
       '@lit/reactive-element': 2.1.2
       lit: 3.3.3
-      lit-html: 3.3.3
+      lit-html: 3.3.0
 
   '@lit-labs/ssr-dom-shim@1.6.0': {}
 
@@ -6778,7 +6775,7 @@ snapshots:
       enhanced-resolve: 5.26.0
       lit: 3.3.3
       lit-element: 4.2.2
-      lit-html: 3.3.3
+      lit-html: 3.3.0
       node-fetch: 3.3.2
       parse5: 7.3.0
     optionalDependencies:
@@ -6902,7 +6899,7 @@ snapshots:
 
   '@nodable/entities@3.1.0': {}
 
-  '@observablehq/plot@0.6.19(patch_hash=f602482c1f245ba15df1a45fef7b5cb6a1c1258918796f27cff4efabe93ba4d4)':
+  '@observablehq/plot@0.6.19(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)':
     dependencies:
       d3: 7.9.2
       interval-tree-1d: 1.0.4
@@ -7077,12 +7074,11 @@ snapshots:
     dependencies:
       parse5: 7.3.0
 
-  '@pierre/diffs@1.7.1(patch_hash=3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@pierre/diffs@1.6.1(patch_hash=3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@pierre/highlights': 0.5.2
-      '@pierre/patches': 0.0.1
-      '@pierre/theme': 2.1.0
-      '@pierre/theming': 1.0.2(@pierre/theme@2.1.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)
+      '@pierre/highlights': 0.2.0
+      '@pierre/theme': 2.0.0
+      '@pierre/theming': 1.0.2(@pierre/theme@2.0.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)
       diff: 9.0.0
       hast-util-to-html: 9.0.5
       lru_map: 0.4.1
@@ -7093,23 +7089,21 @@ snapshots:
     transitivePeerDependencies:
       - '@shikijs/themes'
 
-  '@pierre/highlights@0.5.2': {}
+  '@pierre/highlights@0.2.0': {}
 
-  '@pierre/patches@0.0.1': {}
+  '@pierre/theme@2.0.0': {}
 
-  '@pierre/theme@2.1.0': {}
-
-  '@pierre/theming@1.0.2(@pierre/theme@2.1.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)':
+  '@pierre/theming@1.0.2(@pierre/theme@2.0.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)':
     optionalDependencies:
-      '@pierre/theme': 2.1.0
+      '@pierre/theme': 2.0.0
       '@shikijs/themes': 4.5.0
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       shiki: 4.5.0
 
-  '@pierre/trees@1.0.0(@pierre/theme@2.1.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)':
+  '@pierre/trees@1.0.0(@pierre/theme@2.0.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)':
     dependencies:
-      '@pierre/theming': 1.0.2(@pierre/theme@2.1.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)
+      '@pierre/theming': 1.0.2(@pierre/theme@2.0.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)
       preact: 11.0.0-beta.0
       preact-render-to-string: 6.6.5(preact@11.0.0-beta.0)
     optionalDependencies:
@@ -9148,9 +9142,9 @@ snapshots:
     dependencies:
       '@lit-labs/ssr-dom-shim': 1.6.0
       '@lit/reactive-element': 2.1.2
-      lit-html: 3.3.3
+      lit-html: 3.3.0
 
-  lit-html@3.3.3:
+  lit-html@3.3.0:
     dependencies:
       '@types/trusted-types': 2.0.7
 
@@ -9158,7 +9152,7 @@ snapshots:
     dependencies:
       '@lit/reactive-element': 2.1.2
       lit-element: 4.2.2
-      lit-html: 3.3.3
+      lit-html: 3.3.0
 
   locate-path@6.0.0:
     dependencies:

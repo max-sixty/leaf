@@ -116,7 +116,7 @@
     }
   },
   "lf-diff": {
-    "description": "A unified patch with per-file navigation, commentable source lines and authored inline notes.",
+    "description": "A unified patch, or the changes between two texts of a file, with per-file navigation, commentable source lines and authored inline notes.",
     "attributes": {
       "properties": {
         "collapsed": {
@@ -129,7 +129,17 @@
           "enum": ["wrap", "scroll"]
         }
       },
-      "required": ["id"]
+      "required": ["id"],
+      "dependentRequired": {
+        "after": ["before"],
+        "for": ["before"]
+      },
+      "dependentSchemas": {
+        "before": {
+          "anyOf": [{ "required": ["after"] }, { "required": ["for"] }],
+          "not": { "required": ["source"] }
+        }
+      }
     },
     "content": "data",
     "inputs": {
@@ -137,6 +147,17 @@
         "contract": "unified-diff",
         "source": "source",
         "property": "value"
+      },
+      "before": {
+        "contract": "text-document",
+        "source": "before",
+        "property": "beforeText"
+      },
+      "after": {
+        "contract": "text-document",
+        "source": "after",
+        "reference": "for",
+        "property": "afterText"
       }
     },
     "outputs": {
@@ -147,7 +168,7 @@
     "shadow": true,
     "space": "wide",
     "height": true,
-    "instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. The package's author instructions describe supplying a complete patch or files manifest. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a `source` diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
+    "instructions": "Unbound, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. To show what changed in one file since an earlier text of it, such as its committed version while the reader edits it, leave out the `<pre>` and bind `before` to a source holding the earlier text. Bind the current text with `after`, to a source, or with `for`, to a widget holding a `text-document` output such as the file's editor. The diff follows each change of either text, names the file by the current text's `name`, or else the earlier text's, and says when the two are the same. The package's author instructions describe supplying a complete patch or files manifest, and setting the earlier text. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a bound diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
     "example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre><lf-diff-note file=\"feeders/mount.py\" side=\"new\" at=\"2\">Steel carries the load.</lf-diff-note></lf-diff>"
   },
   "lf-call-diff": {

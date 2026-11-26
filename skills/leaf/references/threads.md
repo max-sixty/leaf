@@ -15,8 +15,8 @@ leaf thread create <page> --obligation --text "…?"
 ```
 
 A visual is a widget whose declaration in `leaf page vocabulary <page>` has a `visual`
-key, such as a diagram or a chart. Where that key gives `parts` or `prefixes`, a thread
-can name one part of the visual. Copy a part's id from `leaf page state <page>`, which
+key, such as a diagram or a chart. Where that key gives `prefixes`, a thread can name
+one part of the visual. Copy a part's id from `leaf page state <page>`, which
 lists the parts a thread can name in each visual as `parts` on the visual's entry in
 `elements`, each with its `id` and `label`. The list appears once `page check --render`,
 or the page's server after you hand the page over, has read the version the page shows

@@ -297,10 +297,7 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
             values={
                 "visual": visual,
                 "section": section,
-                "declared": {
-                    "prefixes": list(available.prefixes),
-                    "all": available.all,
-                },
+                "prefixes": list(available.prefixes),
             },
         )
     return None

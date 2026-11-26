@@ -158,7 +158,7 @@ PART_DIAGRAM_PAGE = leaf_page(
     "diagram parts",
     """
 <h1 id="t">Request path</h1>
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   S[Start request] --> H[Handle request] --> U[Result]
 </pre></lf-diagram>
@@ -168,21 +168,16 @@ GENERIC_VISUAL_PAGE = leaf_page(
     "registered visual parts",
     """
 <h1 id="title">Registered visual parts</h1>
-<lf-test-visual id="visual" parts="all"></lf-test-visual>
+<lf-test-visual id="visual"></lf-test-visual>
 """,
 )
 GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
-        "attributes": {
-            "properties": {
-                "parts": {"const": "all"},
-            },
-            "required": ["id", "parts"],
-        },
+        "attributes": {"required": ["id"]},
         "content": "empty",
-        "visual": {"parts": "parts"},
-        "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
+        "visual": {"prefixes": ["out", "inn", "htm"]},
+        "example": '<lf-test-visual id="visual"></lf-test-visual>',
     }
 }
 
@@ -215,46 +210,27 @@ GENERIC_VISUAL_WIDGETS = visual_widgets()
 STAGED_VISUAL_WIDGETS = visual_widgets(staged=True)
 
 
-# Generated identities can instead be bounded by the provider's prefixes.
-PREFIXED_VISUAL_PAGE = GENERIC_VISUAL_PAGE.replace(' parts="all"', "")
-
-
 def prefixed_visual_layer(*prefixes):
+    """The generic visual, its parts bounded by `prefixes` instead."""
     entry = GENERIC_VISUAL_LAYER["lf-test-visual"]
-    return {
-        "lf-test-visual": {
-            **entry,
-            "attributes": {
-                **entry["attributes"],
-                "properties": {},
-                "required": ["id"],
-            },
-            "visual": {"prefixes": list(prefixes)},
-            "example": '<lf-test-visual id="visual"></lf-test-visual>',
-        }
-    }
+    return {"lf-test-visual": {**entry, "visual": {"prefixes": list(prefixes)}}}
 
 
 SHADOW_VISUAL_PAGE = leaf_page(
     "shadow visual clipping",
     """
 <h1 id="title">Shadow visual clipping</h1>
-<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>
+<lf-test-shadow-visual id="shadow-visual"></lf-test-shadow-visual>
 """,
 )
 SHADOW_VISUAL_LAYER = {
     "lf-test-shadow-visual": {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
-        "attributes": {
-            "properties": {
-                "parts": {"const": "all"},
-            },
-            "required": ["id", "parts"],
-        },
+        "attributes": {"required": ["id"]},
         "content": "empty",
         "shadow": True,
-        "visual": {"parts": "parts"},
-        "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
+        "visual": {"prefixes": ["wid"]},
+        "example": '<lf-test-shadow-visual id="shadow-visual"></lf-test-shadow-visual>',
     }
 }
 SHADOW_VISUAL_WIDGETS = {
@@ -267,7 +243,7 @@ TYPED_PARTS_PAGE = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="all"><pre>
+<lf-diagram id="life"><pre>
 stateDiagram-v2
   [*] --&gt; Queued
   Queued --&gt; Working
@@ -276,7 +252,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="all"><pre>
+<lf-diagram id="shape"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -284,17 +260,17 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="path" parts="all"><pre>
+<lf-diagram id="path"><pre>
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
+<lf-diagram id="model"><pre>
 classDiagram
   class Job {
     +run()
@@ -317,7 +293,7 @@ TYPED_PARTS_V2 = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="all"><pre>
+<lf-diagram id="life"><pre>
 stateDiagram-v2
   [*] --&gt; Fresh
   Fresh --&gt; Queued
@@ -327,7 +303,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="all"><pre>
+<lf-diagram id="shape"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -335,17 +311,17 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="path" parts="all"><pre>
+<lf-diagram id="path"><pre>
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
+<lf-diagram id="model"><pre>
 classDiagram
   class Job {
     +run()
@@ -366,7 +342,7 @@ PART_DIAGRAM_V2 = leaf_page(
     "diagram parts",
     """
 <h1 id="t">Request path</h1>
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   U[Result]
   H[Handle request]

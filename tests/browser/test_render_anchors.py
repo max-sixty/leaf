@@ -447,7 +447,7 @@ DRAWN_PARTS_PAGE = leaf_page(
     "drawn parts",
     """
 <h1 id="title">Deploy</h1>
-<lf-diagram id="flow" parts="all"><pre>flowchart LR
+<lf-diagram id="flow"><pre>flowchart LR
   build[Build] --&gt; test[Test] --&gt; ship[Ship]</pre></lf-diagram>
 <lf-timeline id="deploy-order" aria-label="Deploy order">
   <lf-lane label="Build">

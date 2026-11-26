@@ -130,7 +130,7 @@ variants:
         <section id="draft-sequence">
           <h2>Deferred: drafts need a visible route back <span class="lf-tag">updated</span></h2>
           <p>Keep <strong>#47</strong> and <strong>#48</strong> in TODO until unfinished drafts have visible annotations at their source elements. The user must be able to find the exact element, reopen its draft and continue the saved edit. Preserving separate drafts is useful only when returning to them is straightforward.</p>
-          <lf-diagram id="next-order" parts="all" data-height="300"><pre>
+          <lf-diagram id="next-order" data-height="300"><pre>
         ---
         config:
           flowchart:

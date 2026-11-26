@@ -968,11 +968,7 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
 
 
 def test_a_visual_comment_requires_its_sections_inventory(server, page_dir):
-    (page_dir / "index.html").write_text(
-        FLOW_PAGE.replace(
-            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-        )
-    )
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     publish(page_dir)
 
     valid = {
@@ -993,14 +989,16 @@ def test_a_visual_comment_requires_its_sections_inventory(server, page_dir):
         assert status == 400
         assert refused_on(body).code == "visual-with-passage"
 
-    (page_dir / "index.html").write_text(FLOW_PAGE)
-    publish(page_dir)
-    invalid = {**valid, "revision": 2, "text": "no opted-in inventory"}
+    invalid = {
+        **valid,
+        "text": "not a box",
+        "anchor": {**valid["anchor"], "visual": "edge:A"},
+    }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
     undeclared = refused_on(body)
     assert undeclared.code == "undeclared-visual"
-    assert undeclared.values["declared"] == {"prefixes": [], "all": False}
+    assert undeclared.values["prefixes"] == ["node:"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(

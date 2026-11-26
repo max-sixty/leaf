@@ -1153,7 +1153,7 @@ def test_plain_clicks_stay_native_and_explicit_gestures_comment_on_visuals(
 <figure id="figure"><svg viewBox="0 0 80 40" width="160" height="80"
   role="img" aria-label="Plain picture"><rect x="2" y="2" width="76" height="36" /></svg>
   <figcaption>Plain picture</figcaption></figure>
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   S[Start request] --&gt; H[Handle request]
 </pre></lf-diagram>
@@ -1322,7 +1322,7 @@ def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
 <figure id="tabbed"><svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></figure>
 </lf-tab><lf-tab id="second" label="Second"><p>More.</p></lf-tab></lf-tabs>
 <div id="stage" role="application" tabindex="0" aria-label="Stage">
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   S[Start request] --> H[Handle request]
 </pre></lf-diagram>

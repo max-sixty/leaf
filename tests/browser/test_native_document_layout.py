@@ -374,6 +374,33 @@ def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
     assert stood["inSidebar"], stood
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
+    request, serve, engine
+):
+    """A sidebar among a column page's blocks isn't the page's Layout box, so its stuck
+    track ends with the sidebar rather than hanging through the document's end room
+    over the column's blocks after it."""
+    follow_ups = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
+    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    after = "".join(f"<p>Column paragraph {n}.</p>" for n in range(60))
+    source = leaf_page(
+        "sidebar among a column's blocks",
+        f'<div class="layout-sidebar"><aside><div class="layout-track" id="track">'
+        f'{follow_ups}</div></aside><div>{body}</div></div><div id="after">{after}</div>',
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 600)
+    overlap = page.evaluate("""async () => {
+      const sidebar = document.querySelector('.layout-sidebar');
+      scrollTo(0, scrollY + sidebar.getBoundingClientRect().bottom - 300);
+      await new Promise(requestAnimationFrame);
+      return document.getElementById('track').getBoundingClientRect().bottom
+        - document.getElementById('after').getBoundingClientRect().top;
+    }""")
+    assert overlap <= 0.5, overlap
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_annotations_read_the_native_prose_track_with_authored_geometry(
     browser, serve, direction

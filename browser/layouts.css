@@ -905,7 +905,7 @@
     }
     :where(
       body > main,
-      body > main > *,
+      body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > *,
       main > [data-lf-views="parts"] > * > *
     ).layout-sidebar {
       --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-end-room, 0px));

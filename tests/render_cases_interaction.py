@@ -50,17 +50,6 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 """,
 )
 
-# The panel's Threads view, in the order its rows stand: each thread by its id. A row is
-# keyed by the thread's key, which for a thread this tab started is the attempt that
-# sent it (state/thread/model.js, `threadKey`), so the page's own reading names its id.
-LIST_ORDER = """async () => {
-  const {readThreads} = await window.__lfWidgetApi();
-  const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
-  return [...document.querySelectorAll(
-    '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving]) .lf-fp-thread')]
-    .map((row) => ids.get(row.dataset.lfKey));
-}"""
-
 
 def panel_comment(d, text, anchor=None, author="user", *, obligation=False):
     """One thread's opening message, written straight to the log. An agent's that

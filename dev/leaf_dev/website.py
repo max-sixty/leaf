@@ -797,21 +797,32 @@ def local_worker() -> Generator[LocalWorker]:
                         print(f"Cannot collect container logs: {error}", file=output)
                     raise
     finally:
-        listed = subprocess.run(
-            ["docker", "ps", "--all", "--quiet", "--filter", container_filter(name)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        if started := listed.stdout.split():
+        # Wrangler's dispose removes these containers, and the daemon may still be
+        # removing them after its process exits. This removal is the backstop for a
+        # Worker that died first, so `docker rm` refusing a container that is gone
+        # or already being removed is no failure; a container left in any other
+        # state is.
+        def listed(form: str) -> list[str]:
+            return docker_command(
+                "ps", "--all", "--format", form, "--filter", container_filter(name)
+            ).splitlines()
+
+        if started := listed("{{.ID}}"):
             subprocess.run(
                 ["docker", "rm", "--force", *started],
-                stdout=subprocess.DEVNULL,
-                check=True,
+                capture_output=True,
+                check=False,
             )
+            left = [
+                line
+                for line in listed("{{.ID}} {{.State}}")
+                if not line.endswith(" removing")
+            ]
+            check(not left, f"containers outlived the verifier: {left}")
         if image is not None:
+            # `--force` untags an image that a container still being removed uses.
             subprocess.run(
-                ["docker", "image", "rm", image],
+                ["docker", "image", "rm", "--force", image],
                 stdout=subprocess.DEVNULL,
                 check=True,
             )

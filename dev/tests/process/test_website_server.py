@@ -808,6 +808,37 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
     assert re.fullmatch(r"[a-z0-9]+(?:[._]|__|[-]+[a-z0-9]+)*", name)
 
 
+@pytest.mark.parametrize(("state", "outlives"), [("removing", False), ("exited", True)])
+def test_local_worker_teardown_accepts_containers_wrangler_is_still_removing(
+    monkeypatch, tmp_path, state, outlives
+):
+    """Wrangler's dispose can leave the daemon removing its containers, so the
+    backstop's `docker rm` is refused for them; only a container left in another
+    state fails the teardown."""
+    monkeypatch.setattr(website, "run_directory", lambda parent: tmp_path / "run")
+
+    def stop_before_build(*args, **kwargs):
+        raise RuntimeError("stop before building")
+
+    listings = iter(["a\nb\n", f"b {state}\n"])
+
+    def docker(command, **kwargs):
+        if command[1] == "ps":
+            return subprocess.CompletedProcess(command, 0, stdout=next(listings))
+        # `docker rm --force` on one container gone and one being removed.
+        if kwargs.get("check"):
+            raise subprocess.CalledProcessError(1, command)
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(website, "copy_working", stop_before_build)
+    monkeypatch.setattr(website.subprocess, "run", docker)
+
+    with pytest.raises(RuntimeError) as raised, website.local_worker():
+        pass
+
+    assert ("outlived" in str(raised.value)) == outlives
+
+
 def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
     now = [0.0]
     readings = itertools.chain(["before", "before"], itertools.repeat("after"))

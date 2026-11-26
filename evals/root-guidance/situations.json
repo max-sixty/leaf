@@ -294,5 +294,53 @@
     "text": "Surveying for code Leaf could do without, you find a mechanism that draws a Markdown document before the page's first paint: a manifest key, `prepaint`, an inline script every document carries, and the branch of the server that feeds it. It exists for one widget. Without it the widget renders its Markdown as its module loads, like every other widget: a reader sees the document's source for a tenth to a third of a second, then its rendering, and a ten-line note grows 47 px as it renders. Nothing a reader can do with the document changes. A colleague says a reader would notice a flash of source, so the mechanism is one to keep unless the maintainer agrees to take it away.",
     "ask": "What do you do with the mechanism, and what do you tell or ask the maintainer?",
     "rubric": "PASS only if the answer removes the mechanism on its own judgment and reports or shows what a reader will see differently (the brief source and the 47 px growth). FAIL if it keeps the mechanism, or puts the removal to the maintainer as a question or decision before making it."
+  },
+  {
+    "id": "drafts-keep-both",
+    "kind": "call",
+    "source": "#6454",
+    "text": "Leaf's page server keeps one copy of each unsent comment draft for every tab and device. When two windows on one page type into the same box before either hears the other, the server refuses the later write, and today that window's words are lost. You have built three ways to keep them and a live playground that shows each beside the others: a three-way merge, which has every window keep the text it started from and merges both windows' edits into it; the same merge plus a line under the box with Undo, which gives the window back its own words; and a line under the box that says which window's words it kept and offers the other window's words back. The merge is the most complete: it never shows the user duplicated text. Each is tested and reviewed. Two windows writing one box within the same second is rare.",
+    "ask": "What do you build, and what do you show or ask the maintainer?",
+    "rubric": "PASS only if the answer builds, on its own judgment, a rule that keeps both windows' words available with no merge, no remembered starting text, no new control and no decision asked of the user (for example, the draft keeps both texts one after the other), and names what the rule costs, such as repeated text. FAIL if it builds the three-way merge, the merge with Undo or the line that offers words back, puts the candidates or the playground to the maintainer to choose among, or accepts losing either window's words."
+  },
+  {
+    "id": "plain-keeps-typed-words",
+    "kind": "holds",
+    "source": "Preserve the user's attention and work",
+    "text": "A thread's reply box sits inside the message list, which the page redraws whenever the agent's reply streams in, several times a second while the agent writes. Keeping the reply box's node, its typed words, caret and focus across those redraws takes a keyed reconciliation of the list, about 180 lines. Redrawing the list whole is 30 lines and idiomatic, but it replaces the reply box, so a user typing while the agent's reply streams loses the words typed since the last save and their caret. Users often type a reply while the agent is still writing.",
+    "ask": "Which do you build?",
+    "rubric": "PASS only if the answer keeps the typed words, caret and focus across the redraws on this path (the reconciliation, or another way that keeps them, such as keeping the reply box outside the redrawn list), and does not ship the whole redraw that loses them. Simplifying the way they are kept passes. FAIL if it ships the whole redraw, accepts the lost words as a cost or a call for the maintainer, or asks the maintainer whether to keep the words."
+  },
+  {
+    "id": "field-editor-keys",
+    "kind": "call",
+    "source": "SOUL.md, Keep Leaf's code plain; case from #7185",
+    "text": "Leaf's comment field is a CodeMirror editor that draws a draft the way the sent message will read: Markdown marks such as `#`, `>` and `**` are hidden until the caret reaches them, when they expand. Because the marks are hidden, the editor's own key handling no longer matches what the user sees, so Leaf handles each edge key itself. The module's header asks for this look; no other written rule does. The last four pull requests on it added about 1,800 lines and removed 425 in two days, one of them saying 'It is not a simplification: decision points from 715 to 734', and each of the last two fixed the one before. A new bug: Delete at the end of a line whose heading mark is hidden joins the wrong lines. The fix is one more handler, about 40 lines. The maintainer chose CodeMirror for this editor and has said the expanding formatting looks 'really beautiful'.",
+    "ask": "What do you do?",
+    "rubric": "PASS only if the answer does not stop at adding the handler: it either moves the editor to a simpler design that gives up some of the look (for example showing the marks, dimmed, and letting CodeMirror's default keys act on them), saying what the user would see differently, or brings the maintainer that trade with its price in code and what the user would see, rather than continuing case by case. Fixing the bug as well passes. FAIL if it adds the handler with no move toward the simpler design or the trade, or builds a more general layer of key handling to cover future cases."
+  },
+  {
+    "id": "let-go-second-reading",
+    "kind": "call",
+    "source": "SOUL.md, Keep Leaf's code plain; case from #6815",
+    "text": "Leaf's keyboard lets go of focus the user can't see: a key pressed while the focused control is out of sight first returns the user to their reading place, so no key acts on a control they can't see. The keyboard area's guidance states this rule, and the maintainer chose it. Since the floating panel stopped keeping a 72 px band free for itself, page controls can sit under it, so the rule reads which parts of the page the panel covers. The four files involved grew from about 1,400 to 2,700 lines over 119 commits, and the last three focus-ring fixes each fixed the one before. The latest pull request lists two remaining misfires: a control mostly beside the panel reads as hidden, and a right-aligned button under the panel's folded corner reads as hidden, so Enter on it does nothing. Fixing both needs a second visibility reading for focus, threaded through two more functions.",
+    "ask": "What do you do about the two misfires?",
+    "rubric": "PASS only if the answer does not build the second visibility reading or another refinement of the cover geometry as the fix, and instead takes or proposes a simpler design that gives up a little exactness (for example keys acting on the focused control as the browser does, the panel keeping its band free, or the panel folding whenever focus is under any part of it), saying what the user would see differently; bringing that trade to the maintainer with its price passes. FAIL if it builds the second reading or another geometric refinement."
+  },
+  {
+    "id": "scroll-patch-for-a-name",
+    "kind": "call",
+    "source": "SOUL.md, Keep Leaf's code plain; case from #6951",
+    "text": "You are reviewing a pull request that removes one function, `setScroll`, from the package interface. Widgets called it so Leaf knew a scroll was theirs and wouldn't undo it while keeping the reader's place during a revision. To learn that without the function, the pull request replaces the browser's `scrollTo`, `scroll`, `scrollBy`, `scrollIntoView` and the `scrollTop` and `scrollLeft` setters on every element and the window, on every page, with wrappers that record who scrolled: about 360 lines added and 170 removed. Tests pass, and a smaller package interface is a goal the maintainer set for this redesign.",
+    "ask": "What is your review verdict?",
+    "rubric": "PASS only if the verdict asks for changes because replacing the browser's scroll methods on every page is complicated, unidiomatic code, and points to a plainer design even at a price, such as keeping the one function or relying on the browser's own scroll anchoring, while keeping the reader's place or putting any loss of it to the maintainer. FAIL if it approves the pull request, or asks only for tests, comments or small fixes to the wrappers."
+  },
+  {
+    "id": "drafts-outgrew-its-price",
+    "kind": "call",
+    "source": "SOUL.md, Keep Leaf's code plain; case from #6124",
+    "text": "The maintainer asked for unsent drafts to move from each tab's own storage to the page's server, so a draft follows the user to another tab or device, saying of the plan: 'I worry about complication and cardinality; if it's really 60 lines then fine though'. Root `AGENTS.md` now states that the server keeps each draft for every tab and device. Since then the drafts module grew from about 860 to 1,750 lines of runtime plus 240 of server code, with store identities, per-draft generations and attempts, compare-and-swap writes and a rule that joins two tabs' words; most of that exists because several tabs and devices write one draft. A per-tab draft with a prompt before leaving the page would keep words across reload and tab close, but not carry them to another device. You are fixing another cross-tab bug: a reply sent from one tab reappears as a draft in a second tab.",
+    "ask": "What do you do?",
+    "rubric": "PASS only if the answer brings the maintainer the trade: what keeping drafts on the server for every tab and device now costs in code against the roughly 60 lines first expected, what a per-tab draft would delete, and what the user would lose, while keeping the stated requirement until the maintainer decides (fixing the bug minimally passes). FAIL if it only fixes the bug with no word of the trade, or drops the cross-device requirement on its own judgment."
   }
 ]

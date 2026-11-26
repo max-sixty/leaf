@@ -77,6 +77,11 @@ where a choice depends on a purpose or intent the code can't tell you:
   as a call the maintainer may reverse doesn't make it a call. A cost to what
   guidance asks, such as a look or a rule of an area's `AGENTS.md`, is the change's
   own to weigh and take.
+- **A requirement that keeps code complicated.** When a guarantee, one of these
+  principles, or a choice the maintainer made expecting far less code is what
+  keeps code complicated (`SOUL.md`, "Keep Leaf's code plain"), tell the
+  maintainer what the requirement costs in code and what the user would see with
+  less of it, and keep the requirement until they decide.
 - **Taking a feature away.** "Regular maintenance" says what a proposal to remove
   one rests on.
 - **Lifting a restriction.** A restriction Leaf imposes, such as a content
@@ -87,7 +92,9 @@ where a choice depends on a purpose or intent the code can't tell you:
   maintainer values, or be a side effect nobody chose.
 - **An open design.** Where a visual or interaction design is still open after
   these principles, show the candidates side by side and let the maintainer
-  select one (`/developing-leaf`, "Explore an open design").
+  select one (`/developing-leaf`, "Explore an open design"). Beside each
+  candidate's picture, say what it costs in code, such as the mechanisms it adds,
+  since a pick made on looks alone can commit Leaf to complicated code.
 
 A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it

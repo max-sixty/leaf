@@ -3003,7 +3003,9 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
         editor = page.locator("#editable-regions > div").nth(1)
         editor.click(position={"x": 12, "y": 8})
         expect(editor).to_be_focused()
-        editor.press("End")
+        # On macOS End scrolls the document and leaves the caret; Mod+End moves the
+        # caret to the editor's end on every platform.
+        editor.press("ControlOrMeta+End")
         editor.press_sequentially(" edited")
         expect(editor).to_have_text("Backup draft edited")
         expect(field).to_be_hidden()
@@ -5136,7 +5138,9 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, 
     page = open_page(browser, live_url(serve(markup)))
     editor = page.locator("#controls > div").first
     editor.click()
-    editor.press("End")
+    # On macOS End scrolls the document and leaves the caret; Mod+End moves the caret
+    # to the editor's end on every platform.
+    editor.press("ControlOrMeta+End")
     editor.press_sequentially(" plus my notes")
     reading = page.evaluate("""async()=>{
       const A=await window.__lfCheckApi();

@@ -338,7 +338,7 @@ process from a checkout follows no copy.
 
 An update that moves the page protocol leaves the session's pages at the old one.
 The restart of each page's server renews the page first, as the session's next hook
-would (`hosting.follow_copy`), and the renewal restarts the server itself; the
+would (`vendoring.follow_copy`), and the renewal restarts the server itself; the
 successor adapter or watch delivers the page's input once the renewal lands. What
 holds a renewal back is queued for the session's next step, and wakes an idle session
 where a watch runs between turns.

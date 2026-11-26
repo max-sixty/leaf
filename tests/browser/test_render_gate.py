@@ -157,7 +157,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     takes the drawing's height, as an inline diff's source text can.
     """
     findings = []
-    _, _, completed = render_gate_scheme._render_page(
+    _, _, completed = render_gate_model._render_page(
         browser,
         serve(
             leaf_page(
@@ -548,7 +548,7 @@ def test_an_unanswered_entry_fails_the_render_gate(
         def new_page(self, **options):
             return page
 
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         ExistingPage(),
         dropped,
         {"width": 1200, "height": 900},
@@ -609,7 +609,7 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     controlled = primed(
         browser.unwatched, lambda page: page.set_default_timeout(EXPECTED_STALL_MS)
     )
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         controlled,
         refused,
         {"width": 1200, "height": 900},
@@ -1208,16 +1208,16 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     monkeypatch.chdir(tmp_path)
     _author_lying_callout(tmp_path)
     if failed_stage == "pageSettled":
-        probe = render_gate_scheme.wait_for_probe
+        probe = render_gate_model.wait_for_probe
 
         def moving(page, name, *args, **kwargs):
             if name == "pageSettled":
                 raise PlaywrightTimeout("held moving")
             return probe(page, name, *args, **kwargs)
 
-        monkeypatch.setattr(render_gate_scheme, "wait_for_probe", moving)
+        monkeypatch.setattr(render_gate_model, "wait_for_probe", moving)
     else:
-        ready = render_gate_scheme.wait_until_ready
+        ready = render_gate_model.wait_until_ready
 
         def unready(page, *args, through=None, **kwargs):
             # The page upgrades, and then stops at the stage held.
@@ -1225,9 +1225,9 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
                 return ready(page, *args, through=through, **kwargs)
             raise render_checks_model.PageNotReady(failed_stage, f"held {failed_stage}")
 
-        monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
+        monkeypatch.setattr(render_gate_model, "wait_until_ready", unready)
 
-    failures, _notices, completed = render_gate_scheme._render_page(
+    failures, _notices, completed = render_gate_model._render_page(
         browser,
         serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
         {"width": 1200, "height": 900},

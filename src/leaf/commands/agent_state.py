@@ -40,6 +40,7 @@ from leaf.log.projection import (
 from leaf.records.authored_checks.admission import logged_id
 from leaf.records.document_reading import DocumentReading
 from leaf.records.event_facts import EventFacts
+from leaf.records.page_data import page_data_binding_inventory
 from leaf.records.publishing import authored_digest, authored_files
 from leaf.records.render_reading import drawn_visuals
 from leaf.records.revisioning import activate_source
@@ -49,10 +50,7 @@ from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.page import read_served_page
 from leaf.serving.user_views import read_user_views, viewed_at
 from leaf.source.data import data_errors
-from leaf.source.data_contracts import (
-    measurement_lag_entries,
-    page_data_binding_inventory,
-)
+from leaf.source.data_contracts import measurement_lag_entries
 from leaf.source.file_bindings import granted_files
 from leaf.source.passages import page_passages
 from leaf.source.registry.contract import state_specs

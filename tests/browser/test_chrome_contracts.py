@@ -53,8 +53,8 @@ from render_harness import (
 from browser.test_render_floating_panel import finish_held, held_motion, hold_motion
 from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 from leaf.serving.media import store_uploaded_media
-from leaf.source import data as data_model
 from leaf.source.render_checks import rendered, wait_for_probe
 
 
@@ -1891,7 +1891,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
                 '<lf-diff id="patch" source="review-patch"></lf-diff>',
             )
         )
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "review-patch",
             """diff --git a/app.py b/app.py

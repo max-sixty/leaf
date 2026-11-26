@@ -95,6 +95,7 @@ from leaf.pages import page_snapshot as page_snapshot_model
 from leaf.pages import vendoring as vendoring_model
 from leaf.records import activity as activity_model
 from leaf.records import document_reading as document_reading_model
+from leaf.records import page_data as page_data_model
 from leaf.records import publishing as publishing_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
@@ -107,7 +108,7 @@ from leaf.serving.served_state import context as served_context
 from leaf.serving.served_state import document as served_document
 from leaf.serving.served_state import page as served_page
 from leaf.serving.served_state import service as served_service
-from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
 from leaf.source import page_inputs
 from leaf.source import passages as passages_model
 from leaf.source import revision_artifact as artifact_model
@@ -700,7 +701,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             "text": "Frozen seed",
         },
     )
-    data_model.cmd_data_set(page_dir, "builds", ["checked"])
+    page_data_model.cmd_data_set(page_dir, "builds", ["checked"])
     template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
         PAGE.replace("</main>", template + "</main>")
@@ -717,7 +718,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             "text": "Later reply",
         },
     )
-    data_model.cmd_data_set(page_dir, "builds", ["later"])
+    page_data_model.cmd_data_set(page_dir, "builds", ["later"])
     parent_events = event_model.read_events(page_dir)
     with hosting_model.TemporaryPageServer(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
@@ -1018,7 +1019,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
         )
     )
     publish(page_dir)
-    data_model.cmd_data_set(page_dir, "review-patch", "first patch")
+    page_data_model.cmd_data_set(page_dir, "review-patch", "first patch")
     first = read_page_data(page_dir)["sources"]["review-patch"]["revision"]
     event = {
         "kind": "comment",
@@ -1035,7 +1036,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
     assert status == 200, body
 
-    data_model.cmd_data_set(page_dir, "review-patch", "replacement patch")
+    page_data_model.cmd_data_set(page_dir, "review-patch", "replacement patch")
     assert read_page_data(page_dir)["sources"]["review-patch"]["revision"] != first
     stale = {
         **event,
@@ -1062,7 +1063,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     assert status == 400
     assert refused_on(body).code == "datum-unsupplied-source"
 
-    data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
+    page_data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
     wrong_source = {
         **event,
         "anchor": {**event["anchor"], "source": "other-patch"},
@@ -1187,7 +1188,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
         },
         contract="build-map",
     )
-    data_model.cmd_data_set(page_dir, "builds", {"main": "green"})
+    page_data_model.cmd_data_set(page_dir, "builds", {"main": "green"})
 
     status, body = fetch(f"{server}/api/state")
 
@@ -1204,7 +1205,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     unmoved = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
     assert unmoved == {"version": data["version"]}
 
-    data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
+    page_data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
     rewritten = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
     assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
     assert rewritten["version"] != data["version"]
@@ -1229,14 +1230,14 @@ def test_a_tab_holding_a_reading_is_sent_only_the_source_a_write_changed(
         )
     )
     assert revisioning_model.activate_source(page_dir).error is None
-    data_model.cmd_data_set(page_dir, "builds", "green")
-    data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
+    page_data_model.cmd_data_set(page_dir, "builds", "green")
+    page_data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
     version = json.loads(fetch(f"{server}/api/state")[1])["data"]["version"]
     holding = {"Leaf-Data-Version": version}
     held = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
     assert held["data"] == {"version": version}
 
-    data_model.cmd_data_set(page_dir, "builds", "red")
+    page_data_model.cmd_data_set(page_dir, "builds", "red")
     holding["Leaf-Held-Basis"] = held["browser"]["basis"]["key"]
     tail = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
 
@@ -1275,7 +1276,7 @@ def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
+    page_data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
     assert first.revision is not None
     first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
         "$layer"
@@ -3737,7 +3738,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "old"}]}
     )
     publish(page_dir)
@@ -3771,7 +3772,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             "text": "Arrived after the browser check began",
         },
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "new"}]}
     )
     (page_dir / "index.html").write_text(
@@ -4011,8 +4012,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     first.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>First</text></svg>')
     second.write_text(first.read_text().replace("First", "Second"))
     urls = [item["path"] for item in media_model.cmd_media(page_dir, [first, second])]
-    data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
+    page_data_model.cmd_data_set(
         page_dir,
         "images",
         {
@@ -4020,12 +4021,12 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
             "prose": "/media/missing.png",
         },
     )
-    with pytest.raises(data_model.DataError, match="canonical /media/"):
-        data_model.cmd_data_set(
+    with pytest.raises(data_contracts_model.DataError, match="canonical /media/"):
+        page_data_model.cmd_data_set(
             page_dir, "images", {"images": [{"url": "/media/../secret"}]}
         )
-    with pytest.raises(data_model.DataError, match="must select URL strings"):
-        data_model.cmd_data_set(page_dir, "images", {"images": [{"url": 123}]})
+    with pytest.raises(data_contracts_model.DataError, match="must select URL strings"):
+        page_data_model.cmd_data_set(page_dir, "images", {"images": [{"url": 123}]})
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -4039,7 +4040,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     assert urls[1] not in artifact.resources
     # The preview serves the bytes captured with its data, even after a later write.
     (page_dir / urls[1].lstrip("/")).write_text("Changed after capture")
-    data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
+    page_data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
     with hosting_model.TemporaryPageServer(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
@@ -4068,7 +4069,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     )
     assert current.data_resources == {}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
-    data_model.cmd_data_set(page_dir, "images", {"other": [{"url": urls[0]}]})
+    page_data_model.cmd_data_set(page_dir, "images", {"other": [{"url": urls[0]}]})
     revised = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,

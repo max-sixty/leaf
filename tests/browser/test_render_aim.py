@@ -95,9 +95,9 @@ from browser.threads import open_panel_thread
 from leaf.base import service as service_model
 from leaf.log import event_log as events_model
 from leaf.pages.render_gate.scheme import collect_page_exceptions
+from leaf.records import page_data as page_data_model
 from leaf.serving.served_state import context as served_context
 from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import data as data_model
 from leaf.source import passages as passages_model
 from leaf.source import structure as structure_model
 from leaf.source.render_checks import rendered, wait_until_ready
@@ -3074,7 +3074,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
             "</lf-diff>",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py

@@ -1152,7 +1152,7 @@ def data() -> None:
 @body_options("the JSON value")
 def data_set(page_dir: Path, source: str, text: str | None, body_file) -> dict:
     """Validate and replace SOURCE with one complete JSON value."""
-    from leaf.source.data import cmd_data_set
+    from leaf.records.page_data import cmd_data_set
 
     value = json_body(text, body_file)
     return cmd_data_set(page_dir, source, value)
@@ -1163,7 +1163,7 @@ def data_set(page_dir: Path, source: str, text: str | None, body_file) -> dict:
 @click.argument("source", metavar="SOURCE")
 def data_clear(page_dir: Path, source: str) -> dict:
     """Remove SOURCE's current value; its next write uses the current binding."""
-    from leaf.source.data import cmd_data_clear
+    from leaf.records.page_data import cmd_data_clear
 
     return cmd_data_clear(page_dir, source)
 

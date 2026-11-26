@@ -45,6 +45,7 @@ from browser.threads import (
 )
 from leaf.agents import thread as thread_model
 from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 from leaf.source import data as data_model
 from leaf.source.render_checks import rendered, wait_until_ready
 
@@ -105,7 +106,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         "source_revision": seen,
     }
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "deployments",
         [
@@ -212,7 +213,7 @@ customElements.define('lf-feed', class extends LeafElement {
         },
         layer_widgets={"lf-feed.js": module},
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "deployments",
         {
@@ -254,7 +255,7 @@ customElements.define('lf-feed', class extends LeafElement {
     write(draft, "Keep this draft with the row.")
     expect(draft).to_be_focused()
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "deployments",
         {
@@ -316,7 +317,7 @@ customElements.define('lf-feed', class extends LeafElement {
     # puts it away before the row is aimed at again.
     page.keyboard.press("Escape")
     expect(draft).to_be_hidden()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "deployments",
         {
@@ -385,7 +386,7 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
     page = open_page(request.getfixturevalue(engine), url)
     for row in (128, 310):
         select_words(page, f"{LOG_ROWS} >> nth={row - 1}")
@@ -408,14 +409,16 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
         if added:
             offset += added
             lines = [f"added {added} {i}" for i in range(added)] + lines
-            data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+            page_data_model.cmd_data_set(
+                serve.page_dir, "log-text", "\n".join(lines) + "\n"
+            )
             told(page)
         for row in (128 + offset, 310 + offset):
             page.locator(LOG_ROWS).nth(row - 1).evaluate(SHOW_ROW)
             rendered(page)
             page.wait_for_function(ROW_COMMENT, arg=row)
     lines[127 + offset] = "a rewritten row"
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
     told(page)
     page.locator(LOG_ROWS).nth(309 + offset).evaluate(SHOW_ROW)
     rendered(page)
@@ -533,7 +536,7 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     )
     url = live_url(serve(source_page))
     full = "\n".join(f"line_{n} = {n}" for n in range(1, 21)) + "\n"
-    data_model.cmd_data_set(serve.page_dir, "full-text", full)
+    page_data_model.cmd_data_set(serve.page_dir, "full-text", full)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
         """
@@ -573,7 +576,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     )
     url = live_url(serve(source_page))
     skill_text = "# Leaf\n\nOriginal instructions.\n"
-    data_model.cmd_data_set(serve.page_dir, "leaf-skill", skill_text)
+    page_data_model.cmd_data_set(serve.page_dir, "leaf-skill", skill_text)
 
     page = open_page(browser, url)
     expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
@@ -594,7 +597,9 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     )
     page.set_viewport_size({"width": 1280, "height": 720})
 
-    data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
+    page_data_model.cmd_data_set(
+        serve.page_dir, "leaf-skill", "Current instructions.\n"
+    )
     expect(page.locator("lf-text-document code")).to_have_text(
         "Current instructions.\n"
     )
@@ -612,7 +617,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         "pinned the reviewed source",
     )
     wait_for_revision(page, 2)
-    data_model.cmd_data_set(serve.page_dir, "leaf-skill-reviewed", skill_text)
+    page_data_model.cmd_data_set(serve.page_dir, "leaf-skill-reviewed", skill_text)
     expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
@@ -654,7 +659,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     assert comment["anchor"]["section"] == "skill-source"
     assert comment["anchor"]["datum"] == "document"
 
-    data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Changed again.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Changed again.\n")
     told(page)
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
@@ -700,7 +705,7 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
     expect(page.locator("#notes code")).to_have_text("First.\n")
     told(page)
@@ -718,12 +723,12 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
             "text": "A message arriving with the reading.",
         },
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     away = page.request.get(urljoin(page.url, "/api/state"))
     # The page is inside that read before the source returns, so the reading it takes is
     # the one that moved the source and the trailing read is answered at once.
     page.wait_for_function("() => window.__leafStateObligations >= 1")
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     back = page.request.get(urljoin(page.url, "/api/state"))
     assert away.json()["data"]["version"] != back.json()["data"]["version"]
     page.evaluate(
@@ -789,7 +794,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
         route.fulfill(status=response.status, json=state)
 
     page.route("**/api/state*", older_events_with_new_data)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "deployments",
         [
@@ -909,7 +914,7 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
     datum = page.locator('[data-lf-datum="api"]')
     revision = datum.get_attribute("data-lf-source-revision")
 
-    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    page_data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
     deliveries = read()
     assert deliveries == [first, original["value"]], deliveries
     assert json.loads(publication_file.read_text())["run"] != original["run"]
@@ -921,17 +926,17 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
     assert len(deliveries) == 3 and deliveries[-1] is None, deliveries
     assert len(read()) == 3
 
-    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    page_data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
     deliveries = read()
     assert len(deliveries) == 4 and deliveries[-1] == first, deliveries
     expect(datum).to_have_attribute("data-lf-source-revision", revision)
 
-    data_model.cmd_data_clear(serve.page_dir, "deployments")
+    page_data_model.cmd_data_clear(serve.page_dir, "deployments")
     deliveries = read()
     assert len(deliveries) == 5 and deliveries[-1] is None, deliveries
     assert len(read()) == 5
 
-    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    page_data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
     deliveries = read()
     assert len(deliveries) == 6 and deliveries[-1] == first, deliveries
     expect(datum).to_have_attribute("data-lf-source-revision", revision)
@@ -1021,7 +1026,7 @@ customElements.define(TAG, class extends LeafElement {
         "Thread feed.\n\n"
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
     )
-    data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
+    page_data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)
     open_panel_thread(page, "question")
     expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
@@ -1040,7 +1045,7 @@ customElements.define(TAG, class extends LeafElement {
             if contract == "rows"
             else authored.replace("lf-array-feed", "lf-object-feed")
         )
-        data_model.cmd_data_set(serve.page_dir, "shared", value)
+        page_data_model.cmd_data_set(serve.page_dir, "shared", value)
         read()
         return page.evaluate(wire)
 
@@ -1258,7 +1263,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
             }""",
             failure,
         )
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir, "deployments", [{"key": "api", "value": value}]
         )
         told(page)
@@ -1328,7 +1333,7 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
         if event["kind"] == "error"
     ]
     assert any("widgetProjection" in error for error in agent_errors), agent_errors
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "deployments", [{"key": "api", "value": "Recovered reading"}]
     )
     told(page)
@@ -1385,7 +1390,7 @@ def test_data_written_while_a_fresh_revision_starts_shows_once_it_has_started(
     page.wait_for_function("() => window.__lfRevisionRegistryBlocked === true")
     assert page.evaluate("performance.timeOrigin") != original_document
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         d,
         "deployments",
         [

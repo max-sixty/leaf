@@ -13,11 +13,11 @@ packages below it, and the modules inside a package import each other without a 
 (`../.config/importlinter.ini`, whose header says what to do when a change breaks
 either rule).
 A module imports what it uses at its top, so the top lists what it depends on. An
-import goes inside a function only where loading it with its module would cost
-something: start-up time in a process that loads the module often without calling
-the function, such as a hook, the sandbox's bridge client or an agent's `leaf`
-command; a failure on a platform Leaf supports, as one of watchdog's observers
-raises; or an effect, as `agents/codex.py` registers an exit handler as it loads.
+import goes inside a function only where loading it with its module would add
+start-up work to a process a harness or agent starts often, such as a hook or a
+`leaf` command, that loads the module without calling the function; would fail on a
+platform Leaf supports; or would set off an effect, as importing `agents/codex.py`
+registers an exit handler.
 Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
 transport boundary exits, prints or answers HTTP. A command returns its result and
 never prints it (`cli.py`'s header).

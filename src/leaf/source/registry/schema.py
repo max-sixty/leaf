@@ -14,8 +14,9 @@ covers `pattern`, `patternProperties` and the `additionalProperties` and
 `unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns,
 and the `regex` format checks a value, with the same engine.
 
-jsonschema, referencing, regress and pywhatwgurl load when this module first checks a
-schema or builds a validator (`_checkers`), not when it is imported. Most commands
+jsonschema, referencing and regress load when this module first checks a schema or
+builds a validator (`_checkers`), and pywhatwgurl when it first reads a browser URL
+(`is_browser_url`), not when the module is imported. Most commands
 and hooks read a page without validating anything, and those imports would cost each
 of them tens of milliseconds.
 """

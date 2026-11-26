@@ -22,7 +22,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/52",
+     "format": "leaf-delivery/58",
      "id": "48357e87",
      "created_at": 1794213067.6011295,
      "acknowledge": "If the output was cut off, reread it with `leaf delivery read 48357e87` and follow any `next` commands. Then, before any other work, start `leaf delivery ack 48357e87 && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
@@ -129,7 +129,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/58",
          "id": "e7c6f4a1",
          "created_at": 1794213069.5478764,
          "acknowledge": "If the output was cut off, reread it with `leaf delivery read e7c6f4a1` and follow any `next` commands. Then, before any other work, start `leaf delivery ack e7c6f4a1 && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
@@ -235,7 +235,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/58",
          "id": "7e03307d",
          "created_at": 1794213071.5913727,
          "acknowledge": "If the output was cut off, reread it with `leaf delivery read 7e03307d` and follow any `next` commands. Then, before any other work, start `leaf delivery ack 7e03307d && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",

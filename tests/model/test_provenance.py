@@ -217,7 +217,14 @@ def test_each_revision_is_judged_by_the_log_before_it():
         {"kind": "comment", "text": "Make it blue"},
         {"kind": "edit", "message": "e1", "text": "Make it red"},
         live(2),
-        {"kind": "reply", "parent": "e1", "responds": "e2", "text": "Red.", **AGENT},
+        {
+            "kind": "reply",
+            "parent": "e1",
+            "responds": "e2",
+            "covers": ["e1", "e2"],
+            "text": "Red.",
+            **AGENT,
+        },
         {"kind": "undo", "undoes": "e2"},
         live(3),
     ]
@@ -463,10 +470,12 @@ def test_the_line_reads_each_revision_as_a_fold_up_to_it_would():
             elif move == "reply":
                 step = {"kind": "reply", "parent": thread["id"], "text": f"Reply {at}"}
             elif move == "answer" and (owed := unanswered_turns(thread)):
+                through = rng.randrange(len(owed)) + 1
                 step = {
                     "kind": "reply",
                     "parent": thread["id"],
-                    "responds": rng.choice(owed)["id"],
+                    "responds": owed[through - 1]["id"],
+                    "covers": [turn["id"] for turn in owed[:through]],
                     "text": f"Answer {at}",
                     **AGENT,
                 }

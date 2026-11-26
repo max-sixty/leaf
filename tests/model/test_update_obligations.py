@@ -38,7 +38,7 @@ def _owed_answers(page_dir, reading):
             {
                 key: value
                 for key, value in item["answer"].items()
-                if key in {"kind", "parent", "responds", "action"}
+                if key in {"kind", "parent", "responds", "covers", "action"}
             },
         )
         for item in reading(state, watched=False)
@@ -251,11 +251,21 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
     expected = [
         (
             second["id"],
-            {"kind": "reply", "parent": second["id"], "responds": second["id"]},
+            {
+                "kind": "reply",
+                "parent": second["id"],
+                "responds": second["id"],
+                "covers": [first["id"], second["id"]],
+            },
         ),
         (
             moves[-1]["id"],
-            {"kind": "reply", "parent": board["id"], "responds": moves[-1]["id"]},
+            {
+                "kind": "reply",
+                "parent": board["id"],
+                "responds": moves[-1]["id"],
+                "covers": [move["id"] for move in moves],
+            },
         ),
         (picked["id"], {"kind": "markup", "action": picked["id"]}),
     ]
@@ -282,6 +292,10 @@ def test_a_queued_update_holds_the_agent_once_it_starts_it(claimed):
     assert _owed_answers(claimed, activity_model.blocking_obligations) == [
         (
             started["id"],
-            {"kind": "reply", "parent": started["id"], "responds": started["id"]},
+            {
+                "kind": "reply",
+                "parent": started["id"],
+                "responds": started["id"],
+            },
         )
     ]

@@ -15,6 +15,7 @@ from interact_support import (
     continued,
     declare_work,
     delivered,
+    delivered_ref,
     freeze_events,
     last_deliverable_seq,
     obligations_on_user,
@@ -98,7 +99,12 @@ def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
     assert [(item["input"], item["answer"]) for item in owed_answers(page_dir)] == [
         (
             second["id"],
-            {"kind": "reply", "parent": second["id"], "responds": second["id"]},
+            {
+                "kind": "reply",
+                "parent": second["id"],
+                "responds": second["id"],
+                "covers": [first["id"], second["id"]],
+            },
         )
     ]
 
@@ -110,6 +116,7 @@ def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
             "author": "agent",
             "parent": second["id"],
             "responds": second["id"],
+            "covers": [first["id"], second["id"]],
             "text": "Answered together",
         },
     )
@@ -283,6 +290,7 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
             "author": "agent",
             "parent": second["id"],
             "responds": second["id"],
+            "covers": [first["id"], second["id"]],
             "text": "A and B",
         },
     )
@@ -1046,7 +1054,12 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
     [answer] = owed(state_json(page_dir))
     assert (answer["input"], answer["answer"]) == (
         newer["id"],
-        {"kind": "reply", "parent": newer["id"], "responds": newer["id"]},
+        {
+            "kind": "reply",
+            "parent": newer["id"],
+            "responds": newer["id"],
+            "covers": [chose["id"], newer["id"]],
+        },
     )
 
     # The thread's one answer is the newer message's, so a reply to the pick alone,
@@ -1172,31 +1185,52 @@ def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
     assert answer["answer"]["parent"] == asked["id"]
 
 
-def test_a_pick_taken_back_takes_one_late_answer(page_dir):
+@pytest.mark.parametrize(
+    "history", ["taken-back", "failed-then-changed", "changed-then-restored"]
+)
+def test_a_pick_takes_one_late_answer(page_dir, history):
     """Two turns were each delivered the user's pick and reserved its answer, and the
-    user takes the pick back. The first turn to finish answers it and the other's
-    final message yields, so the thread holds one answer to the pick."""
+    pick has since stopped waiting: the user took it back; or a harness gave up on it
+    and the user changed it; or the user changed it, the first turn answered, and the
+    user changed it back. The first turn to finish answers the pick and the other's
+    final message yields, so the thread holds one answer to it."""
     asked = offer_choice(page_dir)
     picked = choose(page_dir, "file")
-    append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
-    )
     late = {"parent": asked["id"], "responds": picked["id"]}
-    assert thread_model.post_reply(
-        page_dir,
-        late,
-        "Filing it.",
-        settlement=thread_model.ProviderFinal("newer-turn"),
-    )
-    assert (
-        thread_model.post_reply(
+
+    def final(attempt: str) -> dict | None:
+        return thread_model.post_reply(
             page_dir,
             late,
-            "Filing it now.",
-            settlement=thread_model.ProviderFinal("older-turn"),
+            "Filing it.",
+            settlement=thread_model.ProviderFinal(attempt),
         )
-        is None
-    )
+
+    def undo(event: dict) -> None:
+        append_carried_log_record(
+            page_dir, {"kind": "undo", "author": "user", "undoes": event["id"]}
+        )
+
+    if history == "taken-back":
+        undo(picked)
+        assert final("newer-turn")
+    elif history == "failed-then-changed":
+        thread_model.fail_answer(
+            page_dir,
+            picked["id"],
+            "delivery_unconfirmed",
+            "Send it again if I still need an answer.",
+            attempt=f"unconfirmed-{picked['id']}",
+            identity={"session": "s1"},
+            only_if_unclaimed=False,
+        )
+        choose(page_dir, "skip")
+        assert final("newer-turn")
+    else:
+        changed = choose(page_dir, "skip")
+        assert final("newer-turn")
+        undo(changed)
+    assert final("older-turn") is None
 
 
 def update_records(state: dict) -> dict:
@@ -1209,14 +1243,17 @@ def update_records(state: dict) -> dict:
 
 
 @pytest.mark.parametrize(
-    "then", ["message", "pick", "undo", "recovered", "recovered-message"]
+    "then",
+    ["message", "pick", "pick-undone", "undo", "recovered", "recovered-message"],
 )
 def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, then):
     """A harness that gives up on a delivery holding the user's message and their
     pick after it writes one failure, at the thread's one answer, and hands both back
     on that record, leaving nothing on the agent. The user's next input there, a
     message or another pick, is a new request, which the agent owes, and the failure
-    stops waiting on the user. Taking the pick back leaves the message handed back.
+    stops waiting on the user, until the user takes that pick back, which brings the
+    failed pick back handed back too. Taking the pick back leaves the message handed
+    back.
     A turn that recovers and answers settles the batch as answered, and one that
     answers only the message, which it was delivered before the pick, leaves the pick
     handed back."""
@@ -1245,6 +1282,21 @@ def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, then):
         picked["id"]: (f"update:{picked['id']}", "failed"),
     }
 
+    if then == "pick-undone":
+        changed = choose(claimed, "skip")
+        assert update_records(state_json(claimed)) == {
+            f"update:{changed['id']}": "agent"
+        }
+        append_carried_log_record(
+            claimed, {"kind": "undo", "author": "user", "undoes": changed["id"]}
+        )
+        restored = state_json(claimed)
+        assert owed(restored) == []
+        assert update_records(restored) == {f"update:{picked['id']}": "user"}
+        assert sorted(item["input"] for item in restored["workflows"]) == sorted(
+            [message["id"], picked["id"]]
+        )
+        return
     if then == "undo":
         append_carried_log_record(
             claimed, {"kind": "undo", "author": "user", "undoes": picked["id"]}
@@ -1257,7 +1309,11 @@ def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, then):
     if then == "recovered":
         recovered = thread_model.post_reply(
             claimed,
-            {"parent": asked["id"], "responds": picked["id"]},
+            {
+                "parent": asked["id"],
+                "responds": picked["id"],
+                "covers": [message["id"], picked["id"]],
+            },
             "Filed it.",
             settlement=thread_model.ProviderFinal("recovered-turn"),
         )
@@ -1309,12 +1365,14 @@ def test_a_late_answer_to_a_pick_leaves_the_message_after_it_owed(
 ):
     """A turn delivered the user's pick and reserved its answer there. Before it
     answers, the user changes the pick, which the agent may answer, sends a message,
-    and takes the change back, which brings the first pick back. The pick waits where
-    it was made, before the message, so the thread's one answer goes to the message.
-    The turn's late answer covers the pick it was delivered, and the message it never
-    read stays owed."""
+    and takes the change back, which brings the first pick back as the thread's newest
+    input, so the thread's one answer goes to it and covers the message too. The
+    turn's late answer covers only the pick its delivery carried, and the message it
+    never read stays owed."""
     asked = offer_choice(page_dir)
     first = choose(page_dir, "file")
+    receive_through(page_dir, last_deliverable_seq(page_dir))
+    delivered = delivered_ref(page_dir, first["id"])
     choose_again = choose(page_dir, "skip")
     if answered_change:
         [answer] = owed(state_json(page_dir))
@@ -1324,18 +1382,83 @@ def test_a_late_answer_to_a_pick_leaves_the_message_after_it_owed(
         page_dir, {"kind": "undo", "author": "user", "undoes": choose_again["id"]}
     )
     state = state_json(page_dir)
-    assert [item["input"] for item in owed(state)] == [message["id"]]
+    [answer] = owed(state)
+    assert (answer["input"], answer["answer"]["covers"]) == (
+        first["id"],
+        [first["id"], message["id"]],
+    )
     assert {item["input"]: item["obligation"] for item in state["workflows"]} == {
-        first["id"]: f"update:{message['id']}",
-        message["id"]: f"update:{message['id']}",
+        first["id"]: f"update:{first['id']}",
+        message["id"]: f"update:{first['id']}",
     }
-    assert thread_model.post_reply(
-        page_dir,
-        {"parent": asked["id"], "responds": first["id"]},
-        "Filing it.",
-        settlement=thread_model.ProviderFinal("earlier-turn"),
+    assert thread_model.post_response(
+        delivered, "Filing it.", reservation="earlier-turn-final"
     )
     assert [item["input"] for item in owed(state_json(page_dir))] == [message["id"]]
+
+
+@pytest.mark.parametrize("final", [False, True], ids=["reply", "final"])
+def test_an_answer_covers_only_the_inputs_its_delivery_carried(page_dir, final):
+    """The user picks, changes the pick and sends a message, and one delivery carries
+    the change and the message under one reference. The user then takes the change
+    back, which brings the first pick back. A turn's final message for that delivery
+    answers what it carried, and an ordinary reply there is refused for the newer
+    input; either way the restored pick still waits on the agent."""
+    asked = offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    changed = choose(page_dir, "skip")
+    message = say(page_dir, asked, "And label it.")
+    receive_through(page_dir, last_deliverable_seq(page_dir))
+    reference = delivered_ref(page_dir, message["id"])
+    assert delivery_model.response_address(reference)["covers"] == [
+        changed["id"],
+        message["id"],
+    ]
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
+    )
+    if final:
+        assert thread_model.post_response(
+            reference, "Leaving it, labelled.", reservation="turn-final-attempt"
+        )
+    else:
+        with pytest.raises(Rejected) as refused:
+            thread_model.post_response(reference, "Leaving it, labelled.")
+        assert refused.value.findings[0].code == "superseded-reply"
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == first["id"]
+
+
+def test_a_reference_its_thread_has_outgrown_answers_nothing(page_dir):
+    """A delivery carries the user's pick under its reference. The user changes the
+    pick, sends a message and takes the change back, which brings the pick back as
+    the thread's newest input. A reply at the old reference would leave the message
+    for a second reply, so it is refused, naming the message, and the page delivers
+    the pick again under a reference that covers both, which one reply answers."""
+    asked = offer_choice(page_dir)
+    picked = choose(page_dir, "file")
+    receive_through(page_dir, last_deliverable_seq(page_dir))
+    old = delivered_ref(page_dir, picked["id"])
+    changed = choose(page_dir, "skip")
+    message = say(page_dir, asked, "Only after I approve the draft.")
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
+    )
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_response(old, "Filing it.")
+    [finding] = refused.value.findings
+    assert (finding.code, finding.values["unseen"]) == ("unseen-input", [message["id"]])
+    [answer] = owed(state_json(page_dir))
+    assert (answer["input"], "ref" in answer["answer"]) == (picked["id"], False)
+
+    receive_through(page_dir, last_deliverable_seq(page_dir))
+    fresh = delivered_ref(page_dir, picked["id"])
+    assert delivery_model.response_address(fresh)["covers"] == [
+        picked["id"],
+        message["id"],
+    ]
+    assert thread_model.post_response(fresh, "Filing it once you approve the draft.")
+    assert owed(state_json(page_dir)) == []
 
 
 def test_editing_out_an_answered_choice_reopens_nothing(page_dir):

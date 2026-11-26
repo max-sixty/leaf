@@ -259,7 +259,7 @@ conversations:
     - leaf: >-
         Leaf has new input for your turn. Read this complete delivery before
         answering.
-        {"format": "leaf-delivery/52", "batches": [{"page": "{page}", "threads":
+        {"format": "leaf-delivery/58", "batches": [{"page": "{page}", "threads":
         [{"id": "c1", "anchor": {"section": "cache-findings"}, "messages": [{"id":
         "c1", "author": "user", "text": "Does TTL's 74% count the cache warming up
         from empty?"}]}], "handling": {"h1": "Answer it with `leaf thread reply`."},
@@ -595,7 +595,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/52", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/58", "batches": [{"page": "{page}", "threads":
           [{"id": "q1", "title": "LRU or TTL for the result cache", "messages":
           [{"id": "q1", "author": "agent", "text": "LRU hits 81% of queries within
           1.9 GB but serves results up to 41 minutes old at p95; TTL hits 74% and
@@ -716,7 +716,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/52", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/58", "batches": [{"page": "{page}", "threads":
           [{"id": "q1", "title": "Turning on the LRU cache in staging", "resolved":
           "user", "messages": [{"id": "q1", "author": "agent", "text": "Setting
           staging flags needs your ops login, which this session doesn't have. Run
@@ -1488,7 +1488,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/52", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/58", "batches": [{"page": "{page}", "threads":
           [{"id": "r1", "title": "Release bf40b427 deployment checks passed",
           "anchor": null, "resolved": null, "messages": [{"id": "r2", "author":
           "agent", "text": "recording that release bf40b427 passed its deployment

@@ -29,8 +29,8 @@ from leaf.event_log import read_events
 from leaf.events import (
     active_summaries,
     build_threads,
+    covered,
     is_answer,
-    settling_answer,
     taken_back,
     thread_structure,
 )
@@ -559,17 +559,11 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
     return asked
 
 
-def answered(page_dir: Path, events: list[dict], responds: str) -> bool:
-    """Whether an answer settled the input `responds` names on the page, by naming it
-    or a newer input in its thread (`events.settling_answer`)."""
-    threads = build_threads(events, active_enclosing(page_dir))
-    return settling_answer(threads, responds) is not None
-
-
-def successful_replies(events: list[dict], responds: str) -> list[dict]:
-    """Agent answers to this exact input (`events.is_answer`)."""
+def successful_replies(events: list[dict], input_id: str) -> list[dict]:
+    """The agent's answers to the input `input_id` names, in log order: each that
+    covers it (`events.covered`), alone or with others in its thread."""
     return [
-        event for event in events if is_answer(event) and event["responds"] == responds
+        event for event in events if is_answer(event) and input_id in covered(event)
     ]
 
 
@@ -586,8 +580,8 @@ class ProviderFinal:
     reserved (`reserve_delivery_reply`), or its opening, posted there as progress.
 
     It keeps that address after the user settled the update, but yields to an answer
-    another writer already gave it, to the update or to a newer input in its thread
-    (`answered`; a failure receipt is no answer), so a turn's answer
+    another writer already gave the update, alone or with others in its thread
+    (`successful_replies`; a failure receipt is no answer), so a turn's answer
     committed after its reservation lapsed never answers twice; and it writes nothing
     once another delivery holds the address."""
 
@@ -620,6 +614,8 @@ class _Obligation(NamedTuple):
     parent: str
     thread: str
     responds: str | None
+    # The inputs an answer at `responds` answers (`events.settle`).
+    covers: list[str] | None
     # The update a progress reply takes in hand, if it owes one.
     in_hand: str | None
     # What the command notes beside the reply once it is in.
@@ -659,6 +655,14 @@ def post_reply(
     answers nothing, so an answer its thread owes stays owed, which the command
     notes beside it (`owed-response`). ``input`` and ``claim``, which a delivery
     captured, fence it to that page log and delivery owner.
+
+    An answer and a failure receipt record as ``covers`` the inputs they answer
+    (`events.settle`): the address's ``covers``, every input its thread owed when the
+    delivery was captured, or for an address no delivery captured, what the log owes
+    at it now. An ordinary answer whose thread has since come to owe an input its
+    delivery didn't carry, as a pick an undo brought back, is refused with the
+    reference that covers it (`unseen-input`), so one reply still answers the
+    thread; a provider's final goes in as captured, and leaves that input owed.
 
     A ``responds`` that no longer names the update owed refuses an answer, which
     would mark an unread newer message answered (`superseded-reply`), with two
@@ -866,7 +870,7 @@ def _resolve_obligation(
     if (
         isinstance(settlement, ProviderFinal)
         and responds is not None
-        and answered(page_dir, events, responds)
+        and successful_replies(events, responds)
     ):
         return None
     responses = current_responses(page_dir, events)
@@ -889,14 +893,25 @@ def _resolve_obligation(
         and any(todo["id"] == address["parent"] for todo in TodoReading(events).owed)
         else None
     )
-    answers = None if ephemeral else responds
+    answering = None if ephemeral else responds
+    current = (
+        expected is not None
+        and expected["kind"] == "reply"
+        and expected["parent"] == parent
+    )
+    # What an answer covers: what its delivery captured, or for an address no
+    # delivery captured, what the log owes there now.
+    covers: list[str] | None = None
+    if answering is not None:
+        if "covers" in address:
+            covers = address["covers"]
+        elif expected is None or "input" in address or not current:
+            covers = [answering]
+        else:
+            covers = covered(expected)
     advice: list[Finding] = []
     if responds is not None:
-        if (
-            expected is None
-            or expected["kind"] != "reply"
-            or expected["parent"] != parent
-        ):
+        if not current:
             if isinstance(settlement, Receipt):
                 return None
             if not isinstance(settlement, ProviderFinal):
@@ -914,7 +929,7 @@ def _resolve_obligation(
                 if not (ephemeral or promised):
                     found = {"event": responds, "parent": parent, "held": held}
                     raise Rejected([Finding("superseded-reply", values=found)])
-                answers = None
+                answering = None
                 advice += [
                     Finding(
                         "promised-todo",
@@ -931,6 +946,24 @@ def _resolve_obligation(
                             values={"event": responds, "held": held},
                         )
                     )
+        elif isinstance(settlement, Refuse) and answering is not None:
+            # An answer covers what its delivery carried, so one whose thread has
+            # come to owe more since would leave that owed for a second reply.
+            assert expected is not None and covers is not None
+            unseen = [each for each in covered(expected) if each not in covers]
+            if unseen:
+                raise Rejected(
+                    [
+                        Finding(
+                            "unseen-input",
+                            values={
+                                "event": responds,
+                                "unseen": unseen,
+                                "answer": answer_command(expected, page_dir),
+                            },
+                        )
+                    ]
+                )
         elif ephemeral and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
@@ -943,7 +976,7 @@ def _resolve_obligation(
                     reserved["attempt"],
                 ):
                     return None
-            elif answers is not None and (
+            elif answering is not None and (
                 address.get("input") is None or failure is not None
             ):
                 assert expected is not None
@@ -959,7 +992,7 @@ def _resolve_obligation(
                         )
                     ]
                 )
-    if answers is None and not (ephemeral and responds):
+    if answering is None and not (ephemeral and responds):
         # A message that answers nothing, other than progress on an update, leaves
         # what its thread owes owed.
         owed = thread_obligation(events, responses, thread_id)
@@ -981,7 +1014,14 @@ def _resolve_obligation(
         or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
-    return _Obligation(parent, thread_id, answers, in_hand, tuple(advice))
+    return _Obligation(
+        parent,
+        thread_id,
+        answering,
+        covers if answering is not None else None,
+        in_hand,
+        tuple(advice),
+    )
 
 
 def _compose_and_append(
@@ -1009,7 +1049,7 @@ def _compose_and_append(
     revision; detaching still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
-    parent, thread_id, responds, in_hand, _advice = obligation
+    parent, thread_id, responds, covers, in_hand, _advice = obligation
     markup = drawn_markup(text)
     event = {
         "kind": "reply",
@@ -1018,6 +1058,7 @@ def _compose_and_append(
         "parent": parent,
         "text": text,
         **({"responds": responds} if responds is not None else {}),
+        **({"covers": covers} if covers is not None and len(covers) > 1 else {}),
     }
     opening = _messages(events)[thread_id]
     moving = bool(quote or section or part)

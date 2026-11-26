@@ -685,7 +685,10 @@ def local_worker() -> Generator[LocalWorker]:
     Build the image before timing HTTP readiness: a cold dependency download is not
     a Worker startup failure. Wrangler leaves each container's
     `proxy-everything` sidecar running when it exits, so the run serves under a Worker
-    name of its own and removes the containers carrying it on the way out.
+    name of its own and removes the containers carrying it on the way out. Wrangler
+    removes some of them itself as it exits, and may still be removing one when the
+    run lists them. So a container already gone or still being removed is no
+    failure, and the run removes its image by force, since such a container holds it.
     """
     out = run_directory(ROOT / ".tmp" / "site-verify")
     # Temporary directory suffixes may begin with `_`, which cannot follow a
@@ -807,11 +810,11 @@ def local_worker() -> Generator[LocalWorker]:
             subprocess.run(
                 ["docker", "rm", "--force", *started],
                 stdout=subprocess.DEVNULL,
-                check=True,
+                check=False,
             )
         if image is not None:
             subprocess.run(
-                ["docker", "image", "rm", image],
+                ["docker", "image", "rm", "--force", image],
                 stdout=subprocess.DEVNULL,
                 check=True,
             )

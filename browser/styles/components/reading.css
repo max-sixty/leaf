@@ -429,7 +429,7 @@
        (test_a_has_leads_only_to_a_subject_naming_an_element).
        Whether focus is in the table is a property the table sets, `--lf-names-focus`,
        and the fade asks the table for it by a style query on the container the table
-       names, `lf-row-names` (`browser/AGENTS.md`, "A rule for focus anywhere in a box"),
+       names, `lf-row-names` (`browser/AGENTS.md`, "What a style rule costs"),
        so a focus move into or out of the table restyles the table, its fades and, while
        its fades are drawn, everything in it, and a move elsewhere on the page restyles
        none of it (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes).

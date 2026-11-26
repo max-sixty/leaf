@@ -73,12 +73,7 @@ import { version as keptVersion } from "../state/kept.js";
 import { inChrome } from "../base/ui-marks.js";
 
 /** @typedef {import("../../types/domain.js").Anchor} Anchor */
-/** @typedef {ReturnType<typeof import("../records/thread/state.js").allThreads>[number]} Thread */
-/** @typedef {import("../../types/contract.js").CompleteUnion<import("../readings/resolved-target.js").ResolvedTarget & {message?: string}>} ResolvedTarget */
-/** @typedef {ResolvedTarget & {messageTarget: ReturnType<typeof messageHolding>,
- * point: Element | null, pointRow: string | null, pointWords: string | null}} Placement */
-/** @typedef {{open: boolean, anchor: Anchor | null, about: string | null,
- * drawing: import("./composing/drawing-record.js").DraftDrawing | null}} ThreadDraft */
+/** @import { Thread, ResolvedTarget, Placement, PlacementReading, ThreadDraft } from "../records/thread/placement.js" */
 // Whether two readings of a passage stand in the same text, segment by segment: a
 // revision or a script that writes words ahead of it keeps its ranges, which move with
 // the words, but not where it stands.
@@ -269,7 +264,7 @@ export function createAnchorPlacement() {
   }
 
   /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null,
-   * saved: readonly {context: string, anchor: Anchor}[]}} options */
+   * saved: readonly {context: string, anchor: Anchor}[]}} options @returns {PlacementReading | null} */
   function read({ threads: all, draft, actionAnchor, saved }) {
     if (!anchoringIsReady()) return null;
     catchUpWords();

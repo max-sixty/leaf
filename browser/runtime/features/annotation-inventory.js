@@ -95,9 +95,9 @@ const inProgress = readPart(
  * @typedef {import("./contributions.js").ContributionOffer} ContributionOffer
  * @typedef {import("./margin-model.js").MarginEntry<ContributionOffer>} InventoryEntry
  * @typedef {import("./margin-model.js").MarginGroup<ContributionOffer>} EntryGroup
- * @typedef {import("../state/semantic-application.js").Workflow} Workflow
+ * @typedef {import("../../types/domain.js").Workflow} Workflow
  * @typedef {import("../records/thread/workflow.js").ThreadRecord} ThreadRecord
- * @typedef {import("../annotations/anchor-placement.js").Placement} Placement
+ * @typedef {import("../records/thread/placement.js").Placement} Placement
  * @typedef {import("../readings/passages.js").Segment} Segment
  * @typedef {{activate: (route?: {travel?: boolean}) => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
  * @typedef {AnnotationItem & ItemSource} LiveItem
@@ -108,6 +108,12 @@ const inProgress = readPart(
  * @typedef {Map<string | Element, Group>} Groups
  * @typedef {ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["scrollToElement"]} ScrollToElement
  */
+/** The page map's commands (panel/page-map-dialog.js), as the margin and the host are
+ * handed them.
+ * @typedef {{leavePageMap: () => unknown,
+ * openPageMap: (entry?: InventoryEntry | null, options?: {invoker?: Element | null, focusSpill?: boolean}) => unknown,
+ * pageMapDialogContains: (candidate: Element | null, node: Node | null) => boolean,
+ * renderPageMapDialog: (entries: readonly InventoryEntry[]) => unknown}} PageMapCommands */
 
 // What the inventory reads from the semantic root: the Questions, the workflows its
 // entries report, the shown revision and the agent's to-dos, and the projection whose
@@ -124,7 +130,7 @@ export const annotationSelection = (root) => ({
   revision: root.document.revision,
 });
 
-/** @param {{readObligations: typeof import("../records/obligations/place.js").readObligations, placedAt: ReturnType<typeof import("../annotations/anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("../annotations/anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("../panel/queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>}} dependencies */
+/** @param {{readObligations: typeof import("../records/obligations/place.js").readObligations, placedAt: import("../records/thread/placement.js").ThreadPlacements["placedAt"], savedAt: import("../records/thread/placement.js").ThreadPlacements["savedAt"], openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: (record: import("../state/obligations/source.js").AnswerableObligation) => Promise<boolean>, scrollToElement: ScrollToElement, resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,

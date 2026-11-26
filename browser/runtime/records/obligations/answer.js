@@ -14,7 +14,7 @@ import { leafSays } from "../../base/voice.js";
 import { hasObligationSource } from "../../state/obligations/source.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
-/** @typedef {Exclude<import("../../state/semantic-application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
+/** @import { AnswerableObligation } from "../../state/obligations/source.js" */
 
 const awaitingWidgets = perVocabulary(() =>
   tagsDeclaring((entry) => entry.awaits).join(","),

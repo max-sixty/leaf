@@ -42,11 +42,10 @@ import { kept, keptEach } from "./kept.js";
 
 /** @import {
  *   AuthoredMap, Thread, Event, Command, LocalMessage, LocalEdit, ThreadGesture,
- *   ActionSpec, PendingProjection, ProjectionEntry, ContentVersion
+ *   ActionSpec, PendingProjection, ProjectionEntry, ContentVersion, Workflow
  * } from "../../types/domain.js" */
 /** @import {
- *   ServedObligation, ServedQueueRow, ServedState, ServedSubject, ServedView,
- *   ServedWorkflow
+ *   ServedObligation, ServedQueueRow, ServedState, ServedSubject, ServedView
  * } from "../../types/contract.js" */
 /** @import { Immutable } from "../base/snapshot.js" */
 
@@ -186,7 +185,7 @@ function advance(entry, signal, admitted = null) {
  * @typedef {ServedState & {
  *   active: NonNullable<ServedState["active"]>;
  *   browser: NonNullable<ServedState["browser"]>;
- *   data: {version: string, sources: Record<string, import("../host/data.js").SourceReading>};
+ *   data: {version: string, sources: Record<string, import("../../types/domain.js").SourceReading>};
  * }} AuthoritativeState
  */
 /** A server view with its basis, the transport identity, left off.
@@ -200,20 +199,6 @@ function advance(entry, signal, admitted = null) {
  *   user: readonly ObligationRecord[];
  *   unanswered: readonly ObligationRecord[];
  * }} ObligationLists
- */
-/** Published workflows include local sends, before the server can classify them: a
- * `local` send waits on the agent, or is blocked where the server refused it, and a
- * widget move has no coordinate the server has read. A send `launching` waits for the
- * server to launch the page's agent first.
- *
- * @template T
- * @typedef {T extends unknown ? Omit<T, "coordinate"> & {
- *   coordinate: readonly (string | null)[] | null;
- *   local?: boolean;
- *   launching?: boolean;
- * } : never} PublishedWorkflow
- */
-/** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
  */
 
 /** One row of On Me, On <agent> or Done, as `served_state.queues` serves it or this
@@ -932,7 +917,7 @@ export function createSemanticApplication({ presentation } = {}) {
     hostAvailable: true,
     data: {
       version: /** @type {string | null} */ (null),
-      /** @type {Record<string, import("../host/data.js").SourceReading>} */
+      /** @type {Record<string, import("../../types/domain.js").SourceReading>} */
       sources: {},
     },
     effective: derive(

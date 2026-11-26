@@ -236,7 +236,7 @@ async function boot() {
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
 
-  /** @type {ReturnType<typeof mountApplication>} */
+  /** @type {ReturnType<typeof mountApplication<ReturnType<typeof import("./runtime/annotations/annotation-overlay/index.js").createMarginProjection>>>} */
   let app;
   /** @type {ReturnType<typeof createPageLayout>} */
   let layout;

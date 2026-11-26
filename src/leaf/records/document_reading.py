@@ -11,7 +11,6 @@ from typing import NamedTuple
 
 from leaf.log.obligations import page_obligation_readings
 from leaf.log.projection import PageReading, StateProjection, retirement_outcomes
-from leaf.records.todos import TodoReading
 from leaf.source.passages import Passages
 from leaf.source.structure import SourceDocument
 
@@ -27,7 +26,7 @@ class DocumentReading(NamedTuple):
 
 
 def read_document(
-    page: PageReading, threads: dict, log: TodoReading
+    page: PageReading, threads: dict, owed: list[dict]
 ) -> DocumentReading:
     """Resolve a document's durable state and its user's outstanding obligations.
 
@@ -52,7 +51,7 @@ def read_document(
         dropped,
         threads,
         page.within,
-        log,
+        owed,
         settled_away=set(passages.gone),
         prior=page.prior,
         revision=revision,

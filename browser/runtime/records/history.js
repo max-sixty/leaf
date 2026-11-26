@@ -202,11 +202,9 @@ import { pagePresented } from "../base/page-paint.js";
 import { aborted } from "../base/abort.js";
 import { reloadDocument } from "../transport/layer-client.js";
 
-/** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
- * @typedef {{id: string, reading: import("./thread/reply-landing.js").ThreadReading | null}} ThreadPlace
- * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
- * caret: import("../dom/focus.js").Caret | null, ends: [HeldSelectionEnd, HeldSelectionEnd] | null,
- * thread: ThreadPlace | null}} WorkingPlace
+/** @import { WorkingPlace } from "../base/page-controls.js" */
+/** @typedef {NonNullable<WorkingPlace["ends"]>[number]} HeldSelectionEnd
+ * @typedef {NonNullable<WorkingPlace["thread"]>} ThreadPlace
  * @typedef {import("./thread/reply-landing.js").ThreadReading & {reader: "primary" | "card"}} ViewReading
  * @typedef {(Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null})
  * | NonNullable<ReturnType<typeof draftFocus>>} RecordFocus

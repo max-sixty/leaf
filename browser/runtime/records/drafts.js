@@ -144,9 +144,11 @@ import { signal } from "/vendor/signals-core.js";
  * @typedef {{record: DraftRecord, stored: string | null, store: string | null, version: number, durable: boolean, ours: ReadonlySet<string>}} DraftCopy
  * @typedef {{attempts: string[], copy: Pick<DraftCopy, "record" | "stored" | "store" | "version" | "durable"> | null}} WaitingDraft
  * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
- * @typedef {import('../annotations/composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
- * @typedef {import('../annotations/composing/input.js').InputSync} InputSync
- * @typedef {import('../features/anchor-travel.js').EditorDestination} EditorDestination
+ * @typedef {HTMLElement & {value: string}} DraftField A draft's text field: a `leaf-text` (annotations/composing/text-field.js) or a textarea.
+ * @typedef {{load: (value: string) => void, closed: () => boolean, composition: () => {frame: Element}}} InputSync
+ * @typedef {{where: Element | Range, input: () => DraftField | null,
+ * frame?: () => Element | null, close?: () => void, open?: () => void | (() => void),
+ * present?: () => unknown, hasContent?: boolean}} EditorDestination
  * @typedef {import('../dom/focus.js').Caret} Caret
  * @typedef {{context: string, selection: Caret | null, generation: string}} WritingPlace
  * @typedef {{ctx: string, input: DraftField | (() => DraftField | null), mirrored: boolean,
@@ -630,7 +632,7 @@ export const rewriteContext = (id) => PREFIX.rewrite + id;
 // Threads' Drafts also reads for what a passage's draft is about.
 /** @typedef {NonNullable<import("../../types/contract.js").EventMap["comment"]["anchor"]>} CommentAnchor
  * @typedef {{format: typeof DRAFT_FORMAT, anchor: CommentAnchor | null, revision: number | null, suggest: boolean,
- * about: "design" | null, drawing: import("../annotations/composing/drawing-record.js").DraftDrawing | null, touched: number}} ComposerDraft */
+ * about: "design" | null, drawing: import("../../types/domain.js").DraftDrawing | null, touched: number}} ComposerDraft */
 /** @param {CommentAnchor | null} anchor */
 export const composerCtx = (anchor) => commentContext(anchorKey(anchor));
 /** @param {Omit<ComposerDraft, "format" | "touched">} fields @returns {ComposerDraft} */
@@ -645,7 +647,7 @@ export function isComposerDraft(payload) {
 }
 // The draft a comment the log holds on a passage was written in, as the composer keeps
 // it, which taking the comment back puts its words back in (records/undo.js).
-/** @param {{anchor: CommentAnchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("../annotations/composing/drawing-record.js").DraftDrawing | undefined}} comment */
+/** @param {{anchor: CommentAnchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("../../types/domain.js").DraftDrawing | undefined}} comment */
 export const commentDraft = (comment) => ({
   ctx: composerCtx(comment.anchor),
   payload: composerPayload({
@@ -1352,7 +1354,9 @@ function moveToPage(ctx) {
 /** @typedef {{travel?: boolean, caret?: import("../dom/focus.js").Caret, control?: import("./carry.js").FocusKey,
  * intent?: ReturnType<typeof retainUserIntent>}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
- * arriveEditor: ReturnType<typeof import("../features/anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
+ * arriveEditor: (resolve: () => EditorDestination | null | undefined, options: {intent: ReturnType<typeof retainUserIntent>,
+ * caret: Caret | null, onFrame?: boolean, travel?: boolean}) => Promise<Element | null | undefined>,
+ * holdsThreadDraft: (ctx: string) => boolean}} options
  * @returns {{command: import("../dom/keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,

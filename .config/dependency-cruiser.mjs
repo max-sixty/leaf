@@ -13,6 +13,10 @@
 // browser resolves and Node does not, are excluded by name; every other unresolvable
 // specifier is a missing module and an error. JSON, such as the kernel registry
 // `state/kernel-facts.js` imports, is excluded too: data holds no route between owners.
+//
+// The rules below read what a module loads: its static and dynamic imports. The
+// layering rules (`layering`) also read the types a module's JSDoc names, which load
+// nothing, so `dependency-cruiser-types.mjs` runs them over the graph with those types.
 
 import fs from "node:fs";
 
@@ -148,9 +152,15 @@ const forbiddenClosures = Object.fromEntries([
 // layer no higher than any module that imports it and no lower than any module it
 // imports.
 //
+// A type a module names, through JSDoc's `import("…")` or `@import`, stands in its layer
+// as an import does.
+//
 // When a `layering` rule fails, make the import point down, by passing the value or
 // callback in or by moving what it needs to a layer below both. Where the module itself
-// stands in the wrong layer, move the module instead.
+// stands in the wrong layer, move the module instead. Where a module types a
+// collaborator it is handed by its provider's type above it, it declares the members it
+// calls instead, as a typedef beside it; the provider meets that typedef, and the type
+// check checks it where the provider is passed in.
 const layers = [
   {
     name: "Entry points and diagnostics",
@@ -200,6 +210,24 @@ for (const { paths } of layers)
       throw new Error(
         `.config/dependency-cruiser.mjs names a missing runtime module: ${path}`,
       );
+
+// The layering rules, which `dependency-cruiser-types.mjs` runs.
+export const layering = [
+  ...layers.slice(1).map(({ name, paths }, at) => ({
+    name: "layering",
+    comment: `${name} imports only its own layer and the layers after it in \`layers\`.`,
+    severity: "error",
+    from: { path: inLayers(paths) },
+    to: { path: inLayers(layers.slice(0, at + 1).flatMap((layer) => layer.paths)) },
+  })),
+  {
+    name: "layering-unplaced",
+    comment: "Each runtime module is an entry point or stands in a layer's directory.",
+    severity: "error",
+    from: { path: owners, pathNot: inLayers(layers.flatMap((layer) => layer.paths)) },
+    to: {},
+  },
+];
 
 export default {
   forbidden: [
@@ -263,21 +291,6 @@ export default {
       from: { path: isModule(root) },
       to: { reachable: true, path: isOneOf(forbidden) },
     })),
-    ...layers.slice(1).map(({ name, paths }, at) => ({
-      name: "layering",
-      comment: `${name} imports only its own layer and the layers after it in \`layers\`.`,
-      severity: "error",
-      from: { path: inLayers(paths) },
-      to: { path: inLayers(layers.slice(0, at + 1).flatMap((layer) => layer.paths)) },
-    })),
-    {
-      name: "layering-unplaced",
-      comment:
-        "Each runtime module is an entry point or stands in a layer's directory.",
-      severity: "error",
-      from: { path: owners, pathNot: inLayers(layers.flatMap((layer) => layer.paths)) },
-      to: {},
-    },
   ],
   options: {
     moduleSystems: ["es6"],

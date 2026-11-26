@@ -246,7 +246,9 @@ async function settle(presentation, scope, arrived, presented) {
   reachScrollers(scope);
 }
 
-/** @param {import("../features/version.js").InitialDocument} captured */
+/** The authored document as the page first stood, and the live node each of its
+ * nodes became (features/version.js, `InitialDocument`).
+ * @param {{source: Element | null, pairs: {require: (node: Element) => Element}}} captured */
 export async function prepareDocument(captured) {
   // A revision asset, whose headers may be cached from an earlier release
   // (`admitResponse`). The initial state read answers for the server, and the

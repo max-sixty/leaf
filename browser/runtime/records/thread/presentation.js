@@ -29,21 +29,24 @@ import { draftAnchor, draftsReading } from "../drafts.js";
 
 /** @typedef {ReturnType<typeof import("./primary-reader.js").createPrimaryReader>} PrimaryReader */
 /** @typedef {import("../../state/semantic-state.js").Resume} Resume */
+/** @import { PlacementReading, Thread, ThreadDraft, ThreadPlacements } from "./placement.js" */
+/** @import { Anchor } from "../../../types/domain.js" */
 /** @param {{surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
- * finishPlacement: ReturnType<typeof import("../../annotations/composing/surface.js").createResponseSurface>["finishPlacement"]}},
- * anchorPlacement: ReturnType<typeof import("../../annotations/anchor-placement.js").createAnchorPlacement>,
- * anchorPaint: Pick<ReturnType<typeof import("../../annotations/anchor-paint.js").createAnchorPaint>, "paint">,
- * anchorControls: Pick<ReturnType<typeof import("../../annotations/anchor-controls.js").createAnchorControls>, "render" | "withholdVisualActions">,
- * drawingPaint: Pick<ReturnType<typeof import("../../annotations/composing/drawing-ink.js").createDrawingInk>, "paint">,
- * pageGeometry: Pick<ReturnType<typeof import("../../panel/page-geometry.js").createPageGeometry>, "pageShifted">,
- * readDraft: () => import("../../annotations/anchor-placement.js").ThreadDraft,
+ * finishPlacement: () => unknown}},
+ * anchorPlacement: Pick<ThreadPlacements, "placedAt" | "pendingAt"> & {read: (options: {threads: readonly Thread[],
+ * draft: ThreadDraft, actionAnchor: Anchor | null, saved: readonly {context: string, anchor: Anchor}[]}) => PlacementReading | null},
+ * anchorPaint: {paint: (reading: PlacementReading) => unknown},
+ * anchorControls: {render: (reading: PlacementReading) => unknown, withholdVisualActions: () => unknown},
+ * drawingPaint: {paint: () => unknown},
+ * pageGeometry: {pageShifted: () => unknown},
+ * readDraft: () => ThreadDraft,
  * activeActionAnchor: () => import("../../../types/domain.js").Anchor | null,
  * renderSurfaces: typeof import("./surfaces.js").renderSurfaces,
  * openThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
  * continueThread: Parameters<typeof holdReplyCompositions>[1],
  * returnToPage: ReturnType<typeof import("./destination.js").createThreadDestinations>["returnToPage"],
  * threadAt: ReturnType<typeof import("./destination.js").createThreadDestinations>["threadAtCurrentLocation"],
- * travellingTo: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["travellingTo"],
+ * travellingTo: (id: string) => boolean,
  * marginCommitted: () => unknown,
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "begin" | "present" | "abort">}} dependencies */
 export function createThreadPresentation({

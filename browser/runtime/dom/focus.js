@@ -300,7 +300,7 @@ function lendStop(destination, options) {
 // on any other throws rather than returning null.
 const CARETED = new Set(["text", "search", "url", "tel", "password"]);
 /** @param {Element} node
- * @returns {node is HTMLInputElement | HTMLTextAreaElement | import('../annotations/composing/text-field.js').LeafTextElement} */
+ * @returns {node is HTMLInputElement | (HTMLElement & Pick<HTMLTextAreaElement, "selectionStart" | "selectionEnd" | "selectionDirection" | "setSelectionRange">)} */
 const holdsCaret = (node) =>
   isHTML(node) &&
   (node.matches(TEXT_BOX) || (isHTML(node, "input") && CARETED.has(node.type)));

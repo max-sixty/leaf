@@ -61,13 +61,21 @@ from bisect import bisect_left, bisect_right
 from collections.abc import Callable
 from math import inf
 from operator import itemgetter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from leaf.log.events import build_threads, settlements
 
 if TYPE_CHECKING:
-    from leaf.records.event_facts import EventFacts
     from leaf.source.reading import SourceReading
+
+
+class LoggedMessages(Protocol):
+    """A page's log, and each message in it as its thread held it at a place
+    (`event_facts.EventFacts`)."""
+
+    events: list[dict]
+
+    def message_at(self, message: str, place: int) -> dict: ...
 
 
 def revision_places(events: list) -> dict[int, int]:
@@ -82,7 +90,7 @@ def revision_places(events: list) -> dict[int, int]:
 
 
 def saved_after(
-    facts: "EventFacts",
+    facts: LoggedMessages,
     reading: "Callable[[int], SourceReading]",
     places: dict[int, int],
     revisions,

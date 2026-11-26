@@ -76,7 +76,7 @@ export function createStateApplication({
   /** @param {PresentedNews} current */
   const newsFormat =
     (current) =>
-    /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
+    /** @param {readonly import("../../types/domain.js").SemanticNews[]} value */
     (value) =>
       semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
   let stateApplying = false;

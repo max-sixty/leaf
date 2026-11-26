@@ -472,7 +472,7 @@ function grouped(items, key) {
 }
 
 /** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../../types/domain.js").AuthoredWidget["state"]}} Unit */
-/** @typedef {import("../semantic-application.js").Workflow} Workflow */
+/** @typedef {import("../../../types/domain.js").Workflow} Workflow */
 /** @typedef {import("../semantic-application.js").ObligationRecord} ObligationRecord */
 /** @typedef {import("../../../types/domain.js").ContentVersion} ContentVersion */
 /** @typedef {ReadonlyMap<string, CapturedBody>} ThreadBodies */

@@ -152,7 +152,7 @@ function wordsUnder(ink) {
 }
 
 /** @typedef {import("./selection.js").Anchor | null} Anchor
- * @typedef {import("./drawing-record.js").DraftDrawing} Drawing
+ * @typedef {import("../../../types/domain.js").DraftDrawing} Drawing
  * @typedef {NonNullable<ReturnType<typeof elementFrame>>} DrawingFrame
  * @typedef {{anchor: Anchor, element: Element, frameReference?: Drawing["frame"]}} DrawingTarget
  * @typedef {{anchor: Anchor, drawing: Drawing, open: boolean}} HeldDrawing

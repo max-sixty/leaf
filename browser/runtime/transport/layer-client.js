@@ -167,10 +167,10 @@ export function layerHeaders(headers) {
  * }} WholeAnswer
  * @typedef {WholeAnswer | import("../../types/contract.js").ServedTail} StateAnswer
  * @typedef {Omit<WholeAnswer, "data"> & {
- * data: {version: string, sources: Record<string, import("../host/data.js").SourceReading>}
+ * data: {version: string, sources: Record<string, import("../../types/domain.js").SourceReading>}
  * }} CompletedState
  * @typedef {{
- * data: {version: string | null, sources: Record<string, import("../host/data.js").SourceReading>},
+ * data: {version: string | null, sources: Record<string, import("../../types/domain.js").SourceReading>},
  * state: CompletedState | null
  * }} Held */
 

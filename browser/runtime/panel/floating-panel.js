@@ -488,7 +488,7 @@ const pressKeys = (press) =>
 // each ask, so a box standing it rechecks its keys without reading the field's words
 // again (annotations/composing/input.js, `pressing`), and what it does: its own `run`, else the
 // command it names.
-/** @param {FieldPress} press @returns {import("../annotations/composing/input.js").BoxPress} */
+/** @param {FieldPress} press @returns {import("../records/composition-input.js").BoxPress} */
 const pressReading = (press) => ({
   word: actionName(press.action),
   get keys() {
@@ -5390,7 +5390,7 @@ export function createFloatingPanel({
   // first, so Close leaves the end. A finger, shown no keys, has the ✕ as its way out,
   // so Close stands only where the page shows keys. It asks the dispatcher whether a
   // stance stands now (`innermostStance`), as `fieldExit` does.
-  /** @returns {import("../annotations/composing/input.js").BoxPress | null} */
+  /** @returns {import("../records/composition-input.js").BoxPress | null} */
   function stanceClose() {
     const held = innermostStance();
     const exit = held ? rows().find((entry) => entry.exit) : null;
@@ -5866,7 +5866,7 @@ export function createFloatingPanel({
   };
   /** @param {Element | null} node */
   const onMeHolds = (node) => doors.queue.shows() && onMe.lists(node);
-  /** @param {Pick<import("../features/anchor-travel.js").Arrival, "where" | "focus">} destination
+  /** @param {Pick<import("../dom/arrival-plan.js").Arrival, "where" | "focus">} destination
    * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
     if (!focus && ownPassage(where)) return;

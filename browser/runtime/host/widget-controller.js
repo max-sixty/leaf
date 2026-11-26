@@ -353,7 +353,7 @@ const undoCandidates = (action) => {
 // has one to give (`unavailable`), and whether `lf-undo` would take back the action in
 // force (`undoable`), which a verb holding a state for each unit says on each unit. A
 // verb the agent writes reads as one the user may neither act on nor take back.
-/** @param {WidgetReading} reading */
+/** @param {WidgetReading} reading @returns {import("../../types/domain.js").WidgetState} */
 export const widgetState = ({ state, actions }) =>
   immutable(
     Object.fromEntries(

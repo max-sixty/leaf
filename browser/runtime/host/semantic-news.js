@@ -31,15 +31,8 @@ import { agentSays, leafSays } from "../base/voice.js";
 import { counted, excerptWords } from "../lib/words.js";
 import { NOTHING_ON_ME } from "../state/queues.js";
 
+/** @import { ObligationNews, SemanticNews } from "../../types/domain.js" */
 /** @typedef {ReturnType<typeof semanticNewsReading>} NewsReading
- * @typedef {import("../../types/domain.js").Message} Message
- * @typedef {{kind: "agent_content", key: string, thread: string, message: Message, version: string}} ContentNews
- * @typedef {{kind: "response_failure", key: string, condition: "failed" | "interrupted",
- * input: string, thread: string | null, seq: number}} FailureNews
- * @typedef {{kind: "user_obligation", key: string, sourceKey: string, episode: number,
- * source: string, thread: string | null, message: string | null}} ObligationNews
- * @typedef {{kind: "on_me_empty", key: string}} EmptiedNews
- * @typedef {ContentNews | FailureNews | ObligationNews | EmptiedNews} SemanticNews
  * @typedef {{content: Set<string>, failures: Set<string>, obligations: Set<string>,
  * obligationEpisodes: Map<string, number>, onMe: number}} ObservedNews
  */

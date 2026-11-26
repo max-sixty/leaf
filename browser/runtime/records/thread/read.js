@@ -125,7 +125,7 @@ function wordsAreVisible(body, clips, band) {
 }
 
 /** @param {{
- * markRead: (items: ContentVersion[]) => ReturnType<typeof import("../../host/delivery.js").deliverBookkeeping>,
+ * markRead: (items: ContentVersion[]) => Promise<"accepted" | "refused" | "unreached">,
  * openThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
  * }} dependencies */
 export function createReadTracking({ markRead, openThread }) {

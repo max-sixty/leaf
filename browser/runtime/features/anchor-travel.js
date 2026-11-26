@@ -40,9 +40,7 @@
  * (`returnToFragment`) is a navigation step that adds no entry.
  */
 
-/** @typedef {{where: Element | Range, input: () => import('../records/drafts.js').DraftField | null,
- * frame?: () => Element | null, close?: () => void, open?: () => void | (() => void),
- * present?: () => unknown, hasContent?: boolean}} EditorDestination */
+/** @import { EditorDestination } from "../records/drafts.js" */
 
 import { selectEnds } from "../dom/native-selection.js";
 import { focusElement, focused } from "../dom/focus.js";
@@ -103,15 +101,10 @@ export function scrollToFragment(element) {
 export const fragmentShown = (address) =>
   Boolean(address?.place && showsContents(address.place));
 
-/** @typedef {Element | Range} Destination
- * @typedef {import("../dom/user-intent.js").UserIntent} UserIntent
- * @typedef {import("../dom/focus.js").Caret} Caret
- * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
- * @typedef {{where: Destination, focus?: import("../dom/focus.js").FocusDestination | null | false, caret?: Caret | null,
- * selection?: {range: Range, backward: boolean} | null, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
- * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
- * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
- * @typedef {{anchors: Pick<ReturnType<typeof import("../annotations/anchor-placement.js").createAnchorPlacement>, "placedAt">,
+/** @import { Destination, ScrollPlacement, Arrival, NavigationStep, ArrivalOptions } from "../dom/arrival-plan.js" */
+/** @import { UserIntent } from "../dom/user-intent.js" */
+/** @typedef {import("../dom/focus.js").Caret} Caret
+ * @typedef {{anchors: Pick<import("../records/thread/placement.js").ThreadPlacements, "placedAt">,
  * refreshThread: () => unknown, focusForNavigation: typeof import("../dom/focus.js").focusDestination,
  * threadFocusTarget: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["threadFocusTarget"],
  * clearFor: (destination: Arrival, landed: DOMRect | null) => unknown, announce: (message: string) => unknown}} TravelOptions

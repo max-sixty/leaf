@@ -59,6 +59,15 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
 /** @typedef {"page" | "navigate" | "annotate" | "keys" | "about"} PageControlGroup */
+/** The place the presentation held as the user opened the menu, which a press is handed
+ * (records/history.js, `readPlace`, and `returnPlace` to go back to it): the node they had
+ * focused, the place it stood in, the caret in it (dom/focus.js, `Caret`), the two ends of
+ * their selection, and the thread view it stood in with where they were reading it
+ * (records/thread/reply-landing.js, `ThreadReading`).
+ * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
+ * caret: [start: number, end: number, direction?: "forward" | "backward" | "none"] | null,
+ * ends: [[WeakRef<Node>, number], [WeakRef<Node>, number]] | null,
+ * thread: {id: string, reading: ({offset: number} & ({message: string} | {summary: string})) | null} | null}} WorkingPlace */
 
 /** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
@@ -86,7 +95,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   disabled?: boolean | (() => boolean),
  *   exit?: boolean,
  *   action?: string | (() => string),
- *   press?: (held: import("../records/history.js").WorkingPlace | null) => unknown,
+ *   press?: (held: WorkingPlace | null) => unknown,
  * }} PageControl
  */
 /** @param {PageControl} row */

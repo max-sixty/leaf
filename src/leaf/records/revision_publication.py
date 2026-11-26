@@ -35,7 +35,7 @@ appends nothing, its revision included.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from leaf.base.files import latest_revision, list_revisions
 from leaf.records.authored_checks.source_history import (
@@ -56,7 +56,16 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from leaf.records.authored_checks.source import SourceCheck
-    from leaf.records.transaction import PageTransaction
+
+
+class Transaction(Protocol):
+    """The page transaction the caller holds (`transaction.PageTransaction`): its page
+    and the log it appends to through admission."""
+
+    @property
+    def page_dir(self) -> Path: ...
+    @property
+    def events(self) -> list: ...
 
 
 class Activation(NamedTuple):
@@ -88,7 +97,7 @@ def _append_reanchors(page, revision, moves, *, view=None):
         )
 
 
-def finish_publications(page: PageTransaction, publications: list[dict]) -> None:
+def finish_publications(page: Transaction, publications: list[dict]) -> None:
     """Finish each journaled publication `files.unfinished_publications` found,
     before any transaction consumer reads the page.
 
@@ -183,14 +192,12 @@ def _publish_checked_source(page, checked, event=None):
     return activation, accepted
 
 
-def activate_checked_source(page: PageTransaction, checked: SourceCheck) -> Activation:
+def activate_checked_source(page: Transaction, checked: SourceCheck) -> Activation:
     """Activate inputs checked under this same transaction and preserve every quote."""
     return _publish_checked_source(page, checked)[0]
 
 
-def publish_checked_event(
-    page: PageTransaction, checked: SourceCheck, event: dict
-) -> dict:
+def publish_checked_event(page: Transaction, checked: SourceCheck, event: dict) -> dict:
     """Publish checked inputs and their required reply or version note as one transition."""
     activation, accepted = _publish_checked_source(page, checked, event)
     if activation.error:

@@ -292,8 +292,7 @@ export function saidTime(timestamp) {
  * thread's word, as a margin entry's name does to the keyboard, `said` is that word,
  * which its line leaves out, so a screen reader hears it once.
  * @param {readonly import("./workflow.js").ThreadRecord[]} threads
- * @param {string | null} [said]
- * @returns {import("../../annotations/preview.js").Preview | null} */
+ * @param {string | null} [said] */
 export function threadPreview(threads, said = null) {
   const [only] = threads;
   if (!only) return null;
@@ -324,7 +323,7 @@ export function threadPreview(threads, said = null) {
           `${excerptWords(threadName(thread), LISTED_NAME)} · `,
         ),
       ),
-      more: (count) =>
+      more: (/** @type {number} */ count) =>
         voiced(leafSays(`and ${counted(count, "more thread", "more threads")}`)),
     },
   };
@@ -351,8 +350,7 @@ export const draftLine = (draft) => excerptWords(draftWords(draft), PREVIEWED_LI
 // one's words, a line of them, under what it is about where the place pointed at
 // doesn't already say it. What Send makes of it stands beside it on both.
 /** @param {readonly import("../drafts.js").ListedDraft[]} drafts
- * @param {import("../../base/voice.js").Words | null} [about]
- * @returns {import("../../annotations/preview.js").Preview | null} */
+ * @param {import("../../base/voice.js").Words | null} [about] */
 export function draftPreview(drafts, about = null) {
   const [only] = drafts;
   if (!only) return null;
@@ -362,7 +360,7 @@ export function draftPreview(drafts, about = null) {
     name: counted(drafts.length, "draft"),
     list: {
       items: drafts.map(draftLine),
-      more: (count) =>
+      more: (/** @type {number} */ count) =>
         voiced(leafSays(`and ${counted(count, "more draft", "more drafts")}`)),
     },
   };
@@ -653,7 +651,7 @@ export function authoredHolder(id) {
 }
 /** @param {MessageRecord} message
  * @param {{authoredRank?: number,
- * workflows: readonly import("../../state/semantic-application.js").Workflow[],
+ * workflows: readonly import("../../../types/domain.js").Workflow[],
  * leaves?: {word: import("../../base/voice.js").Said, todo: string | null} | null}} options */
 export function messageReading(
   message,
@@ -734,7 +732,7 @@ export function messageReading(
 }
 
 /** @typedef {{read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage">,
- * reply: {wireInput: ReturnType<typeof import("../../annotations/composing/input.js").createCompositionInputs>["wireInput"],
+ * reply: {wireInput: import("../composition-input.js").WireInput,
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "edit">},
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
  * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"],
@@ -806,9 +804,7 @@ export class MessageView {
       // A message the keyboard stands on previews when it was said, as its time does to
       // a pointer or a finger (`agePreview`), beside that time in its head. Its words
       // preview nothing to a pointer or a finger, since they are what the user reads.
-      this.node.lfPreview = (
-        /** @type {import("../../annotations/preview.js").Route} */ route,
-      ) => {
+      this.node.lfPreview = (route) => {
         const at = route === "focus" ? clockTime(this.#model?.timestamp) : "";
         return at
           ? {

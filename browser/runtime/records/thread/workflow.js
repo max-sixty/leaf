@@ -21,7 +21,7 @@
    stays free of application state. */
 import { agentSays, leafSays } from "../../base/voice.js";
 
-/** @typedef {import("../../state/semantic-application.js").Workflow} Workflow */
+/** @typedef {import("../../../types/domain.js").Workflow} Workflow */
 /** @typedef {import("../../state/semantic-application.js").ObligationRecord} ObligationRecord */
 /** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @param {Workflow} workflow

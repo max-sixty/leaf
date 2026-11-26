@@ -46,6 +46,7 @@ export default {
     "hooks/*.ts",
     "worker/{src/index,test/**/*}.ts",
     ".config/dependency-cruiser.mjs",
+    ".config/dependency-cruiser-types.mjs",
   ],
   project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**"],
   // Declarations generated per schema definition or bundle export, whichever a reader

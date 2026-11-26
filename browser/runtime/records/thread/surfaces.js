@@ -51,7 +51,8 @@ import { tick } from "../../state/version-signal.js";
 
 import { registrations, setRegistration, updateSurface } from "./surface-handles.js";
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
-/** @typedef {import("../../annotations/anchor-placement.js").ResolvedTarget} ThreadPlacement */
+/** @typedef {import("./placement.js").ResolvedTarget} ThreadPlacement */
+/** @typedef {Pick<import("./placement.js").ThreadPlacements, "placedAt" | "pendingAt">} SurfacePlacements */
 /** @typedef {{anchor: NonNullable<import("../../../types/domain.js").Anchor>,
  * placement: ThreadPlacement & {status: "exact"},
  * thread: ThreadRecord | null}} OutletTarget
@@ -69,13 +70,12 @@ import { registrations, setRegistration, updateSurface } from "./surface-handles
 /** @typedef {(targets: readonly PageOutletTarget[], context: OutletContext) => unknown} OutletRender */
 /** @typedef {{active: () => {anchor: import("../../../types/domain.js").Anchor, about: string | null} | null,
  * outlet: () => Element | null, node: () => HTMLElement,
- * open: ReturnType<typeof import("../../annotations/composing/surface.js").createResponseSurface>["commentOnTarget"],
- * seat: ReturnType<typeof import("../../annotations/composing/surface.js").createResponseSurface>["seatFab"],
- * restore: ReturnType<typeof import("../../annotations/composing/surface.js").createResponseSurface>["restoreFab"]}} CompositionSurface */
+ * open: (target: {anchor: import("../../../types/domain.js").Anchor, element?: Element | null, point?: Element | null}) => unknown,
+ * seat: (outlet: Element) => boolean, restore: () => unknown}} CompositionSurface */
 /** @typedef {{invalidate: () => unknown, composition: CompositionSurface,
  * reveal: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} SurfaceServices */
 /** @typedef {Omit<SurfaceServices, "reveal"> & {owner: Element, render: OutletRender, kind: "widget" | "page",
- * outlets: Set<Element>, placements: ReturnType<typeof import("../../annotations/anchor-placement.js").createAnchorPlacement> | null,
+ * outlets: Set<Element>, placements: SurfacePlacements | null,
  * reconcileQueued: boolean, cancelRender: () => void, stopSide: () => void,
  * handle: {read: typeof readThreads, reveal: (key: string) => unknown,
  * open: (node: Element) => boolean, update: () => void, unregister: () => void}}} Registration */
@@ -303,7 +303,7 @@ function admitTarget(registration, target) {
 /** @typedef {{registration: Registration, byOutlet: Map<Element, ThreadRecord[]>,
  * compositionOutlet: Element | null, committed: (() => void)[]}} SurfacePlan */
 /** @param {ReturnType<typeof readThreads>} collection
- * @param {ReturnType<typeof import("../../annotations/anchor-placement.js").createAnchorPlacement>} placements
+ * @param {SurfacePlacements} placements
  * @param {import("./thread-card.js").ThreadCommands & {composition: CompositionSurface}} commands */
 export function renderSurfaces(collection, placements, commands) {
   const generation = ++renderGeneration;

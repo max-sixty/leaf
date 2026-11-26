@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from leaf.served_state.thread import thread_counts
+from leaf.serving.served_state.thread import thread_counts
 
 CASES = json.loads((Path(__file__).parents[1] / "thread_count_cases.json").read_text())
 

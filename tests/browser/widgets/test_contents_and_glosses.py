@@ -23,7 +23,7 @@ from render_harness import (
     told,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import named_source
 

@@ -52,17 +52,8 @@ import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from leaf.data import PUBLICATION
-from leaf.drafts import DRAFTS, read_drafts
-from leaf.file_bindings import BINDINGS
-from leaf.files import latest_revision, revision_path
-from leaf.http import assets_path
-from leaf.page_inputs import record_reading
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.revision_artifact import read_revision
-from leaf.revisioning import activate_source
-from leaf.runtime_selection import executing, execution_identity
-from leaf.schema import (
+from leaf.base.files import latest_revision, revision_path
+from leaf.base.schema import (
     DATA_DIR,
     DRAFTS_FILE,
     FILE_BINDINGS_FILE,
@@ -71,8 +62,7 @@ from leaf.schema import (
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
 )
-from leaf.service import PageTransaction
-from leaf.state import (
+from leaf.base.state import (
     STRING,
     Record,
     described,
@@ -81,6 +71,16 @@ from leaf.state import (
     record_name,
     state_home,
 )
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.records.revisioning import activate_source
+from leaf.records.transaction import PageTransaction
+from leaf.serving.drafts import DRAFTS, read_drafts
+from leaf.serving.http import assets_path
+from leaf.source.data import PUBLICATION
+from leaf.source.file_bindings import BINDINGS
+from leaf.source.page_inputs import record_reading
+from leaf.source.revision_artifact import read_revision
+from leaf.source.runtime_selection import executing, execution_identity
 
 CHUNK_BYTES = 1024 * 1024
 # Chunk uploads in flight at once.
@@ -233,6 +233,8 @@ def restore(site_root: Path) -> bool:
                         output.write(blobs.body(digest))
                 os.utime(target, (content["modified"], content["modified"]))
                 files += 1
+        # The store sends only the drafts stores written at this release's drafts
+        # shape (the manifest's `drafts_format`, `worker/src/storage.ts`).
         for root, drafts in snapshot["drafts"].items():
             if root not in manifest["pages"]:
                 continue
@@ -427,7 +429,7 @@ PUBLISHED = Record(
 )
 
 
-# The page commit provider (`service.commit_provider`) a container declares once it
+# The page commit provider (`transaction.commit_provider`) a container declares once it
 # has restored its pages, so every transaction its leaf processes finish publishes its
 # record (`publish`), and every write of a page's drafts its drafts (`publish_drafts`).
 PUBLISHER = "leaf_website.storage"

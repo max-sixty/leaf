@@ -21,14 +21,14 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import hook_transport as hook_transport_model
-from leaf import page_view as page_view_model
-from leaf import session as session_model
-from leaf import thread as thread_model
-from leaf import thread_context as thread_context_model
-from leaf.refusals import Refused
+from leaf.agents import thread as thread_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import thread_context as thread_context_model
+from leaf.records import page_view as page_view_model
 
 
 def test_thread_read_is_exact_and_paginated(page_dir):

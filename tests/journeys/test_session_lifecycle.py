@@ -27,15 +27,15 @@ from model.test_session_lifecycle import (
     prompt,
 )
 
-from leaf import files as files_model
-from leaf import hook_transport as hook_transport_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import schema as schema_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf.registry import storage as registry_storage
+from leaf.base import files as files_model
+from leaf.base import schema as schema_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import hooks as hooks_model
+from leaf.pages import hosting as hosting_model
+from leaf.source.registry import storage as registry_storage
 
 
 def test_the_server_a_prompt_hook_starts_lives_as_long_as_its_session(claimed):

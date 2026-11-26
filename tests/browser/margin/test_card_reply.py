@@ -53,8 +53,8 @@ from browser.margin import (
     open_long_thread,
     send_anchored_comment,
 )
-from leaf import media as media_model
-from leaf.render_checks import rendered
+from leaf.serving import media as media_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

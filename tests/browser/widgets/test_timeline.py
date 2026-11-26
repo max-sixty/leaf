@@ -16,7 +16,7 @@ from render_harness import (
     told,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 RACE = """<h1>Race</h1>
 <lf-timeline id="race" aria-label="The race">

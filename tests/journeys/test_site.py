@@ -65,22 +65,23 @@ from render_harness import (
 
 import leaf_website as website_server
 from journeys import expect_showing
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf.event_log import read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.registry.kernel import kernel_protocol
-from leaf.registry.storage import layer_packages, layer_record, selected
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.service import acknowledged
-from leaf.structure import SourceDocument
+from leaf.base import files as files_model
+from leaf.base import schema as schema_model
+from leaf.base.state import kernel_protocol
+from leaf.log.event_log import read_events
+from leaf.log.events import bare_reaction, build_threads
+from leaf.pages import hosting as hosting_model
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.records.transaction import acknowledged
+from leaf.serving.drafts import DRAFTS
+from leaf.source import data as data_model
+from leaf.source import layer as layer_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.passages import enclosing_ids
+from leaf.source.registry.storage import layer_packages, layer_record, selected
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.revision_artifact import read_artifact
+from leaf.source.structure import SourceDocument
 from leaf_dev.browser import (
     PANEL_THREAD,
     choose_threads_in_panel,
@@ -177,7 +178,7 @@ def framed_root_examples():
     """Every example whose `main` is a workspace (`.layout-workspace`).
 
     Derived rather than listed, so a new one is gated without naming it here. The
-    reading is `leaf.structure`'s, the one `page check` admits and the browser
+    reading is `leaf.source.structure`'s, the one `page check` admits and the browser
     takes, so an omitted `</p>` cannot split the two counts.
     """
     framed = []
@@ -516,14 +517,16 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     revisions = files_model.list_revisions(gallery_page)
     assert set(gallery["states"]) == {str(revision) for revision in revisions}
     # The revision files the release publishes, beside which a visitor's record saved
-    # under an earlier release may hold others (`leaf_website.storage`), and the
-    # protocol that keys the record (`worker/src/index.ts`).
+    # under an earlier release may hold others (`leaf_website.storage`), the protocol
+    # that keys the record (`worker/src/index.ts`) and the drafts format that keys its
+    # drafts stores (`worker/src/storage.ts`).
     assert gallery["revisions"] == [
         files_model.revision_path(gallery_page, revision).stem for revision in revisions
     ]
     for name in gallery["revisions"]:
         assert (assets / "examples" / "feature-gallery" / "revisions" / name).is_dir()
     assert manifest["protocol"] == kernel_protocol()
+    assert manifest["drafts_format"] == DRAFTS.format
     assert (
         gallery["state"]
         == gallery["states"][str(files_model.latest_revision(gallery_page))]

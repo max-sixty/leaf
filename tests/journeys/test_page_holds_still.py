@@ -51,9 +51,9 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import choose_threads_in_panel, go_to_threads, settle
 from leaf_dev.example_data import named_source
 
@@ -227,7 +227,7 @@ DIFF_PAGE = leaf_page(
 
 def diff_page(serve):
     url = serve(DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", diff_rows(0))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", diff_rows(0))
     return Built(live_url(url), serve.page_dir, DIFF_PAGE)
 
 
@@ -1614,7 +1614,7 @@ def deletions(page, built, target, place):
     arriving(
         page,
         place,
-        lambda: data_model.cmd_data_set(
+        lambda: page_data_model.cmd_data_set(
             built.page_dir, "review-patch", diff_rows(target)
         ),
         lambda: expect(
@@ -1638,7 +1638,7 @@ def press_while_pending(page, built, target, place):
         "diff --git a/review.go b/review.go\n--- a/review.go\n+++ b/review.go\n"
         "@@ -1 +1 @@\n-old\n+new\n"
     )
-    data_model.cmd_data_set(built.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(built.page_dir, "review-patch", patch)
     holding(page, held, 1, "the diff's request for the Go grammar")
     summary = page.locator("#context summary")
     box = summary.bounding_box()

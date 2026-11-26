@@ -21,11 +21,11 @@ from render_harness import (
     rgb_pixel,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
-from leaf.render_checks import rendered
-from leaf.render_gate import scheme as render_gate_model
+from leaf.pages.render_gate import scheme as render_gate_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry.contract import element_declarations
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 
 CUSTOM_WIDGET_PAGE = leaf_page(

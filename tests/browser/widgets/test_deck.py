@@ -14,7 +14,7 @@ from render_harness import (
     wait_for_check_api,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -285,19 +285,23 @@ def test_an_answer_saves_the_open_draft_before_the_card_moves_on(browser, serve)
 
 
 SENTENCE = "Each platform adds a day of smoke testing before the beta ships. "
+TALL_CARD = (
+    '<lf-group id="tall-ask" label="Ship the beta on every platform?">'
+    "<h3>Ship the beta on every platform?</h3>"
+    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
+    + '<lf-options id="tall-choice">'
+    '<lf-option id="tall-yes" label="Yes"><strong>Yes</strong></lf-option>'
+    '<lf-option id="tall-no" label="No"><strong>No</strong></lf-option>'
+    "</lf-options></lf-group>"
+)
 TALL_DECK_PAGE = leaf_page(
     "Deck below an opening",
     "<h1>Before the release</h1>"
     + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
     + '<lf-deck id="deck">'
     + card("store", "Keep Redis?")
-    + '<lf-group id="tall-ask" label="Ship the beta on every platform?">'
-    "<h3>Ship the beta on every platform?</h3>"
-    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
-    + '<lf-options id="tall-choice">'
-    '<lf-option id="tall-yes" label="Yes"><strong>Yes</strong></lf-option>'
-    '<lf-option id="tall-no" label="No"><strong>No</strong></lf-option>'
-    "</lf-options></lf-group></lf-deck><p>After the deck.</p>",
+    + TALL_CARD
+    + "</lf-deck><p>After the deck.</p>",
 )
 
 # Whether the open card, landed, stands whole in the room above the panel's top, with
@@ -477,7 +481,7 @@ RECORD_RESIZES = """() => {
 def test_the_deck_grows_to_the_end_frame_it_lands_on(browser, serve):
     """The last answer brings up the end frame with its record of the pass, and the
     deck's height glides to the frame's whole height, where the frame is taller than the
-    height the deck holds, rather than to an empty frame's and then jumps."""
+    card it follows, rather than to an empty frame's and then jumps."""
     page = open_page(browser, serve(DECK_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     page.evaluate(RECORD_RESIZES)
@@ -503,3 +507,40 @@ def test_the_deck_grows_to_the_end_frame_it_lands_on(browser, serve):
     frame = page.locator("lf-deck .lf-deck-end").bounding_box()
     deck = page.locator("lf-deck").bounding_box()
     assert frame["y"] + frame["height"] <= deck["y"] + deck["height"] + 1
+
+
+def test_as_a_workspace_body_a_tall_card_scrolls_under_the_bar(browser, serve):
+    """As a workspace's body the deck is the box that scrolls, and a card taller than
+    the room scrolls under the bar: read down to its options, the bar still stands at
+    the deck's top, and the options take a press."""
+    context = browser.new_context(viewport={"width": 1100, "height": 560})
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Deck as a workspace",
+                "<header><h1>Before the release</h1></header>"
+                + '<lf-deck id="deck">'
+                + TALL_CARD
+                + card("store", "Keep Redis?")
+                + "</lf-deck>",
+                layout="workspace",
+            )
+        ),
+        context=context,
+    )
+    open_card(page, "tall-ask")
+    page.wait_for_function(LANDED)
+    bar = page.locator("lf-deck .lf-deck-bar")
+    before = bar.bounding_box()["y"]
+    box = page.locator("#tall-ask").bounding_box()
+    page.mouse.move(box["x"] + 40, box["y"] + 80)
+    page.mouse.wheel(0, 2000)
+    page.wait_for_function(
+        "() => { const d = document.querySelector('lf-deck');"
+        " return d.scrollTop > 0 && d.scrollTop >= d.scrollHeight - d.clientHeight - 1; }"
+    )
+    expect(page.locator("#tall-no")).to_be_in_viewport()
+    assert bar.bounding_box()["y"] == before
+    answer(page, "tall-no")
+    open_card(page, "store-ask")

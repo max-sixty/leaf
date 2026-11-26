@@ -48,25 +48,27 @@ from interact_support import (
     unlisted_dependencies,
 )
 
-from leaf import codex as codex_model
-from leaf import codex_adapter as codex_adapter_model
-from leaf import codex_desktop as codex_desktop_model
-from leaf import codex_state as codex_state_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import vendoring as vendoring_model
-from leaf.json_block import json_block, read_json_block
-from leaf.refusals import Refused
-from leaf.service import PREVIEW
+from leaf.agents import codex as codex_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.agents import codex_desktop as codex_desktop_model
+from leaf.agents import codex_state as codex_state_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import codex_transcript as codex_transcript_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import json_block, read_json_block
+from leaf.base.refusals import Refused
+from leaf.base.service import PREVIEW
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
 
 
 def codex_start_announcement(process) -> str:
@@ -140,7 +142,7 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         append_batch_result = codex_model.append_batch(
             "collision-test", page_dir, transaction, transaction.events
         )
@@ -269,7 +271,7 @@ def test_embedded_codex_delivery_retries_the_same_immutable_pointer(
     first = codex_model.prepare_codex_delivery(page_dir, harness)
 
     if ownership_transferred:
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(
                 harness_model.EmbeddedHarness("successor", "Successor", os.getpid())
             )
@@ -540,7 +542,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         append_batch_result_2 = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
         )
@@ -569,7 +571,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     delivered = events_model.read_events(page_dir)[-1]
     session_model.cmd_waiting(page_dir)
     successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir,
             page.status,
@@ -641,7 +643,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
             ],
         },
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [event])
     delivery_model.freeze_delivery([batch], delivery_id="aaaaaaaaaaaaaaaa")
     if leaving == "restart":
@@ -650,7 +652,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
         record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     else:
         cleanup_model.end_session("codex-thread")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         assert page.active_claim is None or leaving == "transfer"
 
     assert codex_model.recover_codex_receipt("codex-thread")
@@ -679,7 +681,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
             },
         )
         delivered = events_model.read_events(page)[-1]
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             reading = session_model.PageTick(
                 page,
                 transaction.status,
@@ -997,7 +999,7 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
         )
         # The adapter's watch collects it as it arrives, and holds it back while
         # the running turn's hooks may still offer it.
-        with service_model.PageTransaction(page_dir) as transaction:
+        with transaction_model.PageTransaction(page_dir) as transaction:
             codex_model.append_batch("codex-thread", page_dir, transaction, [comment])
         assert not codex_adapter_model._offer_queued_delivery(
             "codex", "codex-thread", None
@@ -1094,7 +1096,7 @@ def test_codex_hooks_leave_collected_input_after_ownership_transfers(
     event = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Keep the decision"}
     )
-    with service_model.PageTransaction(page_dir) as tx:
+    with transaction_model.PageTransaction(page_dir) as tx:
         codex_model.append_batch("codex-thread", page_dir, tx, [event])
     record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     hooks_model.cmd_hook(
@@ -1196,12 +1198,12 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     capsys.readouterr()
     append("task_started", "resumed", partial=True)
     before = cleanup_model.session_record("codex-thread")
-    assert codex_state_model.sync_transcript_turn("codex-thread") == before
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == before
     with source.open("a") as stream:
         stream.write("\n")
     # Hooks start cold in separate processes; their ordering proof must also
     # work without the resident adapter's earlier source reading.
-    codex_state_model.transcript_turns.cache_clear()
+    codex_transcript_model.transcript_turns.cache_clear()
     comment = append_carried_log_record(
         page_dir,
         {
@@ -1259,12 +1261,14 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
         [comment["id"]],
     )
     append("task_complete", "prior")
-    sync_transcript_turn_result = codex_state_model.sync_transcript_turn("codex-thread")
+    sync_transcript_turn_result = codex_transcript_model.sync_transcript_turn(
+        "codex-thread"
+    )
     assert sync_transcript_turn_result is not None
     assert sync_transcript_turn_result["turn_closed"] is None
     append("task_complete", "resumed")
-    codex_state_model.transcript_turns.cache_clear()
-    closed = codex_state_model.sync_transcript_turn("codex-thread")
+    codex_transcript_model.transcript_turns.cache_clear()
+    closed = codex_transcript_model.sync_transcript_turn("codex-thread")
     assert closed is not None
     assert closed["turn_closed"] is not None
     hooks_model.cmd_hook(
@@ -1278,15 +1282,17 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     assert cleanup_model.session_record("codex-thread") == closed
     # A newer prompt can precede its native transcript append.
     newest = cleanup_model.prompt_turn("codex-thread", "newest")
-    codex_state_model.transcript_turns.cache_clear()
-    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
+    codex_transcript_model.transcript_turns.cache_clear()
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == newest
     foreign = tmp_path / "other.jsonl"
     foreign.write_text(source.read_text().replace('"codex-thread"', '"other-session"'))
-    assert codex_state_model.sync_transcript_turn("codex-thread", foreign) == newest
+    assert (
+        codex_transcript_model.sync_transcript_turn("codex-thread", foreign) == newest
+    )
     # Replacing the source with an earlier prefix is another lagging reading,
     # rather than proof that the new prompt ended or moved backwards.
     source.write_text("\n".join(source.read_text().splitlines()[:2]) + "\n")
-    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == newest
 
 
 def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
@@ -1304,7 +1310,7 @@ def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
         "codex-thread", cleanup_model.STATUS_CHECKED_SUFFIX
     ).touch()
     program = """
-from leaf.hooks import cmd_hook
+from leaf.commands.hooks import cmd_hook
 
 cmd_hook(
     "codex",
@@ -1334,7 +1340,7 @@ def test_codex_tool_hook_offers_only_what_the_cursor_has_not_passed(
     queued = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "First, queued"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         [event] = [e for e in page.events if e["id"] == queued["id"]]
         delivery_model.record_pickup(
             page, [event], phase="queued", session="codex-thread", turn=None
@@ -1417,7 +1423,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Change this before finishing"},
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir, page.status, [comment], True, "watching", False, None, page
         )
@@ -1498,13 +1504,13 @@ def _comment_before_the_first_tool_step(
     else:
         prompt("earlier-turn")
         append("task_complete", "earlier-turn")
-        codex_state_model.sync_transcript_turn("codex-thread")
+        codex_transcript_model.sync_transcript_turn("codex-thread")
         cleanup_model.session_file("codex-thread", cleanup_model.HOOKS_SUFFIX).unlink()
         append("task_started", "user-turn")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Rename the column"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir, page.status, [comment], True, "watching", False, None, page
         )
@@ -1606,7 +1612,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     monkeypatch.setattr(
         harness_model.CodexHarness, "lifetime", lambda self: {"pid": os.getpid()}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(harness_model.session_harness())
     claim_record_2 = service_model.page_claim(page_dir)
     assert claim_record_2 is not None

@@ -10,8 +10,8 @@ from interact_support import (
 )
 from model.test_native_watch import DIAGNOSTIC_QUIET_WINDOW_S, _subscriber
 
-from leaf import state as cleanup_model
-from leaf.user_views import USER_VIEWS
+from leaf.base import state as cleanup_model
+from leaf.serving.user_views import USER_VIEWS
 
 
 @pytest.mark.parametrize("owner", ["page", "session"])
@@ -26,8 +26,9 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     list, is written in turn: every write wakes the subscription and moves the
     reading. A write beneath a revision, to a diagnostic or to a staging file does
     neither."""
-    from leaf import files, page_inputs
-    from leaf.file_bindings import bind_file
+    from leaf.base import files
+    from leaf.source import page_inputs
+    from leaf.source.file_bindings import bind_file
 
     record_claim(page_dir, id="reading-owner")
     cleanup_model.ensure_session("reading-owner", {"pid": os.getpid()})

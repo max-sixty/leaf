@@ -12,16 +12,17 @@ from conftest import hooks_run_this_tree
 from interact_support import append_carried_log_record, record_claim, serving
 from model_folds import leaf_page
 
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as state_model
-from leaf import vendoring as vendoring_model
-from leaf.cli import cli
-from leaf.drafts import DRAFTS
-from leaf.file_bindings import BINDINGS, bind_file, bound_paths, unbind_file
-from leaf.refusals import Refused
-from leaf.revisioning import activate_source
-from leaf.schema import DRAFTS_FILE, FILE_BINDINGS_FILE
+from leaf.base import service as service_model
+from leaf.base import state as state_model
+from leaf.base.refusals import Refused
+from leaf.base.schema import DRAFTS_FILE, FILE_BINDINGS_FILE
+from leaf.commands import session as session_model
+from leaf.commands.cli import cli
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
+from leaf.records.revisioning import activate_source
+from leaf.serving.drafts import DRAFTS
+from leaf.source.file_bindings import BINDINGS, bind_file, bound_paths, unbind_file
 
 
 def another_shapes(record, path, value):
@@ -128,7 +129,7 @@ def test_taking_over_a_page_held_at_another_shape_leaves_one_owner(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "taker")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     hooks_run_this_tree("taker")
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
 
     assert state_model.CLAIM.others(payload) == []
     taken = service_model.page_claim(page_dir)
@@ -170,9 +171,9 @@ def test_a_rolled_back_takeover_leaves_the_other_shapes_holder_in_place(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     hooks_run_this_tree("taker")
 
-    transition = service_model.take_page_claim(page_dir)
+    transition = transaction_model.take_page_claim(page_dir)
     assert transition is not None and not other.exists()
-    service_model.restore_page_claim(page_dir, transition)
+    transaction_model.restore_page_claim(page_dir, transition)
 
     assert other.read_bytes() == held
     assert service_model.page_claim(page_dir) is None

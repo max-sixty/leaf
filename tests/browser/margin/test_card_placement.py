@@ -31,9 +31,9 @@ from browser.margin import (
     WORDS_RIGHT,
 )
 from browser.threads import append_agent_reply
-from leaf import event_log
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

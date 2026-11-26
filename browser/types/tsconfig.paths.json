@@ -150,7 +150,7 @@
         "../runtime/*"
       ],
       "/checks/*": [
-        "../../src/leaf/render-checks/*"
+        "../../src/leaf/source/render-checks/*"
       ]
     }
   }

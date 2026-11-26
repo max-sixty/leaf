@@ -18,16 +18,17 @@ from interact_support import (
     serving,
 )
 
-from leaf import codex as codex_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import vendoring as vendoring_model
+from leaf.agents import codex as codex_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
 
 
 def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
@@ -40,7 +41,7 @@ def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
     hooks_run_this_tree("reused")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     renewed = service_model.page_claim(page_dir)
     assert renewed is not None
     assert renewed["id"] == "reused"
@@ -165,7 +166,7 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
     capsys.readouterr()
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
-    service_model.claim_page(sibling)
+    transaction_model.claim_page(sibling)
     before = {
         page: service_model.CLAIM.file(service_model.claim_path(page)).read_bytes()
         for page in (claimed, sibling)
@@ -199,7 +200,7 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
             "turn_id": "resumed-turn",
         },
     )
-    service_model.claim_page(sibling)
+    transaction_model.claim_page(sibling)
     assert service_model.claim_is_active(service_model.page_claim(sibling))
     claim_record_4 = service_model.page_claim(sibling)
     assert claim_record_4 is not None
@@ -218,12 +219,12 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
     The transaction stays held for the whole run, so a SessionEnd that waited on it
     would never return: the suite's hang bound tells the two apart without timing
     the hook on a busy machine."""
-    with service_model.PageTransaction(claimed):
+    with transaction_model.PageTransaction(claimed):
         done = subprocess.run(
             [
                 sys.executable,
                 "-S",
-                str(PLUGIN_ROOT / "src/leaf/state.py"),
+                str(PLUGIN_ROOT / "src/leaf/base/state.py"),
             ],
             input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "s1"}),
             text=True,
@@ -265,7 +266,7 @@ def test_a_stale_stop_cannot_plan_or_continue_a_newer_turn(claimed, capsys):
 def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
     previous = service_model.page_claim(claimed)
     harness = harness_model.session_harness()
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         expected = page.take_claim(harness)
         cleanup_model.prompt_turn("s1", "provider")
         page.restore_claim(expected)
@@ -335,7 +336,7 @@ def test_first_claim_enriches_prompt_provenance_without_replacing_it(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "before-claim")
     hooks_run_this_tree("before-claim")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     after = cleanup_model.session_record("before-claim")
     assert after is not None
     assert (after["generation"], after["turn"], after["provider"]) == (

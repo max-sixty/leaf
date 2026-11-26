@@ -108,7 +108,7 @@ is removed by whichever Leaf of its shape next lists it (`state.retire_if_gone`)
   ([session-lifetime.md](session-lifetime.md)).
 
 - `preview.json` — the preview identity `leaf-dev preview` writes and the browser chrome
-  labels (`server.PREVIEW`). Its presence exempts the page from the Stop hook's watcher
+  labels (`service.PREVIEW`). Its presence exempts the page from the Stop hook's watcher
   guard.
 
 - `service.json` — the desired server address, enabled state, lifetime, runtime

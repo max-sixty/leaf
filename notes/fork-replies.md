@@ -6,9 +6,9 @@ stay in the thread, whether the agent's session is idle or busy. Today the media
 first reply takes 17 s when the session is idle and 21 s when it is busy, and the real
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
-On main, `src/leaf/forks.py` holds the rules of the working line a fork posts beside
+On main, `src/leaf/agents/forks.py` holds the rules of the working line a fork posts beside
 the session's delivery of a thread message, and `hooks/claude-code.ts`
-makes the fork Leaf's Python asks for (`src/leaf/carrier.py`). How it works' Forks tab (`docs/how-it-works.html`)
+makes the fork Leaf's Python asks for (`src/leaf/agents/carrier.py`). How it works' Forks tab (`docs/how-it-works.html`)
 explains what is built. This note holds the research behind it: what Claude Code lets
 a hooks module fork, measured, and how well the fork judges what to answer. The main thread is the session's own
 conversation, as against the forks and subagents made from it.
@@ -17,7 +17,7 @@ On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork ca
 call tools, so it now posts only the agent's working line, while the session gets each
 message as it gets any input, and the message reads On it once the line stands. The
 session decides who does the work, and spawns a subagent that answers in the thread
-where the work can run beside its own (`src/leaf/forks.py`'s header says why the
+where the work can run beside its own (`src/leaf/agents/forks.py`'s header says why the
 session, not Leaf, decides). The measurements below are of the fork that answered.
 
 ## What a hooks module can fork
@@ -30,7 +30,7 @@ could answer. The main turn finished normally in every run.
 
 `$.model.fork({ prompt })` sends the main thread's last request again with `prompt`
 after it, denies every tool call, and returns the reply's text whole. Leaf's clerk
-already calls it at each turn's end (`src/leaf/clerk.py`).
+already calls it at each turn's end (`src/leaf/agents/clerk.py`).
 
 | Session                   | Context | Forks | Time to answer         | Output tokens | Cache read / written / uncached             |
 | ------------------------- | ------: | ----: | ---------------------- | ------------: | ------------------------------------------- |
@@ -51,10 +51,10 @@ first fork did; the forks after it read that fork's entry. The fork keeps the ma
 thread's model, system prompt and tools. Since Claude Code 2.1.318 `$.model.fork`
 takes an effort too, and a fork at low in a session at xhigh read the whole
 conversation from the cache where per-message effort reaches the model (2026-11-04,
-`src/leaf/clerk.py`), but rewrote it elsewhere, as on Vertex (#5891, #5904). Both
+`src/leaf/agents/clerk.py`), but rewrote it elsewhere, as on Vertex (#5891, #5904). Both
 forks now run at the session's effort and ask for a quick answer in their prompts,
-each module recording its own measurement (`src/leaf/clerk.py`,
-`src/leaf/forks.py`).
+each module recording its own measurement (`src/leaf/agents/clerk.py`,
+`src/leaf/agents/forks.py`).
 
 `$.agent.spawn({ prompt, subagentType: "fork" })` starts a background subagent with
 the main thread's current transcript and all its tools. It started within 40 ms of the

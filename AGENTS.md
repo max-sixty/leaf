@@ -68,8 +68,11 @@ as any architectural problem they leave stays easy to fix.
 ## The maintainer decides
 
 Make the improvements the repository's goals and code already justify, and take a
-call its guidance settles, saying which passage settled it. Ask the maintainer only
-where a choice depends on a purpose or intent the code can't tell you:
+call its guidance settles. The work doesn't wait on the maintainer for a call outside
+the list below. Name the call, with the passage that settled it where one did, so
+they can reverse it. Ask them only where a choice depends on a purpose or intent the
+code can't tell you, or shapes what every later user, package author or change works
+with:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
 - **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
@@ -77,6 +80,11 @@ where a choice depends on a purpose or intent the code can't tell you:
   as a call the maintainer may reverse doesn't make it a call. A cost to what
   guidance asks, such as a look or a rule of an area's `AGENTS.md`, is the change's
   own to weigh and take.
+- **A requirement that keeps code complicated.** When a guarantee, one of these
+  principles, or a choice the maintainer made expecting far less code is what
+  keeps code complicated (`SOUL.md`, "Keep Leaf's code plain"), tell the
+  maintainer what the requirement costs in code and what the user would see with
+  less of it, and keep the requirement until they decide.
 - **Taking a feature away.** "Regular maintenance" says what a proposal to remove
   one rests on.
 - **Lifting a restriction.** A restriction Leaf imposes, such as a content
@@ -87,7 +95,33 @@ where a choice depends on a purpose or intent the code can't tell you:
   maintainer values, or be a side effect nobody chose.
 - **An open design.** Where a visual or interaction design is still open after
   these principles, show the candidates side by side and let the maintainer
-  select one (`/developing-leaf`, "Explore an open design").
+  select one (`/developing-leaf`, "Explore an open design"). Beside each
+  candidate's picture, say what it costs in code, such as the mechanisms it adds,
+  since a pick made on looks alone can commit Leaf to complicated code.
+- **Changing core UX.** Changing how the user does a task on every page, such as
+  commenting, replying or moving through the page, or adding or rebinding a
+  keyboard shortcut, in Leaf's runtime or a bundled package. A user learns these
+  once and relies on them everywhere, so the maintainer keeps the whole set in
+  view. A smaller change within one of these tasks, such as what one press of
+  Escape closes, is the change's own to weigh.
+- **Growing the package interface.** Adding to the package interface, such as a
+  declaration key, one of Leaf's elements, an event, a function or a new rule for
+  using one. The maintainer keeps that interface small and coherent, and it sprawls
+  through additions that each look reasonable alone ("Keep the package interface
+  small"). `uv run leaf-dev interface --base` lists the names a change adds. A
+  rename, or one more member of an existing family, such as a theme token beside
+  its siblings, is the change's own to weigh.
+- **Complicating the core.** Adding to the browser runtime or the server a
+  mechanism that later changes there must reason about, such as a mode or state
+  several modules read, a special case spread across owners, or a queue with
+  ordering rules of its own. Such code costs every change near it ("Regular
+  maintenance"). A fix that keeps the code's existing design, or a change that
+  leaves the core simpler, is the change's own to weigh.
+
+A change the list holds lands only once the maintainer has approved it, and a
+request of theirs that named that very change approves it. Land the rest of the work
+without it where the rest stands alone, as a new control can land without its
+keyboard shortcut.
 
 A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it
@@ -209,7 +243,7 @@ runs: the manifests there register Leaf's components with each harness, and
 `bin/leaf` runs the uv project there. The **skill root**, `skills/leaf/`, holds the
 agent's instructions, `SKILL.md` and its references. A copy of the skill root alone
 is not an installation. `pyproject.toml` says where Python finds Leaf's modules,
-`leaf.state` finds the plugin root, and `leaf.schema` derives the paths of the
+`leaf.base.state` finds the plugin root, and `leaf.base.schema` derives the paths of the
 resources under it. When a page is initialized, Leaf composes the core browser assets
 and the page's packages into the page's layer.
 
@@ -271,9 +305,11 @@ rule covers. A rule whose goal nobody can name is a candidate to cut once
 Place an instruction by who must act on it and by what a session that misses it gets
 wrong. Every session in the repository reads this file, including subagents and the
 runs of Tend, the agent that reviews and maintains the repository from GitHub
-Actions. A session that changes or reviews an area also reads that area's
-`AGENTS.md`. A skill reaches only the sessions that load it, and subagents and
-Tend's runs often don't load one. So an `AGENTS.md` holds the instructions whose
+Actions, so other instructions neither repeat this file's rules nor send their reader
+back to them, though they may point to a detail it holds. A session that changes or
+reviews an area also reads that area's `AGENTS.md`. A skill reaches only the sessions
+that load it, and subagents and Tend's runs often don't load one. So an `AGENTS.md`
+holds the instructions whose
 omission could let a change break something: goals, invariants that span modules,
 who owns what, the criteria a change or review is judged by, and the checks to run,
 each stated as a goal rather than as steps. Instructions for one kind of task, such
@@ -339,7 +375,7 @@ build writes a static copy of the row, which a page shows at first paint, so a
 change to the row needs `pnpm run build:browser` (`build/AGENTS.md`). Only a
 prepared installation, such as the website's container, compiles the source modules
 into one bundle, the kernel (`build/runtime-bundle.mjs`,
-`leaf.runtime_selection.read_runtime`).
+`leaf.source.runtime_selection.read_runtime`).
 
 `bin/leaf` runs `uv run --no-dev` on the tree, which writes the tree's `.venv`, so the
 install must be writable; Leaf writes nothing else into it. A plugin update may
@@ -407,7 +443,7 @@ record them, so each lasts only as long as its DOM node. Code that replaces a no
 moves that state to the new node, matching the two by the key the replacement already
 uses. A draft being typed also stays out of the log until the user sends it, but it
 outlives its node: the page's server keeps it for every tab and device
-(`src/leaf/drafts.py`), and the agent never reads it.
+(`src/leaf/serving/drafts.py`), and the agent never reads it.
 
 Python decides where the agent's work stands, in the one vocabulary every record and
 surface reads (`standing.py`): whose move it is, and whether the work is waiting,
@@ -460,8 +496,7 @@ a standard attribute that means the same to every reader. A declaration on Leaf'
 element uses Leaf's attribute, such as `label`, since no standard defines that
 element. Leaf takes no fact from how content looks or what it says, and reads words
 only to quote, anchor and show them. So restyling a page changes no fact Leaf holds,
-and rewording it changes only its words. Leaf reads markup any other way only where
-the maintainer agrees to the exception.
+and rewording it changes only its words.
 
 ### Keep the layer open
 
@@ -496,10 +531,11 @@ advice rather than Leaf's, so it may name any widget.
 A package leans on Leaf only through the package interface: the keys of an element
 declaration, the widget protocol, Leaf's own elements, the functions `widget-api.js`
 exports and the styling names the references declare. Another author's package has
-nothing else, so Leaf's bundled widgets use nothing else, and each name is one more
-thing every author learns and every later change keeps working. A change meets a
-widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
-need of Leaf", says how to choose where it can't.
+nothing else, so Leaf's bundled widgets use nothing else. The interface sprawls
+through names that each look reasonable alone, and every later change keeps each
+name working, so Leaf keeps it small and coherent. A change meets a widget's need
+without a new name where it can, and `packages/AGENTS.md`, "A widget's need of
+Leaf", says how to choose where it can't.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the
@@ -611,8 +647,7 @@ makes Leaf harder to develop than it is worth:
 
 A choice about how something looks or moves can't be judged from a description, so
 every UI option you leave to the user carries a picture of its result: a still pair,
-a sketch, a diagram or a live sample. That holds for the UI decisions a PR body
-leaves to the user too, and for a page that relays them.
+a sketch, a diagram or a live sample.
 
 Before writing words the user sees, such as a label, status line or placeholder, and
 before naming anything the user operates or choosing an identifier for it, read

@@ -24,7 +24,7 @@ from render_harness import (
     take_browser_errors,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 # A field below a box. A key landing in the field grows the box above it, carrying the

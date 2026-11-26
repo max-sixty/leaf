@@ -131,9 +131,9 @@ describe("published runtime bundle", () => {
           [
             "import sys",
             "from pathlib import Path",
-            "from leaf.registry.storage import layer_record, selected",
-            "from leaf.revision_artifact import Resource, resource_type",
-            "from leaf.runtime_selection import serving_runtime",
+            "from leaf.source.registry.storage import layer_record, selected",
+            "from leaf.source.revision_artifact import Resource, resource_type",
+            "from leaf.source.runtime_selection import serving_runtime",
             "page = Path(sys.argv[1])",
             "layer = {",
             "    path: Resource(data, resource_type(path))",

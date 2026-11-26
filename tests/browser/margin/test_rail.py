@@ -26,7 +26,7 @@ from browser.margin import (
     _comment_on,
     put_card_away,
 )
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

@@ -16,7 +16,7 @@
  * two branches that change the runtime conflict only where their sources do. A
  * prepared installation, which the website's build and container use, compiles its
  * own into `dist/kernel/` (`leaf_dev.commands.site._distribution.prepare`) and serves it
- * while it matches that tree's modules (`leaf.runtime_selection.read_runtime`).
+ * while it matches that tree's modules (`leaf.source.runtime_selection.read_runtime`).
  * Rolldown names shared chunks from their modules, without content hashes, and writes
  * their references itself.
  *
@@ -363,7 +363,7 @@ async function layerModules(layerRoot) {
 
 /**
  * The kernel built from one layer: each file by its layer path, and `kernel.json`,
- * the record an install's guard reads (`leaf.runtime_selection.read_runtime`).
+ * the record an install's guard reads (`leaf.source.runtime_selection.read_runtime`).
  *
  * The record's `inputs` map every file the build reads, `leaf.js`, each `.js` under
  * `runtime/`, `vendor/` and `widgets/`, and each other file it compiles in, such as

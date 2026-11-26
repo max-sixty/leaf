@@ -48,22 +48,23 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import vendoring as vendoring_model
-from leaf.detached import StartRefused
-from leaf.interaction_log import read_interactions
-from leaf.registry.kernel import kernel_protocol
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.detached import StartRefused
+from leaf.base.state import kernel_protocol
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log.interaction_log import read_interactions
+from leaf.pages import hosting as hosting_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
 
 
 def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
@@ -252,7 +253,7 @@ def test_wait_preserves_the_work_in_hand_on_mid_work_output(page_dir, capsys):
         {"kind": "comment", "id": "c1", "author": "user", "text": "one more thing"},
     )
 
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, _, shown = delivered(capsys)
     assert [event["id"] for event in shown] == ["c1"]
@@ -302,7 +303,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
 
     declare_idle(page_dir)
     capsys.readouterr()
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 2
     assert "the page closed" in capsys.readouterr().err
 
@@ -408,14 +409,14 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     that stumbled on it would end before reaching the comment."""
     publish(page_dir)
     serving(page_dir, 1)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     copy = tmp_path / "copy"
     shutil.copytree(page_dir, copy)
     serving(copy, 1)
-    service_model.claim_page(copy)
+    transaction_model.claim_page(copy)
     harness_2 = session_model.session_harness()
     assert harness_2 is not None
-    assert service_model.owned_pages(harness_2.session) == [
+    assert transaction_model.owned_pages(harness_2.session) == [
         copy.resolve(),
         page_dir.resolve(),
     ]
@@ -441,7 +442,7 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
     named or claimed earlier and found by the session's wait."""
     assert not server_model.SERVICE.file(page_dir / "service.json").exists()
     session_model.cmd_waiting(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
 
     def unexpected_delivery(reading):
         pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
@@ -528,7 +529,7 @@ def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
             "lifetime": "session",
         },
     )
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     vendored_at_another_protocol(page_dir)
 
@@ -606,7 +607,7 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
     finished with — so it is left exactly as it stands."""
     serving(page_dir, 1)
     declare_idle(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     served = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert served.exit_code == 2, served.output
     assert server_model.running_server(page_dir)
@@ -655,7 +656,7 @@ def test_one_wait_watches_every_page_the_session_holds(
     serving(page_dir, 1)
     serving(second, 2)
     for d in (page_dir, second):
-        assert service_model.claim_page(d)
+        assert transaction_model.claim_page(d)
     append_carried_log_record(
         second, {"kind": "comment", "author": "user", "text": "hi"}
     )
@@ -826,7 +827,9 @@ _RUNNING_FROM = """
 import sys
 from pathlib import Path
 
-from leaf import hooks, state
+from leaf.commands import hooks
+
+from leaf.base import state
 from leaf.__main__ import main
 
 state.PLUGIN_ROOT = hooks.PLUGIN_ROOT = Path(sys.argv[1])
@@ -856,7 +859,7 @@ def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
     hooks_run_this_tree("pi-s1")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_PI_WATCH", "1")
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
     cleanup_model.prompt_turn("pi-s1")
@@ -1176,7 +1179,7 @@ def test_a_watch_does_not_reopen_for_answered_unreceived_input(
         assert waiting.is_set(), "answered input alone woke a new turn"
         assert source["id"] in {
             event["id"]
-            for event in service_model.unacknowledged(
+            for event in transaction_model.unacknowledged(
                 events_model.read_events(claimed), acknowledged_through(claimed)
             )
         }
@@ -1296,14 +1299,14 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s10")  # its harness runs Leaf's hooks
     serving(page_dir, 1)
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     joined = tmp_path / "joined"
     vendoring_model.cmd_init(joined)
     session_model.cmd_waiting(joined)
     serving(joined, 2)
 
     def join():
-        service_model.claim_page(joined)
+        transaction_model.claim_page(joined)
         append_carried_log_record(
             joined, {"kind": "comment", "author": "user", "text": "hi"}
         )
@@ -1325,7 +1328,7 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
     )
     declare_idle(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, first, _ = delivered(capsys)
     assert first["page"] == str(page_dir)
@@ -1362,7 +1365,7 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
         ),
     ).start()
 
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     output = capsys.readouterr()
     _, first, shown = woken(output.out)
@@ -1415,7 +1418,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(page_dir, monkeypatch, 
         page_dir, {"kind": "comment", "author": "user", "text": "first"}
     )
 
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     payload = json.loads(capsys.readouterr().out)
     assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
@@ -1461,7 +1464,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     more."""
     serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(harness_model.EmbeddedHarness("prior", "Prior", os.getpid()))
     cleanup_model.open_session_turn("prior")
     asked = append_carried_log_record(
@@ -1485,7 +1488,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     payload, _, [event] = printed(capsys.readouterr().out)
     assert event["id"] == asked["id"]
     delivery_model.cmd_delivery_ack(payload["id"])
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         assert delivery_model.deliverable(page) == []
     reply = CliRunner().invoke(
         cli_model.cli,

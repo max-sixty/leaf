@@ -26,21 +26,22 @@ from interact_support import (
     working,
 )
 
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import handover_pass as handover_pass_model
-from leaf import hooks as hooks_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as state_model
-from leaf.authored_checks.source import check_source
-from leaf.event_log import read_events
-from leaf.files import latest_revision
-from leaf.findings import Finding
-from leaf.render_reading import read_reading
-from leaf.revision_artifact import read_artifact
-from leaf.revisioning import activate_source
-from leaf.served_state.context import read_page
+from leaf.agents import delivery as delivery_model
+from leaf.base import state as state_model
+from leaf.base.files import latest_revision
+from leaf.base.findings import Finding
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.source import check_source
+from leaf.records.render_reading import read_reading
+from leaf.records.revisioning import activate_source
+from leaf.serving import handover_pass as handover_pass_model
+from leaf.serving.served_state.context import read_page
+from leaf.source.revision_artifact import read_artifact
 
 FAILURE: dict[str, Any] = {
     "code": "past-column",
@@ -207,7 +208,7 @@ def test_a_data_update_after_the_declaration_still_hands_the_version_over(pass_p
     # The save that binds the data, which a tab makes live.
     declare_data_input(pass_page.dir, "builds", {"type": "array"})
     session_model.cmd_waiting(pass_page.dir)
-    data_model.cmd_data_set(pass_page.dir, "builds", ["green"])
+    page_data_model.cmd_data_set(pass_page.dir, "builds", ["green"])
     pass_page.passes.look()
     assert len(pass_page.reads) == 1
 
@@ -256,8 +257,8 @@ def test_a_page_nobody_holds_has_nobody_to_tell(pass_page):
 def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     save(pass_page.dir, "last words")
     state_model.close_session_turn("s1")
-    with service_model.PageTransaction(pass_page.dir) as page:
-        page.set_status("idle")
+    with transaction_model.PageTransaction(pass_page.dir) as page:
+        set_status(page, "idle")
     pass_page.passes.look()
     assert pass_page.reads == []
 
@@ -344,12 +345,12 @@ def told(claimed):
 
 
 def events_of(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return list(page.events)
 
 
 def deliverable(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return delivery_model.deliverable(page)
 
 
@@ -519,7 +520,7 @@ def test_a_data_update_lists_no_parts_until_a_check_reads_it(claimed):
         claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
     )
     assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
-    data_model.cmd_data_set(claimed, "builds", ["green"])
+    page_data_model.cmd_data_set(claimed, "builds", ["green"])
     assert "parts" not in flow_element(claimed)
     handover_pass_model.remember_reading(
         claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)

@@ -959,7 +959,7 @@ async function bundle(spec) {
  * read here so that identifying a block loads no grammar. Both come from this build,
  * which a page's grammars need anyway, so the browser doesn't read `$languages.names`
  * itself. `page check` reads the names too, as the one line of JSON
- * `syntaxLanguageNames` is written on (`leaf.markup_checks.markup.COLOURED_LANGUAGES`).
+ * `syntaxLanguageNames` is written on (`leaf.records.markup_checks.markup.COLOURED_LANGUAGES`).
  * Beside them stands the shipped extension table, which `base/language-paths.js` starts
  * from until a page installs its composed one.
  */

@@ -38,11 +38,11 @@ from interact_support import running_http_server
 from playwright.sync_api import expect
 from render_harness import consume_browser_errors, leaf_page, open_page
 
-from leaf.layer import compose_layer, layer_inputs
-from leaf.revision_artifact import Resource, resource_type
-from leaf.revision_delivery import layer_import_map
-from leaf.runtime_selection import read_runtime
-from leaf.schema import BROWSER_DIRS
+from leaf.base.schema import BROWSER_DIRS
+from leaf.serving.revision_delivery import layer_import_map
+from leaf.source.layer import compose_layer, layer_inputs
+from leaf.source.revision_artifact import Resource, resource_type
+from leaf.source.runtime_selection import read_runtime
 
 
 @dataclass(frozen=True)

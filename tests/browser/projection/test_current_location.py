@@ -49,7 +49,7 @@ from browser.threads import (
     open_panel_thread,
     thread_row,
 )
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -991,7 +991,9 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
     # A window tall enough to hold the whole page, so the root has no scroll range and the
-    # browser will not focus body as a scrolling affordance.
+    # browser will not focus body as a scrolling affordance. The page keeps no room at
+    # its end, as one with no Layout keeps none (layouts.css).
+    page.add_style_tag(content="body { padding-bottom: 0 !important; }")
     resized(page, 1200, 2400)
     assert not page.evaluate(
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"

@@ -1315,6 +1315,7 @@ export function createFloatingPanel({
     const error = fieldError();
     return readField({
       thread: !page,
+      keys: advertisesKeys(),
       writing: writesIn(input),
       error: error && {
         message: error.message,

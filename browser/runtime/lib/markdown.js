@@ -98,7 +98,12 @@ export const renderAuthoredMarkdown = (text, links) => renderAuthored(text, link
 // file's preview reads a file so. A draft's body shows a tag as the words that spell
 // it, since the server draws a body too (`leaf.source.passages.markdown_markup`) and
 // has no sanitizer. The host's `links` apply after the sanitizer, to each link and
-// picture of the file's HTML as of its Markdown, so what they add is the host's.
+// picture of the file's HTML as of its Markdown, so what they add is the host's. The
+// rest of a file's HTML draws in the page's own tree, so a hostile file can still
+// restyle or cover the page, with a `<style>` or a fixed box, point a `<label for>` at
+// a page control, or take the tab elsewhere with a form, as a link can. Only a
+// document of its own would stop that, and comments couldn't reach inside one; a list
+// of tags to forbid would stop some of it and leave the rest, as GitHub's did.
 /** @param {string} text @param {MarkdownLinks} links @returns {Promise<DocumentFragment>} */
 export async function markdownFileFragment(text, links) {
   const parsed = document.createElement("template");

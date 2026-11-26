@@ -78,7 +78,7 @@ function nativePosition(source, position, horizontal, vertical) {
 /** @param {Element} source */
 export function elementFrame(source) {
   const box = shownBox(source);
-  if (!box?.width || !box?.height) return null;
+  if (!box.width || !box.height) return null;
   if (source instanceof window.SVGGraphicsElement) {
     const local =
       source instanceof window.SVGSVGElement

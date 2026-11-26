@@ -28,10 +28,7 @@ export function requireReference(owner, attribute) {
 export function authoredElement(id, from) {
   const scope = authoredScope(from);
   const page = pageDocument();
-  return (
-    (scope ? elementById(id, scope) : null) ??
-    (scope === page || !page ? null : elementById(id, page))
-  );
+  return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
 }
 
 // The element a `refers` attribute names, by id, as the owner gives it. A mounted

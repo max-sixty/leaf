@@ -146,7 +146,7 @@ export function createStateApplication({
       thread.msgs.map((message) => ({
         message,
         preparation:
-          "html" in message && message.html
+          "html" in message
             ? markdown?.then(() => prepareAuthoredMessage(message, thread.id))
             : null,
       })),

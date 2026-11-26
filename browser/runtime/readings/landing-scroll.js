@@ -553,7 +553,7 @@ function landingAim(
       return scrollGoal(box);
     if (within) {
       for (const move of innerMoves(where, targetScroller, within, sideways))
-        if (move.box === box) return box.scrollTop + (move.by.top ?? 0);
+        if (move.box === box) return box.scrollTop + move.by.top;
       return null;
     }
     const move = readingBandMoves(aligned, holder, block).moves.find(

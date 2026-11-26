@@ -211,8 +211,8 @@ const sameNames = (before, after) =>
       now.every(
         ({ scope, row, entry }, index) =>
           was[index]?.scope === scope &&
-          was[index]?.row === row &&
-          was[index]?.entry === entry,
+          was[index].row === row &&
+          was[index].entry === entry,
       )
     );
   });
@@ -390,6 +390,8 @@ function reflectButton(control) {
   const ref = new WeakRef(control);
   /** @type {HTMLButtonElement | null} */
   let reading = control;
+  // What the effect's first run threw, which it runs before `effect` returns.
+  /** @type {unknown} */
   let failure = null;
   const dispose = effect(() => {
     if (reading) {
@@ -1168,6 +1170,8 @@ function reflectAvailabilityReaders() {
   availabilityDirty = false;
   availabilityTracking?.();
   let first = true;
+  // What the effect's first run threw, which it runs before `effect` returns.
+  /** @type {unknown} */
   let failure = null;
   availabilityTracking = effect(() => {
     if (first) {
@@ -1242,6 +1246,8 @@ function reflectTracked(element) {
   const ref = new WeakRef(element);
   /** @type {Element | null} */
   let initial = element;
+  // What the effect's first run threw, which it runs before `effect` returns.
+  /** @type {unknown} */
   let failure = null;
   const dispose = effect(() => {
     if (initial) {
@@ -1389,7 +1395,7 @@ export function scopesFor(node) {
         found.push(scope.el ? scope : { ...scope, el: a });
         seen.add(identity);
       }
-      if (a.hasAttribute?.("data-lf-thread-surface")) break;
+      if (a.hasAttribute("data-lf-thread-surface")) break;
     }
   };
   collect(node);

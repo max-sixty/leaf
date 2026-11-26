@@ -234,11 +234,14 @@ export function readPlace(focus = deepFocus()) {
   const selection = getSelection();
   const range = selection?.rangeCount ? pageRange(selection) : null;
   /** @type {[HeldSelectionEnd, HeldSelectionEnd] | null} */
-  const ends = range && [
-    [new WeakRef(range.startContainer), range.startOffset],
-    [new WeakRef(range.endContainer), range.endOffset],
-  ];
-  if (ends && selection && range && selectionBackward(selection, range)) ends.reverse();
+  let ends = null;
+  if (range) {
+    ends = [
+      [new WeakRef(range.startContainer), range.startOffset],
+      [new WeakRef(range.endContainer), range.endOffset],
+    ];
+    if (selection && selectionBackward(selection, range)) ends.reverse();
+  }
   return {
     focus: focus && new WeakRef(focus),
     place: place && new WeakRef(place),

@@ -72,7 +72,6 @@ function reportTarget(target) {
   if (target instanceof Element) {
     if (target.id) return { kind: "widget", id: target.id };
   } else if (
-    target !== null &&
     typeof target === "object" &&
     "kind" in target &&
     "id" in target &&

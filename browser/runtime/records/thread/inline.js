@@ -287,7 +287,7 @@ class ThreadSeat {
     const start = own.length === 1 ? own[0] : added.length === 1 ? added[0] : null;
     const started = drawn.find(({ descriptor }) => descriptor === start)?.view.node;
     restoreFocus?.(
-      started && (() => this.#commands?.reply.landSent(started)),
+      started && (() => this.#commands.reply.landSent(started)),
       ...gathered,
     );
     // A thread the user was in that settling folded into the closed disclosure leaves

@@ -71,7 +71,7 @@ function doors() {
   const found = new Map();
   for (const scope of pageScopes())
     if (scope !== ELEMENTS)
-      for (const door of scope?.rows ?? []) {
+      for (const door of scope.rows) {
         const opened = door.opens?.();
         if (opened && !found.has(door.id)) found.set(door.id, { door, opened });
       }
@@ -101,7 +101,7 @@ const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boo
 /** @param {string} id @returns {string[]} */
 export function commandSteps(id) {
   for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
-    for (const row of scope?.rows ?? [])
+    for (const row of scope.rows)
       if (row.id === id && bindings(row).length) return stepsIn(scope, row);
   return [];
 }

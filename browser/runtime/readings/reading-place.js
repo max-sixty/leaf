@@ -772,7 +772,7 @@ export function* blocksOnScreen(
 export function readingBlock(region = null, within = region?.body) {
   const bounds = readingBounds(region);
   const body = region?.body ?? pageDocument();
-  const column = bounds && body ? readerColumn(bounds, body) : null;
+  const column = bounds ? readerColumn(bounds, body) : null;
   /** @type {Element | null} */
   let first = null;
   /** @type {Element | null} */
@@ -854,7 +854,7 @@ export function seenWhereRead(block) {
   const stuck = Boolean(stuckBox(block, box));
   const bounds = readingBounds(region);
   const body = box ?? pageDocument();
-  const reader = bounds && body ? readerColumn(bounds, body) : null;
+  const reader = bounds ? readerColumn(bounds, body) : null;
   const read = shownBox(block);
   const column = reader !== null && spans(block, read, reader) ? reader : null;
   /** @param {DOMRect} shown */
@@ -891,7 +891,7 @@ export function sectionsInView() {
     for (const [block] of blocksOnScreen(region)) add(block);
     const bounds = readingBounds(region);
     const body = region?.body ?? pageDocument();
-    if (!bounds || !body) continue;
+    if (!bounds) continue;
     const clips = new Map();
     for (const drawing of body.querySelectorAll(DRAWING)) {
       if (!region && effectiveScroller(drawing) !== pageScroller) continue;
@@ -1080,7 +1080,7 @@ export function capturePlace(region = null) {
   const boxTop = band.top + aimedTop(box) - box.scrollTop;
   /** @param {number} top @param {Element} block @param {number} [blockTop] */
   const landmarkTop = (top, block, blockTop = top) =>
-    block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
+    block.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   // The raw offset, with the width that wrapped the box's contents and the revision
   // that drew the document when it was read.
   /** @type {ReadingPlace} */
@@ -1096,7 +1096,6 @@ export function capturePlace(region = null) {
   const at = focusPlace();
   const currentLocation = at && !stuckBox(at) ? at : null;
   const body = region?.body ?? pageDocument();
-  if (!body) return null;
   const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
   const focusedRecord =
     recentPlaceInput() === "focus" &&

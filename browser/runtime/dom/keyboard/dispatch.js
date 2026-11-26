@@ -434,7 +434,7 @@ function invocationFor(row, binding, command, recovered = null) {
   const run = commandRun(row, current.route?.binding ?? binding, nativeControl);
   return run
     ? {
-        id: command?.id ?? row.id,
+        id: command.id ?? row.id,
         row,
         entry: current,
         binding,

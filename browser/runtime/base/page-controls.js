@@ -92,9 +92,9 @@ const read = (value) => (typeof value === "function" ? value() : value);
  */
 /** @param {PageControl} row */
 export function registerPageControl(row) {
-  if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
+  if (!row.key || !Number.isFinite(row.rank) || !row.label)
     throw new TypeError(
-      `Page control ${row.key} needs a key, a numeric rank, a label and a group`,
+      `Page control ${row.key} needs a key, a numeric rank and a label`,
     );
   if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
   rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));

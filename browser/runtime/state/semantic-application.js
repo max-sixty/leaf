@@ -998,7 +998,7 @@ export function createSemanticApplication({ presentation } = {}) {
     const drawsAction = (e) => {
       const descriptor = document.descriptors.get(e.widget);
       const state = descriptor && stampedState(document.registry, descriptor.tag, e);
-      return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
+      return Boolean(state && sameStateDefinition(e.meaning.state, state.definition));
     };
     const localProjections = local.flatMap(
       /** @returns {PendingProjection[]} */ (entry) => {

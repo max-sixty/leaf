@@ -332,6 +332,12 @@ export function renderSurfaces(collection, placements, commands) {
     const ordered = [...registrations.values()].sort(
       (a, b) => Number(a.kind === "page") - Number(b.kind === "page"),
     );
+    // Whether a registration still stands for its owner in the document, asked again
+    // after a render's wait, during which either can change.
+    /** @param {Registration} registration */
+    const stands = (registration) =>
+      registrations.get(registration.owner) === registration &&
+      registration.owner.isConnected;
     for (const registration of ordered) {
       const { render, owner } = registration;
       if (registrations.get(owner) !== registration) continue;
@@ -394,7 +400,7 @@ export function renderSurfaces(collection, placements, commands) {
           ? await Promise.race([rendering, cancelled])
           : rendering;
         if (!current()) return null;
-        if (registrations.get(owner) !== registration || !owner.isConnected) {
+        if (!stands(registration)) {
           clearRegistration(registration);
           continue;
         }

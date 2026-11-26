@@ -47,11 +47,12 @@ export const pressIsKeyboardActivation = (event) =>
   event.type === "click" && !event.detail;
 
 // An automatic revision activation replaces the document, not the user's pointer.
-// New input wins over a handoff captured by the departing document.
-/** @param {{x: number, y: number}} point */
+// New input wins over a handoff captured by the departing document. A handoff from a
+// document whose runtime never started carries no pointer (features/version.js).
+/** @param {{x: number, y: number} | undefined} point */
 export function restorePointer(point) {
-  if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))
-    return;
+  if (x !== -1 || y !== -1 || !point) return;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
   x = point.x;
   y = point.y;
 }

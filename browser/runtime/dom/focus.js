@@ -600,7 +600,7 @@ function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
   if (!present) {
-    if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
+    if (node.part.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
   } else if (
     node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
     node.hasAttribute("part")
@@ -1489,7 +1489,7 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!key) return restore;
   /** @type {Element | null} */
   let item = node;
-  while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
+  while (item && !item.matches(`[${key}]`)) item = renderedParent(item);
   if (!item || item === scope || !renderedUnder(item, scope)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.

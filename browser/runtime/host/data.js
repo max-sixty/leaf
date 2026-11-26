@@ -172,8 +172,8 @@ function deliveredSource(source, declaration, input, accepted) {
         : null;
       return reading
         ? {
-            source,
             ...reading,
+            source,
             origin: {
               input,
               source,

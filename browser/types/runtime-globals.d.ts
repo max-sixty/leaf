@@ -233,12 +233,13 @@ interface HTMLElementTagNameMap {
 // The events Leaf dispatches with a detail, by where they are heard.
 
 interface WindowEventMap {
-  /** A page or module could not start (`prepaint.js`, `fault`). */
+  /** A page or module could not start (`prepaint.js`, `fault`). A page's own script
+   * may declare it with no detail. */
   "lf-startup-failed": CustomEvent<{
     reason?: string;
     error?: unknown;
     page?: boolean;
-  }>;
+  } | null>;
   /** A widget's words for a listener, which Leaf says in its live region
    * (`lib/widget-events.js`, `ANNOUNCE`): the words, or the words and the command rows
    * whose keys Leaf names after them (`transport/notifications.js`). */

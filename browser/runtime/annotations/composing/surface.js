@@ -641,7 +641,7 @@ export function createResponseSurface({
       return false;
     }
     if (!placement || placement.place()) return true;
-    placement?.withhold();
+    placement.withhold();
     return false;
   }
   // The durable anchor names the authored coordinate an event can replay, while the
@@ -1110,7 +1110,7 @@ export function createResponseSurface({
       visual &&
       !fabAnchor.value?.quote &&
       fabAnchor.value?.section === visual.id &&
-      fabAnchor.value?.visual === visual.part?.id;
+      fabAnchor.value.visual === visual.part?.id;
     return (
       !sameVisual &&
       !target?.closest(".lf-fab-bar, .lf-react-surface, .lf-composer") &&

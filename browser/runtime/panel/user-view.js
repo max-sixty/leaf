@@ -58,7 +58,6 @@ function context() {
   )
     return null;
   const shown = shownWindow();
-  if (!shown) return null;
   const clips = new Map();
   return {
     session,

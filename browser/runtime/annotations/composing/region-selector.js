@@ -164,7 +164,7 @@ export function createRegionSelector({
     const x = selected.x + selected.width / 2;
     const y = selected.y + selected.height / 2;
     const winner = visibleTargets()
-      .filter(({ rect }) => rect && rect.width && rect.height)
+      .filter(({ rect }) => rect.width && rect.height)
       .map((target) => ({
         ...target,
         distance: Math.hypot(
@@ -195,7 +195,7 @@ export function createRegionSelector({
       // the body the capture draws from, so the photo holds what the region shows of
       // the page, threads drawn inline in it included.
       const { blob, warnings } = await pageImage(clip);
-      if (ended || ticket !== attempt) return;
+      if (ticket !== attempt) return;
       if (revision !== runtime.currentRevision)
         throw new Error("The page changed. Select the area again.");
       let adding;
@@ -206,7 +206,7 @@ export function createRegionSelector({
       // The attachment stands; the notice says what it may be missing.
       if (warnings.length) notice(`Captured — ${warnings.join(" ")}`);
     } catch (error) {
-      if (ended || ticket !== attempt) return;
+      if (ticket !== attempt) return;
       busy = false;
       keeps(overlay, "aria-busy", null);
       const message = `Could not capture — ${describeFailure(error)}`;

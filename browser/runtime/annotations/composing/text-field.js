@@ -1057,6 +1057,7 @@ class LeafText extends HTMLElement {
     else this.#states.add("placeholder-shown");
   }
 
+  /** @returns {string} */
   get value() {
     return this.#text;
   }
@@ -1127,6 +1128,9 @@ class LeafText extends HTMLElement {
     );
   }
 
+  /** As a textarea's, a missing value writes no words: a widget may seed the box from
+   * a draft that doesn't exist yet (module-input.md, "Text entry and drafts").
+   * @param {string | null | undefined} text */
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;

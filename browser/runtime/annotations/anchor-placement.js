@@ -140,7 +140,7 @@ function liveRanges(was, segments) {
         range.endOffset === endOffset
       );
     });
-  return stand && ranges ? ranges : segments.map((segment) => rangeOf([segment]));
+  return stand ? ranges : segments.map((segment) => rangeOf([segment]));
 }
 
 // The key the draft's anchor is kept under beside the threads', which no thread's id is.

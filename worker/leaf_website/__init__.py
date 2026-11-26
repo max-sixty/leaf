@@ -318,7 +318,6 @@ def write_failure_receipt(
     responds: str,
     failure: str,
     *,
-    also: list[str] | None = None,
     only_if_unclaimed: bool = True,
 ) -> dict | None:
     """Write the one receipt that tells a user no answer to their move is coming.
@@ -343,18 +342,12 @@ def write_failure_receipt(
     alone. The turn that took it is the one writer for which the pickup is its own, and
     it says so, because otherwise a turn that ends without an answer can be receipted
     by nobody at all.
-
-    `also` is what that turn's delivery carried of the other inputs the move's answer
-    covered, which the failure hands back with the move; input the user sent since,
-    and input another delivery carried, stay owed. A boundary that gave up before any
-    delivery names none (`thread.fail_answer`).
     """
     accepted = fail_answer(
         page_dir,
         responds,
         failure,
         FAILURE_RECEIPTS[failure],
-        also=also,
         attempt=agent_attempt(responds),
         identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
         only_if_unclaimed=only_if_unclaimed,
@@ -696,7 +689,6 @@ class HostedTurn(CarriedTurn):
                         Path(target["page"]),
                         target["responds"],
                         CONTAINER_FAILURE,
-                        also=target["also"],
                         only_if_unclaimed=False,
                     )
                     is not None

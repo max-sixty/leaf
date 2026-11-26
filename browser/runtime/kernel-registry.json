@@ -924,10 +924,10 @@
             "turn": { "type": "string", "minLength": 1 },
             "failure": { "type": "string", "minLength": 1 },
             "responds": { "type": "string", "minLength": 1 },
-            "also": {
+            "covers": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "minItems": 1,
+              "minItems": 2,
               "uniqueItems": true
             },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
@@ -994,7 +994,7 @@
               "required": ["text", "responds"],
               "properties": { "author": { "const": "agent" } }
             },
-            "also": { "required": ["responds"] },
+            "covers": { "required": ["responds"] },
             "anchor": {
               "required": ["revision", "text"],
               "properties": { "author": { "const": "agent" } }
@@ -1665,7 +1665,13 @@
                 "type": "object",
                 "properties": {
                   "ref": { "type": "string", "minLength": 1 },
-                  "claim": { "type": ["string", "null"], "minLength": 1 }
+                  "claim": { "type": ["string", "null"], "minLength": 1 },
+                  "covers": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "minItems": 2,
+                    "uniqueItems": true
+                  }
                 },
                 "required": ["ref", "claim"],
                 "additionalProperties": false

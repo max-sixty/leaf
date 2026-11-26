@@ -1692,7 +1692,6 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
         owed = [
             each["id"]
             for each in event_folds_model.unanswered_turns(thread[said["id"]])
-            if each["id"] != turn["id"]
         ]
         append_command(
             page_dir,
@@ -1702,7 +1701,7 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
                 "agent": "Codex",
                 "parent": said["id"],
                 "responds": turn["id"],
-                **({"also": owed} if owed else {}),
+                **({"covers": owed} if len(owed) > 1 else {}),
                 "text": text,
             },
         )

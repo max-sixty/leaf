@@ -38,7 +38,7 @@ def _owed_answers(page_dir, reading):
             {
                 key: value
                 for key, value in item["answer"].items()
-                if key in {"kind", "parent", "responds", "also", "action"}
+                if key in {"kind", "parent", "responds", "covers", "action"}
             },
         )
         for item in reading(state, watched=False)
@@ -255,7 +255,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
                 "kind": "reply",
                 "parent": second["id"],
                 "responds": second["id"],
-                "also": [first["id"]],
+                "covers": [first["id"], second["id"]],
             },
         ),
         (
@@ -264,7 +264,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
                 "kind": "reply",
                 "parent": board["id"],
                 "responds": moves[-1]["id"],
-                "also": [move["id"] for move in moves[:-1]],
+                "covers": [move["id"] for move in moves],
             },
         ),
         (picked["id"], {"kind": "markup", "action": picked["id"]}),

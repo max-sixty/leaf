@@ -260,10 +260,11 @@ _ANSWER = {
                     ),
                 },
                 {
-                    "also": described(
-                        "The other inputs the reply answers besides `responds`, "
-                        "which its thread owed at capture, in log order.",
-                        {"type": "array", "items": STRING, "minItems": 1},
+                    "covers": described(
+                        "Where the reply answers several inputs, all of them: "
+                        "`responds` and the others its thread owed at capture, in "
+                        "log order.",
+                        {"type": "array", "items": STRING, "minItems": 2},
                     ),
                 },
             ),
@@ -694,9 +695,13 @@ def response_addresses(payload: dict) -> Iterator[dict]:
 def batch_refs(batch: dict) -> dict[str, dict]:
     """The `answer.ref` one frozen envelope batch gives each input it owes an
     answer, by input id, with the claim the batch was captured under, which is the
-    only owner `post_reply` lets write at it."""
+    only owner `post_reply` lets write at it, and a reply's `covers`."""
     return {
-        event["id"]: {"ref": event["answer"]["ref"], "claim": batch["claim"]}
+        event["id"]: {
+            "ref": event["answer"]["ref"],
+            "claim": batch["claim"],
+            **({"covers": covers} if (covers := event["answer"].get("covers")) else {}),
+        }
         for event in batch["events"]
         if "answer" in event
     }
@@ -1112,9 +1117,11 @@ def record_pickup(
     same events, while a retry of the same transition appends nothing.
 
     ``refs`` are the `answer.ref`s the receipt's envelope batch gave the inputs it
-    owes, each with the claim the batch was captured under (`batch_refs`), which
-    the record keeps for the inputs it names, so the page's workflows can name each
-    owed input's ref to the owner who can use it (`activity._receipt_bindings`). A
+    owes, each with the claim the batch was captured under and a reply's `covers`
+    (`batch_refs`), which the record keeps for the inputs it names, so the page's
+    workflows can name each owed input's ref to the owner who can use it
+    (`activity._receipt_bindings`). A ref is recorded again where the batch's
+    answer covers more than the one on record. A
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
     """
@@ -1133,7 +1140,7 @@ def record_pickup(
     # The newest ref recorded for each input under each claim, the one `workflows`
     # binds.
     referenced = {
-        (event_id, ref["claim"]): ref["ref"]
+        (event_id, ref["claim"]): ref
         for event in pickups
         for event_id, ref in event.get("refs", {}).items()
     }
@@ -1141,7 +1148,12 @@ def record_pickup(
 
     def usable(event_id: str) -> bool:
         held = referenced.get((event_id, refs[event_id]["claim"]))
-        return held is not None and reads_reference(held)
+        return (
+            held is not None
+            and reads_reference(held["ref"])
+            and set(refs[event_id].get("covers", ()))
+            <= {event_id, *held.get("covers", ())}
+        )
 
     # A transition already on record is recorded again only to give an input a ref
     # its claim can use, as when a delivery hands the page's owner debt an older

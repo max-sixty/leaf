@@ -123,6 +123,6 @@ delivery:
             kind: reply
             parent: event-9
             responds: event-9
-            also: [event-2, event-4, event-6]
+            covers: [event-2, event-4, event-6, event-9]
             ref: <delivery>:0:event-9
             writer: agent

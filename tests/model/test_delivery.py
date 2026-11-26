@@ -264,7 +264,7 @@ def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_
             "author": "agent",
             "parent": newest["id"],
             "responds": newest["id"],
-            "also": [question["id"]],
+            "covers": [question["id"], newest["id"]],
             "text": "The plan is revised. Ship it on Friday?",
             "obligation": True,
         },
@@ -1267,7 +1267,7 @@ def test_an_answer_answers_each_input_it_covers():
     }
     for changes, success in (
         ({}, True),
-        ({"responds": "later-input", "also": ["input"]}, True),
+        ({"responds": "later-input", "covers": ["input", "later-input"]}, True),
         ({"failure": "turn_failed"}, False),
         ({"parent": "input", "responds": "later-input"}, False),
         ({"author": "user"}, False),

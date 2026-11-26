@@ -28,9 +28,10 @@ settled, and emits two readings of them, each the one home of its facts:
   with the claim and serves where it stands (`standing`), which the margin, the Page
   Map and a thread's receipt show. `obligation` names the record it serves, or is
   null for an update that owes nothing. `receipt_refs` maps each claim the update was
-  delivered under to the newest `answer.ref` a pickup recorded for it
-  (`delivery.record_pickup`); `activity` binds the ref the page's current claim can use
-  onto the owed answer. An update no delivery has carried has no ref.
+  delivered under to the newest `answer.ref` a pickup recorded for it, with the inputs
+  that ref's answer covers (`delivery.record_pickup`); `activity` binds the ref the
+  page's current claim can use onto the owed answer where it covers everything the
+  answer now owes. An update no delivery has carried has no ref.
 
 A record exists only for an update an operation names: the newest input the agent owes
 an answer in a thread, the newest unsettled owed page action on a widget's unit, an
@@ -334,15 +335,15 @@ def handed_over(
         for input_id in covered(event)
     }
     # The newest `answer.ref` receipts recorded for each input (`record_pickup`)
-    # under each claim its deliveries were captured under.
-    refs: dict[str, dict[str | None, str]] = {}
+    # under each claim its deliveries were captured under, each with what it covers.
+    refs: dict[str, dict[str | None, dict]] = {}
     for event in events:
         if event["kind"] != "pickup":
             continue
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
         for event_id, ref in event.get("refs", {}).items():
-            refs.setdefault(event_id, {})[ref["claim"]] = ref["ref"]
+            refs.setdefault(event_id, {})[ref["claim"]] = ref
 
     log = todo_reading
     starts = log.starts
@@ -710,10 +711,8 @@ def handed_over(
         # evidence, and the response contract coalesces the batch onto the newest
         # input's address, so only that input publishes a record, and each workflow
         # names it. The record's workflow carries every start on the batch, which
-        # `activity.in_hand` reads. The newest is the one made last, a pick an undo
-        # brought back standing where it was made: a delivery carries the log in
-        # order, so the event its answer is addressed to comes after every input
-        # the answer covers.
+        # `activity.in_hand` reads. The batch keeps the order the thread's history
+        # gives its inputs, and the reply covers them all.
         owed_now = {
             **{
                 source["id"]: (source, target, coordinate)
@@ -730,7 +729,7 @@ def handed_over(
         ]
         if not waiting:
             continue
-        address, subject, _coordinate = max(waiting, key=lambda each: each[0]["seq"])
+        address, subject, _coordinate = waiting[-1]
         owed = publish(
             update_obligation(
                 address["id"],

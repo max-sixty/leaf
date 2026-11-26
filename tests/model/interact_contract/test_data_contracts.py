@@ -25,7 +25,7 @@ from interact_support import (
 
 from leaf.agents import thread as thread_model
 from leaf.base import files as files_model
-from leaf.base.findings import Rejected
+from leaf.base.findings import Finding, Rejected
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.pages.page import page_instructions
@@ -228,6 +228,22 @@ def test_a_measured_input_joins_its_source_to_one_run_receipt(
     said = declaration_advice({"lf-num": registry["lf-num"]}, registry, "test registry")
     [advice] = found(said, code, "<lf-num>", **values)
     assert advice.severity == "advice"
+
+
+@pytest.mark.parametrize("samples", [(), ("practice",)])
+def test_an_example_binding_one_source_two_ways_is_invalid(page_dir, samples):
+    """An example is read as a page would hold it, the child of each live sample it
+    declares included, so its author learns that a page copying it would be refused."""
+    registry = vocabulary(page_dir)
+    example = bound_twice("shared")
+    if samples:
+        example = f'<template id="practice" data-sample>{example}</template>'
+    registry["lf-num"]["example"] = example
+
+    said = declaration_advice({"lf-num": registry["lf-num"]}, registry, "test registry")
+    [advice] = found(said, "invalid-example", "<lf-num>")
+    refused = Finding.loads(advice.values["finding"])
+    assert (refused.code, refused.samples) == ("contract-conflict", samples)
 
 
 def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):

@@ -57,13 +57,24 @@ def declaration_advice(declarations: dict, registry: dict, path) -> list[Finding
 
 
 def _example_advice(tag: str, registry: dict, path) -> list[Finding]:
-    """An example a page could not hold, named by the first refusal it would meet:
-    advice, since an example is documentation that no reader the user relies on
-    needs valid, and a page that redeclares a layer's widget can invalidate the
-    layer's examples."""
+    """An example a page could not hold, named by the first refusal it would meet in
+    the example or the child of a live sample it declares: advice, since an example
+    is documentation that no reader the user relies on needs valid, and a page that
+    redeclares a layer's widget can invalidate the layer's examples."""
     if (example := registry[tag].get("example")) is None:
         return []
-    errors = markup_findings(SourceDocument(example, fragment=True), registry)
+    errors = []
+    pending: list[tuple[SourceDocument, tuple[str | None, ...]]] = [
+        (SourceDocument(example, fragment=True), ())
+    ]
+    for document, samples in pending:
+        errors += [
+            found.but(samples=samples) for found in markup_findings(document, registry)
+        ]
+        pending += [
+            (sample["document"], (*samples, sample["attrs"].get("id")))
+            for sample in document.samples
+        ]
     if refused := [error for error in errors if error.refuses]:
         return [
             registry_finding(

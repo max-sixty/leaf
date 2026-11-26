@@ -112,6 +112,11 @@ dev = [
   "import-linter>=2.17",
 ]
 
+# `uv lock` resolves only releases at least three days old, the window
+# `.github/dependabot.yml` sets for every ecosystem.
+[tool.uv]
+exclude-newer = "3 days"
+
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
 # check the lock on every unfrozen run, so a partial copy of the tree that runs
 # `bin/leaf` carries them (`leaf_dev.arms.PAYLOAD`).

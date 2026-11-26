@@ -1,6 +1,14 @@
 /** Dependency builds run without secrets. The trusted publisher accepts only
- * generated browser bundles for the exact, still-open Dependabot head it built.
- * It never executes PR code, and a non-forced ref update rejects concurrent edits.
+ * generated browser bundles and the pnpm pin for the exact, still-open Dependabot
+ * head it built. It never executes PR code, and a non-forced ref update rejects
+ * concurrent edits.
+ *
+ * Dependabot never moves the pnpm that `packageManager` pins, so the build moves it
+ * to the newest release `minimumReleaseAge` admits (`maturePnpm`) with
+ * `pnpm self-update <version>`, which rewrites `packageManager` and the lockfile's
+ * first document, where pnpm locks itself. Without a version, `self-update` takes the
+ * `latest` tag whatever its age. The publisher takes those two files only where
+ * nothing else in them changed.
  */
 import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
@@ -11,6 +19,8 @@ import { styleEntries } from "../../build/styles.mjs";
 // never from the PR or its artifact. A sheet counts only when the build writes it, so
 // authored CSS remains outside this boundary.
 const styles = new Set(styleEntries.map(([, output]) => output));
+
+const pin = new Set(["package.json", "pnpm-lock.yaml"]);
 
 function generated(path) {
   return (
@@ -28,7 +38,8 @@ export function capture() {
     .split("\n")
     .filter(Boolean);
   const files = paths.map((path) => {
-    if (!generated(path)) throw new Error(`Build changed non-bundle path: ${path}`);
+    if (!generated(path) && !pin.has(path))
+      throw new Error(`Build changed non-bundle path: ${path}`);
     const mode = git("ls-files", "--stage", "--", path).split(" ")[0];
     const file = lstatSync(path, { throwIfNoEntry: false });
     if (mode !== "100644" || (file && !file.isFile()))
@@ -47,6 +58,82 @@ export function capture() {
   return { head: git("rev-parse", "HEAD"), files };
 }
 
+/** The newest pnpm release published at least `minutes` before `now`, from the
+ * registry's map of each version to its publish time. */
+export function maturePnpm(time, minutes, now = Date.now()) {
+  const parts = (version) => version.split(".").map(Number);
+  const newer = (a, b) => {
+    const [x, y] = [parts(a), parts(b)];
+    const at = x.findIndex((n, i) => n !== y[i]);
+    return at >= 0 && x[at] > y[at];
+  };
+  let best;
+  for (const [version, published] of Object.entries(time))
+    if (
+      /^\d+\.\d+\.\d+$/.test(version) &&
+      Date.parse(published) <= now - minutes * 60_000 &&
+      (!best || newer(version, best))
+    )
+      best = version;
+  if (!best) throw new Error(`No pnpm release is ${minutes} minutes old`);
+  return best;
+}
+
+// The lockfile's first document locks pnpm itself; the second locks the dependencies.
+function lockDocuments(text) {
+  const at = text.indexOf("\n---\n", 4);
+  if (!text.startsWith("---\n") || at < 0)
+    throw new Error("Invalid pnpm pin: lockfile");
+  return [text.slice(0, at), text.slice(at)];
+}
+
+const importers = (first) => first.slice(0, first.indexOf("\npackages:"));
+
+// The build's package.json and lockfile may differ from the head's only in the pnpm
+// they pin: `packageManager`, and a first document naming that pnpm and its platform
+// binaries, each fetched from the registry by integrity alone.
+async function checkPin(api, repo, head, files) {
+  const read = (path) =>
+    api("GET", `/repos/${repo}/contents/${path}?ref=${head}`, {
+      mediaType: { format: "raw" },
+    });
+  const [manifest, lock] = await Promise.all([
+    read("package.json"),
+    read("pnpm-lock.yaml"),
+  ]);
+  const field = /"packageManager": "pnpm@(\d+\.\d+\.\d+)"/;
+  const version = files["package.json"]?.match(field)?.[1];
+  const previous = manifest.match(field)?.[1];
+  if (
+    !version ||
+    !previous ||
+    files["package.json"] !==
+      manifest.replace(field, `"packageManager": "pnpm@${version}"`)
+  )
+    throw new Error("Invalid pnpm pin: package.json");
+  const [first, rest] = lockDocuments(files["pnpm-lock.yaml"] ?? "");
+  const [headFirst, headRest] = lockDocuments(lock);
+  const binary = (key) => {
+    const at = key.lastIndexOf("@");
+    return (
+      key.slice(at + 1) === version &&
+      /^(?:pnpm|@pnpm\/exe\.[a-z0-9-]+)$/.test(key.slice(0, at))
+    );
+  };
+  if (
+    rest !== headRest ||
+    importers(first) !== importers(headFirst).replaceAll(previous, version) ||
+    [...first.slice(importers(first).length).matchAll(/^ {2}'?([^\s':]+)'?:/gm)].some(
+      ([, key]) => !binary(key),
+    ) ||
+    [...first.matchAll(/resolution: (.*)$/gm)].some(
+      ([, value]) => !/^\{integrity: sha512-[\w+/]+=*\}$/.test(value),
+    )
+  )
+    throw new Error("Invalid pnpm pin: lockfile");
+  return version;
+}
+
 export async function publish(api, repo, run, artifact) {
   if (run.event !== "pull_request" || run.head_repository.full_name !== repo)
     throw new Error("Build must originate in this repository's pull request");
@@ -56,7 +143,7 @@ export async function publish(api, repo, run, artifact) {
   const seen = new Set();
   for (const file of artifact.files) {
     if (
-      !generated(file.path) ||
+      !(generated(file.path) || pin.has(file.path)) ||
       seen.has(file.path) ||
       (file.content !== null && typeof file.content !== "string")
     )
@@ -87,6 +174,16 @@ export async function publish(api, repo, run, artifact) {
     )
   )
     throw new Error("Dependency PR also changes non-bundle source");
+  const pinned = artifact.files.filter((file) => pin.has(file.path));
+  const version = pinned.length
+    ? await checkPin(
+        api,
+        repo,
+        artifact.head,
+        Object.fromEntries(pinned.map(({ path, content }) => [path, content])),
+      )
+    : null;
+  const bundles = artifact.files.length > pinned.length;
   const parent = await api("GET", `/repos/${repo}/git/commits/${artifact.head}`);
   const tree = await api("POST", `/repos/${repo}/git/trees`, {
     base_tree: parent.tree.sha,
@@ -99,8 +196,11 @@ export async function publish(api, repo, run, artifact) {
   });
   if (tree.sha === parent.tree.sha) return "unchanged";
   const commit = await api("POST", `/repos/${repo}/git/commits`, {
-    message:
-      "Rebuild browser bundles for dependency updates\n\n> _This was written by Leaf dependency automation on behalf of max-sixty_",
+    message: `${
+      version
+        ? `Move pnpm to ${version}${bundles ? " and rebuild browser bundles" : ""}`
+        : "Rebuild browser bundles for dependency updates"
+    }\n\n> _This was written by Leaf dependency automation on behalf of max-sixty_`,
     tree: tree.sha,
     parents: [artifact.head],
   });
@@ -113,7 +213,17 @@ export async function publish(api, repo, run, artifact) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv[2] !== "capture")
-    throw new Error("Usage: dependency-bundles.mjs capture FILE");
-  writeFileSync(process.argv[3], JSON.stringify(capture()));
+  if (process.argv[2] === "capture")
+    writeFileSync(process.argv[3], JSON.stringify(capture()));
+  else if (process.argv[2] === "pnpm") {
+    const minutes = Number(
+      readFileSync("pnpm-workspace.yaml", "utf8").match(
+        /^minimumReleaseAge: (\d+)$/m,
+      )?.[1],
+    );
+    if (!minutes) throw new Error("pnpm-workspace.yaml sets no minimumReleaseAge");
+    const response = await fetch("https://registry.npmjs.org/pnpm");
+    if (!response.ok) throw new Error(`Registry answered ${response.status}`);
+    console.log(maturePnpm((await response.json()).time, minutes));
+  } else throw new Error("Usage: dependency-bundles.mjs capture FILE | pnpm");
 }

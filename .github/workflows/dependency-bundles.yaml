@@ -22,6 +22,11 @@ jobs:
         with:
           node-version: "22"
           cache: pnpm
+      # The install and build then run on the pnpm this moves to.
+      - name: Move pnpm to its newest release old enough for minimumReleaseAge
+        run: |
+          version=$(node .github/scripts/dependency-bundles.mjs pnpm)
+          pnpm self-update "$version"
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build:browser
       - run: node .github/scripts/dependency-bundles.mjs capture /tmp/bundles.json

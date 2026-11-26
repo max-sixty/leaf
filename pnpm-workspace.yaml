@@ -3,21 +3,34 @@ packages:
   - .
 verifyDepsBeforeRun: error
 # pnpm resolves only versions published at least three days ago (the value is in
-# minutes), for a contributor's update as for Dependabot's. Dependabot's npm updates
-# resolve under its default three-day cooldown and fail outright while the lockfile holds
-# any younger version, so the lockfile takes only versions old enough for them. The wait
-# also keeps out a release that is pulled within days of publishing, as a compromised one
-# usually is. Installs from the lockfile don't check it. To take a release sooner, such
-# as a security fix, pass `--config.minimum-release-age=0` to that one command; a
-# Dependabot run in the next three days then fails.
+# minutes), for every update, Dependabot's included, and refuses a younger one rather
+# than fall back to it. A lockfile holding a younger version fails every install and
+# every Dependabot npm update until the version ages, so no update takes one, security
+# fixes included. The wait keeps out a release that is pulled within days of
+# publishing, as a compromised one usually is. Each Dependabot npm pull request also
+# moves `packageManager` to the newest pnpm this old
+# (`.github/scripts/dependency-bundles.mjs`).
 minimumReleaseAge: 4320
-# `package.json` keys each patch in `patchedDependencies` by package name alone, so a new
-# version takes the patch and Dependabot can propose it; Dependabot refuses to move a
-# package whose patch names its version. A patch that no longer applies fails the install
-# rather than being skipped with a warning.
-ignorePatchFailures: false
 allowBuilds:
   "@anthropic-ai/claude-code": true
   esbuild: true
   workerd: true
   fsevents: false
+  "@google/genai": false
+  protobufjs: false
+overrides:
+  "@anthropic-ai/claude-agent-sdk": "$@anthropic-ai/claude-agent-sdk"
+  lit-html: "$lit-html"
+  "get-uri>basic-ftp": 6.2.6
+  "minimatch@<11.0.1": ^11.0.4
+  "@hono/node-server@<2.1.6": ^2.1.6
+# Each patch is keyed by package name alone, so a new version takes it and Dependabot can
+# propose that version; Dependabot refuses to move a package whose patch names its
+# version. A patch that no longer applies fails the install.
+patchedDependencies:
+  "@floating-ui/dom": build/@floating-ui__dom.patch
+  "@types/sortablejs": build/@types__sortablejs.patch
+  "@observablehq/plot": build/@observablehq__plot.patch
+  pele: build/pele.patch
+  "@awesome.me/webawesome": build/@awesome.me__webawesome.patch
+  "@pierre/diffs": build/@pierre__diffs.patch

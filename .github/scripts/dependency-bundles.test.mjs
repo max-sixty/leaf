@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
-import { capture, publish } from "./dependency-bundles.mjs";
+import { capture, maturePnpm, publish } from "./dependency-bundles.mjs";
 
 const path = "browser/vendor/test.js";
 const theme = "browser/styles/vendor/webawesome-theme.css";
@@ -81,13 +81,52 @@ test("capture includes changed, new and deleted generated files, but rejects sou
     symlinkSync("missing.js", path);
     assert.throws(capture, /not a regular file/);
     rmSync(path);
-    writeFileSync("package.json", '{"tampered":true}');
+    writeFileSync("package.json", '{"packageManager":"pnpm@1.1.0"}');
+    assert.deepEqual(
+      capture().files.find((file) => file.path === "package.json"),
+      { path: "package.json", content: '{"packageManager":"pnpm@1.1.0"}' },
+    );
+    writeFileSync("source.js", "edit");
     assert.throws(capture, /non-bundle path/);
   } finally {
     process.chdir(previous);
     rmSync(directory, { recursive: true });
   }
 });
+
+const manifest = (version) =>
+  `{\n  "name": "leaf",\n  "packageManager": "pnpm@${version}"\n}\n`;
+const lockfile = (version, rest = "importers:\n  .: {}\n") => `---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: ${version}
+        version: ${version}
+
+packages:
+
+  '@pnpm/exe.linux-x64@${version}':
+    resolution: {integrity: sha512-aGVsbG8=}
+    os: [linux]
+
+  pnpm@${version}:
+    resolution: {integrity: sha512-d29ybGQ=}
+
+snapshots:
+
+  pnpm@${version}:
+    optionalDependencies:
+      '@pnpm/exe.linux-x64': ${version}
+
+---
+lockfileVersion: '9.0'
+
+${rest}`;
 
 function endpoint({
   current = head,
@@ -99,6 +138,10 @@ function endpoint({
   const calls = [];
   const api = async (method, route, data) => {
     calls.push({ method, route, data });
+    if (route.includes("/contents/package.json?ref=original-head"))
+      return manifest("1.0.0");
+    if (route.includes("/contents/pnpm-lock.yaml?ref=original-head"))
+      return lockfile("1.0.0");
     if (route.endsWith("/pulls"))
       return [
         {
@@ -180,6 +223,94 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
   ]) {
     const { api, calls } = endpoint(options);
     await assert.rejects(publish(api, repo, run, artifact), /non-bundle source/);
+    assert.ok(calls.every((c) => c.method === "GET"));
+  }
+});
+
+test("the build moves pnpm to the newest release old enough for minimumReleaseAge", () => {
+  const now = Date.parse("2026-11-26T00:00:00Z");
+  const time = {
+    created: "2016-01-01T00:00:00Z",
+    "1.9.0": "2026-11-01T00:00:00Z",
+    "1.10.0": "2026-11-20T00:00:00Z",
+    "2.0.0-rc.1": "2026-11-21T00:00:00Z",
+    "1.11.0": "2026-11-24T00:00:00Z",
+  };
+  assert.equal(maturePnpm(time, 3 * 24 * 60, now), "1.10.0");
+  assert.throws(() => maturePnpm(time, 60 * 24 * 60, now), /No pnpm release/);
+});
+
+test("publisher takes a pnpm pin only where nothing else in package.json or the lockfile changed", async () => {
+  const pin = [
+    { path: "package.json", content: manifest("1.1.0") },
+    { path: "pnpm-lock.yaml", content: lockfile("1.1.0") },
+  ];
+  const { api, calls } = endpoint({ extra: ["package.json"] });
+  assert.equal(
+    await publish(api, repo, run, { head, files: [...artifact.files, ...pin] }),
+    "generated-commit",
+  );
+  assert.deepEqual(
+    calls.find((c) => c.route.endsWith("/trees")).data.tree.map((f) => f.path),
+    [path, theme, "package.json", "pnpm-lock.yaml"],
+  );
+  assert.match(
+    calls.find((c) => c.route.endsWith("/commits") && c.method === "POST").data.message,
+    /^Move pnpm to 1\.1\.0 and rebuild browser bundles/,
+  );
+  for (const files of [
+    [pin[0]],
+    [
+      pin[0],
+      {
+        path: "pnpm-lock.yaml",
+        content: lockfile("1.1.0", "importers:\n  .: {evil: 1}\n"),
+      },
+    ],
+    [
+      { path: "package.json", content: manifest("1.1.0").replace("leaf", "evil") },
+      pin[1],
+    ],
+    [
+      pin[0],
+      {
+        path: "pnpm-lock.yaml",
+        content: lockfile("1.1.0").replace(
+          "{integrity: sha512-d29ybGQ=}",
+          "{tarball: https://example.com/pnpm.tgz}",
+        ),
+      },
+    ],
+    [
+      pin[0],
+      {
+        path: "pnpm-lock.yaml",
+        content: lockfile("1.1.0").replaceAll("@pnpm/exe.linux-x64", "evil"),
+      },
+    ],
+    [
+      pin[0],
+      {
+        path: "pnpm-lock.yaml",
+        content: lockfile("1.1.0").replace(
+          "\nsnapshots:\n",
+          "\n  evil@1.0.0: {}\n\nsnapshots:\n",
+        ),
+      },
+    ],
+    [
+      pin[0],
+      {
+        path: "pnpm-lock.yaml",
+        content: lockfile("1.1.0").replace(
+          "configDependencies: {}",
+          "configDependencies: {evil: 1}",
+        ),
+      },
+    ],
+  ]) {
+    const { api, calls } = endpoint({ extra: ["package.json"] });
+    await assert.rejects(publish(api, repo, run, { head, files }), /Invalid pnpm pin/);
     assert.ok(calls.every((c) => c.method === "GET"));
   }
 });

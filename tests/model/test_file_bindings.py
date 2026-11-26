@@ -1,6 +1,7 @@
 """Explicit local-file grants, lossless saves, and the authenticated HTTP door."""
 
 import json
+import os
 import shutil
 import stat
 from concurrent.futures import ThreadPoolExecutor
@@ -10,15 +11,24 @@ from threading import Event
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    PAGE,
     STATED_TIMEOUT,
     TOKEN,
+    check_findings,
     fetch,
     lock_contention,
+    publish,
+    read_page_data,
+    refused_on,
     running_http_server,
 )
 
 from leaf.base.locations import PATH_LOCKS, path_lock_key
 from leaf.commands.cli import cli
+from leaf.log.construction import input_readings
+from leaf.records.page_data import cmd_data_clear, cmd_data_set
+from leaf.source.data import read_source, write_data
+from leaf.source.data_contracts import DataError
 from leaf.source.file_bindings import (
     BINDINGS,
     MAX_FILE_BYTES,
@@ -26,11 +36,13 @@ from leaf.source.file_bindings import (
     StaleFileError,
     bind_file,
     bound_files,
+    bound_paths,
     labels,
     read_file,
     save_file,
 )
 from leaf.source.page_inputs import page_reading
+from leaf.source.vocabulary import read_page_registry
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
@@ -124,7 +136,9 @@ def test_page_state_names_each_bound_file_for_the_agent(page_dir, tmp_path):
 
 def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
     """A grant inside the page names its file from there, so a copy of the page,
-    such as a published example in its visitor's container, edits its own copy."""
+    such as a published example in its visitor's container, edits its own copy, and
+    reads it under the revision the original reads its own under, as a comment on the
+    published page's file records it."""
     target = page_dir / "files" / "deploy" / "values.yaml"
     target.parent.mkdir(parents=True)
     target.write_text("replicas: 3\n")
@@ -135,7 +149,9 @@ def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
     copy = tmp_path / "copy"
     shutil.copytree(page_dir, copy)
     current = read_file(copy, "values")
-    assert current is not None
+    original = read_file(page_dir, "values")
+    assert current is not None and original is not None
+    assert current["revision"] == original["revision"]
     save_file(
         copy, "values", {"revision": current["revision"], "text": "replicas: 4\n"}
     )
@@ -379,30 +395,198 @@ def test_http_file_door_requires_key_origin_and_current_revision(
         )
 
 
-def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
+def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(
     server, page_dir, tmp_path
 ):
-    """An editor reads its file only when the state answer stamps the binding anew,
-    so a write outside Leaf moves the reading a visible tab polls and that binding's
-    stamp."""
-    target = tmp_path / "notes.txt"
+    """An editor reads its file only when the state answer's source for the binding
+    names another write, so a write outside Leaf moves the reading a visible tab polls
+    and that source's run, and so do rewriting the same bytes, a same-size rewrite that
+    puts the old modification time back, and a file becoming unreadable, which the
+    source then reports, and a symlink put in its path, which a read refuses, and
+    taken out again."""
+    folder = tmp_path / "notes"
+    folder.mkdir()
+    target = folder / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
 
-    def stamps():
-        return {
-            binding: file["stamp"]
-            for binding, file in json.loads(fetch(f"{server}/api/state")[1])[
-                "files"
-            ].items()
-        }
+    def source():
+        return json.loads(fetch(f"{server}/api/state")[1])["data"]["sources"]["notes"]
+
+    def moves(change):
+        """The source after `change`, which moved the page's reading and the run."""
+        ran, reading = source()["run"], page_reading(page_dir)
+        change()
+        after = source()
+        assert page_reading(page_dir) != reading
+        assert after["run"] != ran
+        return after
 
     # The first state read activates the page, which moves its reading once.
-    stamped = stamps()
+    ran = source()["run"]
     reading = page_reading(page_dir)
-    assert set(stamped) == {"notes"}
-    assert (stamps(), page_reading(page_dir)) == (stamped, reading)
+    assert (source()["run"], page_reading(page_dir)) == (ran, reading)
 
-    target.write_text("edited outside Leaf\n")
-    assert page_reading(page_dir) != reading
-    assert stamps()["notes"] != stamped["notes"]
+    assert moves(lambda: target.write_text("ALPHA\n"))["value"]["text"] == "ALPHA\n"
+    assert moves(lambda: target.write_text("ALPHA\n"))["value"]["text"] == "ALPHA\n"
+
+    def same_size_at_the_old_time():
+        written = target.stat()
+        target.write_text("BRAVO\n")
+        os.utime(target, ns=(written.st_atime_ns, written.st_mtime_ns))
+
+    assert moves(same_size_at_the_old_time)["value"]["text"] == "BRAVO\n"
+    try:
+        unreadable = moves(lambda: target.chmod(0))
+        assert (
+            unreadable["error"] == "Could not access the bound file: Permission denied."
+        )
+    finally:
+        target.chmod(0o644)
+    assert source()["value"]["text"] == "BRAVO\n"
+
+    moved = tmp_path / "moved"
+
+    def indirect():
+        folder.rename(moved)
+        folder.symlink_to(moved)
+
+    def direct():
+        folder.unlink()
+        moved.rename(folder)
+
+    assert "symlink" in moves(indirect)["error"]
+    assert moves(direct)["value"]["text"] == "BRAVO\n"
+
+
+def test_a_bound_file_is_the_page_s_source_under_its_binding(
+    server, page_dir, tmp_path
+):
+    """A widget shows a bound file by binding its id as it would any source, with no
+    editor on the page: a `text-document` of the file's label, text and revision, read
+    again as the file changes. Its revision digests that value, as every source's
+    does, so a copy of it, as a live sample takes, reads as the same revision, and a
+    new label is a new revision a held tab is sent. The door refuses a comment on a
+    value the widget can't draw, as a file it can't read, while admitting one on a
+    value since replaced. The file is what changes the source, so `leaf data set` and
+    `leaf data clear` refuse the id and the widget's construction names the file to
+    edit."""
+    (tmp_path / "sub").mkdir()
+    target = tmp_path / "sub" / "README.md"
+    target.write_text("# Notes\n")
+    bind_file(page_dir, "readme", target)
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            '<lf-text-document id="readme-preview" source="readme" '
+            'preview="markdown"></lf-text-document>\n</main>',
+        )
+    )
+    publish(page_dir)
+    read = read_page_data(page_dir)["sources"]["readme"]
+    saved = read_file(page_dir, "readme")
+    assert saved is not None
+    assert (read["contract"], read["value"]) == (
+        "text-document",
+        {
+            "key": "readme",
+            "name": "README.md",
+            "text": "# Notes\n",
+            "revision": saved["revision"],
+        },
+    )
+    copied = tmp_path / "copy"
+    copied.mkdir()
+    write_data(
+        copied,
+        {"readme": {k: read[k] for k in ("contract", "run", "updated", "value")}},
+    )
+    registry = read_page_registry(page_dir).registry
+    copy = read_source(copied, "readme", registry)
+    assert copy is not None
+    assert copy["revision"] == read["revision"]
+
+    def comment(source_revision, attempt):
+        event = {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Say what the notes are for.",
+            "anchor": {
+                "section": "readme-preview",
+                "datum": "source",
+                "source": "readme",
+                "source_revision": source_revision,
+                "quote": "Notes",
+            },
+            "attempt": attempt,
+        }
+        return fetch(f"{server}/api/event", data=json.dumps(event).encode())
+
+    status, body = comment(read["revision"], "file_source_comment_1")
+    assert status == 200, body
+
+    # Binding a file outside its folder names it by a longer path, which reaches a tab
+    # holding the reading before it.
+    held = json.loads(fetch(f"{server}/api/state")[1])["browser"]["basis"]["key"]
+    (tmp_path / "other.md").write_text("Other.\n")
+    bind_file(page_dir, "other", tmp_path / "other.md")
+    relabelled = read_page_data(page_dir)["sources"]["readme"]
+    assert relabelled["value"]["name"] == "sub/README.md"
+    assert relabelled["revision"] != read["revision"]
+    tail = json.loads(
+        fetch(f"{server}/api/state", headers={"Leaf-Held-Basis": held})[1]
+    )
+    changes = {tuple(change["at"]): change.get("value") for change in tail["patch"]}
+    assert changes[("data", "sources", "readme", "value")]["name"] == "sub/README.md"
+
+    target.write_bytes(b"\x00")
+    unreadable = read_page_data(page_dir)["sources"]["readme"]
+    assert unreadable["error"] == "File contains binary control characters."
+    status, body = comment(unreadable["revision"], "file_source_comment_2")
+    assert status == 400
+    assert refused_on(body).code == "datum-undrawn-source"
+    status, body = comment(read["revision"], "file_source_comment_3")
+    assert status == 200, body
+
+    with pytest.raises(DataError, match="'readme' is a bound file"):
+        cmd_data_set(page_dir, "readme", "# Notes\n")
+    with pytest.raises(DataError, match="'readme' is a bound file"):
+        cmd_data_clear(page_dir, "readme")
+    readings = input_readings(
+        {"id": "readme-preview", "source": "readme"},
+        registry["lf-text-document"],
+        read_page_data(page_dir),
+        page_dir,
+        bound_paths(page_dir),
+    )
+    assert readings["document"]["edit"]["file"] == str(target.resolve())
+
+
+def test_an_input_of_another_contract_can_t_take_a_bound_file(page_dir, tmp_path):
+    """A widget input reading another contract than a file's draws nothing from it, so
+    `page check` refuses markup that binds a file's id there, and the widget's
+    construction says the input has no value it can draw."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            '<p><lf-num id="count-num" source="count" run="r1">3</lf-num></p>\n</main>',
+        )
+    )
+    target = tmp_path / "count.txt"
+    target.write_text("3\n")
+    bind_file(page_dir, "count", target)
+    status, findings = check_findings(page_dir)
+    assert status != 0
+    assert [finding.code for finding in findings if finding.refuses] == [
+        "file-contract"
+    ]
+
+    registry = read_page_registry(page_dir).registry
+    measurement = input_readings(
+        {"id": "count-num", "source": "count", "run": "r1"},
+        registry["lf-num"],
+        read_page_data(page_dir),
+        page_dir,
+        bound_paths(page_dir),
+    )["measurement"]
+    assert (measurement["available"], "value" in measurement) == (False, False)

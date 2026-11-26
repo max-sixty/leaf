@@ -84,7 +84,7 @@ from leaf.serving.revision_delivery import (
     runtime_settings,
 )
 from leaf.serving.served_state.service import PageStateService
-from leaf.source.data import read_data
+from leaf.source.data import data_of, read_data
 from leaf.source.data_contracts import data_bindings
 from leaf.source.registry.kernel import verb_writers
 from leaf.source.render_checks import (
@@ -343,16 +343,8 @@ def _page_data(page_dir: Path, document: SourceDocument, registry: dict) -> dict
     binds, which leaves out a source only a message's widget or an earlier revision
     binds. A widget a page's script creates finds its source only if the page's markup
     binds it too."""
-    stored = read_data(page_dir, registry)
     bound = {source for *_, source in data_bindings(document.lf_elements, registry)}
-    return {
-        **stored,
-        "sources": {
-            source: reading
-            for source, reading in stored["sources"].items()
-            if source in bound
-        },
-    }
+    return data_of(read_data(page_dir, registry), bound)
 
 
 def export_document(

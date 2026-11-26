@@ -44,18 +44,19 @@ since an earlier text of it, such as the version last committed. It compares the
 texts itself and follows each save, so it needs no patch:
 
 ```html
-<lf-diff id="readme-changes" before="readme-committed" for="readme-editor"></lf-diff>
+<lf-diff id="readme-changes" before="readme-committed" after="readme"></lf-diff>
 ```
 
-`for` names the file's editor, or any widget holding a `text-document` output. Set
-the earlier text as a source, naming the file:
+`after` names a source holding the current text, here the file's binding
+(`leaf file bind`), so the diff follows each write to the file, the editor's saves and
+yours alike. To follow whichever file an editor of several has open, bind `for` to the
+editor instead, or to any widget holding a `text-document` output. Set the earlier text as a source, naming the file:
 
 ```bash
 git show HEAD:README.md | jq -Rs '{name: "README.md", text: .}' | leaf data set <page> readme-committed
 ```
 
-Run it again after a commit to compare against the new version. A source holding the
-current text binds by `after` instead of `for`.
+Run it again after a commit to compare against the new version.
 
 ## Worktree snapshots
 

@@ -56,7 +56,7 @@ from leaf.serving.served_state.page import read_served_page
 from leaf.serving.user_views import read_user_views, viewed_at
 from leaf.source.data import data_errors
 from leaf.source.data_contracts import measurement_lag_entries
-from leaf.source.file_bindings import granted_files
+from leaf.source.file_bindings import bound_paths, granted_files
 from leaf.source.passages import page_passages
 from leaf.source.registry.contract import state_specs
 from leaf.source.registry.storage import IncompatibleLayer, layer_metadata
@@ -599,6 +599,7 @@ def page_state(
         outcomes = retirement_outcomes(thread_reading.projection.actions)
         # Each message as it now reads, with the facts its delivery carried.
         message_facts = facts(shown)
+        granted = bound_paths(page_dir)
         for event in shown:
             fragment = thread_reading.structure.fragments.get(event["id"])
             message = {
@@ -647,6 +648,7 @@ def page_state(
                 registry,
                 stored_data,
                 page_dir,
+                files=granted,
                 outcomes=outcomes,
                 retired=set(passages.retired) | set(passages.gone),
                 thread=thread_id,

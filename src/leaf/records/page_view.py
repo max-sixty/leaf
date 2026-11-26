@@ -18,7 +18,7 @@ source holds.
 from pathlib import Path
 
 from leaf.base.files import list_revisions
-from leaf.source.data import read_contracts
+from leaf.source.data import read_contracts, source_reading
 from leaf.source.passages import enclosing_ids
 from leaf.source.reading import SourceReading
 from leaf.source.revision_artifact import active_enclosing, read_revision
@@ -66,6 +66,11 @@ class PageView:
     def contracts(self) -> dict[str, str]:
         """Each recorded data source's contract, without reading its value."""
         return read_contracts(self._page_dir)
+
+    def source(self, source: str, registry: dict) -> dict | None:
+        """The value `source` holds now, as readers judged under `registry` receive it
+        (`data.source_reading`)."""
+        return source_reading(self._page_dir, source, registry)
 
 
 class CandidatePageView(PageView):
@@ -139,3 +144,7 @@ class InitialPageView:
     @property
     def contracts(self) -> dict:
         return self._contracts
+
+    def source(self, source: str, registry: dict) -> None:
+        """A fresh page holds no value of its own until it is allocated."""
+        return None

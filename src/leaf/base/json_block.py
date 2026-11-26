@@ -30,7 +30,7 @@ that program takes it: a command's output (`leaf delivery read`, `--json`), whic
 scripts and `jq` read, and records and wire messages.
 
 `read_json_block` reads a block back, for code that reads the text Leaf wrote, such as
-`hook_transport.inline_delivery`.
+`delivery.inline_delivery`.
 """
 
 import json

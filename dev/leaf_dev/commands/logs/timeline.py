@@ -44,9 +44,9 @@ from pathlib import Path
 
 import click
 
+from leaf.agents.delivery import inline_delivery
 from leaf.base.harness import claude_code_config
 from leaf.base.state import now_iso
-from leaf.commands.hook_transport import inline_delivery
 from leaf.log.event_log import read_stored_events
 from leaf.log.events import is_answer
 from leaf.log.interaction_log import interaction_time, read_interactions

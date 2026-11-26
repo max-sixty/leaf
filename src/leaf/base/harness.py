@@ -12,11 +12,9 @@ running this command out of the environment; `claim_harness` rebuilds the one a
 page's claim recorded.
 
 This module stands in `base`, since the event log, admission and claims read a
-harness, so a method here calls only modules below it. The Codex harness's
-`receive_pointer` and `reconcile_turn` are the two that don't: they import
-`codex_state` from `agents`, an import the contract allows by name. Behaviour one
-harness needs is such a method, which the others answer by default. Behaviour that
-needs a module above this one lives above that module instead, and reads a fact the
+harness, so a method here calls only modules below it. Behaviour one harness needs
+is such a method, which the others answer by default. Behaviour that needs a module
+above this one lives above that module instead, and reads a fact the
 harness declares: `inference` names the transport `inference.harness_generator`
 asks the harness's model through, and `adapter` says the session's input travels
 through Codex's adapter, which `hosting.preparing_delivery` starts and whose
@@ -38,6 +36,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import ClassVar, Literal
 
+from leaf.base.codex_transcript import sync_transcript_turn
 from leaf.base.files import read_json
 from leaf.base.leases import adapter_is_live, hooks_ran
 from leaf.base.machine import ancestry, pid_alive, process_argv
@@ -123,8 +122,9 @@ class Harness:
     # Whether the session's watcher is a detached adapter that carries its input
     # into later turns, through a delivery record its hooks offer from as well
     # (`codex_adapter`): a claim starts or joins it before publishing its page
-    # (`hosting.preparing_delivery`), and the tool hook and Stop offer the record
-    # (`hooks.offer_at_step`).
+    # (`hosting.preparing_delivery`), the tool hook and Stop offer the record
+    # (`hooks.offer_at_step`), and the reader's acknowledgement of a pointer the
+    # record offered confirms it there (`delivery.receive_delivery`).
     adapter: ClassVar[bool] = False
     # How Leaf asks the harness's model a tool-free structured question, which
     # `inference.harness_generator` reads: a completion on the session's own model
@@ -192,13 +192,6 @@ class Harness:
         The page's status reads such a turn as listening between two waits
         (`activity.takes_input`)."""
         return self.hooks_carry()
-
-    def receive_pointer(self, payload: dict) -> list[Path] | None:
-        """Confirm the reader's complete-reading attestation for a pointer whose
-        original `acknowledge` names nobody, the receipt its hooks left to the
-        reader, where this harness confirms it a way of its own; None where the
-        ordinary receipt does (`delivery.receive_delivery`)."""
-        return None
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
@@ -696,11 +689,6 @@ class CodexHarness(EnvironmentHarness):
         adapter leaves such a turn's input to it (`codex_adapter`)."""
         return hooks_ran(self.session)
 
-    def receive_pointer(self, payload: dict) -> list[Path]:
-        from leaf.agents.codex_state import confirm_codex_pointer
-
-        return confirm_codex_pointer(self.session, payload)
-
     def watcher_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The
         adapter's second lease is the narrower fact this watcher rests on: that
@@ -726,9 +714,7 @@ class CodexHarness(EnvironmentHarness):
 
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """Codex's native transcript also records turns resumed without input,
-        which run no prompt hook (`codex_state.sync_transcript_turn`)."""
-        from leaf.agents.codex_state import sync_transcript_turn
-
+        which run no prompt hook (`codex_transcript.sync_transcript_turn`)."""
         return sync_transcript_turn(self.session, payload.get("transcript_path"))
 
     @classmethod

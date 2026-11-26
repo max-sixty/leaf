@@ -42,8 +42,8 @@ from journeys import first_thread_head
 from leaf.agents import delivery as delivery_model
 from leaf.agents import thread as thread_model
 from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 from leaf.records import transaction as transaction_model
-from leaf.source import data as data_model
 from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
@@ -1187,7 +1187,7 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         f"diff --git a/{previous} b/{path}\nsimilarity index 50%\n"
@@ -1504,7 +1504,7 @@ body { font-family: system-ui, sans-serif; }
     assert "notification-configuration" in result_source
     assert "layout-workspace" not in result_source
     assert 'notification-artifact" hidden' not in result_source
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
         artifact.read_text(encoding="utf-8"),
@@ -1587,7 +1587,7 @@ body { font-family: system-ui, sans-serif; }
         "</article>",
     )
     artifact.write_text(second_artifact, encoding="utf-8")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
         artifact.read_text(encoding="utf-8"),

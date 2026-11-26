@@ -35,7 +35,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, paste_image
 from leaf.log import event_log as events_model
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
@@ -125,7 +125,7 @@ UPDATED_DATA_REVISION_DIFF = DATA_REVISION_DIFF.replace("terrace", "garden room"
 def open_data_revision_diff(browser, serve):
     """Open one live data-backed diff at the first source revision."""
     url = serve(DATA_REVISION_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "drawing-patch", DATA_REVISION_DIFF)
+    page_data_model.cmd_data_set(serve.page_dir, "drawing-patch", DATA_REVISION_DIFF)
     return open_page(browser, url)
 
 
@@ -1102,7 +1102,7 @@ def test_an_unsent_drawing_stays_where_it_was_when_its_data_revision_changes(
     draw_over(page, target)
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     before = mark_box(page, ".lf-drawing-pending")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "drawing-patch",
         UPDATED_DATA_REVISION_DIFF,
@@ -1136,7 +1136,7 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "drawing-patch",
         UPDATED_DATA_REVISION_DIFF,

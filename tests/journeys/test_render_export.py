@@ -18,7 +18,7 @@ from render_harness import (
     sending,
 )
 
-from leaf.agents import server as server_model
+from leaf.base import server as server_model
 from leaf.base import state as cleanup_model
 from leaf.commands import cli as cli_model
 from leaf.pages import exporting as exporting_model

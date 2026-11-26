@@ -11,9 +11,9 @@ from interact_support import (
 )
 from process.test_interact_claude_code_module import band_lines
 
-from leaf.agents import server as server_model
 from leaf.agents import thread as thread_model
 from leaf.base import rows as rows_model
+from leaf.base import server as server_model
 from leaf.records import transaction as transaction_model
 from leaf.serving import server_rows as server_rows_model
 

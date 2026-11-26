@@ -28,10 +28,10 @@ from leaf.base.state import (
     TOOLS_SUFFIX,
     flocked,
     flocked_descriptor,
+    kernel_protocol,
     session_file,
     still_named,
 )
-from leaf.source.registry.kernel import kernel_protocol
 
 
 def lock_is_held(path: Path) -> bool:

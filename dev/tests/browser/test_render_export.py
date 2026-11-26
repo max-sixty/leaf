@@ -16,7 +16,7 @@ from render_harness import (
     sending,
 )
 
-from leaf.agents import server as server_model
+from leaf.base import server as server_model
 from leaf.source.render_checks import HANDOVER_DEADLINE_MS
 
 from ..journeys.test_render_export import (  # noqa: F401

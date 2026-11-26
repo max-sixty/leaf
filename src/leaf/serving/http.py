@@ -37,7 +37,6 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
 from leaf.agents.presence import live_servers, pages_reading
-from leaf.agents.server import page_origin, preview_metadata, running_server
 from leaf.base.files import (
     missing_revision,
     revision_num,
@@ -58,6 +57,7 @@ from leaf.base.schema import (
     REVISION_NAME,
     SERVED_PATH,
 )
+from leaf.base.server import page_origin, preview_metadata, running_server
 from leaf.base.state import page_key
 from leaf.log.interaction_log import admit_batch, append_interactions, client_records
 from leaf.serving.drafts import write_draft

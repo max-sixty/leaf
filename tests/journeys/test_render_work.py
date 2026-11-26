@@ -24,7 +24,7 @@ from render_harness import (
 
 from leaf.commands import cli as cli_model
 from leaf.log.event_log import read_events
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 from leaf.source.passages import page_passages
 from leaf.source.render_checks import wait_until_ready
 from leaf.source.structure import SourceDocument
@@ -90,7 +90,7 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     ]
     refreshed_at = datetime.now().astimezone().isoformat(timespec="seconds")
     worktrees["tree-w-1"]["observedAt"] = refreshed_at
-    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", worktrees)
+    page_data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", worktrees)
     told(page)
     expect(observed).to_have_text(re.compile(r"\d+d ago"))
     expect(latest).to_be_enabled()

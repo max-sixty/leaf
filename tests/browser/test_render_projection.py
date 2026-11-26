@@ -44,7 +44,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
 from leaf.pages.render_gate.readings import DevtoolsIssues
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.render_checks import wait_until_ready
 
@@ -90,8 +90,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 +            return f"tok:{request.token.id}"
 +        return f"ip:{request.remote_addr}"
 """
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", capture)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(serve.page_dir, "request-call-diff", capture)
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {
@@ -226,7 +226,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         ),
         to="feature-2",
     )
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
+    page_data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
     # A retained row carries the capture it now shows, at its place in the tree.
     expect(lines.nth(2)).to_have_attribute(
@@ -289,7 +289,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     # followed link is, though the diff had already brought the line into the window.
     assert page.evaluate("history.length") == entries + 2
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch.replace(" class Limiter:", " class Limiter:  # raw source"),
@@ -329,7 +329,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
     )
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/gateway/limits.py b/gateway/limits.py
@@ -339,7 +339,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
  shifted_call()
 """,
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
         call_diff(call_node("shifted_call()", "gateway/limits.py", 102)),
@@ -355,14 +355,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
 
     # Native trees can contain synthetic nodes without source coordinates.
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "request-call-diff", call_diff(call_node("synthetic()"))
     )
     told(page)
     expect(widget.locator(".lf-call-group-summary")).to_contain_text("synthetic()")
     expect(widget.locator(".lf-call-location:visible")).to_have_count(0)
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
         call_diff(message="No callstack changes for requested entrypoints."),

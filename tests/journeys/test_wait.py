@@ -205,7 +205,7 @@ from interact_support import (
     write_record,
 )
 
-from leaf.agents import server as server_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.commands import cli as cli_model
 from leaf.commands import hooks as hooks_model

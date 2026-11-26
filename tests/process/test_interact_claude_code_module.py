@@ -26,11 +26,11 @@ from interact_support import (
 
 from leaf.agents import delivery as delivery_model
 from leaf.agents import inference as inference_model
-from leaf.agents import server as server_model
 from leaf.agents import thread as thread_model
 from leaf.agents import thread_titles as thread_titles_model
 from leaf.base import leases as leases_model
 from leaf.base import rows as rows_model
+from leaf.base import server as server_model
 from leaf.base.harness import NUDGE_WORDS
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model

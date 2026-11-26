@@ -12,9 +12,9 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import STATED_TIMEOUT, fetch, neighbour_page, record_claim
 
-from leaf.agents import server as server_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.detached import Handshake
@@ -250,8 +250,8 @@ def test_failed_delivery_preserves_the_existing_preview(
     page_dir, monkeypatch, failure, handoff
 ):
     """Failure before acceptance preserves both listener and original watcher."""
-    from leaf.agents.server import running_server
     from leaf.base.harness import session_harness
+    from leaf.base.server import running_server
     from leaf.base.service import page_claim
     from leaf.pages import hosting as hosting_model
     from leaf.pages.hosting import claim_and_start, cmd_serve, cmd_stop

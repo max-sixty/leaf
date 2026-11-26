@@ -135,13 +135,13 @@ from leaf.agents.delivery import (
     delivery_pointer_prompt,
     inline_delivery,
 )
-from leaf.agents.server import running_server
 from leaf.base.harness import (
     NUDGE_WORDS,
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
 )
+from leaf.base.server import running_server
 from leaf.base.service import page_claim
 from leaf.base.state import turn_open
 from leaf.commands.hook_transport import ATTENTION_OPENING

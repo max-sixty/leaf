@@ -68,7 +68,6 @@ from leaf.agents.codex import (
     start_app_server_delivery,
 )
 from leaf.agents.delivery import read_delivery, stream_reply_target
-from leaf.agents.server import preview_metadata
 from leaf.agents.thread import (
     fail_answer,
     release_delivery_reply,
@@ -80,6 +79,7 @@ from leaf.base.leases import release_lease, take_wait_lease, waiter_lease_path
 from leaf.base.page_memory import Slot, memo
 from leaf.base.refusals import Refused
 from leaf.base.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
+from leaf.base.server import preview_metadata
 from leaf.base.service import page_claim
 from leaf.base.state import (
     advance_turn,

@@ -2909,7 +2909,10 @@ if arguments[:2] == ["app-server", "--listen"]:
 
 @pytest.mark.parametrize(
     "ending",
-    ["sys.exit(0)", "from leaf.agents.server import exit_serving; exit_serving(0)"],
+    [
+        "sys.exit(0)",
+        "from leaf.serving.server_lifetime import exit_serving; exit_serving(0)",
+    ],
 )
 def test_a_private_app_server_stops_when_its_process_exits(tmp_path, ending):
     """A page server's title request holds its App Server on a daemon thread, which

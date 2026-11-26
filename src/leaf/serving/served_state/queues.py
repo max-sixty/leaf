@@ -46,8 +46,8 @@ inventory and lands in no Done.
 """
 
 from leaf.base.standing import is_open
+from leaf.base.state import aware_instant
 from leaf.log.obligations import answered_in_words, thread_topics
-from leaf.source.registry.schema import aware_instant
 
 
 def _subject(record: dict) -> dict:

@@ -86,8 +86,8 @@ from render_harness import (
 from browser.threads import open_panel_thread, thread_row
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import data as data_model
 from leaf.source import structure as structure_model
 from leaf.source.registry import storage as registry_storage
 from leaf.source.render_checks import evaluate_probe, rendered
@@ -4188,7 +4188,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
         "collapsed></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {
@@ -4366,7 +4366,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
             f"</lf-diff><section id=far>{filler}</section>",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -4436,7 +4436,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 """,
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -4535,7 +4535,7 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
         "collapsed></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         TWO_FILE_MANIFEST,
@@ -4644,8 +4644,8 @@ def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
             }
         ]
     }
-    data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
-    data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
+    page_data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
     line = '["long.py","new",280]'
     earlier = {"source": "earlier-patch", "source_revision": "0" * 16}
     for section, datum, anchor in (
@@ -4738,7 +4738,7 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
             "{ content-visibility: visible; visibility: hidden; }</style>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
     for anchor in (
         {"section": "folded"},
         {"section": "unchosen"},
@@ -4828,7 +4828,7 @@ def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
             '<lf-diff id="patch" source="long-patch" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "long-patch",
         {
@@ -4888,7 +4888,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
             "collapsed></lf-diff>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
     page = open_page(browser, url, init_script=HOLD_SECOND_FILE)
     page.locator("lf-diff summary").first.click()
     first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
@@ -4941,13 +4941,13 @@ def test_a_diff_tracks_each_write_of_its_source(browser, serve):
             ]
         }
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("first.py", "old", "first")
     )
     page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("second.py", "old", "second")
     )
     told(page)
@@ -5158,7 +5158,9 @@ new file mode 120000
     )
     url = serve(authored)
     if manifest:
-        data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))
+        page_data_model.cmd_data_set(
+            serve.page_dir, "native-patch", patch_manifest(source)
+        )
     context = browser.new_context(
         viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
     )

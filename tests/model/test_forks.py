@@ -36,7 +36,6 @@ from leaf.serving import event_endpoint as endpoint_model
 from leaf.serving import server_rows as server_rows_model
 from leaf.serving.served_state.context import read_page
 from leaf.source import revision_artifact as revision_artifact_model
-from leaf.source.registry import kernel as kernel_model
 
 # What Leaf's Claude Code hooks module gives the pages follower of session s1
 # (`hooks.cmd_pages`).
@@ -749,9 +748,9 @@ def test_the_follower_ends_once_its_tree_moves_on_under_it(
     monkeypatch.setattr(file_changes_model, "wait", wait)
     if moved == "protocol":
         monkeypatch.setattr(
-            kernel_model,
+            hooks_model,
             "installed_protocol",
-            lambda: kernel_model.kernel_protocol() + len(waited),
+            lambda: state_model.kernel_protocol() + len(waited),
         )
     else:
         launcher = state_model.PLUGIN_ROOT / "bin" / "leaf"

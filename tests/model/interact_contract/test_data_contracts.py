@@ -26,10 +26,11 @@ from leaf.base.findings import Rejected
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.pages.page import page_instructions
+from leaf.records import page_data as page_data_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records.authored_checks.declarations import declaration_advice
 from leaf.source import data as data_model
-from leaf.source import data_contracts as data_contracts_model
+from leaf.source import revision_artifact as artifact_model
 from leaf.source.registry import contract as registry_contract
 from leaf.source.registry import storage as registry_storage
 from leaf.source.registry import validation as registry_validation
@@ -279,7 +280,7 @@ def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
         )
     )
     revisions = files_model.list_revisions(page_dir)
-    data_model.cmd_data_set(page_dir, "report", "New report.")
+    page_data_model.cmd_data_set(page_dir, "report", "New report.")
     assert files_model.list_revisions(page_dir) == revisions
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
@@ -305,7 +306,7 @@ def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(pag
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.created
-    data_model.cmd_data_set(page_dir, "report", "Retained report.")
+    page_data_model.cmd_data_set(page_dir, "report", "Retained report.")
     revisions = files_model.list_revisions(page_dir)
     source.write_bytes(b"\xff")
 
@@ -373,7 +374,7 @@ def _page_owned_files_source(page_dir):
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.created
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         page_dir,
         "files",
         {"files": [{"key": "app.py", "patch": "old", "body": "new"}]},
@@ -385,7 +386,7 @@ def _page_owned_files_source(page_dir):
 def test_page_owned_data_contracts_can_change_after_publication(page_dir, change):
     """Current declarations can change; old documents retain their captured registry."""
     authored = _page_owned_files_source(page_dir)
-    old_registry = data_contracts_model.read_revision(
+    old_registry = artifact_model.read_revision(
         page_dir, files_model.list_revisions(page_dir)[-1]
     ).registry
     declarations = json.loads(authored.read_text())
@@ -404,7 +405,7 @@ def test_page_owned_data_contracts_can_change_after_publication(page_dir, change
     if change == "records":
         # Rows the new key tells apart and the old one doesn't.
         value["files"].append({"key": "app.py", "patch": "next", "body": "more"})
-    data_model.cmd_data_set(page_dir, "files", value)
+    page_data_model.cmd_data_set(page_dir, "files", value)
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
     current = registry_storage.require_registry(page_dir)
@@ -441,9 +442,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
         }
     ]
 
-    inventory = data_contracts_model.page_data_binding_inventory(
-        page_dir, registry, events
-    )
+    inventory = page_data_model.page_data_binding_inventory(page_dir, registry, events)
     assert inventory["reply-feed"]["consumers"] == [
         {
             "widget": "reply-data",
@@ -451,7 +450,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
             "document": "event 'feed-reply' markup",
         }
     ]
-    bootstrap = data_contracts_model.page_data_binding_inventory(
+    bootstrap = page_data_model.page_data_binding_inventory(
         tmp_path / "bootstrap", registry, [{**events[0], "revision": None}]
     )
     assert bootstrap == {

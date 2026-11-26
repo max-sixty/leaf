@@ -30,7 +30,8 @@ a server until the agent acts, which an agent can put off or never do.
 
 A page whose server still runs in the grace its earlier session left it keeps that
 server, whichever copy started it. Once the page's claim is live again, the server
-itself moves to the Leaf the session's hooks run (`server.stop_when_service_ends`).
+itself moves to the Leaf the session's hooks run
+(`server_lifetime.stop_when_service_ends`).
 """
 
 import time
@@ -96,7 +97,7 @@ def _deadline(started: float) -> float:
 def to_serve(harness: Harness) -> list[Path]:
     """The pages `harness`'s session still means to serve whose ownership or server
     is down, by the rules the module header gives."""
-    from leaf.agents.server import read_service, running_server
+    from leaf.base.server import read_service, running_server
 
     pages = []
     for claim in claim_records(harness.session):

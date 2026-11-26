@@ -64,7 +64,7 @@ from browser.test_render_outbox import undo_offered
 from browser.threads import open_panel_thread
 from leaf.agents import thread as thread_model
 from leaf.log import event_log as events_model
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
@@ -2331,7 +2331,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
             '<h1>Review</h1><lf-diff id="patch" source="patch"></lf-diff>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch",
         """diff --git a/app.py b/app.py

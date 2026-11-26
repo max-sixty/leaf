@@ -339,8 +339,8 @@ def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> 
     what the page now holds there. Unchanged captures retain their run receipts;
     sources no longer captured remain available to historical revisions.
     """
+    from leaf.records.page_data import working_data_bindings
     from leaf.source.data import read_data
-    from leaf.source.data_contracts import working_data_bindings
     from leaf.source.registry.storage import load_registry
 
     registry = load_registry(page)

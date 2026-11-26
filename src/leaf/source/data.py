@@ -4,7 +4,7 @@
 `contract` it was set under, its opaque `run` receipt, `updated` instant, and
 complete `value`. The page holds a source exactly while that file exists.
 `leaf data set` validates the value against the contract the source is bound to at
-the write (`data_contracts.working_data_bindings`) and writes the four together
+the write (`page_data.working_data_bindings`) and writes the four together
 through `write_data`, which a sample's copy of its parent's data also uses;
 `leaf data clear` removes the file, so the source's next write takes its binding
 then. A reader trusts the file's shape and judges only the value, against the
@@ -22,26 +22,20 @@ binds a source id nothing rewrites.
 
 import hashlib
 import json
-import re
 from pathlib import Path
-from uuid import uuid4
 
 from leaf.base.files import file_stamp, replace_files
-from leaf.base.json_block import json_value
 from leaf.base.page_memory import memo
-from leaf.base.schema import DATA_DIR, DATA_SOURCE_NAME
+from leaf.base.schema import DATA_DIR
 from leaf.base.state import (
     STRING,
     TIME,
     Record,
     described,
     json_bytes,
-    now_iso,
     object_schema,
 )
-from leaf.records.transaction import PageTransaction
-from leaf.source.data_contracts import DataError, payload_error, working_data_bindings
-from leaf.source.registry.storage import read_page_registry
+from leaf.source.data_contracts import payload_error
 
 PUBLICATION = Record(
     "data-source",
@@ -226,71 +220,3 @@ def data_errors(stored: dict) -> list[str]:
     return [
         reading["error"] for reading in stored["sources"].values() if "error" in reading
     ]
-
-
-def _write_source(page_dir: Path, source: str, value) -> dict:
-    """Validate and atomically replace one source's value, returning its reading."""
-    try:
-        # Validate the value the file will actually hold. Python's encoder accepts
-        # values JSON itself cannot express directly — tuples become arrays and
-        # non-string mapping keys become strings — so validating the
-        # pre-serialization object can admit a value its own schema rejects on disk.
-        value = json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
-    except (TypeError, ValueError) as error:
-        raise DataError(f"source {source!r} value is not JSON: {error}") from error
-    if re.fullmatch(DATA_SOURCE_NAME, source) is None:
-        raise DataError(f"invalid source name {source!r}")
-    with PageTransaction(page_dir) as page:
-        registry = read_page_registry(page_dir).registry
-        bindings, binding_errors = working_data_bindings(
-            page_dir, registry, page.events
-        )
-        if binding_errors:
-            raise DataError(
-                "conflicting data bindings: " + "; ".join(map(str, binding_errors))
-            )
-        contract = bindings.get(source)
-        if contract is None:
-            raise DataError(
-                f"source {source!r} is not bound by the page source, a version, or "
-                f"a thread widget; choose one of {json_value(sorted(bindings))}"
-            )
-        if error := payload_error(f"source {source!r}", contract, value, registry):
-            raise DataError(error)
-        write_data(
-            page_dir,
-            {
-                source: {
-                    "contract": contract,
-                    "run": uuid4().hex,
-                    "updated": now_iso(),
-                    "value": value,
-                }
-            },
-        )
-        reading = read_source(page_dir, source, registry)
-        assert reading is not None
-        return reading
-
-
-def cmd_data_set(page_dir: Path, source: str, value) -> dict:
-    """Validate and atomically replace one source's complete current value, and
-    return the written source's reading, less the value the writer just handed in."""
-    reading = _write_source(page_dir, source, value)
-    return {"source": source} | {
-        key: item for key, item in reading.items() if key != "value"
-    }
-
-
-def cmd_data_clear(page_dir: Path, source: str) -> dict:
-    """Remove one source's publication, its value with the contract it was set
-    under; its next write takes the binding it has then."""
-    if re.fullmatch(DATA_SOURCE_NAME, source) is None:
-        raise DataError(f"invalid source name {source!r}")
-    with PageTransaction(page_dir):
-        try:
-            PUBLICATION.file(source_file(page_dir, source)).unlink()
-            cleared = True
-        except FileNotFoundError:
-            cleared = False
-    return {"source": source, "cleared": cleared}

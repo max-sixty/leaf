@@ -23,10 +23,10 @@ from leaf.commands import cli as cli_model
 from leaf.commands import session as session_model
 from leaf.log.event_log import read_events
 from leaf.pages import exporting as exporting_model
+from leaf.records import page_data as page_data_model
 from leaf.records import transaction as transaction_model
 from leaf.serving import media as media_model
 from leaf.serving.served_state.service import PageStateService
-from leaf.source import data as data_model
 from leaf.source.structure import SourceDocument
 from leaf_dev.example_data import patch_manifest
 
@@ -133,8 +133,8 @@ def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_p
             '</lf-text-document><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "NOTES_SENTINEL\n")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "NOTES_SENTINEL\n")
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(
@@ -227,8 +227,8 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
             "</lf-text-document>",
         },
     )
-    data_model.cmd_data_set(claimed, "thread-notes", "BOUNDINTHREADWORD\n")
-    data_model.cmd_data_set(claimed, "page-notes", "PAGEDATAWORD\n")
+    page_data_model.cmd_data_set(claimed, "thread-notes", "BOUNDINTHREADWORD\n")
+    page_data_model.cmd_data_set(claimed, "page-notes", "PAGEDATAWORD\n")
     append_command(
         claimed, {**choice, "widget": "reply-choice", "detail": {"value": ["PICKWORD"]}}
     )

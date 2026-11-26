@@ -26,8 +26,7 @@ from interact_support import (
     wait_for,
 )
 
-from leaf.agents import server
-from leaf.base import service
+from leaf.base import server, service
 from leaf.commands import cli as cli_model
 from leaf.log.interaction_log import read_interactions
 from leaf.pages import hosting

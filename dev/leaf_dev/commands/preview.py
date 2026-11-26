@@ -444,7 +444,7 @@ class PreviewService:
     @property
     def running(self) -> bool:
         """Whether the server is up. A `--user` one also ends with its claim."""
-        from leaf.agents.server import running_server
+        from leaf.base.server import running_server
 
         if not self.user:
             return self.temporary is not None and self.temporary.running
@@ -459,7 +459,7 @@ class PreviewService:
         A `--user` service still enabled but down is not ended. That is a server
         that died, or one `page init` restarted but could not start again (the
         recorded port was taken), and the watcher tries it again."""
-        from leaf.agents.server import read_service
+        from leaf.base.server import read_service
         from leaf.base.service import claim_is_active, page_claim, same_claim
 
         if not self.user:

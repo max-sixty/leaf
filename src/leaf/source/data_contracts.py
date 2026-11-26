@@ -1,22 +1,22 @@
-"""Typed data bindings, registry contracts, inventories, and lag.
+"""One document's typed data bindings and inventory, the registry contracts that
+judge a value, and measurement lag. `page_data` reads the bindings across a page's
+history.
 
-Immutable document readings retain only binding records and data declarations.
-Historical inventories therefore survive eviction of their source parses without
-retaining parser nodes, unrelated widget metadata, or a complete vocabulary.
+A document's reading (`data_document_readings`) retains only binding records and
+data declarations, so a reading of the page's history survives eviction of its
+source parses without retaining parser nodes, unrelated widget metadata, or a
+complete vocabulary.
 """
 
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from leaf.base.files import latest_revision
 from leaf.base.findings import Finding, element_at
 from leaf.base.json_block import json_value
 from leaf.base.refusals import Refused
 from leaf.base.schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
-from leaf.log.events import thread_structure
 from leaf.source.registry.schema import json_validator
-from leaf.source.revision_artifact import read_revision, revision_history
 from leaf.source.structure import SourceDocument
 
 
@@ -182,106 +182,13 @@ def data_document_readings(
     return readings
 
 
-def page_data_document_readings(
-    page_dir: Path, events: list, registry: dict
-) -> list[tuple[list, str, dict]]:
-    """Read each historical data consumer with its captured registry.
-
-    A message's markup, as it now reads (`thread_structure`), uses the registry of
-    the revision its wording was admitted with; a seeded message on a page without
-    revisions uses the newest. These readings permit historical producers and
-    inventories without restricting later documents' bindings.
-    """
-    documents = [
-        [
-            (records, f"revision r{revision}{label}", declarations)
-            for records, label, declarations in readings
-        ]
-        for revision, readings in revision_history(page_dir).data_documents
-    ]
-    active_document = documents.pop() if documents else None
-    newest = latest_revision(page_dir)
-    structure = thread_structure(events)
-    for message, fragment in structure.fragments.items():
-        revision = structure.wordings[message][-1].get("revision") or newest
-        selected_registry = (
-            registry if revision is None else read_revision(page_dir, revision).registry
-        )
-        documents.append(
-            data_document_readings(
-                fragment, f"event {message!r} markup", selected_registry
-            )
-        )
-    # The active document owns current bindings ahead of older messages' markup.
-    if active_document is not None:
-        documents.append(active_document)
-    return [reading for group in documents for reading in group]
-
-
-def _authored_readings(page_dir: Path, registry: dict) -> list[tuple[list, str, dict]]:
+def authored_readings(page_dir: Path, registry: dict) -> list[tuple[list, str, dict]]:
     """The current source under the candidate registry."""
     source = page_dir / "index.html"
     if not source.exists():
         return []
     authored = SourceDocument(source.read_text(encoding="utf-8"))
     return data_document_readings(authored, "index.html", registry)
-
-
-def initial_data_document_readings(
-    authored: SourceDocument, events: list, registry: dict
-) -> list:
-    """A fresh page's source and seeded messages share its initial registry."""
-    documents = data_document_readings(authored, "index.html", registry)
-    for message, fragment in thread_structure(events).fragments.items():
-        documents.extend(
-            data_document_readings(fragment, f"event {message!r} markup", registry)
-        )
-    return documents
-
-
-def working_data_bindings(
-    page_dir: Path,
-    registry: dict,
-    events: list,
-) -> tuple[dict, list[Finding]]:
-    """Latest source bindings, with the current authored document taking precedence."""
-    return merge_data_document_readings(
-        [
-            *page_data_document_readings(page_dir, events, registry),
-            *_authored_readings(page_dir, registry),
-        ]
-    )
-
-
-def page_data_binding_inventory(
-    page_dir: Path,
-    registry: dict,
-    events: list,
-) -> dict:
-    """Current producer bindings and their matching document consumers.
-
-    A later binding replaces an earlier contract for the same source. Consumers of
-    that former contract keep their captured registry and may receive a missing or
-    invalid current value; they do not constrain the producer's next write.
-    """
-    documents = page_data_document_readings(page_dir, events, registry)
-    bindings, errors = merge_data_document_readings(documents)
-    if errors:
-        raise DataError("conflicting data bindings: " + "; ".join(map(str, errors)))
-    inventory = {
-        source: {"contract": contract, "consumers": []}
-        for source, contract in bindings.items()
-    }
-    for lf_elements, document, document_registry in documents:
-        for source, binding in data_binding_inventory(
-            lf_elements, document_registry
-        ).items():
-            if binding["contract"] != bindings[source]:
-                continue
-            inventory[source]["consumers"].extend(
-                {**consumer, "document": document} for consumer in binding["consumers"]
-            )
-    return {source: inventory[source] for source in sorted(inventory)}
 
 
 def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
@@ -360,7 +267,7 @@ def data_binding_errors(
     A conflict lies within one document (`merge_data_document_readings`), and each
     revision and logged fragment was refused for one as it entered, so the history
     holds none to find."""
-    documents = _authored_readings(page_dir, registry)
+    documents = authored_readings(page_dir, registry)
     for document, label in incoming:
         documents.extend(data_document_readings(document, label, registry))
     return data_document_errors(documents)

@@ -200,7 +200,7 @@ from interact_support import (
     write_record,
 )
 
-from leaf.agents import server as server_model
+from leaf.base import server as server_model
 
 
 def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):

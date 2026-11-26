@@ -135,8 +135,13 @@ function headingSlugs(headings) {
   return slugs;
 }
 
+// The file a value names: its stable key where it gives one, else its name.
+/** @param {DocumentValue | null} value */
+const fileOf = (value) =>
+  typeof value === "string" ? null : (value?.key ?? value?.name ?? null);
+
 // The candidates of a `srcset`, each its URL and its size, as `640w` or `2x`: a URL runs
-// to whitespace, and a comma it ends with, or the first after its size, ends the
+// to HTML's whitespace, and a comma it ends with, or the first after its size, ends the
 // candidate (HTML's "parse a srcset attribute").
 /** @param {string} srcset @returns {[string, string][]} */
 function srcsetCandidates(srcset) {
@@ -144,10 +149,10 @@ function srcsetCandidates(srcset) {
   const candidates = [];
   let at = 0;
   while (at < srcset.length) {
-    const start = srcset.slice(at).search(/[^\s,]/);
+    const start = srcset.slice(at).search(/[^\t\n\f\r ,]/);
     if (start < 0) break;
     at += start;
-    const end = at + srcset.slice(at).search(/\s|$/);
+    const end = at + srcset.slice(at).search(/[\t\n\f\r ]|$/);
     const url = srcset.slice(at, end);
     at = end;
     if (url.endsWith(",")) {
@@ -1206,8 +1211,8 @@ class TextDocument extends LeafElement {
   // it in a new tab, as a link that leaves the page does (`pageLinks`). Any other
   // fragment names the page's own place. A fold the text changed inside stays as the
   // reader left it.
-  /** @param {string} source @param {string | null} address @param {number} rendering */
-  async preparePreview(source, address, rendering) {
+  /** @param {string} source @param {string | null} file @param {string | null} address @param {number} rendering */
+  async preparePreview(source, file, address, rendering) {
     const content = await markdownFileFragment(source, pageLinks);
     for (const element of content.querySelectorAll(
       '[id^="user-content-"], a[name^="user-content-"]',
@@ -1252,7 +1257,12 @@ class TextDocument extends LeafElement {
     const fresh = [...content.childNodes];
     const markups = fresh.map(drawnMarkup);
     const drawn = this.view?.preview;
-    if (!(drawn instanceof HTMLDivElement) || !drawn.hasChildNodes())
+    // Another file draws afresh, its folds as it writes them.
+    if (
+      !(drawn instanceof HTMLDivElement) ||
+      !drawn.hasChildNodes() ||
+      fileOf(this.previewed) !== file
+    )
       return { nodes: fresh, markups };
     /** @type {Map<string, ChildNode[]>} */
     const standing = new Map();
@@ -1307,7 +1317,7 @@ class TextDocument extends LeafElement {
     const source = typeof value === "string" ? value : (value?.text ?? "");
     const name = typeof value === "string" ? null : (value?.name ?? null);
     // The file's identity: its stable key where the value gives one, else its name.
-    const file = typeof value === "string" ? null : (value?.key ?? name);
+    const file = fileOf(value);
     const address = typeof value === "string" ? null : (value?.url ?? null);
     const preview = this.getAttribute("preview");
     try {
@@ -1334,7 +1344,7 @@ class TextDocument extends LeafElement {
       // change together in one task (`preparePreview`).
       const blocks =
         preview === "markdown"
-          ? await this.preparePreview(source, address, rendering)
+          ? await this.preparePreview(source, file, address, rendering)
           : null;
       if (rendering !== this.rendering || !this.isConnected) return;
       const next = lines(source);

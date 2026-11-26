@@ -193,6 +193,7 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
         "Styled</div>\n\n"
         '<input type="text" value="typed">\n\n'
         "| Name | Size |\n| :-: | --: |\n| logo | 40 |\n\n"
+        '<table><tr><td align="right">Sponsor</td></tr></table>\n\n'
         "- [x] Done\n"
     )
     url = serve(
@@ -247,8 +248,8 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
         == "a"
     )
     assert preview.locator("td").evaluate_all(
-        "cells => cells.map((cell) => getComputedStyle(cell).textAlign)"
-    ) == ["center", "right"]
+        "cells => cells.map((cell) => getComputedStyle(cell).textAlign.replace('-webkit-', ''))"
+    ) == ["center", "right", "right"]
     fields = preview.locator("input")
     expect(fields).to_have_count(2)
     for at in range(2):

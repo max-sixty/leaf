@@ -997,7 +997,9 @@ summary {
   position: sticky;
   z-index: 2;
   margin-inline: auto
-    calc((max(var(--lf-icon-action-face), var(--lf-aim-floor)) - var(--lf-mark-size)) / 2);
+    calc(
+      (max(var(--lf-icon-action-face), var(--lf-aim-floor)) - var(--lf-mark-size)) / 2
+    );
   opacity: 0;
   visibility: hidden;
   transition:

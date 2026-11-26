@@ -568,12 +568,14 @@ def batch_data(
     transaction,
     batch: list[dict],
     *,
-    responses: dict | None = None,
+    work: "WorkState | None" = None,
     whole: bool = False,
 ) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
-    from it. `whole` carries each thread whole (`thread_context.batch_threads`)."""
+    from it, by the page's work (`presence.read_work`), `work` where the caller has
+    already read it. `whole` carries each thread whole
+    (`thread_context.batch_threads`)."""
     from leaf.agents.presence import read_work
     from leaf.base.leases import lane_up
     from leaf.log.obligations import (
@@ -602,14 +604,10 @@ def batch_data(
     reads_obligations = any(event["kind"] == "action" for event in batch) or any(
         asking.intersection(facts[event["id"]]["threads"]) for event in replies
     )
-    work = (
-        read_work(page_dir, events) if responses is None or reads_obligations else None
-    )
-    if responses is None:
-        responses = current_responses(page_dir, events, work)
-    if reads_obligations:
-        assert work is not None
-    durable = work.durable if work is not None and reads_obligations else None
+    if work is None:
+        work = read_work(page_dir, events)
+    responses = current_responses(page_dir, events, work)
+    durable = work.durable if reads_obligations else None
     settled = (
         settled_by_message(durable.all_obligations["all"])
         if durable is not None

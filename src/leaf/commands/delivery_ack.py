@@ -8,13 +8,12 @@ offer from (`Harness.adapter`), a pointer is confirmed on that record, which kee
 the exact turn a hook offered it to (`codex.confirm_codex_pointer`); every other
 delivery takes its page receipts directly (`delivery.receive`). Explicit
 confirmation is strict: a transferred page or an ended turn refuses rather than
-accepting a partial receipt. Automatic hook and provider receipts observe an
-already-open turn through `delivery.receive` instead.
+accepting a partial receipt. Hooks (`delivery.receive_held`) and Codex's provider
+receipts (`delivery.receive_batch`) observe an already-open turn instead.
 """
 
 from pathlib import Path
 
-from leaf.agents.codex import confirm_codex_pointer
 from leaf.agents.delivery import (
     acting_on_delivery,
     earlier_pickup,
@@ -35,6 +34,10 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     if harness:
         open_session_turn(harness.session)
         if payload["acknowledge"] is None and harness.adapter:
+            # The Codex transport registers its App Server's exit handler as it
+            # loads, so only a session whose input it carries loads it.
+            from leaf.agents.codex import confirm_codex_pointer
+
             return confirm_codex_pointer(harness.session, payload)
     return receive(payload, harness.session if harness else None)
 

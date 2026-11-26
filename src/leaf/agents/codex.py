@@ -2168,7 +2168,10 @@ def append_batch(
         for event in entry["events"]
         if "answer" in event
     )
-    responses = current_responses(page_dir, transaction.events)
+    from leaf.agents.presence import read_work
+
+    work = read_work(page_dir, transaction.events)
+    responses = current_responses(page_dir, transaction.events, work)
     selected = []
     for event in fresh:
         response = responses.get(event["id"])
@@ -2180,7 +2183,7 @@ def append_batch(
     if not selected:
         return None
 
-    data = batch_data(page_dir, transaction, selected, responses=responses)
+    data = batch_data(page_dir, transaction, selected, work=work)
     entry = {
         **data,
         "session": session_id,

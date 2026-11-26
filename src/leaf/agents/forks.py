@@ -337,8 +337,10 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
     (`delivery.batch_data`), with the thread whole, or None where the newest owes
     no reply."""
     from leaf.agents.delivery import batch_data, current_responses
+    from leaf.agents.presence import read_work
 
-    responses = current_responses(page.page_dir, page.events)
+    work = read_work(page.page_dir, page.events)
+    responses = current_responses(page.page_dir, page.events, work)
     owed = responses.get(inputs[-1])
     if owed is None or owed["kind"] != "reply":
         return None
@@ -347,7 +349,7 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
         page.page_dir,
         page,
         [by_id[i] for i in inputs],
-        responses=responses,
+        work=work,
         whole=True,
     )
 

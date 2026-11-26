@@ -330,7 +330,6 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     for item in turn_obligations(state, watched=watched)
                     if item["input"] not in redelivered
                 ]
-                responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
                     PagePlan(
                         page_dir,
@@ -339,7 +338,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         harness,
                         state,
                         pending,
-                        batch_data(page_dir, page, pending, responses=responses)
+                        batch_data(page_dir, page, pending, work=work)
                         if pending
                         else None,
                         owed,

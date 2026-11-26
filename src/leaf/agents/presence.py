@@ -8,6 +8,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from leaf.base.files import file_stamp, latest_revision, list_revisions
 from leaf.base.harness import claim_harness
@@ -32,8 +33,10 @@ from leaf.records.transaction import (
     owned_pages,
     unacknowledged,
 )
-from leaf.records.work_state import WorkState, work_state
 from leaf.source.revision_artifact import read_revision
+
+if TYPE_CHECKING:
+    from leaf.records.work_state import WorkState
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -407,11 +410,14 @@ def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
     return present, turn
 
 
-def read_work(page_dir: Path, events: list) -> WorkState:
+def read_work(page_dir: Path, events: list) -> "WorkState":
     """The page's work as the served state folds it (`work_state.work_state`,
     `served_state.context.PageRead.work`): the log over the live revision, with the
     claim's presence and live activity, for a transport or command that reads no
-    other part of the served page."""
+    other part of the served page. The fold loads here, so a reader of presence
+    alone, such as `leaf page list`, loads none of it."""
+    from leaf.records.work_state import work_state
+
     revision = latest_revision(page_dir)
     source = read_revision(page_dir, revision) if revision is not None else None
     revisions = frozenset(list_revisions(page_dir))

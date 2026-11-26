@@ -93,13 +93,15 @@ from leaf.commands.session import set_status
 from leaf.log.interaction_log import append_interactions
 from leaf.pages.hosting import LeafHTTPServer
 from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate.command import message_check
 from leaf.records.revisioning import activate_source
 from leaf.records.transaction import PageTransaction, restore_page_claim
 from leaf.serving.http import PageEndpoint, PostRoute, scope_page_urls
 from leaf.serving.revision_delivery import Delivery, runtime_element
 from leaf.serving.served_state.service import PageStateService
 from leaf.source.file_bindings import bound_files
-from leaf.source.registry.storage import layer_metadata, layer_record, selected
+from leaf.source.layer import selected_layer
+from leaf.source.registry.storage import layer_metadata, layer_record
 from leaf.source.revision_artifact import read_revision
 
 if TYPE_CHECKING:
@@ -480,6 +482,7 @@ class HostedTurn(CarriedTurn):
             reply_target,
             buffered,
             lifecycle=lifecycle,
+            check=message_check,
         )
         self.harness = harness
         self.delivery_id = delivery_id
@@ -1521,7 +1524,7 @@ class WebsitePageEndpoint(PageEndpoint):
     def _prewarm_agent(self) -> Response:
         started = time.monotonic()
         if (record := layer_record(self.page_dir)) is not None:
-            selected(record, self.page_dir)
+            selected_layer(record, self.page_dir)
         log_agent("layer_prewarm_completed", durationMs=elapsed_ms(started))
         return self._content(204, "application/json", b"")
 

@@ -86,7 +86,7 @@ PORTABLE = [
         "diagram",
         # The host reserves the diagram's room, as Leaf's stylesheet does from the
         # height an occurrence states, so the drawing arriving moves nothing below it.
-        '<lf-diagram id="lf-diagram" parts="all" style="height: 240px"><pre>\n'
+        '<lf-diagram id="lf-diagram" style="height: 240px"><pre>\n'
         "flowchart TD\n"
         "  accTitle: Checkout\n  accDescr: A cart reaches payment.\n"
         "  Cart([Cart]) --&gt; Pay{Paid?}\n</pre></lf-diagram>",

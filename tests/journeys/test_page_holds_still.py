@@ -1490,7 +1490,15 @@ def new_thread(page, built, target, place):
         page,
         place,
         lambda: leaf(
-            "thread", "create", built.page_dir, "--section", target, "--text", text
+            "thread",
+            "create",
+            built.page_dir,
+            "--title",
+            "More questions",
+            "--section",
+            target,
+            "--text",
+            text,
         ),
         lambda: expect(drawn).to_have_count(1),
     )
@@ -1507,7 +1515,7 @@ def ask(page, built, target, place):
     arriving(
         page,
         place,
-        lambda: leaf("thread", "create", built.page_dir, *asked),
+        lambda: leaf("thread", "create", built.page_dir, "--title", "An ask", *asked),
         lambda: expect(page.locator(".lf-fp-on-item")).to_have_count(ASKS + 1),
     )
 

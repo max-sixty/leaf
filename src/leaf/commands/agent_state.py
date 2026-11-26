@@ -19,10 +19,15 @@ this Leaf cannot serve and names its repair, since reading the page's layer reco
 refuses it (`registry.storage.layer_record`). Printing the reading anyway, with the
 refusal as `source.error`, would give the agent the page's context, but computed from
 a log this Leaf may misread.
+
+`turn_end_facts` reads this state for each page a session holds and hands it to the
+clerk, which selects from it what the turn-end check's fork is shown
+(`clerk.page_facts`).
 """
 
 from pathlib import Path
 
+from leaf.agents.clerk import page_facts
 from leaf.agents.delivery import current_responses
 from leaf.base.files import revision_path
 from leaf.base.refusals import Refused
@@ -44,7 +49,7 @@ from leaf.records.page_data import page_data_binding_inventory
 from leaf.records.publishing import authored_digest, authored_files
 from leaf.records.render_reading import drawn_visuals
 from leaf.records.revisioning import activate_source
-from leaf.records.transaction import PageTransaction, unacknowledged
+from leaf.records.transaction import PageTransaction, owned_pages, unacknowledged
 from leaf.records.work import page_subject
 from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.page import read_served_page
@@ -54,7 +59,7 @@ from leaf.source.data_contracts import measurement_lag_entries
 from leaf.source.file_bindings import granted_files
 from leaf.source.passages import page_passages
 from leaf.source.registry.contract import state_specs
-from leaf.source.registry.storage import layer_metadata
+from leaf.source.registry.storage import IncompatibleLayer, layer_metadata
 from leaf.source.revision_artifact import active_enclosing, read_revision
 
 # How many of a thread's messages one `page state PAGE MESSAGE` prints by default.
@@ -104,6 +109,23 @@ def cmd_page_state(
             after=after,
             limit=limit,
         )
+
+
+def turn_end_facts(session_id: str) -> list[dict]:
+    """What the turn-end check's fork is shown of each page `session_id` holds
+    (`clerk.page_facts`), each page read in one transaction. A page this Leaf can't
+    read is left out: one whose files are gone, and one at another page protocol
+    (`registry.storage.layer_record`), where this Leaf could write nothing the fork
+    finds."""
+    facts = []
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                state = page_state(page_dir, page.events)
+                facts.append(page_facts(page_dir, state, page.events))
+        except (FileNotFoundError, IncompatibleLayer):
+            continue
+    return facts
 
 
 def _base_state(

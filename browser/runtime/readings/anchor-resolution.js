@@ -224,9 +224,7 @@ declaredVisuals((element) => Boolean(registry[element.localName]?.visual));
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>
-  visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.visual ?? null)
-    : null;
+  visual ? visualPartAdmission(registry[visual.localName]?.visual ?? null) : null;
 
 /** @param {Element | null} element */
 const wholeVisualSurface = (element) =>
@@ -457,12 +455,16 @@ export function datumAimTarget(datum) {
 /** @param {Range} range */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
+// The passage is the selection's words: a drag from a paragraph's end into a
+// document's first line holds the newline between them, which is neither's word.
+/** @param {import("./passages.js").Segment} segment */
+const says = ({ node: text, start, end }) => /\S/.test(text.data.slice(start, end));
+// Whether a capture of the range quotes words, answered without reading the context
+// a capture reads around them.
+/** @param {Range} range */
+export const rangeHoldsWords = (range) => segmentsIn(range).some(says);
 /** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
 export function anchorForPassage(selected, node) {
-  // The passage is the selection's words: a drag from a paragraph's end into a
-  // document's first line holds the newline between them, which is neither's word.
-  /** @param {import("./passages.js").Segment} segment */
-  const says = ({ node: text, start, end }) => /\S/.test(text.data.slice(start, end));
   const from = selected.findIndex(says);
   const to = selected.findLastIndex(says);
   const segments = from < 0 ? [] : selected.slice(from, to + 1);

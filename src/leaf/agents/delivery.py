@@ -530,7 +530,7 @@ def retire_gone_deliveries() -> None:
 
 def _registry(page_dir: Path):
     from leaf.source.registry.contract import RegistryError
-    from leaf.source.registry.storage import active_registry
+    from leaf.source.vocabulary import active_registry
 
     try:
         return active_registry(page_dir)
@@ -962,7 +962,7 @@ def earlier_pickup(payload: dict, session_id: str):
 
     `codex queue` takes no message id, so a failure after it returns and before
     Leaf records the acceptance queues the same pointer again, and Codex runs a
-    turn for each (`codex_adapter._offer_queued_delivery`). The page log's opened
+    turn for each (`codex_adapter.offer_queued_delivery`). The page log's opened
     pickups name the turns that took the delivery, and the note names them with
     the answers its updates still owe, read from the page rather than the
     agent's memory, so the turn acknowledging it again repeats no work and still
@@ -1210,6 +1210,38 @@ def deliverable(
         and event["id"] not in held
     ]
     return sorted([*owed, *pending, *advice], key=lambda event: event["seq"])
+
+
+def wake_inputs(batch: list[dict], work: "WorkState") -> list[dict]:
+    """Select what can wake a hook without changing its immutable receipt batch, by
+    the page's work, `work`, that `deliverable` read the batch by
+    (`presence.read_work`).
+
+    A settled thread input has already had its meaning answered, even when its
+    delivery was never received. Unsettled inputs read their existing canonical
+    workflow. A completed receipt advances the cursor, so handed input is absent
+    from this unreceived batch, except an update still owed an answer whose owner
+    holds no usable `answer.ref`, as on a page that changed hands, which
+    `deliverable` hands over again (`unreferenced`). An opened record without the
+    completed `receipt` does not prove delivery. Other admitted attention (including
+    reports, errors, reactions and widget actions) remains transport input,
+    independent of whether it carries a response obligation. Only what admission
+    marked for the agent's attention wakes a hook (`requires_agent_attention`):
+    advice rides in the batch beside such input (`deliverable`) and wakes nobody,
+    even once that input has settled.
+    """
+    from leaf.records.workflows import agent_inputs
+    from leaf.source.registry.kernel import kinds_declaring
+
+    agents = agent_inputs(work.durable)
+    pending = []
+    for event in batch:
+        if not requires_agent_attention(event):
+            continue
+        if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
+            continue
+        pending.append(event)
+    return pending
 
 
 def handed_into_turn(events: list[dict], session: str, turn: str) -> list[str]:

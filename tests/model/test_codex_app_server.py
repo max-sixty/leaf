@@ -3232,7 +3232,7 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
         if event["kind"] == "pickup"
     ] == ["delivery_unconfirmed"]
     assert not codex_records("codex-thread")
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
 
 
 def test_status_callbacks_cannot_resend_an_already_accepted_delivery(
@@ -4541,7 +4541,7 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
         return True
 
     monkeypatch.setattr(connection, "start_delivery", start_delivery)
-    assert codex_adapter_model._offer_queued_delivery(
+    assert codex_adapter_model.offer_queued_delivery(
         "codex", "codex-thread", connection
     )
     [repaired] = restarted

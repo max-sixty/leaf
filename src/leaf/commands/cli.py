@@ -366,9 +366,9 @@ def codex_run(
     app_server: str | None,
 ) -> None:
     """Run the detached adapter child."""
-    from leaf.agents.codex_adapter import run_adapter
     from leaf.base.detached import Handshake
     from leaf.base.leases import release_on_termination
+    from leaf.commands.codex_run import run_adapter
 
     release_on_termination()
     # Exiting inside the handshake tells a parent still waiting on it the status.
@@ -654,7 +654,7 @@ def vocabulary(page_dir: Path) -> dict:
     composes for the page's packages, with the page's own declarations over it.
     Ordinary keys are element names or CSS selectors; `$` keys are facts shared
     across the layer."""
-    from leaf.source.registry.storage import require_candidate
+    from leaf.source.vocabulary import require_candidate
 
     return require_candidate(page_dir).registry
 
@@ -1386,14 +1386,18 @@ def _asked_questions(_ctx, _param, given: tuple[str, ...]) -> bool | list[str]:
     return True
 
 
-def _title_option(command):
+def _title_option(*, required: bool):
+    """`--title`, which names the thread a command writes in: a new thread always,
+    and a thread a reply joins where it has no title yet (`untitled-thread`)."""
     return click.option(
         "--title",
+        required=required,
         help=(
-            "name the thread for the panel unless it has a name: a few words; one "
-            f"past {title_limit()} characters is cut at a word"
+            "a few words naming the thread's subject"
+            + ("" if required else ", needed where it has no title yet")
+            + f"; one past {title_limit()} characters is cut at a word"
         ),
-    )(command)
+    )
 
 
 @thread.command(
@@ -1408,7 +1412,7 @@ def _title_option(command):
     help="a visual part within --section, such as one `page state` lists in its `parts`",
 )
 @body_options("the comment's text")
-@_title_option
+@_title_option(required=True)
 @click.option(
     "--obligation",
     is_flag=True,
@@ -1421,7 +1425,7 @@ def thread_create(
     part: str,
     text: str | None,
     body_file,
-    title: str | None,
+    title: str,
     obligation: bool,
 ) -> dict:
     """Create a thread as the agent: anchored where --quote or
@@ -1437,11 +1441,19 @@ def thread_create(
     a --part the page would show nowhere. The comment's id is the thread's.
     """
     from leaf.agents.thread import Drawn, UndrawnPart, UnsaidQuote, cmd_comment
+    from leaf.pages.render_gate.command import message_check
 
     body = read_body(text, body_file)
     try:
         return cmd_comment(
-            page_dir, quote, section, part, body, title=title, obligation=obligation
+            page_dir,
+            quote,
+            section,
+            part,
+            body,
+            title=title,
+            obligation=obligation,
+            check=message_check,
         )
     except UnsaidQuote as unsaid:
         # Words a page's script draws are in no file, so the drawn page is asked for
@@ -1469,6 +1481,7 @@ def thread_create(
         title=title,
         obligation=obligation,
         drawn=drawn,
+        check=message_check,
     )
 
 
@@ -1488,7 +1501,7 @@ def thread_create(
     "thread, ended by `leaf task end` with the reply's id",
 )
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
-@_title_option
+@_title_option(required=False)
 @click.option(
     "--obligation",
     metavar="[ID]",
@@ -1529,8 +1542,11 @@ def thread_reply(
     each leaves.
     """
     from leaf.agents.thread import post_reply, post_response
+    from leaf.pages.render_gate.command import message_check
 
     text = read_body(options.pop("text"), options.pop("body_file"))
+    # The agent names a thread nobody has titled yet (`untitled-thread`).
+    options["title_owed"] = True
     if message is not None:
         if done:
             raise click.UsageError(
@@ -1542,6 +1558,7 @@ def thread_reply(
             {"parent": message},
             text,
             validate_source=True,
+            check=message_check,
             **options,
         )
 
@@ -1564,7 +1581,7 @@ def thread_reply(
     # An answer that declares nothing must carry a widget that asks; `post_reply`
     # refuses it otherwise (`undeclared-answer`).
     options["asks_back"] = not declared and answers
-    return post_response(destination, text, **options)
+    return post_response(destination, text, check=message_check, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
@@ -1589,10 +1606,13 @@ def thread_edit(
     stable unless the thread's subject changes.
     """
     from leaf.agents.thread import cmd_edit
+    from leaf.pages.render_gate.command import message_check
 
     renames_only = title is not None and text is None and body_file is None
     body = None if renames_only else read_body(text, body_file)
-    return {"records": cmd_edit(page_dir, message, body, title=title)}
+    return {
+        "records": cmd_edit(page_dir, message, body, title=title, check=message_check)
+    }
 
 
 @thread.command("resolve", short_help="Close a thread as the agent.")

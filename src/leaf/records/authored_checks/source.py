@@ -17,22 +17,23 @@ from leaf.records.authored_checks.source_history import (
     revision_reanchors,
 )
 from leaf.records.markup_checks.markup import unpointable_blocks
+from leaf.source.capture_refusals import ArtifactError
 from leaf.source.data import read_contracts, read_data
-from leaf.source.data_contracts import data_document_readings, measurement_lag
+from leaf.source.data_contracts import measurement_lag
 from leaf.source.layer import other_serving_leaf
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import RegistryError
-from leaf.source.registry.storage import IncompatibleLayer, read_page_registry
+from leaf.source.registry.storage import IncompatibleLayer
 from leaf.source.revision_artifact import (
-    ArtifactError,
     RevisionArtifact,
     capture_artifact,
-    css_drops,
     document_drops,
     page_files,
     resource_type,
 )
 from leaf.source.structure import SourceDocument
+from leaf.source.styles import css_drops
+from leaf.source.vocabulary import read_page_registry
 
 
 class SourceCheck(NamedTuple):
@@ -78,7 +79,7 @@ def _source_bytes(page_dir: Path) -> tuple[bytes, Finding | None]:
 
 def _page_file_drops(page_dir: Path) -> list[Finding]:
     """Each declaration or rule a browser drops from a stylesheet under `page/`
-    (`revision_artifact.css_drops`), as the document's own sheets get from
+    (`styles.css_drops`), as the document's own sheets get from
     `check_source`. What delivery's reader can't read in one, or a file that isn't
     UTF-8, the capture refuses."""
     found = []
@@ -211,18 +212,10 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         errors.extend(error.findings)
     reading = SourceReading(document, registry)
     contracts = read_contracts(page_dir)
-    # A conflicting binding lies within one document, and history holds none
-    # (`data_contracts.data_binding_errors`), so the check reads this one alone.
-    readings = (
-        data_document_readings(document, "index.html", registry)
-        if registry is not None
-        else []
-    )
     document_errors = authored_document_checks(
         document,
         events,
         registry,
-        readings,
         thread_ids(events),
     )
     errors.extend(document_errors)

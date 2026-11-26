@@ -2,14 +2,15 @@
 the App Server connection Leaf uses where it can reach one, which the desktop app
 never offers (`session-lifetime.md`, "Watchers", says which tasks offer one).
 
-Two programs connect to a Codex task's App Server for Leaf: the detached
-`codex_adapter.py`, which watches a task the user owns, and `leaf_website`
-(`worker/`), which owns the tasks it starts. Both use this module's App Server
+Two programs connect to a Codex task's App Server for Leaf: the detached delivery
+adapter (`codex_run.py`), which watches a task the user owns through
+`codex_adapter.TaskConnection`, and `leaf_website` (`worker/`), which owns the tasks
+it starts. Both use this module's App Server
 connection, `start_app_server_delivery` to start a delivery's turn, `TurnFold` to
 turn a turn's notifications into page activity, a reply and an ending, and
 `CarriedTurn` to follow a turn on the connection that started it. Each client's
-header says how notifications reach its folds and what it does when a start or a
-connection fails.
+header, `codex_adapter.py`'s for `TaskConnection` and `leaf_website`'s, says how
+notifications reach its folds and what it does when a start or a connection fails.
 
 A delivery carries a batch of the user's updates to the task. Its content is an
 immutable envelope (`delivery.freeze_delivery`, read with `leaf delivery read <id>`).
@@ -42,7 +43,7 @@ the adapter starts a turn of its own for what arrived as it ended. Elsewhere, as
 queue adapter, whose turn would open on a pointer Codex shows as the user's own
 message, or a task that waits with `leaf wait`, Stop offers the input into the turn it
 continues, even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads
-as running, the adapter's `_offer_queued_delivery` offers the pending input, or the
+as running, the adapter's `offer_queued_delivery` offers the pending input, or the
 unread pointer, itself. Without an App Server connection it asks the desktop app to
 start the turn (`codex_desktop.py`), or else hands the pointer to `codex queue`,
 retrying the same pointer while the session owns a page, and never calls `turn/start`.
@@ -100,7 +101,7 @@ from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
-from typing import ClassVar, Literal, TypedDict
+from typing import TYPE_CHECKING, ClassVar, Literal, TypedDict
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
@@ -154,6 +155,10 @@ from leaf.records.transaction import (
     owned_pages,
     restore_page_claim,
 )
+
+if TYPE_CHECKING:
+    from leaf.agents.thread import MessageCheck
+    from leaf.records.work_state import WorkState
 
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
@@ -1068,9 +1073,9 @@ class AppServerReplyStream:
     and commit its final answer.
 
     The provider owns this lifecycle; `thread.post_response` owns admission of the
-    opening and the durable answer, both under the delivery's reply reservation.
-    Partial answer text survives interruption and disconnect without becoming thread
-    history.
+    opening and the durable answer, both under the delivery's reply reservation, and
+    runs `check` on the HTML of each (`thread.MessageCheck`). Partial answer text
+    survives interruption and disconnect without becoming thread history.
     """
 
     def __init__(
@@ -1079,11 +1084,13 @@ class AppServerReplyStream:
         turn_id: str,
         delivery_id: str,
         target: dict,
+        check: "MessageCheck | None" = None,
     ):
         self.session_id = session_id
         self.turn_id = turn_id
         self.target = dict(target)
         self.delivery_id = delivery_id
+        self.check = check
         self.attempt = delivery_reply_attempt(delivery_id)
         self.text = ""
         self.withheld = False
@@ -1135,6 +1142,7 @@ class AppServerReplyStream:
                 self.target["ref"],
                 " ".join(text.split()),
                 reservation=self.attempt,
+                check=self.check,
                 ephemeral=True,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
@@ -1266,6 +1274,7 @@ class AppServerReplyStream:
                 self.target["ref"],
                 text,
                 reservation=self.attempt,
+                check=self.check,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
             )
@@ -1343,7 +1352,8 @@ class TurnFold:
     and the activity reaches every page the task claims. When the delivery the turn
     carries owes a `turn` answer, the reply streams under that delivery's reply
     reservation, and the completion commits the answer or releases the reservation
-    before it closes the turn on the page.
+    before it closes the turn on the page. The reply's HTML runs the `check` the
+    client passes (`thread.MessageCheck`) before it posts.
 
     The fold observes the session lifecycle under the provider turn id, which
     Codex's hooks name too. Its producer passes the publication it admitted;
@@ -1377,12 +1387,14 @@ class TurnFold:
         reply_target: dict | None = None,
         *,
         lifecycle: dict | None,
+        check: "MessageCheck | None" = None,
     ):
         self.generation = lifecycle["generation"] if lifecycle is not None else None
         self.session_id = session_id
         self.turn_id = turn_id
         self.delivery_id = delivery_id
         self.reply_target = reply_target
+        self.check = check
         self.events = AppServerEvents(session_id, turn_id)
         self.reply_stream: AppServerReplyStream | None = None
         self.last_activity_update = 0.0
@@ -1408,6 +1420,7 @@ class TurnFold:
                 self.turn_id,
                 self.delivery_id,
                 self.reply_target,
+                self.check,
             )
             if self.events.joined:
                 self.reply_stream.withhold()
@@ -1590,9 +1603,15 @@ class CarriedTurn(TurnFold):
         buffered=(),
         *,
         lifecycle: dict | None,
+        check: "MessageCheck | None" = None,
     ):
         super().__init__(
-            session_id, turn_id, delivery_id, reply_target, lifecycle=lifecycle
+            session_id,
+            turn_id,
+            delivery_id,
+            reply_target,
+            lifecycle=lifecycle,
+            check=check,
         )
         self.socket = socket
         self.stream = TurnStream(socket, buffered, silence=self.silence)
@@ -2136,8 +2155,11 @@ def append_batch(
     page_dir: Path,
     transaction: PageTransaction,
     batch: list[dict],
+    *,
+    work: "WorkState | None" = None,
 ) -> tuple[Path, int, dict] | None:
-    """Append fresh events to the task's one collecting record."""
+    """Append fresh events to the task's one collecting record, by the page's
+    work (`presence.read_work`), `work` where the caller has already read it."""
     current = _collecting_record(session_id)
     if current is None:
         path = record_path(session_id, new_delivery_id())
@@ -2170,7 +2192,8 @@ def append_batch(
     )
     from leaf.agents.presence import read_work
 
-    work = read_work(page_dir, transaction.events)
+    if work is None:
+        work = read_work(page_dir, transaction.events)
     responses = current_responses(page_dir, transaction.events, work)
     selected = []
     for event in fresh:

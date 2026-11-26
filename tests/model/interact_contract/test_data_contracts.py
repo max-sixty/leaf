@@ -10,19 +10,22 @@ from interact_support import (
     PAGE,
     ROOT,
     append_carried_log_record,
+    bound_twice,
     check_findings,
+    command_notes,
     declare_data_input,
     element_declaration,
     found,
     package_findings,
     package_path,
+    published,
     read_page_data,
     registry_refusal,
 )
 
 from leaf.agents import thread as thread_model
 from leaf.base import files as files_model
-from leaf.base.findings import Rejected
+from leaf.base.findings import Finding, Rejected
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.pages.page import page_instructions
@@ -31,8 +34,8 @@ from leaf.records import revisioning as revisioning_model
 from leaf.records.authored_checks.declarations import declaration_advice
 from leaf.source import data as data_model
 from leaf.source import revision_artifact as artifact_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
-from leaf.source.registry import storage as registry_storage
 from leaf.source.registry import validation as registry_validation
 from leaf.source.structure import SourceDocument
 from model.interact_contract import declare_vocabulary, vocabulary
@@ -227,6 +230,22 @@ def test_a_measured_input_joins_its_source_to_one_run_receipt(
     assert advice.severity == "advice"
 
 
+@pytest.mark.parametrize("samples", [(), ("practice",)])
+def test_an_example_binding_one_source_two_ways_is_invalid(page_dir, samples):
+    """An example is read as a page would hold it, the child of each live sample it
+    declares included, so its author learns that a page copying it would be refused."""
+    registry = vocabulary(page_dir)
+    example = bound_twice("shared")
+    if samples:
+        example = f'<template id="practice" data-sample>{example}</template>'
+    registry["lf-num"]["example"] = example
+
+    said = declaration_advice({"lf-num": registry["lf-num"]}, registry, "test registry")
+    [advice] = found(said, "invalid-example", "<lf-num>")
+    refused = Finding.loads(advice.values["finding"])
+    assert (refused.code, refused.samples) == ("contract-conflict", samples)
+
+
 def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
     """The run receipt belongs to the authored version. Letting replay write it
     would give the browser a newer freshness boundary than file checks and page state
@@ -288,7 +307,7 @@ def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
     assert result.exit_code == 0, result.output
     assert data_model.read_contracts(page_dir)["report"] == "text-document"
     assert (
-        data_model.read_data(page_dir, registry_storage.load_registry(page_dir))[
+        data_model.read_data(page_dir, vocabulary_model.load_registry(page_dir))[
             "sources"
         ]["report"]["value"]
         == "New report."
@@ -408,7 +427,7 @@ def test_page_owned_data_contracts_can_change_after_publication(page_dir, change
     page_data_model.cmd_data_set(page_dir, "files", value)
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    current = registry_storage.require_registry(page_dir)
+    current = vocabulary_model.require_registry(page_dir)
     assert data_model.read_data(page_dir, current)["sources"]["files"]["value"] == value
     old = data_model.read_data(page_dir, old_registry)["sources"]["files"]
     if change == "records":
@@ -431,7 +450,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     )
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.created
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     events = [
         {
             "id": "feed-reply",
@@ -464,6 +483,88 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
                 }
             ],
         }
+    }
+
+
+def test_a_message_is_refused_only_for_its_own_bindings(page_dir):
+    """A conflicting binding lies within one document, so a message's gate reads the
+    message's bindings alone: an unsaved edit that binds one source twice is the
+    source check's to refuse, and the agent can still post a message meanwhile."""
+    published(page_dir)
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", bound_twice("shared") + "</main>")
+    )
+    assert found(check_findings(page_dir)[1], "contract-conflict", source="shared")
+    message = "The plan:\n\n<p><strong>Flag first</strong></p>"
+    command_notes(
+        "thread", "create", str(page_dir), "--text", message, "--title", "Plan"
+    )
+    [posted] = [e for e in events_model.read_events(page_dir) if e["kind"] == "comment"]
+    assert posted["text"] == message
+
+
+def test_a_binding_conflict_names_each_widget_reading_the_source(page_dir):
+    """An author finds every consumer of a source bound two ways, so each conflicting
+    widget gets its own finding by its id, even where all of them share a line."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            bound_twice("shared")
+            + '<lf-text-document id="more" source="shared"></lf-text-document></main>',
+        )
+    )
+    assert [
+        (conflict.values["first"]["tag"], conflict.values["then"].get("widget"))
+        for conflict in found(check_findings(page_dir)[1], "contract-conflict")
+    ] == [("lf-num", "shared-text"), ("lf-num", "more")]
+
+
+def test_a_sample_checks_the_messages_it_copies_under_its_own_registry(page_dir):
+    """A sample's child reads each message it copies from a thread under its own
+    registry, the page's current one, whatever the message was posted under. Two
+    widgets that shared a contract when the message was posted, and no longer do,
+    would bind one source two ways in the child, whose data then can't be read, so
+    the sample is refused, naming the copied message."""
+    declare_data_input(
+        page_dir, "shared", {"type": "array"}, contract="rows", activate=False
+    )
+    registry = vocabulary(page_dir)
+    registry["lf-test-other"] = deepcopy(registry["lf-test-data"])
+    registry["$data"]["contracts"]["other-rows"] = deepcopy(
+        registry["$data"]["contracts"]["rows"]
+    )
+    declare_vocabulary(page_dir, registry)
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).error is None
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "aabb0011",
+            "author": "agent",
+            "revision": 1,
+            "text": "Both views of one feed.\n\n"
+            '<lf-test-data id="rows-view" source="shared"></lf-test-data>\n'
+            '<lf-test-other id="other-view" source="shared"></lf-test-other>',
+        },
+    )
+    registry["lf-test-other"]["inputs"]["data"]["contract"] = "other-rows"
+    declare_vocabulary(page_dir, registry)
+    sample = (
+        '<template id="practice" data-sample data-sample-threads="aabb0011">'
+        "<h1>Child</h1></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", sample + "</main>"))
+
+    [conflict] = found(check_findings(page_dir)[1], "contract-conflict")
+    assert conflict.samples == ("practice",)
+    assert conflict.values["then"] == {
+        "contract": "other-rows",
+        "document": "copied message 'aabb0011'",
+        "tag": "lf-test-other",
+        "widget": "other-view",
+        "input": "data",
+        "line": 3,
     }
 
 

@@ -47,8 +47,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from leaf.base.schema import INTERACTIONS_FILE
-from leaf.base.state import now_iso
-from leaf.source.registry.schema import aware_instant
+from leaf.base.state import aware_instant, kernel_protocol, now_iso
 
 BATCH_SCHEMA = json.loads(
     Path(__file__).with_name("interaction-batch.schema.json").read_text()
@@ -148,8 +147,6 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     an error. A watch that held a page it couldn't read shows its older protocol,
     and one killed outright leaves no record. Dropped where the page can't be
     written, as `record_command` is."""
-    from leaf.source.registry.kernel import kernel_protocol
-
     record = {
         "source": "cli",
         "type": "watch",
@@ -209,7 +206,7 @@ def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:
 
 
 def interaction_time(value: str) -> datetime:
-    """Read a timestamp in Leaf's date-time format (`registry.schema.aware_instant`)."""
+    """Read a timestamp in Leaf's date-time format (`state.aware_instant`)."""
     if (instant := aware_instant(value)) is None:
         raise ValueError(f"{value!r} is not an RFC 3339 time with its timezone offset")
     return instant

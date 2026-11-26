@@ -1127,7 +1127,7 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
     Escape dropped. A reminder, another hook's context, a record still being written
     and a missing transcript show nothing."""
     delivery = {"batches": [{"events": [{"id": "e1"}, {"id": "e2"}]}]}
-    inline = "\n".join([hook_transport_model.inline_context(delivery), "Leaf needs"])
+    inline = "\n".join([delivery_model.inline_context(delivery), "Leaf needs"])
     records = [
         {"type": "user", "promptId": "p1", "message": {"content": "hi"}},
         {
@@ -1154,7 +1154,7 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
         + being_written[: being_written.index("e4") + 5]
     )
     entered = harness_model.claude_code_entered
-    opening = hook_transport_model.INLINE_OPENING
+    opening = delivery_model.INLINE_OPENING
     assert entered(transcript, opening) == [inline]
     assert entered(tmp_path / "missing.jsonl", opening) == []
     (tmp_path / "empty.jsonl").write_text("")
@@ -2300,7 +2300,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    assert context.startswith(hook_transport_model.INLINE_OPENING)
+    assert context.startswith(delivery_model.INLINE_OPENING)
     assert "page protocol" not in context
     assert handed(claimed, comment["id"])
     assert event_contracts_model.write_refusal(claimed) is None
@@ -2308,7 +2308,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
     """Have session s1's hooks last run another Leaf, one at `protocol`, and return
-    its root (`leases.mark_skill`, `registry.kernel.installed_protocol`)."""
+    its root (`leases.mark_skill`, `state.installed_protocol`)."""
     root = tmp_path / f"leaf at {protocol}"
     registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
         cleanup_model.PLUGIN_ROOT
@@ -2546,13 +2546,13 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
 
     refused = prompt()
     assert "page protocol" in refused
-    assert hook_transport_model.INLINE_OPENING not in refused
+    assert delivery_model.INLINE_OPENING not in refused
     assert acknowledged_through(claimed) < comment["seq"]
 
     stamp.unlink()
     assert vendored is not None
     write_layer(claimed, vendored)
-    assert prompt().startswith(hook_transport_model.INLINE_OPENING)
+    assert prompt().startswith(delivery_model.INLINE_OPENING)
     assert handed(claimed, comment["id"])
 
 

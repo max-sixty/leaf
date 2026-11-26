@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.agents.server import other_serving_leaf
 from leaf.base.findings import Finding, Rejected
 from leaf.log.event_log import logged_ids
 from leaf.log.thread_context import (
@@ -32,14 +31,15 @@ from leaf.records.markup_checks.markup import (
     page_boundary_errors,
     unpointable_blocks,
 )
+from leaf.records.page_data import initial_data_document_readings
 from leaf.records.sample_content import initial_sample_events
 from leaf.source.data import read_contracts, read_data
 from leaf.source.data_contracts import (
     data_document_errors,
     data_document_readings,
-    initial_data_document_readings,
     measurement_lag,
 )
+from leaf.source.layer import other_serving_leaf
 from leaf.source.passages import SourceReading
 from leaf.source.registry.contract import RegistryError
 from leaf.source.registry.storage import IncompatibleLayer, read_page_registry
@@ -288,7 +288,7 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     (`thread._revision_advice`) advise beside what `check_source` found: the
     source's non-blocking drift, what the page's own declarations advise
     (`declarations.declaration_advice`), and a live server running another Leaf
-    (`server.other_serving_leaf`). It is read apart from the check, which every
+    (`layer.other_serving_leaf`). It is read apart from the check, which every
     reply and activation runs, because judging the page's recorded data can take a
     cold process about 200 ms on a large page."""
     from leaf.records.authored_checks.declarations import declaration_advice

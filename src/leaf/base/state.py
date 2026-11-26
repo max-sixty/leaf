@@ -1,5 +1,5 @@
-"""Dependency-free machine storage, the persisted record (`Record`), and the
-session lifecycle authority.
+"""Dependency-free machine storage, the persisted record (`Record`) and the page
+protocol that versions it (`kernel_protocol`), and the session lifecycle authority.
 
 The standalone SessionEnd entry runs on system Python 3.9 without a managed
 Leaf environment. One atomic record owns harness lifetime, generation, turn identity
@@ -384,8 +384,25 @@ class CopyReplaced(Exception):
     holding no page never loads."""
 
 
+RFC3339_DATE_TIME = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+)
+
+
+def aware_instant(value: str):
+    """The one parse of Leaf's date-time format, or None where the spelling fails."""
+    if not RFC3339_DATE_TIME.fullmatch(value):
+        return None
+    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    return parsed if parsed.utcoffset() is not None else None
+
+
 def now_iso() -> str:
-    """Now in Leaf's date-time format, which `registry.schema.aware_instant` reads."""
+    """Now in Leaf's date-time format, which `aware_instant` reads."""
     return datetime.now().astimezone().isoformat(timespec="milliseconds")
 
 
@@ -448,10 +465,10 @@ def write_json(path: Path, obj) -> None:
     replace_bytes([(path, json_bytes(obj), not path.is_symlink())])
 
 
-# The running Leaf's kernel registry, the facts no layer changes, whose `$events`
-# state its page protocol (`registry.kernel`). It sits in the runtime, which the
-# browser reads it from too (`runtime/state/kernel-facts.js`), and composition lays each
-# layer over it (`registry.layer.merged_registry`).
+# The running Leaf's kernel registry, the facts no layer changes. Its `$events` state
+# the page protocol (`kernel_protocol`), and `registry.kernel` reads the rest. It sits
+# in the runtime, which the browser reads it from too (`runtime/state/kernel-facts.js`),
+# and composition lays each layer over it (`registry.layer.merged_registry`).
 KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
 
 
@@ -459,6 +476,25 @@ KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
 def kernel_registry() -> dict:
     """The kernel registry (`KERNEL_REGISTRY`), read once."""
     return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))
+
+
+def kernel_protocol() -> int:
+    """The page protocol: the number of the contract between a page and the Leaf
+    serving it, which a page's layer record names in its `format`
+    (`registry.storage.LAYER`). It versions the other records Leaf keeps outside a
+    page too (`Record`)."""
+    return kernel_registry()["$events"]["protocol"]
+
+
+def installed_protocol() -> int:
+    """The protocol of the kernel registry on disk now. It moves past
+    `kernel_protocol` when the checkout a long-running process loaded moves on under
+    it, as a worktree's does when its branch is updated: the process still speaks the
+    protocol it loaded, and the newer Leaf the session's hooks now run reads that
+    process's leases as no one's (`leases.lease_speaks_here`)."""
+    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))["$events"][
+        "protocol"
+    ]
 
 
 # Every declared `Record` by its kind, which names one shape.

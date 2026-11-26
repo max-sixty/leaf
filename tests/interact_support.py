@@ -57,13 +57,13 @@ from leaf.agents import codex_adapter as codex_adapter_model
 from leaf.agents import codex_state as codex_state_model
 from leaf.agents import completions as completions_model
 from leaf.agents import delivery as delivery_model
-from leaf.agents import server as server_model
 from leaf.base import files as files_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
 from leaf.base import page_memory as page_memory_model
 from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.findings import Finding
@@ -738,7 +738,7 @@ def command_notes(*args) -> list[Finding]:
 
 def read_page_data(page_dir) -> dict:
     """Every source the page records, judged against the vocabulary a write to it
-    takes: the page's layer with its own declarations (`data._write_source`)."""
+    takes: the page's layer with its own declarations (`page_data._write_source`)."""
     return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 
@@ -1003,7 +1003,7 @@ def _page_records() -> dict:
     return {
         schema_model.STREAM_FILE: service_model.STREAM,
         schema_model.SERVICE_FILE: server_model.SERVICE,
-        schema_model.PREVIEW_FILE: server_model.PREVIEW,
+        schema_model.PREVIEW_FILE: service_model.PREVIEW,
         schema_model.USER_VIEWS_FILE: USER_VIEWS,
         schema_model.DRAFTS_FILE: DRAFTS,
     }
@@ -2134,7 +2134,7 @@ def entered_contexts(event_ids) -> list[str]:
     """What a harness's record shows entered the model's context where the inputs
     `event_ids` did (`Harness.entered_context`): one inline handover of them."""
     events = [{"id": event_id} for event_id in sorted(event_ids)]
-    return [hook_transport_model.inline_context({"batches": [{"events": events}]})]
+    return [delivery_model.inline_context({"batches": [{"events": events}]})]
 
 
 class ContextRecord:
@@ -2851,8 +2851,8 @@ def continued(output: str | dict) -> str:
 
 def inlined(context: str) -> dict:
     """The delivery a hook's `context` handed over inline, as Leaf reads it back
-    (`hook_transport.inline_delivery`)."""
-    inline = hook_transport_model.inline_delivery(context)
+    (`delivery.inline_delivery`)."""
+    inline = delivery_model.inline_delivery(context)
     assert inline is not None, context
     return inline[0]
 

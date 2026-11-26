@@ -74,6 +74,7 @@ from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.log import projection as projection_model
 from leaf.pages.render_gate import readings as render_gate_readings
+from leaf.records import page_data as page_data_model
 from leaf.records import publishing as publishing_model
 from leaf.records import reports as reports_model
 from leaf.records import revisioning as revisioning_model
@@ -1428,7 +1429,7 @@ def test_sample_templates_bind_the_parents_producer_sources(page_dir):
         )
     )
     publish(page_dir)
-    data_model.cmd_data_set(page_dir, "builds", ["passing"])
+    page_data_model.cmd_data_set(page_dir, "builds", ["passing"])
     state = state_json(page_dir)
     assert read_page_data(page_dir)["sources"]["builds"]["value"] == ["passing"]
     binding = state["data_bindings"]["builds"]
@@ -3087,8 +3088,8 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
 def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
     """The mutable-only bootstrap and a published page use the same write boundary."""
     declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
-    data_model.cmd_data_set(page_dir, "project-feed", [])
-    data_model.cmd_data_clear(page_dir, "project-feed")
+    page_data_model.cmd_data_set(page_dir, "project-feed", [])
+    page_data_model.cmd_data_clear(page_dir, "project-feed")
     for revision in files_model.list_revisions(page_dir):
         files_model.revision_path(page_dir, revision).unlink()
 
@@ -3101,7 +3102,7 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
 
     declare_on_page(page_dir, declare)
 
-    data_model.cmd_data_set(page_dir, "project-feed", [])
+    page_data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
     assert data_model.PUBLICATION.file(
         data_model.source_file(page_dir, "project-feed")
@@ -3136,7 +3137,7 @@ def test_a_source_bound_only_by_reply_html_can_be_set(page_dir):
     )
     assert reply["revision"] == 1
 
-    data_model.cmd_data_set(page_dir, "reply-feed", [])
+    page_data_model.cmd_data_set(page_dir, "reply-feed", [])
     served = state_json(page_dir)
     assert served["data"] == {"dir": "data", "errors": []}
     reading = read_page_data(page_dir)["sources"]["reply-feed"]
@@ -3200,7 +3201,7 @@ def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
             {"widget": "test-data", "input": "data", "document": "revision r1"}
         ],
     }
-    data_model.cmd_data_set(page_dir, "project-feed", ["active page"])
+    page_data_model.cmd_data_set(page_dir, "project-feed", ["active page"])
     assert data_model.read_contracts(page_dir)["project-feed"] == "rows"
     active = read_page_data(page_dir)["sources"]["project-feed"]
     assert active["contract"] == "rows" and active["value"] == ["active page"]
@@ -3215,8 +3216,10 @@ def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
     assert data_contracts_model.payload_error(
         "project-feed", thread_bindings["project-feed"], active["value"], captured
     )
-    with pytest.raises(data_model.DataError, match="value is invalid"):
-        data_model.cmd_data_set(page_dir, "project-feed", {"thread": "wrong producer"})
+    with pytest.raises(data_contracts_model.DataError, match="value is invalid"):
+        page_data_model.cmd_data_set(
+            page_dir, "project-feed", {"thread": "wrong producer"}
+        )
     assert read_page_data(page_dir)["sources"]["project-feed"] == active
 
 
@@ -3235,7 +3238,7 @@ def test_data_set_validates_the_json_value_it_writes(page_dir):
     )
 
     with pytest.raises(data_contracts_model.DataError, match="value is invalid"):
-        data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
+        page_data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
 
     assert read_page_data(page_dir)["sources"] == {}
 
@@ -3256,7 +3259,7 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     with pytest.raises(
         data_contracts_model.DataError, match="recursive reference did not terminate"
     ):
-        data_model.cmd_data_set(page_dir, "loop", {})
+        page_data_model.cmd_data_set(page_dir, "loop", {})
 
     # A value another process wrote is judged on reading by the same validator.
     data_model.write_data(
@@ -4401,7 +4404,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
 
     def read():
         """The same immutable binding readings serve checks and producer inventory."""
-        documents = data_contracts_model.page_data_document_readings(
+        documents = page_data_model.page_data_document_readings(
             page_dir, events, registry
         )
         bindings, errors = data_contracts_model.merge_data_document_readings(documents)
@@ -4433,7 +4436,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
         parsed.clear()
         assert read() == (documents, bindings, errors)
         assert (
-            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            page_data_model.page_data_binding_inventory(page_dir, registry, events)
             == expected
         )
         assert parsed == []
@@ -4445,7 +4448,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
             for consumer in expected["project-feed"]["consumers"][:]
         )
         assert (
-            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            page_data_model.page_data_binding_inventory(page_dir, registry, events)
             == expected
         )
         assert len(parsed) <= 1
@@ -5101,5 +5104,5 @@ def test_native_git_file_operations_survive_capture_without_invented_hunks(
         page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
     )
     for value in (manifest, empty, binary):
-        data_model.cmd_data_set(page_dir, "native-patch", value)
+        page_data_model.cmd_data_set(page_dir, "native-patch", value)
         assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value

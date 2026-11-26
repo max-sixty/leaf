@@ -34,11 +34,11 @@ from interact_support import (
 )
 
 from leaf.agents import presence as presence_model
-from leaf.agents import server as server_model
 from leaf.base import files as files_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
 from leaf.base import rows as rows_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.commands import cli as cli_model
@@ -682,10 +682,14 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    record_claim(neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible")
+    holder = record_claim(
+        neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible"
+    )
     declare(neighbor)
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, persistent=True, harness=None)
+    hosting_model.start_server(
+        neighbor, persistent=True, harness=harness_model.claim_harness(holder)
+    )
 
     def rows():
         return presence_model.other_leaves(page_dir)
@@ -1096,8 +1100,9 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     """The held reservation cannot impersonate a dead committed incarnation."""
     neighbor = cleanup_model.state_home() / "pages" / "private-revival"
     neighbour_page(neighbor, title="Private revival", dead=True, port=0)
-    record_claim(neighbor, id="private-revival")
-    hosting_model.start_server(neighbor, persistent=True, harness=None)
+    # Only the holding session serves the page, the revival below included.
+    holder = harness_model.claim_harness(record_claim(neighbor, id="private-revival"))
+    hosting_model.start_server(neighbor, persistent=True, harness=holder)
     previous = server_model.running_server(neighbor)
     assert previous is not None
     wait_for(
@@ -1123,7 +1128,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             "persistent",
             "--revive",
             "--harness",
-            "null",
+            harness_model.harness_argument(holder),
             "--handshake",
             str(end.fileno()),
         ],

@@ -43,7 +43,7 @@ from render_harness import (
 
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -610,7 +610,7 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
         "tests": "passing",
         "observedAt": "2026-09-25T10:00:00-07:00",
     }
-    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {"proof": record})
+    page_data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {"proof": record})
     page = open_page(browser, url)
     datum = page.locator('#proof > [data-lf-datum="proof"]')
     seen = source_revision(serve.page_dir, "atlas-worktrees")
@@ -631,10 +631,10 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
 
     expect(datum).to_have_attribute("data-lf-identity", "proof")
     assert status() == "exact"
-    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {})
+    page_data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {})
     expect(datum).not_to_have_attribute("data-lf-identity")
     assert status() == "outdated"
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "atlas-worktrees", {"proof": {**record, "head": "def456"}}
     )
     expect(datum).to_have_attribute("data-lf-identity", "proof")

@@ -226,7 +226,7 @@ def page_holder(
     holds the page. Every reader that decides whether it may act on a page someone
     else holds asks this: `held_elsewhere`, `may_receive`,
     `transaction.PageTransaction.watch_state` and a server's retirement
-    (`server.stop_when_service_ends`)."""
+    (`server_lifetime.stop_when_service_ends`)."""
     if claim is not None and claim_is_active(claim):
         return claim
     if claim is not None and claim["id"] != session_id:

@@ -49,7 +49,7 @@ the server writes wake the page's followers.
 
 A page server is a process per page, so a subscription there would still be one
 per retained page; its maintenance keeps its liveness timers (`server_rows`,
-`server.stop_when_service_ends`) instead.
+`server_lifetime.stop_when_service_ends`) instead.
 
 The kernel's inotify limits are per user and shared with every program the user
 runs, so Leaf can't count on a native watch however few it holds. When the kernel

@@ -45,6 +45,9 @@ export interface SiteManifest {
   release: string;
   /** The page protocol this release's Leaf serves and writes (`kernel_protocol`). */
   protocol: number;
+  /** The `format` of the drafts record this release's Leaf keeps (`DRAFTS` in
+   * `src/leaf/serving/drafts.py`), which keys a page's drafts store (`storage.ts`). */
+  drafts_format: string;
   /** The header policy every HTML response adds, since a document's own <meta>
    * policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`). */
   frame_ancestors: string;

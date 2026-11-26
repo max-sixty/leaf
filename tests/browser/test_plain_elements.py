@@ -41,7 +41,7 @@ from browser.threads import open_panel_thread
 from leaf.base.schema import PLUGIN_ROOT
 from leaf.commands import cli as cli_model
 from leaf.log import event_log
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 
 FIXTURES = PLUGIN_ROOT / "tests" / "fixtures" / "packages"
 VERDICT = FIXTURES / "verdict"
@@ -127,7 +127,7 @@ def test_a_plain_element_draws_records_and_takes_a_comment(browser, serve):
     drawn before its delivery returns and then recorded, Undo takes a decision back,
     each moves the question on On Me, and a comment lands on the one choice aimed at."""
     url = live_url(serve(leaf_page("Release 4.2", QUESTION), packages=(VERDICT,)))
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "verdict-notes", {"ship": "Cheapest", "hold": "Safest"}
     )
     decided(serve.page_dir, "hold")
@@ -138,7 +138,7 @@ def test_a_plain_element_draws_records_and_takes_a_comment(browser, serve):
     expect(hold).to_have_attribute("aria-disabled", "false")
     expect(hold).to_have_attribute("title", "Safest")
     expect_obligations_answered(page, "1/1")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "verdict-notes", {"ship": "Cheapest", "hold": "Slowest"}
     )
     expect(hold).to_have_attribute("title", "Slowest")

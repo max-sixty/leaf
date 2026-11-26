@@ -35,10 +35,10 @@ from interact_support import (
 from leaf.agents import clerk as clerk_model
 from leaf.agents import codex as codex_model
 from leaf.agents import presence as presence_model
-from leaf.agents import server as server_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
 from leaf.base import schema as schema_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.detached import StartRefused
@@ -49,6 +49,7 @@ from leaf.commands import hooks as hooks_model
 from leaf.pages import hosting as hosting_model
 from leaf.pages import vendoring as vendoring_model
 from leaf.records import transaction as transaction_model
+from leaf.serving import server_lifetime as lifetime_model
 
 
 def reaper_retires(page: Path, monkeypatch) -> bool:
@@ -75,13 +76,13 @@ def reaper_retires(page: Path, monkeypatch) -> bool:
 
     with monkeypatch.context() as controlled:
         controlled.setattr(
-            server_model,
+            lifetime_model,
             "time",
             SimpleNamespace(monotonic=lambda: clock.now, sleep=next_check),
         )
-        controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))
+        controlled.setattr(lifetime_model, "os", SimpleNamespace(_exit=retire))
         try:
-            server_model.stop_when_service_ends(page)
+            lifetime_model.stop_when_service_ends(page)
         except ChecksComplete:
             return False
         except SystemExit:
@@ -331,15 +332,15 @@ def test_a_server_has_the_copy_its_session_runs_restart_it(
         assert status == 0
         raise Stopped
 
-    monkeypatch.setattr(server_model, "starting_detached", starting)
+    monkeypatch.setattr(lifetime_model, "starting_detached", starting)
     monkeypatch.setattr(codex_model, "retry_delay", lambda _failures: 0)
-    monkeypatch.setattr(server_model, "threading", SimpleNamespace(Thread=Inline))
+    monkeypatch.setattr(lifetime_model, "threading", SimpleNamespace(Thread=Inline))
     monkeypatch.setattr(
-        server_model, "time", SimpleNamespace(sleep=next_pass, monotonic=lambda: 0)
+        lifetime_model, "time", SimpleNamespace(sleep=next_pass, monotonic=lambda: 0)
     )
-    monkeypatch.setattr(server_model, "exit_serving", stopped)
+    monkeypatch.setattr(lifetime_model, "exit_serving", stopped)
     with pytest.raises(Stopped):
-        server_model.stop_when_service_ends(claimed)
+        lifetime_model.stop_when_service_ends(claimed)
     if not follows:
         assert attempts == []
         return
@@ -514,10 +515,10 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
         assert status == 0
         raise Finished
 
-    monkeypatch.setattr(server_model, "time", SimpleNamespace(sleep=stop_after_check))
-    monkeypatch.setattr(server_model, "exit_serving", exited)
+    monkeypatch.setattr(lifetime_model, "time", SimpleNamespace(sleep=stop_after_check))
+    monkeypatch.setattr(lifetime_model, "exit_serving", exited)
     with pytest.raises(Finished):
-        server_model.stop_when_service_ends(page_dir)
+        lifetime_model.stop_when_service_ends(page_dir)
 
 
 def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
@@ -716,7 +717,7 @@ def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
 
 # A server a Leaf of another `SERVICE` shape started: it holds the serving lease
 # and exits once its record, in that shape's file, is gone, as
-# `server.stop_when_service_ends` does.
+# `server_lifetime.stop_when_service_ends` does.
 OLDER_SERVER = """
 import sys, time
 from pathlib import Path

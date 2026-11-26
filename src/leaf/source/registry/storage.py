@@ -14,9 +14,14 @@ from leaf.base.findings import Finding
 from leaf.base.page_memory import Slot, Stamped, memo, once
 from leaf.base.refusals import Refused
 from leaf.base.schema import LAYER_FILE
-from leaf.base.state import PLUGIN_ROOT, Record, replace_bytes, stored_record
+from leaf.base.state import (
+    PLUGIN_ROOT,
+    Record,
+    kernel_protocol,
+    replace_bytes,
+    stored_record,
+)
 from leaf.source.registry.contract import RegistryError, read_registry_declarations
-from leaf.source.registry.kernel import kernel_protocol
 
 LAYER = Record(
     "layer",

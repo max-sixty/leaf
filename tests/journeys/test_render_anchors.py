@@ -49,9 +49,9 @@ from journeys import detached_threads, listed_threads
 from leaf.agents import delivery as delivery_model
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 from leaf.records import transaction as transaction_model
 from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import data as data_model
 from leaf.source import passages as passages_model
 from leaf.source import structure as structure_model
 from leaf.source.registry.storage import read_page_registry
@@ -721,7 +721,7 @@ diff --git a/README.md b/README.md
 -Routes by legacy key.
 +Routes by token.
 """
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -752,7 +752,7 @@ diff --git a/README.md b/README.md
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     told(page)
     assert details.evaluate("element => element === window.__lfDiffDetails")
     expect(details).not_to_have_attribute("open", "")
@@ -958,7 +958,7 @@ diff --git a/README.md b/README.md
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -994,7 +994,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         "</lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -1215,7 +1215,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     )
     url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
     for case in [*accepted, *stored]:
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
         )
     page = open_page(browser, url)

@@ -22,7 +22,7 @@ from render_harness import (
     watched,
 )
 
-from leaf.agents import server as server_model
+from leaf.base import server as server_model
 from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed

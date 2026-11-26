@@ -303,7 +303,7 @@ _READ_AS_WRITTEN = "the user's recorded decisions are read as they were written"
 _SELECTED = "the page draws with the packages it selected"
 _RETRIED = "a retried write returns the event it first made, never a second"
 _OWED = "what an answer leaves owed stays on the user's or agent's list"
-_NEWER = "the user's newer message stays owed until the agent answers it"
+_NEWER = "the user's newer input stays owed until the agent has read it"
 _TITLED = "every thread the agent writes in has a title naming its subject"
 _REACHES = "the user can see and reach everything the page draws"
 _MARKS = "each comment marks and reaches the element or part it anchors to"
@@ -2482,19 +2482,14 @@ _TEXT = {
     "superseded-reply": _refuses(
         _NEWER,
         lambda at, v: (
-            f"event {v['event']!r} no longer requires a reply to {v['parent']!r}; "
-            + (v.get("held") or "read the current delivery or thread state")
+            f"the user has added to the thread since event {v['event']!r}; read what"
+            " they added and write again at the newest reference: "
+            + (v.get("held") or "the current delivery or thread state names it")
         ),
     ),
-    # What `thread.post_reply` notes beside a message that answers nothing: progress
-    # on an update no longer owed, which takes nothing in hand; an answer to an
-    # update whose earlier answer promised a to-do still open; and an answer the
-    # thread it joins still owes.
-    "superseded-progress": lambda at, v: (
-        f"event {v['event']!r} no longer requires a reply, so this progress takes"
-        " nothing in hand; "
-        + (v.get("held") or "read the current delivery or thread state")
-    ),
+    # What `thread.post_reply` notes beside a message that answers nothing: an
+    # answer at a reference whose earlier answer promised a to-do still open, and
+    # an answer the thread it joins still owes.
     "promised-todo": lambda at, v: (
         f"event {v['event']!r} was already answered by {v['todo']!r}, whose to-do"
         f" {v['title']!r} is still open, so this reply answers nothing new;"

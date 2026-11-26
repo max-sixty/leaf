@@ -789,10 +789,12 @@ class Settlement(NamedTuple):
 
 class Settled(NamedTuple):
     """A thread's history walked (`settle`): each of the agent's turns that settled
-    inputs of the user's, in log order, and the inputs still waiting, oldest first."""
+    inputs of the user's, in log order, the inputs still waiting, oldest first, and
+    the place each input last entered the waiting list, taken back or not."""
 
     settlements: list[Settlement]
     waiting: list[dict]
+    places: dict[str, int]
 
 
 def settle(thread: dict) -> Settled:
@@ -801,16 +803,15 @@ def settle(thread: dict) -> Settled:
 
     The inputs are the user's turns and their actions on widgets sent in the thread,
     each at its place in the thread's history (`build_threads`, ``turns``). An agent
-    turn whose `responds` names a waiting input settles it and every input waiting
-    before it: the delivery that carried the input carried those too, and addressed
-    the thread's one answer to the newest (`workflows.handed_over`). So answering
-    older work leaves newer input waiting, and an answer naming an input already
-    settled or taken back settles nothing. A turn taken back before the answer, with
-    its rewrites, is no part of what it settles, and one taken back after it leaves
-    the settlement standing. An action an undo brings back while it still waits keeps
-    the place it was made, where its delivery's answer may yet name it. A failure
-    receipt names its input as an answer does, so it settles here too; `is_answer`
-    tells the two apart.
+    turn whose `responds` names an input settles every input waiting at or before
+    that input's place: a write at a reference goes in only while no standing input
+    is newer than it (`thread.post_reply`), so it answers everything the thread held
+    up to there. An input taken back before the answer, with its rewrites, is no part
+    of what it settles, and one taken back after it leaves the settlement standing.
+    An action an undo brings back while it still waits keeps the place it was made,
+    and one brought back after it was settled waits again at the place it came back.
+    A failure receipt names its input as an answer does, so it settles here too;
+    `is_answer` tells the two apart.
 
     The history comes from the log alone, so every reader settles a thread the same
     way, with a registry or without one. It holds every action on a widget sent in the
@@ -818,6 +819,7 @@ def settle(thread: dict) -> Settled:
     group's Done; `workflows` decides which waiting actions are owed."""
     settled = []
     waiting: OrderedDict[str, dict] = OrderedDict()
+    places: dict[str, int] = {}
     # Each message → the ids of its rewrites still waiting, which leave with it.
     rewrites: dict[str, list[str]] = {}
     for turn in thread["turns"]:
@@ -828,14 +830,16 @@ def settle(thread: dict) -> Settled:
         elif turn["author"] != "agent":
             if turn["id"] not in waiting:
                 waiting[turn["id"]] = turn
+                places[turn["id"]] = turn["seq"]
                 if turn["kind"] == "edit":
                     rewrites.setdefault(turn["message"], []).append(turn["id"])
-        elif (responds := turn.get("responds")) in waiting:
+        elif (responds := turn.get("responds")) in places:
             taken = []
-            while not taken or taken[-1]["id"] != responds:
+            while waiting and places[next(iter(waiting))] <= places[responds]:
                 taken.append(waiting.popitem(last=False)[1])
-            settled.append(Settlement(turn, taken))
-    return Settled(settled, list(waiting.values()))
+            if taken:
+                settled.append(Settlement(turn, taken))
+    return Settled(settled, list(waiting.values()), places)
 
 
 def unanswered_agent_turn(thread: dict) -> dict | None:

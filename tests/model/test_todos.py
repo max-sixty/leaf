@@ -877,7 +877,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
     the update is still owed under the same log lock as the append, so a claim that
     reaches the lock while the settlement holds it takes nothing in hand, and the page
     never reads Working on a settled update. A bare start is refused; progress still
-    posts in the thread, with a note of what the log now holds the update as."""
+    posts in the thread, at the thread's newest input."""
     publish(page_dir)
     comment = append_command(
         page_dir,
@@ -932,9 +932,6 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
             True,
             False,
         )
-        noted = json.loads(capsys.readouterr().err.splitlines()[-1])
-        assert noted["code"] == "superseded-progress"
-        assert "resolved the thread" in noted["text"]
     state = state_json(page_dir)
     assert state["workflows"] == []
     assert state["activity"]["state"] != "running"
@@ -979,7 +976,6 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
         capsys.readouterr()
         progress = written(leaf("thread", "reply", *address, "--ephemeral", *line))
         assert progress["start"] == {"item": todo["id"]}
-        assert "superseded-progress" not in capsys.readouterr().err
     state = state_json(page_dir)
     [thread] = state["threads"]
     assert thread["attention"] == todo["id"]

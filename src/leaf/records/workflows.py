@@ -275,9 +275,9 @@ def page_action_unsettled(
 
 
 class _Walk(NamedTuple):
-    """One thread's history walked (`events.settle`): the place each input last came
-    into force there, the inputs still waiting, each by its position in the walk's
-    order, and each agent turn that settled some."""
+    """One thread's history walked (`events.settle`): the place each input last
+    entered its waiting list, the inputs still waiting, each by its position in the
+    walk's order, and each agent turn that settled some."""
 
     places: dict[str, int]
     waiting: dict[str, int]
@@ -286,11 +286,15 @@ class _Walk(NamedTuple):
 
 class Handover(NamedTuple):
     """The updates the user has handed over: `records`, the obligation each owed or
-    answered update publishes (`obligations.collection`), and `workflows`, every
-    unsettled update's delivery, each naming the record it serves."""
+    answered update publishes (`obligations.collection`), `workflows`, every
+    unsettled update's delivery, each naming the record it serves, and `newest`, the
+    place of each thread's newest standing input, answered or not (`events.settle`):
+    a write to the thread at a reference goes in only at that place or after it
+    (`thread.post_reply`)."""
 
     records: dict
     workflows: list[dict]
+    newest: dict[str, int]
 
 
 def handed_over(
@@ -473,7 +477,7 @@ def handed_over(
             thread = threads[thread_id]
             settled = settle(thread)
             walks[thread_id] = _Walk(
-                {turn["id"]: turn["seq"] for turn in thread["turns"]},
+                settled.places,
                 {turn["id"]: at for at, turn in enumerate(settled.waiting)},
                 settled.settlements,
             )
@@ -652,6 +656,7 @@ def handed_over(
                 )
             )
 
+    newest: dict[str, int] = {}
     for thread_id, thread in threads.items():
         turns = exchange(thread)
         target = {"kind": "thread", "id": thread_id}
@@ -671,16 +676,22 @@ def handed_over(
                 for identity, (source, on, at, _place) in owed_here.items()
             },
         }
+        if inputs:
+            newest[thread_id] = max(walked.places[identity] for identity in inputs)
         # A failure reply gives up on the input it names and settles every input
         # waiting before it (`events.settle`), so it hands them back to the user as
         # one, on one record. It stands until the user acts in the thread again by
-        # anything that still stands, a turn or an owed action, or the agent settles
-        # something since, whatever became of it. It waits on the user, so closing
+        # anything that still stands, a turn or an owed action, or the agent writes
+        # at a reference there since, whatever became of it. It waits on the user, so closing
         # the thread over it retires it. One that fails in a thread already closed
         # still stands: the user's resolve left the request owed, and nothing else
         # would tell them no answer is coming.
         superseded = max(
-            [each.answer["seq"] for each in walked.settlements]
+            [
+                turn["seq"]
+                for turn in thread["turns"]
+                if turn["author"] == "agent" and turn.get("responds")
+            ]
             + [turn["seq"] for turn in turns if turn["author"] != "agent"]
             + [place for *_entry, place in owed_here.values()]
             + ([thread["resolved"]["seq"]] if thread["resolved"] else []),
@@ -805,4 +816,5 @@ def handed_over(
             )
         ),
         sorted(workflows, key=lambda item: (item["seq"], item["id"])),
+        newest,
     )

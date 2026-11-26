@@ -1155,8 +1155,9 @@ def test_a_pick_that_came_back_keeps_its_place_before_a_message(page_dir):
     """A turn delivered the user's pick and reserved its answer there. Before it
     answers, the user changes the pick, sends a message, and takes the change back,
     which brings the first pick back where it was made. The thread's one answer goes
-    to the message. The turn's late answer covers the pick it was delivered, and the
-    message it never read stays owed until an answer to it."""
+    to the message. The turn's late answer names the pick, older than the message it
+    never read, so it goes in answering nothing, and the one answer to the message
+    settles both."""
     asked = offer_choice(page_dir)
     first = choose(page_dir, "file")
     choose_again = choose(page_dir, "skip")
@@ -1166,12 +1167,13 @@ def test_a_pick_that_came_back_keeps_its_place_before_a_message(page_dir):
     )
     [answer] = owed(state_json(page_dir))
     assert answer["input"] == message["id"]
-    assert thread_model.post_reply(
+    late = thread_model.post_reply(
         page_dir,
         {"parent": asked["id"], "responds": first["id"]},
         "Filing it.",
         settlement=thread_model.ProviderFinal("earlier-turn"),
     )
+    assert late is not None and "responds" not in late
     [answer] = owed(state_json(page_dir))
     assert answer["input"] == message["id"]
     thread_model.post_reply(page_dir, answer["answer"], "Waiting for your approval.")

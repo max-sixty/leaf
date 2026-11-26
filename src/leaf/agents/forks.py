@@ -500,9 +500,9 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
     "posted", "text", "line"}` with the posted message's id, or why Leaf posted
     nothing."""
     from leaf.agents.delivery import ReceiptRefused, current_responses
+    from leaf.agents.thread import Receipt, post_reply
     from leaf.base.findings import Rejected
     from leaf.base.refusals import Refused
-    from leaf.agents.thread import Receipt, post_reply
 
     try:
         with PageTransaction(Path(basis["page"])) as page:

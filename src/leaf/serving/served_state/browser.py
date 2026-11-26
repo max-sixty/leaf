@@ -10,12 +10,12 @@ from leaf.log.projection import ThreadMarkupReading, canonical_reports, page_rea
 from leaf.log.thread_context import thread_memberships
 from leaf.records.activity import turn_runs
 from leaf.records.document_reading import DocumentReading
+from leaf.records.work_state import WorkState, work_state
 from leaf.serving.served_state.context import PageRead
 from leaf.serving.served_state.document import browser_document, browser_undo_candidates
 from leaf.serving.served_state.queues import queues
 from leaf.serving.served_state.thread import browser_thread
-from leaf.serving.served_state.work import WorkState, work_state
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 
 
 class BrowserReading(NamedTuple):

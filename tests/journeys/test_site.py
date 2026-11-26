@@ -77,8 +77,9 @@ from leaf.serving.drafts import DRAFTS
 from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import render_checks as render_checks_model
+from leaf.source.layer import selected_layer
 from leaf.source.passages import enclosing_ids
-from leaf.source.registry.storage import layer_packages, layer_record, selected
+from leaf.source.registry.storage import layer_packages, layer_record
 from leaf.source.render_checks import rendered, wait_until_ready
 from leaf.source.revision_artifact import read_artifact
 from leaf.source.structure import SourceDocument
@@ -379,7 +380,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
         record = layer_record(site / "examples" / source.stem)
         assert record is not None
         theme = (
-            selected(record, site / "examples" / source.stem)
+            selected_layer(record, site / "examples" / source.stem)
             .top_files["theme.css"]
             .decode()
         )
@@ -1616,9 +1617,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(show_resolved(page)).to_have_count(resolved)
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
-    row = page.locator(".lf-fp-thread").filter(
-        has_text="One reconnect in forty is worse"
-    )
+    row = page.locator('.lf-fp-thread[data-lf-key="7b3e0a41"]')
     expect(row).to_have_count(1)
     choose_threads_in_panel(page)
     row.click()

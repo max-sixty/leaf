@@ -457,7 +457,16 @@ def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
 
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "I checked it."],
+        [
+            "thread",
+            "reply",
+            "--done",
+            reference,
+            "--text",
+            "I checked it.",
+            "--title",
+            "Thread title",
+        ],
     )
 
     assert answered.exit_code == 0, answered.output
@@ -524,7 +533,17 @@ def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_di
     )
     for text, flags in (("On it.", ["--todo", "Check it"]), ("Checked.", ["--done"])):
         said = CliRunner().invoke(
-            cli_model.cli, ["thread", "reply", reference, "--text", text, *flags]
+            cli_model.cli,
+            [
+                "thread",
+                "reply",
+                reference,
+                "--text",
+                text,
+                *flags,
+                "--title",
+                "Thread title",
+            ],
         )
         assert said.exit_code == 0, said.output
         [thread] = state_json(page_dir)["threads"]
@@ -591,6 +610,8 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             response_reference(page_dir, "c1"),
             "--text",
             f"Which?\n\n{ask}",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -678,10 +699,6 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": "flow"}
 
 
-# A diagram whose boxes a thread may name, and two of them as a reading lists them.
-PARTS_FLOW_PAGE = FLOW_PAGE.replace(
-    '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-)
 BOX_A = {"id": "node:A", "label": "A"}
 BOX_B = {"id": "node:B", "label": "B"}
 
@@ -708,7 +725,7 @@ def test_a_part_is_one_its_visual_drew(page_dir):
     diagram shows a thread on a box it didn't draw nowhere, so a box it lacks is
     refused, naming the boxes it drew and the way to put the thread on the whole
     diagram."""
-    (page_dir / "index.html").write_text(PARTS_FLOW_PAGE)
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
     leave_drawing(page_dir, {"flow": {"parts": [BOX_A, BOX_B], "whole": False}})
 
@@ -796,7 +813,7 @@ def test_a_part_no_browser_could_check_is_taken_with_a_note(
     for variable in browser_model.VARIABLES:
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setenv(browser_model.VARIABLE, str(tmp_path / "not-a-browser"))
-    (page_dir / "index.html").write_text(PARTS_FLOW_PAGE)
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
 
     unchecked = comment(
@@ -1113,7 +1130,7 @@ def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
 def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     page_dir, monkeypatch
 ):
-    from leaf.records import revisioning
+    from leaf.records import revision_publication
     from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace(
@@ -1127,7 +1144,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     ]
     revised = original.replace("Alpha Gamma", "Beta Delta")
     (page_dir / "index.html").write_text(revised)
-    append = revisioning.append_admitted
+    append = revision_publication.append_admitted
 
     def interrupted(page, event, **kwargs):
         accepted = append(page, event, **kwargs)
@@ -1136,7 +1153,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
         return accepted
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "append_admitted", interrupted)
+        fault.setattr(revision_publication, "append_admitted", interrupted)
         refused = stamp(page_dir, "Revised")
         assert isinstance(refused.exception, RuntimeError)
     assert files_model.latest_revision(page_dir) == 1
@@ -1160,7 +1177,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
 def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     page_dir, monkeypatch
 ):
-    from leaf.records import revisioning
+    from leaf.records import revision_publication
     from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
@@ -1186,7 +1203,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
         raise RuntimeError("interrupted before required reply")
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "append_admitted", interrupted)
+        fault.setattr(revision_publication, "append_admitted", interrupted)
         refused = CliRunner().invoke(cli_model.cli, args)
         assert isinstance(refused.exception, RuntimeError)
     with PageTransaction(page_dir) as page:
@@ -1194,7 +1211,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
         assert not any(event["kind"] == "reply" for event in page.events)
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "publish_artifact", interrupted)
+        fault.setattr(revision_publication, "publish_artifact", interrupted)
         refused = CliRunner().invoke(cli_model.cli, args)
         assert isinstance(refused.exception, RuntimeError)
     assert files_model.latest_revision(page_dir) == 1
@@ -1210,7 +1227,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
 def test_an_interrupted_activation_finishes_all_anchor_transitions(
     page_dir, monkeypatch
 ):
-    from leaf.records import revisioning
+    from leaf.records import revision_publication, revisioning
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
@@ -1222,14 +1239,14 @@ def test_an_interrupted_activation_finishes_all_anchor_transitions(
         for q in ("Alpha", "Gamma")
     ]
     (page_dir / "index.html").write_text(original.replace("Alpha Gamma", "Beta Delta"))
-    append = revisioning.append_admitted
+    append = revision_publication.append_admitted
 
     def interrupted(page, event, **kwargs):
         append(page, event, **kwargs)
         raise RuntimeError("interrupted after the first append")
 
     with monkeypatch.context() as fault:
-        fault.setattr(revisioning, "append_admitted", interrupted)
+        fault.setattr(revision_publication, "append_admitted", interrupted)
         import pytest
 
         with pytest.raises(RuntimeError, match="interrupted after"):
@@ -1440,6 +1457,8 @@ def test_detach_after_a_reader_already_activated_the_removal(page_dir):
             "--detach",
             "--text",
             "Removed this.",
+            "--title",
+            "Thread title",
         ],
     )
 
@@ -1897,6 +1916,8 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
                 response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
+                "--title",
+                "Thread title",
             ],
         )
         .output

@@ -129,7 +129,7 @@ REPORTED = "leaf: "
 class PageCode:
     """The page-code reading of one browser page, from before its navigation: every
     error the runtime reports, and the requests that failed while it ran. A page opened
-    for it alone (`run_page_code`) or the render check's page (`scheme._render_page`)
+    for it alone (`run_page_code`) or the render check's page (`version._render_page`)
     takes it, so `page check --render` loads the page once for both."""
 
     def __init__(self, page):

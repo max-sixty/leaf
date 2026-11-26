@@ -129,7 +129,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
 
 def _follow_copy(page_dir: Path, server_id: str, root: Path) -> None:
     """Hand the restart of this server to the copy at `root`
-    (`hosting.follow_copy`), and return once that copy runs and has taken it on.
+    (`vendoring.follow_copy`), and return once that copy runs and has taken it on.
 
     It runs through that copy's launcher, since this process's environment may have
     gone with its own copy, in a thread of its own, so the lifetime check goes on

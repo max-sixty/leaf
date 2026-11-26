@@ -138,6 +138,8 @@ answer:
   responds: event-3
   turn: <turn>
   attempt: <attempt>
+  title: >-
+    Thread title
   revision: 1
   id: event-7
   attention: false

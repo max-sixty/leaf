@@ -9,7 +9,7 @@ one of these rules, so a kept reading is never stale, only dropped:
 - A reading of files is kept beside their stamps and made again once one moves
   (`revision_artifact.read_revision`, `revisioning.held_activation`). A reading made
   over the page's layer is kept beside the layer's vocabulary and made again once
-  another replaces it (`registry.storage._Revisions`). A reading of the log, which
+  another replaces it (`revision_artifact._Revisions`). A reading of the log, which
   only grows, is kept beside the place in the log it read to, and reads on from there
   (`event_log.read_events`).
 - A reading keyed by a name that never changes meaning is kept as it was made: a
@@ -41,7 +41,7 @@ module that reads it, so what is kept and when it goes stale stay with that modu
 this one owns only how long it lasts.
 
 A pure function of its arguments, which no file can make stale, is memoized at module
-level instead, bounded by entry count (`revision_artifact._read_css`,
+level instead, bounded by entry count (`styles._read_css`,
 `events._fragment`). So is a reading of the machine rather than of a page, in
 one slot replaced whole (`presence.neighbor_candidates`, `harness._registry_listing`).
 So is the layer a selection of shared package roots alone composes, one per

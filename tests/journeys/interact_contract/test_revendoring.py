@@ -20,7 +20,7 @@ from leaf.log import event_log as events_model
 from leaf.pages import vendoring as vendoring_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -119,7 +119,7 @@ def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
         json.dumps({"$events": {"handling": {"comment": [{"text": package_handling}]}}})
     )
     vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
-    reply = registry_storage.load_registry(page_dir)["$events"]["answering"]["reply"]
+    reply = vocabulary_model.load_registry(page_dir)["$events"]["answering"]["reply"]
     older = reply[0]["text"]
     current = "Answer with the newer package's leaf thread reply command."
     revised = page_dir.parent / ".revised"

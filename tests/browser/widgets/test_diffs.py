@@ -2076,7 +2076,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
 def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, serve):
     """Author prose is independent of patch data, including when its line disappears."""
     from leaf.source import anchor_capture, passages, structure
-    from leaf.source.registry.storage import read_page_registry
+    from leaf.source.vocabulary import read_page_registry
 
     source = leaf_page(
         "Annotated patch",

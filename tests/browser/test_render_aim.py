@@ -45,12 +45,10 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
-    PREFIXED_VISUAL_PAGE,
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
     STAGED_VISUAL_WIDGETS,
-    prefixed_visual_layer,
 )
 from render_harness import (
     DESIGN_LEGEND,
@@ -3369,15 +3367,17 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
 def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coined(
     browser, serve
 ):
-    """A generated SVG node still names the authored widget when no parts are declared.
+    """A shape the renderer draws for no declared part, such as an edge, names the
+    authored widget.
 
-    The registry's `visual` contract makes the drawing one item rather than exposing
-    renderer internals, so both the aim and the legend stop at the widget.
+    The registry's `visual` contract offers the drawing's named boxes as its parts and
+    nothing else the renderer drew, so the aim over an edge and the legend stop at the
+    widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))
-    node = page.locator("#flow svg g.pele-node[data-id]").first
-    expect(node).to_be_visible()
-    node.hover()
+    edge = page.locator("#flow svg .pele-edge .pele-marker").first
+    expect(edge).to_be_visible()
+    edge.hover()
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("flow")
     page.keyboard.up("Alt")
@@ -3387,7 +3387,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
             ".lf-legend-box", "bs => bs.map(b => b.dataset.lfFor)"
         )
     ) == {"t", "p", "flow", "tree"}
-    node.hover()
+    edge.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
 
 
@@ -3534,14 +3534,14 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     assert_drawn_in(inner, token_colour(page, "--lf-mark-contour-ink"), 1.5)
 
 
-def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
+def test_a_visual_part_replays_its_comment_and_takes_a_new_one_from_a_click(
     browser, serve
 ):
-    """A part admitted by its widget's prefixes, with nothing authored on the element,
-    replays a stored comment onto its own shape and takes a new one from a click."""
+    """A part admitted by its widget's prefixes replays a stored comment onto its own
+    shape and takes a new one from a click."""
     url = serve(
-        PREFIXED_VISUAL_PAGE,
-        layer_registry=prefixed_visual_layer("out", "inn", "htm"),
+        GENERIC_VISUAL_PAGE,
+        layer_registry=GENERIC_VISUAL_LAYER,
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
     append_carried_log_record(
@@ -3815,7 +3815,7 @@ def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
         "sequence diagram parts",
         """
 <h1 id="t">Exchange</h1>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   participant A as User
   participant B as Server

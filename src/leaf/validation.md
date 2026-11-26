@@ -21,8 +21,10 @@ directly:
 The static check reads the exact `index.html` with no browser. It is deterministic and
 near-free, which is what makes running it on every save affordable, so keep a new
 check that way and put anything needing a browser in the browser half. The rules live
-in `records/authored_checks/source.py` and `records/markup_checks/markup.py`; these are the decisions
-behind them:
+in `records/authored_checks/source.py`, which reads the source and its capture,
+`records/authored_checks/documents.py`, the gate the page's document and each sample's
+child pass, and `records/markup_checks/`, the markup rules either applies; these are
+the decisions behind them:
 
 - Page code may be any script, classic or module, inline or a file, with its literal
   local import graph under `/page/`. Delivery defers a classic script and drops
@@ -47,7 +49,7 @@ behind them:
   Each problem has one owner. The document's markup is the markup rules'. The
   capture owns what delivery can't deliver: each reference, a `/media/` file the
   page won't answer, whether markup or a stylesheet names it, and CSS that
-  delivery's own reader (`revision_artifact._read_css`) can't read, in a file or
+  delivery's own reader (`styles._read_css`) can't read, in a file or
   any sheet delivery rewrites in the document, which the capture finds by
   delivery's own walk (`structure.delivered_elements`), templates and shadow roots
   included. What that reader reads whole but a browser drops, such as `broken;`
@@ -68,16 +70,17 @@ A reference to a thread, such as a widget's `resolves`, is checked against the t
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
 comment the log lost. A live sample template's child is checked as a page against its
 initial history wherever the template is declared, in the page or in a message's
-markup (`authored_checks.source.sample_errors`; `sample_content.py` builds that
-history). A `data-sample-threads` thread the parent's log does not hold yet leaves the
-child without it, so a first version may name threads whose seed log is unwritten.
-Corpus generation composes from the shipped log, so there a missing thread is a
-mistake in the declaration and is refused.
+markup (`authored_checks.documents.sample_errors`, which builds that history with
+`initial_sample_events`). A `data-sample-threads` thread the parent's log does not
+hold yet leaves the child without it, so a first version may name threads whose seed
+log is unwritten. Corpus generation composes from the shipped log, so there a missing
+thread is a mistake in the declaration and is refused.
 
 Which writes check and publish the saved source is the writer's: progress and failure
 replies use the active revision, a detach still checks the saved source, and a
 successful reply publishes the source it checked (`thread._compose_and_append`, and
-`revisioning.py`'s header for how a publication and its anchor moves land together).
+`revision_publication.py`'s header for how a publication and its anchor moves land
+together).
 
 ### Page code
 

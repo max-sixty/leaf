@@ -9,16 +9,26 @@ from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from leaf.base.findings import Finding
+from leaf.base.files import latest_revision
+from leaf.base.findings import Finding, Rejected, note
 from leaf.pages.page_snapshot import PageSnapshot, capture_page_snapshot
 from leaf.pages.render_gate.browser import browser_hint, launch_browser
-from leaf.pages.render_gate.page_code import run_page_code
+from leaf.pages.render_gate.page_code import (
+    message_page,
+    places_judged_widget,
+    run_page_code,
+)
 from leaf.pages.render_gate.preview import preview_server
 from leaf.pages.render_gate.scheme import unready_finding
 from leaf.pages.render_gate.screens import save_screens
 from leaf.pages.render_gate.version import RenderReading, render_version
+from leaf.records.markup_checks.markup import repair_errors
 from leaf.serving.user_views import read_user_views
+from leaf.source.capture_refusals import ArtifactError
 from leaf.source.render_checks import RENDER_VIEWPORT, PageNotReady
+from leaf.source.revision_artifact import capture_artifact
+from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import read_page_registry
 
 # Set to `fixed` by a caller whose verdicts must not depend on who viewed the page: the
 # suite, CI, evals and leaf-dev's children (`leaf_dev.arms.environment`).
@@ -299,14 +309,6 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     A caller runs it before it takes the page lease to admit the message, since a
     browser run takes about a second. The run's capture holds the lease only while
     it reads the log (`page_snapshot.capture_page_snapshot`)."""
-    from leaf.base.files import latest_revision
-    from leaf.base.findings import Rejected, note
-    from leaf.pages.render_gate.page_code import message_page, places_judged_widget
-    from leaf.records.markup_checks.markup import repair_errors
-    from leaf.source.registry.storage import read_page_registry
-    from leaf.source.revision_artifact import ArtifactError, capture_artifact
-    from leaf.source.structure import SourceDocument
-
     if repair_errors(SourceDocument(markup, fragment=True)):
         # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
         # with the paragraph Markdown drew around it, is the markup gate's to

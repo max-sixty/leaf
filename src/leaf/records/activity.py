@@ -618,7 +618,7 @@ def _stand_workflows(
     owed (`owed`, the records the agent owes) the update is `stopped`, and taken in by
     any other turn, `quiet`. One no harness has carried is `undelivered` past the
     pickup grace. A waiting update a progress message of the agent's came after
-    (`on_it`, `served_state.work.lined`), as the line a line fork posts, is at work.
+    (`on_it`, `work_state.lined`), as the line a line fork posts, is at work.
     Nobody holding the page has nothing in hand, so an unheld page's updates read from
     their delivery alone.
 
@@ -772,7 +772,7 @@ def canonical_activity(
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. `on_it` are the
     waiting turns a progress message of the agent's came after
-    (`served_state.work.lined`).
+    (`work_state.lined`).
 
     `counts` are the answers owed, each counted once: as `unseen` where no turn has
     taken its update in and nothing is at work on it, so one a line fork's line stands

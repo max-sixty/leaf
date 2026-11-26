@@ -68,6 +68,7 @@ from leaf.agents.codex import (
     start_app_server_delivery,
 )
 from leaf.agents.delivery import read_delivery, stream_reply_target
+from leaf.agents.presence import read_work
 from leaf.agents.thread import (
     fail_answer,
     release_delivery_reply,
@@ -92,14 +93,15 @@ from leaf.commands.session import set_status
 from leaf.log.interaction_log import append_interactions
 from leaf.pages.hosting import LeafHTTPServer
 from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate.command import message_check
 from leaf.records.revisioning import activate_source
 from leaf.records.transaction import PageTransaction, restore_page_claim
 from leaf.serving.http import PageEndpoint, PostRoute, scope_page_urls
 from leaf.serving.revision_delivery import Delivery, runtime_element
-from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.service import PageStateService
 from leaf.source.file_bindings import bound_files
-from leaf.source.registry.storage import layer_metadata, layer_record, selected
+from leaf.source.layer import selected_layer
+from leaf.source.registry.storage import layer_metadata, layer_record
 from leaf.source.revision_artifact import read_revision
 
 if TYPE_CHECKING:
@@ -380,7 +382,7 @@ def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
         # The owed answers already carry their update's workflow, including its
         # delivery session (`activity.canonical_activity`). Joining a second workflow
         # list would repeat the owner’s reading.
-        obligations = read_page(page_dir, page.events).work.obligations
+        obligations = read_work(page_dir, page.events).obligations
         return {item["input"]: item["delivery_session"] for item in obligations}
 
 
@@ -403,7 +405,7 @@ def next_unaccepted_agent_event(
     asking who to tell.
     """
     with PageTransaction(page_dir) as page:
-        obligations = read_page(page_dir, page.events).work.obligations
+        obligations = read_work(page_dir, page.events).obligations
         return next(
             (
                 item["input"]
@@ -487,6 +489,7 @@ class HostedTurn(CarriedTurn):
             reply_target,
             buffered,
             lifecycle=lifecycle,
+            check=message_check,
         )
         self.harness = harness
         self.delivery_id = delivery_id
@@ -1529,7 +1532,7 @@ class WebsitePageEndpoint(PageEndpoint):
     def _prewarm_agent(self) -> Response:
         started = time.monotonic()
         if (record := layer_record(self.page_dir)) is not None:
-            selected(record, self.page_dir)
+            selected_layer(record, self.page_dir)
         log_agent("layer_prewarm_completed", durationMs=elapsed_ms(started))
         return self._content(204, "application/json", b"")
 

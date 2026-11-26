@@ -63,7 +63,7 @@ its thread or speaks for a round a later turn joined. A line that fails it drops
 the page's diagnostics say so.
 
 While the line stands, the waiting messages before it read On it, as they do before
-any progress message of the agent's (`served_state.work.lined`, which `activity` reads
+any progress message of the agent's (`work_state.lined`, which `activity` reads
 as a waiting update `running`, so every surface showing whether the agent is at work
 agrees), as the user chose. That word is all the line changes: as a receipt's progress
 it takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds
@@ -107,8 +107,9 @@ fork (`ask`'s `beside`), each for a duty the line fork's moment suits, such as
 summarizing a long thread's earlier discussion (`summary_fork`). The module makes
 each at once and hands its answer back with the basis Leaf gave it, and Leaf writes
 what it answered by the duty the basis names (`BESIDE`). Each fork answers on its
-own, so none holds back the line, and a new duty needs only its module and its entry
-in `BESIDE`, with no change to the module.
+own, so none holds back the line. A new duty needs its module, the calls in `ask`
+that say when its fork is due and write its prompt from the thread `ask` renders
+once, and its entry in `BESIDE`, with no change to the hooks module.
 
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
 and nothing once the page is no longer the session's. The page's diagnostics
@@ -128,10 +129,17 @@ import json
 from pathlib import Path
 
 from leaf.agents import summary_fork
+from leaf.agents.clerk import read_answer
+from leaf.agents.delivery import ReceiptRefused, batch_data, current_responses
+from leaf.agents.thread import Receipt, post_reply
+from leaf.base.findings import Rejected
 from leaf.base.json_block import json_block
+from leaf.base.refusals import Refused
 from leaf.base.state import page_key
-from leaf.log.events import unlined
+from leaf.log.events import build_threads, turn_message, unanswered_turns, unlined
+from leaf.log.interaction_log import note
 from leaf.records.transaction import PageTransaction
+from leaf.source.revision_artifact import active_enclosing
 
 # The words that open the line fork's question, which the transcript carries.
 LINE_OPENING = "<leaf-line-fork>"
@@ -156,9 +164,6 @@ BESIDE = {"summary": summary_fork.take_answer}
 def _threads(page: PageTransaction) -> dict[str, dict]:
     """The page's threads as the fold builds them, with the page's containment
     (`events.build_threads`)."""
-    from leaf.log.events import build_threads
-    from leaf.source.revision_artifact import active_enclosing
-
     return build_threads(page.events, active_enclosing(page.page_dir))
 
 
@@ -193,8 +198,6 @@ def look(session_id: str, page_dir: Path, after: int | None) -> tuple[list[dict]
     beside its line fork are due all the same (`ask`), and a delivery leaves their
     work to them by the same reading. A follower's first look at the page passes
     None, and takes the log's last seq, so it lists no round older than itself."""
-    from leaf.log.events import unanswered_turns
-
     with PageTransaction(page_dir) as page:
         if after is None:
             return [], page.events[-1]["seq"] if page.events else 0
@@ -226,12 +229,12 @@ def _awaits_line(page: PageTransaction, basis: dict) -> bool:
 
 def step(session_id: str, payload: dict) -> dict | None:
     """Leaf's answer to the module's report of one of a thread's instructions
-    (`carrier.step`), by its basis's `kind`. For a round that awaits a line (`line`),
+    (`hooks.cmd_fork`), by its basis's `kind`. For a round that awaits a line (`line`),
     the follower's report asks the line fork's question (`ask`), with the forks to
     make beside it, and the line fork's answer, or a failed step, is posted or
     recorded (`route`). For a fork beside it (`beside`), Leaf writes what it answered
     by the duty its basis names (`BESIDE`)."""
-    from leaf.agents.carrier import fork
+    from leaf.agents.carrier import fork, run_facts
 
     basis = payload["basis"]
     kind = basis["kind"]
@@ -304,15 +307,18 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
                 return None
             awaits = _awaits_line(page, basis)
             data = _thread_data(page, basis)
-            beside = [
-                fork
-                for fork in ([summary_fork.ask(page, data, basis)] if data else [])
-                if fork is not None
-            ]
+            summary = summary_fork.due(page, basis) if data else None
     except FileNotFoundError:
         return None
-    if data is None or not (awaits or beside):
+    if data is None or not (awaits or summary):
         return None
+    # Rendered once, for whichever prompts are due.
+    whole = thread_json(data)
+    beside = (
+        [{"prompt": summary_fork.prompt(whole, summary), "basis": summary}]
+        if summary
+        else []
+    )
     if not awaits:
         return {"thread": basis, "beside": beside}
     note(
@@ -326,7 +332,7 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
         },
     )
     return {
-        "prompt": line_prompt(data, running),
+        "prompt": line_prompt(whole, running),
         "thread": basis,
         **({"beside": beside} if beside else {}),
     }
@@ -335,10 +341,11 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
 def _thread_data(page: PageTransaction, basis: dict) -> dict | None:
     """The round's waiting messages as Leaf delivers them (`delivery.batch_data`),
     with the thread whole, or None where its thread owes no reply."""
-    from leaf.agents.delivery import batch_data, current_responses
+    from leaf.agents.presence import read_work
     from leaf.records.authored_checks.admission import thread_obligation
 
-    responses = current_responses(page.page_dir, page.events)
+    work = read_work(page.page_dir, page.events)
+    responses = current_responses(page.page_dir, page.events, work)
     if thread_obligation(page.events, responses, basis["thread"]) is None:
         return None
     by_id = {event["id"]: event for event in page.events}
@@ -346,12 +353,14 @@ def _thread_data(page: PageTransaction, basis: dict) -> dict | None:
         page.page_dir,
         page,
         [by_id[i] for i in basis["inputs"]],
-        responses=responses,
+        work=work,
         whole=True,
     )
 
 
 def thread_json(data: dict) -> str:
+    """The thread whole as the forks' prompts show it, from `data` as
+    `_thread_data` reads it."""
     return json_block(
         {
             "page": data["page"],
@@ -383,9 +392,10 @@ def _running_line(running: list[dict]) -> str:
     )
 
 
-def line_prompt(data: dict, running: list[dict]) -> str:
+def line_prompt(thread: str, running: list[dict]) -> str:
     """The one message a fork answers: what it is for, the thread as Leaf would
-    deliver it (`delivery.batch_data`) but whole, and what the session is running."""
+    deliver it (`delivery.batch_data`) but whole, as `thread_json` renders it
+    (`thread`), and what the session is running."""
     return f"""{LINE_OPENING}
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds. You are a fork of the session, and Leaf asks you for the working line it posts in the thread at once, saying what the agent will do about the message.
 
@@ -393,7 +403,7 @@ Every tool call is denied here, so don't call tools, and reply straight away wit
 
 {_running_line(running)} The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
 
-{thread_json(data)}
+{thread}
 
 The line stands in the thread as the agent's until the agent's answer replaces it. Write what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer out of the line, even where the conversation above holds it.
 
@@ -413,10 +423,8 @@ def route(
     """Post the line fork's answer as the agent's working line on the round `basis`
     names (`_line`), or say why there is none: the line fork failed (`failed`, its
     reason), or its answer doesn't fit `ANSWER`. What came of it is recorded in the
-    page's diagnostics, with what `run_facts` read of the fork's run (`run`)."""
-    from leaf.agents.clerk import read_answer
-    from leaf.base.refusals import Refused
-
+    page's diagnostics, with what `carrier.run_facts` read of the fork's run
+    (`run`)."""
     read = None
     if answer is not None:
         try:
@@ -454,40 +462,11 @@ def _record(session_id: str, basis: dict, outcome: dict) -> None:
     )
 
 
-def run_facts(payload: dict) -> dict:
-    """What a page's diagnostics note of a fork's run, from the module's report of it
-    (`carrier.fork`): its `usage`, its time (`elapsedMs`) and what it resent of the
-    main thread's conversation (`request`), each where the report gives it."""
-    facts = {
-        "usage": payload.get("usage"),
-        "elapsedMs": payload.get("elapsed_ms"),
-        "request": payload.get("resent"),
-    }
-    return {name: value for name, value in facts.items() if value is not None}
-
-
-def note(page_dir: Path, record: dict) -> None:
-    """Append `record` to the page's diagnostics, dropped where the page can't be
-    written, as every diagnostic is (`interaction_log`)."""
-    from leaf.log.interaction_log import append_interactions
-
-    try:
-        append_interactions(page_dir, [{"source": "cli", **record}])
-    except OSError:
-        pass
-
-
 def _line(session_id: str, basis: dict, text: str) -> dict:
     """Post `text` as the agent's working line on the round `basis` names, while it
     still awaits one (`_awaits_line`, asked as the line is appended): `{"outcome":
     "posted", "text", "line"}` with the posted message's id, or why Leaf posted
     nothing."""
-    from leaf.agents.delivery import ReceiptRefused
-    from leaf.agents.thread import Receipt, post_reply
-    from leaf.base.findings import Rejected
-    from leaf.base.refusals import Refused
-    from leaf.log.events import turn_message
-
     try:
         with PageTransaction(Path(basis["page"])) as page:
             [newest] = [

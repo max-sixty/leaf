@@ -17,9 +17,12 @@
  * Claude Code loads the module from the copy of Leaf the session's process loaded,
  * whose `bin/leaf` its hooks run (`$.plugin.root`, measured at 2.1.305). A
  * `/reload-plugins` that loads another copy retires this instance, which ends its
- * pages follower, and raises session.start on a new instance from that copy; a reload
- * that leaves the copy as it was keeps the instance and its follower (measured at
- * 2.1.330).
+ * pages follower, and raises session.start on a new instance from that copy. In an
+ * interactive session that loads a checkout in place (`--plugin-dir`), a save that
+ * changes this module's code does the same within seconds, with no reload. A change
+ * to any other file, Leaf's Python included, leaves the instance and its follower
+ * running the code they started with, through `/reload-plugins` and
+ * `/reload-plugins --force` too (measured at 2.1.332).
  * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
@@ -383,8 +386,8 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-/** Report to Leaf (`leaf hook --fork`, `carrier.step`) with `payload` and the tool calls
- * the main thread is running, which no fork can see, and what Leaf answers: the
+/** Report to Leaf (`leaf hook --fork`, `hooks.cmd_fork`) with `payload` and the tool
+ * calls the main thread is running, which no fork can see, and what Leaf answers: the
  * instructions to run next (`do`) and a line for the debug log (`log`), or undefined
  * where it printed nothing. */
 async function tellLeaf(

@@ -11,19 +11,19 @@ which is what lets a test of one rule state the markup and the log the rule is
 about and stop there.
 
 The readings: which revisions exist, what each one's markup and captured
-vocabulary say, where the live page's ids sit, which contract each typed data
-source holds, and what the log still owes. The last is there so that a refusal can tell an
-agent that reached for the wrong id where the right one goes.
+vocabulary say, where the live page's ids sit, and which contract each typed data
+source holds.
 """
 
 from pathlib import Path
 
 from leaf.base.files import list_revisions
 from leaf.source.data import read_contracts
-from leaf.source.passages import SourceReading, enclosing_ids
-from leaf.source.registry.storage import page_vocabulary
+from leaf.source.passages import enclosing_ids
+from leaf.source.reading import SourceReading
 from leaf.source.revision_artifact import active_enclosing, read_revision
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import page_vocabulary
 
 
 class PageView:
@@ -66,14 +66,6 @@ class PageView:
     def contracts(self) -> dict[str, str]:
         """Each recorded data source's contract, without reading its value."""
         return read_contracts(self._page_dir)
-
-    def responses(self, events: list) -> dict[str, dict]:
-        """Where each event the log still owes work for is answered."""
-        # Delivery selects the shared work reading, including the live reply
-        # binding that owns an answer, without preparing browser output.
-        from leaf.agents.delivery import current_responses
-
-        return current_responses(self._page_dir, events)
 
 
 class CandidatePageView(PageView):
@@ -119,8 +111,7 @@ class InitialPageView:
     """A fresh single-revision page, before its directory is allocated.
 
     Sample source validation and allocation put the same literal document and
-    captured vocabulary to ordinary admission. No claim or delivery exists yet,
-    so no response obligation can have been delivered.
+    captured vocabulary to ordinary admission.
     """
 
     def __init__(self, document: SourceDocument, registry: dict, contracts: dict):
@@ -148,6 +139,3 @@ class InitialPageView:
     @property
     def contracts(self) -> dict:
         return self._contracts
-
-    def responses(self, events: list) -> dict:
-        return {}

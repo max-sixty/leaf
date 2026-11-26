@@ -214,7 +214,7 @@
               the page’s <strong>layer</strong>.
             </p>
             <figure id="arch" class="diagram-figure">
-              <lf-diagram id="agent-browser-architecture" data-height="410" parts="all">
+              <lf-diagram id="agent-browser-architecture" data-height="410">
                 <pre>
 flowchart TD
   accTitle: How Leaf composes a page
@@ -464,7 +464,7 @@ flowchart TD
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"
-leaf thread create ./review --obligation --text "Which queue policy fits the importer?"
+leaf thread create ./review --title "Importer queue policy" --obligation --text "Which queue policy fits the importer?"
 leaf server start ./review</code></pre>
               <p id="handoff-checkpoint">
                 This example is a record meant to be revisited, so the agent reviews and
@@ -548,7 +548,7 @@ leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
-leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
+leaf thread create ./review --title "Revised policy" --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
                 registry entry declares <code>awaits</code>, creates an
@@ -812,7 +812,7 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                   needing no answer waits for the next turn.
                 </p>
                 <figure id="turn-end-check" class="diagram-figure">
-                  <lf-diagram id="turn-end-decision" data-height="663" parts="all">
+                  <lf-diagram id="turn-end-decision" data-height="663">
                     <pre>
 flowchart TD
   accTitle: Checks before a turn ends
@@ -1295,7 +1295,7 @@ flowchart TD
                 </li>
               </ul>
               <figure id="turn-end-figure" class="diagram-figure">
-                <lf-diagram id="turn-end-sequence" data-height="522" parts="all">
+                <lf-diagram id="turn-end-sequence" data-height="514">
                   <pre>
 sequenceDiagram
   accTitle: The turn-end check, from the turn's end to the main thread
@@ -1522,9 +1522,9 @@ sequenceDiagram
               says how the records Leaf keeps carry the number.
             </p>
             <p id="leaf-copy-outlast">
-              Three things outlive the process, so a session can find one that another
-              copy of Leaf wrote. Leaf compares each one's record with the session's
-              copy, and brings it to that copy:
+              A session's pages and their servers outlive the process, so a session can
+              find one that another copy of Leaf wrote. Leaf compares each one's record
+              with the session's copy, and brings it to that copy:
             </p>
             <table id="leaf-copy-pieces">
               <thead>
@@ -1563,20 +1563,14 @@ sequenceDiagram
                     address. Open tabs reload where the browser runtime changed.
                   </td>
                 </tr>
-                <tr id="leaf-copy-skill">
-                  <th scope="row">The skill text the agent read</th>
-                  <td>
-                    The copy the session's last hook ran and a digest of the skill it
-                    ships, kept while the session lives or holds a page
-                  </td>
-                  <td>
-                    The first hook from another copy, or from an installed copy its
-                    harness updated, whose skill differs tells the agent to read
-                    <code>SKILL.md</code> again.
-                  </td>
-                </tr>
               </tbody>
             </table>
+            <p id="leaf-copy-skill">
+              The skill text the agent read outlives the process too, in its
+              conversation, and Leaf leaves it to the harness. After an update or a
+              merge changes the skill, Leaf tells the agent nothing; Claude Code's
+              <code>/reload-skills</code> picks up a skill changed on disk.
+            </p>
             <p id="leaf-copy-checkout">
               Developing Leaf works as developing any project does. A checkout of Leaf,
               run through its own <code>bin/leaf</code> from inside a session, acts for
@@ -1784,7 +1778,7 @@ sequenceDiagram
               completion.
             </p>
             <figure id="ontology-graph" class="diagram-figure">
-              <lf-diagram id="ontology-records-diagram" data-height="596" parts="all">
+              <lf-diagram id="ontology-records-diagram" data-height="596">
                 <pre>
 flowchart TD
   accTitle: Work records determine attention
@@ -1815,7 +1809,7 @@ flowchart TD
               until something it read changes.
             </p>
             <figure id="derived-data-figure" class="diagram-figure">
-              <lf-diagram id="derived-data-diagram" data-height="560" parts="all">
+              <lf-diagram id="derived-data-diagram" data-height="560">
                 <pre>
 flowchart LR
   accTitle: Sources, kept readings and views
@@ -1895,7 +1889,7 @@ flowchart LR
               state.
             </p>
             <figure id="data-flow" class="diagram-figure">
-              <lf-diagram id="page-stores-diagram" data-height="646" parts="all">
+              <lf-diagram id="page-stores-diagram" data-height="646">
                 <pre>
 flowchart TD
   accTitle: Durable inputs become current state
@@ -2085,7 +2079,7 @@ flowchart TD
               their own verbs; Leaf processes those declarations without
               package-specific code.
             </p>
-            <lf-diagram id="layers-flow" data-height="515" parts="all">
+            <lf-diagram id="layers-flow" data-height="515">
               <pre>
 flowchart TD
   accTitle: Widget actions update widget state
@@ -2919,7 +2913,7 @@ flowchart TD
               </li>
             </ul>
             <figure id="updates-decision" class="diagram-figure">
-              <lf-diagram id="updates-decision-diagram" data-height="914" parts="all">
+              <lf-diagram id="updates-decision-diagram" data-height="914">
                 <pre>
 flowchart TD
   accTitle: Activity status by first matching condition
@@ -3313,7 +3307,7 @@ EOF</code></pre>
                 </tr>
                 <tr id="anchor-visual">
                   <td>Part of a picture</td>
-                  <td>⌥-click a box that a diagram declares commentable</td>
+                  <td>⌥-click a named box in a diagram or a point in a chart</td>
                   <td><code>section</code> and <code>visual</code>, the part's name</td>
                 </tr>
                 <tr id="anchor-datum">
@@ -3612,7 +3606,9 @@ EOF</code></pre>
             <p id="titles-agent">
               A title names a thread in Threads, in a few words of plain text. The agent
               sets one with <code>--title</code> on the command that first handles the
-              thread, and can rename it later with
+              thread: <code>leaf thread create</code> requires it, and
+              <code>leaf thread reply</code> refuses to post into an untitled thread
+              without one. The agent can rename a thread later with
               <code>leaf thread edit --title</code>.
             </p>
             <p id="titles-model">
@@ -3708,7 +3704,7 @@ EOF</code></pre>
             Workflow tab.
           </p>
           <figure id="forks-map" class="diagram-figure">
-            <lf-diagram id="forks-map-diagram" data-height="866" parts="all">
+            <lf-diagram id="forks-map-diagram" data-height="866">
               <pre>
 flowchart TD
   accTitle: Leaf's forks in Claude Code and what each does
@@ -3743,16 +3739,16 @@ flowchart TD
             Claude Code loads from Leaf's plugin, makes each with Claude Code's
             <code>$.model.fork</code> and hands back what came of it. It adds only what
             it alone sees, such as the tool calls the main thread is running and the end
-            of a main thread's turn. Claude Code keeps the module it loaded until
-            <code>/reload-plugins</code>, while a session whose hooks run a Leaf
-            checkout runs each hook from that checkout as it stands, so the session's
-            module can be older than its Python. That is why the module only carries out
-            Python's instructions: a change to what Leaf forks for, what it asks a fork
-            or what it does with the answer changes only the Python, and an older module
-            carries it out as it does any instruction. The module changes only for a
-            Claude Code call or event Leaf starts to use. The fork subagent is no
-            instruction of Leaf's: the main thread spawns it with Claude Code's Agent
-            tool, and the module leaves a subagent's calls and turns alone.
+            of a main thread's turn. Claude Code keeps the module it loaded until it
+            loads another copy or the module's own code changes, while a session whose
+            hooks run a Leaf checkout runs each hook from that checkout as it stands, so
+            the session's module can be older than its Python. That is why the module
+            only carries out Python's instructions: a change to what Leaf forks for,
+            what it asks a fork or what it does with the answer changes only the Python,
+            and an older module carries it out as it does any instruction. The module
+            changes only for a Claude Code call or event Leaf starts to use. The fork
+            subagent is no instruction of Leaf's: the main thread spawns it with Claude
+            Code's Agent tool, and the module leaves a subagent's calls and turns alone.
           </p>
 
           <section id="path">
@@ -3798,7 +3794,7 @@ flowchart TD
               and that line goes in nowhere.
             </p>
             <figure id="states-figure" class="diagram-figure">
-              <lf-diagram id="states-diagram" data-height="350" parts="all">
+              <lf-diagram id="states-diagram" data-height="350">
                 <pre>
 flowchart TD
   accTitle: What a waiting thread message reads until it is answered
@@ -3909,7 +3905,7 @@ flowchart TD
                 >, tells the main thread when to do this.
               </p>
               <figure id="take-figure" class="diagram-figure">
-                <lf-diagram id="take-sequence" data-height="1198" parts="all">
+                <lf-diagram id="take-sequence" data-height="1152">
                   <pre>
 sequenceDiagram
   accTitle: The main thread gives a message to a fork, which answers it
@@ -4015,7 +4011,7 @@ sequenceDiagram
               side.
             </p>
             <figure id="follow-ups-figure" class="diagram-figure">
-              <lf-diagram id="follow-up-flow" data-height="369" parts="all">
+              <lf-diagram id="follow-up-flow" data-height="369">
                 <pre>
 flowchart TD
   accTitle: Where a further message in a thread goes
@@ -4513,8 +4509,8 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
               </li>
               <li id="source-work">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/serving/served_state/work.py"
-                  ><code>src/leaf/serving/served_state/work.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/records/work_state.py"
+                  ><code>src/leaf/records/work_state.py</code></a
                 >: the waiting messages a progress message of the agent's, such as the
                 working line, came after, which read On it (<code>lined</code>).
               </li>
@@ -4547,8 +4543,13 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/carrier.py"
                   ><code>src/leaf/agents/carrier.py</code></a
-                >: the instructions Leaf's Python gives the hooks module, what the
-                module reports back for each, and the step that takes each report.
+                >: the instructions Leaf's Python gives the hooks module and what the
+                module reports back for each, which <code>cmd_fork</code> in
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/commands/hooks.py"
+                  ><code>src/leaf/commands/hooks.py</code></a
+                >
+                hands to the step that takes it.
               </li>
               <li id="source-module">
                 <a
@@ -5091,7 +5092,7 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
               one read-only state.
             </p>
             <figure id="browser-flow" class="diagram-figure">
-              <lf-diagram id="browser-flow-diagram" data-height="369" parts="all">
+              <lf-diagram id="browser-flow-diagram" data-height="369">
                 <pre>
 flowchart TD
   accTitle: One state feeds every renderer
@@ -5123,11 +5124,7 @@ flowchart TD
               from the arrival of saved state.
             </p>
             <figure id="runtime-start-sequence" class="diagram-figure">
-              <lf-diagram
-                id="runtime-start-sequence-diagram"
-                data-height="440"
-                parts="all"
-              >
+              <lf-diagram id="runtime-start-sequence-diagram" data-height="440">
                 <pre>
 flowchart TD
   accTitle: Prepare the page before controls arrive
@@ -5160,11 +5157,7 @@ flowchart TD
                 received or started work.
               </p>
               <figure id="loading-stage-table" class="diagram-figure">
-                <lf-diagram
-                  id="loading-stage-table-diagram"
-                  data-height="419"
-                  parts="all"
-                >
+                <lf-diagram id="loading-stage-table-diagram" data-height="419">
                   <pre>
 flowchart TD
   accTitle: The interface and saved state load together
@@ -5217,11 +5210,7 @@ flowchart TD
               accepted.
             </p>
             <figure id="runtime-delivery-flow" class="diagram-figure">
-              <lf-diagram
-                id="runtime-delivery-flow-diagram"
-                data-height="512"
-                parts="all"
-              >
+              <lf-diagram id="runtime-delivery-flow-diagram" data-height="512">
                 <pre>
 flowchart TD
   accTitle: A gesture reaches the shared record
@@ -5280,11 +5269,7 @@ flowchart TD
           <section id="browser-freshness">
             <h2>Freshness checks and state reads</h2>
             <figure id="runtime-freshness-flow" class="diagram-figure">
-              <lf-diagram
-                id="runtime-freshness-flow-diagram"
-                data-height="234"
-                parts="all"
-              >
+              <lf-diagram id="runtime-freshness-flow-diagram" data-height="234">
                 <pre>
 flowchart TD
   accTitle: Each changed freshness token triggers a read of what it names
@@ -5351,11 +5336,7 @@ flowchart TD
               the facts.
             </p>
             <figure id="browser-drawing-order" class="diagram-figure">
-              <lf-diagram
-                id="browser-drawing-order-diagram"
-                data-height="326"
-                parts="all"
-              >
+              <lf-diagram id="browser-drawing-order-diagram" data-height="326">
                 <pre>
 flowchart TD
   accTitle: Presentation follows the DOM it needs
@@ -5451,11 +5432,7 @@ flowchart TD
                 its corresponding state.
               </p>
               <figure id="runtime-install-paths" class="diagram-figure">
-                <lf-diagram
-                  id="runtime-install-paths-diagram"
-                  data-height="204"
-                  parts="all"
-                >
+                <lf-diagram id="runtime-install-paths-diagram" data-height="204">
                   <pre>
 flowchart LR
   accTitle: Executable identity chooses the revision path

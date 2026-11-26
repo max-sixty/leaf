@@ -68,13 +68,14 @@ from leaf.base.service import (
     same_claim,
 )
 from leaf.base.state import PLUGIN_ROOT
+from leaf.log.event_log import jsonl_line
 from leaf.records.transaction import PageTransaction
 from leaf.serving.server_lifetime import (
     exit_serving,
     exit_serving_on_signals,
     stop_when_service_ends,
 )
-from leaf.source.layer import other_serving_leaf
+from leaf.source.layer import other_serving_leaf, payload_provenance
 
 if TYPE_CHECKING:
     from leaf.base.record_types import ServiceRecord
@@ -538,8 +539,6 @@ def _announce_server(page_dir: Path, url: str) -> bool:
     """Print a committed foreground server's reading (`started_server`), with what
     the command noted (`findings.with_held`), before it serves, since the command
     returns only when the server stops."""
-    from leaf.log.event_log import jsonl_line
-
     print(jsonl_line(with_held(started_server(page_dir, url))), flush=True)
     return True
 
@@ -681,7 +680,6 @@ def cmd_serve(
     from leaf.serving.handover_pass import HandoverPass
     from leaf.serving.http import page_endpoint
     from leaf.serving.server_rows import RowPublisher
-    from leaf.source.layer import payload_provenance
 
     lease = None
     httpd = None
@@ -980,53 +978,6 @@ def check_servable(page_dir: Path) -> None:
 
     with page_locked(page_dir):
         page_endpoint(page_dir, host_key())
-
-
-def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
-    """`server _follow`: restart at its address, under this Leaf, the server
-    `server_id` names, which another installed copy started and which asked
-    (`server_lifetime.stop_when_service_ends`): the copy this Leaf replaced at the
-    same path, or one the session holding the page ran before its hooks ran this
-    Leaf.
-
-    The answer through `handshake` says only that this copy runs, since only a
-    failed launch is worth the server's trying again. A page at an older page
-    protocol, as an update can leave it, is renewed first, for the live session
-    holding the page (`vendoring.renew_held`) or while none does
-    (`vendoring.renew_layer`), and what holds the renewal back is queued for that
-    session's next step (`clerk.queue`). After an update in place, no hook runs
-    before this renewal, so the successors of the session's watch and of Codex's
-    adapter read the page once it lands. The renewal restarts the server itself,
-    and takes turns with a hook's renewal of the same page (`vendoring._reinit`).
-
-    Otherwise the restart (`restarting_server`) follows, for the session holding the
-    page, unless the page changed since the server asked: a page this Leaf still
-    can't serve, as one whose renewal was refused, stays with the server serving it
-    (`check_servable`); a server another start put in place, such as a checkout's or
-    a renewal's, keeps running; and a session service whose session has ended
-    retires after its grace, as it would have on the old copy. These checks come
-    last, so that little time passes between them and the stop."""
-    if not handshake.announce():
-        return
-    from leaf.pages.vendoring import renew_held, renew_layer
-
-    held = page_claim(page_dir)
-    if held is None or not claim_is_active(held):
-        renew_layer(page_dir, None)
-    elif unready := renew_held(page_dir, held["id"]):
-        from leaf.agents.clerk import queue
-
-        queue(held["id"], [str(unready)], wake=True)
-    check_servable(page_dir)
-    running = running_server(page_dir)
-    held = page_claim(page_dir)
-    live = claim_is_active(held)
-    if running is None or running["server_id"] != server_id:
-        return
-    if running["lifetime"] == "session" and not live:
-        return
-    with restarting_server(page_dir, claim_harness(held) if live else None):
-        pass
 
 
 class _StopScope(Enum):

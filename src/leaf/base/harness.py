@@ -38,11 +38,21 @@ from typing import ClassVar, Literal
 
 from leaf.base.codex_transcript import sync_transcript_turn
 from leaf.base.files import read_json
-from leaf.base.leases import adapter_is_live, hooks_ran
+from leaf.base.leases import adapter_is_live, hooks_ran, mark_module, module_process
 from leaf.base.machine import ancestry, pid_alive, process_argv
 from leaf.base.page_memory import Slot
 from leaf.base.refusals import Refused
-from leaf.base.state import runs_session
+from leaf.base.state import (
+    PLUGIN_ROOT,
+    advance_turn,
+    chat_exists,
+    flocked,
+    runs_session,
+    session_live,
+    session_lock_path,
+    session_record,
+    turn_closed,
+)
 
 
 @dataclass(frozen=True)
@@ -89,7 +99,7 @@ class Harness:
       held no page when that turn's prompt came. Then nothing watches, as when a
       watch fails, reaches its hook's timeout or loses a background job's retired
       worker, while the session lives on, which is why this is the harness with a
-      `nudge` (`presence.nudge_interrupted`).
+      `nudge` (`server_rows.nudge_interrupted`).
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -124,7 +134,7 @@ class Harness:
     # (`codex_adapter`): a claim starts or joins it before publishing its page
     # (`hosting.preparing_delivery`), the tool hook and Stop offer the record
     # (`hooks.offer_at_step`), and the reader's acknowledgement of a pointer the
-    # record offered confirms it there (`delivery.receive_delivery`).
+    # record offered confirms it there (`delivery_ack.receive_delivery`).
     adapter: ClassVar[bool] = False
     # How Leaf asks the harness's model a tool-free structured question, which
     # `inference.harness_generator` reads: a completion on the session's own model
@@ -462,7 +472,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
         prompt = payload.get("prompt_id")
         if not prompt:
             return payload
-        from leaf.base.state import session_record
 
         record = session_record(payload.get("session_id") or "")
         return {**payload, "turn_id": claude_code_turn(prompt, record)}
@@ -483,13 +492,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
             or (expected is not None and expected["turn"] == turn)
         ):
             return expected
-        from leaf.base.state import (
-            advance_turn,
-            flocked,
-            session_live,
-            session_lock_path,
-            session_record,
-        )
 
         with flocked(session_lock_path(self.session)):
             record = session_record(self.session)
@@ -555,9 +557,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
         follower of its own first claim takes to start would read wrong. The notice
         records this process, so the user hears it once per process, and a module
         loaded later, as `/reload-plugins` loads one, records it again."""
-        from leaf.base.leases import mark_module, module_process
-        from leaf.base.state import PLUGIN_ROOT
-
         pid = self.process_pid()
         if pid is None or module_process(self.session) == pid:
             return None
@@ -661,8 +660,6 @@ class CodexHarness(EnvironmentHarness):
         requires that validated source to exist."""
         if (pid := self.process_pid()) is not None:
             if "app-server" in (process_argv(pid) or []):
-                from leaf.base.state import chat_exists, session_record
-
                 if not chat_exists(session_record(self.session)):
                     raise Refused(
                         "Leaf cannot establish this desktop Codex chat's lifetime: "
@@ -1007,8 +1004,6 @@ def claude_code_turn(prompt: str, record: dict | None) -> str:
     session's record: the latest turn run under `prompt` while it is open, and once
     it has closed, a later one under the same prompt, named by the next ordinal
     (`ClaudeCodeHarness.hook_payload`)."""
-    from leaf.base.state import turn_closed
-
     turn = record["turn"] if record else None
     if turn is None or claude_code_prompt(turn) != prompt:
         return prompt

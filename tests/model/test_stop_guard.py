@@ -72,6 +72,7 @@ from leaf.log import event_log as events_model
 from leaf.records import activity as activity_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
 from leaf.source.registry import storage as registry_storage
 
@@ -551,7 +552,7 @@ def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     # Without this the test passes for the wrong reason: it has to be a page
     # whose layer the current Leaf really does refuse.
     with pytest.raises(registry_contract.RegistryError):
-        registry_storage.load_registry(claimed)
+        vocabulary_model.load_registry(claimed)
 
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
@@ -597,6 +598,8 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
                 response_reference(claimed, comment),
                 "--text",
                 "ok",
+                "--title",
+                "Thread title",
             ],
         )
         .exit_code
@@ -1109,6 +1112,8 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                 event["answer"]["ref"],
                 "--text",
                 "Here, next week.",
+                "--title",
+                "Thread title",
             ],
         )
         assert reply.exit_code == 0, reply.output

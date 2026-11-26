@@ -532,7 +532,11 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
     payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
     if process == "Stop":
         _, imported = fresh_imports(leaf_main(*hook, stdin=json.dumps(payload)))
-        assert "leaf.serving.served_state.context" in imported, "the hook read no page"
+        # The work fold loads inside `presence.read_work`, so only a read of the
+        # page's work imports it there.
+        assert imported.get("leaf.records.work_state", "").startswith(
+            "leaf/agents/presence.py:"
+        ), "the hook read no page"
     else:
         asked = append_command(
             claimed,
@@ -548,6 +552,8 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
                 "--ephemeral",
                 "--text",
                 "Checking.",
+                "--title",
+                "Check",
             )
         )
         assert asked["id"] in printed, printed

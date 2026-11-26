@@ -38,13 +38,14 @@ from leaf.agents import delivery as delivery_model
 from leaf.agents import thread as thread_model
 from leaf.base import schema as schema_model
 from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import session as session_model
 from leaf.commands.session import set_status
 from leaf.log import event_log as events_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
-from leaf.source.registry import storage as registry_storage
 from model.interact_contract import _stateful_page_declaration
 
 
@@ -102,7 +103,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     plain, drawn, closed, resolved, on_page, in_thread = (
         [handling[clause] for clause in event.get("handling", [])] for event in shown
     )
-    declared = registry_storage.load_registry(page_dir)["$events"]
+    declared = vocabulary_model.load_registry(page_dir)["$events"]
     [reading_a_drawing] = [
         c["text"]
         for c in declared["handling"]["comment"]
@@ -138,7 +139,7 @@ def test_active_handling_survives_a_broken_page_declaration(page_dir, capsys):
     a page declaration the next revision cannot take leaves that handling intact."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     active = registry_contract.event_clauses(
         {
@@ -195,7 +196,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     assert [event["id"] for event in batch["events"]] == [
         event["id"] for event in selected
     ]
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     digests = {digest["id"]: digest for digest in batch["threads"]}
 
     def case(event):
@@ -287,6 +288,8 @@ def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_
             "Checking the change.",
             "--todo",
             "Check the change",
+            "--title",
+            "Thread title",
         ],
     )
     assert opened.exit_code == 0, opened.output
@@ -375,8 +378,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
 def test_recordless_requests_wake_without_user_obligations(
     page_dir, sessionless, capsys
 ):
+    from leaf.agents.presence import read_work
     from leaf.base.files import latest_revision
-    from leaf.serving.served_state.context import read_page
 
     (page_dir / "page").mkdir(exist_ok=True)
     declaration = _stateful_page_declaration(page_dir, "lf-archive")
@@ -410,7 +413,7 @@ def test_recordless_requests_wake_without_user_obligations(
         )
 
     def work():
-        return read_page(page_dir, events_model.read_events(page_dir)).work.durable
+        return read_work(page_dir, events_model.read_events(page_dir)).durable
 
     assert work().all_obligations["all"] == []
     quiet = action("edit")
@@ -423,7 +426,7 @@ def test_recordless_requests_wake_without_user_obligations(
     payload, _, events = printed(capsys.readouterr().out)
     assert [event["id"] for event in events] == [first["id"]]
     assert "answer" not in events[0]
-    delivery_model.receive_delivery(payload["id"])
+    delivery_ack_model.receive_delivery(payload["id"])
     assert page_state(page_dir)["pending"] == 0
 
     repeated = action("archive")
@@ -1227,7 +1230,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     assert shown["id"] == answer["id"] and shown["token"] == "keep"
     assert "answer" not in shown
     assert page_state(page_dir)["pending"] == 1
-    delivery_model.receive_delivery(payload["id"])
+    delivery_ack_model.receive_delivery(payload["id"])
     assert page_state(page_dir)["pending"] == 0
     restored = append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": answer["id"]}

@@ -26,6 +26,8 @@ const EMITS = {
   text_join: [],
   blank_lines: [],
   fence_words: ["fence"],
+  // A file's formula is the code span it is typed as, its dollars the span's markers.
+  file_formulas: ["code_inline"],
   safe_links: [],
   // block
   code: ["code_block"],

@@ -89,12 +89,12 @@ unsettled update's workflow, the evidence of its delivery, and each owed update'
 obligation record, which says who owes it a move. Its header says when each settles.
 `activity` says where each workflow stands, and each record stands where the strongest
 workflow serving it does. The served list names each workflow's `thread`, strongest
-first (`served_state.work.served_workflows`).
+first (`work_state.served_workflows`).
 
 A workflow waits until a turn has taken it in (`seen`), and after, until the agent
 starts it. It is `running` while a start stands on it, while its reply streams in
 (reason `replying`), or while a progress message of the agent's stands after it in
-its thread, such as a line fork's working line (`served_state.work.lined`). It is
+its thread, such as a line fork's working line (`work_state.lined`). It is
 `blocked` where evidence shows it has stopped moving:
 
 - `undelivered`: no harness has carried it past the pickup grace.
@@ -172,7 +172,7 @@ comparing the name. A watcher is one of:
   `leaf delivery ack <delivery-id> && leaf wait` advances the cursor and starts the
   next wait, which names the page again where no harness session holds it.
 - **The adapter**: one detached process per Codex task, holding the task's wait
-  lease and a lease of its own (`codex_adapter.py`). In the desktop app, an IDE
+  lease and a lease of its own (`codex_run.py`). In the desktop app, an IDE
   extension and a plain terminal, Leaf can't reach Codex's App Server. A desktop chat
   a window of the app has opened takes each delivery as a turn the app starts, with no
   message in the user's name (`codex_desktop.py`). Anywhere else the adapter queues it
@@ -245,7 +245,7 @@ runs no hook, so Claude Code also starts the watch as each prompt starts, which 
 while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
 no watch holds the lease, the page's server sends for the input an interrupted turn
 left once its presence look reads the turn ended by the harness's record
-(`presence.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
+(`server_rows.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
 (`harness.message_claude_code_session`), whose docstring says when the recipient holds
 it; a background job whose worker has retired is resumed with the message as its next
 prompt instead (`harness.resume_claude_code_job`). The adapter and the host declare no
@@ -284,12 +284,12 @@ update it in place, so the session's next hook runs the update. A path names no
 version there, so Leaf identifies a copy by its path and commit
 (`state.installed_copy`, `layer.payload_provenance`).
 
-Each hook records the root of the Leaf it runs (`leases.mark_skill`). At the
+Each hook records the root of the Leaf it runs (`leases.mark_root`). At the
 session's next hook, a page at an older protocol is renewed (`layer-registry.md`,
-"Page protocol"), and where the hook runs another Leaf than the session's previous
-hook, and that Leaf ships another skill, the agent is told to read it again
-(`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
-restarts a page's server under that one at the same address (`hosting.start_page`).
+"Page protocol"). The skill the agent read is the harness's to renew: Leaf tells
+the agent nothing when an update or a merge changes it (`commands/hooks.py`).
+`server start` from another Leaf restarts a page's server under that one at the
+same address (`hosting.start_page`).
 
 A command acts for the session its environment names only from a Leaf that runs
 that session: an installed copy, as the copy the session loaded is, or a checkout
@@ -338,7 +338,7 @@ process from a checkout follows no copy.
 
 An update that moves the page protocol leaves the session's pages at the old one.
 The restart of each page's server renews the page first, as the session's next hook
-would (`hosting.follow_copy`), and the renewal restarts the server itself; the
+would (`vendoring.follow_copy`), and the renewal restarts the server itself; the
 successor adapter or watch delivers the page's input once the renewal lands. What
 holds a renewal back is queued for the session's next step, and wakes an idle session
 where a watch runs between turns.
@@ -348,7 +348,7 @@ it follows restart it at the same address, for the session holding the page wher
 does, and serves meanwhile (`server_lifetime.stop_when_service_ends`). The adapter
 releases its leases and starts a successor from the copy it follows. It holds the
 task's start lock until the successor holds its leases and its transport answers, so a
-claim meanwhile waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
+claim meanwhile waits and then joins the successor (`codex_run.py`). Until then, a hook that
 reads the adapter lease without the start lock finds no adapter. Pi's watch lets its
 lease go and execs the new copy's watch with the payload that started it, so the
 process Pi's extension started stays the one it reads and stops (`hooks.main`).
@@ -361,9 +361,8 @@ Every file a session keeps in the state home's `sessions/` carries its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`). While a claim still names the session, its lifecycle and
 session lock stay, since the page shows that session's turn from the lifecycle, and
-so does the record of the Leaf its hooks last ran and the skill it ships
-(`leases.mark_skill`), which the first hook of a resumed session compares with its
-own. A
+so does the record of the Leaf its hooks last ran (`leases.mark_root`), which a
+resumed process's page servers and commands read before its first hook. A
 session holding no claim on a page that still stands (`state.held_claims`) loses every
 file no other process holds a lock on, so a lease still held, such as a watch's, stays
 with its holder. A session that never used Leaf ends without writing a file, and one
@@ -401,4 +400,4 @@ transcript (`codex_transcript.py`), without which a new desktop start owns nothi
 (`state.chat_exists`).
 
 The adapter follows the session's page ownership, not the pages' declarations, and
-retires once ownership ends (`codex_adapter.py`).
+retires once ownership ends (`codex_run.py`).

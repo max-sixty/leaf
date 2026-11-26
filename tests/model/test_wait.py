@@ -58,6 +58,7 @@ from leaf.base import state as cleanup_model
 from leaf.base.detached import StartRefused
 from leaf.base.state import kernel_protocol
 from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
 from leaf.log import event_log as events_model
@@ -111,8 +112,8 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     assert not any(
         event["kind"] == "pickup" for event in events_model.read_events(page_dir)
     )
-    delivery_model.receive_delivery(payload["id"])
-    delivery_model.receive_delivery(payload["id"])  # retries are harmless
+    delivery_ack_model.receive_delivery(payload["id"])
+    delivery_ack_model.receive_delivery(payload["id"])  # retries are harmless
     assert acknowledged_through(page_dir) == delivered_through
     assert page_state(page_dir)["pending"] == 1
 
@@ -220,7 +221,16 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
 
     progress = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", first_ref, "--ephemeral", "--text", "Checking"],
+        [
+            "thread",
+            "reply",
+            first_ref,
+            "--ephemeral",
+            "--text",
+            "Checking",
+            "--title",
+            "Thread title",
+        ],
     )
     assert progress.exit_code == 0, progress.output
     assert json.loads(progress.output)["parent"] == event["id"]
@@ -1423,7 +1433,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(page_dir, monkeypatch, 
     payload = json.loads(capsys.readouterr().out)
     assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
     assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
-    delivery_model.cmd_delivery_ack(payload["id"])
+    delivery_ack_model.cmd_delivery_ack(payload["id"])
 
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "unhooked"}
@@ -1443,7 +1453,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(page_dir, monkeypatch, 
     payload, _, shown = printed(capsys.readouterr().out)
     assert [event["id"] for event in shown] == [second["id"]]
     assert page_state(page_dir)["pending"] == 1
-    delivery_model.cmd_delivery_ack(payload["id"])
+    delivery_ack_model.cmd_delivery_ack(payload["id"])
     assert page_state(page_dir)["pending"] == 0
     observed = cleanup_model.session_record("unhooked")
     assert observed is not None
@@ -1487,12 +1497,21 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     assert session_model.cmd_wait(page_dir) == 0
     payload, _, [event] = printed(capsys.readouterr().out)
     assert event["id"] == asked["id"]
-    delivery_model.cmd_delivery_ack(payload["id"])
+    delivery_ack_model.cmd_delivery_ack(payload["id"])
     with transaction_model.PageTransaction(page_dir) as page:
         assert delivery_model.deliverable(page) == []
     reply = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--done", event["answer"]["ref"], "--text", "Here."],
+        [
+            "thread",
+            "reply",
+            "--done",
+            event["answer"]["ref"],
+            "--text",
+            "Here.",
+            "--title",
+            "Thread title",
+        ],
     )
     assert reply.exit_code == 0, reply.output
     assert owed_answers(page_dir) == []

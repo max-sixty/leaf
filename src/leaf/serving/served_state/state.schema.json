@@ -216,7 +216,7 @@
           "$ref": "#/$defs/Activity"
         },
         "workflows": {
-          "description": "The page's workflows, strongest first (`served_state.work.served_workflows`).",
+          "description": "The page's workflows, strongest first (`work_state.served_workflows`).",
           "type": "array",
           "items": { "$ref": "#/$defs/Workflow" }
         },

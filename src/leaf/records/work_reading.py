@@ -2,11 +2,11 @@
 
 Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
-sent the event (`event_meaning.AdmissionReadings`), serving against
-the active revision (`served_state.work`), and a view pinned to an older revision
+sent the event (`event_meaning.AdmissionReadings`), the page's work against
+the active revision (`work_state`), and a view pinned to an older revision
 calls `viewing` to read the same log under that revision's registry. It knows
 nothing about whether a session is live: `activity` adds that once, in
-`served_state.work`, and transports read the result without building the browser's
+`work_state`, and transports read the result without building the browser's
 state. A `WorkReading` lasts for one transaction and is never written to disk.
 """
 

@@ -129,8 +129,8 @@ TOOLS_SUFFIX = "tools"
 # The harness process its Leaf module last ran in, or whose user Leaf told it
 # didn't (`leases.mark_module`).
 MODULE_SUFFIX = "module"
-# The Leaf its hooks last ran and the skill it ships (`leases.mark_skill`).
-SKILL_SUFFIX = "skill"
+# The root of the Leaf its hooks last ran (`leases.mark_root`).
+ROOT_SUFFIX = "root"
 # When its tool boundaries last checked its pages' status lines
 # (`hook_transport.status_reminders`), by the file's mtime.
 STATUS_CHECKED_SUFFIX = "status-checked"
@@ -272,13 +272,11 @@ def still_named(held: int, path: Path) -> bool:
 
 def hooks_root(session_id: str) -> Path | None:
     """The root of the Leaf the session's hooks last ran, which each of them records
-    with the skill it ships (`hooks.skill_mark`, `leases.mark_skill`), or None where
-    no hook of the session has run."""
+    (`leases.mark_root`), or None where no hook of the session has run."""
     try:
-        marked = session_file(session_id, SKILL_SUFFIX).read_text()
+        return Path(session_file(session_id, ROOT_SUFFIX).read_text())
     except FileNotFoundError:
         return None
-    return Path(marked.rpartition("\n")[0])
 
 
 def hooks_run_here(session_id: str) -> bool:
@@ -928,7 +926,7 @@ def advance_turn(
 
 def open_session_turn(session_id: str) -> dict | None:
     """Open the session's turn for an explicit reader acknowledgement
-    (`delivery.receive_delivery`). A provider names its own turns, so this opens
+    (`delivery_ack.receive_delivery`). A provider names its own turns, so this opens
     none of a provider's but the one it holds open: a late consumer or callback
     can't restart a turn the harness ended. One after the session's files retired
     starts a generation no claim names."""

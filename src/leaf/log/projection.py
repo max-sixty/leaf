@@ -16,13 +16,8 @@ from leaf.log.events import (
     thread_structure,
 )
 from leaf.log.thread_context import thread_names, thread_widgets
-from leaf.source.passages import (
-    EMPTY,
-    Passages,
-    SourceReading,
-    enclosing_of,
-    page_passages,
-)
+from leaf.source.passages import EMPTY, Passages, enclosing_of, page_passages
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import (
     decides,
     event_spec,
@@ -34,7 +29,7 @@ from leaf.source.registry.contract import (
 )
 from leaf.source.registry.kernel import verb_writers
 from leaf.source.registry.schema import schema_error
-from leaf.source.structure import SourceDocument
+from leaf.source.structure import SourceDocument, enclosing_widgets
 
 
 def _reports(projection) -> list[dict]:
@@ -82,14 +77,6 @@ def _reports(projection) -> list[dict]:
 def canonical_reports(projection) -> list[dict]:
     """Normalize projected reports into the one report feed, in log order."""
     return sorted(_reports(projection), key=lambda report: report["seq"])
-
-
-def enclosing_widgets(rec: dict):
-    """The lf-* elements standing around one, innermost first."""
-    rec = rec["holder"]
-    while rec is not None:
-        yield rec
-        rec = rec["holder"]
 
 
 def enclosing_slot(rec: dict, registry: dict):

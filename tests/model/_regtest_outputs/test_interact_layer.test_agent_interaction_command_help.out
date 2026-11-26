@@ -137,8 +137,8 @@ Options:
   --text TEXT   the comment's text
   --file PATH   read the comment's text from PATH, - for stdin; with neither
                 option, from piped stdin
-  --title TEXT  name the thread for the panel unless it has a name: a few words;
-                one past 80 characters is cut at a word
+  --title TEXT  a few words naming the thread's subject; one past 80 characters
+                is cut at a word  [required]
   --obligation  put this message on On Me until the user replies or settles it
   --help        Show this message and exit.
 
@@ -165,8 +165,8 @@ Options:
                      do on the thread, ended by `leaf task end` with the reply's
                      id
   --ephemeral        one-line progress, without answering
-  --title TEXT       name the thread for the panel unless it has a name: a few
-                     words; one past 80 characters is cut at a word
+  --title TEXT       a few words naming the thread's subject, needed where it
+                     has no title yet; one past 80 characters is cut at a word
   --obligation [ID]  put this message on On Me until the user replies or settles
                      it; with the ID of a question their reply left standing,
                      ask that question again, once per question

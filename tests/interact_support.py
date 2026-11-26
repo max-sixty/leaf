@@ -69,6 +69,7 @@ from leaf.base import state as cleanup_model
 from leaf.base.findings import Finding
 from leaf.base.refusals import Refused
 from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import hook_transport as hook_transport_model
 from leaf.commands import session as session_model
 from leaf.commands.session import set_status
@@ -87,12 +88,13 @@ from leaf.serving.served_state import page as served_page
 from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
 from leaf.source import structure as structure_model
 from leaf.source.registry.contract import RegistryError
-from leaf.source.registry.storage import load_registry, read_page_registry
 from leaf.source.registry.validation import incoming_registry
 from leaf.source.revision_artifact import active_enclosing, read_artifact
 from leaf.source.runtime_selection import execution_identity
+from leaf.source.vocabulary import load_registry, read_page_registry
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
@@ -185,7 +187,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
-    from leaf.source.passages import SourceReading
+    from leaf.source.reading import SourceReading
     from leaf.source.revision_artifact import capture_artifact, write_artifact
     from leaf.source.structure import SourceDocument
 
@@ -268,7 +270,7 @@ class ModelPage:
         return self.documents[revision]
 
     def reading(self, revision: int, registry: dict):
-        return passages_model.SourceReading(self.documents[revision], registry)
+        return reading_model.SourceReading(self.documents[revision], registry)
 
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
@@ -285,12 +287,6 @@ class ModelPage:
     @property
     def within(self) -> dict:
         return passages_model.enclosing_ids(self.documents[max(self.documents)])
-
-    def responses(self, events: list) -> dict:
-        raise NotImplementedError(
-            "what a page still owes is read from its claims and its deliveries, "
-            "which a stated page has none of: put that refusal on `page_dir`"
-        )
 
     @property
     def claims(self) -> list:
@@ -623,7 +619,8 @@ PAGE = f"""<!doctype html>
 </html>
 """
 # PAGE's Plan section stands in a named group, so a widget a test writes there asks a
-# question (`obligations.widget_groups`); a test opening the section matches this.
+# question (`obligation_sources.widget_groups`); a test opening the section matches
+# this.
 PLAN_OPENING = '<section id="plan">'
 # PAGE places no widget whose module only a browser can judge, so `page check` on it
 # and on the versions built from it never starts one (`needs_browser`). A test about a
@@ -637,6 +634,15 @@ graph LR
   </pre></lf-diagram>
 </section>""",
 )
+
+
+def bound_twice(source: str) -> str:
+    """Markup binding the data source `source` under two contracts, which no document
+    may do (`contract-conflict`)."""
+    return (
+        f'<p><lf-num source="{source}" run="r1">3</lf-num></p>'
+        f'<lf-text-document id="{source}-text" source="{source}"></lf-text-document>'
+    )
 
 
 def package_path(path: Path) -> str:
@@ -1342,9 +1348,9 @@ def owed_answers(page_dir):
     """The answers the page's agent owes (`activity.obligations`), as the hooks and
     `leaf page close` read them: each the workflow of the input its record names, with
     the record's id as `obligation` and the owed `answer`."""
-    from leaf.serving.served_state.context import read_page
+    from leaf.agents.presence import read_work
 
-    return read_page(page_dir, events_model.read_events(page_dir)).work.obligations
+    return read_work(page_dir, events_model.read_events(page_dir)).obligations
 
 
 # A question and the accept that answers it, written as a stored log holds them:
@@ -2483,8 +2489,12 @@ def published(page_dir):
 
 
 def comment(page_dir, *args):
-    """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["thread", "create", str(page_dir), *args])
+    """Open a thread, titled "Agent thread" unless `args` give a title, with the
+    posted event on stdout for the caller to read."""
+    titled = () if "--title" in args else ("--title", "Agent thread")
+    return CliRunner().invoke(
+        cli_model.cli, ["thread", "create", str(page_dir), *args, *titled]
+    )
 
 
 DRAFTED = PAGE.replace(
@@ -2910,7 +2920,7 @@ def receive_through(page_dir: Path, seq: int) -> None:
         held = harness is not None and page.claim_of(harness.session) is not None
     if not held:
         transaction_model.claim_page(page_dir)
-    delivery_model.receive_delivery(delivery_through(page_dir, seq))
+    delivery_ack_model.receive_delivery(delivery_through(page_dir, seq))
 
 
 def delivered_ref(page_dir: Path, input_id: str) -> str:
@@ -3134,7 +3144,7 @@ def _watched(page_dir):
 def adapter_lease(session_id, app_server):
     """Hold `session_id`'s adapter lease as a running adapter does, naming the App
     Server it starts turns over, or None for one that queues them
-    (`codex_adapter.run_adapter`)."""
+    (`codex_run.run_adapter`)."""
     path = leases_model.adapter_lease_path(session_id)
     lease = leases_model.take_lease(path)
     assert lease

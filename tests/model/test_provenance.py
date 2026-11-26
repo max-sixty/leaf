@@ -1,6 +1,6 @@
 """Which of the user's messages waited while a version was saved, and where each
-revision stands in the log (`provenance.py`, `revisioning.py`): what a version says
-it was saved after."""
+revision stands in the log (`provenance.py`, `revision_publication.py`): what a
+version says it was saved after."""
 
 import random
 from copy import deepcopy
@@ -26,7 +26,8 @@ from leaf.log.provenance import saved_after as line_of
 from leaf.records.event_contracts import admitted_event
 from leaf.records.event_facts import EventFacts
 from leaf.records.revisioning import activate_source
-from leaf.source.passages import SourceReading, enclosing_ids
+from leaf.source.passages import enclosing_ids
+from leaf.source.reading import SourceReading
 from leaf.source.registry.kernel import kernel_event_kinds
 from leaf.source.structure import SourceDocument
 from model.interact_contract.test_thread_resolution import (
@@ -342,6 +343,8 @@ def test_a_revision_takes_its_place_in_the_log_from_the_event_naming_its_bundle(
             response_reference(page_dir, asked),
             "--text",
             "The rollout flag, off by default.",
+            "--title",
+            "Thread title",
         ],
         catch_exceptions=False,
     )

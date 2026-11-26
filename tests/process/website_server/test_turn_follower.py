@@ -26,6 +26,7 @@ from leaf.base.state import session_record
 from leaf.commands.session import set_status
 from leaf.log.event_log import read_events
 from leaf.log.interaction_log import read_interactions
+from leaf.pages.render_gate.command import message_check
 from process.website_server import (
     accept_in_turn,
     hosted_follower,
@@ -448,8 +449,8 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     committed = []
 
     class ReplyStream:
-        def __init__(self, session, turn, delivery, target):
-            streamed.append((session, turn, delivery, dict(target)))
+        def __init__(self, session, turn, delivery, target, check):
+            streamed.append((session, turn, delivery, dict(target), check))
 
         def update(self, update):
             message = update.get("message") if update is not None else None
@@ -494,6 +495,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
             "initial-turn",
             prepared.payload["id"],
             address,
+            message_check,
         ),
         ("Deployment verified.", True),
     ]

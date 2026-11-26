@@ -763,6 +763,8 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
                 "--done",
                 response_reference(d, root),
                 "--detach",
+                "--title",
+                "Removed plan",
                 "--text",
                 "The earlier plan has been removed.",
             ],

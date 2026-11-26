@@ -13,11 +13,12 @@ from interact_support import (
 
 from leaf.base import standing as standing_model
 from leaf.log import obligations as obligations_model
-from leaf.log.gesture_words import element_name
 from leaf.log.projection import page_reading
 from leaf.records.work_reading import WorkReading
 from leaf.serving.served_state.browser import browser_state
-from leaf.source.passages import SourceReading
+from leaf.source import structure as structure_model
+from leaf.source.passages import element_name
+from leaf.source.reading import SourceReading
 from leaf.source.structure import SourceDocument
 
 OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-option id="b">B</lf-option></lf-options>'
@@ -251,6 +252,19 @@ def test_a_widget_never_asked_is_absent_and_one_that_stops_asking_withdraws_its_
             "all"
         ]
         == []
+    )
+
+
+def test_a_widget_an_earlier_version_showed_in_an_exhibit_never_asked():
+    """An exhibit shows the widgets in it rather than asking with them, in a page's
+    history as in its current version, so a widget an earlier version showed leaves
+    no finished obligation once a later one moves it out and settles it."""
+    shown = model.leaf_page(
+        "Questions",
+        f'<lf-sample id="kit" label="Kit">{OPTIONS.format(attrs="")}</lf-sample>',
+    )
+    assert (
+        page_obligations(model.reading({1: shown, 2: page("settled")}), 2)["all"] == []
     )
 
 
@@ -891,6 +905,21 @@ def test_conditional_request_retains_registration_between_value_actions():
     assert any(
         workflow["obligation"] is not None for workflow in completed["workflows"]
     )
+    # A write to a widget an interactive exhibit shows is a demonstration, which
+    # asks nothing then or once a later version moves the widget out.
+    demonstrated = model.leaf_page(
+        "Conditional",
+        '<lf-sample id="demo" label="Demo" interactive>'
+        '<lf-conditional id="conditional" phase="closed" ready></lf-conditional>'
+        "</lf-sample>",
+    )
+    assert (
+        page_obligations(
+            model.reading({1: demonstrated, 2: not_ready}, events, registry=registry),
+            2,
+        )["all"]
+        == []
+    )
     events.append({"kind": "undo", "undoes": "e1"})
     assert (
         page_obligations(model.reading(document, events, registry=registry))["all"]
@@ -1166,7 +1195,7 @@ def test_a_widget_is_quoted_where_the_browser_fences_it(case):
     the rule the browser's descriptors' `quoted` flag reads off the page."""
     document = SourceDocument(model.leaf_page("Exhibits", case["markup"]))
     assert {
-        rec["attrs"]["id"]: obligations_model.quoted_in(rec, EXHIBITS["registry"])
+        rec["attrs"]["id"]: structure_model.quoted_in(rec, EXHIBITS["registry"])
         for rec in document.lf_elements
     } == case["quoted"]
 

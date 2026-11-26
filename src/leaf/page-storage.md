@@ -159,7 +159,7 @@ authored DOM baselines to decide which widgets a patch keeps (`features/version.
 
 A publication that also changes the log stages its bundle, names it in its first
 admitted event, and writes the revision marker last, and the next page transaction
-finishes one that was interrupted (`revisioning.py`).
+finishes one that was interrupted (`revision_publication.py`).
 
 ## Page state
 

@@ -8,6 +8,7 @@ from interact_support import (
     PAGE,
     PAGE_GROUP,
     append_carried_log_record,
+    bound_twice,
     check,
     check_findings,
     command_findings,
@@ -338,13 +339,15 @@ SAMPLE_DOCUMENT_CASES = [
 ]
 
 
-# `source.sample_errors` is the one gate either door reads a child through, so the
-# message door takes the one case that also reaches a child's own samples.
+# `documents.sample_errors` is the one gate either door reads a child through, so the
+# message door takes the one case that also reaches a child's own samples, and a
+# binding conflict, which a message's gate reads in its own markup alone.
 @pytest.mark.parametrize(
     ("markup", "code", "samples", "holder"),
     [
         *((*case, "page") for case in SAMPLE_DOCUMENT_CASES),
         (*SAMPLE_DOCUMENT_CASES[-1], "message"),
+        (bound_twice("shared"), "contract-conflict", ("practice",), "message"),
     ],
 )
 def test_check_validates_each_sample_document(page_dir, markup, code, samples, holder):
@@ -357,6 +360,41 @@ def test_check_validates_each_sample_document(page_dir, markup, code, samples, h
         return
     [refused] = found(errors, code)
     assert refused.samples == samples
+
+
+def test_a_binding_conflict_is_reported_once_by_the_gate_of_its_document(page_dir):
+    """A source bound under two contracts is a conflict within one document, so the
+    gate that reads that document reports it, and only that gate: the page's for its
+    own markup, a sample child's for the template's, and the fixture's admission for
+    a fixture message's, each naming the document where the author fixes it."""
+    history = [
+        {"kind": "comment", "id": "aabb0011", "author": "agent", "text": "Open"},
+        {
+            "kind": "reply",
+            "parent": "aabb0011",
+            "author": "agent",
+            "revision": 1,
+            "text": f"Both:\n\n{bound_twice('fixture-feed')}",
+        },
+    ]
+    sample = (
+        f'<script id="fixture" type="application/json">{json.dumps(history)}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        f"<h1>Child</h1>{bound_twice('sample-feed')}</template>"
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", bound_twice("page-feed") + sample + "</main>")
+    )
+    _status, findings = check_findings(page_dir)
+    assert [
+        (conflict.samples, conflict.values["source"])
+        for conflict in found(findings, "contract-conflict")
+    ] == [((), "page-feed"), (("practice",), "sample-feed")]
+    [fixture] = found(findings, "fixture-markup", event=2)
+    assert [
+        (nested.code, nested.values["source"])
+        for nested in map(Finding.loads, fixture.values["findings"])
+    ] == [("contract-conflict", "fixture-feed")]
 
 
 @pytest.mark.parametrize("holder", ["page", "message"])
@@ -400,6 +438,8 @@ def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
             "aabb0011",
             "--text",
             f"Try:\n\n{sample}",
+            "--title",
+            "Thread title",
         )
     else:
         history = [
@@ -435,7 +475,13 @@ def sample_holder_findings(page_dir, holder, source) -> list[Finding]:
         return findings
     published(page_dir)
     return command_findings(
-        "thread", "create", str(page_dir), "--text", f"Try it:\n\n{source}"
+        "thread",
+        "create",
+        str(page_dir),
+        "--text",
+        f"Try it:\n\n{source}",
+        "--title",
+        "Agent thread",
     )
 
 
@@ -515,6 +561,8 @@ def test_an_id_the_log_gives_an_event_is_refused_in_a_page_and_a_message(page_di
         page_dir,
         "--text",
         'See:\n\n<lf-code id="6d1d57ac">\n<pre><code>1</code></pre></lf-code>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values) for f in message] == [
         ("ids-taken-by-events", {"ids": ["6d1d57ac"]})
@@ -578,7 +626,7 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     parses as a block's contents but not as the declaration list delivery reads,
     and unasked would pass every check only for delivery to refuse it."""
     from leaf.serving.revision_delivery import DeliveryAddress, rebase_document
-    from leaf.source.revision_artifact import ArtifactError
+    from leaf.source.capture_refusals import ArtifactError
 
     markup = holder.format(f'<p style="{style}">Shown</p>')
     source = styled("", markup)
@@ -588,7 +636,13 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     else:
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", f"Look:\n\n{markup}"
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            f"Look:\n\n{markup}",
+            "--title",
+            "Agent thread",
         )
     [refused] = findings if door == "message" else found(findings, "css-syntax")
     assert refused.code == "css-syntax"
@@ -609,7 +663,13 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
     if door == "message-sample":
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", f"Try:\n\n{sample}"
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            f"Try:\n\n{sample}",
+            "--title",
+            "Agent thread",
         )
     else:
         (page_dir / "index.html").write_text(
@@ -632,6 +692,8 @@ def test_a_message_takes_the_advice_its_markup_draws_on_a_page(page_dir):
         page_dir,
         "--text",
         'Run:\n\n<pre><code class="language-nope">go</code></pre>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values["language"]) for f in noted] == [
         ("uncoloured-language", "nope")
@@ -654,7 +716,13 @@ def test_a_dropped_declaration_is_advice(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     published(page_dir)
     noted = command_notes(
-        "thread", "create", page_dir, "--text", f"Try:\n\n{published_markup}"
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        f"Try:\n\n{published_markup}",
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.severity) for f in noted] == [("css-dropped", "advice")]
 
@@ -835,7 +903,7 @@ SAMPLE_FIXTURE_REFUSALS = [
 ]
 
 
-# `sample_content.initial_sample_events` reads a fixture for either door, so the
+# `documents.initial_sample_events` reads a fixture for either door, so the
 # message door takes the one case a holder's own script and a child's ids both reach.
 @pytest.mark.parametrize(
     ("history", "script_attrs", "template_attrs", "code", "values", "holder"),

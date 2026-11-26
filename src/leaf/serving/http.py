@@ -93,8 +93,8 @@ from leaf.source.file_bindings import (
     read_file,
     save_file,
 )
-from leaf.source.layer import running_leaf
-from leaf.source.passages import SourceReading
+from leaf.source.layer import running_leaf, selected_layer
+from leaf.source.reading import SourceReading
 from leaf.source.registry.storage import layer_metadata
 from leaf.source.revision_artifact import Resource, RevisionArtifact
 from leaf.source.runtime_selection import (
@@ -1653,11 +1653,9 @@ def page_endpoint(
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-    from leaf.source.registry.storage import selected
-
     if page_snapshot is None:
         identity = layer_metadata(page_dir)
-        selected(identity, page_dir)
+        selected_layer(identity, page_dir)
     else:
         identity = page_snapshot.context.layer
     return partial(

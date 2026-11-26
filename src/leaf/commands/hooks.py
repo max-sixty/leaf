@@ -2,11 +2,15 @@
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
 that its harness supports hook delivery (`Harness.hooks_carry`), and the Leaf it
-runs with the skill that Leaf ships (`leases.mark_skill`). The first hook to run
-another Leaf, shipping another skill, queues a notice telling the agent to read the
-skill again (`skill_changed`). An explicit
-`leaf wait` always prints the envelope; it does not depend on another hook
-running after it. SessionEnd retires the harness instance without reading pages;
+runs (`leases.mark_root`). The skill the agent read stays in its conversation as
+the harness keeps it: when an update or a merge changes the skill under a running
+session, Leaf tells the agent nothing, and the harness's own means, such as Claude
+Code's `/reload-skills`, pick the change up. The maintainer chose that over a
+notice each hook queued once the skill it ships differed from the previous
+hook's: the skill changes often, so the notice fired on most updates, and it
+needed a change for each way a copy of Leaf can change. An
+explicit `leaf wait` always prints the envelope; it does not depend on another
+hook running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
 
 Codex's startup hook captures its validated native source even when the first
@@ -43,9 +47,9 @@ records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
 session's pages (`cmd_pages`) to draw them beside the prompt and to take the
 instructions Leaf lists for it, and reports what each came to with `--fork`
-(`carrier.step`, whose header holds that contract). The follower records the process
-it runs in, so a Stop can tell the user where Claude Code didn't load the module
-(`Harness.unloaded_module`). `leaf hook` (`cli.hook`) dispatches here.
+(`cmd_fork`; `carrier.py`'s header holds that contract). The follower records the
+process it runs in, so a Stop can tell the user where Claude Code didn't load the
+module (`Harness.unloaded_module`). `leaf hook` (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
@@ -70,11 +74,25 @@ session")."""
 
 import json
 import os
+import sys
+import tempfile
 import time
 from typing import TYPE_CHECKING, NoReturn
 
-from leaf.base.leases import first_hook_for_tool, mark_hooks, mark_skill
+from leaf.base.leases import (
+    end_if_terminated,
+    first_hook_for_tool,
+    lane_path,
+    mark_hooks,
+    mark_module,
+    mark_root,
+    release_lease,
+    release_on_termination,
+    take_lane,
+)
+from leaf.base.page_memory import memory_of
 from leaf.base.refusals import Refused
+from leaf.base.schema import SKILL_FILE
 from leaf.base.state import (
     PLUGIN_ROOT,
     CopyReplaced,
@@ -82,7 +100,6 @@ from leaf.base.state import (
     close_session_turn,
     flocked,
     held_claims,
-    installed_copy,
     installed_protocol,
     kernel_protocol,
     prompt_turn,
@@ -93,6 +110,7 @@ from leaf.base.state import (
     turn_closed,
     worker_tool_batch,
 )
+from leaf.log.interaction_log import record_follower
 from leaf.records.transaction import owned_pages
 
 if TYPE_CHECKING:
@@ -114,8 +132,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
-    if (before := mark_skill(sid, now := skill_mark())) is not None:
-        skill_changed(sid, before, now)
+    mark_root(sid, PLUGIN_ROOT)
     assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
@@ -281,8 +298,6 @@ def reload_skill(session_id: str) -> str | None:
     widget's instructions in context, where those written before one have them. Restating a rule on every prompt weighs on every turn and covers only
     that rule, so this message names what the compaction removed and
     leaves the rules to the skill and its routes."""
-    from leaf.base.schema import SKILL_FILE
-
     pages = owned_pages(session_id)
     if not pages:
         return None
@@ -293,68 +308,6 @@ def reload_skill(session_id: str) -> str | None:
         "instructions` printed are gone, and the skill may be too. Before you next "
         f"reply or run a leaf command, read {SKILL_FILE} again, then the references "
         "and widget instructions your work in progress needs."
-    )
-
-
-def skill_mark() -> str:
-    """The Leaf this hook runs, by its plugin root, and the leaf skill it ships, by
-    the identity of every file under `skills/leaf/` (`layer.files_identity`), which
-    names the skill however its copy was made or updated. Each hook reads and hashes
-    the skill's files to take it (`leases.mark_skill`)."""
-    from leaf.base.schema import SKILL_FILE
-    from leaf.source.layer import files_identity
-
-    directory = SKILL_FILE.parent
-    skill = files_identity(
-        {
-            path.relative_to(directory).as_posix(): path.read_bytes()
-            for path in directory.rglob("*")
-            if path.is_file()
-        }
-    )
-    return f"{PLUGIN_ROOT}\n{skill}"
-
-
-def skill_changed(session_id: str, before: str, now: str) -> None:
-    """Queue a notice telling the session's agent to read the leaf skill again, where
-    `now`, the mark this hook took (`skill_mark`), names another Leaf than `before`,
-    the previous hook's, and another skill.
-
-    The Leaf a session's hooks run changes when Claude Code loads another copy, which
-    it does as a process starts, on a resume or a background job's wake, and at
-    `/reload-plugins`; and when Codex or Pi replaces its copy in place, which the
-    next hook runs. The transcript carries over, so the agent still holds the skill and references
-    it read under the old Leaf, while its hooks and `leaf` commands run the new one.
-    Two versions whose skills match byte for byte, as an update that changed only code
-    leaves them, need no notice. An installed copy at the same root is another Leaf
-    once its skill changed, since only its harness writes it
-    (`state.installed_copy`). A checkout at the same root is the same Leaf: a
-    session whose hooks run a checkout is developing Leaf, and its edits to the
-    skill are changes it makes rather than instructions it missed.
-
-    The notice joins the lines the next prompt or tool boundary carries beside the
-    input it hands over (`clerk.queue`, `hook_transport.carry_turn`), so the agent
-    reads it once. Those hooks carry it only in a session holding a page, as
-    `reload_skill` sends its notice only there. The hook that prints the notice
-    asks whether the session holds a page, rather than this one, since a resumed
-    session's claims stay inactive until its first prompt serves its pages again
-    (`reconnect`), after this hook marked the skill."""
-    root, _, skill = before.rpartition("\n")
-    here, _, shipped = now.rpartition("\n")
-    if skill == shipped or (root == here and not installed_copy(PLUGIN_ROOT)):
-        return
-    from leaf.agents.clerk import queue
-    from leaf.base.schema import SKILL_FILE
-
-    queue(
-        session_id,
-        [
-            "This session's hooks and leaf commands now run a Leaf with a different "
-            "skill, so the leaf skill and references you read earlier may describe "
-            "commands and rules that have changed. Before you next reply or run a "
-            f"leaf command, read {SKILL_FILE} again, then the references your work "
-            "in progress needs."
-        ],
     )
 
 
@@ -413,22 +366,21 @@ def cmd_pages(payload: dict) -> None:
     takes the log as it stands, so it lists no round older than itself, and a
     follower started again lists none an earlier one listed.
 
-    It exits with `EX_TEMPFAIL`, without a last line, once the tree it runs from has
-    moved on under it (`_moved_on`), and the module starts it again from that tree.
-    A follower runs as long as its session, while a checkout Claude Code loads in
-    place (`--plugin-dir`) can move past a protocol bump between calls.
-
-    The module that reads the list stays the one the session loaded until
-    `/reload-plugins`, so a follower started again from such a checkout's newer code
-    may print it to an older module, which runs its instructions as any
-    (`carrier.py`).
+    It runs the code it started with until it exits or the module that started it
+    ends it, and Claude Code ends a module only to load another copy or the module's
+    own changed code (`hooks/claude-code.ts`). So in a checkout Claude Code loads in
+    place (`--plugin-dir`) it can run older Python than the session's hooks, as two
+    versions of Leaf at one page protocol may run side by side. It exits with
+    `EX_TEMPFAIL`, without a last line, once the tree it runs from has moved on under
+    it (`_moved_on`), and the module starts it again from that tree as it then
+    stands. A follower started again may print to an older module, which runs its
+    instructions as any (`carrier.py`).
 
     The follower notes once in each page it holds that it runs
     (`interaction_log.record_follower`), so a round that got no line fork says
     whether a follower had run (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from leaf.base.harness import ClaudeCodeHarness
-    from leaf.base.leases import mark_module
 
     # Only Leaf's Claude Code module starts a follower, so one running shows the
     # module loaded in this process (`ClaudeCodeHarness.unloaded_module`).
@@ -441,10 +393,7 @@ def cmd_pages(payload: dict) -> None:
     from leaf.agents.completions import listed as completions_listed
     from leaf.agents.completions import watch
     from leaf.agents.presence import PRESENCE_CACHE_S, live_leaves
-    from leaf.base.leases import lane_path, release_lease, take_lane
-    from leaf.base.page_memory import memory_of
     from leaf.log.file_changes import FileChanges, page_changes, wait
-    from leaf.log.interaction_log import record_follower
 
     queued = watch(sid)
     # Whether this follower still holds the lane, which a later one takes.
@@ -551,6 +500,34 @@ def _lines(sid: str, page_dir, looked: dict) -> list[dict]:
     return requests
 
 
+def cmd_fork(payload: dict) -> dict | None:
+    """Leaf's answer to the hooks module's report `payload` (`carrier.py`): a turn's
+    end goes to the turn-end check (`clerk.turn_ended`) with what its fork is shown of
+    each page the session holds (`agent_state.turn_end_facts`), and an instruction's
+    result to the step its basis's `kind` names: the turn-end check's fork (`check`),
+    a completion (`completion`), or a thread's line fork or a fork beside it (`line`,
+    `beside`). A kind no step takes answers with a line for the log, so the module
+    stops reporting it."""
+    sid = payload.get("session_id") or ""
+    if not sid:
+        return None
+    if payload.get("turn_end"):
+        from leaf.agents.clerk import turn_ended
+        from leaf.commands.agent_state import turn_end_facts
+
+        return turn_ended(sid, turn_end_facts(sid))
+    kind = payload["basis"]["kind"]
+    if kind == "check":
+        from leaf.agents.clerk import checked as taken
+    elif kind == "completion":
+        from leaf.agents.completions import replied as taken
+    elif kind in ("line", "beside"):
+        from leaf.agents.forks import step as taken
+    else:
+        return {"log": f"no step of this Leaf takes a {kind!r} instruction's report"}
+    return taken(sid, payload)
+
+
 def main(
     harness: str, *, watch: bool = False, pages: bool = False, fork: bool = False
 ) -> None:
@@ -572,8 +549,6 @@ def main(
     after the next run, as any failed watch does; the session's hooks can't run
     until that copy can start either.
     """
-    import sys
-
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
@@ -592,15 +567,11 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        from leaf.agents.carrier import step
-
-        answered = step(payload.get("session_id") or "", payload)
+        answered = cmd_fork(payload)
         if answered is not None:
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
-        from leaf.base.leases import end_if_terminated, release_on_termination
-
         release_on_termination()
         try:
             woke = cmd_watch(harness, payload)
@@ -623,8 +594,6 @@ def _watch_from_new_copy(harness: str, payload: dict) -> NoReturn:
     would fill. The environment drops the host's choice of launcher
     (`LEAF_HOST_LAUNCHER`, which `bin/leaf` reads), since that would send the call
     back to the host's."""
-    import tempfile
-
     with tempfile.TemporaryFile() as incoming:
         incoming.write(json.dumps(payload).encode())
         incoming.seek(0)

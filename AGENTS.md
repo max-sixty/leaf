@@ -67,11 +67,11 @@ as any architectural problem they leave stays easy to fix.
 
 ## The maintainer decides
 
-Make the improvements the repository's goals and code already justify. A call
-outside the list below is yours, and the work doesn't wait on the maintainer for
-it. Name the call, with the passage that settled it where one did, so they can
-reverse it. Ask them only where a choice depends on a purpose or intent the code
-can't tell you, or shapes what every later user, package author or change works
+Make the improvements the repository's goals and code already justify, and take a
+call its guidance settles. The work doesn't wait on the maintainer for a call outside
+the list below. Name the call, with the passage that settled it where one did, so
+they can reverse it. Ask them only where a choice depends on a purpose or intent the
+code can't tell you, or shapes what every later user, package author or change works
 with:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.

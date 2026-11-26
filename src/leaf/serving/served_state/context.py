@@ -24,10 +24,12 @@ from leaf.base.files import (
 from leaf.base.state import now_iso
 from leaf.source.data import read_data
 from leaf.source.file_bindings import bound_files
-from leaf.source.passages import SourceReading
+from leaf.source.layer import served_layer
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import RegistryError
-from leaf.source.registry.storage import layer_metadata, page_vocabulary, served_layer
+from leaf.source.registry.storage import layer_metadata
 from leaf.source.revision_artifact import RevisionReading, read_revision
+from leaf.source.vocabulary import page_vocabulary
 
 
 @dataclass(frozen=True)
@@ -38,7 +40,7 @@ class PageRead:
     revision: Callable[[int], SourceReading]
     registry: dict | None
     stored_layer: Callable[[], dict]
-    # The layer a revision's `$layer` selects, as served (`storage.served_layer`).
+    # The layer a revision's `$layer` selects, as served (`layer.served_layer`).
     serve_layer: Callable[[dict], dict]
     stored_data: Callable[[], dict]
     # Each file binding's label and stamp (`file_bindings.bound_files`); a capture
@@ -52,7 +54,7 @@ class PageRead:
 
     @cached_property
     def work(self):
-        from leaf.serving.served_state.work import work_state
+        from leaf.records.work_state import work_state
 
         active = self.active
         return work_state(
@@ -69,8 +71,8 @@ class PageRead:
     @cached_property
     def layer(self) -> dict:
         """The layer identity a page with no active revision is served under. Read
-        on first use, so a reader that never serves the page, such as delivery, does
-        not need the page's registry to be readable."""
+        on first use, so a reader that never serves the page does not need its layer
+        to be readable."""
         return self.stored_layer()
 
     @cached_property

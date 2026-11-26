@@ -3519,7 +3519,8 @@ flag or command it touches, such as `--config`.
               </hgroup>
               <p>
                 Press Update document to publish a new release note. Preview and Source
-                read the same output; updating it keeps your selected view.
+                read the same output; updating it keeps your selected view. The diff
+                below it compares the same output with the first note.
               </p>
               <lf-document-gallery id="bg-document-producer"></lf-document-gallery>
               <lf-text-document
@@ -3528,6 +3529,11 @@ flag or command it touches, such as `--config`.
                 label="live-release-note.md"
                 preview="markdown"
               ></lf-text-document>
+              <lf-diff
+                id="bg-produced-changes"
+                before="gallery-first-note"
+                for="bg-document-producer"
+              ></lf-diff>
             </section>
 
             <section id="bg-measurement-lag">

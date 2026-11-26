@@ -58,7 +58,7 @@ from leaf.source.revision_artifact import active_enclosing, read_revision
 from leaf.source.structure import SourceDocument, shown_in
 
 # The browser check a message's markup runs before it posts
-# (`render_gate.command.message_check`): given the page, the kind of message and the
+# (`render_gate.messages.message_check`): given the page, the kind of message and the
 # markup, it raises `Rejected` where a widget in the markup doesn't draw. The render
 # gate stands above this module, so each write takes the check from its command, and
 # a write given none posts the markup unrun, as on a host with no browser.

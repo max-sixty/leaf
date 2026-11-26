@@ -6,14 +6,8 @@ authoritative presentation, and one rendering frame after it, in the light schem
 the render viewport, or with `--render` on the render check's page, at its desktop
 window (`PageCode`).
 
-A thread message's markup is run the same way before it posts (`message_page`,
-`command.message_check`), wherever it places one of those widgets
-(`browser_judged.places_judged_widget`). Nothing else draws it before the user opens
-its thread, so posting is the one moment its author can fix it before the user sees
-it. In the `widgets-draw-as-written` evals, 5 of 6 Codex thread messages holding a
-Mermaid sequence diagram didn't draw (a `;` in a loop label or note ends the
-statement), and their authors never ran `--render`. A message with no such widget
-waits on no browser.
+A thread message's markup takes the same run before it posts, wherever it places one
+of those widgets (`messages.py`).
 
 What fails it is what the runtime would report to the agent. `runtime/transport/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
@@ -36,8 +30,6 @@ gesture or a timer is not reached.
 
 from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
 
-import turbohtml
-
 from leaf.base.findings import Finding
 from leaf.pages.render_gate.scheme import answer_reports, served, unready_finding
 from leaf.source.render_checks import (
@@ -51,33 +43,6 @@ from leaf.source.render_checks import (
     wait_for_probe,
     wait_until_ready,
 )
-from leaf.source.structure import SourceDocument, element_attrs, script_kind
-
-
-def message_page(markup: str) -> SourceDocument:
-    """A message's markup as a page of its own, as a sample's template is one.
-
-    A message's widgets stand in its thread rather than the page, where a chart in a
-    shut panel has no room to draw, so the run gives them the column the page's own
-    widgets have. The page's document stays out of it, so an error here is the
-    message's. A thread inserts markup through `template.innerHTML`, which never runs
-    a script in it, so the page leaves out every script a browser would run: the run is
-    for the widgets the markup places (`browser_judged.places_judged_widget`), and a
-    script there would refuse a message for code the user never runs, or change what
-    the run reads."""
-    source = (
-        '<!doctype html><html lang="en"><head><title>Message</title></head>'
-        f'<body><main class="layout-column">{markup}</main></body></html>'
-    )
-    tree = turbohtml.parse(source, scripting=True, source_locations=True)
-    for script in reversed(tree.find_all("script")):
-        location = script.source_location
-        if location is None or script_kind(element_attrs(script)) == "data":
-            continue
-        end = (location.end_tag or location.start_tag).end_offset
-        source = source[: location.start_tag.start_offset] + source[end:]
-    return SourceDocument(source)
-
 
 # How `runtime/transport/layer-client.js` `reportPageError` opens the console line it writes for
 # each report, ahead of the words it posts.

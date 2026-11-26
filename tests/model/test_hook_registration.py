@@ -526,7 +526,9 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
     not validated (`layer-registry.md`), so it loads no schema validator. A prompt
     hook delivering the user's comment, and the agent's reply, load the validator to
     match handling clauses and to admit the event, and neither loads the page's
-    source checks, the server or the file watcher."""
+    source checks, the server or the file watcher. None of them draws anything in a
+    browser, so none loads the render gate's browser run, which a reply's check
+    imports only for markup a browser must judge (`render_gate/messages.py`)."""
     published(claimed)
     hook = ["hook", "--harness", "claude-code"]
     payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
@@ -558,6 +560,8 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
         )
         assert asked["id"] in printed, printed
     assert unlisted_dependencies(imported, listed) == {}
+    browser_run = ("leaf.pages.render_gate.command", "leaf.agents.codex")
+    assert {m: imported[m] for m in browser_run if m in imported} == {}
 
 
 @pytest.mark.parametrize(

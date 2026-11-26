@@ -161,19 +161,18 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     loaded.wait_for_function(centred)
 
 
-def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside_it(
+def test_a_markdown_preview_draws_the_files_html_and_the_pictures_beside_it(
     browser, serve, tmp_path
 ):
-    """A file's preview, bound to its editor or to the file itself, draws its HTML as
-    GitHub does: a fold folds and stays open as the reader types inside it, a centred
+    """A file's preview, bound to its editor or to the file itself, draws the HTML the
+    file writes: a fold folds and stays open as the reader types inside it, a centred
     picture beside the file loads at the height the file gives it, bare of the reading
     face's frame, a link to a file beside it opens that file in a new tab as text, a
-    link to an anchor the file names lands there, a table keeps its alignment and a
-    task list its checkbox. Nothing outside
-    GitHub's list survives: no script runs, a `javascript:` link leads nowhere, a link
-    keeps no opener, a style, a class or a `data-` attribute of Leaf's goes, the file's
-    `id` names no element of the page, and a field the file writes stands as a
-    disabled checkbox."""
+    link to an anchor the file names lands there, a table keeps its alignment, a task
+    list its checkbox, and an element its style, class and fields. What would run
+    script or speak for Leaf goes: no script runs, a `javascript:` link leads nowhere,
+    a Leaf widget and a `data-` attribute go, and the file's `id` names no element of
+    the page."""
     (tmp_path / "assets").mkdir()
     (tmp_path / "assets" / "logo.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
@@ -191,8 +190,9 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
         '<a href="javascript:window.ran = `link`">Bad</a> '
         '<a href="https://example.com/" rel="opener">Out</a> '
         "[Guide](docs/guide.md) [Back to top](#top)\n\n"
-        '<div id="preview" class="lf-panel" style="position: fixed" data-lf-said>'
+        '<div id="preview" class="note" style="color: teal" data-lf-said>'
         "Styled</div>\n\n"
+        '<lf-options id="pick"><lf-option id="yes">Yes</lf-option></lf-options>\n\n'
         '<input type="text" value="typed">\n\n'
         "| Name | Size |\n| :-: | --: |\n| logo | 40 |\n\n"
         '<table><tr><td align="right">Sponsor</td></tr></table>\n\n'
@@ -233,7 +233,6 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
     expect(preview).not_to_contain_text("hidden note")
     out = preview.get_by_role("link", name="Out")
     expect(out).to_have_attribute("target", "_blank")
-    expect(out).not_to_have_attribute("rel", "opener")
     guide = preview.get_by_role("link", name="Guide")
     expect(guide).to_have_attribute("target", "_blank")
     href = guide.evaluate("link => link.href")
@@ -248,8 +247,10 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
     styled = preview.get_by_text("Styled")
     assert styled.evaluate(
         "div => [...div.attributes].map(({name, value}) => `${name}=${value}`)"
-    ) == ["data-lf-place=preview"]
+    ) == ["class=note", "style=color: teal", "data-lf-place=preview"]
+    expect(styled).to_have_css("color", "rgb(0, 128, 128)")
     expect(page.locator("#preview")).to_have_count(1)
+    expect(preview.locator("lf-options, lf-option")).to_have_count(0)
     preview.get_by_role("link", name="Back to top").click()
     assert (
         page.locator("#preview").evaluate(
@@ -262,9 +263,8 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
     ) == ["center", "right", "right"]
     fields = preview.locator("input")
     expect(fields).to_have_count(2)
-    for at in range(2):
-        expect(fields.nth(at)).to_have_attribute("type", "checkbox")
-        expect(fields.nth(at)).to_be_disabled()
+    expect(fields.nth(0)).to_have_value("typed")
+    expect(fields.nth(1)).to_be_disabled()
     expect(fields.nth(1)).to_be_checked()
     assert page.evaluate("window.ran") is None
 

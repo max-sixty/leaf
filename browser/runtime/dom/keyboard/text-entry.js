@@ -58,7 +58,7 @@ function NAME_CHARACTER(binding) {
 export function nativeClaimAt(control) {
   if (takesLetters(control)) return TEXT_ENTRY;
   const navigation = controlNavigationKeys(control);
-  const typesAhead = Boolean(control?.matches?.(TYPES_AHEAD));
+  const typesAhead = Boolean(control?.matches(TYPES_AHEAD));
   return navigation.length || typesAhead
     ? /** @param {string} binding */ (binding) =>
         (typesAhead && NAME_CHARACTER(binding)) ||
@@ -90,7 +90,7 @@ const ACTIVATION = [
 ];
 /** @param {Element | null} control */
 export function nativeActivationAt(control) {
-  const presses = ACTIVATION.find(([selector]) => control?.matches?.(selector))?.[1];
+  const presses = ACTIVATION.find(([selector]) => control?.matches(selector))?.[1];
   return presses
     ? /** @param {string} binding */ (binding) => presses.includes(binding)
     : null;

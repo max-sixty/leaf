@@ -360,11 +360,11 @@ test("a failure in a part the element generated stays in that part, and the next
     tag,
     class extends LeafElement {
       setup() {
-        this.part = document.createElement("p");
-        this.append(document.createElement("strong"), this.part);
+        this.generated = document.createElement("p");
+        this.append(document.createElement("strong"), this.generated);
       }
       createRenderRoot() {
-        return this.part;
+        return this.generated;
       }
       render() {
         const now = phase();
@@ -381,13 +381,13 @@ test("a failure in a part the element generated stays in that part, and the next
   element.requestUpdate();
   await settled(element);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.ok(element.part.isConnected, "the failure keeps the element's own part");
-  assert.match(element.part.textContent, /failed: cannot draw/);
+  assert.ok(element.generated.isConnected, "the failure keeps the element's own part");
+  assert.match(element.generated.textContent, /failed: cannot draw/);
   assert.ok(element.querySelector("strong"), "the authored children stay");
   failing = false;
   applicationState.setPhase("offline");
   await settled(element);
-  assert.equal(element.part.textContent, "offline");
+  assert.equal(element.generated.textContent, "offline");
   element.remove();
 });
 
@@ -436,11 +436,11 @@ test("a failed preparation stands beside the render root, which the next draw st
     tag,
     class extends LeafElement {
       setup() {
-        this.part = document.createElement("p");
-        this.append(this.part);
+        this.generated = document.createElement("p");
+        this.append(this.generated);
       }
       createRenderRoot() {
-        return this.part;
+        return this.generated;
       }
       render() {
         return html`${phase()}`;
@@ -453,11 +453,11 @@ test("a failed preparation stands beside the render root, which the next draw st
   await settled(element);
   // The controller shows a rejected `present()` on its owner, as here.
   showFailure(element, new Error("could not prepare"));
-  assert.ok(element.part.isConnected);
+  assert.ok(element.generated.isConnected);
   assert.match(element.textContent, /failed: could not prepare/);
   applicationState.setPhase("offline");
   await settled(element);
-  assert.equal(element.part.textContent, "offline");
+  assert.equal(element.generated.textContent, "offline");
   assert.equal(element.querySelector(".lf-error"), null);
   element.remove();
 });

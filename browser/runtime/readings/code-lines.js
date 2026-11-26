@@ -59,7 +59,7 @@ const divides = (holder) => {
   if (!holder.firstChild || holder.querySelector(`br, :scope > [${LINE}]`))
     return false;
   for (let child = holder.firstElementChild; child; child = child.nextElementSibling) {
-    const text = child.textContent ?? "";
+    const text = child.textContent;
     const newline = text.indexOf("\n");
     if (newline !== -1 && newline !== text.length - 1) return false;
     if (BLOCK_LEVEL.test(getComputedStyle(child).display)) return false;
@@ -69,7 +69,7 @@ const divides = (holder) => {
 
 /** @param {Node} node */
 const textOf = (node) =>
-  node instanceof Text || node instanceof Element ? (node.textContent ?? "") : "";
+  node instanceof Text || node instanceof Element ? node.textContent : "";
 
 // A text node's lines, the node keeping its first. It is cut from its last line back,
 // so each cut copies one line, and the browser carries a selection in it across each

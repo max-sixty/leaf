@@ -111,7 +111,7 @@ function describe(event) {
     const label =
       labelTarget.getAttribute("aria-label") || labelTarget.getAttribute("title");
     if (label) entry.label = label;
-    else if (control) entry.label = control.textContent?.trim().slice(0, 200);
+    else if (control) entry.label = control.textContent.trim().slice(0, 200);
   }
   if (event instanceof window.KeyboardEvent) {
     entry.key = event.key;

@@ -261,7 +261,7 @@ function viewBoxFit(svg) {
   const width = svg.width.animVal.value;
   const height = svg.height.animVal.value;
   const view = svg.viewBox.animVal;
-  if (!view?.width || !view.height) return new window.DOMMatrix().translate(x, y);
+  if (!view.width || !view.height) return new window.DOMMatrix().translate(x, y);
   const { align, meetOrSlice } = svg.preserveAspectRatio.animVal;
   const fits = align !== window.SVGPreserveAspectRatio.SVG_PRESERVEASPECTRATIO_NONE;
   const slices = meetOrSlice === window.SVGPreserveAspectRatio.SVG_MEETORSLICE_SLICE;
@@ -1160,7 +1160,7 @@ export function presented(node) {
   /** @type {Element | null} */
   let at = node;
   for (; at; at = renderedParent(at))
-    if (at.getAttribute?.("aria-hidden") === "true") return false;
+    if (at.getAttribute("aria-hidden") === "true") return false;
   return true;
 }
 // What this page shows of a sample's frame it holds, in the frame's own viewport

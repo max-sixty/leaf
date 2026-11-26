@@ -617,7 +617,8 @@ export function reportCarried(reason, context = "") {
   if (!reported) reportPageError(reason, context);
 }
 
-window.addEventListener("error", (e) => {
+// Any `error` event that reaches the window, a package's plain `Event` among them.
+window.addEventListener("error", (/** @type {Event & Partial<ErrorEvent>} */ e) => {
   // A widget's own failure, which it shows where it stands and dispatches
   // (`reportFailure`, lib/failure.js), named for the widget it happened in.
   const failure = failureOf(e);

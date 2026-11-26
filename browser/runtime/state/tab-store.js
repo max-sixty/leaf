@@ -6,8 +6,9 @@
    prepaint and so no store, and a widget there keeps nothing: each read answers null and
    each write is refused, as a store the browser has switched off answers. */
 
+const storage = /** @type {Window["lfStorage"] | undefined} */ (window.lfStorage);
 /** @type {LeafStore} */
-export const tabStore = window.lfStorage?.tabStore ?? {
+export const tabStore = storage?.tabStore ?? {
   read: () => ({ available: false, value: null }),
   get: () => null,
   set: () => false,

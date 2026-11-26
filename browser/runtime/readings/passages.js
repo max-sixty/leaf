@@ -483,7 +483,7 @@ export function refuseBareText() {
 /** @param {Node | null} node */
 const frameOf = (node) => {
   for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a))
-    if (a.localName?.startsWith("lf-") || a.matches(MESSAGE_BODY)) return a;
+    if (a.localName.startsWith("lf-") || a.matches(MESSAGE_BODY)) return a;
   return null;
 };
 // What a reading carries down to the text under an element. Every question the walk
@@ -1044,7 +1044,9 @@ export const layoutParts = () => {
   return main && !isLayoutBox(main) ? partsOf(main) : null;
 };
 
-/** @param {Node} node */
+// A package may name no node, as `readWork` given a query that missed: its scope is the
+// page.
+/** @param {Node | null} node */
 export const authoredScope = (node) =>
   closestAcross(node, MESSAGE_BODY) ?? pageDocument(node?.ownerDocument ?? document);
 
@@ -2582,7 +2584,7 @@ function indexed(segments, chains, marks = []) {
   /** @type {Element | null} */
   let previousCell = null;
   const parted = new Set(marks.map(({ at }) => at));
-  segments.forEach((seg, k) => {
+  for (const [k, seg] of segments.entries()) {
     const cell = cellOf(chains[k]);
     if (k === 0) {
       if (cell || parted.has(0)) fences.add(0);
@@ -2605,7 +2607,7 @@ function indexed(segments, chains, marks = []) {
     texts.push(seg.node.data);
     length += seg.end - seg.start;
     previousCell = cell;
-  });
+  }
   if (previousCell || parted.has(segments.length)) fences.add(length);
   return {
     raw: texts.join(""),

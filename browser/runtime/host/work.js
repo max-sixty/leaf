@@ -140,9 +140,7 @@ const roleState = (element, role, read) => {
 
 /** @param {Element} element @param {string} action */
 const actionReports = (element, action) =>
-  reportSequence(element).filter(
-    (report) => report.source === "report" && report.action === action,
-  );
+  reportSequence(element).filter((report) => report.action === action);
 
 /** @param {WorkEntry<"worker">} entry @param {ReadWidget} read */
 function workerView({ element: worker, role }, read) {

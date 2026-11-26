@@ -1039,7 +1039,7 @@ export function followEnd(box, yields = () => false) {
     return true;
   };
   // Whether the reader's scroll left them at the end the keeper held back (the header).
-  /** @param {NonNullable<typeof held>} scroll */
+  /** @param {ReaderScroll & {end: boolean}} scroll */
   const stayed = ({ end, starts: since, heads, top, fromEnd }) =>
     end &&
     (starts.get(box) ?? 0) === since &&

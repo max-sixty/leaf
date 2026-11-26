@@ -220,7 +220,7 @@ export const keepsNotice = elementDirective("keepsNotice", (element) =>
 );
 onUserInput((event) => {
   if (!holding || !noticePresentation.peek().visible) return;
-  const path = event.composedPath?.() ?? [];
+  const path = event.composedPath();
   if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
     return;
   retireNotice();

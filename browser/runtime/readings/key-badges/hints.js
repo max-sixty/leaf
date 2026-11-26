@@ -611,7 +611,7 @@ export function createHintSession({
   ]);
   /** @param {{candidate: C, model: M}} plan */
   const face = (plan) =>
-    plan.candidate && !enabled(plan.candidate)
+    !enabled(plan.candidate)
       ? html`<span
           class=${`lf-key-hint lf-current${plan.model.className.includes(" lf-in") ? " lf-in" : ""}`}
           data-lf-hint-native="Enter"
@@ -801,7 +801,7 @@ export function createHintSession({
       render(face(plan), seat);
       return {
         seat,
-        element: plan.candidate ? identity(plan.candidate) : null,
+        element: identity(plan.candidate),
         at: { left: plan.left, top: plan.top },
         target: plan.target,
         placement: plan.placement,
@@ -869,7 +869,7 @@ export function createHintSession({
     const moving = scrolling() || scrollDrawn() !== null;
     const wasWalking = at >= 0;
     const emptyBefore = mapped.length === 0;
-    const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
+    const detached = candidates.some((candidate) => !identity(candidate).isConnected);
     const barriers = chrome.barriers();
     // Chrome the user has opened over the page, such as a panel view, covers other boxes
     // than the reading saw.

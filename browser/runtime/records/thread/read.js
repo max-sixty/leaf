@@ -206,7 +206,6 @@ export function createReadTracking({ markRead, openThread }) {
   function scan(sampleBand) {
     if (document.visibilityState !== "visible" || sampleBand?.visible === false) return;
     const band = sampleBand ?? layoutWindow();
-    if (!band) return;
     const candidates = new Map(
       (threadsPresented ? actionableUnread() : []).map(({ item }) => [
         item.message,

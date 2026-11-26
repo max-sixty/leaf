@@ -105,7 +105,7 @@ const markedParts = (source) =>
     for (let at = element.parentElement; at && at !== source; at = at.parentElement)
       if (isVisual(at)) return [];
     const id = element.getAttribute("data-lf-part") ?? "";
-    const label = element.getAttribute("aria-label") ?? element.textContent ?? "";
+    const label = element.getAttribute("aria-label") ?? element.textContent;
     return [{ id, element, label }];
   });
 

@@ -981,7 +981,8 @@ export async function sendDraft(ctx, owns, send) {
 // stands for those words. Only whether they have acted since counts, not where focus
 // stands, since withdrawing the thread the send landed them on hands their focus on.
 // After a later key or press the words wait for Resume writing.
-/** @param {string} ctx @param {() => boolean} owns @param {(attempt: string, payload: DraftPayload | undefined) => unknown} send
+/** @param {string} ctx @param {() => boolean} owns
+ * @param {(attempt: string, payload: DraftPayload | undefined) => PromiseLike<unknown> | null | undefined} send
  * @param {() => unknown} back */
 export function sendMessage(ctx, owns, send, back) {
   const current = claimDraft(ctx, owns);
@@ -1714,7 +1715,7 @@ function takeHeldWords(event) {
     return;
   }
   const handed = /** @type {DraftEditing | undefined} */ (
-    window.lfStorage?.handoff?.draftEditing
+    window.lfStorage.handoff?.draftEditing
   );
   for (const { context, words: typed } of kept) {
     const box = handed?.context === context ? handed : null;
@@ -1738,7 +1739,7 @@ function takeHeldWords(event) {
         attempt: activeDraftRecord(context)?.attempt,
       });
   }
-  if (!window.lfStorage?.placesUser()) noticeDraftKept();
+  if (!window.lfStorage.placesUser()) noticeDraftKept();
 }
 
 // The drafts start from the copies the page this tab reloaded left waiting

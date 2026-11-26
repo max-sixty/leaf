@@ -161,7 +161,7 @@ export function createAnnotationInventory({
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     let from = "path:";
-    for (let node = target; node;) {
+    for (let node = target; ;) {
       // A projected datum's node is generated, so it stands at no authored position
       // among its siblings; it is named by its projection and key, which also survive a
       // renderer replacing it (records/projection/data.js).

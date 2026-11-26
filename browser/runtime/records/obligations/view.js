@@ -536,16 +536,13 @@ export function createObligationView({
           next.thread && offFlow(target) ? threadLanding(next.thread, target) : null;
         return { target, source, box: null, region: null, landing };
       }
-      const box = scrollerFor(target);
-      return box
-        ? {
-            target,
-            source,
-            box,
-            region: arrivalRegion(source, inGroup ? context : null, target),
-            landing: null,
-          }
-        : { target, source, box: null, region: null, landing: null };
+      return {
+        target,
+        source,
+        box: scrollerFor(target),
+        region: arrivalRegion(source, inGroup ? context : null, target),
+        landing: null,
+      };
     };
     const initial = destination();
     if (!initial) return false;

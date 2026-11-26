@@ -337,6 +337,16 @@ const bundles = {
               "if(y){c+=d[0].length;continue}",
               "Pele literal unsupported label tags",
             ],
+            // Pele measures labels on an OffscreenCanvas where one exists. Firefox's
+            // resolves `system-ui`, Leaf's sans, to another face than the page draws
+            // in, so at 12px "admits it, reads the whole log" measured 144px where the
+            // page draws it 166px, and labels ran past their boxes. A canvas the
+            // document makes measures in the page's own fonts, in every engine.
+            [
+              'if(e.OffscreenCanvas)return new e.OffscreenCanvas(1,1).getContext("2d");if(e.document)return e.document.createElement("canvas").getContext("2d")',
+              'if(e.document)return e.document.createElement("canvas").getContext("2d");if(e.OffscreenCanvas)return new e.OffscreenCanvas(1,1).getContext("2d")',
+              "Pele text measurer",
+            ],
             // Pele's flowchart renderers write an edge's classes on its group, but
             // its converters replace the authored classes with fixed ones, and an
             // edge label's group takes none. Carry the authored classes to both, as

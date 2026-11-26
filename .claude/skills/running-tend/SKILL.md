@@ -420,3 +420,8 @@ split a closure (Shiki's packages pin each other exactly);
 `pnpm update <package> --no-save` moves a locked dependency within its dependant's
 range. Drop a Lit bump the Web Awesome build refuses. Bump `esbuild` by hand when a
 bundle needs it, and rebuild everything.
+
+Dependabot reports a failed update job only in the run list, so check its npm job
+each week: `gh run list --event dynamic` names it `npm_and_yarn in /. - Update`.
+When the newest one failed, or none ran in the past week, fix the cause its log
+names.

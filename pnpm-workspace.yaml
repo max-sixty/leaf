@@ -11,6 +11,11 @@ verifyDepsBeforeRun: error
 # as a security fix, pass `--config.minimum-release-age=0` to that one command; a
 # Dependabot run in the next three days then fails.
 minimumReleaseAge: 4320
+# `package.json` keys each patch in `patchedDependencies` by package name alone, so a new
+# version takes the patch and Dependabot can propose it; Dependabot refuses to move a
+# package whose patch names its version. A patch that no longer applies fails the install
+# rather than being skipped with a warning.
+ignorePatchFailures: false
 allowBuilds:
   "@anthropic-ai/claude-code": true
   esbuild: true

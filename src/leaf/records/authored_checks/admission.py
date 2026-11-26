@@ -14,7 +14,6 @@ from leaf.records.authored_checks.documents import (
     text_media_errors,
 )
 from leaf.source.data import read_contracts
-from leaf.source.data_contracts import data_binding_errors
 from leaf.source.reading import SourceReading
 from leaf.source.registry.kernel import kinds_declaring
 from leaf.source.revision_artifact import read_revision, revision_history
@@ -156,14 +155,13 @@ def check_markup(
     `publication` is the document and registry the message is stored with, which
     its writer decides before the check: the revision it names
     (`revision_publication`), or the candidate where a reply publishes saved edits
-    it has checked (`thread.post_reply`). No later check reads the fragment for a
-    conflicting binding again (`data_contracts.data_binding_errors`), so it is
-    checked here under the registry it is stored with."""
+    it has checked (`thread.post_reply`). The page's data inventory and `leaf data
+    set` read the fragment's bindings under that registry
+    (`page_data.page_data_document_readings`), so it is checked here under that
+    one; a sample's child that copies the message reads it under its own, and checks
+    it there (`documents.initial_sample_events`)."""
     registry, page = publication.registry, publication.document
     frag = SourceDocument(markup)
-    extra_errors = data_binding_errors(
-        page_dir, registry, [(frag, f"incoming {kind} markup")]
-    )
     found = message_markup_findings(
         page_dir,
         frag,
@@ -171,7 +169,6 @@ def check_markup(
         registry,
         page,
         revision_history(page_dir).ids,
-        extra_errors,
         read_contracts(page_dir),
         thread,
         replacing=replacing,

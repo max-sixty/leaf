@@ -223,14 +223,22 @@ const READING_LINE = 0.25;
 // holding them: anchoring holds words inside a tall block that grows above them, and
 // the block's top moves by what grew. Leaf's chrome over the line names nothing, and
 // neither does a box stuck over the page, which rides along with every scroll
-// (dom/geometry.js, `stuckBox`).
+// (dom/geometry.js, `stuckBox`). Below the last box `column` draws, nothing it holds
+// stands at the line: a reader whose line falls there, as in the room a document keeps
+// below its last line (layouts.css), has read to its end, so the line reads at that
+// box's foot. Read past it, a walk would start from the page's top and a let-go land
+// there.
 /** @param {Element} column @returns {Range | Element | null} */
 export function readingAt(column) {
   const window = shownWindow();
   const box = column.getBoundingClientRect();
   const left = Math.max(box.left, window.left);
   const right = Math.min(box.right, window.right);
-  const line = window.top + (window.bottom - window.top) * READING_LINE;
+  const end = lastDrawn(column)?.getBoundingClientRect().bottom ?? Infinity;
+  const line = Math.min(
+    window.top + (window.bottom - window.top) * READING_LINE,
+    end - 1,
+  );
   if (right <= left) return null;
   const x = (left + right) / 2;
   // The document answers for words in a shadow tree with their host, which can be a
@@ -256,6 +264,21 @@ export function readingAt(column) {
   }
   const holder = reading && placeHolder(reading);
   return holder && !inChrome(holder) && !stuckBox(holder) ? reading : null;
+}
+
+// The last box `column` draws: the deepest of its last children that draw one, past
+// Leaf's chrome and what the page doesn't show, as a tab not chosen.
+/** @param {Element} column */
+function lastDrawn(column) {
+  /** @type {Element | null} */
+  let last = null;
+  for (let at = column.lastElementChild; at;) {
+    if (!inChrome(at) && at.checkVisibility() && at.getBoundingClientRect().height) {
+      last = at;
+      at = at.lastElementChild;
+    } else at = at.previousElementSibling;
+  }
+  return last;
 }
 
 // Put `held`'s top at `top` (scroll-containers.js, `returnTo`), and say whether that

@@ -37,9 +37,10 @@ none either; its parent draws it from its own state. Leaf itself draws what the
 declaration alone decides, such as hiding a suggestion's `lf-old` once it is accepted
 (`retired-when`).
 
-Nothing tells a widget that reads another element's `state` when Leaf sets it again.
-A widget that follows another reads that widget's output
-([package-data.md, "Widget outputs"](package-data.md#widget-outputs)).
+A widget reads and records only its own state. Nothing tells it when Leaf sets
+another element's `state` again, so a widget that follows another reads that widget's
+output and asks it for a change with a command
+([package-data.md, "Widgets working together"](package-data.md#widgets-working-together)).
 
 `says`, in an `lf-action` event's `detail`, names the gesture in the widget's words,
 such as `Chose “Fast”`. Leaf's acknowledgement shows it, and so does Undo in the tab

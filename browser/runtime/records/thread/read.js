@@ -18,7 +18,10 @@
    only then, and a pass runs when it turns active; the edge refuses a read sent
    before. A pass also runs on each change to what the page shows of its window
    (dom/geometry.js, `watchRoom`), which includes a nonmodal surface closing: it can reveal
-   a body without moving it or closing its permanent native ancestor.
+   a body without moving it or closing its permanent native ancestor; on each change of a
+   body's size; and as a body enters the window or comes wholly into it, which a layout
+   moving it without a scroll does, as a thread card's placement does when it stands the
+   card at the window's foot after the scroll that opened it.
 
    The same rendered-body and room observations record first visible agent words in
    the best-effort interaction trace. Those diagnostics need neither focus, unread
@@ -138,6 +141,9 @@ export function createReadTracking({ markRead, openThread }) {
   /** @type {Set<string>} */
   const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
+  const crossings = new IntersectionObserver(() => scheduleScan(), {
+    threshold: [0, 1],
+  });
   /** @type {(() => void)[]} */
   const frameWatches = [];
   // The threads the last presented pass drew. A signal, because the first-unread
@@ -221,6 +227,7 @@ export function createReadTracking({ markRead, openThread }) {
       const { body, items, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
+        crossings.unobserve(body);
         renderedBodies.delete(node);
         continue;
       }
@@ -364,6 +371,7 @@ export function createReadTracking({ markRead, openThread }) {
       exposureGeneration++;
       if (event.persisted) return;
       sizes.disconnect();
+      crossings.disconnect();
       for (const unwatch of frameWatches) unwatch();
       frameWatches.length = 0;
     });
@@ -371,7 +379,10 @@ export function createReadTracking({ markRead, openThread }) {
 
   /** @param {Element} body @param {BodyReading} reading */
   function observeBody(body, reading) {
-    if (!renderedBodies.has(body)) sizes.observe(body);
+    if (!renderedBodies.has(body)) {
+      sizes.observe(body);
+      crossings.observe(body);
+    }
     const registration = {
       body,
       ...reading,
@@ -381,6 +392,7 @@ export function createReadTracking({ markRead, openThread }) {
     return () => {
       if (renderedBodies.get(body) !== registration) return;
       sizes.unobserve(body);
+      crossings.unobserve(body);
       renderedBodies.delete(body);
     };
   }

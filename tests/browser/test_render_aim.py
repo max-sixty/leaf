@@ -4,6 +4,7 @@ import io
 import json
 import math
 import re
+import sys
 from datetime import datetime, timedelta
 from itertools import pairwise
 
@@ -104,6 +105,10 @@ from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# The key that moves a native editor's caret to its line's end. Playwright sends End on
+# macOS as scrolling to the document's end, which leaves the caret where it stood.
+LINE_END = "Meta+ArrowRight" if sys.platform == "darwin" else "End"
 
 
 # One page for each reason an aimed press can still reach the page underneath it. The
@@ -3003,7 +3008,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
         editor = page.locator("#editable-regions > div").nth(1)
         editor.click(position={"x": 12, "y": 8})
         expect(editor).to_be_focused()
-        editor.press("End")
+        editor.press(LINE_END)
         editor.press_sequentially(" edited")
         expect(editor).to_have_text("Backup draft edited")
         expect(field).to_be_hidden()
@@ -5136,7 +5141,7 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, 
     page = open_page(browser, live_url(serve(markup)))
     editor = page.locator("#controls > div").first
     editor.click()
-    editor.press("End")
+    editor.press(LINE_END)
     editor.press_sequentially(" plus my notes")
     reading = page.evaluate("""async()=>{
       const A=await window.__lfCheckApi();

@@ -161,6 +161,122 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     loaded.wait_for_function(centred)
 
 
+def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside_it(
+    browser, serve, tmp_path
+):
+    """A file's preview, bound to its editor or to the file itself, draws its HTML as
+    GitHub does: a fold folds and stays open as the reader types inside it, a centred
+    picture beside the file loads at the height the file gives it, bare of the reading
+    face's frame, a link to a file beside it opens that file in a new tab as text, a
+    link to an anchor the file names lands there, a table keeps its alignment and a
+    task list its checkbox. Nothing outside
+    GitHub's list survives: no script runs, a `javascript:` link leads nowhere, a link
+    keeps no opener, a style, a class or a `data-` attribute of Leaf's goes, the file's
+    `id` names no element of the page, and a field the file writes stands as a
+    disabled checkbox."""
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "logo.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
+        '<rect width="200" height="100" fill="teal"/></svg>'
+    )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "guide.md").write_text("# Guide\n")
+    file = tmp_path / "README.md"
+    file.write_text(
+        '<!-- hidden note -->\n<a name="top"></a>\n'
+        '<p align="center"><img src="assets/logo.svg" height="40" alt="Logo"></p>\n\n'
+        "<details><summary>More</summary>\n\nInside the fold.\n\n</details>\n\n"
+        '<script>window.ran = "script"</script>'
+        '<img src="assets/logo.svg" onload="window.ran = `handler`" alt="Again">\n\n'
+        '<a href="javascript:window.ran = `link`">Bad</a> '
+        '<a href="https://example.com/" rel="opener">Out</a> '
+        "[Guide](docs/guide.md) [Back to top](#top)\n\n"
+        '<div id="preview" class="lf-panel" style="position: fixed" data-lf-said>'
+        "Styled</div>\n\n"
+        '<input type="text" value="typed">\n\n'
+        "| Name | Size |\n| :-: | --: |\n| logo | 40 |\n\n"
+        '<table><tr><td align="right">Sponsor</td></tr></table>\n\n'
+        "- [x] Done\n"
+    )
+    url = serve(
+        leaf_page(
+            "Readme",
+            '<p><a id="to-fold" href="#readme-file:readme:7">the fold</a></p>'
+            '<lf-file-editor id="readme-file" binding="readme"></lf-file-editor>'
+            '<lf-text-document id="preview" for="readme-file" label="README.md" '
+            'preview="markdown"></lf-text-document>'
+            '<lf-text-document id="direct" source="readme" preview="markdown">'
+            "</lf-text-document>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "readme", file)
+    page = open_page(browser, live_url(url))
+    direct = page.locator("#direct .lf-text-document-preview")
+    expect(direct.get_by_role("img", name="Logo")).to_have_js_property(
+        "naturalWidth", 200
+    )
+    preview = page.locator("#preview .lf-text-document-preview")
+    logo = preview.get_by_role("img", name="Logo")
+    expect(logo).to_have_js_property("complete", True)
+    assert logo.evaluate(
+        """image => {
+          const box = image.getBoundingClientRect();
+          const line = image.parentElement.getBoundingClientRect();
+          const centred = Math.abs(box.x + box.width / 2 - (line.x + line.width / 2)) < 1;
+          return [image.naturalWidth, box.height, getComputedStyle(image).boxShadow, centred];
+        }"""
+    ) == [200, 40, "none", True]
+    expect(preview.get_by_role("img", name="Again")).to_have_js_property(
+        "complete", True
+    )
+    expect(preview).not_to_contain_text("hidden note")
+    out = preview.get_by_role("link", name="Out")
+    expect(out).to_have_attribute("target", "_blank")
+    expect(out).not_to_have_attribute("rel", "opener")
+    guide = preview.get_by_role("link", name="Guide")
+    expect(guide).to_have_attribute("target", "_blank")
+    href = guide.evaluate("link => link.href")
+    assert "/api/files/readme/beside?path=docs%2Fguide.md" in href
+    opened = page.request.get(href)
+    assert opened.ok and opened.text() == "# Guide\n"
+    assert opened.headers["content-type"].startswith("text/plain")
+    assert (
+        preview.get_by_text("Bad").evaluate("link => link.hasAttribute('href')")
+        is False
+    )
+    styled = preview.get_by_text("Styled")
+    assert styled.evaluate(
+        "div => [...div.attributes].map(({name, value}) => `${name}=${value}`)"
+    ) == ["data-lf-place=preview"]
+    expect(page.locator("#preview")).to_have_count(1)
+    preview.get_by_role("link", name="Back to top").click()
+    assert (
+        page.locator("#preview").evaluate(
+            "element => element.lfElementsFor('preview:top')[0]?.localName"
+        )
+        == "a"
+    )
+    assert preview.locator("td").evaluate_all(
+        "cells => cells.map((cell) => getComputedStyle(cell).textAlign.replace('-webkit-', ''))"
+    ) == ["center", "right", "right"]
+    fields = preview.locator("input")
+    expect(fields).to_have_count(2)
+    for at in range(2):
+        expect(fields.nth(at)).to_have_attribute("type", "checkbox")
+        expect(fields.nth(at)).to_be_disabled()
+    expect(fields.nth(1)).to_be_checked()
+    assert page.evaluate("window.ran") is None
+
+    fold = preview.locator("details")
+    fold.locator("summary").click()
+    expect(fold).to_have_attribute("open", "")
+    page.locator("#to-fold").click()
+    page.keyboard.insert_text("Typed here. ")
+    expect(fold).to_contain_text("Typed here. Inside the fold.")
+    expect(fold).to_have_attribute("open", "")
+
+
 def test_a_preview_bound_to_a_file_follows_each_write_with_or_without_an_editor(
     browser, serve, tmp_path
 ):

@@ -10,7 +10,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 
 | Kind                                         | Author          | Door                                                                                     | Fields                                                                                                                                                                                                | Meaning                                                                                                                                                                                       |
 | -------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                                  | `text`, `drawing` or `emoji`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `viewing` (browser)                                                                                        | opens a thread; with `emoji`, puts a reaction mark on the anchor                                                                                                                              |
+| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                                  | `text`, `drawing` or `emoji`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `viewing` (browser)                                                                                        | opens a thread; with `emoji`, a reaction ("Reactions")                                                                                                                                        |
 | <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf thread reply`                                                   | `parent`; `text` or `emoji`; `responds` on an agent's answer; `turn`, the posting session's turn where it holds the page; `todo` with any `waiting_on`, and a replacement or null `anchor` (CLI only) | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                     |
 | <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                                    | `message`, `text`; `base` (browser)                                                                                                                                                                   | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                                        | `messages: [{message, version}]`                                                                                                                                                                      | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
@@ -261,6 +261,28 @@ A thread is keyed by the id of the comment that opened it (`events.build_threads
 What each thread command does for the user, and when an agent uses it, is
 `../../skills/leaf/references/threads.md`.
 
+### Reactions
+
+A reaction is a `comment` or `reply` whose content is one emoji (`emoji`) in place of
+`text`. The user's reaction is a comment, on the passage, element or page its anchor
+names, or a reply, on the message its `parent` names. The agent's is a reply, written
+by `leaf thread reply --emoji`.
+
+A reaction is a message, and every rule for messages applies to it unchanged. The
+user's reaction is a turn the agent owes an answer: it wakes the agent as words do,
+and answers the agent's questions before it in its thread. The agent's answers the
+user's turn as a reply in words does. Admission takes any one emoji, in the form the
+record schema's `emoji` pattern states; the layer's `$reactions` lists the emoji the
+browser offers the user to pick from, held to the same form.
+
+The browser draws two kinds of reaction as a mark on what they are on: the reaction that
+opened a thread nothing else has been said in, on its anchor (`events.bare_reaction`),
+and the user's reaction on the agent's message, as a chip on that message. It draws
+the agent's reactions as messages in their thread, and a thread a reaction opened as a
+thread once anything else is said in it. The user takes back a reaction of theirs by
+pressing its emoji again, while its thread is open and stands where the reaction was
+put, whatever has been said since.
+
 ### Read state
 
 Reading is separate from whose turn it is, and answers nothing. Each agent content
@@ -294,8 +316,8 @@ exact id rather than log order, so answering older work cannot erase newer user
 input. A `--done` answer to an update the agent's earlier answer already settled
 with a to-do still open carries no `responds`, and the command names that to-do
 for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
-thread, and brings back none of the questions the resolve ended; reactions and
-failure receipts leave it closed, and so does an `unannounced` message of the
+thread, and brings back none of the questions the resolve ended; failure
+receipts leave it closed, and so does an `unannounced` message of the
 agent's in a thread the user resolved (below).
 
 The user's `resolve` takes a thread off their list. It retires the questions the agent
@@ -330,14 +352,14 @@ a page obligation does the same, so an obligation the user has commented on leav
 On Me list while the reply owed to the comment stands on the agent's, or the to-do a
 reply promised, and stays off it when the user resolves the thread
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
-is answered by that message instead, along with every open question before it, or by a reaction whose emoji
-declares `settles` on the message holding it. Neither answer resolves the thread, and
-a `resolve` by either side ends every question asked before it, however the thread
+is answered by that message instead, words or a reaction, along with every open
+question before it. That answer doesn't resolve the thread, and a `resolve` by either
+side ends every question asked before it, however the thread
 reopens later, until the resolve is taken back or a message asks one again
 (`obligations`), which is how the agent ends one the user answered elsewhere. An agent reply whose `obligation` lists such questions, each by the id the
 message that first asked it set, opens each again whatever ended it: each keeps its id
-and words and stands on the reply until the user's next message or a settling reaction
-answers it (`obligations.question_ids`).
+and words and stands on the reply until the user's next message answers it
+(`obligations.question_ids`).
 The delivery of the user's reply lists a thread widget's question up its thread in
 `waiting`, since no revision can write that widget's state (`obligations.waiting_in_thread`).
 A message asks by its words or by a widget in its markup, not both: only words answer
@@ -383,9 +405,8 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   leaves an existing name in place. `thread_title` names or renames a thread with a
   single line of plain text no longer than its registry `title` allows
   (`registry.kernel.title_limit`). An unnamed thread has a null title.
-- `summary` covers an inclusive `from`–`through` range of one or more spoken turns in
-  one thread; a reaction may lie inside it but not at an endpoint. It replaces the
-  summaries it overlaps whole. A delivery's `summary_hint` spans the run of messages
+- `summary` covers an inclusive `from`–`through` range of one or more messages in
+  one thread. It replaces the summaries it overlaps whole. A delivery's `summary_hint` spans the run of messages
   it suggests and every summary in force among the messages older than the newest
   exchange, widened over any message other than the opening one that it would leave
   in full above a summary, so a summary that follows it replaces those summaries

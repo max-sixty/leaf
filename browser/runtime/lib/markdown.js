@@ -6,9 +6,10 @@
    same words.
 
    A renderer returns an HTML string, such as for Lit's `unsafeHTML`;
-   `inlineMarkdownFragment` returns a fragment and `paintMarkdown` writes into an
-   element. Each is safe for any source, since it shows a tag as the words that spell it,
-   except `renderAuthoredMarkdown`, which keeps raw HTML. A destination the reading
+   `inlineMarkdownFragment` and `markdownFileFragment` return a fragment and
+   `paintMarkdown` writes into an element. Each is safe for any source, since it shows a
+   tag as the words that spell it, except `renderAuthoredMarkdown`, which keeps raw HTML,
+   and `markdownFileFragment`, which keeps the HTML GitHub allows. A destination the reading
    doesn't admit leaves its words and no link. The caller passes `links`
    (`MarkdownLinks`), which say how to write each link and picture the reading admits:
    `{}` writes each as the source wrote it, and a Leaf page's are `pageLinks`, from
@@ -59,6 +60,8 @@ let render = escapedSource;
 let renderInline = escapedSource;
 /** @type {(text: string, links: MarkdownLinks) => string} */
 let renderAuthored = escapedSource;
+/** @type {(text: string) => Promise<string>} */
+let renderFile = async (text) => escapedSource(text);
 /** @type {((source: string, message: boolean, html: boolean) => NativeToken[]) | null} */
 let tokenize = null;
 /** @type {Promise<void> | undefined} */
@@ -87,6 +90,37 @@ export const renderMarkdown = (text, links, message = true) =>
 // Markdown.
 /** @param {string} text @param {MarkdownLinks} links */
 export const renderAuthoredMarkdown = (text, links) => renderAuthored(text, links);
+// A Markdown file as GitHub shows it: the file reading with the HTML GitHub's sanitizer
+// allows in it (`GITHUB_HTML`), so a README's folds, pictures and centred headers draw
+// as on GitHub, and none of its script, handlers, styles or forms. Only a file's
+// preview reads a file so. A draft's body shows a tag as the words that spell it, since
+// the server draws a body too (`leaf.source.passages.markdown_markup`) and has no
+// sanitizer. A file that holds no HTML renders as `renderMarkdown` renders it, and
+// DOMPurify loads for the first file that holds some. The host's `links` apply after
+// the sanitizer, to each link and picture of the file's HTML as of its Markdown, so
+// what they add never has to pass GitHub's list.
+/** @param {string} text @param {MarkdownLinks} links @returns {Promise<DocumentFragment>} */
+export async function markdownFileFragment(text, links) {
+  const parsed = document.createElement("template");
+  parsed.innerHTML = await renderFile(text);
+  for (const link of parsed.content.querySelectorAll("a[href]"))
+    for (const [name, value] of Object.entries(
+      links.link?.(/** @type {string} */ (link.getAttribute("href"))) ?? {},
+    ))
+      link.setAttribute(name, value);
+  // An image of an HTML `<picture>` stays its own, since its sources choose among
+  // themselves only while it stands in the `<picture>`.
+  const picture = links.picture;
+  if (picture)
+    for (const image of parsed.content.querySelectorAll("img")) {
+      if (image.parentElement?.localName === "picture") continue;
+      // `picture` may move the image into what it returns, so that takes its place.
+      const place = image.ownerDocument.createTextNode("");
+      image.before(place);
+      place.replaceWith(picture(image));
+    }
+  return parsed.content;
+}
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 // With `imageAlt`, an image counts as the words its control is named by, its alt text,
@@ -785,6 +819,77 @@ function inlineFormulas(state) {
   }
 }
 
+// What GitHub's sanitizer keeps of a file's HTML (`markdownFileFragment`): its
+// elements and attributes, and links only to the web, mail or a relative path. Some of
+// its attributes go: `accesskey` and `tabindex`, which would rebind the page's keys and
+// move its tab order rather than shape the file; `rel`, which could keep an opener for a
+// page a link opens in a new tab; and those that name another element by its id, as
+// `for` and `aria-labelledby` do, which could name one of the page's. A `data-`
+// attribute goes too, since Leaf's own marks are spelled so. An `id` or `name` takes
+// GitHub's `user-content-` before it, so a file names nothing of the page's. A class
+// stays only where the reading writes it, for a code block's language and a task list's
+// checkbox, an `<input>` stands only as that checkbox, which GitHub's list adds after it
+// sanitizes, and a style only as a table cell's alignment, which the reading writes so.
+const GITHUB_HTML = {
+  ALLOWED_TAGS: (
+    "h1 h2 h3 h4 h5 h6 br b i strong em a pre code img tt div ins del sup sub p " +
+    "picture ol ul table thead tbody tfoot blockquote dl dt dd kbd q samp var hr " +
+    "ruby rt rp li tr td th s strike summary details caption figure figcaption " +
+    "abbr bdo cite dfn mark small source span time wbr input"
+  ).split(" "),
+  ALLOWED_ATTR: (
+    "abbr accept accept-charset action align alt aria-hidden aria-label axis " +
+    "border char charoff charset checked clear cols colspan compact coords " +
+    "datetime dir disabled enctype frame height hreflang hspace id ismap label " +
+    "lang maxlength media method multiple name nohref noshade nowrap open " +
+    "progress prompt readonly rev role rows rowspan rules scope selected shape " +
+    "size span start summary title type valign value width itemprop href src " +
+    "longdesc loading itemscope itemtype cite srcset class"
+  ).split(" "),
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
+  ALLOW_ARIA_ATTR: false,
+  ALLOW_DATA_ATTR: false,
+  SANITIZE_NAMED_PROPS: true,
+};
+const READING_CLASS =
+  /^(?:language-\S+|task-list-item(?:-checkbox)?|contains-task-list)$/;
+/** @type {Promise<import("dompurify").DOMPurify> | undefined} */
+let purifier;
+const sanitizer = () =>
+  (purifier ??= import("/vendor/purify.esm.js").then(
+    ({ DOMPurify }) => {
+      DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
+        if (data.attrName === "style")
+          data.forceKeepAttr =
+            /^t[dh]$/.test(node.localName) &&
+            /^text-align:\s*(?:left|center|right);?$/.test(data.attrValue);
+        if (data.attrName !== "class") return;
+        data.attrValue = data.attrValue
+          .split(/\s+/)
+          .filter((name) => READING_CLASS.test(name))
+          .join(" ");
+        if (!data.attrValue) data.keepAttr = false;
+      });
+      DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+        if (node.localName !== "input") return;
+        node.setAttribute("type", "checkbox");
+        node.setAttribute("disabled", "");
+      });
+      return DOMPurify;
+    },
+    (error) => {
+      // A later draw tries again, as a failed parser load does (`loadMarkdown`).
+      purifier = undefined;
+      throw error;
+    },
+  ));
+
+/** @param {NativeToken} token @returns {boolean} */
+const holdsHtml = (token) =>
+  token.type === "html_block" ||
+  token.type === "html_inline" ||
+  Boolean(token.children?.some(holdsHtml));
+
 // The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`), which
 // passages.py reads the same (`markdown_dialect`).
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message
@@ -930,6 +1035,17 @@ export function loadMarkdown(onError = null) {
     let authored;
     renderAuthored = (text, links) =>
       (authored ??= makeMarkdown(module, true, true)).render(text, { links });
+    /** @type {MarkdownIt | undefined} */
+    let fileHtml;
+    renderFile = async (text) => {
+      const parser = (fileHtml ??= makeMarkdown(module, false, true));
+      const env = { links: {} };
+      const tokens = parser.parse(text, env);
+      const markup = parser.renderer.render(tokens, parser.options, env);
+      return tokens.some(holdsHtml)
+        ? (await sanitizer()).sanitize(markup, GITHUB_HTML)
+        : markup;
+    };
     /** @type {Map<string, MarkdownIt>} */
     const positioned = new Map();
     tokenize = (text, message, html) => {

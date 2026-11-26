@@ -1,6 +1,6 @@
 [
   {
-    "id": "a comment and a reply with words are turns, and a reaction is not",
+    "id": "a comment, a reply and a reaction are each a turn",
     "events": [
       { "kind": "comment", "id": "c", "text": "Why this order?" },
       { "kind": "reply", "id": "r", "parent": "c", "text": "And the second step?" },
@@ -8,7 +8,8 @@
     ],
     "turns": [
       ["c", "c"],
-      ["r", "r"]
+      ["r", "r"],
+      ["x", "x"]
     ]
   },
   {
@@ -25,8 +26,8 @@
     ]
   },
   {
-    "id": "a reaction opening a thread is no turn",
+    "id": "a reaction opening a thread is a turn",
     "events": [{ "kind": "comment", "id": "x", "emoji": "👍" }],
-    "turns": []
+    "turns": [["x", "x"]]
   }
 ]

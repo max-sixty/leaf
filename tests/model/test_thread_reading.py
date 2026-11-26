@@ -205,12 +205,11 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
             "emoji": "👍",
         },
     )
-    assert refused(third["id"], reaction["id"]) == "summary-endpoints"
-
     append_carried_log_record(
         page_dir,
         {"kind": "undo", "author": "user", "undoes": reaction["id"]},
     )
+    # A message taken back with nothing standing on it has left the thread.
     assert refused(third["id"], reaction["id"]) == "summary-endpoints"
 
     # One message is a range too; the next summary overlaps it and replaces it.
@@ -442,63 +441,6 @@ def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
         thread_model.post_reply(
             page_dir, {"parent": root["id"], "responds": root["id"]}, ""
         )
-
-
-def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_dir):
-    root = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "turn 1"},
-    )
-    spoken = [root]
-    for number in range(2, 5):
-        spoken.append(
-            append_carried_log_record(
-                page_dir,
-                {
-                    "kind": "reply",
-                    "author": "user" if number % 2 else "agent",
-                    "parent": root["id"],
-                    "text": f"turn {number}",
-                },
-            )
-        )
-    middle_reaction = append_carried_log_record(
-        page_dir,
-        {"kind": "reply", "author": "user", "parent": root["id"], "emoji": "👍"},
-    )
-    for number in range(5, 7):
-        spoken.append(
-            append_carried_log_record(
-                page_dir,
-                {
-                    "kind": "reply",
-                    "author": "user" if number % 2 else "agent",
-                    "parent": root["id"],
-                    "text": f"turn {number}",
-                },
-            )
-        )
-    trailing_reaction = append_carried_log_record(
-        page_dir,
-        {"kind": "reply", "author": "user", "parent": root["id"], "emoji": "👍"},
-    )
-    events = events_model.read_events(page_dir)
-    latest = next(event for event in events if event["id"] == spoken[-1]["id"])
-
-    [digest] = thread_context_model.batch_threads(
-        events,
-        [latest],
-        page_view_model.PageView(page_dir).within,
-    )
-
-    assert digest["summary_hint"] == {
-        "from": spoken[0]["id"],
-        "through": spoken[3]["id"],
-    }
-    assert digest["summary_hint"]["through"] not in {
-        middle_reaction["id"],
-        trailing_reaction["id"],
-    }
 
 
 def test_summary_hint_passes_over_progress(page_dir):

@@ -11,6 +11,7 @@ import {
 import {
   deleted,
   foldThreads,
+  reactionsAt,
   readThreadRecords,
 } from "../../browser/runtime/state/thread/model.js";
 import { isTurnEvent, turnMessage } from "../../browser/runtime/state/pending/model.js";
@@ -489,9 +490,12 @@ test("taking back an answered reaction keeps its place as the log's answer will"
       { kind: "undo", undoes: "e1" },
     ],
   );
+  // The 👍 on the agent's message is a chip, which the agent's answer stands on.
   assert.deepEqual(folded.msgs.map(place), [
     { id: "e1", text: "", emoji: undefined, was: "❌", deleted: true },
     { id: "e2", text: "Which part?", emoji: undefined, was: undefined, deleted: false },
+    { id: "e3", text: "", emoji: undefined, was: "👍", deleted: true },
+    { id: "e4", text: "Keeping it.", emoji: undefined, was: undefined, deleted: false },
   ]);
   assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
   assert.deepEqual(place(folded.root), place(taken.root));
@@ -650,12 +654,12 @@ test("pending thread gestures fold in the order the user made them, as the log w
   for (const gesture of [reply, rewrite, keep, undo, resolve, unresolve])
     assert.equal(fold({ attention: asks }, gesture).attention, asks, gesture.id);
   // A resolve after a turn closes the thread the turn reopened, and a turn after a
-  // resolve reopens it; a reaction is no turn, so it leaves a resolve in force.
+  // resolve reopens it, a reaction as words do.
   const closed = { author: "user", pending: true };
   const resolved = { resolved: { id: "closed", kind: "resolve", author: "user" } };
   assert.deepEqual(fold({}, rewrite, resolve).resolved, closed);
   assert.equal(fold(resolved, resolve, reply).resolved, null);
-  assert.deepEqual(fold({}, resolve, keep).resolved, closed);
+  assert.equal(fold({}, resolve, keep).resolved, null);
   assert.equal(fold(resolved, unresolve).resolved, null);
   // Taking back the resolve that closed the thread reopens it; taking back anything
   // else leaves it closed.
@@ -690,4 +694,28 @@ test("a thread this tab opened carries every field a served thread does", () => 
     Object.keys(opened).sort(),
     Object.keys(servedThread([root])).sort(),
   );
+});
+
+test("a reaction on a passage stays the user's to take back once the agent answers it", () => {
+  // The picker reads the reactions in force on its anchor, so pressing one again takes it
+  // back whatever has been said since, until the thread is resolved.
+  const anchor = { section: "plan", quote: "Ship dark" };
+  const root = { id: "r", kind: "comment", author: "user", emoji: "✂️", anchor };
+  const answer = { id: "a", kind: "reply", author: "agent", parent: "r", text: "Cut." };
+  /** @param {object[]} msgs @param {object | null} resolved */
+  const thread = (msgs, resolved = null, opened = root) => ({
+    id: "r",
+    root: opened,
+    msgs,
+    anchor,
+    resolved,
+  });
+  assert.deepEqual(reactionsAt([thread([root])], anchor), [root]);
+  assert.deepEqual(reactionsAt([thread([root, answer])], anchor), [root]);
+  assert.deepEqual(
+    reactionsAt([thread([root, answer], { author: "user" })], anchor),
+    [],
+  );
+  const words = { ...root, emoji: undefined, text: "Why?" };
+  assert.deepEqual(reactionsAt([thread([words], null, words)], anchor), []);
 });

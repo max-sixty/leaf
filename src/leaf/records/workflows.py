@@ -532,9 +532,8 @@ def handed_over(
         # No later authored document absorbs thread markup, so the thread's next
         # spoken agent turn is what settles an action there: the reply addressed to an
         # owed action, and for an action that owes nothing any agent turn after it, which
-        # has taken the action in as a later version takes in a page action. A reaction
-        # is no turn, and a harness's failure reply says no answer is coming rather
-        # than answering. The closing in force on the thread takes in the actions
+        # has taken the action in as a later version takes in a page action. A
+        # harness's failure reply says no answer is coming rather than answering. The closing in force on the thread takes in the actions
         # made before it that owe nothing. An owed one it settles only where it
         # answers for the thread (`events.owed_turns`): the user's own resolve
         # leaves it owed, as it leaves a message. An action made after the closing

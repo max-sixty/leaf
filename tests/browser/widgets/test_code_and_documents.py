@@ -108,7 +108,7 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     """A passage the page writes in the document's <pre> needs no data source: the
     preview renders it, in a box as tall as its rendering rather than the bound a
     bound document keeps, and the Source tab holds it character for character."""
-    text = "**Fixed** a crash when `--config` names <missing> files.\n"
+    text = "**Fixed** a crash when `--config` names \\<missing> files.\n"
     url = serve(
         leaf_page(
             "Written passage",

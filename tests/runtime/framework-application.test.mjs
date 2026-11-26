@@ -1465,7 +1465,7 @@ for (const resolved of [null, { author: "user" }]) {
 }
 
 test("a pending gesture leaves obligations and On Me as served until the log answers", () => {
-  // A settling reaction answered the agent's question, so the server lists the obligation as
+  // The user's reaction answered the agent's question, so the server lists the obligation as
   // done. Which obligations taking it back reopens is the log's reading, so On Me moves
   // when the server answers the undo, not before.
   const item = {

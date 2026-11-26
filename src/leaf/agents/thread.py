@@ -525,7 +525,7 @@ def ask_again(
         page,
         addressed,
         identity,
-        body,
+        {"text": body},
         attempt=None,
         failure=None,
         validate_source=False,
@@ -637,6 +637,7 @@ def post_reply(
     address: dict,
     text,
     *,
+    emoji: str | None = None,
     settlement: Settlement = REFUSE,
     attempt: str | None = None,
     identity: dict | None = None,
@@ -683,6 +684,10 @@ def post_reply(
     first however it reads; a CLI answer's key covers its whole write
     (`post_response`).
 
+    ``emoji`` posts the reply as one emoji in place of ``text``, which is then None: a
+    reaction, which answers and declares what it leaves as words do (`events.md`,
+    "Reactions").
+
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
@@ -728,9 +733,10 @@ def post_reply(
         )
         if value is not None
     }
-    text = checked_text(page_dir, text, html=True)
-    if check is not None and (markup := drawn_markup(text)):
-        check(page_dir, "reply", markup)
+    if emoji is None:
+        text = checked_text(page_dir, text, html=True)
+        if check is not None and (markup := drawn_markup(text)):
+            check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -774,7 +780,7 @@ def post_reply(
             page,
             addressed,
             posting_identity,
-            text,
+            {"emoji": emoji} if emoji is not None else {"text": text},
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
@@ -1016,7 +1022,7 @@ def _compose_and_append(
     page: PageTransaction,
     obligation: _Obligation,
     posting_identity: dict,
-    text: str,
+    said: dict,
     *,
     attempt: str | None,
     failure: str | None,
@@ -1033,7 +1039,8 @@ def _compose_and_append(
     title_owed: bool,
 ) -> tuple[dict, "_Published | None"]:
     """Check the reply's content (`drawn_markup`) against the page, compose its event
-    and append it at `obligation`. Successful replies publish saved edits when
+    and append it at `obligation`. `said` is what the reply says: its `text`, or its
+    `emoji`. Successful replies publish saved edits when
     `validate_source` requests it. Progress and failure reports use the active
     revision; detaching still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read.
@@ -1049,13 +1056,13 @@ def _compose_and_append(
     through a filter, as `jq` with a field list does."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand, _advice = obligation
-    markup = drawn_markup(text)
+    markup = drawn_markup(said["text"]) if "text" in said else ""
     event = {
         "kind": "reply",
         "author": "agent",
         **posting_identity,
         "parent": parent,
-        "text": text,
+        **said,
         **({"responds": responds} if responds is not None else {}),
     }
     opening = _messages(events)[thread_id]

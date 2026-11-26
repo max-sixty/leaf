@@ -1205,50 +1205,34 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     assert chose["id"] == thread["actions"][0]["id"]
 
 
-def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
+def test_a_reaction_wakes_the_agent_and_is_owed_an_answer(
     page_dir, sessionless, capsys
 ):
+    """A reaction is a message: on a passage or on the agent's question, it wakes the
+    agent and is owed an answer as words are, and on the question it answers it, which
+    its delivery lists as `settled`."""
     serving(page_dir, 1)
     publish(page_dir)
     session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
-    quiet = append_command(
+    cut = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "emoji": "✂️"},
     )
-    assert quiet["attention"] is False
-    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
-    answer = append_command(
+    nod = append_command(
         page_dir,
         {"kind": "reply", "author": "user", "parent": question["id"], "emoji": "👍"},
     )
-    assert answer["attention"] is True
+    assert cut["attention"] is True and nod["attention"] is True
     assert session_model.cmd_wait(page_dir) == 0
-    payload, _, events = printed(capsys.readouterr().out)
-    [shown] = events
-    assert shown["id"] == answer["id"] and shown["emoji"] == "👍"
-    assert "answer" not in shown
-    assert page_state(page_dir)["pending"] == 1
-    delivery_ack_model.receive_delivery(payload["id"])
-    assert page_state(page_dir)["pending"] == 0
-    restored = append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": answer["id"]}
-    )
-    assert restored["attention"] is True
-    ordinary = append_command(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": question["id"],
-            "text": "No further question.",
-        },
-    )
-    mark = append_command(
-        page_dir,
-        {"kind": "reply", "author": "user", "parent": ordinary["id"], "emoji": "👍"},
-    )
-    assert mark["attention"] is False
+    _payload, _, events = printed(capsys.readouterr().out)
+    shown = {event["id"]: event for event in events}
+    assert shown[cut["id"]]["emoji"] == "✂️"
+    assert shown[cut["id"]]["answer"]["kind"] == "reply"
+    assert shown[nod["id"]]["answer"]["kind"] == "reply"
+    assert [each["id"] for each in shown[nod["id"]]["settled"]] == [
+        f"message:{question['id']}"
+    ]
 
 
 def test_successful_replies_require_an_exact_agent_answer():

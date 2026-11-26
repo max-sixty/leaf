@@ -47,7 +47,7 @@ import {
 } from "/runtime/portable-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
-import { failSoft, reportFailure } from "/runtime/lib/failure.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
@@ -1084,6 +1084,11 @@ customElements.define(
     }
 
     setup() {
+      // A diff comparing two texts draws no patch, and `page check` can't tell its
+      // `<pre>` from one that an input beside it leaves in place, so the diff refuses
+      // to draw rather than show a patch it was never meant to.
+      if (this.hasAttribute("before") && this.querySelector(":scope > pre"))
+        throw new Error("a diff comparing two texts holds no patch <pre>");
       this.singleFile = this.getAttribute("view") === "file";
       this.lfCommands = {
         title: "In a diff review",
@@ -1184,13 +1189,6 @@ customElements.define(
       );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      // A diff comparing two texts draws no patch, and `page check` can't tell its
-      // `<pre>` from one an input beside it leaves in place, so the diff says so.
-      if (this.hasAttribute("before") && this.querySelector(":scope > pre"))
-        reportFailure(
-          this,
-          new Error("a diff comparing two texts holds no patch <pre>"),
-        );
       whileConnected(this, () => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,

@@ -374,16 +374,16 @@ with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text 
 where the markup binds the input whose `property` is `value` to nothing, Leaf sets
 `value` to the `<pre>`'s text, a string, so the widget reads one property either way, as
 `lf-text-document` and `lf-diff` do. Give that input a contract that admits a string.
-`page check` refuses a `<pre>` on an element that binds it, and requires one on an
-element that binds no input. An element that binds only the widget's other inputs may
-hold a `<pre>` or not, since those inputs may supply the data in its place, as
-`lf-diff`'s two compared texts do; say which in the widget's `instructions`, and report
-a `<pre>` the widget won't read as an `error` (`module-plain-elements.md`, "`error`"). A
-widget without a `value` input reads its `<pre>` whatever it binds, as `lf-code` does
-beside its `playhead`. Leaf leaves the property of any other unbound input to the
-widget. Tell page authors how to bind it in `instructions`, and
-whoever produces the data in the contract's `instructions` (`packages.md`, "Package
-contract").
+Leaf leaves the property of any other unbound input to the widget. Tell page authors
+how to bind it in `instructions`, and whoever produces the data in the contract's
+`instructions` (`packages.md`, "Package contract").
+
+`page check` requires one `<pre>` on a widget with `content: data`. Where the markup
+binds the `value` input, it refuses the `<pre>`. Where the widget has a `value` input
+and the markup binds only its other inputs, it takes the element with or without a
+`<pre>`, since those inputs may supply the data in its place, as `lf-diff`'s two
+compared texts do. Say in the widget's `instructions` which the widget wants, and
+report a `<pre>` it won't read as an `error` (`module-plain-elements.md`, "`error`").
 
 ```json
 {

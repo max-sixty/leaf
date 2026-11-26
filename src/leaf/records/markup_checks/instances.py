@@ -130,13 +130,12 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             )
         # Tags that name this declaration in `owners` are its admissible members
         # under any content model. "data" and "markdown" take one <pre>. Where the
-        # declaration has an input (`inputs`) whose property is `value`, the <pre> is
-        # that input's text: the element holds none where its markup binds that input,
-        # and one or none where it binds only others, since the declaration doesn't say
-        # whether they supply the data in the <pre>'s place, as a diff's two compared
-        # texts do. A widget without such an input reads its <pre> whatever it binds, as
-        # a code block does beside its playhead. "members" takes element members only,
-        # and "empty" takes nothing.
+        # markup binds the input (`inputs`) whose property is `value`, that input
+        # supplies the text and the element holds no <pre>. Where the declaration has
+        # such an input and the markup binds only other inputs, the element may hold a
+        # <pre> or not, since the declaration doesn't say whether those inputs supply
+        # the data in its place, as a diff's two compared texts do. "members" takes
+        # element members only, and "empty" takes nothing.
         content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})

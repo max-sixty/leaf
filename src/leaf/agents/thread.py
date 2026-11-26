@@ -59,7 +59,7 @@ from leaf.source.obligation_sources import local_obligation_entry
 from leaf.source.passages import holds_html, message_markup
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
-from leaf.source.registry.kernel import kinds_declaring, title_limit
+from leaf.source.registry.kernel import kinds_declaring, title_limit, wait_limit
 from leaf.source.revision_artifact import active_enclosing, read_revision
 from leaf.source.structure import SourceDocument, shown_in
 from leaf.source.vocabulary import require_registry
@@ -527,11 +527,11 @@ def ask_again(
         page,
         addressed,
         identity,
-        body,
+        {"text": body},
         attempt=None,
         failure=None,
         validate_source=False,
-        todo=None,
+        promise=None,
         asks_back=False,
         explicit_obligation=False if widget else ([name] if asked[name] else True),
         ephemeral=False,
@@ -673,6 +673,7 @@ def post_reply(
     failure: str | None = None,
     validate_source: bool = False,
     todo: str | None = None,
+    waiting_on: str | None = None,
     asks_back: bool = False,
     obligation: bool | list[str] = False,
     ephemeral: bool = False,
@@ -711,12 +712,12 @@ def post_reply(
     first however it reads; a CLI answer's key covers its whole write
     (`post_response`).
 
+    ``emoji`` posts the reply as one emoji in place of ``text``, which is then None: a
+    reaction, which answers and declares what it leaves as words do (`events.md`,
+    "Reactions").
+
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
-
-    ``emoji`` answers with that reaction in place of ``text``, for a message that
-    needs no words back, such as a thanks: it settles what an answer in words would,
-    and draws no message (`events.in_history`).
 
     ``claimed_session`` names the session Leaf writes for, as a line fork's working
     message or a harness's failure receipt: Leaf's own write, which goes in as the
@@ -728,6 +729,7 @@ def post_reply(
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
+    ``waiting_on`` names what that work waits on (`todos`), fitted to `wait_limit`.
 
     ``title`` names the thread where it has no title yet, and ``title_owed`` refuses
     a reply into an untitled thread that gives none (`untitled-thread`), as the
@@ -746,11 +748,23 @@ def post_reply(
     runs under. A `Receipt`'s progress takes nothing in hand.
     """
     title = agent_title(title)
-    todo = agent_title(todo)
+    # The to-do's fields the reply carries. Admission refuses a blank one, and a wait
+    # with no to-do.
+    promise = {
+        field: value
+        for field, value in (
+            ("todo", agent_title(todo)),
+            (
+                "waiting_on",
+                None if waiting_on is None else fitted(waiting_on, wait_limit()),
+            ),
+        )
+        if value is not None
+    }
     if emoji is None:
         text = checked_text(page_dir, text, html=True)
-    if check is not None and text and (markup := drawn_markup(text)):
-        check(page_dir, "reply", markup)
+        if check is not None and (markup := drawn_markup(text)):
+            check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -785,7 +799,7 @@ def post_reply(
             ephemeral,
             failure,
             done=not (
-                ephemeral or todo or obligation or asks_back or failure is not None
+                ephemeral or promise or obligation or asks_back or failure is not None
             ),
         )
         if addressed is None:
@@ -794,12 +808,11 @@ def post_reply(
             page,
             addressed,
             posting_identity,
-            text,
-            emoji=emoji,
+            {"emoji": emoji} if emoji is not None else {"text": text},
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
-            todo=todo,
+            promise=promise,
             asks_back=asks_back,
             explicit_obligation=obligation,
             ephemeral=ephemeral,
@@ -1055,13 +1068,12 @@ def _compose_and_append(
     page: PageTransaction,
     obligation: _Obligation,
     posting_identity: dict,
-    text: str | None,
+    said: dict,
     *,
-    emoji: str | None = None,
     attempt: str | None,
     failure: str | None,
     validate_source: bool,
-    todo: str | None,
+    promise: dict | None,
     asks_back: bool,
     explicit_obligation: bool | list[str],
     ephemeral: bool,
@@ -1073,10 +1085,14 @@ def _compose_and_append(
     title_owed: bool,
 ) -> tuple[dict, "_Published | None"]:
     """Check the reply's content (`drawn_markup`) against the page, compose its event
-    and append it at `obligation`. Successful replies publish saved edits when
+    and append it at `obligation`. `said` is what the reply says: its `text`, or its
+    `emoji`. Successful replies publish saved edits when
     `validate_source` requests it. Progress and failure reports use the active
     revision; detaching still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read.
+
+    `promise` holds the fields of the to-do the reply opens, its `todo` title and any
+    `waiting_on`, which the event carries as they are.
 
     `title_owed` refuses a reply into an untitled thread that gives no `title`
     (`untitled-thread`). The user asked for every thread to have a title, whether or
@@ -1086,13 +1102,13 @@ def _compose_and_append(
     through a filter, as `jq` with a field list does."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand, _advice = obligation
-    markup = "" if text is None else drawn_markup(text)
+    markup = drawn_markup(said["text"]) if "text" in said else ""
     event = {
         "kind": "reply",
         "author": "agent",
         **posting_identity,
         "parent": parent,
-        **({"text": text} if emoji is None else {"emoji": emoji}),
+        **said,
         **({"responds": responds} if responds is not None else {}),
     }
     opening = _messages(events)[thread_id]
@@ -1102,7 +1118,7 @@ def _compose_and_append(
     moving = bool(quote or section or part)
     widget = bool(markup) and bool(SourceDocument(markup).lf_elements)
     if ephemeral and (
-        todo or explicit_obligation or widget or failure or moving or detach
+        promise or explicit_obligation or widget or failure or moving or detach
     ):
         raise Rejected([Finding("ephemeral-content")])
     if detach and moving:
@@ -1214,7 +1230,6 @@ def _compose_and_append(
         and _goes_in_unannounced(before, asks=bool(explicit_obligation or asking))
         and not ephemeral
         and failure is None
-        and emoji is None
     )
     if unannounced:
         event["unannounced"] = True
@@ -1230,8 +1245,8 @@ def _compose_and_append(
         event["turn"] = turn
     if explicit_obligation:
         event["obligation"] = explicit_obligation
-    if todo is not None:
-        event["todo"] = todo
+    if promise:
+        event.update(promise)
     if attempt is not None:
         event["attempt"] = attempt
     if failure is not None:
@@ -1429,17 +1444,21 @@ def _fail_markup_answer(
         return record_pickup(page, [update], phase="failed", failure=failure)
 
 
+def fitted(words: str, limit: int) -> str:
+    """`words` on one line, cut at a word to fit `limit` characters, ending in an
+    ellipsis where it was cut. Neither the agent nor a model can count characters,
+    and long words for a title or a wait break nothing, so Leaf fits them rather than
+    refusing them, which would leave the thread untitled or drop the message or ask
+    they ride on."""
+    line = " ".join(words.split())
+    if len(line) <= limit:
+        return line
+    return line[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
+
 def fit_title(words: str) -> str:
-    """`words` as a thread title: on one line, and cut at a word to fit
-    `title_limit`, ending in an ellipsis where it was cut. Neither the agent nor a
-    model can count characters, and a long title breaks nothing, so Leaf fits a
-    title rather than refusing it, which would leave the thread untitled or drop the
-    message or ask it rides on."""
-    title = " ".join(words.split())
-    limit = title_limit()
-    if len(title) <= limit:
-        return title
-    return title[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+    """`words` as a thread title, fitted to `title_limit`."""
+    return fitted(words, title_limit())
 
 
 def agent_title(words: str | None) -> str | None:

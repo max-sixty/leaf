@@ -509,9 +509,8 @@ def handed_over(
         # turns settle an action there. An owed action waits in the thread's history
         # beside the user's turns, and the answer that settles them settles it
         # (`events.settle`). An action that owes nothing is taken in by any agent turn
-        # after it, as a later version takes in a page action; a reaction is no turn,
-        # and a harness's failure reply says no answer is coming rather than
-        # answering. The closing in force on the thread takes in the actions made
+        # after it, as a later version takes in a page action, and a harness's failure
+        # reply says no answer is coming rather than answering. The closing in force on the thread takes in the actions made
         # before it that owe nothing. An owed one it settles only where it answers
         # for the thread (`events.owed_turns`): the user's own resolve leaves it owed,
         # as it leaves a message. An action that comes into force after the closing

@@ -6,9 +6,10 @@
    same words.
 
    A renderer returns an HTML string, such as for Lit's `unsafeHTML`;
-   `inlineMarkdownFragment` returns a fragment and `paintMarkdown` writes into an
-   element. Each is safe for any source, since it shows a tag as the words that spell it,
-   except `renderAuthoredMarkdown`, which keeps raw HTML. A destination the reading
+   `inlineMarkdownFragment` and `markdownFileFragment` return a fragment and
+   `paintMarkdown` writes into an element. Each is safe for any source, since it shows a
+   tag as the words that spell it, except `renderAuthoredMarkdown`, which keeps raw HTML,
+   and `markdownFileFragment`, which keeps the HTML GitHub allows. A destination the reading
    doesn't admit leaves its words and no link. The caller passes `links`
    (`MarkdownLinks`), which say how to write each link and picture the reading admits:
    `{}` writes each as the source wrote it, and a Leaf page's are `pageLinks`, from
@@ -59,6 +60,8 @@ let render = escapedSource;
 let renderInline = escapedSource;
 /** @type {(text: string, links: MarkdownLinks) => string} */
 let renderAuthored = escapedSource;
+/** @type {(text: string) => Promise<string>} */
+let renderFile = async (text) => escapedSource(text);
 /** @type {((source: string, message: boolean) => NativeToken[]) | null} */
 let tokenize = null;
 /** @type {Promise<void> | undefined} */
@@ -87,6 +90,37 @@ export const renderMarkdown = (text, links, message = true) =>
 // Markdown.
 /** @param {string} text @param {MarkdownLinks} links */
 export const renderAuthoredMarkdown = (text, links) => renderAuthored(text, links);
+// A Markdown file as GitHub shows it: the file reading with the HTML GitHub's sanitizer
+// allows in it (`GITHUB_HTML`), so a README's folds, pictures and centred headers draw
+// as on GitHub, and none of its script, handlers, styles or forms. Only a file's
+// preview reads a file so. A draft's body shows a tag as the words that spell it, since
+// the server draws a body too (`leaf.source.passages.markdown_markup`) and has no
+// sanitizer. A file that holds no HTML renders as `renderMarkdown` renders it, and
+// DOMPurify loads for the first file that holds some. The host's `links` apply after
+// the sanitizer, to each link and picture of the file's HTML as of its Markdown, so
+// what they add never has to pass GitHub's list.
+/** @param {string} text @param {MarkdownLinks} links @returns {Promise<DocumentFragment>} */
+export async function markdownFileFragment(text, links) {
+  const parsed = document.createElement("template");
+  parsed.innerHTML = await renderFile(text);
+  for (const link of parsed.content.querySelectorAll("a[href]"))
+    for (const [name, value] of Object.entries(
+      links.link?.(/** @type {string} */ (link.getAttribute("href"))) ?? {},
+    ))
+      link.setAttribute(name, value);
+  // An image of an HTML `<picture>` stays its own, since its sources choose among
+  // themselves only while it stands in the `<picture>`.
+  const picture = links.picture;
+  if (picture)
+    for (const image of parsed.content.querySelectorAll("img")) {
+      if (image.parentElement?.localName === "picture") continue;
+      // `picture` may move the image into what it returns, so that takes its place.
+      const place = image.ownerDocument.createTextNode("");
+      image.before(place);
+      place.replaceWith(picture(image));
+    }
+  return parsed.content;
+}
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 // With `imageAlt`, an image counts as the words its control is named by, its alt text,
@@ -125,8 +159,9 @@ export function inlineMarkdownFragment(text, links, message = true) {
   return parsed.content;
 }
 
-// Keep the exact source on its reading surface, as `data-lf-source-words`, which
-// `markdownSourceOffset` reads. Passage capture reads the rendered children; revision
+// Keep the exact source on its reading surface, as `data-lf-source-words`, so a click
+// on the rendering finds its place in the source (`markdownSourceOffset`). Passage
+// capture reads the rendered children; revision
 // comparison reads source, so formatting never becomes state. An element stamped with
 // this source already holds its rendering and is left as it is; a paint before the
 // parser loads leaves the element unstamped, so the next paint renders. The body reads
@@ -235,6 +270,11 @@ export function placedMarkdownTokens(source, message = true) {
   starts.push(source.length);
   /** @type {PlacedToken[]} */
   const found = [];
+  // The blockquotes and list items open around the token, outermost first. Only their
+  // markers can stand on an inline's first line, so an inline reads these rather than
+  // every block placed before it.
+  /** @type {(PlacedToken | null)[]} */
+  const open = [];
   let inlineAt = 0;
   /** @type {NativeToken | undefined} */
   let previous;
@@ -249,26 +289,32 @@ export function placedMarkdownTokens(source, message = true) {
     const from = map ? parserItem(starts, map[0]) : 0;
     const to = map ? parserItem(starts, map[1]) : source.length;
     if (!isPositionedInline(token)) {
-      if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
-        /** @type {PlacedToken} */
-        const placed = {
-          token,
-          from,
-          to,
-          markers: token.lfSource?.markers?.map(([line, a, b]) => [
-            parserItem(starts, line) + a,
-            parserItem(starts, line) + b,
-          ]),
-          words: token.nesting ? null : token.content,
-        };
-        found.push(placed);
-      }
+      /** @type {PlacedToken | null} */
+      const placed =
+        token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))
+          ? {
+              token,
+              from,
+              to,
+              markers: token.lfSource?.markers?.map(([line, a, b]) => [
+                parserItem(starts, line) + a,
+                parserItem(starts, line) + b,
+              ]),
+              words: token.nesting ? null : token.content,
+            }
+          : null;
+      if (placed) found.push(placed);
+      if (token.type === "blockquote_open" || token.type === "list_item_open")
+        open.push(placed);
+      else if (token.type === "blockquote_close" || token.type === "list_item_close")
+        open.pop();
       continue;
     }
     // Container prefixes precede the inline words; a list marker is not emphasis.
     let wordsAt = Math.max(from, inlineAt);
-    for (const block of found)
+    for (const block of open)
       if (
+        block &&
         map &&
         (isBlockPlacement(block, "blockquote_open") ||
           isBlockPlacement(block, "list_item_open"))
@@ -347,17 +393,16 @@ export function placedMarkdownTokens(source, message = true) {
 // exact source and rendered text. The history diff's bounded whole-document alignment
 // is unsuitable here: its deliberate coarse replacement must never send a caret to
 // the end of a long formatted document. Token placement gives an ordered source span;
-// the local exact alignment handles omitted delimiters, entities and escapes.
-/** @param {HTMLElement} body @param {Node} node @param {number} offset */
-export function markdownSourceOffset(body, node, offset) {
+// the local exact alignment handles omitted delimiters, entities and escapes. `body`
+// holds the rendering of `source`, read as a Markdown file.
+/** @param {HTMLElement} body @param {string} source @param {Node} node @param {number} offset */
+export function markdownSourceOffset(body, source, node, offset) {
   if (!body.contains(node)) return null;
   const range = document.createRange();
   range.selectNodeContents(body);
   const shown = fragmentWords(range.cloneContents());
   range.setEnd(node, offset);
   const aim = fragmentWords(range.cloneContents()).length;
-  const source = body.dataset.lfSourceWords;
-  if (source === undefined) return null;
   let shownAt = 0;
   let sourceEnd = 0;
   for (const placed of placedMarkdownTokens(source, false)) {
@@ -369,10 +414,12 @@ export function markdownSourceOffset(body, node, offset) {
     if (start < 0) continue;
     if (aim < start) return from;
     if (aim <= start + words.length) {
-      let sourceAt = from;
+      // A fence's code starts on the line after its opening marker, whose info string
+      // can spell the code's first word, as `sh` does in a fence of shell commands.
+      let sourceAt = token.type === "fence" ? lineAfter(source, from) : from;
       let tokenAt = start;
       for (const run of alignText(
-        source.slice(from, to),
+        source.slice(sourceAt, to),
         words,
         characters,
         Infinity,
@@ -396,6 +443,13 @@ export function markdownSourceOffset(body, node, offset) {
     sourceEnd = to;
   }
   return sourceEnd;
+}
+
+/** Where the line after the one holding `at` starts. @param {string} source @param {number} at */
+function lineAfter(source, at) {
+  const ending = /\r\n|\r|\n/g;
+  ending.lastIndex = at;
+  return ending.exec(source) ? ending.lastIndex : source.length;
 }
 
 // Whether a rendering taken now is the parser's or the escaped source location in for
@@ -717,6 +771,77 @@ function inlineFormulas(state) {
   }
 }
 
+// What GitHub's sanitizer keeps of a file's HTML (`markdownFileFragment`): its
+// elements and attributes, and links only to the web, mail or a relative path. Some of
+// its attributes go: `accesskey` and `tabindex`, which would rebind the page's keys and
+// move its tab order rather than shape the file; `rel`, which could keep an opener for a
+// page a link opens in a new tab; and those that name another element by its id, as
+// `for` and `aria-labelledby` do, which could name one of the page's. A `data-`
+// attribute goes too, since Leaf's own marks are spelled so. An `id` or `name` takes
+// GitHub's `user-content-` before it, so a file names nothing of the page's. A class
+// stays only where the reading writes it, for a code block's language and a task list's
+// checkbox, an `<input>` stands only as that checkbox, which GitHub's list adds after it
+// sanitizes, and a style only as a table cell's alignment, which the reading writes so.
+const GITHUB_HTML = {
+  ALLOWED_TAGS: (
+    "h1 h2 h3 h4 h5 h6 br b i strong em a pre code img tt div ins del sup sub p " +
+    "picture ol ul table thead tbody tfoot blockquote dl dt dd kbd q samp var hr " +
+    "ruby rt rp li tr td th s strike summary details caption figure figcaption " +
+    "abbr bdo cite dfn mark small source span time wbr input"
+  ).split(" "),
+  ALLOWED_ATTR: (
+    "abbr accept accept-charset action align alt aria-hidden aria-label axis " +
+    "border char charoff charset checked clear cols colspan compact coords " +
+    "datetime dir disabled enctype frame height hreflang hspace id ismap label " +
+    "lang maxlength media method multiple name nohref noshade nowrap open " +
+    "progress prompt readonly rev role rows rowspan rules scope selected shape " +
+    "size span start summary title type valign value width itemprop href src " +
+    "longdesc loading itemscope itemtype cite srcset class"
+  ).split(" "),
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
+  ALLOW_ARIA_ATTR: false,
+  ALLOW_DATA_ATTR: false,
+  SANITIZE_NAMED_PROPS: true,
+};
+const READING_CLASS =
+  /^(?:language-\S+|task-list-item(?:-checkbox)?|contains-task-list)$/;
+/** @type {Promise<import("dompurify").DOMPurify> | undefined} */
+let purifier;
+const sanitizer = () =>
+  (purifier ??= import("/vendor/purify.esm.js").then(
+    ({ DOMPurify }) => {
+      DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
+        if (data.attrName === "style")
+          data.forceKeepAttr =
+            /^t[dh]$/.test(node.localName) &&
+            /^text-align:\s*(?:left|center|right);?$/.test(data.attrValue);
+        if (data.attrName !== "class") return;
+        data.attrValue = data.attrValue
+          .split(/\s+/)
+          .filter((name) => READING_CLASS.test(name))
+          .join(" ");
+        if (!data.attrValue) data.keepAttr = false;
+      });
+      DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+        if (node.localName !== "input") return;
+        node.setAttribute("type", "checkbox");
+        node.setAttribute("disabled", "");
+      });
+      return DOMPurify;
+    },
+    (error) => {
+      // A later draw tries again, as a failed parser load does (`loadMarkdown`).
+      purifier = undefined;
+      throw error;
+    },
+  ));
+
+/** @param {NativeToken} token @returns {boolean} */
+const holdsHtml = (token) =>
+  token.type === "html_block" ||
+  token.type === "html_inline" ||
+  Boolean(token.children?.some(holdsHtml));
+
 // The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`), which
 // passages.py reads the same (`markdown_dialect`).
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message
@@ -862,6 +987,17 @@ export function loadMarkdown(onError = null) {
     let authored;
     renderAuthored = (text, links) =>
       (authored ??= makeMarkdown(module, true, true)).render(text, { links });
+    /** @type {MarkdownIt | undefined} */
+    let fileHtml;
+    renderFile = async (text) => {
+      const parser = (fileHtml ??= makeMarkdown(module, false, true));
+      const env = { links: {} };
+      const tokens = parser.parse(text, env);
+      const markup = parser.renderer.render(tokens, parser.options, env);
+      return tokens.some(holdsHtml)
+        ? (await sanitizer()).sanitize(markup, GITHUB_HTML)
+        : markup;
+    };
     /** @type {Map<boolean, MarkdownIt>} */
     const positioned = new Map();
     tokenize = (text, message) => {

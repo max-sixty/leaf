@@ -92,7 +92,7 @@
             "sources": {
               "type": "object",
               "additionalProperties": {
-                "description": "One published source (`data.read_source`), with its publication metadata and value or validation error. Sources without a publication are omitted by `read_data`.",
+                "description": "One published source (`data.read_source`) or bound file (`data.file_sources`), with its metadata and value or error. Sources with neither are omitted by `read_data`.",
                 "type": "object",
                 "properties": {
                   "contract": { "type": "string" },
@@ -115,15 +115,14 @@
           "additionalProperties": false
         },
         "files": {
-          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, and its stamp, which moves when the file may have, so an editor reads its file only when this stamp does.",
+          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, an unreadable file's included. The file itself is the source under the binding's id in `data`, whose run moves with each write.",
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "label": { "type": "string" },
-              "stamp": { "type": "string" }
+              "label": { "type": "string" }
             },
-            "required": ["label", "stamp"],
+            "required": ["label"],
             "additionalProperties": false
           }
         },
@@ -700,6 +699,10 @@
         },
         "since": { "type": ["string", "null"] },
         "detail": { "type": ["string", "null"] },
+        "waiting_on": {
+          "description": "On a to-do's step: what the to-do waits on, as its record says (`todos`), or null.",
+          "type": ["string", "null"]
+        },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/PlanStep" } },
         "done": { "type": "integer" },
         "total": { "type": "integer" }
@@ -714,6 +717,7 @@
         "running",
         "since",
         "detail",
+        "waiting_on",
         "steps",
         "done",
         "total"
@@ -1214,6 +1218,10 @@
           "description": "On an update: the id of the workflow it stands by, the strongest serving it, or null once nothing does.",
           "type": ["string", "null"]
         },
+        "waiting_on": {
+          "description": "On a to-do: what its work waits on, in the agent's words, until a start takes it up or it ends (`todos`), or null.",
+          "type": ["string", "null"]
+        },
         "line": {
           "description": "On a to-do: the start in force on it, whose text is the line the agent last said of it, or null.",
           "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }]
@@ -1317,7 +1325,15 @@
             "message": { "type": "null" },
             "answer": { "type": "null" }
           },
-          "required": ["line", "seq", "ts", "agent", "session", "revision"]
+          "required": [
+            "waiting_on",
+            "line",
+            "seq",
+            "ts",
+            "agent",
+            "session",
+            "revision"
+          ]
         }
       ]
     },

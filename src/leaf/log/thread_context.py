@@ -164,7 +164,7 @@ def placed_thread(event: dict, names: dict) -> str | None:
 
     A comment opens its thread where it points, a `reanchor` moves the thread it
     names, and an agent's reply carrying `anchor` moves its own thread. Of these,
-    only the opening comment can be taken back, as a reaction (`$events`): a reply's
+    only the opening comment can be taken back (`$events`): a reply's
     `anchor` is the agent's, and a `reanchor` is bookkeeping. (`build_threads` makes
     the same moves along with what each changes about the thread, so it keeps its
     own walk.)"""
@@ -297,9 +297,7 @@ MESSAGE_FIELDS = (
     "agent",
     "text",
     "ephemeral",
-    # A reaction says its emoji where a comment says its text, so a thread that
-    # grew out of a mark reads as the mark it started from rather than as a
-    # message with nothing in it.
+    # A reaction says its emoji where a message in words says its text.
     "emoji",
     "drawing",
     "suggestion",
@@ -454,8 +452,8 @@ def _gapless(thread: dict, summaries: list, start: str, end: str) -> tuple[str, 
     A message counts where the panel draws it whole: a turn of the conversation no
     summary covers (`conversation_turns`). Progress doesn't, since the panel draws at
     most a thread's newest step, as its working message rather than a message a
-    summary folds (`events.progress_completions`), and a reaction is a mark on another
-    message. Only `covers` is read of each summary."""
+    summary folds (`events.progress_completions`). Only `covers` is read of each
+    summary."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     spoken = spoken_turns(thread)
     drawn = conversation_turns(thread)
@@ -604,9 +602,9 @@ def unsent_at_messages(
     position. Two walks read the log at each input rather than at the end. The first
     reads where the input's thread was anchored: at the last event that placed it
     (`placed_thread`). No undo before the input can have taken that event back: the
-    only placement an undo withdraws is a reaction's opening comment, and admission
+    only placement an undo withdraws is a thread's opening comment, and admission
     keeps an input's thread in force (`event_contracts._parent_error`,
-    `_edit_error`). A reaction withdrawn after the input still counts, as it stood
+    `_edit_error`). A comment withdrawn after the input still counts, as it stood
     then. The second walk is the one `thread_memberships` makes, so an action undone
     after an input still counts and one undone before it doesn't. The walk keeps,
     for each widget, the coordinates whose winner records unsent work, updated at

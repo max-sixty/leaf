@@ -804,7 +804,7 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
     ):
         pass
 
-    name = calls[0][-1].removeprefix("name=^workerd-").removesuffix("-")
+    name = calls[0][-1].removeprefix("name=^workerd-[0-9a-f]+-").removesuffix("-")
     assert re.fullmatch(r"[a-z0-9]+(?:[._]|__|[-]+[a-z0-9]+)*", name)
 
 

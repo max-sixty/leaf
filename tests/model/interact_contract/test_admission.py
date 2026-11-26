@@ -14,6 +14,7 @@ from interact_support import (
     STATED_TIMEOUT,
     ModelPage,
     append_carried_log_record,
+    append_command,
     comment,
     element_declaration,
     fetch,
@@ -788,11 +789,28 @@ def test_an_empty_agent_name_uses_the_harness_default(
     assert (event["agent"], event["session"]) == ("Codex", "worker-1")
 
 
-def test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares(
-    server, page_dir
-):
+@pytest.mark.parametrize("author", ["user", "agent"])
+def test_the_door_takes_any_one_emoji_from_either_side(page_dir, author):
+    """Admission holds `emoji` to the form of one emoji, the record schema's pattern
+    read as the ECMAScript it is written in (`registry.schema`): a plain, modified or
+    joined emoji, a flag or a keycap goes in from either side, and words or two emoji
+    are refused."""
+    publish(page_dir)
+    root = append_command(
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "why?"}
+    )
+    reply = {"kind": "reply", "author": author, "parent": root["id"]}
+    for emoji in ["👍", "✂️", "👍🏽", "🇬🇧", "👨‍👩‍👧‍👦", "1️⃣"]:
+        assert append_command(page_dir, {**reply, "emoji": emoji})["emoji"] == emoji
+    for emoji in ["ok", "👍👍", "👍 "]:
+        with pytest.raises(events_model.EventRefused) as refused:
+            append_command(page_dir, {**reply, "emoji": emoji})
+        assert "does not match" in str(refused.value), emoji
+
+
+def test_the_door_admits_a_reaction_only_as_one_emoji(server, page_dir):
     """A reaction is a comment or reply carrying `emoji` in place of `text`: one of
-    the two and never both, an emoji the merged vocabulary declares, and no
+    the two and never both, one emoji, whether or not the layer offers it, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
     also lets the user take back, answered or not."""
     publish(page_dir)
@@ -806,8 +824,8 @@ def test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares(
     )["state"]["events"][-1]
     for bad, says in [
         (
-            {"kind": "comment", "revision": 1, "emoji": "🤷"},
-            "unknown reaction '🤷'",
+            {"kind": "comment", "revision": 1, "emoji": "ok"},
+            "does not match",
         ),
         (
             {"kind": "comment", "revision": 1, "emoji": "👍", "text": "and"},
@@ -819,8 +837,8 @@ def test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares(
             "suggestion",
         ),
         (
-            {"kind": "reply", "revision": 1, "parent": root["id"], "emoji": "👎"},
-            "unknown",
+            {"kind": "reply", "revision": 1, "parent": root["id"], "emoji": "👍👍"},
+            "does not match",
         ),
     ]:
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
@@ -834,7 +852,7 @@ def test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares(
                 {
                     "kind": "comment",
                     "revision": 1,
-                    "emoji": "✂️",
+                    "emoji": "🤷🏽‍♀️",
                     "anchor": {"section": "plan", "quote": "Ship dark"},
                 }
             ).encode(),

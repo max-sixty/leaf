@@ -89,22 +89,17 @@ def history(
             "agent": agent_name(event),
             "undone": event["id"] in withdrawn,
         }
-        if kind == "comment":
-            row["anchor"] = event.get("anchor")
-            row["about"] = event.get("about")
-            if event.get("emoji"):
-                row["emoji"] = event["emoji"]
-            else:
-                row["thread"] = thread_of(event)
-                row["holds"] = event.get("holds")
-                row["drawing"] = bool(event.get("drawing"))
-                row["excerpt"] = event.get("text")
-        elif kind == "reply":
+        if kind in ("comment", "reply"):
             row["thread"] = thread_of(event)
             if event.get("emoji"):
                 row["emoji"] = event["emoji"]
             else:
                 row["excerpt"] = event.get("text")
+        if kind == "comment":
+            row["anchor"] = event.get("anchor")
+            row["about"] = event.get("about")
+            row["holds"] = event.get("holds")
+            row["drawing"] = bool(event.get("drawing"))
         elif kind in {"edit", "resolve", "unresolve"}:
             row["thread"] = thread_of(event)
         elif kind == "action":

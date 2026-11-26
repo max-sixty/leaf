@@ -176,7 +176,7 @@ def test_a_message_taken_back_keeps_no_rewrite_of_it():
                     "kind": "reply",
                     **AGENT,
                     "parent": "e3",
-                    "responds": "e2",
+                    "responds": "e3",
                     "text": ".",
                 },
                 {"kind": "undo", "undoes": "e3"},
@@ -290,7 +290,13 @@ def test_a_reply_taken_back_reopens_nothing():
         {"kind": "reply", **AGENT, "parent": "e1", "responds": "e1", "text": "Done."},
         {"kind": "resolve", "parent": "e1"},
         {"kind": "reply", "parent": "e2", "text": "One more thing."},
-        {"kind": "reply", "parent": "e4", "emoji": "👍"},
+        {
+            "kind": "reply",
+            **AGENT,
+            "parent": "e4",
+            "text": "Noted.",
+            "unannounced": True,
+        },
         {"kind": "undo", "undoes": "e4"},
     )
     state = model.reading(HUB, log)
@@ -508,7 +514,9 @@ def test_a_step_toward_no_owed_answer_ends_with_the_turn_that_wrote_it():
     assert ends(line, ended) == {"e3": None}
 
 
-def test_a_reaction_or_another_thread_s_message_ends_no_step():
+def test_the_agent_s_emoji_ends_a_step_and_another_thread_s_message_none():
+    """The agent's emoji is its next message, so it ends the step before it and is
+    unread as words are; a message in another thread ends nothing here."""
     agent = {"author": "agent", "agent": "Codex", "session": "session-1"}
     reply = {"kind": "reply", **agent, "parent": "e1"}
     messages = (
@@ -527,13 +535,13 @@ def test_a_reaction_or_another_thread_s_message_ends_no_step():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     # The failure hands the update back to the user, so no turn holds the retry up.
-    assert progress_ends(pending) == {"e2": "e4", "e5": None}
-    assert pending["unread"] == {"e4": "e4"}
+    assert progress_ends(pending) == {"e2": "e3", "e5": None}
+    assert pending["unread"] == {"e3": "e3", "e4": "e4"}
 
     completed = (*messages, {**reply, "text": "Both mounts fit."})
     thread = model.threads(model.reading(HUB, completed))["e1"]
-    assert thread["unread"] == {"e4": "e4", "e8": "e8"}
-    assert progress_ends(thread) == {"e2": "e4", "e5": "e8"}
+    assert thread["unread"] == {"e3": "e3", "e4": "e4", "e8": "e8"}
+    assert progress_ends(thread) == {"e2": "e3", "e5": "e8"}
 
     revised = model.threads(
         model.reading(
@@ -545,7 +553,7 @@ def test_a_reaction_or_another_thread_s_message_ends_no_step():
             ),
         )
     )["e1"]
-    assert revised["unread"] == {"e4": "e4", "e8": "e10"}
+    assert revised["unread"] == {"e3": "e3", "e4": "e4", "e8": "e10"}
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
@@ -695,8 +703,8 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
 
 
 def test_questions_settle_one_by_one():
-    """Each question in a thread waits on the user until a message or settling
-    reaction after it answers it, or a resolve after it ends it; the thread's head
+    """Each question in a thread waits on the user until a message of theirs after it
+    answers it, words or a reaction, or a resolve after it ends it; the thread's head
     marks the latest."""
     events = []
 
@@ -713,16 +721,12 @@ def test_questions_settle_one_by_one():
         "message:first",
         "message:second",
     ]
+    # A reaction is the user's next message, so it answers every question before it.
     state = add("reply", "reaction", "user", parent="second", emoji="👍")
-    assert [item["id"] for item in served_obligations(state)["user"]] == [
-        "message:first"
-    ]
-    assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
-    state = add("reply", "answer", "user", parent="first", text="Route A")
+    assert served_obligations(state)["user"] == []
     first, second = served_obligations(state)["all"]
-    assert standing_model.answered(first)
-    assert first["answer"]["value"] == {"text": "Route A"}
-    assert standing_model.answered(second)
+    assert standing_model.answered(first) and standing_model.answered(second)
+    assert first["answer"]["value"] == {"emoji": "👍"}
     assert second["answer"]["event"]["id"] == "reaction"
     # A resolve ends the questions asked before it, and a reopening brings back
     # none of them; taking the resolve back does.
@@ -747,7 +751,7 @@ def test_questions_settle_one_by_one():
 
 def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_prose_task():
     """Thread widgets have no independent thread seat: their user and unanswered
-    lists agree, and later prose or reactions cannot retire the widget obligation."""
+    lists agree, and later prose cannot retire the widget obligation."""
     events = [
         {
             "kind": "comment",
@@ -756,7 +760,6 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
             + '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
         {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
-        {"kind": "reply", "parent": "e1", "emoji": "👍"},
     ]
     state = model.reading(HUB, events)
     thread = model.threads(state)["e1"]

@@ -31,29 +31,26 @@ from model.interact_contract import declare_vocabulary, vocabulary
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
-    """Late answers keep their exact scope; marks and failure receipts stay closed."""
+    """Late answers keep their exact scope; a failure receipt stays closed."""
     publish(page_dir)
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
     )
     thread_model.cmd_resolve(page_dir, "question")
-    for message in (
-        {"author": "user", "emoji": "👍"},
+    append_carried_log_record(
+        page_dir,
         {
+            "kind": "reply",
+            "parent": "question",
             "author": "agent",
             "text": "Delivery failed",
             "failure": "unavailable",
             "responds": "question",
         },
-    ):
-        append_carried_log_record(
-            page_dir, {"kind": "reply", "parent": "question", **message}
-        )
-        threads = event_folds_model.build_threads(
-            events_model.read_events(page_dir), {}
-        )
-        assert threads["question"]["resolved"] is not None
+    )
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["question"]["resolved"] is not None
 
     answer = thread_model.post_reply(
         page_dir,

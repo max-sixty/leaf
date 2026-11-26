@@ -156,40 +156,6 @@ def test_the_agents_reply_names_a_thread_nobody_titled(page_dir):
     assert titles()[other["id"]] is None
 
 
-def test_a_reaction_answers_a_thanks_without_a_message(page_dir):
-    """The agent can answer a message that needs no words back, such as a thanks,
-    with a reaction: it passes the same check as words and settles the thread, so
-    the agent owes nothing, and it draws no message. Into a thread the user resolved
-    as they said it, it goes in leaving the thread closed."""
-    asked = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Great table!"}
-    )
-    stale = response_reference(page_dir, asked)
-    thanks = append_carried_log_record(
-        page_dir,
-        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Thanks."},
-    )
-    append_command(
-        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
-    )
-    assert [item["input"] for item in owed_answers(page_dir)] == [thanks["id"]]
-
-    [refused] = command_findings(
-        "thread", "reply", stale, "--done", "--emoji", "👍", "--title", "Praise"
-    )
-    assert refused.code == "superseded-reply"
-    reference = response_reference(page_dir, thanks["id"])
-    command_notes(
-        "thread", "reply", reference, "--done", "--emoji", "👍", "--title", "Praise"
-    )
-    reaction = events_model.read_events(page_dir)[-1]
-    assert (reaction["emoji"], reaction["responds"]) == ("👍", thanks["id"])
-    assert "text" not in reaction and "unannounced" not in reaction
-    assert owed_answers(page_dir) == []
-    [thread] = state_json(page_dir)["threads"]
-    assert thread["resolved"] == "user"
-
-
 def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
     page_dir,
 ):

@@ -398,7 +398,9 @@ def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
     assert reading() == ("user", [], [])
 
 
-def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
+def test_a_reaction_on_a_question_answers_it_and_hands_the_thread_over(page_dir):
+    """The user's reaction on the agent's question answers it as their words would,
+    and the thread waits on the agent's answer to the reaction."""
     publish(page_dir)
     question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     browser = page_state(page_dir)["browser"]
@@ -407,7 +409,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     assert owed["message"] == question["id"]
     assert before["attention"] == owed["id"]
 
-    append_carried_log_record(
+    reaction = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -420,7 +422,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     browser = page_state(page_dir)["browser"]
     [after] = served_thread(browser)["threads"]
     assert served_obligations(browser)["user"] == []
-    assert after["attention"] is None
+    assert after["attention"] == f"update:{reaction['id']}"
 
 
 def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
@@ -647,21 +649,10 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
         (moved["id"], "running")
     ]
 
-    # A mark is no turn; the agent's next spoken turn takes the move in.
+    # The agent's next turn in the thread takes the move in, an emoji as words would.
     append_carried_log_record(
         page_dir,
         {"kind": "reply", "author": "agent", "parent": asked["id"], "emoji": "👍"},
-    )
-    state, attention = reading()
-    assert [item["input"] for item in state["workflows"]] == [moved["id"]]
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": asked["id"],
-            "text": "Baffle is in progress now.",
-        },
     )
     state, attention = reading()
     assert state["workflows"] == []

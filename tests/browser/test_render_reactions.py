@@ -367,7 +367,8 @@ def test_e_immediately_opens_the_selection_s_reactions_and_digit_chooses(
 
 def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, serve):
     """Every declared reaction remains visible, but only real single-digit keys bind."""
-    extra = {fruit: {} for fruit in ["🍎", "🍐", "🍊", "🍋", "🍌"]}
+    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
+    extra = [*registry["$reactions"]["emoji"], "🍎", "🍐", "🍊", "🍋", "🍌"]
     page = open_page(
         browser,
         serve(PANEL_PAGE, layer_registry={"$reactions": {"emoji": extra}}),
@@ -835,11 +836,9 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     browser, serve
 ):
     """The action group has one disclosure contract independent of reactions."""
-    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    removed = {emoji: None for emoji in registry["$reactions"]["emoji"]}
     page = open_page(
         browser,
-        serve(PANEL_PAGE, layer_registry={"$reactions": {"emoji": removed}}),
+        serve(PANEL_PAGE, layer_registry={"$reactions": {"emoji": []}}),
     )
     select_paragraph(page, "#how-cap")
     page.keyboard.press("c")
@@ -2408,15 +2407,12 @@ def _thread(page_dir):
     return root, reply["id"]
 
 
-def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
-    browser, serve
-):
+def test_a_reaction_on_the_agents_question_answers_it(browser, serve):
     """The reply strip offers the reactions under the agent's message. One press
-    records a reply carrying the emoji, on that message; 👍 — the shipped reaction
-    declaring `settles` — focusing the latest agent message takes the thread out of
-    "waiting on you" without a second event, and taking the 👍 back brings the wait
-    back, the narrowing being a reading of the log. A reaction without the flag settles
-    nothing."""
+    records a reply carrying the emoji, on that message, which answers the question the
+    message asks as the user's words would, so the thread leaves "waiting on you"
+    without a second event; taking the reaction back brings the wait back, the
+    narrowing being a reading of the log."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
@@ -2442,21 +2438,14 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(strip.locator('.lf-react[data-lf-emoji="❌"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect_on_me(page, 1)  # ❌ settles nothing
-
-    trigger.click()
-    with sending(page, "the 👍 that settles the thread"):
-        strip.locator('.lf-react[data-lf-emoji="👍"]').click()
-    ok = events_model.read_events(serve.page_dir)[-1]
-    assert ok["emoji"] == "👍" and ok["parent"] == reply
     expect_on_me(page, 0)  # out of "waiting on me"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
-    with sending(page, "the take-back of the ok"):
-        strip.locator('.lf-react[data-lf-emoji="👍"]').click()
+    with sending(page, "the take-back of the ❌"):
+        strip.locator('.lf-react[data-lf-emoji="❌"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
-    assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
+    assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     expect_on_me(page, 1)
-    expect(strip.locator('.lf-react[data-lf-emoji="👍"]')).to_have_attribute(
+    expect(strip.locator('.lf-react[data-lf-emoji="❌"]')).to_have_attribute(
         "aria-pressed", "false"
     )
 

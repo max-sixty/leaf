@@ -1,6 +1,5 @@
 """Keyboard semantic-selection browser journeys."""
 
-import json
 import re
 
 import pytest
@@ -14,7 +13,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    ROOT,
     available_commands,
     expect_panel_says,
     leaf_page,
@@ -343,11 +341,9 @@ def test_a_keyboard_comment_gesture_opens_its_targets_own_draft(browser, serve):
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
     """Without reactions, the focused composer still takes Escape."""
-    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    removed = {emoji: None for emoji in registry["$reactions"]["emoji"]}
     page = open_page(
         browser,
-        serve(TARGETS_PAGE, layer_registry={"$reactions": {"emoji": removed}}),
+        serve(TARGETS_PAGE, layer_registry={"$reactions": {"emoji": []}}),
     )
     page.keyboard.press("s")
     code = (

@@ -84,12 +84,7 @@
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: The thread has no title yet. Name its subject with `--title "<a few
 #              words>"` on your reply.
-#      clause 7, does not apply:
-#        when: {"required": ["emoji"]}
-#        text: A reaction owes no answer. Act on the emoji if it calls for a change,
-#              and reply only if its meaning is unclear. Once the page reflects it,
-#              close it with `leaf thread resolve <page> <message>`.
-#      clause 8, applies:
+#      clause 7, applies:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
 #        text: If the event asks for work, first post one line in its thread saying
 #              what you will do, before any other command, even a read: `leaf thread
@@ -112,8 +107,10 @@
 #              `<lf-option id="…">` for each answer: the user answers with a press,
 #              and the choice waits on them by itself (`references/threads.md`, "Ask
 #              for a pick"). `--todo "<what you owe>"` when it is yours, promising
-#              work beyond this turn. `--done` when it leaves nobody a move.
-#      clause 9, does not apply:
+#              work beyond this turn, with `--waiting-on "<what>"` where it can't
+#              start until something you don't control happens. `--done` when it
+#              leaves nobody a move.
+#      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
 #        text: Leaf posts your opening message in the thread as your progress line and
 #              your final message as the reply, unless an explicit reply already
@@ -136,6 +133,14 @@
 #              asked: they may have resolved the thread by then, and only that
 #              command's record says so. An explicit reply posts at once, and your
 #              final message is then not posted.
+#      clause 9, does not apply:
+#        when: {"required": ["emoji"]}
+#        text: The user's message is an emoji, a reaction to what it is on: the
+#              passage or element its `anchor` names, or the page where it has none,
+#              or, as a reply, the message its `parent` names. Answer it as you would
+#              their words: act on it where it asks for a change, ask what they meant
+#              where you can't tell, and otherwise answer in a line saying how you
+#              read it, so they see what their reaction did.
 #      clause 10, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow card or panel. The thread
@@ -194,7 +199,7 @@
 #            ],
 #            "handling": {
 #              "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
-#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
 #              "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
 #            },
 #            "events": [
@@ -299,7 +304,9 @@
 #              holding an `<lf-option id="…">` for each answer: the user answers with a
 #              press, and the choice waits on them by itself (`references/threads.md`,
 #              "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-#              work beyond this turn. `--done` when it leaves nobody a move.
+#              work beyond this turn, with `--waiting-on "<what>"` where it can't start
+#              until something you don't control happens. `--done` when it leaves nobody
+#              a move.
 #          - text: >-
 #              Your reply renders as Markdown in a narrow card or panel. The thread already
 #              reaches the passage or section it is on, as a card beside it or by Show
@@ -348,7 +355,9 @@ comment:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -441,7 +450,9 @@ comment on the page, written while slides showed:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -497,7 +508,9 @@ comment with a drawing:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -542,7 +555,9 @@ comment with a pasted image:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -591,7 +606,9 @@ suggestion:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -642,7 +659,9 @@ design comment:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -657,12 +676,57 @@ reaction on the page:
   event:
     kind: comment
     emoji: 👍
+    thread:
+      title: null
+    answer:
+      kind: reply
+      writer: agent
   told:
+    - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
+      text: >-
+        The thread has no title yet. Name its subject with `--title "<a few words>"`
+        on your reply.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        If the event asks for work, first post one line in its thread saying what
+        you will do, before any other command, even a read: `leaf thread reply <answer.ref>
+        --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
+        the result on the page with what shows it (captures, a figure, the numbers),
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
+        what changed and where it shows, in a sentence or two. If the event asks
+        for no work, answer it with that reply at once. The reply checks your saved
+        page edit and makes it live before posting. The declaration says whose move
+        your answer leaves, which delivering what was asked doesn't settle. `--obligation`
+        when it is the user's: it leaves them a decision, or something to try or
+        review before making one, or asks them for an answer or permission. That
+        puts your answer on their On Me list until they reply or resolve the thread,
+        even where the decision itself is already there. Where your answer asks
+        a question of its own whose answers you can list, such as which of two ways
+        to proceed or whether to take an action, put them in your reply in place
+        of `--obligation`, in a widget that asks, such as `<lf-options id="…">`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
+        "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - when: {"required": ["emoji"]}
       text: >-
-        A reaction owes no answer. Act on the emoji if it calls for a change, and
-        reply only if its meaning is unclear. Once the page reflects it, close it
-        with `leaf thread resolve <page> <message>`.
+        The user's message is an emoji, a reaction to what it is on: the passage
+        or element its `anchor` names, or the page where it has none, or, as a reply,
+        the message its `parent` names. Answer it as you would their words: act
+        on it where it asks for a change, ask what they meant where you can't tell,
+        and otherwise answer in a line saying how you read it, so they see what
+        their reaction did.
+    - text: >-
+        Your reply renders as Markdown in a narrow card or panel. The thread already
+        reaches the passage or section it is on, as a card beside it or by Show
+        on page, so say in words what changed there, and link a page section elsewhere
+        as `[its name](#section-id)`. Give each point its own short paragraph or
+        list item, and fence code or markup. Where your answer rests on a source,
+        such as a rule, a file or a message, quote the whole passage it turns on,
+        conditions included, so the user can check your answer against it there;
+        put a passage longer than a few lines in a `<details>` in your reply.
 
 reply:
   event:
@@ -673,8 +737,7 @@ reply:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["emoji"]}}
-      text: >-
+    - text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
@@ -698,7 +761,9 @@ reply:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -718,8 +783,7 @@ reply in an untitled thread:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["emoji"]}}
-      text: >-
+    - text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
     - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
@@ -747,7 +811,9 @@ reply in an untitled thread:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -766,8 +832,7 @@ reply with a pasted image:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["emoji"]}}
-      text: >-
+    - text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
     - when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
@@ -796,7 +861,9 @@ reply with a pasted image:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -819,11 +886,10 @@ reply in a long thread:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["emoji"]}}
-      text: >-
+    - text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
-    - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}, "not": {"required": ["emoji"]}}
+    - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}}
       text: >-
         This thread's entry in the batch's `threads` has a `summary_hint`: an earlier
         range of messages worth summarizing. As you answer, follow the Leaf skill's
@@ -850,7 +916,9 @@ reply in a long thread:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -873,8 +941,7 @@ reply in words to a choice the agent sent:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["emoji"]}}
-      text: >-
+    - text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
     - when: {"required": ["waiting"]}
@@ -905,7 +972,9 @@ reply in words to a choice the agent sent:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -928,8 +997,7 @@ reply in words that answered the agent's question:
       kind: reply
       writer: agent
   told:
-    - when: {"not": {"required": ["emoji"]}}
-      text: >-
+    - text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
         <message>` reads its full history.
     - when: {"required": ["settled"]}
@@ -965,7 +1033,9 @@ reply in words that answered the agent's question:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -980,11 +1050,56 @@ reaction on a message:
   event:
     kind: reply
     emoji: 👍
+    thread:
+      title: Tuesday backfill
+    answer:
+      kind: reply
+      writer: agent
   told:
+    - text: >-
+        The batch's `threads` holds the thread's context; `leaf page state <page>
+        <message>` reads its full history.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        If the event asks for work, first post one line in its thread saying what
+        you will do, before any other command, even a read: `leaf thread reply <answer.ref>
+        --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
+        the result on the page with what shows it (captures, a figure, the numbers),
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
+        what changed and where it shows, in a sentence or two. If the event asks
+        for no work, answer it with that reply at once. The reply checks your saved
+        page edit and makes it live before posting. The declaration says whose move
+        your answer leaves, which delivering what was asked doesn't settle. `--obligation`
+        when it is the user's: it leaves them a decision, or something to try or
+        review before making one, or asks them for an answer or permission. That
+        puts your answer on their On Me list until they reply or resolve the thread,
+        even where the decision itself is already there. Where your answer asks
+        a question of its own whose answers you can list, such as which of two ways
+        to proceed or whether to take an action, put them in your reply in place
+        of `--obligation`, in a widget that asks, such as `<lf-options id="…">`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
+        "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - when: {"required": ["emoji"]}
       text: >-
-        A reaction to your message. It needs no reply; Leaf already records whether
-        it answers your question.
+        The user's message is an emoji, a reaction to what it is on: the passage
+        or element its `anchor` names, or the page where it has none, or, as a reply,
+        the message its `parent` names. Answer it as you would their words: act
+        on it where it asks for a change, ask what they meant where you can't tell,
+        and otherwise answer in a line saying how you read it, so they see what
+        their reaction did.
+    - text: >-
+        Your reply renders as Markdown in a narrow card or panel. The thread already
+        reaches the passage or section it is on, as a card beside it or by Show
+        on page, so say in words what changed there, and link a page section elsewhere
+        as `[its name](#section-id)`. Give each point its own short paragraph or
+        list item, and fence code or markup. Where your answer rests on a source,
+        such as a rule, a file or a message, quote the whole passage it turns on,
+        conditions included, so the user can check your answer against it there;
+        put a passage longer than a few lines in a `<details>` in your reply.
 
 rewritten message:
   event:
@@ -1025,7 +1140,9 @@ rewritten message:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1073,7 +1190,9 @@ deleted message:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1132,7 +1251,9 @@ rewritten message in a summarized thread:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1187,7 +1308,9 @@ rewritten suggestion:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1236,7 +1359,9 @@ deleted suggestion:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1415,7 +1540,9 @@ pick inside a thread:
         holding an `<lf-option id="…">` for each answer: the user answers with a
         press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
-        work beyond this turn. `--done` when it leaves nobody a move.
+        work beyond this turn, with `--waiting-on "<what>"` where it can't start
+        until something you don't control happens. `--done` when it leaves nobody
+        a move.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show

@@ -1,6 +1,6 @@
 """Document-scoped browser projection and undo readings."""
 
-from leaf.log.events import UndoReading, action_retracted, is_reaction
+from leaf.log.events import UndoReading, action_retracted
 from leaf.log.gesture_words import GestureWords
 from leaf.log.projection import PageReading, StateProjection
 from leaf.records.document_reading import DocumentReading
@@ -47,9 +47,10 @@ def browser_undo_candidates(
     is neither bookkeeping, an undo, nor already withdrawn. A gesture the door
     refuses or this document no longer paints, such as a move a later revision's
     markup places, ends the walk rather than letting ⌘Z reach past it. Every entry
-    stays on the list for the exact control that names it, but a message with words,
-    which no exact control names, is listed only while it is the newest gesture: an
-    older one is deleted by rewriting it to no words (events.md, "Undo").
+    stays on the list for the exact control that names it, as a reaction's chip or
+    mark does, but a message with words, which no exact control names, is listed only
+    while it is the newest gesture: an older one is deleted by rewriting it to no
+    words (events.md, "Undo").
 
     The head carries `gesture`, what an action did in its own document's words
     (`GestureWords.gesture`), so `z` names what it takes in every tab and after a
@@ -81,7 +82,7 @@ def browser_undo_candidates(
             continue
         if (
             event["kind"] in kinds_declaring("message")
-            and not is_reaction(event)
+            and "emoji" not in event
             and event["id"] != newest
         ):
             continue

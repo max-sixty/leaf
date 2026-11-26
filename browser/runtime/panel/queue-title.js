@@ -6,13 +6,12 @@ import { elementById } from "../readings/passages.js";
 import { obligationHolding } from "../records/current-target.js";
 import { obligationPlace, readObligations } from "../records/obligations/place.js";
 import { threadNamed } from "../records/thread/state.js";
-import { discussed } from "../state/thread/model.js";
 import { threadName } from "../records/thread/messages.js";
 
 /** @param {import("../state/semantic-application.js").CurrentQueueItem} item */
 export function queueTitle(item) {
-  const named = item.thread ? threadNamed(item.thread) : null;
-  const thread = named && discussed(named) ? named : null;
+  // A thread a reaction opened is named too, by its emoji until it has a title.
+  const thread = item.thread ? threadNamed(item.thread) : null;
   const topic = thread ? threadName(thread) : "";
   // An obligation's prompt, which a to-do's title is.
   const title = item.obligation.prompt.text;

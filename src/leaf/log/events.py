@@ -49,11 +49,6 @@ def event_document(event: dict) -> dict:
     return document_identity(event["meaning"]["scope"], event["revision"])
 
 
-def is_reaction(event: dict) -> bool:
-    """A message carrying an emoji in place of words ($events, $reactions)."""
-    return bool(event.get("emoji"))
-
-
 def is_answer(event: dict) -> bool:
     """Whether an event is an agent's answer to the input its ``responds`` names.
 
@@ -70,13 +65,14 @@ def is_answer(event: dict) -> bool:
 
 
 def spoken_turns(thread: dict) -> list:
-    """Messages with words, including retained progress messages.
+    """Messages that say something, in words or with an emoji, including retained
+    progress messages.
 
-    Reactions are marks rather than words, and a message the user took back keeps
-    its place with neither (`build_threads`). Presentation ranges include ephemeral
-    messages; semantic turn-taking reads :func:`conversation_turns` instead.
+    A message the user took back keeps its place with nothing said
+    (`build_threads`). Presentation ranges include ephemeral messages; semantic
+    turn-taking reads :func:`conversation_turns` instead.
     """
-    return [m for m in thread["msgs"] if not is_reaction(m) and "withdrawn" not in m]
+    return [m for m in thread["msgs"] if "withdrawn" not in m]
 
 
 def conversation_turns(thread: dict) -> list:
@@ -104,8 +100,9 @@ def turn_message(turn: dict) -> str:
 
 
 def bare_reaction(thread: dict) -> bool:
-    """A reaction nobody has replied to: paint on the page, and no thread yet."""
-    return is_reaction(thread["root"]) and not spoken_turns(thread)
+    """A thread that holds only the reaction that opened it, which the page draws as
+    a mark on what it is on rather than as a thread (`served_state.thread`)."""
+    return "emoji" in thread["root"] and len(thread["msgs"]) == 1
 
 
 class UndoReading:
@@ -312,8 +309,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     anchor when a null replacement or removed passage leaves the thread detached.
     ``rewritten_from`` retains the anchor a ``reanchor`` moved off, whose quoted words a
     version rewrote, until a reply chooses the thread's place again.
-    A new spoken reply resumes the thread; reactions and failure receipts
-    leave its closure in force, and so does a message the agent sent `unannounced`
+    A new reply resumes the thread; failure receipts and progress leave its
+    closure in force, and so does a message the agent sent `unannounced`
     into a thread the user resolved (`thread.post_reply`). A later resolution closes
     it again.
     ``revisions`` holds the user's edits in log order, each with ``was``, the words
@@ -532,15 +529,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 
 
 def _resumes(reply: dict) -> bool:
-    """Whether a reply resumes its thread: reactions, failure receipts and progress
-    leave its closure in force, and so does a message the agent sent into a thread
+    """Whether a reply resumes its thread: failure receipts and progress leave its
+    closure in force, and so does a message the agent sent into a thread
     the user resolved without asking them anything (`unannounced`,
     `thread.post_reply`)."""
     return not (
-        "emoji" in reply
-        or "failure" in reply
-        or reply.get("ephemeral")
-        or reply.get("unannounced")
+        "failure" in reply or reply.get("ephemeral") or reply.get("unannounced")
     )
 
 
@@ -624,14 +618,13 @@ class _ClosureHistory:
 
 
 def in_history(event: dict, messages: frozenset[str]) -> bool:
-    """Whether a thread's history keeps an event as a turn: a spoken message, of
-    `messages`' kinds, that is no progress, or the agent's answer in a reaction, as
-    to a thanks that needs no words, or the user's rewrite of one (`exchange`), or
-    an undo, which `build_threads` keeps only where it takes a turn back: what
-    settles a batch of turns."""
+    """Whether a thread's history keeps an event as a turn: a message, of
+    `messages`' kinds, that is no progress, or the user's rewrite of one
+    (`exchange`), or an undo, which `build_threads` keeps only where it takes a turn
+    back: what settles a batch of turns."""
     kind = event["kind"]
     if kind in messages:
-        return ("emoji" not in event or is_answer(event)) and not event.get("ephemeral")
+        return not event.get("ephemeral")
     return kind == "undo" or (kind == "edit" and event["author"] != "agent")
 
 
@@ -701,8 +694,7 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     after waits for the agent's next message that is more than a step, so a step said
     below the user's message leaves the one above it standing. So the thread holds at
     most one step it hasn't superseded between two of the user's messages, its newest,
-    and a step never moves the user's message by ending above it. Reactions supersede
-    nothing. The turn that wrote a step can end it too, which the log doesn't say
+    and a step never moves the user's message by ending above it. The turn that wrote a step can end it too, which the log doesn't say
     (`served_state.thread.progress_ends`)."""
     pending = None
     spoken_after: list[str] = []
@@ -762,12 +754,11 @@ def unanswered_turns(thread: dict) -> list[dict]:
     else therefore reads as owed an answer, which is the direction to err in — an
     unanswered word is invisible to everyone, while one answer too many costs a reply.
 
-    Turns, not marks: a reaction is a mark on a message rather than a word in the
-    thread, so an `ok` the user puts on the agent's answer does not hand the thread
-    back, and a reaction nobody has replied to is no thread at all. Resolution does
-    not enter here: `owed_turns` says which closings settle these turns. A user's
-    revision is a turn here (`exchange`), and only the turns still in the exchange
-    can be owed.
+    A reaction is a turn as words are, so a 👍 the user puts on the agent's answer
+    hands the thread back, and the agent's emoji answers as a reply in words does
+    (`events.md`, "Reactions"). Resolution does not enter here: `owed_turns` says
+    which closings settle these turns. A user's revision is a turn here
+    (`exchange`), and only the turns still in the exchange can be owed.
 
     The newest of these is not always where the thread's answer goes: an owed action
     on a widget sent in the thread waits beside them, and where it came last the

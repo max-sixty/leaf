@@ -4,6 +4,7 @@ import io
 import json
 import math
 import re
+import sys
 from datetime import datetime, timedelta
 from itertools import pairwise
 
@@ -104,6 +105,10 @@ from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# The key that moves a native editor's caret to its line's end. Playwright sends End on
+# macOS as scrolling to the document's end, which leaves the caret where it stood.
+LINE_END = "Meta+ArrowRight" if sys.platform == "darwin" else "End"
 
 
 # One page for each reason an aimed press can still reach the page underneath it. The
@@ -3003,7 +3008,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
         editor = page.locator("#editable-regions > div").nth(1)
         editor.click(position={"x": 12, "y": 8})
         expect(editor).to_be_focused()
-        editor.press("End")
+        editor.press(LINE_END)
         editor.press_sequentially(" edited")
         expect(editor).to_have_text("Backup draft edited")
         expect(field).to_be_hidden()
@@ -3833,6 +3838,73 @@ sequenceDiagram
     open_compact_comment(page)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · User")
     expect(actor).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+
+
+def test_every_box_a_diagram_names_takes_its_own_comment(browser, serve):
+    """Each box an author names takes a comment of its own in every kind of diagram
+    that draws its boxes under their names, and a box that holds others is marked on
+    its own frame. A group leaves a name it shares to the box. A name drawn twice, a
+    group Pele numbers for want of a name, and a journey, whose steps Pele numbers on a
+    phone, take the whole diagram's comment, and the diagram still draws."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Every diagram's boxes",
+                """
+<h1 id="t">Boxes</h1>
+<lf-diagram id="board"><pre>
+kanban
+  Todo
+    t1[Write docs]
+    [Review]
+  Done
+    [Review]
+</pre></lf-diagram>
+<lf-diagram id="years"><pre>
+timeline
+  2024 : Plan
+  2024 : Build
+  2025 : Ship
+</pre></lf-diagram>
+<lf-diagram id="model"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+</pre></lf-diagram>
+<lf-diagram id="blocks"><pre>
+block-beta
+  block
+    a
+  end
+</pre></lf-diagram>
+<lf-diagram id="release"><pre>
+journey
+  section Build
+    Review: 5: Me
+</pre></lf-diagram>
+""",
+            )
+        ),
+    )
+    expect(page.locator("lf-diagram.lf-rendered")).to_have_count(5)
+    parts = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll('lf-diagram')].map(
+          (d) => [d.id, d.lfParts.read().map((p) =>
+            [p.id, p.label, p.surface ? p.surface.localName : p.element.localName])]))"""
+    )
+    assert parts == {
+        "board": [
+            ["node:Todo", "Todo 2", "rect"],
+            ["node:t1", "Write docs", "g"],
+            ["node:Done", "Done 1", "rect"],
+        ],
+        "years": [["node:2025", "2025 Ship", "g"]],
+        "model": [["node:Job", "Job", "g"]],
+        "blocks": [["node:a", "a", "g"]],
+        "release": [],
+    }
 
 
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
@@ -5136,7 +5208,7 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, 
     page = open_page(browser, live_url(serve(markup)))
     editor = page.locator("#controls > div").first
     editor.click()
-    editor.press("End")
+    editor.press(LINE_END)
     editor.press_sequentially(" plus my notes")
     reading = page.evaluate("""async()=>{
       const A=await window.__lfCheckApi();

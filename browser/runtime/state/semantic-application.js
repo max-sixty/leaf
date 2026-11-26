@@ -232,7 +232,7 @@ function advance(entry, signal, admitted = null) {
  *       [name: string]: unknown;
  *     }
  *   > & {
- *     $reactions?: { emoji: Record<string, { settles?: boolean }> };
+ *     $reactions?: { emoji: readonly string[] };
  *     $states: import("./registry-contract.js").StampedRegistry["$states"];
  *   };
  *   authored: AuthoredMap;

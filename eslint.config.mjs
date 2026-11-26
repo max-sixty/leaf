@@ -395,14 +395,46 @@ const layerOf = (name) =>
       place.endsWith("/") ? name.startsWith(place) : name === place,
     ),
   );
-// The modules a comment's JSDoc names: each `import("…")`, and each `@import … from "…"`,
-// whose braces may span lines. The rule reads runtime modules alone, so a type that
-// reaches a module through an ambient declaration of `browser/types/`, such as an
-// element's `lfPreview` or a tag in `HTMLElementTagNameMap`, is outside what it reads.
+// The modules a module's JSDoc names, read as TypeScript reads them: from each `/** … */`
+// block, with each line's leading `*` set aside, every `import` `(` string `)`, with any
+// whitespace between the tokens, and every `@import … from "…"`, whose braces may span
+// lines. Other comments name nothing. The rule reads runtime modules alone, so the
+// ambient declarations of `browser/types/` are outside what it reads, and a type a
+// global names, such as an element's `lfPreview` or a tag in `HTMLElementTagNameMap`,
+// may stand in any layer.
 const JSDOC_IMPORTS = [
-  /\bimport\(\s*(["'`])([^"'`]+)\1\s*\)/gu,
-  /@import\b[^@]*?\bfrom\s+(["'])([^"']+)\1/gu,
+  /\bimport\s*\(\s*(["'])([^"'\n]*)\1\s*\)/gu,
+  /@import\b[^@]*?\bfrom\s*(["'])([^"'\n]*)\1/gu,
 ];
+/** @param {{type: string, value: string}} comment */
+const jsdocNames = (comment) =>
+  comment.type === "Block" && comment.value.startsWith("*")
+    ? JSDOC_IMPORTS.flatMap((pattern) =>
+        [...comment.value.replace(/^[ \t]*\*/gmu, "").matchAll(pattern)].map(
+          ([, , specifier]) => specifier,
+        ),
+      )
+    : [];
+// The runtime module a specifier names, by its path under `runtime/`, resolved as the
+// browser resolves it from the module's served URL (`/runtime/…`); null where it names
+// none. A bare specifier is an import map's to resolve, and a path outside `/runtime/`,
+// such as a `/vendor/` bundle, a `/checks/` probe or browser/types/, holds no runtime
+// module. JSON is data.
+const SERVED = new URL("https://page.invalid/runtime/");
+const servedName = (file, specifier) => {
+  if (!/^\.{0,2}\//u.test(specifier)) return null;
+  const url = new URL(specifier, new URL(file, SERVED));
+  if (url.origin !== SERVED.origin || !url.pathname.startsWith(SERVED.pathname))
+    return null;
+  const name = url.pathname.slice(SERVED.pathname.length);
+  let decoded = name;
+  try {
+    decoded = decodeURIComponent(name);
+  } catch {
+    // A malformed escape is served as written.
+  }
+  return decoded.endsWith(".json") ? null : decoded;
+};
 export const importLayersRule = {
   meta: { type: "problem", schema: [] },
   create(context) {
@@ -411,11 +443,8 @@ export const importLayersRule = {
     const placed = (name) => runtimeLayers[name].name;
     /** @param {{node?: unknown, loc?: unknown}} at @param {string} specifier */
     const check = (at, specifier) => {
-      // A bare or site-absolute specifier names no runtime module; one that leaves the
-      // runtime names browser/types/ or a sibling directory, and JSON is data.
-      if (here < 0 || !specifier.startsWith(".")) return;
-      const target = path.posix.join(path.posix.dirname(file), specifier);
-      if (target.startsWith("../") || target.endsWith(".json")) return;
+      const target = here < 0 ? null : servedName(file, specifier);
+      if (target === null) return;
       const there = layerOf(target);
       if (there < 0 || there >= here) return;
       context.report({
@@ -443,9 +472,8 @@ export const importLayersRule = {
             message: `${file} stands in no layer: it is an entry point or stands in a layer's directory (\`runtimeLayers\`, eslint.config.mjs).`,
           });
         for (const comment of context.sourceCode.getAllComments())
-          for (const pattern of JSDOC_IMPORTS)
-            for (const [, , specifier] of comment.value.matchAll(pattern))
-              check({ loc: comment.loc }, specifier);
+          for (const specifier of jsdocNames(comment))
+            check({ loc: comment.loc }, specifier);
       },
       ImportDeclaration: named,
       ImportExpression: named,
@@ -1894,7 +1922,7 @@ export default [
     rules: entryBoundary,
   },
   {
-    files: ["browser/runtime/**/*.js"],
+    files: ["browser/runtime/**/*.{js,mjs}"],
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,

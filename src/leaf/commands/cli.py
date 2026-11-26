@@ -366,9 +366,9 @@ def codex_run(
     app_server: str | None,
 ) -> None:
     """Run the detached adapter child."""
-    from leaf.agents.codex_adapter import run_adapter
     from leaf.base.detached import Handshake
     from leaf.base.leases import release_on_termination
+    from leaf.commands.codex_run import run_adapter
 
     release_on_termination()
     # Exiting inside the handshake tells a parent still waiting on it the status.

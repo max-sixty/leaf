@@ -71,7 +71,6 @@ from leaf.pages import vendoring as vendoring_model
 from leaf.records import event_contracts as event_contracts_model
 from leaf.records import transaction as transaction_model
 from leaf.serving import server_rows as server_rows_model
-from leaf.serving.served_state import context as context_model
 from leaf.source.registry.storage import LAYER, layer_record, write_layer
 
 
@@ -2064,7 +2063,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
     ]
     [frozen] = delivery_model.freeze_delivery([batch])["batches"]
-    projected = context_model.read_page
+    projected = presence_model.read_work
     lock_proved = threading.Event()
     errors = []
     writers = []
@@ -2103,7 +2102,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         )
         return projected(page_dir, events)
 
-    monkeypatch.setattr(context_model, "read_page", read_while_settlement_waits)
+    monkeypatch.setattr(presence_model, "read_work", read_while_settlement_waits)
     plans = hook_transport_model.read_plans("s1")
     for writer in writers:
         writer.join(timeout=STATED_TIMEOUT)
@@ -2112,7 +2111,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
     assert not plans[0].owed
     assert [event["id"] for event in plans[0].pending] == [asked["id"]]
     with transaction_model.PageTransaction(claimed) as page:
-        assert not projected(claimed, page.events).work.obligations
+        assert not projected(claimed, page.events).obligations
         assert page.cursor >= asked["seq"]
 
 

@@ -77,14 +77,14 @@ def cmd_waiting(page_dir: Path) -> dict:
     (`todos.item_starts`), and return the declaration's record. The updates still
     owed an answer, which the page goes on showing over it, are noted with the
     command that answers each."""
+    from leaf.agents.presence import read_work
     from leaf.records.activity import answer_command
     from leaf.records.revisioning import activate_source
-    from leaf.serving.served_state.context import read_page
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         status = set_status(page, "waiting")
-        owed = read_page(page_dir, page.events).work.obligations
+        owed = read_work(page_dir, page.events).obligations
     if owed:
         answers = [answer_command(item["answer"], page_dir) for item in owed]
         note(Finding("page-open-owes", values={"answers": answers}))
@@ -104,13 +104,13 @@ def cmd_idle(page_dir: Path) -> dict:
     holds the page for every open to-do too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
+    from leaf.agents.presence import read_work
     from leaf.records.activity import blocking_obligations, unanswered
-    from leaf.serving.served_state.context import read_page
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        work = read_page(page_dir, events).work
-        state = {**work.presence, "activity": work.activity}
+        work = read_work(page_dir, events)
+        state: dict = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim)
         pending = len(unacknowledged(events, page.cursor))
@@ -700,12 +700,12 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """
+    from leaf.agents.presence import read_work
     from leaf.records.workflows import agent_inputs
-    from leaf.serving.served_state.context import read_page
 
     if not batch:
         return []
-    agents = agent_inputs(read_page(page.page_dir, page.events).work.durable)
+    agents = agent_inputs(read_work(page.page_dir, page.events).durable)
     pending = []
     for event in batch:
         if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
@@ -720,12 +720,12 @@ def left_owed(page: PageTransaction) -> list[dict]:
     a turn end on its answer, and the watch wakes a turn of its own for them, whose
     prompt hook names them."""
     from leaf.agents.delivery import reminded
+    from leaf.agents.presence import read_work
     from leaf.records.activity import left_owed as owed_after
-    from leaf.serving.served_state.context import read_page
 
     if not turn_closed(page.active_claim):
         return []
-    work = read_page(page.page_dir, page.events).work
+    work = read_work(page.page_dir, page.events)
     by_id = {event["id"]: event for event in page.events}
     return [
         by_id[obligation["input"]]

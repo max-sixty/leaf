@@ -969,7 +969,7 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
     read Delivered."""
-    from leaf.agents.delivery import cmd_delivery_ack
+    from leaf.commands.delivery_ack import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
 

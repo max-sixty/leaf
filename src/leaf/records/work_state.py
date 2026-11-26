@@ -1,8 +1,9 @@
 """Semantic work with the live claim/turn evidence used by every transport.
 
 The durable reading remains separate from activity's liveness and reply reservations.
-Delivery and status never need browser serialization or history.
-A serving context holds this result once; its browser selects the same objects.
+Delivery and status never need browser serialization or history: they read
+it from the page directory (`presence.read_work`). A serving context holds this
+result once (`served_state.context.PageRead`); its browser selects the same objects.
 """
 
 from datetime import datetime

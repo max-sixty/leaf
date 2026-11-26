@@ -19,11 +19,11 @@ from interact_support import (
     wait_for,
 )
 
-from leaf.agents import delivery as delivery_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import session as session_model
 from leaf.log import event_log as events_model
 from leaf.records import transaction as transaction_model
@@ -58,6 +58,7 @@ def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
     probe = """\
 import sys
 from leaf.agents import delivery
+from leaf.commands import delivery_ack
 
 original_lock = delivery.flocked
 def synchronized_lock(*args, **kwargs):
@@ -67,7 +68,7 @@ def synchronized_lock(*args, **kwargs):
     return original_lock(*args, **kwargs)
 
 delivery.flocked = synchronized_lock
-delivery.receive_delivery(os.environ["DELIVERY"])
+delivery_ack.receive_delivery(os.environ["DELIVERY"])
 """
     consumers = [
         spawn_probe(
@@ -132,7 +133,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
     )
-    delivery_model.cmd_delivery_ack(delivery_through(page_dir, first["seq"]))
+    delivery_ack_model.cmd_delivery_ack(delivery_through(page_dir, first["seq"]))
     selected = tmp_path / "selected"
     waiting = spawn(
         held_selection(selected, page_dir, "wait"),

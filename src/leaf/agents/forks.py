@@ -63,7 +63,7 @@ its thread or speaks for a round a later turn joined. A line that fails it drops
 the page's diagnostics say so.
 
 While the line stands, the waiting messages before it read On it, as they do before
-any progress message of the agent's (`served_state.work.lined`, which `activity` reads
+any progress message of the agent's (`work_state.lined`, which `activity` reads
 as a waiting update `running`, so every surface showing whether the agent is at work
 agrees), as the user chose. That word is all the line changes: as a receipt's progress
 it takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds
@@ -342,8 +342,10 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
     (`delivery.batch_data`), with the thread whole, or None where the newest owes
     no reply."""
     from leaf.agents.delivery import batch_data, current_responses
+    from leaf.agents.presence import read_work
 
-    responses = current_responses(page.page_dir, page.events)
+    work = read_work(page.page_dir, page.events)
+    responses = current_responses(page.page_dir, page.events, work)
     owed = responses.get(inputs[-1])
     if owed is None or owed["kind"] != "reply":
         return None
@@ -352,7 +354,7 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
         page.page_dir,
         page,
         [by_id[i] for i in inputs],
-        responses=responses,
+        work=work,
         whole=True,
     )
 

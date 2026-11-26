@@ -89,12 +89,12 @@ unsettled update's workflow, the evidence of its delivery, and each owed update'
 obligation record, which says who owes it a move. Its header says when each settles.
 `activity` says where each workflow stands, and each record stands where the strongest
 workflow serving it does. The served list names each workflow's `thread`, strongest
-first (`served_state.work.served_workflows`).
+first (`work_state.served_workflows`).
 
 A workflow waits until a turn has taken it in (`seen`), and after, until the agent
 starts it. It is `running` while a start stands on it, while its reply streams in
 (reason `replying`), or while a progress message of the agent's stands after it in
-its thread, such as a line fork's working line (`served_state.work.lined`). It is
+its thread, such as a line fork's working line (`work_state.lined`). It is
 `blocked` where evidence shows it has stopped moving:
 
 - `undelivered`: no harness has carried it past the pickup grace.

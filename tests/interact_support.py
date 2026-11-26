@@ -216,16 +216,10 @@ def model_layer(*packages: str) -> dict:
 
 
 def queue_board_registry(registry: dict) -> dict:
-    """A page-owned queue stays an obligation until all cards leave its Queued column.
-
-    Extend the board's position verb with a completion condition to exercise
-    answers spanning units without a presentation-specific package.
-    """
+    """A page-owned queue that asks the user to move its cards, an obligation over
+    a position verb whose units are the cards it holds."""
     registry = deepcopy(registry)
-    registry["lf-board"]["awaits"] = {
-        "value": "move",
-        "answered": {"move": {"empty": {"when": {"label": ["Queued"]}}}},
-    }
+    registry["lf-board"]["awaits"] = {"value": "move"}
     return registry
 
 
@@ -1195,6 +1189,8 @@ def decide(page_dir, outcome, widget="sug-refill"):
             "widget": widget,
             "action": "decide",
             "detail": {"outcome": outcome},
+            # A suggestion with a decision in force says its question is answered.
+            "answered": True,
         },
     )
 
@@ -1367,6 +1363,7 @@ ACCEPT = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
+    "answered": True,
     "meaning": {
         "scope": "page",
         "unit": "sug-a",
@@ -3075,6 +3072,7 @@ SETTLING_ACCEPT = {
     "widget": "sug-refill",
     "action": "decide",
     "detail": {"outcome": "accept"},
+    "answered": True,
 }
 
 

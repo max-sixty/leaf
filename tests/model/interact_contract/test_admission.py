@@ -138,6 +138,8 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
 
 
 def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposal():
+    """A verb beside the deciding one answers where the widget says its outcome
+    answers, here a rejection, and closes the widget's thread as an answer does."""
     registry = deepcopy(model_layer())
     entry = registry["lf-suggestion"]
     entry["verbs"]["review"] = {
@@ -145,7 +147,6 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
         for key, value in entry["verbs"]["decide"].items()
         if key not in {"decides", "withdraws"}
     }
-    entry["awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
     validate_registry(registry, "review package")
     stamp_composition(registry)
     source = (
@@ -160,6 +161,7 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
                 "widget": "proposal",
                 "action": "review",
                 "detail": {"outcome": outcome},
+                "answered": answers,
             }
         )
         state = model.served_reading(source, commands, registry=registry)
@@ -512,8 +514,27 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     ]
 
 
+def test_a_widget_that_asks_nothing_says_nothing_of_an_answer():
+    """`answered` is the word of a widget that asks, so the door refuses it on a
+    gesture of one that doesn't, an act or an undo of one alike."""
+    page = ModelPage(STATED_QUEUE)
+    move = {**STATED_MOVE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}}
+
+    def refusal(log, event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            event_contracts_model.admitted_event(page, log, event)
+        return refused_on(refused.value)
+
+    assert refusal([], {**move, "answered": True}).code == "answered-unasked"
+    moved = event_contracts_model.admitted_event(page, [], dict(move))
+    log = [{**moved, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
+    undo = {"kind": "undo", "author": "user", "undoes": "s1", "answered": False}
+    assert refusal(log, undo).code == "answered-unasked"
+
+
 def test_the_move_that_empties_the_queue_answers_its_obligation():
-    """Only moving the final real card answers the whole queue's obligation.
+    """The move the queue says empties it answers the whole queue's obligation, and
+    a move it says leaves cards queued answers nothing.
 
     A crafted unknown unit must never count as completing the queue.
     """
@@ -524,14 +545,22 @@ def test_the_move_that_empties_the_queue_answers_its_obligation():
 
     first = admit(
         [],
-        {**STATED_MOVE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}},
+        {
+            **STATED_MOVE,
+            "detail": {"unit": "card-a", "value": "keep", "rank": "0i"},
+            "answered": False,
+        },
     )
     assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
         log,
-        {**STATED_MOVE, "detail": {"unit": "card-b", "value": "keep", "rank": "0r"}},
+        {
+            **STATED_MOVE,
+            "detail": {"unit": "card-b", "value": "keep", "rank": "0r"},
+            "answered": True,
+        },
     )
     assert last["meaning"]["answer"] is None
 
@@ -941,6 +970,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         "widget": "picks",
         "action": "choose",
         "detail": {"value": ["flag-first"]},
+        "answered": True,
         "attempt": "named-dependencies",
         "attention": False,
     }

@@ -337,18 +337,52 @@ const NO_OBLIGATIONS = {
 /** @type {import("../../types/domain.js").ClassifiedEntry[]} */
 const NO_WITHDRAWALS = [];
 
-/* The admitted inventory owns membership and widget completion. Widget values come from
- * the same local-inclusive fold used by their controls, so a partial answer is
- * visible before its POST settles the obligation. */
+// The widget an action concerns, or an undo of one: the only gestures that carry the
+// widget's word on whether its obligation is answered (`awaits`).
+/** @param {Pick<LedgerEntry, "event" | "projection">} entry @returns {string | null} */
+const gestureWidget = ({ event, projection }) =>
+  event.kind === "action"
+    ? event.widget
+    : projection?.kind === "undo"
+      ? projection.target.e.widget
+      : null;
+
+// What this tab's gestures the log has yet to read say of each widget's obligation: the
+// word the newest of them carries, by widget. Kept by the gestures, so a publication
+// that moves none makes no new map.
+const gestureAnswers = kept(
+  /** @param {readonly LedgerEntry[]} local @returns {ReadonlyMap<string, boolean>} */
+  (local) => {
+    /** @type {Map<string, boolean>} */
+    const said = new Map();
+    for (const entry of local) {
+      const widget = gestureWidget(entry);
+      if (widget !== null && typeof entry.event.answered === "boolean")
+        said.set(widget, entry.event.answered);
+    }
+    return said;
+  },
+);
+
+/* The admitted inventory owns membership. Whether a widget's obligation is answered is
+ * the widget's own word, which its gesture carries (`awaits`), so a gesture this tab
+ * has sent answers or reopens the obligation as it is drawn, before its POST settles
+ * it: the deck moves on, and On Me lets the item go, in the press's task. The served
+ * record takes over once the log holds the gesture, and a refusal leaves the served
+ * record as it was. Widget values come from the same local-inclusive fold used by their
+ * controls, so a partial answer is visible before its POST settles the obligation. */
 // A widget's obligation record as this tab reads it, kept (`state/kept.js`) by the served
-// record, its widget's state, the verb it awaits and that widget's withdrawals, so a
-// publication that moves one widget makes that widget's record again and no other.
+// record, its widget's state, the verb it awaits, that widget's withdrawals and its
+// gestures' word, so a publication that moves one widget makes that widget's record
+// again and no other.
 const widgetObligation = keptEach(
-  /** @param {Extract<ObligationRecord, {source: {kind: "widget"}}>} item
+  /** @param {Extract<ObligationRecord, {source: {kind: "widget"}}>} served
    * @param {import("./projection/model.js").FoldedWidget} widget @param {string} verb
    * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
-   * @param {boolean} answerWithdrawn @returns {ObligationRecord} */
-  (item, widget, verb, withdrawals, answerWithdrawn) => {
+   * @param {boolean} answerWithdrawn @param {boolean | undefined} said
+   * @returns {ObligationRecord} */
+  (served, widget, verb, withdrawals, answerWithdrawn, said) => {
+    const item = said === undefined ? served : saidAnswered(served, said);
     const completed = item.answered && !answerWithdrawn;
     const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue =
@@ -363,14 +397,49 @@ const widgetObligation = keptEach(
   },
 );
 
+// A served widget record as the widget's gesture leaves it: answered, or open on the
+// user again where the server had it answered. One the server withdrew stays withdrawn,
+// and an open one keeps its next actor, which only the log decides.
+/** @template {ObligationRecord} R @param {R} item @param {boolean} said @returns {R} */
+const saidAnswered = (item, said) => {
+  if (item.state === "done" && item.outcome !== "done") return item;
+  if (said)
+    return {
+      ...item,
+      answered: true,
+      state: "done",
+      outcome: "done",
+      next_actor: null,
+      reason: null,
+    };
+  return item.answered
+    ? {
+        ...item,
+        answered: false,
+        state: "waiting",
+        outcome: null,
+        next_actor: "user",
+        reason: null,
+      }
+    : item;
+};
+
 /**
  * @param {PageView["obligations"] | undefined} obligations
  * @param {ReturnType<typeof import("./projection/model.js").foldWidgetStates>} widgets
  * @param {SemanticDocument["descriptors"]} descriptors
  * @param {ReturnType<typeof foldProjection>["pendingWithdrawals"]} pendingWithdrawals
+ * @param {ReadonlyMap<string, boolean>} said what this tab's gestures say of each
+ *   widget's obligation (`gestureAnswers`)
  * @returns {ObligationLists}
  */
-function normalizedObligations(obligations, widgets, descriptors, pendingWithdrawals) {
+function normalizedObligations(
+  obligations,
+  widgets,
+  descriptors,
+  pendingWithdrawals,
+  said,
+) {
   const withdrawing = Map.groupBy(
     pendingWithdrawals.values(),
     (withdrawal) => withdrawal.e.widget,
@@ -382,16 +451,17 @@ function normalizedObligations(obligations, widgets, descriptors, pendingWithdra
       const widget = widgets.get(sourceId);
       const declaration = descriptors.get(item.source.id)?.declaration.awaits;
       const verb = declaration?.value;
-      if (!verb || !widget) return item;
+      const word = said.get(sourceId);
+      if (!verb || !widget) return word === undefined ? item : saidAnswered(item, word);
       const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
       const answerWithdrawn = Boolean(
         item.answer?.event && pendingWithdrawals.has(item.answer.event.id),
       );
-      return widgetObligation(item, widget, verb, withdrawals, answerWithdrawn);
+      return widgetObligation(item, widget, verb, withdrawals, answerWithdrawn, word);
     },
   );
   // A widget's record keeps where the server says it stands and its next actor, which
-  // only the log decides.
+  // only the log decides, apart from what its widget's own gestures say of its answer.
   return {
     all,
     user: all.filter((item) => item.next_actor === "user"),
@@ -1046,6 +1116,7 @@ export function createSemanticApplication({ presentation } = {}) {
           widgets,
           document.descriptors,
           projection.pendingWithdrawals,
+          gestureAnswers(local),
         )
       : NO_OBLIGATIONS;
     // The thread a gesture stands in. A message stands in the thread that draws it,
@@ -1654,6 +1725,23 @@ export function createSemanticApplication({ presentation } = {}) {
         ],
       });
       return entry(event.attempt);
+    },
+    // The gesture `attempt` carries what its widget says of its obligation once the
+    // gesture is drawn (`read`: records/pending/dispatch.js), before it is sent, so the
+    // publication that follows draws the obligation answered or open and the POST
+    // carries the word to the log (`awaits`). A gesture that concerns no widget that
+    // asks carries nothing.
+    /** @param {string} attempt @param {(widget: string) => boolean | undefined} read */
+    answer(attempt, read) {
+      const held = entry(attempt);
+      const widget = held ? gestureWidget(held) : null;
+      const answered = widget === null ? undefined : read(widget);
+      if (answered === undefined) return;
+      update(attempt, (item) =>
+        item.event.kind === "action" || item.event.kind === "undo"
+          ? { ...item, event: { ...item.event, answered } }
+          : item,
+      );
     },
     // The POST accepted `attempt` as the log's `accepted`.
     /** @param {string} attempt @param {Event} accepted */

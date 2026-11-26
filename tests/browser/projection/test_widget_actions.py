@@ -146,7 +146,6 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "awaits": {
             "when": {"phase": ["open"]},
             "value": "answer",
-            "answered": {"answer": {}},
         },
         "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }

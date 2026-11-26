@@ -133,11 +133,9 @@ def complete_declarations(registry: dict) -> dict:
     names the detail field that tells its members apart, and a verb recording
     positions always tells them apart by `unit`, so only a verb with a `detail` schema
     that keeps a state for each member says its `unit`. A record that names no `kind`
-    is one value in the attribute it names (`kind: "value"`). An obligation (`awaits`)
-    is answered while the verb its `value` names has a state (`answered:
-    {<verb>: {}}`) unless `answered` says when. So the fold, admission and each
-    event's stored `meaning.state` read the same `unit`, `record` and `answered`
-    whether the declaration spelt them or left them to their defaults.
+    is one value in the attribute it names (`kind: "value"`). So the fold, admission
+    and each event's stored `meaning.state` read the same `unit` and `record` whether
+    the declaration spelt them or left them to their defaults.
 
     It runs before validation, so it completes only an entry of the shape it reads
     and leaves any other for validation to refuse."""
@@ -157,9 +155,6 @@ def complete_declarations(registry: dict) -> dict:
                 spec["record"] = record = {"kind": "value", **record}
             # Each default stands first, where a declaration that writes it puts it.
             verbs[verb] = {"unit": record_unit(record), **spec}
-        awaits = entry.get("awaits")
-        if isinstance(awaits, dict) and isinstance(value := awaits.get("value"), str):
-            awaits.setdefault("answered", {value: {}})
         inputs = entry.get("inputs")
         for spec in inputs.values() if isinstance(inputs, dict) else ():
             for key in INPUT_BINDINGS if isinstance(spec, dict) else ():

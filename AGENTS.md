@@ -130,16 +130,19 @@ changes, rather than asking about the case in front of you.
 ## Responsiveness
 
 When the user acts, the page draws each result that follows from the act alone, such
-as the user's message in its thread, a widget's new state or a thread they resolved.
-It draws them in the task that handles the act, before the browser's next frame.
-Facts that depend on the rest of the log, such as whose turn a thread is and which
-obligations the user owes, arrive with the server's reading of the gesture: the
-page's state as the server computes it from the whole log after admitting the
-gesture. That reading should be on screen within 100 ms, since the server usually
-runs on the user's machine. The browser doesn't predict that reading: a prediction
-is a second copy of the server's rules, and each case it misses shows the wrong
-state until the reading arrives. Where the reading takes longer than 100 ms, make
-that path faster.
+as the user's message in its thread, a widget's new state, whether that widget's own
+question is now answered, or a thread they resolved. It draws them in the task that
+handles the act, before the browser's next frame. The widget decides whether its
+question is answered and its gesture carries that word to the log, where the server
+reads it rather than deciding again (`awaits`), so a press that answers a question
+moves it off On Me, and a deck to its next card, at once. Facts that depend on the
+rest of the log, such as whose turn a thread is and whom another obligation waits on,
+arrive with the server's reading of the gesture: the page's state as the server
+computes it from the whole log after admitting the gesture. That reading should be on
+screen within 100 ms, since the server usually runs on the user's machine. The
+browser doesn't predict that reading: a prediction is a second copy of the server's
+rules, and each case it misses shows the wrong state until the reading arrives. Where
+the reading takes longer than 100 ms, make that path faster.
 
 These times hold on a large page too. A page's size is how much it holds: elements,
 widgets, headings, obligations, threads, events and revisions. An input's work

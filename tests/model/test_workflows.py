@@ -448,6 +448,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
+            "answered": True,
         },
     )
     answered = append_command(
@@ -459,6 +460,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "widget": "thread-region",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     # The move owes a reply in its thread, and the agent starts the move itself.
@@ -546,6 +548,7 @@ def test_an_owed_pick_in_a_thread_outlives_the_users_resolve(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
+            "answered": True,
         },
     )
     append_carried_log_record(
@@ -723,6 +726,7 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
             **action,
             "action": "choose",
             "detail": {"values": {"tone": "urgent"}, "instruction": "Build it."},
+            "answered": True,
         }
     )
     assert chosen["attention"] is True
@@ -1023,6 +1027,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "widget": "region",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": True,
         },
     )
     newer = append_carried_log_record(
@@ -1084,6 +1089,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": False,
         },
     )
     selecting = state_json(page_dir)
@@ -1103,6 +1109,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     completed = state_json(page_dir)
@@ -1132,6 +1139,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert [item["input"] for item in owed(state_json(page_dir))] == [answered["id"]]

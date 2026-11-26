@@ -2458,6 +2458,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     runner = CliRunner()
@@ -2856,6 +2857,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     state = state_json(page_dir)
@@ -2892,6 +2894,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "widget": "g1",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert [item["action"] for item in state_json(page_dir)["state"]] == [
@@ -3353,6 +3356,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     state = state_json(page_dir)
@@ -3360,12 +3364,24 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
     assert state["state"][0]["widget"] == "g1"
 
 
-def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
-    """A version that honors a pick in its markup reads as answered with no log
-    at all — the shipped examples arrive that way."""
+def test_page_state_asks_a_question_whose_pick_only_the_markup_holds(page_dir):
+    """Only a gesture carries a widget's word that its question is answered, so a
+    version that writes a pick into its markup still asks until the user acts, and a
+    version that settles the question retires it."""
     opts = OPTIONS.format(a=" selected", b="", shim="s.", stage="t.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    assert [item["id"] for item in obligations_on_user(state_json(page_dir))] == [
+        "widget:g1"
+    ]
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            + opts.replace('<lf-options id="g1"', '<lf-options id="g1" settled'),
+        )
     )
     publish(page_dir)
     assert obligations_on_user(state_json(page_dir)) == []
@@ -3641,6 +3657,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
+            "answered": False,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -3661,6 +3678,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "widget": "gm",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == []
@@ -3948,6 +3966,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "widget": "cargo",
             "action": "edit",
             "detail": {"value": "ledger_id,amount\n7,42"},
+            "answered": True,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == []
@@ -4818,6 +4837,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     edited = live.replace(
@@ -4861,6 +4881,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     log = page_dir / "events.jsonl"

@@ -1311,7 +1311,6 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "awaits": {
         "value": "settle",
         "when": {"asks": [True]},
-        "answered": {"settle": {}},
     },
     "example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }

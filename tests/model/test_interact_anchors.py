@@ -625,6 +625,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "widget": "thread-picks",
             "action": "choose",
             "detail": {"value": ["thread-option"]},
+            "answered": True,
         },
     )
     events = events_model.read_events(page_dir)
@@ -2054,6 +2055,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
             "widget": "group-a",
             "action": "choose",
             "detail": {"value": ["option-a"]},
+            "answered": True,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [

@@ -13,7 +13,10 @@ through the actions its `awaits` declares, an agent message through a message of
 theirs in its thread, words or a reaction. Leaf adds no control of its own, such as a generic
 Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
 the decision). Any widget may ask by declaring `awaits`; content that doesn't is
-asked about in a thread anchored to it.
+asked about in a thread anchored to it. Whether a widget's obligation is answered is
+the widget's own word, which its gestures carry (`gesture_answers`), so this module
+reads it and keeps no rule of its own for it: the browser draws the same word in the
+gesture's task, and the two can't disagree.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -75,10 +78,8 @@ from leaf.log.projection import (
     ThreadMarkupReading,
     attribute_marks,
     folded_value,
-    markup_value,
     obligation_value,
     page_reading,
-    projected_action_holders,
 )
 from leaf.log.thread_context import widget_messages
 from leaf.source.obligation_sources import ObligationSources, obligation_sources
@@ -247,92 +248,35 @@ def previously_requested(
     return False
 
 
-def answer_verbs(entry: dict) -> dict:
-    """Each verb (`verbs`) whose current state answers this widget's local obligation,
-    mapped to the condition that state has to meet (`awaits.answered`)."""
-    return (entry.get("awaits") or {}).get("answered") or {}
+def gesture_answers(events: list, projection: StateProjection) -> dict[str, bool]:
+    """Each widget's word on whether its obligation is answered, as its own gestures
+    carried it: widget id → the `answered` of the newest of its actions in force, or of
+    the user's undos of its actions, that carries one.
 
-
-def verb_answers(
-    rec: dict,
-    entry: dict,
-    verb: str,
-    projection: StateProjection,
-    byid: dict,
-    marks: dict,
-    registry: dict,
-    holders: dict[str, dict],
-) -> bool:
-    """Whether one answering verb's declared condition holds for this widget now.
-
-    The condition reads current state and nothing else. `empty` asks the projected
-    containment the verb's position records leave in its own containers (the record's
-    `within`); `every` asks for an action meeting `detail` at each member the widget
-    holds now; an attribute or value record reads
-    through authored markup (`marks`, the document's `projection.attribute_marks`) as
-    well as the fold, so a version that honors the answer keeps it answered and a
-    cleared value opens the obligation again; any other verb answers while one of its
-    actions stands on the widget.
-    """
-    condition = answer_verbs(entry)[verb]
-    if not matches_when(replayed_attrs(rec, projection), condition.get("when")):
-        return False
-    spec = entry["verbs"][verb]
-    if empty := condition.get("empty"):
-        within = spec["record"]["within"]
-        return container_empty(rec, within, empty["when"], byid, registry, holders)
-    owner = rec["attrs"].get("id")
-    if every := condition.get("every"):
-        return all(
-            meets(projection.actions.get((owner, unit, verb)), condition)
-            for unit in held_members(rec, every["member"], byid, holders)
-        )
-    held = projection.actions.get((owner, owner, verb))
-    if "detail" in condition:
-        return meets(held, condition)
-    record = spec.get("record")
-    if record and record["kind"] in ("attribute", "value"):
-        value = folded_value(*held) if held else markup_value(owner, spec, byid, marks)
-        return value not in (None, "", [])
-    return held is not None
-
-
-def meets(held, condition: dict) -> bool:
-    """Whether an action in force (`held`) meets a condition's `detail`: every named
-    field equals its declared value in the action's detail, and with no `detail`,
-    that the action stands at all."""
-    return held is not None and all(
-        key in held[0]["detail"] and held[0]["detail"][key] == value
-        for key, value in condition.get("detail", {}).items()
-    )
-
-
-def held_members(owner: dict, tag: str, byid: dict, holders: dict[str, dict]):
-    """The ids of the `tag` elements whose widget is `owner` once position records in
-    force have moved them (`holders`), so a member a version adds joins the set
-    and one it removes leaves it."""
-    for unit, record in byid.items():
-        if record["tag"] == tag and holders.get(unit, record.get("holder")) is owner:
-            yield unit
-
-
-def obligation_answered(
-    rec: dict,
-    entry: dict,
-    projection: StateProjection,
-    byid: dict,
-    marks: dict,
-    registry: dict,
-    holders: dict[str, dict] | None = None,
-) -> bool:
-    """Whether the user's own state answers this obligation: one of its answering verbs'
-    conditions holds."""
-    if holders is None:
-        holders = projected_action_holders(projection, byid, registry)
-    return any(
-        verb_answers(rec, entry, verb, projection, byid, marks, registry, holders)
-        for verb in answer_verbs(entry)
-    )
+    The widget decides, in the browser, from its state as the gesture left it
+    (`module-state.md`, "Declared widget state"), and the runtime sends the word
+    on the gesture's event, so this reads the word and decides nothing again. An action
+    no longer in force says nothing, since the state it left is gone. An undo's word
+    stands only while some action of the widget stands in force: a version that
+    restates the decision retracts its actions with no gesture to carry a word, and the
+    widget asks again. A widget with no such word is unanswered, whatever its markup
+    holds, so a version takes a question it settled out of the asking with
+    `awaits.retired` rather than by writing the answer in."""
+    widget_of: dict[str, str] = {}
+    latest: dict[str, dict] = {}
+    for event in events:
+        if event["kind"] == "action":
+            widget_of[event["id"]] = event["widget"]
+            if "answered" in event and event["id"] in projection.in_force:
+                latest[event["widget"]] = event
+        elif event["kind"] == "undo" and "answered" in event:
+            if (widget := widget_of.get(event["undoes"])) is not None:
+                latest[widget] = event
+    return {
+        widget: event["answered"]
+        and (event["kind"] == "action" or bool(projection.actions_by_owner.get(widget)))
+        for widget, event in latest.items()
+    }
 
 
 def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
@@ -471,88 +415,6 @@ def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
                 record["next_actor"] = "agent"
 
 
-def container_empty(
-    owner: dict,
-    within: str,
-    when: dict,
-    byid: dict,
-    registry: dict,
-    holders: dict[str, dict],
-) -> bool:
-    """Whether the one `within` container inside `owner` whose attributes match
-    `when` holds no vocabulary members under the projected holder relation.
-
-    A predicate over the same containment the position records change, so undoing
-    or superseding one moves the arrangement and the answer in one operation.
-    """
-
-    def holder(record: dict):
-        unit = record["attrs"].get("id")
-        return holders.get(unit, record.get("holder"))
-
-    def inside(record: dict, ancestor: dict) -> bool:
-        seen = set()
-        while record is not None and id(record) not in seen:
-            if record is ancestor:
-                return True
-            seen.add(id(record))
-            record = holder(record)
-        return False
-
-    containers = [
-        record
-        for record in byid.values()
-        if record["tag"] == within
-        and inside(record, owner)
-        and matches_when(record["attrs"], when)
-    ]
-    if len(containers) != 1:
-        return False
-    container = containers[0]
-    return not any(
-        record is not container
-        and record["tag"] in registry
-        and holder(record) is container
-        for record in byid.values()
-    )
-
-
-def answering_action(
-    rec: dict,
-    entry: dict,
-    verb: str,
-    projection: StateProjection,
-    byid: dict,
-    spk: dict,
-    registry: dict,
-    *,
-    registered: bool = False,
-) -> bool:
-    """Whether an action of `verb`, in force in `projection`, answers its widget's
-    obligation: the instance asks or retains an earlier registration, and the verb's
-    own condition holds with it in place. Editable answers retain user provenance
-    after the author suppresses the request. Admission stamps `meaning.answer` on
-    exactly these."""
-    awaits = entry.get("awaits") or {}
-    return (
-        verb in answer_verbs(entry)
-        and (
-            registered
-            or matches_when(replayed_attrs(rec, projection), awaits.get("when"))
-        )
-        and verb_answers(
-            rec,
-            entry,
-            verb,
-            projection,
-            byid,
-            attribute_marks(byid, spk, registry),
-            registry,
-            projected_action_holders(projection, byid, registry),
-        )
-    )
-
-
 # For each earlier revision's reading and widget, the last answer to whether the widget
 # asked there, keyed by the event basis it read (`_ObligationReducer.inventory`). It
 # lasts as long as the reading, so a fold over an unchanged log folds that revision
@@ -590,7 +452,7 @@ class _ObligationReducer:
         self.events = [] if events is None else events
         self.prompts = sources.prompts
         self.records = [record for record, _shown in sources.asking]
-        self.positioned_holders = projected_action_holders(projection, byid, registry)
+        self.answers = gesture_answers(self.events, projection)
 
         self.exists: dict[int, bool] = {}
         self.local: dict[int, bool] = {}
@@ -612,15 +474,7 @@ class _ObligationReducer:
         )
 
     def _answered(self, record):
-        return obligation_answered(
-            record,
-            self._entry(record),
-            self.projection,
-            self.byid,
-            self.marks,
-            self.registry,
-            self.positioned_holders,
-        )
+        return self.answers.get(record["attrs"].get("id"), False)
 
     def inventory(self, settled_away: set[str], prior=None) -> list:
         """Every present source remains identifiable after completion or withdrawal."""

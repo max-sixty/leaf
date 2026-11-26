@@ -124,6 +124,7 @@ def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation
                 "widget": "thread-picks",
                 "action": "choose",
                 "detail": {"value": ["thread-option"]},
+                "answered": True,
             }
         ).encode(),
     )
@@ -175,6 +176,7 @@ PICKED = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
+    "answered": True,
 }
 
 
@@ -183,6 +185,7 @@ TURNED_DOWN = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "reject"},
+    "answered": True,
 }
 
 
@@ -460,6 +463,8 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
             "widget": "proposal",
             "action": action,
             "detail": detail,
+            # A decided suggestion says its question is answered.
+            "answered": True,
             "attempt": attempt,
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -523,6 +528,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "widget": "sug-a",
         "action": "label",
         "detail": {},
+        "answered": True,
     }
     html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
     stated = ModelPage(html, registry=registry)

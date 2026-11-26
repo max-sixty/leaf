@@ -6,14 +6,12 @@ from leaf.source.registry.contract import (
     deciding_verb,
     deciding_verbs,
     declares_string,
-    detail_schema,
     record_unit,
     registry_error,
     state_specs,
     verb_writer,
     withdrawing_outcome,
 )
-from leaf.source.registry.schema import json_validator, schema_reading
 
 
 def validate_widget_state_relations(
@@ -221,93 +219,3 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
         or "outcome" not in spec["detail"].get("required", [])
     ):
         raise registry_error("deciding-verb", path, tag, verb=deciding[0])
-
-
-def validate_answered_conditions(
-    tag: str, entry: dict, declarations: dict, path
-) -> None:
-    # Asked only after the declaration's record and retirement gates have reported
-    # their more fundamental structural errors. Each answering verb's condition reads
-    # state the verb itself keeps: a whole-widget value, an action in force, or, for a
-    # verb recording positions, the emptiness of one of its own containers (`within`,
-    # which the record gate has found declared) at or inside the widget; for any other
-    # verb keeping state per member, an action in force at each member it names
-    # (`every`), which must be an element this widget owns and identifies by id.
-    for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
-        spec = entry["verbs"][verb]
-        empty = condition.get("empty")
-        record = spec.get("record") or {}
-        if every := condition.get("every"):
-            member = declarations.get(every["member"]) or {}
-            if (
-                empty is not None
-                or spec["unit"] == "widget"
-                or record.get("kind") == "position"
-                or tag not in member.get("owners", [])
-                or "id" not in member.get("attributes", {}).get("required", [])
-            ):
-                raise registry_error(
-                    "answering-every", path, tag, verb=verb, member=every["member"]
-                )
-        elif empty is None:
-            if spec["unit"] != "widget":
-                raise registry_error("answering-part", path, tag, verb=verb)
-            if "detail" not in condition:
-                continue
-        if "detail" in condition:
-            properties = detail_schema(entry, spec).get("properties", {})
-            for field, value in condition["detail"].items():
-                if field not in properties or not json_validator(
-                    properties[field]
-                ).is_valid(value):
-                    raise registry_error(
-                        "answering-detail", path, tag, verb=verb, field=field
-                    )
-        if empty is None:
-            continue
-        if record.get("kind") != "position":
-            raise registry_error("answering-position", path, tag, verb=verb)
-        within = record["within"]
-        container = declarations[within]
-        if container.get("content") != "members":
-            raise registry_error(
-                "answering-members", path, tag, verb=verb, within=within
-            )
-        properties = container["attributes"].get("properties", {})
-        mutable = {
-            spec["record"]["attr"]
-            for _verb, spec in state_specs(container)
-            if (spec.get("record") or {}).get("kind") == "value"
-        }
-        for attr, values in empty["when"].items():
-            schema = properties.get(attr)
-            if schema is None:
-                raise registry_error(
-                    "answering-undeclared",
-                    path,
-                    tag,
-                    verb=verb,
-                    within=within,
-                    attr=attr,
-                )
-            if attr in mutable:
-                raise registry_error(
-                    "answering-mutable",
-                    path,
-                    tag,
-                    verb=verb,
-                    within=within,
-                    attr=attr,
-                )
-            for value in values:
-                if errors := sorted(json_validator(schema).iter_errors(value), key=str):
-                    raise registry_error(
-                        "answering-schema",
-                        path,
-                        tag,
-                        verb=verb,
-                        within=within,
-                        attr=attr,
-                        value=value,
-                        **schema_reading(errors[0]),
-                    )

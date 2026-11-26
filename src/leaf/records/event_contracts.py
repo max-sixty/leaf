@@ -381,6 +381,8 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
+    if "answered" in event and not registry[tag].get("awaits"):
+        return Finding("answered-unasked", values={"tag": tag})
     spec = registry[tag]["verbs"][event["action"]]
     # A created child is new: an id the markup already holds is an authored element,
     # which a user's gesture can mark or move but never write into being.
@@ -711,7 +713,17 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, absorbed)
+    if error := undo_error(event, events, absorbed):
+        return error
+    if "answered" in event:
+        # The gesture taken back was a widget's action, whose meaning names its tag.
+        target = next(e for e in events if e["id"] == event["undoes"])
+        tag = (target.get("meaning") or {}).get("state", {}).get("origin")
+        if target["kind"] != "action" or not readings.registry.get(tag, {}).get(
+            "awaits"
+        ):
+            return Finding("answered-unasked", values={"tag": tag or target["kind"]})
+    return None
 
 
 def admission_error(

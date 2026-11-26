@@ -2221,7 +2221,7 @@ flowchart TD
             <h2>Verb declarations</h2>
             <p id="verbs-lede">
               This is everything <code>lf-options</code> tells Leaf about its three
-              verbs and when its obligation counts as answered.
+              verbs and the question it asks.
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
@@ -2240,11 +2240,7 @@ flowchart TD
   "answer": {"detail": {}}
 },
 "awaits": {
-  "value": "choose",
-  "answered": {
-    "choose": {"when": {"multiple": [false]}},
-    "answer": {"when": {"multiple": [true]}}
-  }
+  "value": "choose"
 }
 </code></pre>
               <lf-note at="2"
@@ -2272,14 +2268,16 @@ flowchart TD
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> choice.</lf-note
               >
+              <lf-note at="15"
+                >Whether the question is answered is the widget's own word: after each
+                pick, Done or undo, Leaf asks the module's static <code>answered</code>,
+                which says a single choice is answered once an option is selected and a
+                multiple choice once the user presses Done, and sends the word with the
+                gesture.</lf-note
+              >
               <lf-note at="16"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
-              >
-              <lf-note at="17"
-                >A single choice is answered when an option is selected. A multiple
-                choice is answered when the user presses Done. Undo can make the
-                obligation unanswered again.</lf-note
               >
             </lf-code>
             <p id="coordinate">
@@ -2371,7 +2369,7 @@ flowchart TD
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
- "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
+ "answered": false, "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
  "id": "f541943a",
  "meaning": {"scope": "page",
    "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
@@ -2390,7 +2388,7 @@ flowchart TD
  "attention": false, "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
- "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
+ "answered": true, "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
  "id": "c47d1659",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2410,7 +2408,7 @@ flowchart TD
  "attention": true, "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-later"]},
- "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
+ "answered": true, "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
  "id": "0450d79c",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2428,19 +2426,20 @@ flowchart TD
        "additionalProperties": false}},
    "answer": null},
  "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
-{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "author": "user",
+{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "answered": true, "author": "user",
  "id": "6d9e1f06", "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
-{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "author": "user",
+{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "answered": false, "author": "user",
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
-{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
+{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "answered": false, "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
 </code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
-                <code>widget</code>, <code>action</code>, <code>detail</code>, and
-                <code>attempt</code>, its retry key. Leaf added the remaining fields.
-                <code>attention</code> records whether the action changes work the agent
-                owes.</lf-note
+                <code>widget</code>, <code>action</code>, <code>detail</code>,
+                <code>answered</code>, the widget's word on whether its question is
+                answered, and <code>attempt</code>, its retry key. Leaf added the
+                remaining fields. <code>attention</code> records whether the action
+                changes work the agent owes.</lf-note
               >
               <lf-note at="6"
                 >Leaf derives <code>meaning</code> and refuses a sender that supplies
@@ -2457,10 +2456,9 @@ flowchart TD
                 record's line in the log.</lf-note
               >
               <lf-note at="39"
-                >This pick makes the obligation's answered condition hold, so it
-                completes the obligation. <code>null</code> means it closes no thread; a
-                widget with a <code>resolves</code> attribute would name one
-                here.</lf-note
+                >The widget said this pick answers its question, so it completes the
+                obligation. <code>null</code> means it closes no thread; a widget with a
+                <code>resolves</code> attribute would name one here.</lf-note
               >
               <lf-note at="61"
                 >An undo names the gesture to withdraw. Leaf excludes that gesture when
@@ -2542,9 +2540,8 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares <code>verbs</code>,
-                <code>awaits.answered</code>, <code>creates</code>, and agent-written
-                verbs.
+                >: how a package declares <code>verbs</code>, <code>awaits</code>,
+                <code>creates</code>, and agent-written verbs.
               </li>
               <li>
                 <a href="/extending/#verbs">Registry keys</a>: the exact definition of

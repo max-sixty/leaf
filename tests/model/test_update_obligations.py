@@ -220,9 +220,11 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
                 "widget": "triage",
                 "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
+                # The queue says it is answered once its Queued column is empty.
+                "answered": emptied,
             },
         )
-        for card, rank in (("card-a", "i"), ("card-b", "r"))
+        for card, rank, emptied in (("card-a", "i", False), ("card-b", "r", True))
     ]
     append_command(
         claimed,
@@ -244,6 +246,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
+            "answered": True,
         },
     )
     receive_through(claimed, last_deliverable_seq(claimed))

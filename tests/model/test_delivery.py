@@ -312,7 +312,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
 
-    def action(widget, verb, detail):
+    def action(widget, verb, detail, **answered):
         return append_command(
             page_dir,
             {
@@ -322,13 +322,15 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
                 "widget": widget,
                 "action": verb,
                 "detail": detail,
+                **answered,
             },
         )
 
-    composing = action("choice", "choose", {"value": ["flag-first"]})
+    # The multiple choice says it is answered only while its Done stands.
+    composing = action("choice", "choose", {"value": ["flag-first"]}, answered=False)
     assert not composing["attention"]
     assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
-    completed = action("choice", "answer", {})
+    completed = action("choice", "answer", {}, answered=True)
     assert completed["attention"]
     receive_through(page_dir, completed["seq"])
     # The agent takes the answered pick on as a task on its widget.
@@ -342,14 +344,21 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
         == 0
     )
     undone = append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": completed["id"]}
+        page_dir,
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": completed["id"],
+            "answered": False,
+        },
     )
     assert undone["attention"]
     # The obligation is unfinished again, but the agent is already acting on its pick.
-    changed = action("choice", "choose", {"value": ["backfill-first"]})
+    changed = action("choice", "choose", {"value": ["backfill-first"]}, answered=False)
     assert changed["attention"]
     assert append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": changed["id"], "answered": False},
     )["attention"]
     quiet = action("draft", "edit", {"value": "Green room."})
     assert not quiet["attention"]
@@ -498,10 +507,12 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
             "widget": "permit",
             "action": "choose",
             "detail": {"value": ["publish"]},
+            "answered": True,
         },
     )
     undo = append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": done["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": done["id"], "answered": False},
     )
     report = append_command(
         page_dir,
@@ -760,6 +771,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
+            "answered": True,
         },
     )
 
@@ -840,6 +852,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "widget": "plan-choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": False,
         },
     )
     answered = append_command(
@@ -851,6 +864,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert transaction_model.claim_page(page_dir)
@@ -903,6 +917,7 @@ def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert transaction_model.claim_page(page_dir)
@@ -961,6 +976,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "widget": "thread-answer",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
 
@@ -1040,6 +1056,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "widget": "thread-commands",
             "action": "choose",
             "detail": {"value": ["restart"]},
+            "answered": True,
         },
     )
 
@@ -1100,6 +1117,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -1172,6 +1190,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
+            "answered": False,
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.

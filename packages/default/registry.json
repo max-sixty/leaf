@@ -211,19 +211,7 @@
       "when": {
         "settled": [false]
       },
-      "retired": "settled",
-      "answered": {
-        "choose": {
-          "when": {
-            "multiple": [false]
-          }
-        },
-        "answer": {
-          "when": {
-            "multiple": [true]
-          }
-        }
-      }
+      "retired": "settled"
     },
     "verbs": {
       "choose": {

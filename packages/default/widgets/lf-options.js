@@ -59,8 +59,8 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
- * whole, posted as an `answer` action and held as the obligation's closing condition
- * (`awaits.answered`). Answered is paint on the press, never a wider word. A
+ * whole, posted as an `answer` action, and the group says its question is answered
+ * while that answer stands (`static answered`). Answered is paint on the press, never a wider word. A
  * second press withdraws that answer through the widget's exact undo, reopening the
  * obligation; the set can still change after either press, and each toggle reaches the
  * agent.
@@ -214,6 +214,17 @@ customElements.define(
           ...named.map(({ text }) => markdownWords(text)),
         ].join(", ") || "No options selected"
       );
+    }
+
+    // Whether the group's question is answered, which Leaf asks after each of its
+    // gestures (`module-state.md`, "Declared widget state"): Done pressed where
+    // the group takes several options, otherwise a pick made. A selection only the
+    // markup holds answers nothing.
+    /** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"]} state @param {Element} group */
+    static answered(state, group) {
+      return group.hasAttribute("multiple")
+        ? isAnswered(state)
+        : choiceIds(state.choose?.detail?.value ?? []).length > 0;
     }
 
     /** @type {OptionAddition | undefined} */

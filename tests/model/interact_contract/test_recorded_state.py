@@ -375,14 +375,12 @@ def test_report_text_is_required_only_when_declared(page_dir):
 def test_a_declaration_leaves_out_what_its_record_and_value_decide(page_dir):
     """A verb keeps one state for the whole widget unless it names a detail field as
     its `unit`, and a position record's verb keeps one for each member it moves. A
-    record that names no `kind` is one value in its attribute. An obligation is
-    answered while its `value` verb has a state unless `answered` says when. A
-    declaration that leaves these out composes to the one that writes them, so the
+    record that names no `kind` is one value in its attribute. A declaration that
+    leaves these out composes to the one that writes them, so the
     fold, admission and each event's stored state definition read the same entry."""
     written = vocabulary(page_dir)
     registry = deepcopy(written)
     del registry["lf-suggestion"]["verbs"]["decide"]["unit"]
-    del registry["lf-suggestion"]["awaits"]["answered"]
     del registry["lf-test-task"]["verbs"]["status"]["unit"]
     del registry["lf-test-task"]["verbs"]["status"]["record"]["kind"]
     del registry["lf-board"]["verbs"]["move"]["unit"]
@@ -395,7 +393,6 @@ def test_a_declaration_leaves_out_what_its_record_and_value_decide(page_dir):
     for tag in ("lf-suggestion", "lf-test-task", "lf-board"):
         assert composed[tag] == written[tag], tag
     assert written["lf-suggestion"]["verbs"]["decide"]["unit"] == "widget"
-    assert written["lf-suggestion"]["awaits"]["answered"] == {"decide": {}}
     assert written["lf-test-task"]["verbs"]["status"]["record"]["kind"] == "value"
     assert written["lf-board"]["verbs"]["move"]["unit"] == "unit"
 

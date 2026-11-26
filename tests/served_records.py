@@ -106,6 +106,7 @@ BOTH_SIDES = (
         "widget": "ship",
         "action": "choose",
         "detail": {"value": ["ship-now"]},
+        "answered": True,
     },
     {
         "kind": "pickup",
@@ -394,6 +395,7 @@ def build() -> dict:
                         "widget": "sug-refill",
                         "action": "decide",
                         "detail": {"outcome": "accept"},
+                        "answered": True,
                     },
                 ),
             ),
@@ -407,6 +409,7 @@ def build() -> dict:
                         "widget": "ship",
                         "action": "choose",
                         "detail": {"value": ["ship-now"]},
+                        "answered": True,
                     },
                     {"kind": "comment", "text": "Rebuild the chart."},
                     {
@@ -720,6 +723,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red"]},
         "attempt": "tail-attempt-0001",
+        "answered": False,
     },
     {
         "kind": "action",
@@ -727,6 +731,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red", "blue"]},
         "attempt": "tail-attempt-0002",
+        "answered": False,
     },
     {"kind": "comment", "text": "Why both?", "attempt": "tail-attempt-0003"},
     {
@@ -735,8 +740,14 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["now"]},
         "attempt": "tail-attempt-0004",
+        "answered": True,
     },
-    {"kind": "undo", "undoes": "e2", "attempt": "tail-attempt-0005"},
+    {
+        "kind": "undo",
+        "undoes": "e2",
+        "answered": False,
+        "attempt": "tail-attempt-0005",
+    },
     {
         "kind": "pickup",
         "author": "page",
@@ -829,7 +840,6 @@ def tail_cases() -> list[dict]:
             "awaits": {
                 "when": {"active": [True]},
                 "value": "set",
-                "answered": {"set": {}},
             },
             "verbs": {
                 "set": {

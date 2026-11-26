@@ -951,7 +951,7 @@ def _resolve_obligation(
         thread = work.durable.threads.get(thread_id)
         place = settle(thread).places.get(responds) if thread else None
         newest = work.durable.newest_inputs.get(thread_id)
-        stale = place is None or (newest is not None and place != newest)
+        stale = place is None or place != newest
         if stale and isinstance(settlement, Receipt):
             return None
         if stale and not isinstance(settlement, ProviderFinal):

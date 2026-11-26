@@ -1202,18 +1202,20 @@ def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
     assert answer["answer"]["parent"] == asked["id"]
 
 
-def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir):
-    """The user changes their pick and takes the change back before the agent
-    answers. The reference the agent holds names the change, which no longer stands,
-    so a reply there is refused and the pick the undo brought back stays owed. A
-    turn's final there goes in answering nothing."""
+@pytest.mark.parametrize("changed", [True, False], ids=["changed-pick", "only-pick"])
+def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir, changed):
+    """The user takes back the pick the agent holds a reference to before it
+    answers: a change of pick, which brings the first pick back, or their only
+    pick. The reference names a pick that no longer stands, so a reply there is
+    refused and what stands stays owed. A turn's final there goes in answering
+    nothing."""
     offer_choice(page_dir)
     first = choose(page_dir, "file")
-    second = choose(page_dir, "skip")
+    taken = choose(page_dir, "skip") if changed else first
     [answer] = owed(state_json(page_dir))
-    assert answer["input"] == second["id"]
+    assert answer["input"] == taken["id"]
     append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]}
+        page_dir, {"kind": "undo", "author": "user", "undoes": taken["id"]}
     )
     with pytest.raises(Rejected) as refused:
         thread_model.post_reply(page_dir, answer["answer"], "Leaving it.")
@@ -1225,7 +1227,9 @@ def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir):
         settlement=thread_model.ProviderFinal("turn"),
     )
     assert late is not None and "responds" not in late
-    assert [item["input"] for item in owed(state_json(page_dir))] == [first["id"]]
+    assert [item["input"] for item in owed(state_json(page_dir))] == (
+        [first["id"]] if changed else []
+    )
 
 
 @pytest.mark.parametrize("again", ["message", "pick"])

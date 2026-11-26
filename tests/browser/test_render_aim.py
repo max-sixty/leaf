@@ -3840,6 +3840,76 @@ sequenceDiagram
     expect(actor).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
 
 
+def test_every_box_a_diagram_names_takes_its_own_comment(browser, serve):
+    """Every kind of diagram gives each box its author named a comment of its own,
+    keyed by its kind and its name within the box Pele draws it in. A box that holds
+    others is marked on its own frame. A name nothing tells apart, and a box Pele
+    numbers for want of a name, take the whole diagram's comment, and the diagram
+    still draws."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Every diagram's boxes",
+                """
+<h1 id="t">Boxes</h1>
+<lf-diagram id="release"><pre>
+journey
+  section Build
+    Review: 5: Me
+  section Ship
+    Review: 4: Me
+</pre></lf-diagram>
+<lf-diagram id="board"><pre>
+kanban
+  Todo
+    t1[Write docs]
+</pre></lf-diagram>
+<lf-diagram id="years"><pre>
+timeline
+  2024 : Plan
+  2024 : Build
+  2025 : Ship
+</pre></lf-diagram>
+<lf-diagram id="model"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+</pre></lf-diagram>
+<lf-diagram id="blocks"><pre>
+block-beta
+  block
+    a
+  end
+</pre></lf-diagram>
+""",
+            )
+        ),
+    )
+    expect(page.locator("lf-diagram.lf-rendered")).to_have_count(5)
+    parts = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll('lf-diagram')].map(
+          (d) => [d.id, d.lfParts.read().map((p) =>
+            [p.id, p.label, p.surface ? p.surface.localName : p.element.localName])]))"""
+    )
+    assert parts == {
+        "release": [
+            ["group:Build", "Build", "rect"],
+            ["node:Build/Review", "Build · Review", "g"],
+            ["group:Ship", "Ship", "rect"],
+            ["node:Ship/Review", "Ship · Review", "g"],
+        ],
+        "board": [
+            ["group:Todo", "Todo 1", "rect"],
+            ["node:Todo/t1", "Write docs", "g"],
+        ],
+        "years": [["node:2025", "2025 Ship", "g"]],
+        "model": [["group:Job", "Job", "g"], ["node:Job", "Job", "g"]],
+        "blocks": [["node:a", "a", "g"]],
+    }
+
+
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
     """Leaving Comment changes the mark, not which box draws it: the target draws the
     aim, a draft's mark and focus as its own outline, on the region's perimeter at the

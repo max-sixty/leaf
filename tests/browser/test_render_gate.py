@@ -1108,7 +1108,7 @@ flowchart TD
     expect(page.locator("#life svg")).to_contain_text("Preparing order")
     expect(page.locator("#exchange svg")).to_contain_text("Order handshake")
     assert set(page.locator("#life").evaluate("e => [...e.visualParts.keys()]")) == {
-        "node:A",
+        "group:A",
         "node:B",
         "node:Fetch",
         "node:Build",

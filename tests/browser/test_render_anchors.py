@@ -6249,9 +6249,9 @@ def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
     engine, request, serve
 ):
     """A script that stages a section in a new widget's shadow tree and then puts the
-    widget in place of the one whose shadow tree held the section moves the section's
-    thread to the new one: the pointer finds the thread's mark on the new section, as
-    reading the page again finds."""
+    widget in place of the one whose shadow tree held the section moves the thread on
+    the section's words to the new one: the pointer finds the thread's mark on the new
+    section's words, as reading the page again finds."""
     url = serve(
         leaf_page(
             "Staged again",
@@ -6268,13 +6268,16 @@ def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
             "author": "user",
             "revision": 1,
             "text": "About the section?",
-            "anchor": {"section": "inner"},
+            "anchor": {"section": "inner", "quote": "The staged section."},
         },
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.evaluate("() => document.getElementById('late').stage()")
     inner = "() => document.getElementById('late').shadowRoot.getElementById('inner')"
-    page.wait_for_function(f"() => ({inner})()?.classList.contains('lf-mark-el')")
+    page.wait_for_function(
+        f"""() => [...(CSS.highlights.get('lf-mark') ?? [])]
+          .some((range) => range.startContainer.parentElement === ({inner})())"""
+    )
     page.evaluate(
         """async () => {
           const host = document.createElement('lf-late-stage');

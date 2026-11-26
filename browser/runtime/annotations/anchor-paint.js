@@ -549,16 +549,17 @@ export function createAnchorPaint({
 
   // A passage's mark previews its threads, as its margin entry does (`threadPreview`),
   // from the one hit a press reads too (`markHit`), wherever the hand stands. The
-  // preview owner hears only where
-  // the user's own input put the pointer, so a mark a scroll or a repaint carries under
-  // a still pointer shows nothing, as the owner holds for elements, and a pointer
-  // carrying a press, as in selecting words, rests on no mark.
-  // The owner is told the piece the preview stands by: the passage's segment the
-  // pointer came onto the thread's marks over, held while it stays on them, so the preview stands once by the line first pointed at as the pointer
-  // crosses the pieces an inline element or a shadow root splits a passage into
-  // (preview.js, `pointRange`). One range from the first piece to the last collapsed
-  // where a passage ran into a shadow tree (readings/passages.js, `rangeOf`). The owner reads a
-  // standing preview again each time it is told its range, so it is told again only
+  // preview owner hears only where the user's own input put the pointer, so a mark a
+  // scroll or a repaint carries under a still pointer shows nothing, as the owner holds
+  // for elements, and a pointer carrying a press, as in selecting words, rests on no
+  // mark.
+  // The owner is told the piece of the passage the pointer first came onto, and that
+  // piece is kept while the pointer stays on the thread's marks. So the preview stands
+  // once, by the line first pointed at, as the pointer crosses the pieces an inline
+  // element or a shadow root splits a passage into (preview.js, `pointRange`). One
+  // range from the passage's first piece to its last would collapse where the passage
+  // runs into a shadow tree (readings/passages.js, `rangeOf`). The owner reads a
+  // standing preview again each time it is told its piece, so it is told again only
   // when the threads under the pointer change: telling it on each move drew 512
   // threads' lines on every move over a word 512 threads mark.
   /** @type {{id: string, where: Range} | null} */

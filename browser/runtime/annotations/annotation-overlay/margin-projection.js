@@ -562,7 +562,7 @@ export function createMarginProjection({
     const subject = lone?.subject ?? entry.title;
     // A lone item's own words, such as a to-do's title, which its subject does not say.
     const own = lone?.label ?? null;
-    const said = own && !subject?.includes(own) ? `, ${own}` : "";
+    const said = own && !subject.includes(own) ? `, ${own}` : "";
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`;
     const down =
       place?.position == null
@@ -727,15 +727,15 @@ export function createMarginProjection({
   // consulting contributor DOM.
   /** @param {Element} control */
   function presentedControl(control) {
-    if (control?.checkVisibility()) return control;
-    if (!control?.matches(".lf-margin-entry")) return null;
+    if (control.checkVisibility()) return control;
+    if (!control.matches(".lf-margin-entry")) return null;
     const { key, owner } = contributionEntryRecord(control);
     if (!key || !owner) return null;
     return (
       visibleMarginEntries().find(
         (candidate) =>
-          contributionEntryRecord(candidate)?.key === key &&
-          contributionEntryRecord(candidate)?.owner === owner &&
+          contributionEntryRecord(candidate).key === key &&
+          contributionEntryRecord(candidate).owner === owner &&
           candidate.checkVisibility(),
       ) ?? null
     );
@@ -822,7 +822,7 @@ export function createMarginProjection({
   /** @param {HTMLElement | null | undefined} next */
   function holdTabStop(next) {
     const acts = (/** @type {HTMLElement} */ row) =>
-      contributionEntryRecord(row)?.behavior !== "status";
+      contributionEntryRecord(row).behavior !== "status";
     let stop = next ?? null;
     if (stop && !acts(stop)) {
       const rows = availableRows();
@@ -957,7 +957,7 @@ export function createMarginProjection({
   function arriveAtCluster(host, node, cause, left) {
     hoveredHost = null;
     refreshHighlight();
-    const control = node.closest?.(".lf-margin-entry");
+    const control = node.closest(".lf-margin-entry");
     if (
       !(cause === "step" || (cause === "move" && !pressLed())) ||
       !control ||
@@ -1004,7 +1004,7 @@ export function createMarginProjection({
       if (!under(left, host) || (node && under(node, host))) continue;
       nextRender(refreshHighlight);
       const current = host.lfEntry;
-      if (current && expandedOptionsKey === current.key && !inRetainedContext(node))
+      if (expandedOptionsKey === current.key && !inRetainedContext(node))
         setOptionsOpen(current, false);
     }
   });
@@ -1362,7 +1362,7 @@ export function createMarginProjection({
         const takePointerOwnership = (/** @type {PointerEvent} */ event) => {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
-            ?.closest?.(".lf-margin-entry");
+            ?.closest(".lf-margin-entry");
           hoveredHost = control && created.contains(control) ? created : null;
           hoveredControl = hoveredHost ? (control ?? null) : null;
           refreshHighlight();
@@ -1469,7 +1469,7 @@ export function createMarginProjection({
           !owner.checkVisibility() &&
           forcedKey !== fresh.key &&
           expandedOptionsKey !== fresh.key &&
-          !hosts.get(fresh.key)?.more?.hidden
+          !hosts.get(fresh.key)?.more.hidden
         ) {
           transferThreadFocus = threadOwnerHeld;
           unfoldOpenThreadOwner(fresh);
@@ -2066,7 +2066,7 @@ export function createMarginProjection({
         !seatedOnPage(threadIdOf(choice))
       );
     };
-    const shown = previewOpen() && card.selection()?.entry?.key;
+    const shown = previewOpen() && card.selection()?.entry.key;
     return (
       pageInventory.find((entry) => entry.key === shown && here(entry)) ??
       pageInventory.find(here) ??
@@ -2120,7 +2120,7 @@ export function createMarginProjection({
     awaitingRow = null;
     const choice = threadReading(entry);
     if (choice && openInlineThread(threadIdOf(choice), { unfold: false })) return;
-    if (previewOpen() && card.selection()?.entry?.key !== entry.key) closePreview();
+    if (previewOpen() && card.selection()?.entry.key !== entry.key) closePreview();
     awaitingRow = node;
   }
   function accompanyShownRow() {
@@ -2151,7 +2151,7 @@ export function createMarginProjection({
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
     if (host) {
-      if (previewOpen() && host.lfEntry?.key !== card.selection()?.entry?.key)
+      if (previewOpen() && host.lfEntry?.key !== card.selection()?.entry.key)
         closePreview();
       return;
     }
@@ -2160,7 +2160,7 @@ export function createMarginProjection({
       if (previewOpen() && !inChrome(active)) closePreview();
       return;
     }
-    if (previewOpen() && card.selection()?.entry?.key === entry.key) return;
+    if (previewOpen() && card.selection()?.entry.key === entry.key) return;
     if (byKeyboard()) accompany(active, entry);
     else if (previewOpen()) closePreview();
   }
@@ -2213,7 +2213,7 @@ export function createMarginProjection({
   function captureCurrentLocation() {
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
-    const control = active?.closest?.(".lf-margin-entry");
+    const control = active?.closest(".lf-margin-entry");
     const selected = card.selection();
     const entry = selected?.entry ?? host?.lfEntry;
     if (!entry) return null;
@@ -2230,8 +2230,8 @@ export function createMarginProjection({
         : control && host?.contains(control)
           ? {
               kind: "entry",
-              key: contributionEntryRecord(control)?.key,
-              owner: contributionEntryRecord(control)?.owner ?? null,
+              key: contributionEntryRecord(control).key,
+              owner: contributionEntryRecord(control).owner ?? null,
             }
           : null,
     };
@@ -2303,8 +2303,8 @@ export function createMarginProjection({
     const host = hosts.get(entry.key);
     const control = clusterMarginEntries(host).find(
       (candidate) =>
-        contributionEntryRecord(candidate)?.key === focus.key &&
-        (contributionEntryRecord(candidate)?.owner ?? null) === focus.owner,
+        contributionEntryRecord(candidate).key === focus.key &&
+        (contributionEntryRecord(candidate).owner ?? null) === focus.owner,
     );
     if (!control) return false;
     if (focused() === control) return true;

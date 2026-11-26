@@ -916,9 +916,11 @@ export function createAnnotationInventory({
       for (const item of offered.reading.readings) {
         const kind = item.kind ?? "action";
         if (!KINDS[kind]) throw new TypeError(`Unknown margin reading kind: ${kind}`);
+        // A package's reading is never a marker, so never a thread, whatever else it
+        // carries.
         group.items.push({
-          marker: false,
           ...item,
+          marker: false,
           owner: offered.key,
           kind,
           activate: () => offered.registration.activateReading(item.id),

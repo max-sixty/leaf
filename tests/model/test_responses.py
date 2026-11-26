@@ -1222,11 +1222,6 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
         if invalid == "source"
         else source + "<!-- edited -->"
     )
-    options = {
-        "source": {},
-        "html": {},
-        "title": {"title": ""},
-    }[invalid]
     before = events_model.read_events(page_dir)
     with pytest.raises(Refused):
         thread_model.post_response(
@@ -1235,7 +1230,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
             if invalid == "html"
             else "Invalid",
             identity=identity,
-            **options,
+            title="" if invalid == "title" else None,
         )
     assert events_model.read_events(page_dir) == before
     assert files_model.latest_revision(page_dir) == before_revision

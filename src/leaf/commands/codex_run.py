@@ -66,6 +66,7 @@ from leaf.base.leases import (
 from leaf.base.refusals import Refused
 from leaf.base.state import LoadedCopy, flocked
 from leaf.commands.session import PageTick, Watch, read_watch_pass
+from leaf.pages.render_gate.command import message_check
 from leaf.records.transaction import owned_pages
 
 
@@ -122,7 +123,7 @@ def run_adapter(
             )
 
         if app_server is not None:
-            connection = TaskConnection(app_server, harness.session)
+            connection = TaskConnection(app_server, harness.session, message_check)
             resources.callback(connection.stop)
             connection.start()
         else:

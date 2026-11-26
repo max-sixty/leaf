@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import globals from "globals";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import kernel from "./browser/runtime/kernel-registry.json" with { type: "json" };
@@ -336,6 +337,124 @@ const LIBRARY_MESSAGE =
 const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url));
 const runtimeName = (file) =>
   path.relative(runtimeRoot, file).split(path.sep).join("/");
+
+// The runtime's import layers, top first (`architecture/import-layers`). A module names
+// only modules of its own layer and of the layers listed after it, whether it imports
+// them or names their types in its JSDoc. The entry points form the top layer and stay
+// at the runtime's top level, since pages, packages, the server and the render checks
+// load them by served path. Each other layer is a directory of the runtime. The library
+// of shared web code (`lib/`) keeps its served path and belongs to the bottom layer.
+// A module anywhere else fails too: move it into a layer no higher than any module that
+// names it and no lower than any module it names.
+//
+// When a module names one above it, make the name point down, by passing the value or
+// callback in or by moving what it needs to a layer below both. Where a module types a
+// collaborator it is handed by its provider's type, it declares the members it calls
+// instead, as a typedef beside it; the provider meets that typedef, and the type check
+// checks it where the provider is passed in. Where the module itself stands in the
+// wrong layer, move the module instead.
+const runtimeLayers = [
+  {
+    name: "Entry points and diagnostics",
+    paths: [
+      "bootstrap.js",
+      "prepaint.js",
+      "check-api.js",
+      "validation.js",
+      "widget-api.js",
+      "portable-api.js",
+      "stage-integration.js",
+      "age.js",
+    ],
+  },
+  { name: "Floating panel, page dialogs and page keys", paths: ["panel/"] },
+  { name: "Annotation presentation and composing", paths: ["annotations/"] },
+  { name: "Application and widget host", paths: ["host/"] },
+  {
+    name: "Page features: annotation inventory, contributions, version travel",
+    paths: ["features/"],
+  },
+  { name: "Records, history and undo", paths: ["records/"] },
+  { name: "Page readings, places and paint", paths: ["readings/"] },
+  { name: "Transport, errors and notices", paths: ["transport/"] },
+  { name: "DOM, geometry, focus and the key register", paths: ["dom/"] },
+  { name: "State and registry", paths: ["state/"] },
+  { name: "Primitives and the library", paths: ["base/", "lib/"] },
+];
+// A layer naming a module that no longer exists would place a later file of that name,
+// so each name is checked against the directory as the config loads.
+for (const { paths } of runtimeLayers)
+  for (const name of paths)
+    if (!fs.existsSync(path.join(runtimeRoot, name)))
+      throw new Error(`eslint.config.mjs places a missing runtime module: ${name}`);
+// The layer a module stands in, by its path under `runtime/`: a path names a file
+// exactly and a directory by everything under it.
+const layerOf = (name) =>
+  runtimeLayers.findIndex(({ paths }) =>
+    paths.some((place) =>
+      place.endsWith("/") ? name.startsWith(place) : name === place,
+    ),
+  );
+// The modules a comment's JSDoc names: each `import("…")`, and each `@import … from "…"`,
+// whose braces may span lines. The ambient declarations of `browser/types/` stand
+// outside the runtime, so a type a global names (`HTMLElementTagNameMap`, an element's
+// `lf*` properties) is not read here; those declarations name only types in `base/`,
+// `lib/` or `browser/types/`, which every layer may.
+const JSDOC_IMPORTS = [
+  /\bimport\(\s*(["'`])([^"'`]+)\1\s*\)/gu,
+  /@import\b[^@]*?\bfrom\s+(["'])([^"']+)\1/gu,
+];
+export const importLayersRule = {
+  meta: { type: "problem", schema: [] },
+  create(context) {
+    const file = runtimeName(context.filename);
+    const here = layerOf(file);
+    const placed = (name) => runtimeLayers[name].name;
+    /** @param {{node?: unknown, loc?: unknown}} at @param {string} specifier */
+    const check = (at, specifier) => {
+      // A bare or site-absolute specifier names no runtime module; one that leaves the
+      // runtime names browser/types/ or a sibling directory, and JSON is data.
+      if (here < 0 || !specifier.startsWith(".")) return;
+      const target = path.posix.join(path.posix.dirname(file), specifier);
+      if (target.startsWith("../") || target.endsWith(".json")) return;
+      const there = layerOf(target);
+      if (there < 0 || there >= here) return;
+      context.report({
+        ...at,
+        message: `${placed(here)} names only its own layer and the layers below it (\`runtimeLayers\`, eslint.config.mjs); ${specifier} stands in ${placed(there)}.`,
+      });
+    };
+    /** @param {any} node */
+    const source = (node) =>
+      node?.type === "Literal"
+        ? node.value
+        : node?.type === "TemplateLiteral" && node.expressions.length === 0
+          ? node.quasis[0].value.cooked
+          : null;
+    /** @param {any} node */
+    const named = (node) => {
+      const specifier = source(node.source);
+      if (typeof specifier === "string") check({ node }, specifier);
+    };
+    return {
+      Program(node) {
+        if (here < 0)
+          context.report({
+            node,
+            message: `${file} stands in no layer: it is an entry point or stands in a layer's directory (\`runtimeLayers\`, eslint.config.mjs).`,
+          });
+        for (const comment of context.sourceCode.getAllComments())
+          for (const pattern of JSDOC_IMPORTS)
+            for (const [, , specifier] of comment.value.matchAll(pattern))
+              check({ loc: comment.loc }, specifier);
+      },
+      ImportDeclaration: named,
+      ImportExpression: named,
+      ExportNamedDeclaration: (node) => node.source && named(node),
+      ExportAllDeclaration: named,
+    };
+  },
+};
 
 const pagePaintAttributeValues = new Map(Object.entries(PAGE_PAINT_ATTRIBUTE));
 
@@ -1093,6 +1212,7 @@ const architecturePlugin = {
     "layer-returns": layerReturnsRule,
     "top-level-await": topLevelAwaitRule,
     "spelled-keys": spelledKeysRule,
+    "import-layers": importLayersRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1780,6 +1900,7 @@ export default [
     rules: {
       ...ownerBoundary,
       "architecture/root-state-ownership": "error",
+      "architecture/import-layers": "error",
     },
   },
   {

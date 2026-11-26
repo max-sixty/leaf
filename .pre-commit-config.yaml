@@ -85,17 +85,6 @@ repos:
           depcruise --config .config/dependency-cruiser.mjs --output-type err browser/runtime
         pass_filenames: false
         files: ^(browser/(leaf\.js|runtime/.*\.js)|\.config/dependency-cruiser\.mjs)$
-      # The layers again, over the types a module's JSDoc names; dependency-cruiser reads
-      # JSDoc only through a TypeScript parser below 7.
-      - id: dependency-cruiser-types
-        name: dependency-cruiser (types)
-        language: node
-        additional_dependencies: [dependency-cruiser@18.3.1, typescript@6.0.3]
-        entry: >-
-          depcruise --config .config/dependency-cruiser-types.mjs --output-type err
-          browser/runtime
-        pass_filenames: false
-        files: ^(browser/runtime/.*\.js|\.config/dependency-cruiser(-types)?\.mjs)$
       # JavaScript's vulture: the modules, exports and types nothing reads, and
       # import cycles (`.config/knip.js`). Whole-tree; files only wakes it.
       - id: knip

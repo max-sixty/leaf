@@ -27,9 +27,10 @@
  * with a span for each token and a gutter cell for each number, a page of large
  * documents would take seconds and gigabytes to show the one in view. The Markdown
  * preview renders a file,
- * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. The
- * source and Markdown renderers reconcile unchanged text across source updates, the
- * source only in the rows a new text changes (`rewrite`). HTML lives in a separate
+ * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. A new
+ * text rewrites only the source rows it changes (`rewrite`) and the preview's text it
+ * changes, keeping each block it leaves as it was drawn (`drawnFrom`). HTML lives in a
+ * separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
@@ -41,6 +42,7 @@ import {
   focusDestination,
   afterPresentation,
   pageLinks,
+  dressCode,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -63,6 +65,14 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 // tabs share (text-document.css).
 const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
+// A node of a rendering as its markup, the same for nodes that draw the same.
+/** @param {Node} node */
+const drawnMarkup = (node) =>
+  node instanceof Element ? node.outerHTML : `${node.nodeType}:${node.textContent}`;
+
+// The key a heading of the Markdown preview takes before its address (`lfElementsFor`).
+const HEADING = "preview:";
+
 // Each reading shows the same document whatever text its source holds, so its key is
 // also its identity (records/projection/data.js), with the file's where the value names
 // one, since one document can show several files in turn, as an editor's open file. A
@@ -73,6 +83,35 @@ const mark = (node, key, file) => {
   keeps(node, "data-lf-datum", key);
   keeps(node, "data-lf-identity", file ? `${key}:${file}` : key);
 };
+
+// A heading's address in a file, as GitHub writes it for a link from the file to the
+// heading: its words lowercased, without punctuation, each space a hyphen, and a count
+// after an address an earlier heading took (github-slugger).
+/** @param {Iterable<Element>} headings @returns {Map<string, Element>} */
+function headingSlugs(headings) {
+  /** @type {Map<string, Element>} */
+  const slugs = new Map();
+  /** @type {Map<string, number>} */
+  const taken = new Map();
+  for (const heading of headings) {
+    const base = (heading.textContent ?? "")
+      .toLowerCase()
+      .replace(
+        /[^\p{Letter}\p{Mark}\p{Decimal_Number}\p{Letter_Number}\p{Connector_Punctuation} -]/gu,
+        "",
+      )
+      .replace(/ /g, "-");
+    let slug = base;
+    while (taken.has(slug)) {
+      const count = (taken.get(base) ?? 0) + 1;
+      taken.set(base, count);
+      slug = `${base}-${count}`;
+    }
+    taken.set(slug, 0);
+    slugs.set(slug, heading);
+  }
+  return slugs;
+}
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
 // are cheap to draw and colour, and a megabyte of text makes about 150 runs.
@@ -796,6 +835,36 @@ function drawLater(doc, value, rendering) {
 
 class TextDocument extends LeafElement {
   rendering = 0;
+  // The markup each block of the Markdown preview was drawn from (`show`).
+  /** @type {WeakMap<Node, string>} */
+  drawnFrom = new WeakMap();
+  // The page's links and pictures, but a link the file makes to one of its own headings
+  // names that heading in this document's preview (`lfElementsFor`), as GitHub's
+  // rendering of the file answers it, rather than an element of the page.
+  /** @type {import("/runtime/lib/markdown.js").MarkdownLinks} */
+  links = {
+    ...pageLinks,
+    link: (href) =>
+      href.length > 1 && href.startsWith("#") && this.id
+        ? { href: `#${this.id}:${HEADING}${href.slice(1)}` }
+        : pageLinks.link?.(href),
+  };
+
+  // A key names a reading's datum (`mark`), or, after `preview:`, a heading of the
+  // Markdown preview by its address in the file (`headingSlugs`), so a heading's
+  // address never takes a datum's.
+  /** @param {string} key @returns {Element[]} */
+  lfElementsFor(key) {
+    const preview = this.view?.preview;
+    if (key.startsWith(HEADING)) {
+      if (!(preview instanceof HTMLDivElement)) return [];
+      const headings = preview.querySelectorAll("h1, h2, h3, h4, h5, h6");
+      const heading = headingSlugs(headings).get(key.slice(HEADING.length));
+      return heading ? [heading] : [];
+    }
+    const datum = this.querySelector(`[data-lf-datum="${CSS.escape(key)}"]`);
+    return datum ? [datum] : [];
+  }
   // The language the text is coloured in (`codeLanguage`), read at setup while the
   // written `<pre>` that may name it stands: the first draw replaces the `<pre>`, and a
   // revision that names another language brings a new element. Only a document naming
@@ -866,7 +935,9 @@ class TextDocument extends LeafElement {
     else return;
     panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
-  // The press shows only while the box cuts lines off, as a thread's quote label does.
+  // The press shows only while the box cuts lines off, as a thread's quote label does,
+  // and not where it scrolls to them instead, as it does filling a pane
+  // (text-document.css).
   measureCut() {
     if (!this.cut) return;
     const { panel, box } = this.cut;
@@ -874,7 +945,8 @@ class TextDocument extends LeafElement {
       "hidden",
       panel.hasAttribute("hidden") ||
         panel.hasAttribute("data-lf-all") ||
-        panel.scrollHeight <= panel.clientHeight + 1,
+        panel.scrollHeight <= panel.clientHeight + 1 ||
+        !/^(hidden|clip)$/.test(getComputedStyle(panel).overflowY),
     );
   }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
@@ -1122,8 +1194,35 @@ class TextDocument extends LeafElement {
       const previewNode = view.preview;
       if (previewNode instanceof HTMLDivElement) {
         const template = document.createElement("template");
-        template.innerHTML = renderMarkdown(source, pageLinks, false);
-        setRenderedChildren(previewNode, template.content.childNodes);
+        template.innerHTML = renderMarkdown(source, this.links, false);
+        // A block whose markup is unchanged stands in the new rendering as a copy of
+        // the block already drawn, its code coloured and formulas typeset
+        // (`dressCode`), so the reconciliation keeps that block and any selection in
+        // it, as it keeps the unchanged text of a changed one.
+        const fresh = [...template.content.childNodes];
+        const markups = fresh.map(drawnMarkup);
+        /** @type {Map<string, ChildNode[]>} */
+        const standing = new Map();
+        for (const node of previewNode.childNodes) {
+          const markup = this.drawnFrom.get(node);
+          if (markup === undefined) continue;
+          const nodes = standing.get(markup);
+          if (nodes) nodes.push(node);
+          else standing.set(markup, [node]);
+        }
+        /** @type {Map<string, number>} */
+        const taken = new Map();
+        const blocks = fresh.map((node, at) => {
+          const markup = markups[at] ?? "";
+          const count = taken.get(markup) ?? 0;
+          const drawn = standing.get(markup)?.[count];
+          taken.set(markup, count + 1);
+          return drawn ? drawn.cloneNode(true) : node;
+        });
+        setRenderedChildren(previewNode, blocks);
+        previewNode.childNodes.forEach((node, at) =>
+          this.drawnFrom.set(node, markups[at] ?? ""),
+        );
       } else if (
         previewNode instanceof HTMLIFrameElement &&
         (!previewNode.isConnected ||
@@ -1148,6 +1247,10 @@ class TextDocument extends LeafElement {
           ? this.getBoundingClientRect().height
           : null;
       setChildren(this, [view.figure]);
+      // The preview's code is coloured and its formulas typeset, as a Markdown body's
+      // are, once it stands in the page, whose face decides its colour.
+      const dressed =
+        previewNode instanceof HTMLDivElement ? dressCode(previewNode) : null;
       this.showLone();
       if (this.listed) this.refit();
       // Reports the draw: marks its text's items for whoever hosts the widget, in the
@@ -1162,8 +1265,10 @@ class TextDocument extends LeafElement {
       if (rendering !== this.rendering || !this.isConnected) return;
       this.classList.toggle("lf-rendered", true);
       // Measured once drawn, since until then the host wears the source face
-      // (reading.css).
+      // (reading.css), and before the dressing lands, in the task that drew the
+      // document, so a reload on the Source tab moves nothing.
       this.holdSource(firstBox);
+      await dressed;
     } catch (error) {
       if (rendering !== this.rendering || !this.isConnected) return;
       failSoft(this, error, source);

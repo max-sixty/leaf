@@ -357,7 +357,37 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * flow, which an exhibit breaks out through, so it is not one. A container takes no
  * width from what it holds, so a framed box placed where its width would come from its
  * content (an auto flex basis, a `fit-content` track) is only as wide as its other
- * parts there; the page gives it a width. */
+ * parts there; the page gives it a width.
+ *
+ * A pane's body is such a place where the author centres it with an `auto` inline
+ * margin, since a grid item with one takes its width from what it holds. So a body
+ * fills the pane's width (`stretch`), and its own `max-inline-size` and margins place
+ * it there, as a block's do in flow. An element the browser sizes by what it shows,
+ * such as an image, a video or a control, holds no widget, so as a whole body it is no
+ * container and keeps its own size, up to the pane's width (below). */
+:where([data-lf-reading-role="pane"])
+  > :not(
+    header,
+    footer,
+    img,
+    video,
+    audio,
+    canvas,
+    iframe,
+    embed,
+    object,
+    svg,
+    input,
+    select,
+    textarea,
+    button
+  ) {
+  container-type: inline-size;
+  /* Firefox lacks `stretch` in the inline axis (notes/browser-support.md, "A pane's
+   * body sized by `stretch` in Firefox"). */
+  inline-size: -moz-available;
+  inline-size: stretch;
+}
 /* The body's top inset is named because a body that scrolls on its own holds a sticking
  * box that far below its scrollport's edge, where the rows it scrolls still show above
  * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
@@ -365,6 +395,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
   --lf-pane-top: var(--lf-pane-inset);
   padding: var(--lf-pane-top) var(--lf-pane-inset) var(--lf-pane-inset);
-  container-type: inline-size;
   --lf-block-frame: 1;
+  /* Firefox lacks `stretch` (above). */
+  max-inline-size: -moz-available;
+  max-inline-size: stretch;
 }

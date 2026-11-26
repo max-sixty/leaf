@@ -108,6 +108,27 @@ def _fence_words(state) -> None:
         token.info = ""
 
 
+def _file_formulas(state) -> None:
+    """A file's inline formula, a code span with a `$` against each backtick, as a code
+    span in the math language without the dollars (lib/markdown.js, `file_formulas`)."""
+    for block in state.tokens:
+        if block.type != "inline" or not block.children:
+            continue
+        children = block.children
+        for at in range(1, len(children) - 1):
+            before, code, after = children[at - 1 : at + 2]
+            if (
+                code.type == "code_inline"
+                and before.type == "text"
+                and after.type == "text"
+                and before.content.endswith("$")
+                and after.content.startswith("$")
+            ):
+                before.content = before.content[:-1]
+                after.content = after.content[1:]
+                code.attrJoin("class", "language-math")
+
+
 @lru_cache(maxsize=3)
 def markdown_dialect(message: bool, html: bool = False):
     """The browser's safe Markdown dialect for one of its readings, with its linkify
@@ -134,6 +155,8 @@ def markdown_dialect(message: bool, html: bool = False):
         # once its `code` rule is off, so the rule stays on and reads nothing.
         parser.block.ruler.at("code", lambda state, start, end, silent: False)
         parser.core.ruler.after("block", "fence_words", _fence_words)
+    else:
+        parser.core.ruler.before("text_join", "file_formulas", _file_formulas)
     assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})
     # The browser accepts syntax first, then removes unsafe link destinations while

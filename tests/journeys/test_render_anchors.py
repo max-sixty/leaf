@@ -251,15 +251,17 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     }"""
     )
     # Refusing a highlight needs evidence independent of browser resolution. A
-    # regression that detaches ordinary file-readable prose must fail this sweep.
+    # regression that detaches prose the file's reading says once must fail this sweep.
     passages = passages_model.page_passages(
         structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
         read_page_registry(serve.page_dir).registry,
     )
     for anchor in result["nonexact"]:
-        located = {key: value for key, value in anchor.items() if key != "detached"}
-        assert anchor_capture_model.resolve_quote(passages, located) is None, (
-            f"{source.stem}: browser detached a file-readable passage: {anchor}"
+        found = anchor_capture_model.copies(
+            passages, anchor["quote"], anchor.get("section")
+        )
+        assert len(found) != 1, (
+            f"{source.stem}: browser detached a passage the file says once: {anchor}"
         )
     assert result["attempted"] > 0, f"{source.stem}: the passage sweep found nothing"
     assert result["missed"] == [], (

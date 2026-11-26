@@ -3,6 +3,14 @@
 Revisions may change or remove any historical subject. A thread follows its
 surviving section when its passage or part disappears, and detaches when its
 section leaves the page. The original anchor remains in the append-only log.
+
+A passage disappears where the file's reading of the predecessor finds the quote's
+words and the candidate's finds none (`anchor_capture.copies`). The reading only
+approximates the drawn page, and a miss costs little: words the reading still finds
+but the page no longer shows once stand on their section in the browser all the same
+(`resolveAnchor`). The move makes that fallback durable, so a later version that says
+the words again elsewhere doesn't take the thread there, and tells the agent
+(`relocated-anchor`, `rewritten_from`).
 """
 
 from functools import cache
@@ -13,7 +21,7 @@ from leaf.base.files import list_revisions, stamped_version
 from leaf.base.findings import Finding
 from leaf.log.events import build_threads
 from leaf.log.projection import page_reading
-from leaf.source.anchor_capture import resolve_quote
+from leaf.source.anchor_capture import copies
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import visual_parts
 from leaf.source.revision_artifact import RevisionArtifact, read_revision
@@ -82,8 +90,9 @@ def revision_reanchors(
             and section not in current_passages().retired
             and section not in current_passages().gone
         )
+        # A selection captured as detached names no copy to lose.
         quoted = anchor.get("quote") and not (
-            anchor.get("source") or anchor.get("datum")
+            anchor.get("source") or anchor.get("datum") or anchor.get("detached")
         )
         if surviving and anchor.get("visual"):
             part = anchor["visual"]
@@ -93,10 +102,9 @@ def revision_reanchors(
                 current.document.by_id.get(section, {}), current.registry
             )
         elif quoted and (surviving or not section):
-            missing = (
-                resolve_quote(previous_passages(), anchor) is not None
-                and resolve_quote(current_passages(), anchor) is None
-            )
+            missing = bool(
+                copies(previous_passages(), anchor["quote"], section)
+            ) and not copies(current_passages(), anchor["quote"], section)
         else:
             missing = bool(section) and not surviving
         if not missing:

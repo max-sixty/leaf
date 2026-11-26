@@ -447,8 +447,8 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     registry = vocabulary_model.load_registry(d)
     authored = page_passages(document, registry).text
     assert authored.strip(), f"{source.stem} has no file passage for this sweep"
-    # Nine overlapping anchors exercise section, prefix, and suffix resolution across
-    # a compact authored passage without forcing filler prose into the page.
+    # Nine overlapping anchors exercise section resolution across a compact authored
+    # passage without forcing filler prose into the page.
     assert len(anchors) >= 9, (
         f"only {len(anchors)} anchors over {source.stem}; sweep too thin"
     )

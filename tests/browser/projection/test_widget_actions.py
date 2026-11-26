@@ -731,21 +731,21 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     assert json.loads(positions["before"]["thread-widget"])["parent"] == ""
 
 
-def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, serve):
-    """A decision detaches the thread on what it removed, by element or by passage.
+def test_a_decision_takes_the_threads_off_what_it_took_off_the_page(browser, serve):
+    """A decision takes the thread off what it removed: a thread on the element it
+    removed detaches, and one on a passage it removed stands on the section around it.
 
     An element anchor asks whether its section is still on the user's page, and for a
     suggestion that settles to nothing — an insertion refused — the markup's presence is
     the wrong answer: the thread would read as attached while its outline drew nothing.
-    Pending, the wrapper is a thing to point at; refused, the thread detaches like any
-    passage the decision removed.
+    Pending, the wrapper is a thing to point at; refused, the thread detaches.
 
     ✓ and ✗ are the visible affordances, but a proposal a user half-agrees with wants a
     sentence, not a verdict: the proposed words are ordinary page text, so selecting them
     and commenting works like anywhere else. Then the decision they eventually take has
-    to reach the thread — rejecting retires the text the comment was made on, and a
-    comment pointing into markup nobody can see has to read as detached rather than as a
-    live mark that jumps nowhere."""
+    to reach the thread — rejecting retires the text the comment was made on, so the
+    comment marks no words nobody can see, and stands on the suggestion, its quote
+    marked as changed, as for words a revision rewrote."""
     url = serve(SUGGESTION_PAGE)
     on_element = append_carried_log_record(
         serve.page_dir,
@@ -815,9 +815,9 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     unfolded_button(
         suggestion_control(page, "sug-refill", "reject", visible=False)
     ).click()
-    expect(
-        thread_head(page, serve.page_dir, skipping=on_element["id"])
-    ).to_have_attribute("data-lf-detached", "")
+    head = thread_head(page, serve.page_dir, skipping=on_element["id"])
+    expect(head).not_to_have_attribute("data-lf-detached", "")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
     )
@@ -848,7 +848,8 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     )
     page = open_page(browser, url)
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    expect(thread_head(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    head = thread_head(page, serve.page_dir)
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
     assert painted(page, "lf-mark") == "", (
         "the first pass anchored inside a slot the user's decision had retired"
     )
@@ -917,7 +918,8 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         )
         == "Settled: Lax cookie"
     ), "fixture is not exercising the case — the label the slot hides never rendered"
-    expect(thread_head(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    head = thread_head(page, serve.page_dir)
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
     assert painted(page, "lf-mark") == "", (
         "a quote matched inside the half the user accepted away, because the "
         "label there declared itself the page speaking"

@@ -51,7 +51,7 @@ from leaf.records.event_contracts import append_admitted, append_all_admitted
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
 from leaf.records.work import page_subject
-from leaf.source.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
+from leaf.source.anchor_capture import Drawing, capture_anchor, drawn_part
 from leaf.source.data import read_data
 from leaf.source.obligation_sources import local_obligation_entry
 from leaf.source.passages import holds_html, message_markup
@@ -244,8 +244,9 @@ def current_anchor(
     revision: int | None = None,
     *,
     transaction=None,
-) -> tuple[int, dict | None]:
-    """Capture one optional target against the page's active reading."""
+) -> tuple[int, dict | None, Finding | None]:
+    """Capture one optional target against the page's active reading: the revision,
+    the anchor, and the note to give beside it (`anchor_capture.capture_anchor`)."""
     if revision is None:
         from leaf.records.revisioning import activate_source
 
@@ -261,21 +262,12 @@ def current_anchor(
             )
         revision = require_revision(page_dir)
     if not (quote or section or part):
-        return revision, None
+        return revision, None, None
 
     reading = read_revision(page_dir, revision).under(require_registry(page_dir))
-    return revision, _capture_anchor(
+    return revision, *_capture_anchor(
         page_dir, events, reading, quote, section, part, revision
     )
-
-
-class UnsaidQuote(Rejected):
-    """A quote the file's reading of `revision` lacks, which the drawn page may show
-    (`render_gate.drawn_anchor`)."""
-
-    def __init__(self, findings: list[Finding], revision: int):
-        super().__init__(findings)
-        self.revision = revision
 
 
 def _capture_anchor(
@@ -286,12 +278,11 @@ def _capture_anchor(
     section: str,
     part: str,
     revision: int,
-) -> dict:
-    """Capture a target against one exact document reading. A quote the reading
-    lacks is refused as `UnsaidQuote`, which a caller may answer from the drawn page."""
+) -> tuple[dict, Finding | None]:
+    """Capture a target against one exact document reading, with its note."""
     page = page_reading(reading, events, revision)
     try:
-        anchor = capture_anchor(
+        return capture_anchor(
             page.document,
             page.registry,
             quote,
@@ -305,16 +296,14 @@ def _capture_anchor(
             if section
             else None
         )
-        found = [
-            Finding(
-                "unanchorable",
-                values={"revision": revision, "error": str(err), "held": held},
-            )
-        ]
-        if isinstance(err, Unsaid):
-            raise UnsaidQuote(found, revision) from err
-        raise Rejected(found) from err
-    return anchor
+        raise Rejected(
+            [
+                Finding(
+                    "unanchorable",
+                    values={"revision": revision, "error": str(err), "held": held},
+                )
+            ]
+        ) from err
 
 
 # How a message names the page's render reading as the drawing that read its visuals
@@ -334,12 +323,11 @@ class UndrawnPart(Exception):
 
 class Drawn(NamedTuple):
     """What the page drew of `revision` in a browser, where the files couldn't settle a
-    thread's target (`render_gate.drawn_anchor`): the `anchor` a quote takes there, or
-    the `drawing` of the page's visuals that a `--part` is checked against."""
+    `--part` (`render_gate.drawn_anchor`): the `drawing` of the page's visuals the part
+    is checked against."""
 
     revision: int
-    anchor: dict | None = None
-    drawing: Drawing | None = None
+    drawing: Drawing
 
 
 def _drawn_part(
@@ -393,20 +381,21 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there, and a `--part` is checked
-    against what the page drew (`anchor_capture.drawn_part`).
+    against what the page drew (`anchor_capture.drawn_part`). A quote is stored as
+    given, and the record carries the note on where the page shows it where the file's
+    reading doesn't find its words once (`unplaced-quote`).
 
-    Two targets need the drawn page, which the command draws and passes back as
-    `drawn` (`render_gate.drawn_anchor`), since the render gate stands above this
-    module. A quote the file's reading lacks is refused as `UnsaidQuote`, and a part in
-    a visual no render reading of the version read as `UndrawnPart`. For the same
-    reason the command passes `check`, which runs the message's HTML before the page
-    lease is taken."""
+    A part in a visual no render reading of the version read needs the drawn page,
+    which the command draws and passes back as `drawn` (`render_gate.drawn_anchor`),
+    since the render gate stands above this module; until then it is raised as
+    `UndrawnPart`. For the same reason the command passes `check`, which runs the
+    message's HTML before the page lease is taken."""
     title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
     if check is not None and (markup := drawn_markup(body)):
         check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
-        return open_thread(
+        record, found = open_thread(
             page_dir,
             page,
             body,
@@ -417,6 +406,8 @@ def cmd_comment(
             obligation=obligation,
             drawn=drawn,
         )
+    note(*found)
+    return record
 
 
 def open_thread(
@@ -431,26 +422,23 @@ def open_thread(
     obligation: bool = False,
     identity: dict | None = None,
     drawn: Drawn | None = None,
-) -> dict:
+) -> tuple[dict, list[Finding]]:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
-    describes, from a `body` already checked (`checked_text`); `identity` names the
-    agent and session where the writer isn't the agent's own process, as Leaf's clerk
-    is (`clerk.apply_answer`). `drawn` is what the page drew of the revision the
-    command's first attempt read, where the files couldn't settle the target
-    (`render_gate.drawn_anchor`)."""
+    describes, from a `body` already checked (`checked_text`), and the notes to give
+    beside it; `identity` names the agent and session where the writer isn't the
+    agent's own process, as Leaf's clerk is (`clerk.apply_answer`). `drawn` is what
+    the page drew of the revision the command's first attempt read, where the files
+    couldn't settle a part (`render_gate.drawn_anchor`)."""
     events = page.events
-    if drawn is not None and drawn.anchor is not None:
-        revision, anchor = drawn.revision, drawn.anchor
-    else:
-        revision, anchor = current_anchor(
-            page_dir,
-            events,
-            quote,
-            section,
-            part,
-            None if drawn is None else drawn.revision,
-            transaction=page,
-        )
+    revision, anchor, quoted = current_anchor(
+        page_dir,
+        events,
+        quote,
+        section,
+        part,
+        None if drawn is None else drawn.revision,
+        transaction=page,
+    )
     placed = (
         _drawn_part(
             page_dir, revision, section, part, None if drawn is None else drawn.drawing
@@ -480,9 +468,9 @@ def open_thread(
     if title is not None:
         event["title"] = title
     record = append_admitted(page, event)[0]
-    # Said once the message stands, which a later gate could still refuse.
-    note(*twice, *([placed] if placed else []))
-    return record
+    # The caller says them once the message stands, which a later gate could still
+    # refuse.
+    return record, [*twice, *(found for found in (placed, quoted) if found)]
 
 
 class OwedAnswer(Exception):
@@ -1112,10 +1100,11 @@ def _compose_and_append(
                 part,
                 reply_revision,
             )
+    quoted = None
     if prospective_anchor is not None:
-        revision, anchor = reply_revision, prospective_anchor
+        revision, (anchor, quoted) = reply_revision, prospective_anchor
     elif moving:
-        revision, anchor = current_anchor(
+        revision, anchor, quoted = current_anchor(
             page_dir,
             events,
             quote,
@@ -1199,7 +1188,7 @@ def _compose_and_append(
     else:
         record, _ = append_admitted(page, event)
     # Said once the message stands, which a later gate could still refuse.
-    note(*twice)
+    note(*twice, *([quoted] if quoted else []))
     if title is not None and before and before["title"] not in (None, title):
         # A thread keeps the first title it was given (`events.build_threads`), so
         # the agent hears which one stands.

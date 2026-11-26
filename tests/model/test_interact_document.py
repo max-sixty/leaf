@@ -86,7 +86,6 @@ from leaf.serving import revision_delivery as revision_delivery_model
 from leaf.serving import samples as samples_model
 from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.page import read_served_page
-from leaf.source import anchor_capture as anchor_capture_model
 from leaf.source import capture_refusals as capture_refusals_model
 from leaf.source import data as data_model
 from leaf.source import data_contracts as data_contracts_model
@@ -827,19 +826,6 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
     assert labelled.text == "Status Ready"
     assert labelled.verbatim[("page", None, 0)] == [{"text": "Status Ready"}]
-
-
-def test_an_anchor_resolves_by_context_the_browser_keeps():
-    """Context is trimmed of the collapse class alone, as the browser trims it, so a
-    character only Python calls whitespace stays part of the context the browser
-    captured. U+0085 before the first of two equal words is all that tells them apart."""
-    passages = passages_model.page_passages(
-        structure_model.SourceDocument(f'<p id="p">\u0085repeat {"x" * 40} repeat</p>'),
-        {},
-    )
-    anchor = {"quote": "repeat", "prefix": "\u0085", "suffix": "x" * 24}
-
-    assert anchor_capture_model.resolve_quote(passages, anchor) == 1
 
 
 def test_file_readings_follow_browser_tree_recovery():

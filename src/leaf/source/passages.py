@@ -20,11 +20,10 @@ from leaf.source.registry.kernel import kernel_passages
 from leaf.source.structure import VOID_TAGS, SourceDocument, pre_body
 
 # ---------- passages: the text an anchor points at ----------
-# The runtime resolves an anchor against the DOM; `leaf thread create` writes one down
-# against the file. The two have to read the same page or the anchor lands somewhere it
-# was never made, so this mirrors the runtime's capture (readings/passages.js) rather than
-# approximating it: the same skip list, the same block-boundary space, the same collapse,
-# the same caps.
+# The runtime resolves an anchor against the DOM, and is the only reader of its words;
+# `leaf thread create` reads the file for advice on a quote (`anchor_capture`). This
+# follows the runtime's capture (readings/passages.js), the same skip list, the same
+# block-boundary space, the same collapse, so that advice is near what the page draws.
 #
 # What the file cannot know is what a widget's module will write, and the registry is
 # where that is declared rather than guessed at per widget. These facts carry what can
@@ -55,12 +54,11 @@ from leaf.source.structure import VOID_TAGS, SourceDocument, pre_body
 #
 # A module writes between the children of the element it upgrades — a column's heading, a
 # milestone's chips, a diff's gutters — so an opaque element and each of its children is
-# fenced. A quote never spans a fence, which turns "the page has words here that the file
-# doesn't" from an anchor that silently detaches in the user's browser into a refusal
-# at the moment it is written, addressed to the one party who can still fix it.
-# Native editing values and readonly islands within them are independent passage
-# cells too. Context outside a field never borrows its mutable value; a selected
-# passage inside it remains readable. Browser and file resolution share those fences.
+# fenced. A copy across a fence is no copy (`anchor_capture.occurrences`), since the
+# page has words there the file doesn't, so a quote across one draws the note that the
+# file doesn't find it. Native editing values and readonly islands within them are
+# independent passage cells too. Context outside a field never borrows its mutable
+# value; a selected passage inside it remains readable.
 # A textarea's child text initializes its native value, rather than supplying visible
 # document words. Neither reading uses that default as a passage or surrounding context.
 #

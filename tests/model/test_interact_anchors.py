@@ -53,6 +53,18 @@ from leaf.source.data import read_data
 from leaf.source.revision_artifact import read_artifact, read_revision
 
 
+def unplaced(result) -> int | None:
+    """How many times Leaf's reading of the page's files found a posted thread's
+    quote, where it noted that it didn't find it once (`unplaced-quote`), else None."""
+    assert result.exit_code == 0, result.output
+    notes = [
+        finding["values"]["found"]
+        for finding in json.loads(result.output).get("findings", [])
+        if finding["code"] == "unplaced-quote"
+    ]
+    return notes[0] if notes else None
+
+
 def undelivered(page_dir, input_id: str) -> str:
     """How a refusal names the answer to an input no receipt has carried, on a page
     this session has not claimed: no reference exists yet, so it names the wait that
@@ -93,47 +105,6 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     )
 
 
-QUOTES = json.loads(Path(__file__).parents[1].joinpath("quote_cases.json").read_text())
-
-
-@pytest.mark.parametrize("case", QUOTES["cases"], ids=lambda case: case["id"])
-def test_a_quote_resolves_where_the_browser_resolves_it(case):
-    """A stored quote resolves to the passage the browser's `findQuote` resolves it to,
-    told by how many of its section's letters stand before it
-    (`tests/quote_cases.json`)."""
-    from leaf.source.anchor_capture import resolve_quote
-
-    passages = passages_model.page_passages(
-        structure_model.SourceDocument(f"<main>{case['markup']}</main>"),
-        case.get("registry"),
-    )
-    at = resolve_quote(passages, case["anchor"])
-    lo = passages.spans[case["anchor"]["section"]][0]
-    before = None if at is None else len("".join(passages.text[lo:at].split()))
-    assert before == case["before"]
-
-
-def test_an_empty_quote_neighbour_is_an_exact_boundary():
-    """The browser treats a missing side as the page edge, never a wildcard."""
-    from leaf.source.anchor_capture import resolve_quote
-
-    anchor = {"section": "labels", "quote": "Alpha", "suffix": "Beta Alpha Beta"}
-    previous = passages_model.page_passages(
-        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta</p>')
-    )
-    revised = passages_model.page_passages(
-        structure_model.SourceDocument('<p id="labels">Start Alpha Beta Alpha Beta</p>')
-    )
-    assert resolve_quote(previous, anchor) == 0
-    assert resolve_quote(revised, anchor) is None
-    anchor = {"section": "labels", "quote": "Beta", "prefix": "Alpha Beta Alpha"}
-    revised = passages_model.page_passages(
-        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta End</p>')
-    )
-    assert resolve_quote(previous, anchor) is not None
-    assert resolve_quote(revised, anchor) is None
-
-
 def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
     result = comment(
         published(page_dir), "--quote", " \t\n ", "--text", "Which passage?"
@@ -146,9 +117,9 @@ def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
 
 
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
-    """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
-    from leaf.source.anchor_capture import resolve_quote
-
+    """A revision moves no quote: a selection captured as detached stays detached
+    when a revision leaves one copy of its words, and an agent's quote of words the
+    files hold several times is stored with a note on where the page shows it."""
     repeated = "<p>Repeated passed text.</p>"
     unique = "<p>Unique passed text.</p>"
     original = PAGE.replace(
@@ -157,10 +128,14 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
     )
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
-    refused = comment(
+    noted = comment(
         page_dir, "--section", "runs", "--quote", "passed", "--text", "Which?"
     )
-    assert refused.exit_code != 0 and "3 times" in refused.output
+    assert noted.exit_code == 0, noted.output
+    record = json.loads(noted.output)
+    assert record["anchor"] == {"section": "runs", "quote": "passed"}
+    [note] = record["findings"]
+    assert note["code"] == "unplaced-quote" and note["values"]["found"] == 3
     anchor = {
         "section": "runs",
         "quote": "passed",
@@ -189,15 +164,14 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
             "Unique.",
         ).output
     )
+    assert exact["anchor"] == {"section": "runs", "quote": "Unique passed text."}
+    assert "findings" not in exact
     revised = original.replace(repeated * 2 + unique, repeated + unique)
     (page_dir / "index.html").write_text(revised)
     publish(page_dir)
     threads = build_threads(events_model.read_events(page_dir), {})
     assert threads[detached["id"]]["anchor"] == anchor
     assert threads[exact["id"]]["anchor"] == exact["anchor"]
-    passages = passages_model.page_passages(structure_model.SourceDocument(revised))
-    assert resolve_quote(passages, anchor) is None
-    assert resolve_quote(passages, exact["anchor"]) is not None
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
@@ -221,31 +195,10 @@ def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
     assert event["text"] == "dark for how long?"
 
 
-def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
-    """The context is the whole reason a later version can't hand the comment to another
-    copy of the same words, so a written anchor stores it exactly as a selection does."""
-    event = json.loads(
-        comment(
-            published(page_dir), "--quote", "Verify, then flip", "--text", "ok"
-        ).output
-    )
-    anchor = event["anchor"]
-    # Read out of the whole collapsed text and stopped by the fences around the option
-    # row — the runtime writes controls between options, words this reading doesn't
-    # hold. The runtime reads its side back the same way, and only a full match counts.
-    assert (
-        anchor["prefix"] == "risk: low Backfill first"
-    )  # the option's own chip band, then its title
-    assert anchor["suffix"] == ". My take: do this first"
-
-
 def test_a_written_comment_quotes_the_whole_passage(page_dir):
     """A quote is the passage the page marks, so the capture writes the whole of it
-    however long, and the neighbour after it is the page's next words rather than the
-    rest of the passage. Cut at four hundred characters, both were wrong together: the
-    comment landed on the passage's opening, and the suffix that was meant to tell one
-    copy from another was text the quote itself already held. The runtime captures the
-    same anchor from the DOM, so a cap here would have been a cap there too."""
+    however long. Cut at four hundred characters, the comment landed on the passage's
+    opening."""
     passage = (
         "The cutoff moves whenever the backfill runs, and the guard reads a column "
         "the writer never fills, so the batch replays from the top on each release, "
@@ -263,53 +216,43 @@ def test_a_written_comment_quotes_the_whole_passage(page_dir):
     event = json.loads(
         comment(published(page_dir), "--quote", passage, "--text", "x").output
     )
-    anchor = event["anchor"]
-    assert anchor["quote"] == passage
-    assert anchor["suffix"] == "Deploys pause overnight."
+    assert event["anchor"] == {"section": "plan", "quote": passage}
 
 
-def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
-    """A suffix clipped at the section's edge could be one character, a bar an identical
-    copy elsewhere might clear; the whole reading gives a closing passage a full side.
-    The section the anchor names scopes where the search may land, never what surrounds
-    the passage."""
-    two = PAGE.replace(
-        "</section>", "  <p>Deploys pause overnight.</p>\n</section>"
-    ).replace(
-        "</main>",
-        '<section id="rollout">\n  <p>The rollout resumes.</p>\n</section>\n</main>',
-    )
-    (page_dir / "index.html").write_text(two)
-    event = json.loads(
-        comment(
-            published(page_dir), "--quote", "Deploys pause overnight.", "--text", "x"
-        ).output
-    )
-    assert event["anchor"]["section"] == "plan"
-    assert event["anchor"]["suffix"] == "The rollout resumes."
-
-
-def test_a_comment_refuses_a_quote_the_version_does_not_hold(page_dir):
+def test_a_quote_the_files_do_not_hold_posts_with_a_note(page_dir):
+    """Only the drawn page says whether it shows the words, so the quote is stored
+    as given, on no section, and the note says where the page shows the thread if it
+    doesn't show them once either."""
     result = comment(published(page_dir), "--quote", "ship it on Friday", "--text", "x")
-    assert result.exit_code != 0
-    assert "doesn't say" in result.output
+    assert unplaced(result) == 0
+    assert json.loads(result.output)["anchor"] == {
+        "section": None,
+        "quote": "ship it on Friday",
+    }
+    assert "in Threads" in result.output
 
 
-def test_a_comment_refuses_a_quote_the_version_holds_twice(page_dir):
-    """Which copy was meant is a question with an answer, and there is someone to ask.
-    The browser has to guess because the user has already gone; this doesn't."""
+def test_a_quote_the_files_hold_twice_posts_with_a_note(page_dir):
+    """Which copy was meant is a question with an answer, and there is someone to ask,
+    so the note says how to settle it."""
     twice = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Ship dark.</p>")
     (page_dir / "index.html").write_text(twice)
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
-    assert result.exit_code != 0
-    assert "2 times" in result.output
+    assert unplaced(result) == 2
+    assert json.loads(result.output)["anchor"] == {
+        "section": None,
+        "quote": "Ship dark",
+    }
     assert "name the section" in result.output and "--section" not in result.output
     # Naming a section is one of the two ways out it offers.
     scoped = comment(
         page_dir, "--quote", "Ship dark", "--section", "flag-first", "--text", "x"
     )
-    assert scoped.exit_code == 0, scoped.output
-    assert json.loads(scoped.output)["anchor"]["section"] == "flag-first"
+    assert unplaced(scoped) is None
+    assert json.loads(scoped.output)["anchor"] == {
+        "section": "flag-first",
+        "quote": "Ship dark",
+    }
 
 
 def test_a_section_the_version_has_no_id_for_is_refused(page_dir):
@@ -669,9 +612,9 @@ def test_a_section_scopes_where_a_quote_may_land(page_dir):
         "--text",
         "x",
     )
-    assert elsewhere.exit_code != 0
     # Named as the section's silence, not the page's: the page does say it, one option over.
-    assert "§ flag-first doesn't say 'Verify, then flip'" in elsewhere.output
+    assert unplaced(elsewhere) == 0
+    assert "in § flag-first" in elsewhere.output
     held = comment(
         page_dir,
         "--quote",
@@ -681,7 +624,7 @@ def test_a_section_scopes_where_a_quote_may_land(page_dir):
         "--text",
         "x",
     )
-    assert held.exit_code == 0, held.output
+    assert unplaced(held) is None
     assert json.loads(held.output)["anchor"]["section"] == "backfill-first"
 
 
@@ -691,8 +634,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     on that diagram does in the browser, and that is the anchor offered instead."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
-    assert body.exit_code != 0
-    assert "doesn't say 'graph LR'" in body.output and "name the section" in body.output
+    assert unplaced(body) == 0 and "name the section" in body.output
     element = comment(
         page_dir, "--section", "flow", "--text", "the retry edge is missing"
     )
@@ -1471,9 +1413,9 @@ def test_detach_after_a_reader_already_activated_the_removal(page_dir):
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
     """A module can replace or insert words the file's reading cannot model. A quote
-    spanning one of those joins would resolve to nothing in the
-    user's browser, so it's refused here, where someone can still do something about
-    it. Either side of the join quotes fine."""
+    spanning one of those joins would resolve to nothing in the user's browser, so the
+    note says so, where someone can still do something about it. Either side of the
+    join quotes fine."""
     fenced = FLOW_PAGE.replace(
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>',
         "  <p>Before the diagram.</p>\n"
@@ -1489,10 +1431,10 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
         "--text",
         "x",
     )
-    assert across.exit_code != 0 and "doesn't say" in across.output
+    assert unplaced(across) == 0
     assert (
-        comment(page_dir, "--quote", "Before the diagram.", "--text", "x").exit_code
-        == 0
+        unplaced(comment(page_dir, "--quote", "Before the diagram.", "--text", "x"))
+        is None
     )
 
 
@@ -1575,17 +1517,16 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     assert json.loads(later.output)["anchor"]["section"] == identity
 
 
-def test_a_quote_of_words_an_edit_replaced_is_refused(page_dir):
+def test_a_quote_of_words_an_edit_replaced_is_noted(page_dir):
     """The authored body is still in the file, but the user is no longer reading
-    it — posted, the comment would detach in front of them. Refused at write time,
-    the retired slot's own treatment; a quote merely reaching into the replaced body
-    from outside is the same detachment."""
+    it, so the note says the page doesn't show those words; a quote merely reaching
+    into the replaced body from outside is the same."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert result.exit_code != 0 and "doesn't say" in result.output
+    assert unplaced(result) == 0
     across = comment(page_dir, "--quote", "Plan Adds --dry-run to every", "--text", "x")
-    assert across.exit_code != 0 and "doesn't say" in across.output
+    assert unplaced(across) == 0
 
 
 # The draft rewritten under `restated`, taking back whatever the user wrote over it.
@@ -1598,20 +1539,19 @@ RESTATED = DRAFTED.replace(
 def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     """`restated` retracts the edit, so replay stops painting it and the reading
     returns to the version as authored: the new body quotable, the retracted edit's
-    text nowhere — not even a refusal names it, since nothing removed it from this
-    version's page. A fresh edit on the new version stands again."""
+    text nowhere. A fresh edit on the new version stands again."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     (page_dir / "index.html").write_text(RESTATED)
     noted = stamp(page_dir, "took the pen back")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "the rest apply live", "--text", "x")
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
     gone = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     edit(page_dir, "Fine, but default the flag on.", version=2)
     again = comment(page_dir, "--quote", "default the flag on", "--text", "x")
-    assert again.exit_code == 0, again.output
+    assert unplaced(again) is None
 
 
 def test_repeating_restatement_retracts_a_new_edit_without_blocking_revision(page_dir):
@@ -1622,8 +1562,8 @@ def test_repeating_restatement_retracts_a_new_edit_without_blocking_revision(pag
     assert stamp(page_dir, "took the pen back").exit_code == 0
     edit(page_dir, "Keep a fresh dry-run choice.", version=2)
     assert (
-        comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x").exit_code
-        == 0
+        unplaced(comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x"))
+        is None
     )
 
     (page_dir / "index.html").write_text(
@@ -1633,11 +1573,11 @@ def test_repeating_restatement_retracts_a_new_edit_without_blocking_revision(pag
     assert repeated.exit_code == 0, repeated.output
     assert files_model.latest_revision(page_dir) == 3
     assert (
-        comment(page_dir, "--quote", "the rest apply live", "--text", "x").exit_code
-        == 0
+        unplaced(comment(page_dir, "--quote", "the rest apply live", "--text", "x"))
+        is None
     )
     gone = comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
 
 
 def test_a_record_without_captured_state_does_not_block_or_rewrite_a_revision(page_dir):
@@ -1663,10 +1603,10 @@ def test_a_record_without_captured_state_does_not_block_or_rewrite_a_revision(pa
         DRAFTED.replace("<title>t</title>", "<title>t · revised</title>")
     )
     result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert result.exit_code == 0, result.output
+    assert unplaced(result) is None
     assert files_model.latest_revision(page_dir) == 2
     gone = comment(page_dir, "--quote", "Words no layer speaks", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     assert (
         next(
             event
@@ -1690,9 +1630,9 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     noted = stamp(page_dir, "changes elsewhere")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
     gone = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
 
 
 def test_words_a_widget_shows_apart_are_quotable_like_any_other_passage(page_dir):
@@ -1718,26 +1658,25 @@ def test_words_a_widget_shows_apart_are_quotable_like_any_other_passage(page_dir
 
 def test_a_decision_retires_its_losing_slot_from_comments_reach(page_dir):
     """The user's accept removes lf-old from the page (the browser's anchor pass
-    skips it), so a quote into it is refused naming the decision — posted, it would
-    detach in front of them. The surviving slot quotes as ever, and a re-decision
-    moves the line: the reading follows the log the way replay does, the last word
-    in force."""
+    skips it), so the note says the page doesn't show a quote into it. The surviving
+    slot quotes as ever, and a re-decision moves the line: the reading follows the log
+    the way replay does, the last word in force."""
     suggested(page_dir)
     decide(page_dir, "accept")
     gone = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     kept = comment(page_dir, "--quote", "camera shows it half-empty", "--text", "x")
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
 
     decide(page_dir, "reject")
     gone = comment(page_dir, "--quote", "camera shows it half-empty", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     kept = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
 
 
 def test_a_section_inside_a_retired_slot_is_refused(page_dir):
@@ -1789,10 +1728,9 @@ def test_a_settled_replacement_still_answers_an_element_anchor(page_dir):
 
 
 def test_a_decision_settles_which_copy_a_quote_names(page_dir):
-    """The browser counts occurrences on the page as decided, so the file has to
-    count the same way — otherwise a passage unique in front of the user reads
-    as ambiguous here, and an anchor allowed on the wrong count would carry context
-    from words they no longer see."""
+    """The browser counts occurrences on the page as decided, so the file counts the
+    same way: otherwise a passage unique in front of the user reads as ambiguous
+    here, and loses the section it stands in."""
     twice = SUGGESTED.replace(
         "<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Refill every feeder each morning.</p>"
     )
@@ -1801,12 +1739,12 @@ def test_a_decision_settles_which_copy_a_quote_names(page_dir):
     ambiguous = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert ambiguous.exit_code != 0 and "2 times" in ambiguous.output
+    assert unplaced(ambiguous) == 2
     decide(page_dir, "accept")
     result = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert result.exit_code == 0, result.output
+    assert unplaced(result) is None
     assert json.loads(result.output)["anchor"]["section"] == "plan"
 
 
@@ -1828,7 +1766,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
     result = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert result.exit_code == 0, result.output
+    assert unplaced(result) is None
 
 
 def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
@@ -1838,7 +1776,7 @@ def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     suggested(page_dir)
     decide(page_dir, "accept")
     retired = ["--quote", "Refill every feeder each morning.", "--text", "x"]
-    assert comment(page_dir, *retired).exit_code != 0
+    assert unplaced(comment(page_dir, *retired)) == 0
 
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
@@ -1846,8 +1784,7 @@ def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    result = comment(page_dir, *retired)
-    assert result.exit_code == 0, result.output
+    assert unplaced(comment(page_dir, *retired)) is None
 
 
 def test_what_the_user_never_sees_is_not_quotable(page_dir):
@@ -1859,8 +1796,7 @@ def test_what_the_user_never_sees_is_not_quotable(page_dir):
     result = comment(
         published(page_dir), "--quote", "Backfill cutover plan", "--text", "x"
     )
-    assert result.exit_code != 0
-    assert "doesn't say" in result.output
+    assert unplaced(result) == 0
 
 
 def test_a_comment_can_point_at_an_unstamped_live_revision(page_dir):

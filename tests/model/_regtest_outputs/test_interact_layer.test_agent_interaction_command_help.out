@@ -124,10 +124,12 @@ Usage: leaf thread create [OPTIONS] PAGE
   Use --obligation when the next move is the user's: the message waits on On Me
   until their reply or settling reaction. A question whose answers you can list
   takes a widget that asks in the text instead, such as an `lf-options` choice,
-  which waits on the user until they pick. Refuses a quote the active revision
-  does not show, or shows more than once; words a page's script draws are found
-  on the page as the browser draws it. Refuses a --part the page would show
-  nowhere. The comment's id is the thread's.
+  which waits on the user until they pick. A --quote is found in the page as the
+  browser draws it: where it doesn't stand there once, the thread stands on
+  --section, or in Threads without one, and the result notes where Leaf's
+  reading of the files doesn't find it once. Refuses a --section the active
+  revision doesn't hold, and a --part the page would show nowhere. The comment's
+  id is the thread's.
 
 Options:
   --quote TEXT  passage text from the active revision

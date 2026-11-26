@@ -161,7 +161,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         }""")
         assert captured == {
             "words": status,
-            "anchor": {"section": "goal", "quote": status},
+            "anchor": {"section": "goal", "quote": status, "prefix": "", "suffix": ""},
             "kind": "passage",
             "exact": True,
         }
@@ -183,7 +183,12 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
             if event["kind"] == "comment"
             and event["text"] == f"Discuss {status} status"
         ]
-        assert comment["anchor"] == {"section": "goal", "quote": status}
+        assert comment["anchor"] == {
+            "section": "goal",
+            "quote": status,
+            "prefix": "",
+            "suffix": "",
+        }
         page.keyboard.press("Escape")
         return comment
 
@@ -228,14 +233,18 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     check_generated_status(revised, "active")
     check_thread_quotes([blocked, active])
     # Each thread's view quotes what it was about, the one whose words the revision
-    # took away detached.
-    for comment, said, detached in (
-        (blocked, "blocked", True),
-        (active, "active", False),
+    # took away standing on the task, its words marked as changed.
+    for comment, said, status in (
+        (blocked, "blocked", "Changed"),
+        (active, "active", None),
     ):
         head = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote-head")
         expect(head.locator(".lf-thread-quote")).to_have_text(said)
-        assert (head.get_attribute("data-lf-detached") is not None) is detached
+        assert head.get_attribute("data-lf-detached") is None
+        if status:
+            expect(head.locator(".lf-anchor-status")).to_have_text(status)
+        else:
+            expect(head.locator(".lf-anchor-status")).to_have_count(0)
     assert [
         event for event in read_events(serve.page_dir) if event["kind"] == "comment"
     ] == [blocked, active]

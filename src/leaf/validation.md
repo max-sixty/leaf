@@ -166,19 +166,25 @@ written for.
 
 ## Passages
 
-The browser resolves an anchor and records it in the log, so `leaf thread create` reads
-the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
-header comment owns that reading: what the registry's `verbatim` and `retired-when`
-contribute, and where a fence stops a quote. Both runtimes take
-whitespace collapse from the kernel's `$passages`.
+The browser is the one reader of a stored quote's words: it finds them in the page it
+draws (`readings/anchor-resolution.js`, `resolveAnchor`), and stands a quote it can't
+place once on its section, or nowhere without one. A selection's anchor carries the
+context that tells its copy apart, and an agent's carries none, so only a sole copy
+answers it (`findQuote`).
 
-A quote never spans a fence, so a passage the file cannot read is refused when the
-comment is written rather than detaching later in the user's browser; anchor on the
-widget's element (`--section`) instead. A file-side quote must also be unique in its
-declared section, and widget source, retired text and repeated passages are refused.
-Direct members declared by `owners` with `content: markup` retain their own prose
-reading inside a data widget; the rest of its source body remains withheld. A widget
-preserves those authored member nodes independently of its source rendering.
+`leaf thread create` checks what the files settle, the `--section` it names, and
+stores the quote as given. It also reads the active revision's file the way the anchor
+pass reads the DOM, as advice: where that reading finds the words once, it names their
+enclosing section when the agent named none, and where it finds them zero or several
+times, the command notes where the page shows the thread if it doesn't show them once
+either (`anchor_capture.capture_anchor`, `unplaced-quote`). A revision moves an open
+thread to its section where that reading finds its quote in the predecessor and not in
+the candidate (`source_history.revision_reanchors`). `passages.py`'s header comment owns
+the reading: what the registry's `verbatim` and `retired-when` contribute, and where a
+fence stops a quote. Both runtimes take whitespace collapse from the kernel's
+`$passages`. Direct members declared by `owners` with `content: markup` retain their own
+prose reading inside a data widget; the rest of its source body remains withheld. A
+widget preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 

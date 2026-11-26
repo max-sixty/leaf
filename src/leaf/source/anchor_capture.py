@@ -1,5 +1,16 @@
-"""Capture authored anchor requests against the file-side passage reading, and check a
-visual part an agent names against what the page drew of its visual."""
+"""Capture authored anchor requests against the page's structure, and check a visual
+part an agent names against what the page drew of its visual.
+
+The browser is the only reader of anchored words: it finds a stored quote in the page
+it draws (`readings/anchor-resolution.js`, `resolveAnchor`), and where it can't place
+the words once, it shows the thread on the quote's section, or detaches it where the
+anchor names none. So a capture here checks only what the files settle, the section
+an agent names, and stores the quote it was given. The file's reading of the page
+(`passages.page_passages`) stands in for the drawn page only as advice: it names the
+section that encloses words it finds once, says where it finds them zero or several
+times (`unplaced-quote`), and tells a revision which quotes it took out (`copies`,
+`source_history.revision_reanchors`). A miss costs a note or a move the browser's
+fallback makes anyway, so the reading is held to no exact parity with the browser's."""
 
 import bisect
 import functools
@@ -9,19 +20,7 @@ from typing import NamedTuple
 from leaf.base.findings import Finding
 from leaf.source.passages import COLLAPSE_CHARS, collapse, page_passages
 from leaf.source.registry.contract import visual_parts
-from leaf.source.registry.kernel import kernel_passages
 from leaf.source.structure import SourceDocument
-
-# Initial context shared with browser capture. The CLI already requires a unique
-# quote; a browser selection identifies an occurrence and may grow this context to
-# its semantic fences until the shared resolver identifies that exact span. Both
-# readers accept that complete context, and neither guesses by document order.
-CONTEXT = kernel_passages()["context"]
-
-
-class Unsaid(ValueError):
-    """The file's reading of the page doesn't hold the quote, which the page may still
-    draw, as a page's script draws words of its own (`render_gate.drawn_anchor`)."""
 
 
 def enclosing_section(owner: list, lo: int, hi: int):
@@ -97,45 +96,12 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
     return found
 
 
-def _context(passages, lo: int, hi: int) -> tuple[str, str]:
-    """The trimmed words before `lo` and after `hi`, each reaching only to the nearest
-    passage-cell fence: the file side of `readings/passages.js.neighbourhood`, which capture
-    stores and resolution compares against. The text is collapsed, so the space is
-    the only collapse character left to trim; Python's own whitespace is wider."""
-    text, fences = passages.text, passages.fences
-    before = text[max([0, *[f for f in fences if f <= lo]]) : lo].strip(" ")
-    after = text[hi : min([len(text), *[f for f in fences if f >= hi]])].strip(" ")
-    return before, after
-
-
-def resolve_quote(passages, anchor: dict) -> int | None:
-    """Resolve a stored quote by exact context, or a sole surviving occurrence.
-
-    This is the file side of `readings/passages.js.findQuote`: document order never
-    disambiguates repeated words, and a passage-cell fence cannot be crossed.
-    An observation already detached at capture cannot become exact by losing siblings.
-    """
-    if anchor.get("detached"):
-        return None
-    quote = collapse(anchor["quote"])
-    lo, hi = 0, len(passages.text)
-    if section := anchor.get("section"):
-        span = passages.spans.get(section)
-        if span is None:
-            return None
-        lo, hi = span
-    hits = occurrences(passages, quote, lo, hi)
-    exact = []
-    for start, end in hits:
-        before, after = _context(passages, start, end)
-        prefix, suffix = anchor.get("prefix", ""), anchor.get("suffix", "")
-        if (before.endswith(prefix) if prefix else not before) and (
-            after.startswith(suffix) if suffix else not after
-        ):
-            exact.append(start)
-    if len(exact) == 1:
-        return exact[0]
-    return hits[0][0] if not exact and len(hits) == 1 else None
+def copies(passages, quote: str, section: str | None) -> list[tuple[int, int]]:
+    """Where the file's reading finds `quote` (`occurrences`), within `section` where
+    one is named, or nowhere where the section holds no words the file reads, as a
+    widget's data body doesn't."""
+    span = passages.spans.get(section) if section else (0, len(passages.text))
+    return occurrences(passages, collapse(quote), *span) if span else []
 
 
 def capture_anchor(
@@ -147,14 +113,20 @@ def capture_anchor(
     rewrites=None,
     part: str | None = None,
     additions: dict | None = None,
-) -> dict:
-    """The anchor a quote makes, written the way a selection's is. Raises ValueError with
-    what to do about it — a quote the file doesn't hold, or holds twice, is a question
-    with an answer, and asking now beats posting a comment that lands nowhere.
+) -> tuple[dict, Finding | None]:
+    """The anchor a target makes, written the way a selection's is, and the note to
+    give beside the thread, or None. Raises ValueError with what to do about a
+    structural target the files refuse: a `section` this version doesn't hold, one a
+    decision took off the page, or a `part` its visual doesn't declare. A refusal names
+    what the reading found and a recourse in the reader's terms; only a refusal about a
+    CLI-only input, such as `--part`, names its flag.
 
-    A refusal about a quote or a section names what the reading found and a recourse in
-    the reader's terms — quote more of the surrounding text, or name the section. Only a
-    refusal about a CLI-only input, such as `--part`, names its flag.
+    A quote is never refused for its words, since only the drawn page says whether it
+    shows them (`resolveAnchor`). The anchor holds the quote and `section`, or, where
+    the agent named none, the innermost id enclosing the one place the file's reading
+    finds the words, else no section. Where that reading finds them zero or several
+    times, the note says where the page shows the thread if the drawn page doesn't show
+    them once either.
 
     A `part` passes here where its visual's declaration admits the id; whether the page
     draws it is `drawn_part`'s to say, since only a drawing of the page knows.
@@ -169,15 +141,11 @@ def capture_anchor(
     if part and quote:
         raise ValueError("--part names a visual box; use it without --quote")
     passages = page_passages(document, registry, decided, rewrites, additions)
-    text = passages.text
-    owner = passages.owner
-    retired = passages.retired
-    gone = passages.gone
-    enclosing = passages.enclosing
+    retired, gone = passages.retired, passages.gone
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes
         # on a diagram or an image, and those hold no text to look for.
-        if section not in enclosing:
+        if section not in passages.enclosing:
             raise ValueError(f"no element id {section!r} in this version")
         if section in retired:
             assert decided is not None
@@ -202,59 +170,25 @@ def capture_anchor(
             )
         if part not in available:
             raise ValueError(f"§ {section} has no visual part {part!r}; {available}")
-        return {"section": section, "visual": part}
+        return {"section": section, "visual": part}, None
     if not quote:
-        return {"section": section}
+        return {"section": section}, None
 
     wanted = collapse(quote)
-    lo_bound, hi_bound = 0, len(text)
-    if section:
-        span = passages.spans.get(section)
-        if span is None:
-            raise Unsaid(
-                f"§ {section} holds no quotable text — a widget's data body is its source, "
-                "not its words. Anchor on the element itself, without a quote."
-            )
-        lo_bound, hi_bound = span
-    where = "the page" if not section else f"§ {section}"
-    hits = occurrences(passages, wanted, lo_bound, hi_bound)
-    if not hits:
-        raise Unsaid(
-            f"{where} doesn't say {wanted!r}; quote the words this version shows, "
-            "or name the section"
-        )
-    if len(hits) > 1:
-        around = [
-            f"  - …{text[max(lo_bound, start - 30) : end + 30]}…"
-            for start, end in hits[:4]
-        ]
-        if len(hits) > len(around):
-            around.append(f"  - …and {len(hits) - len(around)} more")
-        raise ValueError(
-            f"{where} says {wanted!r} {len(hits)} times, so this quote names no one "
-            "passage. Quote more of the surrounding text, or name the section it sits "
-            "in:\n" + "\n".join(around)
-        )
-
-    lo, hi = hits[0]
-    section = section or enclosing_section(owner, lo, hi)
-    # The neighbours come from the whole reading, as the browser's do — the section
-    # filters where the search may land, never what surrounds a passage — so a passage
-    # closing its section still stores a full suffix. Each side reaches only to the
-    # nearest fence, because past one the page holds words this doesn't: context the
-    # runtime can never confirm leaves every copy equally unconfirmed, which is where
-    # an anchor carrying none starts anyway.
-    # Both are trimmed before they are cut, since the runtime reads its side back through
-    # the same collapse, which trims — a stored space no occurrence produces fails at the
-    # first comparison.
-    before, after = _context(passages, lo, hi)
-    prefix, suffix = before[-CONTEXT:], after[:CONTEXT]
-    return {
-        "section": section,
-        "quote": wanted,
-        **({"prefix": prefix} if prefix else {}),
-        **({"suffix": suffix} if suffix else {}),
-    }
+    if not wanted:
+        raise ValueError("the quote holds no words; quote the words the passage shows")
+    hits = copies(passages, wanted, section)
+    if not section and len(hits) == 1:
+        section = enclosing_section(passages.owner, *hits[0])
+    # No context: the agent named words, not one copy of them, so the page takes the
+    # words where it shows them once (`findQuote`, an absent side).
+    anchor = {"section": section or None, "quote": wanted}
+    if len(hits) == 1:
+        return anchor, None
+    return anchor, Finding(
+        "unplaced-quote",
+        values={"section": section, "quote": wanted, "found": len(hits)},
+    )
 
 
 class Drawing(NamedTuple):

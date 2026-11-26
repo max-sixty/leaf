@@ -3369,21 +3369,19 @@ EOF</code></pre>
               <code>wrote</code>, so words a widget draws do not appear as edits.
             </p>
             <p id="passage-sides">
-              The browser makes an anchor from a selection.
-              <code>leaf thread create</code>
-              makes one in Python, from the HTML file. Both apply the same rules: the
-              same whitespace characters collapse to one space, the same elements count
-              as separate blocks, the context is the same 24 characters, and the search
-              is the same.
+              The browser makes an anchor from a selection, with the words on each side
+              that tell the selected copy apart from others.
+              <code>leaf thread create</code> stores the words the agent quotes and the
+              section it names, with no context, so the page finds them where it shows
+              them once. Where the page shows them twice or not at all, the thread
+              stands on its section, or in Threads when the agent named none.
             </p>
             <p id="passage-refusals">
-              The file holds the author's HTML, not the words a widget's script draws
-              between its parts, such as a board column's heading or a diagram drawn
-              from its source. A quote may not cross such words on either side.
-              <code>leaf thread create</code> refuses a quote that crosses them, that
-              occurs more than once in the section, or that sits in content the user's
-              decision removed, and says what to quote instead. An agent's anchor is
-              therefore one the user's page can find.
+              The browser is the only reader of an anchor's words, since the file holds
+              the author's HTML, not the words a widget's script draws. Python reads the
+              file only as advice: where it finds the quote zero or several times,
+              <code>leaf thread create</code> says where the page will show the thread
+              and what to quote instead.
             </p>
           </section>
           <section id="anchors-revisions">

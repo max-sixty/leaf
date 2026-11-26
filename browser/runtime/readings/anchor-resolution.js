@@ -2,9 +2,11 @@
  *
  * This module reads authored markup and resolves semantic coordinates into the current
  * document. It owns no controls, travel, paint, thread state, or command path.
- * Selection capture and file-side capture produce the same quote/context coordinate;
- * `resolveAnchor` is the only search implementation, so repeated text detaches unless
- * its context identifies one occurrence.
+ * `resolveAnchor` is the only reader of a stored quote's words: selection capture
+ * stores a quote with the context that tells its occurrence apart, and an agent's
+ * capture stores the quote and its section alone (`anchor_capture.py`). Words it can't
+ * place once, repeated text whose context identifies no one occurrence included, stand
+ * on their section as a fallback, or nowhere without one.
  */
 
 import { excerptWords, labelWords, lastWords } from "../lib/words.js";
@@ -1058,9 +1060,24 @@ export function resolveAnchor(anchor) {
     return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
   }
 
-  const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
+  const section = sectionOf(anchor);
+  const segments = findQuote(pageText(), anchor.quote, anchor, section);
   const [first] = segments;
-  if (!first) return null;
+  // Words the page doesn't show once stand on their section, as a dropped part stands
+  // on its visual, until they stand there once again: a revision rewrote them, or the
+  // agent quoted words the page draws twice or not at all. A quote with no section
+  // has nowhere to stand.
+  if (!first)
+    return section && !settledAway(section)
+      ? {
+          ...resolvedElement({
+            element: section,
+            surface: wholeVisualSurface(section),
+          }),
+          exact: false,
+          status: "fallback",
+        }
+      : null;
   // An exact named-control quote identifies its actual readable face, so both the
   // editor and sent thread clear that face. Ordinary prose still clears its block.
   const face = anchor.part && closestAcross(first.node, WORKS);

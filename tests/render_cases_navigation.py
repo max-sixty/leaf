@@ -468,19 +468,6 @@ NESTED_SUGGESTION = (
     .replace('<p id="insert">', '<div id="insert">')
     .replace("</lf-suggestion></p>\n<lf-board", "</lf-suggestion></div>\n<lf-board")
 )
-FENCED_CAPTURE_PAGE = leaf_page(
-    "fenced capture",
-    """
-<h1 id="h">Roadmap</h1>
-<lf-board id="gate-board"><lf-column id="gate-milestone" label="active · week-1 · wood · solar"><lf-card id="gate-card" label="Build feeders"><strong>Build feeders</strong> Two classic models.</lf-card></lf-column></lf-board>
-<p id="after-milestone">Ready next.</p>
-<lf-group id="fence-q" label="Which fence?"><lf-options id="fence-options">
-  <lf-option id="fence-option" label="Classic feeder"><small class="lf-tag">effort: low</small><small class="lf-tag">risk: high</small> <strong>Classic feeder</strong>
-    Easy to clean.
-  </lf-option>
-</lf-options></lf-group>
-""",
-)
 # A label a widget renders into a control it also built. The tab strip is the case with
 # nowhere else to say it: once the strip exists the panel heading stands down, so the
 # button is the panel's only name. Every word here is distinct, so a quote can only

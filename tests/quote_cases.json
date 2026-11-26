@@ -1,5 +1,5 @@
 {
-  "about": "Quote resolution's cases, which the browser's findQuote (readings/passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
+  "about": "Quote resolution's cases, which the browser's findQuote (readings/passages.js) answers: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
   "cases": [
     {
       "id": "a copy a fence parts is passed by, and the next starts past it",
@@ -47,6 +47,26 @@
         "quote": "MARK"
       },
       "before": null
+    },
+    {
+      "id": "an anchor that leaves its context out names neither copy, even one that fills its cell",
+      "markup": "<div id=\"s\"><span contenteditable=\"true\">MARK</span> then MARK again</div>",
+      "anchor": {
+        "section": "s",
+        "quote": "MARK"
+      },
+      "before": null
+    },
+    {
+      "id": "empty sides say a copy fills its cell",
+      "markup": "<div id=\"s\"><span contenteditable=\"true\">MARK</span> then MARK again</div>",
+      "anchor": {
+        "section": "s",
+        "quote": "MARK",
+        "prefix": "",
+        "suffix": ""
+      },
+      "before": 0
     },
     {
       "id": "a section holds its own copy",

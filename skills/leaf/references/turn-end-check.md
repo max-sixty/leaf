@@ -37,7 +37,8 @@ each, give:
   where the agent advised it.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
-  stands on; otherwise empty, and it stands on the page as a whole.
+  stands on, or, where the page doesn't show them once, stands in Threads on no
+  passage; otherwise empty, and it stands on the page as a whole.
 - `again`: where the ask asks again a question the page asked before, such as a
   step the user took that didn't work or a question their reply left standing, that
   question's id from the page state below. Leaf asks it again in its thread, under

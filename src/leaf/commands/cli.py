@@ -1433,12 +1433,14 @@ def thread_create(
     Use --obligation when the next move is the user's: the message waits on
     On Me until their reply or settling reaction. A question whose answers you
     can list takes a widget that asks in the text instead, such as an
-    `lf-options` choice, which waits on the user until they pick. Refuses a
-    quote the active revision does not show, or shows more than once; words a
-    page's script draws are found on the page as the browser draws it. Refuses
-    a --part the page would show nowhere. The comment's id is the thread's.
+    `lf-options` choice, which waits on the user until they pick. A --quote is
+    found in the page as the browser draws it: where it doesn't stand there once,
+    the thread stands on --section, or in Threads without one, and the result
+    notes where Leaf's reading of the files doesn't find it once. Refuses a
+    --section the active revision doesn't hold, and a --part the page would show
+    nowhere. The comment's id is the thread's.
     """
-    from leaf.agents.thread import Drawn, UndrawnPart, UnsaidQuote, cmd_comment
+    from leaf.agents.thread import Drawn, UndrawnPart, cmd_comment
     from leaf.pages.render_gate.messages import message_check
 
     body = read_body(text, body_file)
@@ -1453,18 +1455,10 @@ def thread_create(
             obligation=obligation,
             check=message_check,
         )
-    except UnsaidQuote as unsaid:
-        # Words a page's script draws are in no file, so the drawn page is asked for
-        # them, outside the page's lease, since a browser takes a second or more.
-        from leaf.pages.render_gate.drawn_anchor import drawn_anchor
-
-        anchor = drawn_anchor(page_dir, unsaid.revision, quote, section)
-        if anchor is None:
-            raise
-        drawn = Drawn(unsaid.revision, anchor=anchor)
     except UndrawnPart as undrawn:
         # No render check has read what the visual draws in this version, so the
-        # page is drawn for it, as for a quote.
+        # page is drawn for it, outside the page's lease, since a browser takes a
+        # second or more.
         from leaf.pages.render_gate.drawn_anchor import drawn_visuals
 
         drawn = Drawn(

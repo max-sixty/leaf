@@ -35,7 +35,6 @@ from render_cases_navigation import (
     DRIFT_V1,
     DRIFT_V2,
     EDGE_PAGE,
-    FENCED_CAPTURE_PAGE,
     NATIVE_CONTROL_PAGE,
     TAIL_PAGE,
     THIN_V1,
@@ -87,8 +86,6 @@ from browser.threads import open_panel_thread, thread_row
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.records import page_data as page_data_model
-from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import structure as structure_model
 from leaf.source import vocabulary as vocabulary_model
 from leaf.source.render_checks import evaluate_probe, rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
@@ -290,99 +287,6 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     ) == ["c-backfill"], "the diff read the runtime's own spans as text the base lacked"
 
 
-@pytest.mark.parametrize("revision", [2, 3])
-def test_browser_and_file_captures_stop_at_the_same_widget_fences(
-    browser, serve, revision
-):
-    """Module-only words may sit between authored parts, but they cannot give the
-    browser more context than the mapped revision can confirm.
-
-    Two revisions of the served document: one that changed only the title, so every
-    widget is the one the page was served with, and one that rewrote the milestone
-    itself, so that widget arrives alone into the page and its fence is read off the
-    arriving root rather than off a page it is not yet in.
-    """
-    page = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
-    source = FENCED_CAPTURE_PAGE
-    if revision == 2:
-        source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
-    else:
-        source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
-    stamp_page(serve.page_dir, source, "Refresh the document")
-    wait_for_revision(page, 2)
-    expect(page.locator("#gate-milestone > .lf-column-name")).to_have_count(1)
-    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
-    cases = [
-        ("#gate-card strong", "Build feeders", "gate-card"),
-        ("#gate-card", "Two classic models.", "gate-card"),
-        ("#after-milestone", "Ready next.", "after-milestone"),
-        # One chip out of a band of them: authored markup, so both readings hold it
-        # for the same reason they hold the title beside it.
-        ("#fence-option > small.lf-tag", "effort: low", "fence-option"),
-    ]
-
-    for index, (selector, quote, section) in enumerate(cases, 1):
-        expected_anchor = anchor_capture_model.capture_anchor(
-            structure_model.SourceDocument(source),
-            registry,
-            quote,
-            section,
-        )
-        selected = page.evaluate(
-            """([selector, quote]) => {
-                const root = document.querySelector(selector);
-                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-                let node;
-                while ((node = walker.nextNode())) {
-                    const at = node.data.indexOf(quote);
-                    if (at === -1) continue;
-                    const range = document.createRange();
-                    range.setStart(node, at);
-                    range.setEnd(node, at + quote.length);
-                    const selection = getSelection();
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    return selection.toString();
-                }
-                return null;
-            }""",
-            [selector, quote],
-        )
-        assert selected == quote
-        page.dispatch_event("body", "mouseup")
-        open_selected_comment(page)
-        # The field is one element for the page's whole life, so "it is on screen"
-        # says only that some composer is open. This release states the passage the
-        # field took, and the field describes itself by it, so a release the field
-        # never answered fails here naming the passage left selected.
-        expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
-        page.locator(".lf-fab-input").click()
-        write(page.locator(".lf-composer leaf-text"), f"fence {index}")
-        # The panel renders the card from state, which can carry the append before
-        # this page's own post comes back. Behind the card alone the log read below
-        # answers with the comment before this one, or with nothing at all. The
-        # same answer settles the draft, so this case's composer is down before the
-        # next case asks for one.
-        with sending(page, f"the fence {index} comment"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        expect_open_threads(page, index)
-        actual_anchor = [
-            event["anchor"]
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "comment"
-        ][-1]
-        assert actual_anchor == expected_anchor, (
-            f"{selector} captured {actual_anchor}, file captured {expected_anchor}"
-        )
-        # Put the card the send opened away before selecting the next passage. The
-        # thread stands in the page margin over this narrow document, so the case after
-        # it would reach for a composer under that card and press the card instead. The
-        # send landed on the card; leave it for the passage, then let go of both.
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-        expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-
 # A custom element the page's own script fills with words no file holds.
 DRAWN_WORDS_PAGE = leaf_page(
     "drawn words",
@@ -402,10 +306,10 @@ customElements.define("lantern-note", class extends HTMLElement {
 def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
     browser, serve
 ):
-    """`leaf thread create --quote` finds words the page's own script draws, which no
-    file holds, on the page as the browser draws it, and stores the anchor the user's
-    selection of them makes, so the thread marks those words. Words the drawn page
-    doesn't show are refused as before."""
+    """`leaf thread create --quote` stores words the page's own script draws, which no
+    file holds, with a note that the files don't hold them, and the page finds them as
+    it draws them, so the thread marks those words. Words the drawn page doesn't show
+    either leave the thread in Threads, on no passage."""
     url = serve(DRAWN_WORDS_PAGE)
 
     def create(quote: str):
@@ -427,20 +331,19 @@ def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
     created = create("Lantern words")
     assert created.exit_code == 0, created.output
     root = json.loads(created.output)
-    assert root["anchor"] == {
-        "section": "drawn",
-        "quote": "Lantern words",
-        "prefix": "words stand in the file.",
-        "suffix": "a script draws.",
-    }
+    assert root["anchor"] == {"section": None, "quote": "Lantern words"}
+    assert [found["code"] for found in root["findings"]] == ["unplaced-quote"]
     page = open_page(browser, url)
-    expect(thread_head(page, root["id"]).locator(".lf-thread-quote")).to_have_text(
-        "Lantern words"
-    )
+    head = thread_head(page, root["id"])
+    expect(head.locator(".lf-thread-quote")).to_have_text("Lantern words")
+    expect(head).not_to_have_attribute("data-lf-detached", "")
+    assert stranded_quotes(page) == []
 
-    refused = create("Words no script draws")
-    assert refused.exit_code != 0
-    assert "doesn't say 'Words no script draws'" in refused.output
+    unsaid = create("Words no script draws")
+    assert unsaid.exit_code == 0, unsaid.output
+    lost = json.loads(unsaid.output)
+    assert [found["code"] for found in lost["findings"]] == ["unplaced-quote"]
+    expect(thread_head(page, lost["id"])).to_have_attribute("data-lf-detached", "")
 
 
 # A diagram, which shows a thread on a box it didn't draw nowhere, beside a timeline,
@@ -565,75 +468,9 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
-SIDEBAR_TRACK_PAGE = leaf_page(
-    "sidebar track quotes",
-    """<header><h1>Release review</h1></header>
-<aside id="track"><div class="layout-track">
-  <section id="verdict"><h2>Verdict</h2><p>Approve, with two follow-ups.</p></section>
-  <section id="owners"><h2>Owners</h2><p>The payments on-call runs the cutover.</p></section>
-</div></aside>
-<div id="body"><p>The canary held its error rate at every step.</p></div>""",
-    layout="sidebar",
-)
-
-
-def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, serve):
-    """Quotes inside one sidebar block and across two agree between the browser
-    and authored file. Native layout keeps the original track children in place;
-    comments still resolve to the same section and passage on either reading."""
-    page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
-    resized(page, 1440, 900)
-    expect(page.locator("#track > .layout-track > #owners")).to_have_count(1)
-    track = page.locator("#track").bounding_box()
-    body = page.locator("#body").bounding_box()
-    assert track["x"] + track["width"] <= body["x"], (track, body)
-    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
-    cases = [
-        ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
-        ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
-    ]
-    for index, (start, start_words, section, end, end_words) in enumerate(cases, 1):
-        selected = page.evaluate(
-            """([start, startWords, end, endWords]) => {
-                const text = (selector) => document.querySelector(selector).firstChild;
-                const range = document.createRange();
-                range.setStart(text(start), text(start).data.indexOf(startWords));
-                const last = text(end);
-                range.setEnd(last, last.data.indexOf(endWords) + endWords.length);
-                getSelection().removeAllRanges();
-                getSelection().addRange(range);
-                return getSelection().toString();
-            }""",
-            [start, start_words, end, end_words],
-        )
-        page.dispatch_event("body", "mouseup")
-        open_selected_comment(page)
-        page.locator(".lf-fab-input").click()
-        write(page.locator(".lf-composer leaf-text"), f"track {index}")
-        with sending(page, f"the track {index} comment"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        expect_open_threads(page, index)
-        captured = [
-            event["anchor"]
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "comment"
-        ][-1]
-        expected = anchor_capture_model.capture_anchor(
-            structure_model.SourceDocument(SIDEBAR_TRACK_PAGE),
-            registry,
-            captured["quote"],
-            section,
-        )
-        assert captured == expected, (selected, captured, expected)
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-        expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    assert stranded_quotes(page) == []
-
-
 def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     """Neither a pane nor the obligation inside it turns visible prose into separate
-    quotation islands."""
+    quotation islands: a selection across them is one passage of their section."""
     content = """<div id="split">
       <lf-pane id="decision-pane" label="Decision"><lf-group id="decision" label="Which plan should lead?">
         <h2 id="question">Which plan should lead?</h2>
@@ -652,10 +489,6 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     url = live_url(serve(markup))
     page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
-    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
-    expected = anchor_capture_model.capture_anchor(
-        structure_model.SourceDocument(markup), registry, quote, "review"
-    )
     page.evaluate(
         """() => {
           const start = document.querySelector('#context').firstChild;
@@ -680,7 +513,8 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ][-1]
-    assert actual == expected
+    assert (actual["section"], actual["quote"]) == ("review", quote), actual
+    assert "detached" not in actual, actual
     page.reload()
     held = thread_head(page, comment_ids(serve.page_dir)[-1])
     expect(held.locator(".lf-thread-quote")).to_have_text(quote)
@@ -6275,9 +6109,8 @@ def test_words_a_script_sets_in_elements_of_their_own_keep_their_thread(
 ):
     """A script that sets a marked phrase's two words in inline elements of their own,
     with nothing between them, leaves the thread on them: where two inline elements
-    meet is a place a word may end, so the quote "one two" still names them, the pointer
-    finds the mark there, and the file's reading finds them too
-    (tests/quote_cases.json)."""
+    meet is a place a word may end, so the quote "one two" still names them, and the
+    pointer finds the mark there (tests/quote_cases.json)."""
     url = serve(
         leaf_page(
             "Run together",

@@ -2369,7 +2369,9 @@ export function messageReading(body) {
 // The words on each side of the passage `segments` that tell it apart in `reading`:
 // the context a short unique quote keeps, widened until `find`, given it, finds this
 // very passage, or until the reading's edges are reached, where the passage is
-// `detached`. The quote discards boundary whitespace, so the passage found is this one
+// `detached`. Both sides are written, an empty one where the passage meets a fence,
+// since an absent side says nothing of the neighbours (`findQuote`). The quote
+// discards boundary whitespace, so the passage found is this one
 // where its first character is the passage's first (`units`, `readingFrom`) and its
 // last the passage's last, whatever cosmetic spaces the selection held. Anchor capture
 // asks it of the page's reading (anchor-resolution.js, `anchorForPassage`), and a
@@ -2377,7 +2379,7 @@ export function messageReading(body) {
 /** @param {PageReading} reading @param {readonly Segment[]} segments
  * @param {readonly TextUnit[]} units
  * @param {(context: {prefix?: string, suffix?: string}) => readonly Segment[]} find
- * @returns {{prefix?: string, suffix?: string, detached?: true}} */
+ * @returns {{prefix: string, suffix: string, detached?: true}} */
 export function passageContext(reading, segments, units, find) {
   const [start, stop] = spanIn(reading, segments);
   const from = units[0]?.start;
@@ -2385,7 +2387,7 @@ export function passageContext(reading, segments, units, find) {
   for (let width = CONTEXT; ; width *= 2) {
     const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
     const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
-    const context = { ...(prefix && { prefix }), ...(suffix && { suffix }) };
+    const context = { prefix, suffix };
     const found = find(context);
     const first = found[0];
     const last = found.at(-1);
@@ -3495,7 +3497,7 @@ function copiesOf(text, quote) {
 const chosen = new WeakMap();
 /** @param {PageReading} text @param {string} quote @param {{prefix?: string, suffix?: string}} anchor @param {Element | null} [within] */
 export function findQuote(text, quote, anchor, within) {
-  const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
+  const [pre, post] = [anchor.prefix, anchor.suffix];
   // The copies first, every time: asking them is what brings a quote the index has
   // come to keep into it (`copiesOf`), so a change to it is heard.
   const entry = copiesOf(text, quote);
@@ -3503,7 +3505,7 @@ export function findQuote(text, quote, anchor, within) {
   // reading: a selection's anchor is asked by everything that shows or acts on it.
   let asked = chosen.get(text);
   if (!asked) chosen.set(text, (asked = new Map()));
-  const question = `${quote}\u0000${pre}\u0000${post}`;
+  const question = JSON.stringify([quote, pre ?? null, post ?? null]);
   let answers = asked.get(question);
   if (!answers) asked.set(question, (answers = new Map()));
   const known = answers.get(within ?? null);
@@ -3519,10 +3521,12 @@ export function findQuote(text, quote, anchor, within) {
   // section, each one past the last, so copies that overlap are one, the first: that is
   // the quote repeating itself, as "aa" does in "aaa", not the page saying it twice. A
   // copy a fence parts takes its place in that order and is no candidate, so the copy
-  // after it is the one past it, as the file's reading takes them
-  // (anchor_capture.py, `occurrences`; tests/quote_cases.json holds both to one set of
-  // cases). Context is read only to tell copies apart: a sole candidate is the answer
+  // after it is the one past it (tests/quote_cases.json holds the cases). Context is
+  // read only to tell copies apart: a sole candidate is the answer
   // whatever its neighbours say, and a second exact one settles that none is unique.
+  // An empty side says the copy's cell holds nothing there, and an absent side says
+  // nothing at all, as an agent's quote leaves both (anchor_capture.py): it names words,
+  // not one copy of them, so only a sole copy answers it.
   // Every copy in the words of an element under `within` stands under it, unless a slot
   // of the element's own tree shows it words from outside it.
   const key = readingPieces.get(text);
@@ -3541,12 +3545,14 @@ export function findQuote(text, quote, anchor, within) {
   }
   const exact = [];
   const [preLetters, postLetters] = [pre, post].map((side) =>
-    side.replace(COLLAPSE, ""),
+    side?.replace(COLLAPSE, ""),
   );
   for (const hit of candidates.length > 1 ? candidates : []) {
     if (
-      !holds(text, hit.from, pre, /** @type {string} */ (preLetters), true, hit) ||
-      !holds(text, hit.to, post, /** @type {string} */ (postLetters), false, hit)
+      (pre !== undefined &&
+        !holds(text, hit.from, pre, /** @type {string} */ (preLetters), true, hit)) ||
+      (post !== undefined &&
+        !holds(text, hit.to, post, /** @type {string} */ (postLetters), false, hit))
     )
       continue;
     exact.push(hit);

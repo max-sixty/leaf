@@ -102,6 +102,8 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         "section": "deployments",
         "datum": "api",
         "quote": "Ready",
+        "prefix": "",
+        "suffix": "",
         "source": "deployments",
         "source_revision": seen,
     }
@@ -507,6 +509,8 @@ customElements.define('lf-derived', class extends LeafElement {
         "section": "deployments",
         "datum": "api",
         "quote": "Ready",
+        "prefix": "",
+        "suffix": "",
     }
 
     page.evaluate(

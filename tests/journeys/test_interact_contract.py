@@ -445,8 +445,8 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
         ({"section": "outer-only"}, False, "no element id 'outer-only'"),
         (
             {"section": "child", "quote": "Words only in the parent"},
-            False,
-            "doesn't say",
+            True,
+            "finds 'Words only in the parent' nowhere in § child",
         ),
         ({"section": "child", "quote": "Child passage"}, True, ""),
         ({"section": "generated-option", "quote": "Generated passage"}, True, ""),
@@ -491,4 +491,4 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
     assert (result.exit_code == 0) == valid, result.output
     if not valid:
         assert "sample 'practice'" in result.output
-        assert complaint in result.output
+    assert complaint in result.output

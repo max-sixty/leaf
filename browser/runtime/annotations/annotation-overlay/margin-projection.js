@@ -1293,7 +1293,11 @@ export function createMarginProjection({
     // open or closed, to where the thread now stands (records/thread/replies.js): the card can
     // draw it no more. Before the card closes, so a user writing there goes on in it.
     card.releaseLeft(
-      new Set(pageInventory.flatMap((entry) => entry.items.map((item) => item.id))),
+      new Set(
+        pageInventory.flatMap(
+          (entry) => threadReading(entry)?.items.map((item) => item.id) ?? [],
+        ),
+      ),
     );
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
@@ -1922,11 +1926,13 @@ export function createMarginProjection({
   // cluster to reach the thread's own entry. Where the cluster shows but holds neither
   // on its face, as a suggestion's shows its Accept, the card unfolds it and folds it
   // again on closing; a cluster the page withholds shows no card.
+  // A package's reading names its id only within its contribution, so a thread is
+  // found among an entry's threads alone.
   /** @param {string} id */
   const threadEntry = (id) => {
     const itemId = marginThreadItem(threadNamed(id));
     return pageInventory.find((candidate) =>
-      candidate.items.some((item) => item.id === itemId),
+      threadReading(candidate)?.items.some((item) => item.id === itemId),
     );
   };
   /** @param {Element | null | undefined} control */

@@ -135,6 +135,11 @@ def _also_reads_an_output(entry):
         # `leaf data set` validates a source's value against the contract, so an input
         # that can bind a source needs it declared whatever else the input can bind.
         (_also_reads_an_output, "data-contract"),
+        # `state` is the widget's reading, which Leaf sets on the same element.
+        (
+            lambda entry: entry["inputs"]["data"].update({"property": "state"}),
+            "invalid-declaration",
+        ),
         (
             lambda entry: entry.update(
                 {

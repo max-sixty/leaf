@@ -1516,16 +1516,24 @@ wa-copy-button.lf-icon-action {
    Shape and face identify placement, not whether a press acts, opens context, or does
    nothing, so one edge and one ink serve every behavior. Glyphs and labels retain each
    entry's meaning. Overflow and revealed actions use this same face. The pin supplies
-   its ink through --lf-entry-ink, so the shared entry states retain it. */
-[data-lf-place="pin"] .lf-margin-face {
-  border-radius: var(--lf-r) var(--lf-r) var(--lf-r) 0;
+   its ink through --lf-entry-ink, so the shared entry states retain it.
+
+   A thread's jump to the start or end of its messages (`data-lf-jump`, thread-card.js,
+   `#jumps`) stands over what it moves through as a pin stands over its block, so it
+   wears the pin's face with every corner round, since it points into nothing. */
+[data-lf-place="pin"] .lf-margin-face,
+.lf-margin-face[data-lf-jump] {
   border: 1px solid var(--lf-border);
   --lf-entry-ink: var(--lf-ink-2);
   box-shadow: var(--lf-raise-1);
 }
+[data-lf-place="pin"] .lf-margin-face {
+  border-radius: var(--lf-r) var(--lf-r) var(--lf-r) 0;
+}
 [data-lf-place="pin"]
   .lf-margin-face
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph),
+.lf-margin-face[data-lf-jump] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   inline-size: 14px;
   block-size: 14px;
 }

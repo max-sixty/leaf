@@ -64,7 +64,9 @@
      action is (`data-lf-kinds="change"`). One in force (`aria-pressed`), as a reaction the
      user left in the margin is, stands on the chip, and a row standing as a pin over
      its block (`data-lf-place="pin"`) fills its entries with the pin's attention
-     colour.
+     colour. A jump (`data-lf-jump`), a press over a thread's messages that goes to
+     their start or end (records/thread/thread-card.js), wears a pin's face, as it
+     stands over what it moves through.
    - `reaction`: a reaction's token in a message's strip, its own glyph rather than
      an action's symbol, quiet until hovered and kept in the accent while in force
      (`aria-pressed="true"`).

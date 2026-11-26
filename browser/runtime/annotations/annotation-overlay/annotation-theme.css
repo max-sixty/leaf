@@ -144,7 +144,7 @@
    390px. With the row the face, the aim can lie over a neighbouring control's
    press. */
 .lf-margin-cluster[data-lf-place="pin"] {
-  --lf-margin-entry: max(26px, var(--lf-aim-floor));
+  --lf-margin-entry: var(--lf-pin-entry);
 }
 .lf-margin-receipt {
   color: var(--lf-ink-2);

@@ -1312,6 +1312,15 @@
     );
     padding-block: 10px 6px;
   }
+  /* A thread's jumps (surfaces.css) show while its messages stand past the view's
+     edge, as reach marks it (`data-lf-more-above`, `data-lf-more-below`, dom/reach.js),
+     the end's while New reply doesn't stand there instead (`data-lf-awaits`). */
+  .lf-fp-view[data-lf-more-above] .lf-thread-jump[data-lf-jump="start"],
+  .lf-fp-view[data-lf-more-below]:not([data-lf-awaits])
+    .lf-thread-jump[data-lf-jump="end"] {
+    opacity: 1;
+    visibility: visible;
+  }
 
   /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). A row's words
      stand on one line, cut with an ellipsis where the panel's width runs out, and its

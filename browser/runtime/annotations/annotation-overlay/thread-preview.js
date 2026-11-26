@@ -556,8 +556,6 @@ export function createThreadPreview({
           // A head sticks only while its own message is under it. Follow its real
           // lower edge as the next message pushes it away; between messages the
           // transcript's edge is the cut. A declared head height cannot say this.
-          // Once anything is scrolled away, the head rows cover the room above them
-          // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
           /** @type {NodeListOf<HTMLElement>} */
@@ -601,7 +599,6 @@ export function createThreadPreview({
           ]))
             if (length) card.style.setProperty(name, layoutPx(length));
             else card.style.removeProperty(name);
-          keeps(card, "data-lf-scrolled", above ? "" : null);
           gutter();
         },
       });

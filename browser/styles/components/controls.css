@@ -969,7 +969,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    focus ring take is the face's whole box, as each symbol beside it is its own. The
    host stretches the vendor's unparted wrapper, which would otherwise shrink to the
    icon and take the button with it, and the button stands out from the wrapper, which
-   the vendor positions, by the face's border (vendor/webawesome-native.css). */
+   the vendor positions (its `.copy-button__trigger`), by the face's border
+   (styles/vendor/webawesome-native.css). */
 wa-copy-button.lf-icon-action {
   place-items: stretch;
   font-size: 0;

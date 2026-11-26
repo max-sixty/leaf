@@ -31,6 +31,8 @@ from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
 from leaf.source import layer as layer_model
 from leaf.source import reading as reading_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import runtime_selection as runtime_model
 from leaf.source import structure as structure_model
 from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
@@ -41,6 +43,14 @@ from leaf.source.registry import validation as registry_validation
 from model.interact_contract import (
     _stateful_page_declaration,
 )
+
+
+def layer_widget_paths(page_dir) -> set[str]:
+    """The widget modules the page's layer serves (`layer.layer_widgets`)."""
+    record = registry_storage.layer_record(page_dir)
+    assert record is not None
+    vocabulary = layer_model.selected_vocabulary(record, page_dir)
+    return set(layer_model.layer_widgets(vocabulary))
 
 
 def test_page_registry_composes_declarations_and_implementations_independently(
@@ -59,10 +69,8 @@ def test_page_registry_composes_declarations_and_implementations_independently(
     }
     layer_before = deepcopy(layer)
     page_before = deepcopy(declarations)
-    layer_2 = registry_storage.layer_record(page_dir)
-    assert layer_2 is not None
     widget_paths = {
-        *layer_model.layer_widgets(layer_2, page_dir),
+        *layer_widget_paths(page_dir),
         "widgets/lf-local.js",
         "page/widgets/lf-page-only.js",
         "page/widgets/lf-tabs.js",
@@ -104,9 +112,7 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
     member = deepcopy(layer["lf-old"])
     member["retired-when"] = "reject"
-    layer_3 = registry_storage.layer_record(page_dir)
-    assert layer_3 is not None
-    widget_paths = set(layer_model.layer_widgets(layer_3, page_dir))
+    widget_paths = layer_widget_paths(page_dir)
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-gone": member}, widget_paths
@@ -151,9 +157,7 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     layer = vocabulary_model.load_registry(page_dir)
     declaration = element_declaration("lf-local")
     declaration["attributes"]["properties"]["tone"] = schema
-    layer_4 = registry_storage.layer_record(page_dir)
-    assert layer_4 is not None
-    widget_paths = set(layer_model.layer_widgets(layer_4, page_dir))
+    widget_paths = layer_widget_paths(page_dir)
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-local": declaration}, widget_paths
@@ -171,9 +175,7 @@ def test_a_module_that_goes_is_refused_by_a_composition_validated_with_it(page_d
     widget with nothing to draw or send its state."""
     layer = vocabulary_model.load_registry(page_dir)
     declarations = {"lf-local": _stateful_page_declaration(page_dir)}
-    record = registry_storage.layer_record(page_dir)
-    assert record is not None
-    layer_paths = set(layer_model.layer_widgets(record, page_dir))
+    layer_paths = layer_widget_paths(page_dir)
 
     held = registry_page.compose_page_registry(
         layer, declarations, {*layer_paths, "page/widgets/lf-local.js"}
@@ -222,9 +224,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
             "record": {"kind": "value", "attr": "reading"},
         },
     }
-    layer_5 = registry_storage.layer_record(page_dir)
-    assert layer_5 is not None
-    widget_paths = set(layer_model.layer_widgets(layer_5, page_dir))
+    widget_paths = layer_widget_paths(page_dir)
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
@@ -542,6 +542,76 @@ def test_page_registry_cache_does_not_outlive_a_page_at_the_same_path(tmp_path):
         second.registry["$layer"]["generation"]
         != first.registry["$layer"]["generation"]
     )
+
+
+@pytest.mark.parametrize(
+    "read",
+    [
+        pytest.param(
+            lambda page: vocabulary_model.read_page_registry(page).registry,
+            id="candidate",
+        ),
+        pytest.param(
+            lambda page: artifact_model.read_revision(page, 1).registry, id="revision"
+        ),
+        pytest.param(
+            lambda page: json.loads(
+                runtime_model.executing(artifact_model.read_artifact(page, 1))
+                .resources["/registry.json"]
+                .data
+            ),
+            id="execution",
+        ),
+    ],
+)
+def test_a_reading_composes_one_installation_of_a_package(tmp_path, monkeypatch, read):
+    """`package install` points an installed name at another snapshot while pages
+    read it (`layer.named_package`), so each reading of a page's vocabulary resolves
+    the page's selection once and takes the registry, the widget modules and, where it
+    serves them, the layer's files from that one snapshot. A reading that resolved the
+    selection for each of them could pair one snapshot's declarations with another's
+    modules: it would refuse the page, or serve a registry naming modules its files
+    lack. Here an install of the other snapshot follows every resolution of the
+    package's name."""
+    monkeypatch.chdir(tmp_path)
+    installed = []
+    for tag in ("lf-first", "lf-second"):
+        snapshot = tmp_path / tag / "swapped"
+        (snapshot / "widgets").mkdir(parents=True)
+        (snapshot / "widgets" / f"{tag}.js").write_text("export {};\n")
+        (snapshot / "registry.json").write_text(
+            json.dumps({tag: element_declaration(tag, upgrade=True)})
+        )
+        installed.append(snapshot)
+    resolve = layer_model.named_package
+    monkeypatch.setattr(
+        layer_model,
+        "named_package",
+        lambda name: installed[0] if name == "swapped" else resolve(name),
+    )
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "swapped", str(page)]
+    made = CliRunner().invoke(cli_model.cli, init)
+    assert made.exit_code == 0, made.output
+    (page / "index.html").write_text(
+        "<!doctype html><html><head><title>t</title></head>"
+        "<body><main><p>words</p></main></body></html>"
+    )
+    assert revisioning_model.activate_source(page).error is None
+
+    def resolving(name):
+        if name != "swapped":
+            return resolve(name)
+        root = installed[0]
+        installed.reverse()
+        return root
+
+    monkeypatch.setattr(layer_model, "named_package", resolving)
+    # What a newly started server holds: no reading of the page.
+    with fresh_process():
+        registry = read(page)
+
+    assert {"lf-first", "lf-second"} & registry.keys() == {"lf-first"}
 
 
 def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page_dir):

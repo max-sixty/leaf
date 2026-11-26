@@ -765,30 +765,34 @@ def selected_vocabulary(record: dict, page_dir: Path) -> LayerVocabulary:
     a reader of the page's documents needs, without reading the layer's files, held
     with that layer. Refused as `selected_layer` refuses a selected package that is
     gone or whose registry can't be read or merged. Its registry is not validated
-    (`compose_vocabulary`)."""
+    (`compose_vocabulary`).
+
+    Each call resolves the selection anew, and a `package install` between two calls
+    points an installed name at another snapshot (`named_package`). So a reading that
+    needs several of the layer's facts takes them all from one call, which it passes
+    to `layer_vocabulary` and `layer_widgets`."""
     try:
         return _vocabulary(*_held(tuple(record["packages"]), page_dir))
     except Refused as error:
         raise registry_error("layer-unavailable", error=str(error)) from None
 
 
-def layer_vocabulary(record: dict, page_dir: Path) -> dict:
-    """The vocabulary of the layer `record` selects, with the selection and the
-    generation the browser speaks under `$layer`. Each call makes a new copy of the
-    layer's registry, sharing its entries."""
+def layer_vocabulary(record: dict, vocabulary: LayerVocabulary) -> dict:
+    """The registry of `vocabulary`, the layer `record` selects, with the selection
+    and the generation the browser speaks under `$layer`. Each call makes a new copy
+    of the layer's registry, sharing its entries."""
     # Imported here: a hook that only hashes the skill (`files_identity`) reads no
     # page's layer record.
     from leaf.source.registry.storage import layer_metadata_of
 
-    vocabulary = selected_vocabulary(record, page_dir)
     return {**vocabulary.registry, "$layer": layer_metadata_of(record)}
 
 
-def layer_widgets(record: dict, page_dir: Path) -> list[str]:
-    """The page-root-relative widget entry modules the selected layer serves."""
+def layer_widgets(vocabulary: LayerVocabulary) -> list[str]:
+    """The page-root-relative widget entry modules the layer of `vocabulary` serves."""
     return sorted(
         f"widgets/{name}"
-        for name in selected_vocabulary(record, page_dir).widgets
+        for name in vocabulary.widgets
         if re.fullmatch(r"lf-[^/]*\.js", name)
     )
 

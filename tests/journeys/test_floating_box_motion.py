@@ -29,6 +29,7 @@ from render_cases_interaction import HOLD_MOTION
 from render_harness import open_page, resized, scroll_settled, write
 
 from leaf.source.render_checks import rendered, wait_for_probe
+from leaf_dev.browser import text_field
 from leaf_dev.frames import SCRIPT as FRAMES_SCRIPT
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -74,9 +75,7 @@ def at_rest(page, composer):
 def open_composer(page, composer):
     if composer == "card":
         page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
-        page.locator(".lf-margin-preview").get_by_role(
-            "textbox", name="Reply", exact=True
-        ).click()
+        text_field(page.locator(".lf-margin-preview"), name="Reply", exact=True).click()
     elif composer == "comment":
         page.locator("#open").click(modifiers=["Alt"])
     else:

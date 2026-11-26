@@ -71,6 +71,7 @@ from browser.threads import append_agent_reply
 from leaf.agents import thread as thread_model
 from leaf.log import event_log
 from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
@@ -1482,7 +1483,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
         ), (before, after, quote_before, quote_after)
     if consumer != "editor":
         # The card's original controls still receive presses through inert carriers.
-        reply = surface.get_by_role("textbox", name="Reply", exact=True)
+        reply = text_field(surface, name="Reply", exact=True)
         reply.click()
         expect(reply).to_be_focused()
         return

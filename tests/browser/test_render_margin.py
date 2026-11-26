@@ -36,6 +36,7 @@ from browser.margin import (
 )
 from leaf.source import render_checks as render_checks_model
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -358,9 +359,7 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
     assert geometry["bottomChrome"] > 0, geometry
     assert geometry["coveredBottomChrome"] == 0, geometry
     reply = page.locator(".lf-margin-preview leaf-text")
-    page.locator(".lf-margin-preview").get_by_role(
-        "textbox", name="Reply", exact=True
-    ).click()
+    text_field(page.locator(".lf-margin-preview"), name="Reply", exact=True).click()
     write(reply, "The covered terrace is easier to find.")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(reply).to_have_js_property("value", "The covered terrace is easier to find.")

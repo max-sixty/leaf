@@ -399,8 +399,8 @@ the two sizes agree.
 
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
-visible control sends. A box for one line, such as a name, carries
-`aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
+visible control sends. A box for one line, such as a name, carries the boolean
+attribute `one-line` before it is wired: Enter then sends from every keyboard, a
 phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space.
 The options are `sendClass`, placement classes for the generated send control (default
 empty); `sends`, its action in words; `hint`, the placeholder, after which a focused box on a physical keyboard names its send key and, where Enter sends a box that holds lines, the key for a new line; `save(value)`, called with the whole draft on each

@@ -47,6 +47,7 @@ from leaf.pages.render_gate.readings import DevtoolsIssues
 from leaf.records import page_data as page_data_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.render_checks import wait_until_ready
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -418,7 +419,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         page.keyboard.insert_text(provided[1:])
     else:
         write(editor, provided)
-    expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
+    expect(text_field(draft)).to_have_js_property("value", provided)
     press_draft_control(page, "save", "ledger-cargo")
     round_trip(page)
     expect_obligations_answered(page, "1/5")
@@ -455,7 +456,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture")).to_be_visible()
     draft_control(page, "edit", "ledger-cargo").click()
-    expect(page.locator("#ledger-cargo").get_by_role("textbox")).to_have_js_property(
+    expect(text_field(page.locator("#ledger-cargo"))).to_have_js_property(
         "value", provided
     )
 
@@ -487,7 +488,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
         if event.get("holds") == "goal-parser"
     )
 
-    seat.get_by_role("textbox", name="Reply", exact=True).scroll_into_view_if_needed()
+    text_field(seat, name="Reply", exact=True).scroll_into_view_if_needed()
     append_carried_log_record(
         d,
         {

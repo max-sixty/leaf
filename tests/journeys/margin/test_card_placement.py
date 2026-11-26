@@ -23,6 +23,7 @@ from render_harness import (
 
 from leaf.agents import thread as thread_model
 from leaf.source.render_checks import rendered, wait_for_probe
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -79,7 +80,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     # travels scrolls the page before it lands, by Playwright's reveal of its target
     # and no scroll of Leaf's, and the boxes read after it stand off the window.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
     writing = preview.bounding_box()
@@ -451,7 +452,7 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
     def closed():
         # A click on the marker lands in the reply (records/thread/focus.js, `openingPart`);
         # Escape stands the user on the thread, from which the next takes the card down.
-        expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+        expect(text_field(card, name="Reply", exact=True)).to_be_focused()
         page.keyboard.press("Escape")
         page.keyboard.press("Escape")
         expect(card).to_be_hidden()
@@ -678,7 +679,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     selected = page.evaluate("getSelection().toString()")
     assert len(selected) > 10 and selected in words.inner_text(), selected
 
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(thread, name="Reply", exact=True).click()
     send = preview.locator(".lf-compose-field > button:visible")
     send.focus()
     page.evaluate("() => dispatchEvent(new Event('resize'))")
@@ -793,7 +794,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     draft = "\n".join(
         f"Line {n}: " + "The reply keeps its complete editor visible. " * 2

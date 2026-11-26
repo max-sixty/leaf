@@ -41,7 +41,7 @@ from browser.drafts import (
 from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import one_frame, rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -179,7 +179,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     )
     reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(thread, name="Reply", exact=True).click()
     expect(reply).to_be_focused()
 
     d = serve.page_dir

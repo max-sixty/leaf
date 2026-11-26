@@ -32,7 +32,7 @@ from render_harness import (
     FAKE_RECOGNITION,
     LONG_PAGE,
     PREVIEW,
-    accessible_node,
+    accessible_tree,
     clocked,
     close_panel_menu,
     consume_browser_errors,
@@ -410,11 +410,21 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     press = field_press(page)
     expect(press.locator(".lf-compose-press-word")).to_have_text("Next thread")
     expect(press.locator("kbd")).to_have_text("t")
-    # A screen reader is given the press too, though the field's words are hidden
-    # from it as its placeholder.
-    node = accessible_node(press)
-    assert not node.get("ignored") and node["role"]["value"] == "button", node
-    assert node["name"]["value"].startswith("Next thread"), node
+    # A screen reader finds the field's one textbox empty, since its words are its
+    # placeholder, and the press as a button beside that textbox rather than in it.
+    field = accessible_tree(page.locator(".lf-fp-field leaf-text"))
+
+    def within(node):
+        for child in node["children"]:
+            yield child
+            yield from within(child)
+
+    nodes = [field, *within(field)]
+    [textbox] = [node for node in nodes if node["role"] == "textbox"]
+    assert not textbox["value"].strip(), field
+    assert "button" not in {node["role"] for node in within(textbox)}, field
+    [button] = [node for node in nodes if node["role"] == "button"]
+    assert button["name"].startswith("Next thread"), field
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     undo(page)

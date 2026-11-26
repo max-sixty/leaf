@@ -34,6 +34,7 @@ from browser.threads import append_agent_reply
 from leaf.agents import thread as thread_model
 from leaf.log import event_log
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -302,7 +303,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview.get_by_text("Make the banner quieter")).to_be_visible()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
     thread_model.post_reply(
@@ -378,7 +379,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview.get_by_text("Keep the logo where it is")).to_be_visible()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
     append_carried_log_record(
@@ -430,7 +431,7 @@ def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
     marker.click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
-    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(card, name="Reply", exact=True)
     reply.click()
     page.keyboard.type("Keep the reaper")
     page.keyboard.press("ArrowLeft")

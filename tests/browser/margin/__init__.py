@@ -19,6 +19,7 @@ from render_harness import (
 
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 COMMENT_ON_OBLIGATION = {
     "kind": "comment",
@@ -427,7 +428,7 @@ def drafting_in_a_short_card(browser, serve, width, height):
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     expect(editor).to_be_focused()
     editor.type("words")

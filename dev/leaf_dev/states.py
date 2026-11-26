@@ -43,6 +43,7 @@ from leaf_dev.browser import (
     panel_view,
     scroll_settled,
     settle,
+    text_field,
 )
 from leaf_dev.corpus import sources as corpus_sources
 
@@ -996,7 +997,7 @@ def own_turn_in_card(page: Page) -> tuple[Locator, int]:
     card = page.locator(".lf-margin-preview")
     messages = card.locator(".lf-msg")
     sent = messages.count() + 1
-    card.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(card, name="Reply", exact=True).click()
     page.keyboard.insert_text("And over the weekend?")
     page.keyboard.press("ControlOrMeta+Enter")
     expect(messages).to_have_count(sent)
@@ -1073,7 +1074,7 @@ def card_rewrite_at_foot(page: Page) -> None:
     ↑ from the reply box, so its frame and ring stand in the room below the turns."""
     own_turn_in_card(page)
     card = page.locator(".lf-margin-preview")
-    card.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(card, name="Reply", exact=True).click()
     page.keyboard.press("ArrowUp")
     expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
     settle(page)
@@ -1356,7 +1357,7 @@ def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
     the agent's reply and the user's own message from another tab, which the thread
     holds behind its notice (held-news.js)."""
     if drafting:
-        thread.get_by_role("textbox", name="Reply", exact=True).click()
+        text_field(thread, name="Reply", exact=True).click()
         page.keyboard.insert_text("Drafting a reply while the news arrives")
     root = thread.get_attribute("data-lf-thread")
     assert root
@@ -1395,7 +1396,7 @@ def card_held_step(page: Page) -> None:
     in it, which its notice doesn't say (held-news.js)."""
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
     thread = page.locator(".lf-margin-preview .lf-page-thread")
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(thread, name="Reply", exact=True).click()
     page.keyboard.insert_text("Drafting a reply while the agent works")
     root = thread.get_attribute("data-lf-thread")
     assert root
@@ -1438,7 +1439,7 @@ def card_after_interjection(page: Page) -> None:
     """An arriving answer grows a card after Send has fitted its reply against the window."""
     card_held_step(page)
     card = page.locator(".lf-margin-preview")
-    card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
+    text_field(card, name="Reply", exact=True).press("Enter")
     # Messages are picked by their words, which every arm's runtime draws alike.
     reply = card.locator(
         ".lf-msg", has_text="Drafting a reply while the agent works"
@@ -2670,7 +2671,7 @@ def diff_file_reply(page: Page) -> None:
         "#dfg-patch .lf-page-thread"
     )
     expect(threads).to_have_count(2)
-    field = threads.first.get_by_role("textbox", name="Reply", exact=True)
+    field = text_field(threads.first, name="Reply", exact=True)
     field.click()
     page.keyboard.insert_text(
         "Keep the file conversations clear while this reply is drafted."

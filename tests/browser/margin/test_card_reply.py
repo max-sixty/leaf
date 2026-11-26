@@ -55,6 +55,7 @@ from browser.margin import (
 )
 from leaf.serving import media as media_model
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -217,7 +218,7 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     )
     assert header.bounding_box()["y"] - transcript.bounding_box()["y"] >= ring_top - 0.5
 
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     page.keyboard.press("Tab")
     reply.focus()
     expect(reply).to_be_focused()
@@ -655,7 +656,7 @@ def test_a_card_send_grows_the_card_down_past_what_the_user_read(browser, serve)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(preview, name="Reply", exact=True)
     editor.click()
     write(editor, "And the mobile cohort too.")
     rendered(page)
@@ -701,7 +702,7 @@ def sending_from_a_full_card(browser, serve):
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     transcript = preview.locator(".lf-thread-transcript")
-    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(preview, name="Reply", exact=True)
     editor.click()
     write(editor, "And the mobile cohort too.\nAnd the weekend shift.")
     rendered(page)
@@ -844,7 +845,7 @@ def test_a_scroll_during_a_card_s_ride_carries_the_ride_on_from_where_it_left_it
     scrolled = preview.evaluate(TURNS_IN_CONTENT)
     draft = "Or Monday.\nOr Tuesday.\nOr Wednesday."
     write_draft_elsewhere(page, f"reply:{LONG_THREAD_ROOT['id']}", draft)
-    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(preview, name="Reply", exact=True)
     expect(editor).to_have_js_property("value", draft)
     rendered(page)
     landed = preview.evaluate(TURNS_IN_CONTENT)
@@ -868,7 +869,7 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(preview, name="Reply", exact=True)
     editor.click()
     write(editor, "A first line.\n")
     rendered(page)
@@ -1086,7 +1087,7 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(preview, name="Reply", exact=True)
     editor.click()
     write(editor, "A first line.")
     rendered(page)
@@ -1188,7 +1189,7 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     transcript = preview.locator(".lf-thread-transcript")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
     write(editor, "A reply that grows.\n" * 30)
@@ -1309,7 +1310,7 @@ def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats)
     resized(page, 1440, 600 if comment_repeats else 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     rendered(page)
     transcript = preview.locator(".lf-thread-transcript")
@@ -1493,7 +1494,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
 
     preview = page.locator(".lf-margin-preview")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     expect(reply).to_be_visible()
     # Playwright reveals its target before hover and click. Measure after that
     # setup scroll, so the comparison isolates entering the field.
@@ -1794,7 +1795,7 @@ def test_open_reply_keeps_its_first_line_after_card_moves_to_right_rail(browser,
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).not_to_have_attribute("data-lf-thread-placement", "right")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     write(editor, "First line")
 
@@ -2508,7 +2509,7 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, windo
     page.locator('[data-lf-margin-for="low"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
-    card.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(card, name="Reply", exact=True).click()
     expect(card.locator("leaf-text")).to_be_focused()
 
     def stands_in_the_visible_viewport():
@@ -2626,9 +2627,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
     def positions():
         return card.evaluate(read_positions)
 
-    write(
-        card.get_by_role("textbox", name="Reply", exact=True), "Also include the date."
-    )
+    write(text_field(card, name="Reply", exact=True), "Also include the date.")
     expect(card.locator("leaf-text")).to_be_focused()
     rendered(page)
     writing = positions()
@@ -2795,7 +2794,7 @@ def test_a_press_on_a_cards_news_leaves_the_caret_in_its_reply(browser, serve):
     page = open_page(browser, url)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     write(reply, "Drafting while the answer arrives")
     append_carried_log_record(
         serve.page_dir,

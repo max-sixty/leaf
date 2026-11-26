@@ -98,7 +98,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
     write(box, "Keep both layers")
-    expect(box).to_have_attribute("aria-multiline", "false")
+    expect(box).to_have_attribute("one-line", "")
     page.keyboard.press("Shift+Enter")
     expect(box).to_have_js_property("value", "Keep both layers")
     expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")

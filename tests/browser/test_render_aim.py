@@ -100,7 +100,7 @@ from leaf.source import anchor_capture as anchor_capture_model
 from leaf.source import passages as passages_model
 from leaf.source import structure as structure_model
 from leaf.source.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -5334,7 +5334,7 @@ def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
         dialog = page.get_by_role("dialog")
         expect(dialog).to_be_visible()
         expect(dialog).to_contain_text("Clarify this code.")
-        reply = dialog.get_by_role("textbox", name="Reply")
+        reply = text_field(dialog, name="Reply")
         reply.click()
         expect(reply).to_be_focused()
         page.keyboard.press("Escape")

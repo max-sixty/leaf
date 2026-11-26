@@ -44,6 +44,7 @@ from browser.widgets import (
     observe_live_region,
 )
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1022,7 +1023,7 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
         }), {once: true});
       });
     }""")
-    write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
+    write(text_field(addition, name="Another option"), "A fourth option")
     page.keyboard.press("Tab")
     expect(submit).to_be_focused()
     assert page.evaluate("window.__addEmptyBeforeFrame") is False

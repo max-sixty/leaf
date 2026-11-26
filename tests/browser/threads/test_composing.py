@@ -40,6 +40,7 @@ from browser.threads import (
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import one_frame, rendered, wait_for_probe
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -322,7 +323,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
     with sending(page, "the opening comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     preview = page.locator(".lf-margin-preview")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     write(reply, text)
     with sending(page, "the follow-up reply"):
         page.keyboard.press("ControlOrMeta+Enter")

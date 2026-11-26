@@ -51,6 +51,7 @@ from leaf.log import event_log as events_model
 from leaf.records import page_data as page_data_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1612,7 +1613,7 @@ def test_a_diff_conversation_s_reply_rests_as_the_margin_card_s_field(browser, s
     )
     resized(page, 1280, 720)
     thread = page.locator("lf-diff .lf-diff-thread-outlet .lf-page-thread")
-    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(thread, name="Reply", exact=True)
     face = """field => {
       const box = field.parentElement, style = getComputedStyle(box);
       return {

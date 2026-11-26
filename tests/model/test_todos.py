@@ -978,7 +978,8 @@ def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_di
     is put down later leaves it a to-do still to do, not waiting again, and an ended
     one, or the plan step naming it, waits on nothing. Only a to-do
     waits on something, and words too long to stand in a status are fitted rather
-    than refused."""
+    than refused. Each delivery from the page lists the to-dos still waiting, so the
+    agent meets them again whatever input arrives."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -1036,6 +1037,33 @@ def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_di
         held["id"]: "Whose Words",
         created["id"]: "its review by the release…",
     }
+
+    def delivered() -> dict:
+        """The batch a delivery of a new comment of the user's hands the agent."""
+        said = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Picked."},
+        )
+        [batch] = freeze_events(page_dir, [said])["batches"]
+        return batch
+
+    # Every delivery from the page lists what is held, whatever its input, and an
+    # input that owes an answer is told how to take one up.
+    batch = delivered()
+    assert batch["held"] == [
+        {
+            "id": held["id"],
+            "text": "Take up the card's top line",
+            "waiting_on": "Whose Words",
+        },
+        {
+            "id": created["id"],
+            "text": "Merge the change",
+            "waiting_on": "its review by the release…",
+        },
+    ]
+    [event] = batch["events"]
+    assert any("`held`" in batch["handling"][clause] for clause in event["handling"])
     # A plan step naming one says what it waits on, as the to-do does.
     written(
         CliRunner().invoke(
@@ -1064,9 +1092,11 @@ def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_di
         held["id"]: None,
         created["id"]: "its review by the release…",
     }
+    assert [item["id"] for item in delivered()["held"]] == [created["id"]]
 
     written(leaf("task", "end", page_dir, held["id"], "done"))
     written(leaf("task", "end", page_dir, created["id"], "dropped"))
+    assert "held" not in delivered()
     state = state_json(page_dir)
     assert {
         record["id"]: (record["state"], record["waiting_on"])

@@ -440,7 +440,7 @@ export function misplacedBoxes() {
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
   // as the exhibit it is. Only a flow hands its room on (layouts.css), so a widget
-  // escapes a frame that is one: a flow that draws.
+  // escapes a frame that is one: a section, article or disclosure that draws.
   /** @param {Element} el */
   const draws = (el) => {
     const s = getComputedStyle(el);

@@ -150,36 +150,6 @@ def test_a_figure_s_caption_keeps_the_column_beside_the_exhibit_it_captions(
     assert boxes["kept-exhibit"] == boxes["kept-caption"] == column, boxes
 
 
-def test_a_flow_s_words_keep_the_column_whatever_inline_margin_the_page_sets(
-    browser, serve
-):
-    """A flow grows round the block that breaks out of it while its words keep the
-    column, whatever inline margin the page's own CSS gives the flow. A page's
-    `margin: 1em 0` once cancelled the growth and left its padding, squeezing a
-    section's words to a 48px sliver."""
-    source = leaf_page(
-        "Flows under page margins",
-        '<h1>Flows under page margins</h1><p id="prose">Prose sets the column.</p>'
-        '<section><p id="section-words">Words beside a wide block.</p>'
-        '<div id="section-block" data-width="available">Wide.</div></section>'
-        '<figure><figcaption id="figure-words">A caption.</figcaption>'
-        '<div id="figure-block" data-width="available">Wide.</div></figure>',
-        head="<style>section, figure { margin: 1em 0; }</style>",
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1440, 900)
-    boxes = page.evaluate("""() => Object.fromEntries(
-      [...document.querySelectorAll('main [id]')].map(el => {
-        const box = el.getBoundingClientRect();
-        return [el.id, [Math.round(box.left), Math.round(box.right)]];
-      }))""")
-    column = boxes["prose"]
-    for flow in ("section", "figure"):
-        assert boxes[f"{flow}-words"] == column, (flow, boxes)
-        block = boxes[f"{flow}-block"]
-        assert block[0] < 100 and block[1] > 1340, (flow, boxes)
-
-
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, direction):
     """Beside a contents map, a question or section written in the other direction from

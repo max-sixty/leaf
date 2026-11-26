@@ -1,4 +1,5 @@
-"""Layer input resolution, composition, and content identity.
+"""Layer input resolution, composition and content identity, and which Leaf runs:
+this process (`running_leaf`) and a page's server (`other_serving_leaf`).
 
 A selection has two compositions, held together by the inputs it resolves to, for
 the process or in the page's memory (`_held`). Its vocabulary (`selected_vocabulary`,
@@ -42,6 +43,7 @@ from leaf.base.schema import (
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
 )
+from leaf.base.server import running_server
 from leaf.base.state import PLUGIN_ROOT, installed_copy
 from leaf.source.registry.contract import MODULES, is_element_name
 
@@ -940,7 +942,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         # Nobody edits a harness's clone, but Codex's lacks what it strips on
         # install, such as the `.agents/skills` link, and adds its own record,
         # which Git would count as changes; and a status costs a hook that asks
-        # which Leaf it runs (`server.other_serving_leaf`) most of its reading.
+        # which Leaf it runs (`other_serving_leaf`) most of its reading.
         provenance["dirty"] = False
         return provenance
     try:
@@ -963,6 +965,30 @@ def running_leaf() -> dict:
     that server is built (`http.page_app`): the Leaf whose code the process runs,
     however its checkout moves on afterwards."""
     return payload_provenance()
+
+
+def other_serving_leaf(page_dir: Path) -> dict | None:
+    """The Leaf the page's running server records (`payload_provenance`), where it is
+    another Leaf than the one this process runs (`running_leaf`), or None where no
+    server runs or this Leaf started it.
+
+    A server keeps the runtime and layer it started with, so what this process checks
+    may not be what the user's tab draws until the server restarts. Another Leaf is
+    another install or checkout, or this one at another commit, as a checkout is after
+    a commit, or a copy Codex or Pi updated in place is until its server follows the
+    update (`server_lifetime.stop_when_service_ends`). Uncommitted edits don't count,
+    since the record can't say whether they changed after the server started.
+    `leaf server start` restarts such a server under this Leaf
+    (`hosting.start_page`), and `page check` notes it
+    (`authored_checks.source.source_advice`)."""
+    server = running_server(page_dir)
+    if server is None:
+        return None
+    served = server["runtime"]
+    here = {"path": str(PLUGIN_ROOT), "commit": running_leaf().get("commit")}
+    if all(served.get(key) == value for key, value in here.items()):
+        return None
+    return served
 
 
 def provenance_label(provenance: dict) -> str:

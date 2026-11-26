@@ -73,13 +73,13 @@ from interact_support import (
 
 from leaf.agents import inference as inference_model
 from leaf.agents import presence as presence_model
-from leaf.agents import server as server_model
 from leaf.agents import thread_titles as thread_titles_model
 from leaf.base import detached as detached_model
 from leaf.base import files as files_model
 from leaf.base import leases as leases_model
 from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.refusals import Refused

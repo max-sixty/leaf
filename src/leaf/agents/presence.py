@@ -9,13 +9,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from leaf.agents.server import running_server
 from leaf.base.files import file_stamp
 from leaf.base.harness import claim_harness
 from leaf.base.leases import lock_is_held, wait_is_live, waiter_lease_path
 from leaf.base.page_memory import memo
 from leaf.base.rows import ROW, read_row, row_path
 from leaf.base.schema import SERVER_LOCK, UNNAMED_AGENT
+from leaf.base.server import running_server
 from leaf.base.service import claim_is_active, claim_records, page_claim, read_stream
 from leaf.base.state import now_iso, state_home, turn_closed
 from leaf.records.activity import (

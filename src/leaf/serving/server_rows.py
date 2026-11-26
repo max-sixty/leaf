@@ -31,12 +31,12 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.agents.presence import PRESENCE_CACHE_S, live_facts, nudge_interrupted
-from leaf.agents.server import exit_serving
 from leaf.base.page_memory import memory_of
 from leaf.base.rows import ROW, row_path
 from leaf.base.service import page_claim
 from leaf.base.state import page_key
 from leaf.serving.served_state.service import PageStateService
+from leaf.serving.server_lifetime import exit_serving
 from leaf.source.page_inputs import page_reading
 
 

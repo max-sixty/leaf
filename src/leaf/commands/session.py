@@ -15,7 +15,6 @@ from typing import Literal, NamedTuple
 
 from leaf.agents.clerk import QUEUED, waking
 from leaf.agents.presence import nudge_unwatched, turn_ending
-from leaf.agents.server import read_service, running_server
 from leaf.base.detached import StartRefused
 from leaf.base.files import file_stamp
 from leaf.base.findings import Finding, note, with_held
@@ -29,6 +28,7 @@ from leaf.base.leases import (
 from leaf.base.locations import path_location, paths_same
 from leaf.base.refusals import Refused
 from leaf.base.schema import ANSWER_INSTRUCTION
+from leaf.base.server import read_service, running_server
 from leaf.base.state import (
     CLAIM,
     SESSION,

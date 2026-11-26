@@ -345,10 +345,10 @@ where a watch runs between turns.
 
 A server whose service is persistent, or whose page a live session holds, has the copy
 it follows restart it at the same address, for the session holding the page where one
-does, and serves meanwhile (`server.stop_when_service_ends`). The adapter releases
-its leases and starts a successor from the copy it follows. It holds the task's start lock
-until the successor holds its leases and its transport answers, so a claim meanwhile
-waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
+does, and serves meanwhile (`server_lifetime.stop_when_service_ends`). The adapter
+releases its leases and starts a successor from the copy it follows. It holds the
+task's start lock until the successor holds its leases and its transport answers, so a
+claim meanwhile waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
 reads the adapter lease without the start lock finds no adapter. Pi's watch lets its
 lease go and execs the new copy's watch with the payload that started it, so the
 process Pi's extension started stays the one it reads and stops (`hooks.main`).

@@ -28,22 +28,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
-from leaf.agents.server import (
-    SERVICE,
-    exit_serving,
-    exit_serving_on_signals,
-    host_key,
-    loopback_only,
-    other_serving_leaf,
-    page_access,
-    page_origin,
-    page_url,
-    read_service,
-    running_server,
-    served_lifetime,
-    stop_when_service_ends,
-    write_service,
-)
 from leaf.base.detached import Handshake, StartRefused, starting_detached
 from leaf.base.findings import Finding, note, with_held
 from leaf.base.harness import (
@@ -63,6 +47,18 @@ from leaf.base.leases import (
 from leaf.base.machine import caller_exited
 from leaf.base.refusals import Refused
 from leaf.base.schema import SERVER_LOCK, SERVICE_FILE
+from leaf.base.server import (
+    SERVICE,
+    host_key,
+    loopback_only,
+    page_access,
+    page_origin,
+    page_url,
+    read_service,
+    running_server,
+    served_lifetime,
+    write_service,
+)
 from leaf.base.service import (
     claim_is_active,
     claimant_matches,
@@ -73,10 +69,16 @@ from leaf.base.service import (
 )
 from leaf.base.state import PLUGIN_ROOT
 from leaf.records.transaction import PageTransaction
+from leaf.serving.server_lifetime import (
+    exit_serving,
+    exit_serving_on_signals,
+    stop_when_service_ends,
+)
+from leaf.source.layer import other_serving_leaf
 
 if TYPE_CHECKING:
-    from leaf.agents.record_types import ServiceRecord
-    from leaf.agents.server import PageAddress
+    from leaf.base.record_types import ServiceRecord
+    from leaf.base.server import PageAddress
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
 # 30 s on macOS. A server is that side for the keep-alive connections it closes or
@@ -943,7 +945,7 @@ def note_serving_for_no_session(page_dir: Path, harness: Harness | None) -> None
 def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     """`leaf server start`: take and serve the page (`claim_and_start`) with this
     Leaf, restarting at its address a running server another Leaf started
-    (`server.other_serving_leaf`).
+    (`layer.other_serving_leaf`).
 
     A server keeps the Leaf it started under, and markup and layout contracts move
     between commits with no protocol change, so the agent asking to serve a page
@@ -956,8 +958,9 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     once the page is taken, since a session service comes back only for the
     session holding it; one that can't start again leaves the service enabled and
     down, for a revival to bring back. A server from an installed copy itself moves
-    to the installed copy its session's hooks run (`server.stop_when_service_ends`);
-    a watch reviving a page restarts nothing."""
+    to the installed copy its session's hooks run
+    (`server_lifetime.stop_when_service_ends`); a watch reviving a page restarts
+    nothing."""
     replacing = other_serving_leaf(page_dir) is not None
     if replacing:
         check_servable(page_dir)
@@ -982,8 +985,9 @@ def check_servable(page_dir: Path) -> None:
 def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
     """`server _follow`: restart at its address, under this Leaf, the server
     `server_id` names, which another installed copy started and which asked
-    (`server.stop_when_service_ends`): the copy this Leaf replaced at the same path,
-    or one the session holding the page ran before its hooks ran this Leaf.
+    (`server_lifetime.stop_when_service_ends`): the copy this Leaf replaced at the
+    same path, or one the session holding the page ran before its hooks ran this
+    Leaf.
 
     The answer through `handshake` says only that this copy runs, since only a
     failed launch is worth the server's trying again. A page at an older page

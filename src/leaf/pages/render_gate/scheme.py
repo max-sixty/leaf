@@ -5,10 +5,10 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.agents.presence import live_servers
-from leaf.agents.server import page_origin
 from leaf.base.files import version_num
 from leaf.base.findings import Finding
 from leaf.base.refusals import Refused
+from leaf.base.server import page_origin
 from leaf.pages.render_gate.readings import (
     DevtoolsIssues,
     _page_findings,

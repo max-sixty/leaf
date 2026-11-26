@@ -24,10 +24,10 @@ a log this Leaf may misread.
 from pathlib import Path
 
 from leaf.agents.delivery import current_responses
-from leaf.agents.server import running_server
 from leaf.base.files import revision_path
 from leaf.base.refusals import Refused
 from leaf.base.schema import DATA_DIR
+from leaf.base.server import running_server
 from leaf.log.construction import constructed_content
 from leaf.log.events import bare_reaction, is_reaction
 from leaf.log.projection import (

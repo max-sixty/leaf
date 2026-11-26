@@ -91,6 +91,7 @@ from leaf.base.state import (
 )
 from leaf.commands.session import set_status
 from leaf.log.interaction_log import append_interactions
+from leaf.pages.exporting import markup_data
 from leaf.pages.hosting import LeafHTTPServer
 from leaf.pages.page_snapshot import capture_page_snapshot
 from leaf.pages.render_gate.messages import message_check
@@ -1614,12 +1615,16 @@ def initial_state(
     """Build the canonical state shared by users before any private mutation."""
     revision = latest_revision(page_dir)
     assert revision is not None
+    latest = read_revision(page_dir, revision)
+    # Only the data the page's markup binds, as an export holds, so a file the page
+    # grants and no markup shows stays out of the public state.
     captured = capture_page_snapshot(
         page_dir,
-        read_revision(page_dir, revision).document,
+        latest.document,
         revision,
         url=f"/revisions/{revision_path(page_dir, revision).name}",
         process=False,
+        data=markup_data(page_dir, latest.document, latest.registry),
     )
     state = PageStateService(
         page_dir,

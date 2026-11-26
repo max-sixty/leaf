@@ -21,9 +21,11 @@ browser applies the patch to the reading it named (`completeState` in
 leaves alone keeps the identity it had there, down to each message and each source's
 value, which is what lets every reader downstream skip it.
 
-A source's value is compared by its `revision`, the digest `data.read_data` already
-took of it (`_compared`), and sent whole when that moves: encoding every value again
-to compare it would cost each answer about what sending them all did.
+A source's value is compared by its `revision` and `run`, which `data.read_data`
+already holds (`_compared`), and sent whole when either moves: encoding every value
+again to compare it would cost each answer about what sending them all did. A
+publication's revision digests its value; a bound file's names the file's bytes,
+and its run moves with a new name for the file too (`data.file_sources`).
 
 The patch is a list of changes, each at a path of keys from the root of what it
 changes through its objects:
@@ -298,10 +300,12 @@ def _changes(held: tuple, current: tuple, value, path: list, patch: list) -> Non
 
 def _compared(reading: dict) -> dict:
     """`reading` as its parts are taken: each data source's value stood in for by its
-    `revision`, which digests it."""
+    `revision` and `run`, which name it together."""
     data = reading["data"]
     sources = {
-        source: {**held, "value": held["revision"]} if "value" in held else held
+        source: {**held, "value": f"{held['revision']} {held['run']}"}
+        if "value" in held
+        else held
         for source, held in data["sources"].items()
     }
     return {**reading, "data": {**data, "sources": sources}}

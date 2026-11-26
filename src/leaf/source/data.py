@@ -21,12 +21,17 @@ binds a source id nothing rewrites.
 
 A file the page binds (`file_bindings`) is a source too, under its binding's id:
 a `text-document` valued `{key, name, text, revision}`, the binding, the file's label,
-its text and the revision a save names, read again whenever its stamp moves
-(`file_sources`). Its run digests the file's path and stamp, so it moves with every
-write, and `updated` is when the file was last written. Readers judge its value as
-they judge a publication's. Nothing else writes it: `leaf data set` refuses its id
-(`page_data`), and a publication under that id stands behind it. A file the page
-can't read is a source holding the reason as its error.
+its text and the revision a save names, read again whenever what the filesystem says
+of the file moves (`file_bindings.observed`, `file_sources`). The source's revision is
+the first 16 digits of the file's, so a comment on what a widget drew from it records
+the version of the file a save names, and a new label leaves it as it was. Its run
+digests that observation, the path and the label, so it moves with every write and
+every new label, and `updated` is when the file was last written. Readers judge its
+value as they judge a publication's. Nothing else writes it: `leaf data set` and
+`leaf data clear` refuse its id (`page_data`), and a publication under that id stands
+behind it. A file the page can't read is a source holding the reason as its error. A
+widget input of another contract can't draw it, which `page check` refuses
+(`bound_file_conflicts`).
 """
 
 import hashlib
@@ -35,6 +40,7 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.base.files import file_stamp, replace_files
+from leaf.base.findings import Finding
 from leaf.base.page_memory import memo
 from leaf.base.schema import DATA_DIR
 from leaf.base.state import (
@@ -46,8 +52,14 @@ from leaf.base.state import (
     now_iso,
     object_schema,
 )
-from leaf.source.data_contracts import payload_error
-from leaf.source.file_bindings import FileBindingError, bound_paths, labels, read_bound
+from leaf.source.data_contracts import data_bindings, payload_error
+from leaf.source.file_bindings import (
+    FileBindingError,
+    bound_paths,
+    labels,
+    observed,
+    read_bound,
+)
 
 # The contract a bound file is a source under. The `default` package declares it, and
 # every layer composes that package.
@@ -210,9 +222,10 @@ def _judged(source: str, reading: dict, registry: dict) -> dict:
 
 
 class _Files:
-    """Each bound file's source, by binding, kept under its path, label and stamp. A
-    file the page couldn't read is read again each time, since a change to its
-    permissions moves no stamp."""
+    """Each bound file's source, by binding, kept under the one observation of the
+    file that also names its run and moves the page's news: its path, label and what
+    `file_bindings.observed` says of it, which moves with a change to its permissions
+    too."""
 
     def __init__(self) -> None:
         self.held: dict[str, tuple] = {}
@@ -227,24 +240,20 @@ def file_sources(page_dir: Path) -> dict[str, dict]:
         held.pop(binding, None)
     sources = {}
     for binding, path in paths.items():
-        key = (path, named[binding], file_stamp(path))
+        seen = (str(path), named[binding], observed(path))
         kept = held.get(binding)
-        reading = (
-            kept[1]
-            if kept is not None and kept[0] == key
-            else _file_source(binding, path, named[binding])
-        )
-        if "value" in reading:
-            held[binding] = (key, reading)
-        sources[binding] = reading
+        if kept is None or kept[0] != seen:
+            kept = held[binding] = (seen, _file_source(binding, path, seen))
+        sources[binding] = kept[1]
     return sources
 
 
-def _file_source(binding: str, path: Path, label: str) -> dict:
-    # The write is named by what the filesystem says of the file, so rewriting the
-    # same bytes is a write of its own, as a rerun of a publication is.
-    stamp = file_stamp(path)
-    run = hashlib.sha256(repr((str(path), stamp)).encode()).hexdigest()[:16]
+def _file_source(binding: str, path: Path, seen: tuple) -> dict:
+    """The source of the file at `path` as `seen` observed it, its path, label and
+    what the filesystem says of it: a write, a rewrite of the same bytes included, or
+    a new label moves the run, as a rerun of a publication does."""
+    label = seen[1]
+    run = hashlib.sha256(repr(seen).encode()).hexdigest()[:16]
     try:
         read, written = read_bound(path, label)
     except FileBindingError as error:
@@ -255,21 +264,55 @@ def _file_source(binding: str, path: Path, label: str) -> dict:
             "updated": now_iso(),
             "error": str(error),
         }
-    value = {
-        "key": binding,
-        "name": label,
-        "text": read["text"],
-        "revision": read["revision"],
-    }
     return {
         "contract": FILE_CONTRACT,
-        "revision": value_revision(value),
+        "revision": read["revision"][:16],
         "run": run,
         "updated": datetime.fromtimestamp(written)
         .astimezone()
         .isoformat(timespec="milliseconds"),
-        "value": value,
+        "value": {
+            "key": binding,
+            "name": label,
+            "text": read["text"],
+            "revision": read["revision"],
+        },
     }
+
+
+def source_reading(page_dir: Path, source: str, registry: dict) -> dict | None:
+    """One source as `read_data` gives it, or None where the page holds none."""
+    files = file_sources(page_dir)
+    if source in files:
+        return _judged(source, files[source], registry)
+    return read_source(page_dir, source, registry)
+
+
+def bound_file_conflicts(
+    page_dir: Path, lf_elements: list, registry: dict
+) -> list[Finding]:
+    """Each input in a document that binds a bound file's id under another contract
+    than the file's, which its widget can't draw."""
+    files = bound_paths(page_dir)
+    return [
+        Finding(
+            "file-contract",
+            values={
+                "source": source,
+                "seat": {
+                    "contract": spec["contract"],
+                    "tag": rec["tag"],
+                    **({"widget": rec["attrs"]["id"]} if "id" in rec["attrs"] else {}),
+                    "input": input_name,
+                    "line": rec["line"],
+                },
+            },
+        )
+        for _ordinal, rec, input_name, spec, source in data_bindings(
+            lf_elements, registry
+        )
+        if source in files and spec["contract"] != FILE_CONTRACT
+    ]
 
 
 def read_data(page_dir: Path, registry: dict | None) -> dict:

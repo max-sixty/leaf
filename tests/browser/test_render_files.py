@@ -165,7 +165,9 @@ def test_a_preview_bound_to_a_file_follows_each_write_with_or_without_an_editor(
     """A Markdown preview bound by `source` to a file the page binds shows each save
     of the editor beside it and, on a page with no editor, each write to the file from
     elsewhere, as an agent's. What it draws names the file's source and revision, which
-    a comment on its words records."""
+    a comment on its words records. An editor open before the page bound its file,
+    holding nothing of its own, reads the file once the page binds it, as the preview
+    shows it."""
     file = tmp_path / "README.md"
     file.write_text("# Notes\n\nFirst words.\n")
     preview_markup = (
@@ -180,17 +182,22 @@ def test_a_preview_bound_to_a_file_follows_each_write_with_or_without_an_editor(
         ),
         packages=["file-editor"],
     )
-    bind_file(serve.page_dir, "notes", file)
+    edited_dir = serve.page_dir
     alone = serve(leaf_page("Notes", f"<h1>Notes</h1>{preview_markup}"))
     bind_file(serve.page_dir, "notes", file)
 
     page = open_page(browser, live_url(edited))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    expect(editor).to_contain_text("No file is bound as 'notes'.")
+    bind_file(edited_dir, "notes", file)
+    told(page)
     preview = page.locator("#preview .lf-text-document-preview")
     expect(preview).to_contain_text("First words.")
     expect(preview).to_have_attribute("data-lf-source", "notes")
-    page.locator("lf-file-editor").get_by_role(
-        "textbox", name="File contents", exact=True
-    ).click()
+    expect(editor).to_contain_text("First words.")
+    editor.click()
     page.keyboard.press("ControlOrMeta+End")
     page.keyboard.insert_text("Typed in the editor.")
     expect(preview).to_contain_text("Typed in the editor.")

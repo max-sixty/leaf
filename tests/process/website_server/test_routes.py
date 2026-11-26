@@ -120,7 +120,8 @@ def test_a_published_document_names_its_page_to_a_crawler(
 def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
     """A first visit reads the state the site publishes until the visitor's container
     answers, so a file navigator lists the page's files from it as from a live page's
-    state, where a capture would list none."""
+    state, where a capture would list none. The file's words stay out of that public
+    state unless the page's markup shows them, as an export's do."""
     notes = page_dir / "files" / "notes.md"
     notes.parent.mkdir()
     notes.write_text("Notes.\n")
@@ -130,6 +131,8 @@ def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
     live = website_server.PageStateService(page_dir).page_state()
     assert list(public["files"]) == ["notes"]
     assert public["files"] == live["files"]
+    assert "notes" in live["data"]["sources"]
+    assert "notes" not in public["data"]["sources"]
     assert served_state_error(public, "answer") is None
 
 

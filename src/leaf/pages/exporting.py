@@ -30,7 +30,7 @@ from `_page_log`, the part of the log that changes the page, with no process fac
 and history are all readings of that log, so none of them has a message to carry, and
 a new kind of event stays out until `_page_log` names it. A widget in a message can
 bind a data source and an image can be attached to a message, so the file holds only
-the data the page's own markup binds (`_page_data`) and the media that markup and data
+the data the page's own markup binds (`markup_data`) and the media that markup and data
 name.
 
 Two other designs were rejected. Embedding the threads and turning their surface
@@ -338,11 +338,12 @@ def _page_log(events: list[dict]) -> list[dict]:
     return page_log
 
 
-def _page_data(page_dir: Path, document: SourceDocument, registry: dict) -> dict:
-    """The stored data the file holds (the module header): each source `document`
-    binds, which leaves out a source only a message's widget or an earlier revision
-    binds. A widget a page's script creates finds its source only if the page's markup
-    binds it too."""
+def markup_data(page_dir: Path, document: SourceDocument, registry: dict) -> dict:
+    """The stored data the file holds (the module header), and the state a hosted
+    page's first visit reads: each source `document` binds, which leaves out a source
+    only a message's widget or an earlier revision binds, and a file the page grants
+    that no markup shows. A widget a page's script creates finds its source only if
+    the page's markup binds it too."""
     stored = read_data(page_dir, registry)
     bound = {source for *_, source in data_bindings(document.lf_elements, registry)}
     return {
@@ -600,7 +601,7 @@ def cmd_export(
             transaction=page,
             process=False,
             log=_page_log(page.events),
-            data=_page_data(page_dir, document, artifact.registry),
+            data=markup_data(page_dir, document, artifact.registry),
         )
     state = PageStateService(
         page_dir,

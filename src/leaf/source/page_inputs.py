@@ -46,7 +46,7 @@ from leaf.base.state import (
     record_name,
     session_file,
 )
-from leaf.source.file_bindings import bound_paths
+from leaf.source.file_bindings import bound_paths, observed
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
@@ -120,6 +120,10 @@ def outside_inputs(page_dir: Path) -> set[Path]:
 
 
 def _outside(page_dir: Path) -> list[tuple[str, Path]]:
+    return _claimed(page_dir) + _bound(page_dir)
+
+
+def _claimed(page_dir: Path) -> list[tuple[str, Path]]:
     named = [("$claim", CLAIM.file(claim_path(page_dir)))]
     claim = page_claim(page_dir)
     if claim:
@@ -131,7 +135,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
                 SESSION.file(session_file(claim["id"], SESSION_SUFFIX)).resolve(),
             )
         )
-    return named + _bound(page_dir)
+    return named
 
 
 def _bound(page_dir: Path) -> list[tuple[str, Path]]:
@@ -200,7 +204,12 @@ def held_page_reading(page_dir: Path) -> str:
 
 
 def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
-    return [(name, file_stamp(path)) for name, path in _outside(page_dir)]
+    # A bound file is stamped as its source is read (`file_bindings.observed`), so the
+    # news moves for each change that moves the source.
+    return [
+        *((name, file_stamp(path)) for name, path in _claimed(page_dir)),
+        *((name, observed(path)) for name, path in _bound(page_dir)),
+    ]
 
 
 def record_reading(page_dir: Path) -> str:

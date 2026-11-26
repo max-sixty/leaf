@@ -47,14 +47,14 @@
         }
       },
       "text-document": {
-        "description": "UTF-8 text from a file or a selected line range: the text, or the text with the file's `name` where one document shows several files in turn, such as the one an editor has open, a `key` that names the file however its name changes, and the file's `revision` where the value is a file the page binds, read as it stands on disk.",
+        "description": "UTF-8 text from a file or a selected line range: the text, or the text with the file's `name` where one document shows several files in turn, such as the one an editor has open, a `key` that names the file however its name changes, and an opaque `revision` naming the version of the file the text is, such as the one a save to a file the page binds names.",
         "schema": {
           "type": ["string", "object"],
           "properties": {
             "key": { "type": "string", "minLength": 1 },
             "name": { "type": "string", "minLength": 1 },
             "text": { "type": "string" },
-            "revision": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            "revision": { "type": "string", "minLength": 1 }
           },
           "required": ["name", "text"],
           "additionalProperties": false

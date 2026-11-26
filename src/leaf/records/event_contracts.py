@@ -322,7 +322,10 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
 
     Source values are replaceable and nothing keeps the ones they replaced, so a
     revision other than the source's current one is admitted as a comment on a
-    value that has since changed: the reader and a replacement may have raced.
+    value that has since changed: the reader and a replacement may have raced. The
+    current revision is admitted only where the seat could draw it: the value fits
+    its contract, and one of the seat's inputs binding the source reads that
+    contract.
     """
     anchor = event.get("anchor") or {}
     source = anchor.get("source")
@@ -343,6 +346,16 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
         return Finding("datum-unbound-source", values=named)
     if source not in view.contracts:
         return Finding("datum-unsupplied-source", values=named)
+    reading = view.source(source, registry)
+    if reading is None or anchor.get("source_revision") != reading["revision"]:
+        return None
+    if "error" in reading:
+        return Finding(
+            "datum-undrawn-source", values={**named, "why": reading["error"]}
+        )
+    if all(spec["contract"] != reading["contract"] for spec in bindings):
+        why = f"it holds a {reading['contract']!r}, which no input there reads"
+        return Finding("datum-undrawn-source", values={**named, "why": why})
     return None
 
 

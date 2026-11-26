@@ -1365,6 +1365,15 @@ _TEXT = {
             f" {_seat(v['then'])}; use a new source id for the new meaning"
         ),
     ),
+    "file-contract": _refuses(
+        _DATA,
+        lambda at, v: (
+            f"source {v['source']!r} is a file the page binds, a 'text-document', but"
+            f" {_seat(v['seat'])} reads it as {v['seat']['contract']!r}; bind that"
+            " input to another source, or show the file in an input that reads"
+            " 'text-document'"
+        ),
+    ),
     # Message markup, which no version settles.
     "message-settlement": lambda at, v: (
         f"{at} proposes a change inside a message, where deciding it changes only the"
@@ -2149,6 +2158,13 @@ _TEXT = {
         _ADMITS,
         lambda at, v: (
             f"datum anchor source {v['source']!r} has never been supplied to this page"
+        ),
+    ),
+    "datum-undrawn-source": _refuses(
+        _ADMITS,
+        lambda at, v: (
+            f"datum anchor names the value source {v['source']!r} holds now, which"
+            f" section {v['section']!r} can't draw: {v['why']}"
         ),
     ),
     "hold-target": _refuses(

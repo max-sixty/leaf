@@ -40,6 +40,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
+from leaf.base.files import file_stamp
 from leaf.base.leases import page_locked
 from leaf.base.locations import canonical_path, path_lock
 from leaf.base.refusals import Refused
@@ -261,6 +262,21 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
         for other in BINDINGS.others(page_dir / FILE_BINDINGS_FILE):
             other.unlink(missing_ok=True)
     return {"binding": binding, "bound": False}
+
+
+def observed(path: Path):
+    """What the page knows of a bound file without reading it, which its news
+    (`page_inputs`), the cache of its source and the source's run (`data.file_sources`)
+    all read: its stamp (`file_stamp`) and its change time. The change time moves with
+    a change to the file's permissions, and with a rewrite that puts back the
+    modification time and size it had, neither of which moves the stamp. The stamp
+    leaves it out because Leaf's hard links of a revision's files move it, where
+    nothing links a bound file. None where nothing is there."""
+    stamp = file_stamp(path)
+    try:
+        return None if stamp is None else (stamp, path.stat().st_ctime_ns)
+    except OSError:
+        return None
 
 
 def read_bound(path: Path, label: str) -> tuple[dict, float]:

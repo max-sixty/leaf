@@ -1,6 +1,7 @@
 """Explicit local-file grants, lossless saves, and the authenticated HTTP door."""
 
 import json
+import os
 import shutil
 import stat
 from concurrent.futures import ThreadPoolExecutor
@@ -13,17 +14,19 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
+    check_findings,
     fetch,
     lock_contention,
     publish,
     read_page_data,
+    refused_on,
     running_http_server,
 )
 
 from leaf.base.locations import PATH_LOCKS, path_lock_key
 from leaf.commands.cli import cli
 from leaf.log.construction import input_readings
-from leaf.records.page_data import cmd_data_set
+from leaf.records.page_data import cmd_data_clear, cmd_data_set
 from leaf.source.data_contracts import DataError
 from leaf.source.file_bindings import (
     BINDINGS,
@@ -391,27 +394,47 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(
 ):
     """An editor reads its file only when the state answer's source for the binding
     names another write, so a write outside Leaf moves the reading a visible tab polls
-    and that source's run, and so does rewriting the same bytes."""
+    and that source's run, and so do rewriting the same bytes, a same-size rewrite that
+    puts the old modification time back, and a file becoming unreadable, which the
+    source then reports."""
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
 
-    def runs():
-        sources = json.loads(fetch(f"{server}/api/state")[1])["data"]["sources"]
-        return {binding: source["run"] for binding, source in sources.items()}
+    def source():
+        return json.loads(fetch(f"{server}/api/state")[1])["data"]["sources"]["notes"]
+
+    def moves(change):
+        """The source after `change`, which moved the page's reading and the run."""
+        ran, reading = source()["run"], page_reading(page_dir)
+        change()
+        after = source()
+        assert page_reading(page_dir) != reading
+        assert after["run"] != ran
+        return after
 
     # The first state read activates the page, which moves its reading once.
-    ran = runs()
+    ran = source()["run"]
     reading = page_reading(page_dir)
-    assert set(ran) == {"notes"}
-    assert (runs(), page_reading(page_dir)) == (ran, reading)
+    assert (source()["run"], page_reading(page_dir)) == (ran, reading)
 
-    target.write_text("edited outside Leaf\n")
-    assert page_reading(page_dir) != reading
-    assert runs()["notes"] != ran["notes"]
-    ran = runs()
-    target.write_text("edited outside Leaf\n")
-    assert runs()["notes"] != ran["notes"]
+    assert moves(lambda: target.write_text("ALPHA\n"))["value"]["text"] == "ALPHA\n"
+    assert moves(lambda: target.write_text("ALPHA\n"))["value"]["text"] == "ALPHA\n"
+
+    def same_size_at_the_old_time():
+        written = target.stat()
+        target.write_text("BRAVO\n")
+        os.utime(target, ns=(written.st_atime_ns, written.st_mtime_ns))
+
+    assert moves(same_size_at_the_old_time)["value"]["text"] == "BRAVO\n"
+    try:
+        unreadable = moves(lambda: target.chmod(0))
+        assert (
+            unreadable["error"] == "Could not access the bound file: Permission denied."
+        )
+    finally:
+        target.chmod(0o644)
+    assert source()["value"]["text"] == "BRAVO\n"
 
 
 def test_a_bound_file_is_the_page_s_source_under_its_binding(
@@ -419,11 +442,14 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
 ):
     """A widget shows a bound file by binding its id as it would any source, with no
     editor on the page: a `text-document` of the file's label, text and revision, read
-    again as the file changes. A comment on what the widget drew names the file's
-    revision, and a file the page can't read is a source holding why, until it can
-    read it again. The file is what changes the source, so `leaf data set` refuses the
-    id and the widget's construction names the file to edit."""
-    target = tmp_path / "README.md"
+    again as the file changes. A comment on what the widget drew records the file's
+    own revision, which a new label for the file leaves as it was, and the door refuses
+    one on a value the widget can't draw, as a file it can't read, while admitting one
+    on a value since replaced. The file is what changes the source, so `leaf data set`
+    and `leaf data clear` refuse the id and the widget's construction names the file to
+    edit."""
+    (tmp_path / "sub").mkdir()
+    target = tmp_path / "sub" / "README.md"
     target.write_text("# Notes\n")
     bind_file(page_dir, "readme", target)
     (page_dir / "index.html").write_text(
@@ -437,8 +463,9 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
     read = read_page_data(page_dir)["sources"]["readme"]
     saved = read_file(page_dir, "readme")
     assert saved is not None
-    assert (read["contract"], read["value"]) == (
+    assert (read["contract"], read["revision"], read["value"]) == (
         "text-document",
+        saved["revision"][:16],
         {
             "key": "readme",
             "name": "README.md",
@@ -446,42 +473,47 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
             "revision": saved["revision"],
         },
     )
-    comment = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "Say what the notes are for.",
-        "anchor": {
-            "section": "readme-preview",
-            "datum": "source",
-            "source": "readme",
-            "source_revision": read["revision"],
-            "quote": "Notes",
-        },
-        "attempt": "file_source_comment_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
+
+    def comment(source_revision, attempt):
+        event = {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Say what the notes are for.",
+            "anchor": {
+                "section": "readme-preview",
+                "datum": "source",
+                "source": "readme",
+                "source_revision": source_revision,
+                "quote": "Notes",
+            },
+            "attempt": attempt,
+        }
+        return fetch(f"{server}/api/event", data=json.dumps(event).encode())
+
+    status, body = comment(read["revision"], "file_source_comment_1")
     assert status == 200, body
 
-    target.write_text("# Notes on cold starts\n")
-    assert read_page_data(page_dir)["sources"]["readme"]["value"]["text"] == (
-        "# Notes on cold starts\n"
-    )
+    # Binding a file outside its folder names it by a longer path.
+    (tmp_path / "other.md").write_text("Other.\n")
+    bind_file(page_dir, "other", tmp_path / "other.md")
+    relabelled = read_page_data(page_dir)["sources"]["readme"]
+    assert relabelled["value"]["name"] == "sub/README.md"
+    assert relabelled["revision"] == read["revision"]
+    assert relabelled["run"] != read["run"]
+
     target.write_bytes(b"\x00")
-    assert read_page_data(page_dir)["sources"]["readme"]["error"] == (
-        "File contains binary control characters."
-    )
-    target.write_text("# Notes\n")
-    target.chmod(0)
-    try:
-        assert read_page_data(page_dir)["sources"]["readme"]["error"] == (
-            "Could not access the bound file: Permission denied."
-        )
-    finally:
-        target.chmod(0o644)
-    assert read_page_data(page_dir)["sources"]["readme"]["value"]["text"] == "# Notes\n"
+    unreadable = read_page_data(page_dir)["sources"]["readme"]
+    assert unreadable["error"] == "File contains binary control characters."
+    status, body = comment(unreadable["revision"], "file_source_comment_2")
+    assert status == 400
+    assert refused_on(body).code == "datum-undrawn-source"
+    status, body = comment(read["revision"], "file_source_comment_3")
+    assert status == 200, body
 
     with pytest.raises(DataError, match="'readme' is a bound file"):
         cmd_data_set(page_dir, "readme", "# Notes\n")
+    with pytest.raises(DataError, match="'readme' is a bound file"):
+        cmd_data_clear(page_dir, "readme")
     registry = read_page_registry(page_dir).registry
     readings = input_readings(
         {"id": "readme-preview", "source": "readme"},
@@ -490,3 +522,43 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
         page_dir,
     )
     assert readings["document"]["edit"]["file"] == str(target.resolve())
+
+
+def test_an_input_of_another_contract_can_t_take_a_bound_file(
+    server, page_dir, tmp_path
+):
+    """A widget input reading another contract than a file's draws nothing from it, so
+    `page check` refuses markup that binds a file's id there, and the door refuses a
+    comment naming the value it holds now on a page that bound the file after its
+    markup was checked."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            '<p><lf-num id="count-num" source="count" run="r1">3</lf-num></p>\n</main>',
+        )
+    )
+    publish(page_dir)
+    target = tmp_path / "count.txt"
+    target.write_text("3\n")
+    bind_file(page_dir, "count", target)
+    status, findings = check_findings(page_dir)
+    assert status != 0
+    assert [finding.code for finding in findings if finding.refuses] == [
+        "file-contract"
+    ]
+
+    comment = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "Where does three come from?",
+        "anchor": {
+            "section": "count-num",
+            "datum": "value",
+            "source": "count",
+            "source_revision": read_page_data(page_dir)["sources"]["count"]["revision"],
+        },
+        "attempt": "file_contract_comment_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
+    assert status == 400
+    assert refused_on(body).code == "datum-undrawn-source"

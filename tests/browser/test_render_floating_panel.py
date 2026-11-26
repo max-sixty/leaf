@@ -2681,10 +2681,11 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#foot")).to_be_focused()
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    # The box shrinks only once the leaving view's fade ends (panel/floating-panel.js),
+    # so wait for the panel to stand closed rather than for the motions playing now.
+    panel_settled(page, open=False)
     seen = page.evaluate(
         """async () => {
-          await Promise.all(document.getAnimations().map((motion) => motion.finished
-            .catch(() => {})));
           const {seenRect} = await window.__lfCheckApi();
           return Boolean(seenRect(document.querySelector('#foot'), new Map()));
         }"""

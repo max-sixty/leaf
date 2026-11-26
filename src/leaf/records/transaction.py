@@ -9,16 +9,16 @@ read back is `event_log`'s. The acknowledgement cursor (`acknowledged`) is read 
 the log under it.
 
 A transaction finishes interrupted publications before admitting a reader
-(`revisioning.finish_publications`). Finishing one appends through admission, which
-takes this same transaction, so `revisioning` stands above this module and the
-import of it points up the order: the one cycle left here. A host that keeps pages
-outside this machine declares the module that commits them there
-(`commit_provider`); successful completion calls its `publish` under the same lease,
-and provider failure prevents the caller from acknowledging success.
+(`revision_publication.finish_publications`), appending through admission under
+this same transaction. A host that keeps pages outside this machine declares the
+module that commits them there (`commit_provider`); successful completion calls its
+`publish` under the same lease, and provider failure prevents the caller from
+acknowledging success.
 
 Cold harness hooks ask which pages a session holds (`owned_pages`), and Codex's tool
-hook opens a transaction after every tool call, so process inspection (`harness`)
-and page-event semantics (`activity`) are imported only in the functions that use
+hook opens a transaction after every tool call, so process inspection (`harness`),
+page-event semantics (`activity`) and the finishing of a publication, which loads
+admission (`revision_publication`), are imported only in the functions that use
 them."""
 
 from __future__ import annotations
@@ -120,7 +120,7 @@ class PageTransaction:
         try:
             end_last_line(self._log)
             if publications := unfinished_publications(self.page_dir, self.events):
-                from leaf.records.revisioning import finish_publications
+                from leaf.records.revision_publication import finish_publications
 
                 finish_publications(self, publications)
         except BaseException:

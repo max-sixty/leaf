@@ -338,7 +338,7 @@ SAMPLE_DOCUMENT_CASES = [
 ]
 
 
-# `source.sample_errors` is the one gate either door reads a child through, so the
+# `documents.sample_errors` is the one gate either door reads a child through, so the
 # message door takes the one case that also reaches a child's own samples.
 @pytest.mark.parametrize(
     ("markup", "code", "samples", "holder"),
@@ -865,7 +865,7 @@ SAMPLE_FIXTURE_REFUSALS = [
 ]
 
 
-# `sample_content.initial_sample_events` reads a fixture for either door, so the
+# `documents.initial_sample_events` reads a fixture for either door, so the
 # message door takes the one case a holder's own script and a child's ids both reach.
 @pytest.mark.parametrize(
     ("history", "script_attrs", "template_attrs", "code", "values", "holder"),

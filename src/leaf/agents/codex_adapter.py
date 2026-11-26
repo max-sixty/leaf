@@ -60,7 +60,7 @@ task's hooks run claims for the task (`harness.session_harness`), so an adapter
 starts from that copy. One running Codex's copy moves to the copy Codex puts at its
 path, and one whose task's hooks have since run another installed copy moves to
 that one. An update that moves the page protocol leaves the task's pages at the old
-one, which the restart of each page's server renews (`hosting.follow_copy`), and
+one, which the restart of each page's server renews (`vendoring.follow_copy`), and
 the successor delivers their input once it does. An adapter from a checkout, as
 where the task's hooks run one, follows no copy: it keeps the modules it loaded
 and imports any later one from the checkout as it stands, since whoever runs a
@@ -944,7 +944,7 @@ def _offer_queued_delivery(
     # `codex queue` takes no message id and lists nothing queued, so a failure
     # before this acceptance is recorded leaves the offer to be queued again rather
     # than risk losing it. A turn that acknowledges the first pointer before then
-    # accepts it (`codex_state.confirm_codex_pointer`); otherwise Codex runs a turn
+    # accepts it (`codex.confirm_codex_pointer`); otherwise Codex runs a turn
     # for each, and the second one's `delivery ack` says it repeats the first
     # (`delivery.earlier_pickup`).
     accept_codex_delivery(session_id, prepared.payload["id"], None)

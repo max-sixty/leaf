@@ -69,6 +69,7 @@ from leaf.base import state as cleanup_model
 from leaf.base.findings import Finding
 from leaf.base.refusals import Refused
 from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import hook_transport as hook_transport_model
 from leaf.commands import session as session_model
 from leaf.commands.session import set_status
@@ -285,12 +286,6 @@ class ModelPage:
     @property
     def within(self) -> dict:
         return passages_model.enclosing_ids(self.documents[max(self.documents)])
-
-    def responses(self, events: list) -> dict:
-        raise NotImplementedError(
-            "what a page still owes is read from its claims and its deliveries, "
-            "which a stated page has none of: put that refusal on `page_dir`"
-        )
 
     @property
     def claims(self) -> list:
@@ -1342,9 +1337,9 @@ def owed_answers(page_dir):
     """The answers the page's agent owes (`activity.obligations`), as the hooks and
     `leaf page close` read them: each the workflow of the input its record names, with
     the record's id as `obligation` and the owed `answer`."""
-    from leaf.serving.served_state.context import read_page
+    from leaf.agents.presence import read_work
 
-    return read_page(page_dir, events_model.read_events(page_dir)).work.obligations
+    return read_work(page_dir, events_model.read_events(page_dir)).obligations
 
 
 # A question and the accept that answers it, written as a stored log holds them:
@@ -2914,7 +2909,7 @@ def receive_through(page_dir: Path, seq: int) -> None:
         held = harness is not None and page.claim_of(harness.session) is not None
     if not held:
         transaction_model.claim_page(page_dir)
-    delivery_model.receive_delivery(delivery_through(page_dir, seq))
+    delivery_ack_model.receive_delivery(delivery_through(page_dir, seq))
 
 
 def delivered_ref(page_dir: Path, input_id: str) -> str:

@@ -745,7 +745,7 @@ def page_registry(page):
 
 def page_declarations(page):
     """The element declarations of this page's registry, which is what the render gate
-    hands every reading that takes declarations (`scheme._render_page`). The registry
+    hands every reading that takes declarations (`version._render_page`). The registry
     also describes HTML elements and selectors, such as `button`, which no reading asks
     after as a widget."""
     return element_declarations(page_registry(page))

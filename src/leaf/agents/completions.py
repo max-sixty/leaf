@@ -156,7 +156,7 @@ def listed(session_id: str) -> list[dict]:
 
 
 def replied(session_id: str, payload: dict) -> None:
-    """Write what the completion came to, as the module reports it (`carrier.step`),
+    """Write what the completion came to, as the module reports it (`hooks.cmd_fork`),
     as the reply to the request its basis names, unless its page server has stopped
     waiting."""
     path = _path(session_id, payload["basis"]["completion"])

@@ -969,7 +969,7 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
     read Delivered."""
-    from leaf.agents.delivery import cmd_delivery_ack
+    from leaf.commands.delivery_ack import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
 
@@ -1304,12 +1304,18 @@ def _serve(
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _follow(page_dir: Path, server_id: str, handshake: int) -> None:
     """Private child a page server starts through the launcher of the copy that
-    replaced its own (`server_lifetime.stop_when_service_ends`)."""
+    replaced its own (`server_lifetime.stop_when_service_ends`), to restart it under
+    this copy (`vendoring.follow_copy`). The answer through `handshake` says only that
+    this copy runs, since only a failed launch is worth the server's trying again, so
+    it goes before the follow loads."""
     from leaf.base.detached import Handshake
-    from leaf.pages.hosting import follow_copy
 
     with Handshake(handshake) as answer:
-        follow_copy(page_dir, server_id, answer)
+        if not answer.announce():
+            return
+        from leaf.pages.vendoring import follow_copy
+
+        follow_copy(page_dir, server_id)
 
 
 @server.command(short_help="Stop a page's server.")

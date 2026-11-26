@@ -4,7 +4,7 @@ import pytest
 from browser.test_public_api import output_package
 from model_folds import leaf_page
 
-from leaf.pages.render_gate.scheme import _render_page
+from leaf.pages.render_gate.version import _render_page
 from leaf.pages.render_gate.widget_quality import widget_findings
 from leaf.source.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 from leaf.source.revision_artifact import read_artifact

@@ -517,6 +517,13 @@
     inherits: false;
     initial-value: 0;
   }
+  /* The measure an available figure resolves in its own font for its caption
+   * (Breakouts, below). */
+  @property --lf-prose-width {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0px;
+  }
   [data-lf-space] {
     contain: inline-size;
     inline-size: 100%;
@@ -599,6 +606,35 @@
         &:dir(rtl) > [data-lf-space="available"],
         &:dir(rtl) > .layout-sidebar {
           margin-right: calc(-1 * var(--lf-free-start));
+        }
+        /* A figure's caption is words, so in a figure that takes the room it starts
+         * where the prose does and keeps the measure. Inside the caption, 100% is the
+         * figure's width rather than the prose's, so the caption can't read the room on
+         * each side, which is stated against the reader's width. It finds the prose's
+         * edge from the figure's width, the measure, and half the difference between
+         * the room on the two sides, which the figure states: zero where the room is
+         * even, as on a column page, and a length beside a sidebar. The figure states
+         * the measure too, as a length in its own font, the prose's, since the
+         * caption's smaller face would read an `em` or `ch` measure as narrower. The
+         * margin stands on the holder's start side, as the figure's own does, and the
+         * other is auto, whichever way the figure is written. A page that sets the
+         * column's box wider or narrower than its measure moves the prose off the
+         * room's middle, and the caption then starts off the prose's edge. */
+        > figure[data-lf-space="available"] {
+          --lf-prose-shift: calc((var(--lf-free-start) - var(--lf-free-end)) / 2);
+          --lf-prose-width: var(--lf-measure);
+        }
+        &:dir(ltr) > figure[data-lf-space="available"] > figcaption {
+          margin-left: calc(
+            (100% - min(var(--lf-prose-width), 100%)) / 2 + var(--lf-prose-shift)
+          );
+          margin-right: auto;
+        }
+        &:dir(rtl) > figure[data-lf-space="available"] > figcaption {
+          margin-right: calc(
+            (100% - min(var(--lf-prose-width), 100%)) / 2 + var(--lf-prose-shift)
+          );
+          margin-left: auto;
         }
         > table[data-lf-space] {
           max-inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));
@@ -699,6 +735,7 @@
       margin-inline: 0;
       translate: none;
       --lf-breakout: 0;
+      --lf-prose-shift: 0px;
     }
   }
   /* A sidebar and its body are authored siblings. Their inner track is authored

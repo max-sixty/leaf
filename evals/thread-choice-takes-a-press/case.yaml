@@ -28,7 +28,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/58",
+     "format": "leaf-delivery/59",
      "id": "42e90c8c",
      "created_at": 1793492930.0903082,
      "acknowledge": null,
@@ -167,7 +167,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "d97658bb",
          "created_at": 1793492930.747287,
          "acknowledge": null,
@@ -275,7 +275,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "42e90c8c",
          "created_at": 1793492930.0903082,
          "acknowledge": null,
@@ -379,7 +379,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "c41d9a07",
          "created_at": 1793492930.747287,
          "acknowledge": null,
@@ -488,7 +488,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "7e20b4d9",
          "created_at": 1793492930.747287,
          "acknowledge": null,

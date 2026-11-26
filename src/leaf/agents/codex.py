@@ -2,9 +2,10 @@
 the App Server connection Leaf uses where it can reach one, which the desktop app
 never offers (`session-lifetime.md`, "Watchers", says which tasks offer one).
 
-Two programs connect to a Codex task's App Server for Leaf: the detached
-`codex_adapter.py`, which watches a task the user owns, and `leaf_website`
-(`worker/`), which owns the tasks it starts. Both use this module's App Server
+Two programs connect to a Codex task's App Server for Leaf: the detached delivery
+adapter (`codex_run.py`), which watches a task the user owns through
+`codex_adapter.TaskConnection`, and `leaf_website` (`worker/`), which owns the tasks
+it starts. Both use this module's App Server
 connection, `start_app_server_delivery` to start a delivery's turn, `TurnFold` to
 turn a turn's notifications into page activity, a reply and an ending, and
 `CarriedTurn` to follow a turn on the connection that started it. Each client's
@@ -42,7 +43,7 @@ the adapter starts a turn of its own for what arrived as it ended. Elsewhere, as
 queue adapter, whose turn would open on a pointer Codex shows as the user's own
 message, or a task that waits with `leaf wait`, Stop offers the input into the turn it
 continues, even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads
-as running, the adapter's `_offer_queued_delivery` offers the pending input, or the
+as running, the adapter's `offer_queued_delivery` offers the pending input, or the
 unread pointer, itself. Without an App Server connection it asks the desktop app to
 start the turn (`codex_desktop.py`), or else hands the pointer to `codex queue`,
 retrying the same pointer while the session owns a page, and never calls `turn/start`.

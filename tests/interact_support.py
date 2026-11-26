@@ -3134,7 +3134,7 @@ def _watched(page_dir):
 def adapter_lease(session_id, app_server):
     """Hold `session_id`'s adapter lease as a running adapter does, naming the App
     Server it starts turns over, or None for one that queues them
-    (`codex_adapter.run_adapter`)."""
+    (`codex_run.run_adapter`)."""
     path = leases_model.adapter_lease_path(session_id)
     lease = leases_model.take_lease(path)
     assert lease

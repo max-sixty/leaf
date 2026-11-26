@@ -61,7 +61,7 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
         lambda *_: pytest.fail("the task was asked while a turn of its own ran"),
     )
 
-    assert not codex_adapter_model._offer_queued_delivery(
+    assert not codex_adapter_model.offer_queued_delivery(
         "codex", "codex-thread", observer
     )
 

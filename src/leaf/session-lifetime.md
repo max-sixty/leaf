@@ -172,7 +172,7 @@ comparing the name. A watcher is one of:
   `leaf delivery ack <delivery-id> && leaf wait` advances the cursor and starts the
   next wait, which names the page again where no harness session holds it.
 - **The adapter**: one detached process per Codex task, holding the task's wait
-  lease and a lease of its own (`codex_adapter.py`). In the desktop app, an IDE
+  lease and a lease of its own (`codex_run.py`). In the desktop app, an IDE
   extension and a plain terminal, Leaf can't reach Codex's App Server. A desktop chat
   a window of the app has opened takes each delivery as a turn the app starts, with no
   message in the user's name (`codex_desktop.py`). Anywhere else the adapter queues it
@@ -245,7 +245,7 @@ runs no hook, so Claude Code also starts the watch as each prompt starts, which 
 while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
 no watch holds the lease, the page's server sends for the input an interrupted turn
 left once its presence look reads the turn ended by the harness's record
-(`presence.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
+(`server_rows.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
 (`harness.message_claude_code_session`), whose docstring says when the recipient holds
 it; a background job whose worker has retired is resumed with the message as its next
 prompt instead (`harness.resume_claude_code_job`). The adapter and the host declare no
@@ -348,7 +348,7 @@ it follows restart it at the same address, for the session holding the page wher
 does, and serves meanwhile (`server_lifetime.stop_when_service_ends`). The adapter
 releases its leases and starts a successor from the copy it follows. It holds the
 task's start lock until the successor holds its leases and its transport answers, so a
-claim meanwhile waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
+claim meanwhile waits and then joins the successor (`codex_run.py`). Until then, a hook that
 reads the adapter lease without the start lock finds no adapter. Pi's watch lets its
 lease go and execs the new copy's watch with the payload that started it, so the
 process Pi's extension started stays the one it reads and stops (`hooks.main`).
@@ -401,4 +401,4 @@ transcript (`codex_transcript.py`), without which a new desktop start owns nothi
 (`state.chat_exists`).
 
 The adapter follows the session's page ownership, not the pages' declarations, and
-retires once ownership ends (`codex_adapter.py`).
+retires once ownership ends (`codex_run.py`).

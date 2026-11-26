@@ -987,7 +987,7 @@ def earlier_pickup(payload: dict, session_id: str):
 
     `codex queue` takes no message id, so a failure after it returns and before
     Leaf records the acceptance queues the same pointer again, and Codex runs a
-    turn for each (`codex_adapter._offer_queued_delivery`). The page log's opened
+    turn for each (`codex_adapter.offer_queued_delivery`). The page log's opened
     pickups name the turns that took the delivery, and the note names them with
     the answers its updates still owe, read from the page rather than the
     agent's memory, so the turn acknowledging it again repeats no work and still
@@ -1235,6 +1235,32 @@ def deliverable(
         and event["id"] not in held
     ]
     return sorted([*owed, *pending, *advice], key=lambda event: event["seq"])
+
+
+def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
+    """Select what can wake a hook without changing its immutable receipt batch.
+
+    A settled thread input has already had its meaning answered, even when its
+    delivery was never received. Unsettled inputs read their existing canonical
+    workflow. A completed receipt advances the cursor, so handed input is already
+    absent from this unreceived batch. An opened record without the completed
+    `receipt` does not prove delivery. Other admitted attention (including
+    reports, errors, reactions and widget actions) remains
+    transport input, independent of whether it carries a response obligation.
+    """
+    from leaf.records.workflows import agent_inputs
+    from leaf.serving.served_state.context import read_page
+    from leaf.source.registry.kernel import kinds_declaring
+
+    if not batch:
+        return []
+    agents = agent_inputs(read_page(page.page_dir, page.events).work.durable)
+    pending = []
+    for event in batch:
+        if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
+            continue
+        pending.append(event)
+    return pending
 
 
 def handed_into_turn(events: list[dict], session: str, turn: str) -> list[str]:

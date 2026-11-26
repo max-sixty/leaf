@@ -46,7 +46,6 @@ from leaf.log.file_changes import FileChanges, target_paths
 from leaf.log.interaction_log import record_command, record_watch
 from leaf.records.transaction import PageTransaction, owned_pages, unacknowledged
 from leaf.source.page_inputs import outside_inputs, page_input, page_reading, page_roots
-from leaf.source.registry.kernel import kinds_declaring
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -689,31 +688,6 @@ def cmd_wait(page_dir: Path | None = None) -> int:
         watch.release()
 
 
-def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
-    """Select what can wake a hook without changing its immutable receipt batch.
-
-    A settled thread input has already had its meaning answered, even when its
-    delivery was never received. Unsettled inputs read their existing canonical
-    workflow. A completed receipt advances the cursor, so handed input is already
-    absent from this unreceived batch. An opened record without the completed
-    `receipt` does not prove delivery. Other admitted attention (including
-    reports, errors, reactions and widget actions) remains
-    transport input, independent of whether it carries a response obligation.
-    """
-    from leaf.records.workflows import agent_inputs
-    from leaf.serving.served_state.context import read_page
-
-    if not batch:
-        return []
-    agents = agent_inputs(read_page(page.page_dir, page.events).work.durable)
-    pending = []
-    for event in batch:
-        if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
-            continue
-        pending.append(event)
-    return pending
-
-
 def left_owed(page: PageTransaction) -> list[dict]:
     """The updates whose answers the claimant's closed turn left owed and no prompt
     has named since their delivery (`activity.left_owed`). The Stop hook lets such
@@ -840,6 +814,8 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
         it: new input; or, unless Escape ended the turn, an answer the closed turn
         left owed, or a queued line telling the session of work it now owes once
         its turn has closed."""
+        from leaf.agents.delivery import wake_inputs
+
         page = reading.transaction
         if inputs := wake_inputs(page, reading.batch):
             return "input", inputs
@@ -930,7 +906,7 @@ def woke_after(session: str) -> None:
 def nudge_pending(session: str) -> None:
     """Nudge the session for each page it holds whose input could wake it, as
     admission would have with no watch holding the lease (`nudge_unwatched`)."""
-    from leaf.agents.delivery import deliverable
+    from leaf.agents.delivery import deliverable, wake_inputs
 
     for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:

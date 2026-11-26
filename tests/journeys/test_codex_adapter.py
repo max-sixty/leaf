@@ -53,6 +53,7 @@ from leaf.base import leases as leases_model
 from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
+from leaf.commands import codex_run as codex_run_model
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
 from leaf.log import event_log as events_model
@@ -412,11 +413,11 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
     reading = tmp_path / "adapter-reading"
     marker = tmp_path / "adapter-final-recheck"
     probe = """\
-from leaf.agents import codex_adapter as codex_adapter_model
 from leaf.agents import codex_state as codex_state_model
+from leaf.commands import codex_run as codex_run_model
 
-native_read_watch_pass = codex_adapter_model.read_watch_pass
-native_flocked = codex_adapter_model.flocked
+native_read_watch_pass = codex_run_model.read_watch_pass
+native_flocked = codex_run_model.flocked
 finishing = False
 
 def observed_read_watch_pass(*args, **kwargs):
@@ -437,9 +438,9 @@ def observed_flocked(path, **kwargs):
     with native_flocked(path, **kwargs) as stream:
         yield stream
 
-codex_adapter_model.read_watch_pass = observed_read_watch_pass
-codex_adapter_model.flocked = observed_flocked
-raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
+codex_run_model.read_watch_pass = observed_read_watch_pass
+codex_run_model.flocked = observed_flocked
+raise SystemExit(codex_run_model.run_adapter(os.environ["CODEX_PATH"]))
 """
     adapter = spawn_probe(
         spawn,
@@ -853,7 +854,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     with pytest.raises(
         codex_model.AppServerDeliveryUncertain, match="lost acknowledgement"
     ):
-        codex_adapter_model._offer_queued_delivery(
+        codex_adapter_model.offer_queued_delivery(
             "codex",
             "codex-thread",
             observer,
@@ -879,7 +880,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         codex_model.AppServerDeliveryUncertain,
         match="awaiting reconciliation",
     ):
-        codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
 
     claim = service_model.page_claim(page)
     observer = _observer()
@@ -936,11 +937,11 @@ def test_a_connection_failure_in_the_delivery_loop_is_retried(
         return False
 
     monkeypatch.setattr(codex_model, "recover_codex_receipt", recover_receipt)
-    monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: [])
-    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
-    monkeypatch.setattr(codex_adapter_model, "retry_delay", lambda _failures: 0)
+    monkeypatch.setattr(codex_run_model, "owned_pages", lambda _session: [])
+    monkeypatch.setattr(codex_run_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(codex_run_model, "retry_delay", lambda _failures: 0)
 
-    assert codex_adapter_model.run_adapter("codex") == 0
+    assert codex_run_model.run_adapter("codex") == 0
     assert attempts == ["codex-thread", "codex-thread"]
 
 
@@ -969,23 +970,21 @@ def test_a_clean_delivery_pass_starts_the_retry_ladder_again(
         return [] if len(attempts) >= 4 else [codex_claimed_page]
 
     monkeypatch.setattr(codex_model, "recover_codex_receipt", recover_receipt)
-    monkeypatch.setattr(codex_adapter_model, "owned_pages", owned)
-    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(codex_run_model, "owned_pages", owned)
+    monkeypatch.setattr(codex_run_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(codex_run_model, "offer_queued_delivery", lambda *_args: False)
     monkeypatch.setattr(
-        codex_adapter_model, "_offer_queued_delivery", lambda *_args: False
-    )
-    monkeypatch.setattr(
-        codex_adapter_model,
+        codex_run_model,
         "read_watch_pass",
         lambda *_args, **_kwargs: SimpleNamespace(delivered=True),
     )
     monkeypatch.setattr(
-        codex_adapter_model,
+        codex_run_model,
         "retry_delay",
         lambda failures: delays.append(failures) or 0,
     )
 
-    assert codex_adapter_model.run_adapter("codex") == 0
+    assert codex_run_model.run_adapter("codex") == 0
     assert delays == [1, 1]
 
 
@@ -1033,7 +1032,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
         lambda *_: pytest.fail("an idle App Server delivery was queued"),
     )
 
-    assert codex_adapter_model._offer_queued_delivery(
+    assert codex_adapter_model.offer_queued_delivery(
         "codex",
         "codex-thread",
         connection,
@@ -1170,7 +1169,7 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
         spawn,
         page,
         """\
-from leaf.agents import codex_adapter as adapter
+from leaf.commands import codex_run as adapter
 from leaf.records.activity import declaration
 from leaf.log.event_log import read_events
 from leaf.base.files import read_json
@@ -1640,7 +1639,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
 
     monkeypatch.setattr(codex_adapter_model, "queue_delivery", queue_delivery)
     offering = threading.Thread(
-        target=lambda: codex_adapter_model._offer_queued_delivery(
+        target=lambda: codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
     )

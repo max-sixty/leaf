@@ -15,7 +15,7 @@ touches:
   change to `bridge.py`, the README's "Agent sandboxes" settings, or what a `leaf`
   command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`commands/journey/_codex.py`), both: after a change to
-  `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
+  `codex.py`, `codex_adapter.py`, `codex_run.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
   in `service.py`. Add `--sandbox` for a change to `codex_tool.py`, the MCP server in
   `.codex-plugin/plugin.json`, or what a `leaf` command needs from outside its page
   directory.

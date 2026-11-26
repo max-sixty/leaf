@@ -92,7 +92,7 @@ have reached the model, so it is input again (`delivery.deliverable`): Claude Co
 submits a wake Escape interrupted again at once as a new prompt, and the watch
 its turn's prompt started wakes for it (`hooks.cmd_watch`), or where none runs, as
 after the turn that first claimed the page, the page's server nudges the session
-(`presence.nudge_interrupted`). The hook of the prompt that opens confirms what the
+(`server_rows.nudge_interrupted`). The hook of the prompt that opens confirms what the
 transcript shows before it reads the page, so it hands over again only what never
 reached the model, and names an update the model did read and left unanswered as
 owed.

@@ -5,9 +5,7 @@ A message's markup is run as plain `page check` runs a page (`page_code.py`),
 wherever it places a widget only a browser can judge
 (`browser_judged.places_judged_widget`). Nothing else draws it before the user opens
 its thread, so posting is the one moment its author can fix it before the user sees
-it. In the `widgets-draw-as-written` evals, 5 of 6 Codex thread messages holding a
-Mermaid sequence diagram didn't draw (a `;` in a loop label or note ends the
-statement), and their authors never ran `--render`. A message with no such widget
+it, since its author may never have run `--render`. A message with no such widget
 waits on no browser.
 
 The thread commands import this module even for a message of plain text, and a write

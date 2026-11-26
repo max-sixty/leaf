@@ -1064,7 +1064,8 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     """The lens shows the reader's place by the browser's own scroll timeline in each
-    engine Leaf supports, at the top, the middle and the foot of the document."""
+    engine Leaf supports, at the top, the middle and the foot of the document, while
+    the map itself stands still in the window, the document's end room included."""
     source = contents_page(
         "contents lens in every engine",
         """
@@ -1081,9 +1082,8 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     lens = page.locator("#lens-contents .lf-toc-window")
     rows = page.locator("#lens-contents .lf-toc-rows")
     expect(lens).to_be_visible()
-    # The lens's place on the map, which the map's own place in the window leaves out:
-    # past the page's last line the margin scrolls with it.
     track = []
+    stood = []
     for fraction in (0, 0.5, 1):
         page.evaluate(
             "fraction => { const s = document.scrollingElement; "
@@ -1092,9 +1092,11 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
             "() => requestAnimationFrame(done))); }",
             fraction,
         )
-        track.append(lens.bounding_box()["y"] - rows.bounding_box()["y"])
+        stood.append(rows.bounding_box()["y"])
+        track.append(lens.bounding_box()["y"] - stood[-1])
     top, middle, foot = track
     assert top < middle < foot and foot > top + 300, track
+    assert max(stood) - min(stood) < 0.5, stood
 
 
 @pytest.mark.parametrize(

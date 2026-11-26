@@ -22,6 +22,7 @@ from leaf.base.findings import Finding, Rejected, element_at, note
 from leaf.base.harness import message_identity
 from leaf.base.leases import contract_writer
 from leaf.base.service import delivery_reply_attempt, same_claim
+from leaf.base.state import acting_turn
 from leaf.log.event_log import read_events
 from leaf.log.events import (
     active_summaries,
@@ -42,13 +43,16 @@ from leaf.records.authored_checks.admission import (
 )
 from leaf.records.authored_checks.source import (
     SourceCheck,
+    check_source,
     moved_threads,
     source_advice,
 )
-from leaf.records.event_contracts import append_admitted
+from leaf.records.event_contracts import append_admitted, append_all_admitted
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
+from leaf.records.work import page_subject
 from leaf.source.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
+from leaf.source.data import read_data
 from leaf.source.obligation_sources import local_obligation_entry
 from leaf.source.passages import holds_html, message_markup
 from leaf.source.reading import SourceReading
@@ -56,6 +60,7 @@ from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import kinds_declaring, title_limit
 from leaf.source.revision_artifact import active_enclosing, read_revision
 from leaf.source.structure import SourceDocument, shown_in
+from leaf.source.vocabulary import require_registry
 
 # The browser check a message's markup runs before it posts
 # (`render_gate.command.message_check`): given the page, the kind of message and the
@@ -157,8 +162,6 @@ def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]
     """The thread `name` names (`work.page_subject`), and the message a write into it
     names (`thread_context.thread_message`). Refuses a name that reaches no thread,
     with what the log holds it as instead, and a widget on the page."""
-    from leaf.records.work import page_subject
-
     subject = page_subject(page_dir, events, name)
     if subject is None:
         _unknown_message(page_dir, events, name)
@@ -259,7 +262,6 @@ def current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    from leaf.source.vocabulary import require_registry
 
     reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
@@ -350,7 +352,6 @@ def _drawn_part(
     the page would show nowhere as a capture refuses its target."""
     if drawing is None:
         from leaf.records.render_reading import drawn_visuals
-        from leaf.source.data import read_data
 
         data = read_data(page_dir, read_revision(page_dir, revision).registry)
         visuals = drawn_visuals(
@@ -503,8 +504,6 @@ def ask_again(
     asked in its thread (`thread_questions`). `OwedAnswer` where the thread owes the
     user a reply, which the question waits on. Refused, as an agent's reply is, where
     its HTML doesn't validate (`check_markup`)."""
-    from leaf.source.vocabulary import require_registry
-
     message = question.removeprefix("message:")
     name = f"message:{message}"
     try:
@@ -1086,7 +1085,6 @@ def _compose_and_append(
                     "anchor": None,
                 },
             ]
-        from leaf.records.authored_checks.source import check_source
         from leaf.records.revision_publication import planned_activation
 
         checked = check_source(page_dir, source_events)
@@ -1169,7 +1167,6 @@ def _compose_and_append(
         event["ephemeral"] = True
     if in_hand is not None:
         event["start"] = {"item": in_hand}
-    from leaf.base.state import acting_turn
 
     # The turn the reply's command acts in, which names the start it carries
     # (`todos.start_reading`) and says whether the turn that wrote a progress
@@ -1457,9 +1454,6 @@ def cmd_edit(
     (`event_contracts.append_all_admitted`), so a refused title leaves the text
     unedited.
     """
-    from leaf.records.event_contracts import append_all_admitted
-    from leaf.source.vocabulary import require_registry
-
     title = agent_title(title)
     body = (
         checked_text(page_dir, text, html=True)
@@ -1584,8 +1578,6 @@ def cmd_summarize(
     thread its first message sits in; or nothing, where `fence`, given the page
     under its lock, says the writer no longer should, as a fork that summarizes a
     thread for the agent (`summary_fork`)."""
-    from leaf.source.vocabulary import require_registry
-
     body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:
         if fence is not None and not fence(page):

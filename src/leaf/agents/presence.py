@@ -33,7 +33,7 @@ from leaf.records.transaction import (
     owned_pages,
     unacknowledged,
 )
-from leaf.source.revision_artifact import read_revision
+from leaf.source.revision_artifact import latest_title, read_revision
 
 if TYPE_CHECKING:
     from leaf.records.work_state import WorkState
@@ -230,8 +230,6 @@ def page_list() -> list[dict]:
     The counts a row carries (`on_user`, `threads`) are a serving page's; a page
     with no live row, stopped or closed, has none here, and `page state` reads it
     whole. Its title is its latest revision's."""
-    from leaf.source.revision_artifact import latest_title
-
     rows = {page.resolve(): row for page, row in live_leaves()}
     claims = {Path(claim["page"]).resolve(): claim for claim in claim_records()}
     listed = []

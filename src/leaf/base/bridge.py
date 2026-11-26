@@ -90,6 +90,7 @@ from leaf.base.state import (
     flocked,
     object_schema,
     session_file,
+    session_record,
     sessions_home,
     state_home,
     still_named,
@@ -230,7 +231,6 @@ def registrations() -> list[Path]:
 def live_sessions() -> bool:
     """Whether a registered session still lives; forgets the rest."""
     from leaf.base.service import session_lives
-    from leaf.base.state import session_record
 
     alive = False
     for entry in registrations():

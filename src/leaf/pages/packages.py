@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from leaf.base.files import read_json, replace_files
+from leaf.base.findings import Finding, Rejected
 from leaf.base.locations import (
     first_overlap,
     located,
@@ -323,8 +324,6 @@ def unset_properties(package: Path, composition: LayerComposition) -> list:
     read is usually a token Leaf renamed, and the declaration computes to nothing with
     no error anywhere. It is advice, since a page may set the property itself, as a
     package's instructions can ask it to."""
-    from leaf.base.findings import Finding
-
     names, prefixes = _runtime_properties()
     composed, built = set_properties(
         data.decode("utf-8", errors="replace")
@@ -490,7 +489,6 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
     `unset_properties` gives and the widget quality findings; and `browser`, what the
     browser gate ran in or why none could, null
     where none was asked for or the package check refused."""
-    from leaf.base.findings import Finding, Rejected
 
     def reported(status, findings=(), browser=None):
         return {

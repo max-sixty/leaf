@@ -90,7 +90,7 @@ Without captures it can read, the review withholds approval.
 
 Include screenshots when explaining a UI change or asking the maintainer to judge
 an interface: before and after for a change, and for a design question each
-alternative, pictured as root `AGENTS.md` asks. Put them in the PR description or
+alternative. Put them in the PR description or
 reply that presents the change or question, so the reader can inspect the affected
 state before answering. `/developing-leaf`'s **Prove and hand off a visible change**
 covers capture.

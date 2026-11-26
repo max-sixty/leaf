@@ -17,13 +17,11 @@ goal the failing page missed and what an author weighs to meet it, and offers th
 that passed the eval as a default to depart from where the content calls for it, not
 as a requirement. Where the author passed over a widget, as by drawing a chart by hand
 that the vocabulary already draws, the fix names the form in the workflow and sharpens
-the entry's `description`, rather than naming the tag in the workflow (root
-`AGENTS.md`, "Keep the layer open").
+the entry's `description`, rather than naming the tag in the workflow.
 
 ## Score an instruction change
 
-Root `AGENTS.md`, "Working on the repository", says which changes to score. Choose the
-eval by what the instruction is for:
+Choose the eval by what the instruction is for:
 
 - Leaf's shipped workflows: Leaf's suite in `evals/`.
 - The root `AGENTS.md` or `SOUL.md`: `pnpm run eval:root-guidance`, which scores the

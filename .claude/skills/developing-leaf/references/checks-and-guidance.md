@@ -24,12 +24,12 @@ weigh them with what a missed failure costs.
 ## When to pass guidance back to the authoring agent
 
 Pass guidance back when it helps the author improve the user's result, weighed against
-the interruption and the cost of another rule (root `AGENTS.md`, "Leaf's role"). First
+the interruption and the cost of another rule. First
 ask whether Leaf should provide the behavior itself, so the author needn't work around
 incidental markup restrictions.
 
-Refuse input only when proceeding would break a guarantee whatever the author meant
-(root `AGENTS.md`, "Leaf's role"), and say how to fix it where the author can act;
+Refuse input only when proceeding would break a guarantee whatever the author meant,
+and say how to fix it where the author can act;
 `findings.py`'s header says where a code declares that it refuses. Use the owning parser or validator rather than repeating its rules,
 and let its message reach the author: `patch_manifest.py` stores a patch as given, and
 `lf-diff` reports a file it can't draw with an `error` event. A reader's current

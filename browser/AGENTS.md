@@ -15,8 +15,8 @@ These rules hold for everything Leaf draws: its runtime, its chrome and its bund
 packages. Each section opens with a goal, which
 `../skills/leaf/references/interface-goals.md` gives other authors too, and the specs
 under it are Leaf's own ways of meeting it; weigh a case no spec covers against its goal
-and `../skills/leaf/SOUL.md`. A spec is guidance toward its goal, weighed
-as root `AGENTS.md`'s opening says: a change that meets the goal more simply rewrites
+and `../skills/leaf/SOUL.md`. A spec is guidance toward its goal, so
+a change that meets the goal more simply rewrites
 the spec and its check. A spec names its check and owner where one exists. How
 the owner meets it, and any exception the user chose for one surface, belong in that owner's header and
 the check's credit, not here. Which specs should also bind other authors is still being
@@ -26,11 +26,10 @@ viewport.
 ### The page holds still under the user's aim
 
 A change the user didn't make moves nothing they are reading, pointing at or typing into,
-since that would take their place and their aim away in the middle of the task
-(`../skills/leaf/SOUL.md`, "Preserve the user's attention and work"). Every hold costs
+since that would take their place and their aim away in the middle of the task. Every hold costs
 code on each later change, so the guarantee is owed to the paths users take often: a
 rare path the user takes in at a glance may move what is on screen rather than carry a
-mechanism of its own (`../skills/leaf/SOUL.md`, "Keep Leaf's code plain").
+mechanism of its own.
 
 A hold rule is tested in `tests/journeys/test_page_holds_still.py`, whose cases cross
 places the user can be with changes that can arrive. A new rule joins it as a place, a
@@ -169,8 +168,7 @@ rule draws at once is drawn.
 ### Typed words survive
 
 Words the user has typed are work they haven't sent yet, so nothing Leaf does takes them
-away or moves them out of reach (`../skills/leaf/SOUL.md`, "Preserve the user's
-attention and work").
+away or moves them out of reach.
 
 - **Typed words stay in their native editor until the user puts them away.** A box
   holding words closes only on a key or press meant to close it (Send, Cancel, Escape, a
@@ -198,10 +196,9 @@ attention and work").
 ### A gesture shows its result at once
 
 What the user's act decides by itself appears as they make it, so they see that it took
-effect without waiting on the server (`../skills/leaf/SOUL.md`, "Make the work
-concrete and playable"). Root `AGENTS.md`, "Responsiveness" and "The document starts state; the log
-changes it", say which results the browser draws and which wait for the server's
-reading.
+effect without waiting on the server. Root `AGENTS.md`, "Responsiveness" and "The document
+starts state; the log changes it", say which results the browser draws and which wait
+for the server's reading.
 
 - **The result confirms the gesture.** The new content and its Undo confirm success, so
   success needs no notice beyond the announcement for a listener. Content whose result
@@ -224,7 +221,7 @@ reading.
 
 Leaf's controls compete with the page's own words for the reader's attention, so each
 earns its place against the content and takes no more room or emphasis than its task
-needs (`../skills/leaf/SOUL.md`, "Let the user work as directly as in a terminal").
+needs.
 
 - **A surface at rest shows only what its task needs**, and the leaf's menu holds the
   rest. Symbols, below, are no licence for more controls.
@@ -253,8 +250,7 @@ needs (`../skills/leaf/SOUL.md`, "Let the user work as directly as in a terminal
 
 Hovering, Tabbing onto or holding a press on a mark, control or value shows its whole word
 and a preview of what pressing it opens, or of the fact it stands for, so the user can
-judge whether to go there before going (`../skills/leaf/SOUL.md`, "Make the work
-concrete and playable").
+judge whether to go there before going.
 
 - **A preview reads and never acts.** It says where a thread stands, what a link points
   at, what caused a change or the time behind an age; a control's says its word and
@@ -329,8 +325,7 @@ concrete and playable").
 ### Visual treatment carries meaning
 
 Each treatment draws the eye, so each marks hierarchy or state, and a difference the
-reader sees always means something (`../skills/leaf/SOUL.md`, "Let the user work as
-directly as in a terminal").
+reader sees always means something.
 
 - **Contours are solid.** A dotted or dashed line marks a distinct state, such as a
   drag placeholder. One contour shows one control state, and a segmented group shares
@@ -362,8 +357,7 @@ directly as in a terminal").
 
 ### Motion is brief and keeps the user oriented
 
-Motion helps the eye follow a change, and costs the user time whenever they wait for it
-(`../skills/leaf/SOUL.md`, "Preserve the user's attention and work").
+Motion helps the eye follow a change, and costs the user time whenever they wait for it.
 
 - **Nothing the user must read, press or decide waits on a clock.** Motion the user waits
   on stays under 300ms. A delay may hide a flicker but never adds a minimum spinner time
@@ -388,8 +382,7 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
 ### A region that must scroll behaves like the document
 
 A region that scrolls by itself splits the reader's place in two, so it moves and is
-reached like the page around it (`../skills/leaf/SOUL.md`, "Preserve the user's
-attention and work").
+reached like the page around it.
 
 - **A necessary scroller works like part of the document.** It passes scrolling on to
   the document at its edges, except at a bounded task or a modal. Wheel and touch keep
@@ -701,7 +694,7 @@ that box, or a place the change hides.
 Each mutable fact has one authority and one writer in the browser. The application
 publisher, `applicationState` in `state/semantic-state.js`, combines authored state, the
 server's latest state and this tab's unresolved work into the one state every component
-reads (root `AGENTS.md`, "The document starts state; the log changes it"):
+reads:
 
 | Fact                                                                                                           | Authority                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -941,8 +934,7 @@ them itself.
 
 ## The widget vocabulary stays open
 
-Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
-layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
+Core names a widget only when it is part of how Leaf works. Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
 
 Add a fact only where Leaf's server or `page check` must act on it without running the
@@ -952,7 +944,7 @@ widget's markup that its module can check as it draws stays in the module, which
 static validation could observe the same breach. The author then hears of the breach
 from `page check --render`, and in a thread message only after the user opens the
 thread. Keep a rule static where a breach would otherwise reach the log or a stored
-decision (root `AGENTS.md`, "Leaf's role").
+decision.
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and words a module generates are a passage

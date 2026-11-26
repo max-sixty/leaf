@@ -75,8 +75,7 @@ review checks whether the user can work it without the author's knowledge.
 
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the
 user, and report the results. Choose the decisions the page puts to the user from
-their request, and show visible and interaction changes with the proof below,
-including the picture root `AGENTS.md` asks for with each UI option you leave to them.
+their request, and show visible and interaction changes with the proof below.
 
 ## Prove and hand off a visible change
 

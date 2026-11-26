@@ -25,8 +25,7 @@ paragraph says what to do; these rules say how.
 
 ## Work
 
-- Fix the cause at the layer that owns it (root `AGENTS.md`, "Fix the underlying
-  issue"). A patch that leaves the code harder to maintain doesn't go in.
+- Fix the cause at the layer that owns it. A patch that leaves the code harder to maintain doesn't go in.
 - Get a reproducer before fixing a bug, and show it failing before and passing after.
   For a performance item, measure before and after on the same machine state and
   report both numbers with the command that produced them.

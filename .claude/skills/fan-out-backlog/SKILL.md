@@ -61,8 +61,7 @@ counts carried across a compaction drift.
 
 Give each PR an independent reviewer in its own worktree, briefed with the PR
 and what to check, not with the author's conclusions, and told to verify by
-running and to weigh what the change adds (root `AGENTS.md`, "Weigh what a
-change adds"). A campaign PR can carry a substantive defect: a regression, a
+running and to weigh what the change adds. A campaign PR can carry a substantive defect: a regression, a
 false central claim, a red test, or lost input, and a reviewer who checks
 correctness alone can pass additions the user later cuts.
 
@@ -100,5 +99,5 @@ to the user on their On Me list, including calls an agent made that they may
 reverse. An agent's report names its calls for a reader who knows the PR, and the
 user hasn't opened it, so each decision says what the user sees today, what the PR
 changes, and what choosing each option leads to, with a picture of each result for a UI
-call (root `AGENTS.md`, "Working on the repository"). A campaign that found nothing to
+call. A campaign that found nothing to
 change in an item reports that as a result.

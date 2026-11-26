@@ -4066,10 +4066,11 @@ export function createFloatingPanel({
     failed: "Failed",
     dropped: "Dropped",
   });
-  // A blocked step says why in the word its item says on every other surface.
+  // A blocked step says why, and a waiting one what it waits on, in the word its item
+  // says on every other surface.
   /** @param {import("../../types/contract.js").ServedPlanStep} step */
   const planWord = (step) =>
-    step.state === "blocked"
+    step.state === "blocked" || step.waiting_on
       ? todoWord(step).text
       : PLAN_STATES[step.state === "done" ? (step.outcome ?? "done") : step.state];
   const PLAN_MARKS = Object.freeze({
@@ -4129,7 +4130,9 @@ export function createFloatingPanel({
             ? html`<span class="lf-fp-plan-detail"
                 >${voiced(agentSays(step.detail))}</span
               >`
-            : nothing
+            : step.waiting_on
+              ? html`<span class="lf-fp-plan-detail">${voiced(todoWord(step))}</span>`
+              : nothing
       }${
         step.steps.length
           ? html`<ol class="lf-fp-plan-steps">
@@ -4800,18 +4803,31 @@ export function createFloatingPanel({
     )}`;
   }
   // On <agent>: the work as the user chose to see it, a list or a summary. The list's
-  // groups are states, not places: what the agent has in hand, what is up next, and
-  // what it finished, folded under Done. While the agent has a plan, its goals head
-  // the list, which then holds only the items no step names.
+  // groups are states, not places: what the agent has in hand, what is up next, what
+  // waits on something the agent named (`waiting_on`), and what it finished, folded
+  // under Done. While the agent has a plan, its goals head the list, which then holds
+  // only the items no step names.
+  /** @param {ReturnType<typeof queueLists>["agent"][number]} item */
+  const waits = (item) =>
+    "waiting_on" in item.obligation && Boolean(item.obligation.waiting_on);
   /** @param {ReturnType<typeof queueLists>} lists */
   function workView(lists) {
     /** @param {ReturnType<typeof queueLists>["agent"]} items */
     const held = (items) => items.filter((item) => inHand(item.obligation));
     /** @param {ReturnType<typeof queueLists>["agent"]} items */
-    const queued = (items) => items.filter((item) => !inHand(item.obligation));
+    const queued = (items) =>
+      items.filter((item) => !inHand(item.obligation) && !waits(item));
+    /** @param {ReturnType<typeof queueLists>["agent"]} items */
+    const waiting = (items) =>
+      items.filter((item) => !inHand(item.obligation) && waits(item));
     if (layoutOf() === "summary") {
       forgetOpened([]);
-      return workSummary(held(lists.agent), queued(lists.agent), lists.done);
+      return workSummary(
+        held(lists.agent),
+        queued(lists.agent),
+        waiting(lists.agent),
+        lists.done,
+      );
     }
     const goals = readPlan()?.steps ?? [];
     const named = new Set(goals.flatMap(namedIn));
@@ -4820,6 +4836,7 @@ export function createFloatingPanel({
     const groups = [
       { key: "in-hand", title: "In hand", items: held(agent) },
       { key: "queued", title: "Up next", items: queued(agent) },
+      { key: "waiting", title: "Waiting", items: waiting(agent) },
       { key: "done:agent", title: "Done", items: done, folds: true },
     ].filter((group) => group.items.length);
     forgetOpened([...agent, ...(unfolded.has("done:agent") ? done : [])]);
@@ -4832,26 +4849,30 @@ export function createFloatingPanel({
     )}`;
   }
   // The work said in a few sentences: how much the agent has in hand and for how long,
-  // what is queued, what its newest step says, how far the plan has come, and what it
-  // finished last. Leaf says them, around the agent's own line and an item's name.
-  /** @param {ReturnType<typeof queueLists>["agent"]} inHand @param {ReturnType<typeof queueLists>["agent"]} queued @param {ReturnType<typeof queueLists>["done"]} done */
-  function workSummary(inHand, queued, done) {
+  // what is queued or waiting, what its newest step says, how far the plan has come,
+  // and what it finished last. Leaf says them, around the agent's own line and an
+  // item's name.
+  /** @param {ReturnType<typeof queueLists>["agent"]} inHand @param {ReturnType<typeof queueLists>["agent"]} queued @param {ReturnType<typeof queueLists>["agent"]} waiting @param {ReturnType<typeof queueLists>["done"]} done */
+  function workSummary(inHand, queued, waiting, done) {
     const work = inHand.map(workOn);
     const since = work
       .map((each) => each.since)
       .filter(Boolean)
       .toSorted()[0];
     const longest = since && shortAgo(since) !== "now" ? since : null;
-    const waiting = queued.length ? `${queued.length} up next` : "";
+    const owed = [
+      queued.length ? `${queued.length} up next` : "",
+      waiting.length ? `${waiting.length} waiting` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
     const first = inHand.length
       ? html`${voiced(
           leafSays(`Working on ${inHand.length}${longest ? ", the longest for " : ""}`),
         )}${longest ? panelAge(longest, { spoken: true }) : nothing}${voiced(
-          leafSays(waiting ? `; ${waiting}.` : "."),
+          leafSays(owed ? `; ${owed}.` : "."),
         )}`
-      : voiced(
-          leafSays(waiting ? `${capitalized(waiting)}.` : "Nothing to do right now."),
-        );
+      : voiced(leafSays(owed ? `${capitalized(owed)}.` : "Nothing to do right now."));
     const now = work.find(
       (each) => each.line && each.line.text !== each.word?.text,
     )?.line;

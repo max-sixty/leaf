@@ -18,7 +18,8 @@ first opens first. Select `file-tree` too and place a navigator whose `for` name
 editor: it lists the files and opens the one the reader picks. A link to
 `#<editor-id>:<binding>` opens that file as well, and `#<editor-id>:<binding>:<line>`
 puts the caret at the start of that line, so a note can point at the line it is
-about.
+about. Double-clicking a word in a Markdown preview bound to the editor with `for`
+puts the caret at the start of that word's line.
 
 ```bash
 leaf page init --package reading --package file-editor --package file-tree PAGE

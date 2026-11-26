@@ -29,8 +29,13 @@
  * preview renders a file,
  * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. A new
  * text rewrites only the source rows it changes (`rewrite`) and the preview's text it
- * changes, so code and formulas it leaves stay as drawn (`preparePreview`). HTML lives
- * in a separate
+ * changes, so code and formulas it leaves stay as drawn (`preparePreview`).
+ * A double-click on a word in the Markdown preview of the file an editor holds puts the
+ * editor's caret at the start of that word's line in the file (`editAtLine`), as a
+ * double-click on VS Code's preview does (the user's decision). Its second press
+ * selects no word, so in that preview a reader selects words to comment on by
+ * dragging. The reader reaches the same caret in the editor itself, so the
+ * double-click needs no keyboard or touch route of its own. HTML lives in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
@@ -43,12 +48,19 @@ import {
   afterPresentation,
   pageLinks,
   dressCode,
+  aimedAt,
+  navigateToDatum,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
-import { loadMarkdown, markdownFileFragment } from "/runtime/lib/markdown.js";
+import { plainPress } from "/runtime/lib/keys.js";
+import {
+  loadMarkdown,
+  markdownFileFragment,
+  markdownSourceOffset,
+} from "/runtime/lib/markdown.js";
 import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import {
@@ -1124,6 +1136,62 @@ class TextDocument extends LeafElement {
   // The markup each block of the Markdown preview was drawn from (`preparePreview`).
   /** @type {WeakMap<Node, string>} */
   drawnFrom = new WeakMap();
+  // The value the Markdown preview draws, set in the task that draws it, so a gesture
+  // on the preview reads the text it shows though a newer value is still drawing.
+  /** @type {DocumentValue | null} */
+  previewed = null;
+  // Whether the latest first click on the Markdown preview went to a link or control in
+  // it, which a double-click there must not begin with (`editAtLine`).
+  clickedControl = false;
+
+  // The words a plain primary press on the Markdown preview lands on, as a caret in
+  // their text, with the file the preview draws, when `for` names the widget holding
+  // the file. Null for a press on a link, a control or a picture, and for a preview
+  // bound otherwise.
+  /** @param {MouseEvent} event */
+  wordsAt(event) {
+    const value = this.previewed;
+    const preview = this.view?.preview;
+    if (
+      typeof value !== "object" ||
+      !value?.key ||
+      !preview ||
+      !plainPress(event) ||
+      !this.hasAttribute("for") ||
+      aimedAt(event, preview) !== preview
+    )
+      return null;
+    const caret = document.caretPositionFromPoint(event.clientX, event.clientY);
+    return caret?.offsetNode instanceof Text
+      ? { key: value.key, name: value.name, text: value.text, preview, caret }
+      : null;
+  }
+
+  // Puts the editor's caret at the start of the double-clicked word's line in the
+  // file. The dialect's alignment of rendered words to source finds the word in the
+  // file (`markdownSourceOffset`), and the widget `for` names reveals `<key>:<line>`,
+  // as the file editor does for a link to that line (lf-file-editor.js,
+  // `lfRevealDatum`). The widget is assumed to answer such a key: the file editor is
+  // the one widget whose `text-document` value names a file by `key`. A double-click
+  // whose first click followed a link acts no further, though the link scrolled other
+  // words under its second press.
+  /** @param {MouseEvent} event */
+  editAtLine(event) {
+    const words = this.clickedControl ? null : this.wordsAt(event);
+    const offset =
+      words &&
+      markdownSourceOffset(
+        words.preview,
+        words.text,
+        words.caret.offsetNode,
+        words.caret.offset,
+      );
+    if (!words || offset === null) return;
+    const line = words.text.slice(0, offset).split(/\r\n|\r|\n/).length;
+    void navigateToDatum(this, "for", `${words.key}:${line}`, {
+      missing: `${words.name} is no longer available.`,
+    });
+  }
 
   // The Markdown preview's next children. A block whose markup is unchanged stands as a
   // copy of the block already drawn for it, its code coloured and formulas typeset
@@ -1357,6 +1425,7 @@ class TextDocument extends LeafElement {
         previewNode.childNodes.forEach((node, at) =>
           this.drawnFrom.set(node, blocks.markups[at] ?? ""),
         );
+        this.previewed = value;
       } else if (
         previewNode instanceof HTMLIFrameElement &&
         (!previewNode.isConnected ||
@@ -1443,6 +1512,27 @@ class TextDocument extends LeafElement {
     drawn.className = "lf-text-document-preview";
     if (drawn instanceof HTMLIFrameElement)
       drawn.setAttribute("sandbox", "allow-scripts");
+    else {
+      // A first click is read as it descends, since a link's own handler may stop it.
+      // `aimedAt` answers null for a click on selected words, where a double-click may
+      // also begin.
+      drawn.addEventListener(
+        "click",
+        (event) => {
+          if (event.detail !== 1) return;
+          const aim = aimedAt(event, drawn);
+          this.clickedControl = aim !== null && aim !== drawn;
+        },
+        { capture: true },
+      );
+      // A double-click's second press selects no word, which would stand selected in
+      // the preview as the editor takes the caret.
+      drawn.addEventListener("mousedown", (event) => {
+        if (event.detail > 1 && !this.clickedControl && this.wordsAt(event))
+          event.preventDefault();
+      });
+      drawn.addEventListener("dblclick", (event) => this.editAtLine(event));
+    }
     rendered.append(drawn);
     literal.append(listing);
     if (this.matches(WRITTEN)) {

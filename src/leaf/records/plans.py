@@ -145,6 +145,7 @@ def plan_reading(events: list, withdrawn: set, records: list[dict]) -> dict | No
             "running": running,
             "since": running["ts"] if running else None,
             "detail": item["end"]["detail"] if item and item["end"] else None,
+            "waiting_on": item["waiting_on"] if todo else None,
         }
 
     root: dict = {"steps": []}
@@ -155,6 +156,7 @@ def plan_reading(events: list, withdrawn: set, records: list[dict]) -> dict | No
             "running": None,
             "since": None,
             "detail": None,
+            "waiting_on": None,
             **node(step),
             "steps": [],
         }

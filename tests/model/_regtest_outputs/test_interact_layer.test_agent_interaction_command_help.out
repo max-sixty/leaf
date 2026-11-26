@@ -164,6 +164,9 @@ Options:
   --todo TITLE       the reply promises work it doesn't deliver; opens that to-
                      do on the thread, ended by `leaf task end` with the reply's
                      id
+  --waiting-on WHAT  with --todo: what the work waits on that you don't control,
+                     in a few words; the to-do reads Waiting on WHAT until you
+                     start or end it
   --ephemeral        one-line progress, without answering
   --title TEXT       a few words naming the thread's subject, needed where it
                      has no title yet; one past 80 characters is cut at a word

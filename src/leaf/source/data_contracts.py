@@ -87,15 +87,19 @@ def declared_data_bindings(
     registry: dict,
     document: str | None = None,
 ) -> tuple[dict, list[Finding]]:
-    """Read concrete source ids and their first seats from one document.
+    """Read concrete source ids and their first seats from one document, and each
+    later seat binding a source under another contract than its first.
 
-    Two contracts for one source conflict only within one document. Every gate
-    reads its own document's bindings and no other's
+    Two contracts for one source conflict only within one document, and which
+    contract a seat has depends on the registry it is read under. Every gate reads
+    its own document's bindings under the registry the document is stored with
     (`markup_checks.instances.instance_errors`), and a sample's child is a document
-    of its own, with its own gate. Each revision and logged fragment passed its gate
-    as it entered, so a page's history holds no conflict. `document` names the
-    document in each seat for a reader holding several, as a page's history is; a
-    gate's finding names none, since the gate says which document it read."""
+    of its own, with its own gate. A page's history is read under those same
+    registries (`page_data.page_data_document_readings`), so it holds no conflict.
+    A sample's child reads the messages it copies under its own registry, so it
+    checks them under that one as it copies them (`documents.initial_sample_events`). `document` names the document in each seat
+    for a reader holding several, as a page's history is; a gate's finding names
+    none, since the gate says which document it read."""
     bindings = {}
     seats = {}
     errors = []
@@ -105,16 +109,18 @@ def declared_data_bindings(
             "contract": contract,
             **({"document": document} if document is not None else {}),
             "tag": rec["tag"],
+            **({"widget": rec["attrs"]["id"]} if "id" in rec["attrs"] else {}),
             "input": input_name,
             "line": rec["line"],
         }
         if source in bindings and bindings[source] != contract:
-            errors.append(
-                Finding(
-                    "contract-conflict",
-                    values={"source": source, "first": seats[source], "then": seat},
-                )
+            found = Finding(
+                "contract-conflict",
+                values={"source": source, "first": seats[source], "then": seat},
             )
+            # Widgets of one tag without ids on one line make one seat.
+            if found not in errors:
+                errors.append(found)
             continue
         bindings[source] = contract
         seats[source] = seat

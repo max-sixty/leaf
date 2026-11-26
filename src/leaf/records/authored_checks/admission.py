@@ -155,9 +155,11 @@ def check_markup(
     `publication` is the document and registry the message is stored with, which
     its writer decides before the check: the revision it names
     (`revision_publication`), or the candidate where a reply publishes saved edits
-    it has checked (`thread.post_reply`). No later check reads the fragment for a
-    conflicting binding again (`data_contracts.declared_data_bindings`), so it is
-    checked here under the registry it is stored with."""
+    it has checked (`thread.post_reply`). The page's data inventory and `leaf data
+    set` read the fragment's bindings under that registry
+    (`page_data.page_data_document_readings`), so it is checked here under that
+    one; a sample's child that copies the message reads it under its own, and checks
+    it there (`documents.initial_sample_events`)."""
     registry, page = publication.registry, publication.document
     frag = SourceDocument(markup)
     found = message_markup_findings(

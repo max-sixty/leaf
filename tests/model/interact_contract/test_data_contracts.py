@@ -12,7 +12,7 @@ from interact_support import (
     append_carried_log_record,
     bound_twice,
     check_findings,
-    command_findings,
+    command_notes,
     declare_data_input,
     element_declaration,
     found,
@@ -480,7 +480,76 @@ def test_a_message_is_refused_only_for_its_own_bindings(page_dir):
     )
     assert found(check_findings(page_dir)[1], "contract-conflict", source="shared")
     message = "The plan:\n\n<p><strong>Flag first</strong></p>"
-    assert command_findings("thread", "create", str(page_dir), "--text", message) == []
+    command_notes(
+        "thread", "create", str(page_dir), "--text", message, "--title", "Plan"
+    )
+    [posted] = [e for e in events_model.read_events(page_dir) if e["kind"] == "comment"]
+    assert posted["text"] == message
+
+
+def test_a_binding_conflict_names_each_widget_reading_the_source(page_dir):
+    """An author finds every consumer of a source bound two ways, so each conflicting
+    widget gets its own finding by its id, even where all of them share a line."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            bound_twice("shared")
+            + '<lf-text-document id="more" source="shared"></lf-text-document></main>',
+        )
+    )
+    assert [
+        (conflict.values["first"]["tag"], conflict.values["then"].get("widget"))
+        for conflict in found(check_findings(page_dir)[1], "contract-conflict")
+    ] == [("lf-num", "shared-text"), ("lf-num", "more")]
+
+
+def test_a_sample_checks_the_messages_it_copies_under_its_own_registry(page_dir):
+    """A sample's child reads each message it copies from a thread under its own
+    registry, the page's current one, whatever the message was posted under. Two
+    widgets that shared a contract when the message was posted, and no longer do,
+    would bind one source two ways in the child, whose data then can't be read, so
+    the sample is refused, naming the copied message."""
+    declare_data_input(
+        page_dir, "shared", {"type": "array"}, contract="rows", activate=False
+    )
+    registry = vocabulary(page_dir)
+    registry["lf-test-other"] = deepcopy(registry["lf-test-data"])
+    registry["$data"]["contracts"]["other-rows"] = deepcopy(
+        registry["$data"]["contracts"]["rows"]
+    )
+    declare_vocabulary(page_dir, registry)
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).error is None
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "aabb0011",
+            "author": "agent",
+            "revision": 1,
+            "text": "Both views of one feed.\n\n"
+            '<lf-test-data id="rows-view" source="shared"></lf-test-data>\n'
+            '<lf-test-other id="other-view" source="shared"></lf-test-other>',
+        },
+    )
+    registry["lf-test-other"]["inputs"]["data"]["contract"] = "other-rows"
+    declare_vocabulary(page_dir, registry)
+    sample = (
+        '<template id="practice" data-sample data-sample-threads="aabb0011">'
+        "<h1>Child</h1></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", sample + "</main>"))
+
+    [conflict] = found(check_findings(page_dir)[1], "contract-conflict")
+    assert conflict.samples == ("practice",)
+    assert conflict.values["then"] == {
+        "contract": "other-rows",
+        "document": "copied message 'aabb0011'",
+        "tag": "lf-test-other",
+        "widget": "other-view",
+        "input": "data",
+        "line": 3,
+    }
 
 
 @pytest.mark.parametrize(

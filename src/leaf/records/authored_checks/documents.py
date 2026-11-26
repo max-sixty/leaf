@@ -58,6 +58,7 @@ from leaf.records.markup_checks.markup import (
 )
 from leaf.records.page_view import InitialPageView
 from leaf.source.anchor_capture import capture_anchor
+from leaf.source.data_contracts import declared_data_bindings
 from leaf.source.passages import JOINS_WORDS_TAGS, markdown_dialect
 from leaf.source.registry.kernel import kernel_event_kinds
 from leaf.source.revision_artifact import (
@@ -416,17 +417,29 @@ def initial_sample_events(
     """Construct the child's admitted log without mutating any captured input.
 
     `parent` is the document `parent_events` is the log of, and `holder` the markup
-    declaring `template`: `parent` itself, or one of its log's messages."""
+    declaring `template`: `parent` itself, or one of its log's messages. `registry`
+    is the child's, and the child reads every message in this log under it, whatever
+    registry a copied message was posted with. So a fixture's message is checked
+    under it as it is admitted, and a copied message's bindings as it is copied."""
     attrs = template["attrs"]
     reference = attrs.get("data-sample-events")
     if "data-sample-events" not in attrs:
         selected = set(attrs.get("data-sample-threads", "").split())
-        return [
+        copied = [
             {**event, "seq": seq}
             for seq, event in enumerate(
                 sample_events(parent, parent_events, selected), 1
             )
         ]
+        if conflicts := [
+            conflict
+            for message, fragment in thread_structure(copied).fragments.items()
+            for conflict in declared_data_bindings(
+                fragment.lf_elements, registry, f"copied message {message!r}"
+            )[1]
+        ]:
+            raise Rejected(conflicts)
+        return copied
     if "data-sample-threads" in attrs:
         raise Rejected([Finding("sample-source-both")])
     scripts = [

@@ -39,3 +39,5 @@ workflows:
       # A red `publish-site` leaves <https://leaf.page/> stale on whatever it
       # last built, which is invisible from the repo — worth a fix PR.
       - publish-site
+      # A red `pnpm-update` leaves pnpm where it is, and nothing else would say so.
+      - pnpm-update

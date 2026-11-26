@@ -1,0 +1,83 @@
+name: pnpm-update
+
+# Dependabot can't move the pnpm that `packageManager` pins
+# (dependabot/dependabot-core#4830), so each week this moves it to the newest release
+# `minimumReleaseAge` in `pnpm-workspace.yaml` admits, in a pull request of its own
+# beside Dependabot's npm group. It runs only main's code: `pnpm self-update` rewrites
+# `packageManager` and the lockfile's first document, and installs no dependency.
+#
+# Tend's bot account opens the pull request, so its CI runs, and records the head as
+# the bot's push (`tend runtime land-pr pushed`), so Tend's review hands it to
+# tend-land as it does Dependabot's.
+on:
+  schedule:
+    - cron: "23 17 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    if: github.repository_owner == 'max-sixty'
+    runs-on: ubuntu-24.04
+    environment:
+      name: tend
+      deployment: false
+    env:
+      BRANCH: pnpm-update
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Move pnpm to its newest release old enough for minimumReleaseAge
+        id: move
+        run: |
+          version=$(node .github/scripts/mature-pnpm.mjs)
+          pnpm self-update "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Skips a week whose move is already on main or on the open pull request.
+      - name: Push the move
+        id: push
+        env:
+          GH_TOKEN: ${{ secrets.TEND_BOT_TOKEN }}
+          VERSION: ${{ steps.move.outputs.version }}
+        run: |
+          git diff --quiet && exit 0
+          gh auth setup-git
+          if git fetch --quiet origin "$BRANCH" 2>/dev/null && git diff --quiet FETCH_HEAD; then
+            exit 0
+          fi
+          git switch -c "$BRANCH"
+          git -c user.name=leaf-agent -c user.email=l@leaf.page commit -qa \
+            -m "Move pnpm to $VERSION" \
+            -m "> _This was written by Leaf dependency automation on behalf of max-sixty_"
+          git push --force origin "$BRANCH"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: max-sixty/tend/setup-runtime@0.3.28
+        if: steps.push.outputs.sha
+      - name: Record the head as the bot's push
+        if: steps.push.outputs.sha
+        run: tend runtime land-pr pushed "${{ steps.push.outputs.sha }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.TEND_BOT_TOKEN }}
+      - name: Open or retitle the pull request
+        if: steps.push.outputs.sha
+        env:
+          GH_TOKEN: ${{ secrets.TEND_BOT_TOKEN }}
+          VERSION: ${{ steps.move.outputs.version }}
+        run: |
+          title="Move pnpm to $VERSION"
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title"
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" \
+              --body "Moves \`packageManager\` to pnpm $VERSION, the newest release old enough for \`minimumReleaseAge\` in \`pnpm-workspace.yaml\`. The pnpm-update workflow opens this each week, since Dependabot can't move \`packageManager\`.
+
+          > _This was written by Leaf dependency automation on behalf of max-sixty_"
+          fi

@@ -7,9 +7,8 @@ verifyDepsBeforeRun: error
 # than fall back to it. A lockfile holding a younger version fails every install and
 # every Dependabot npm update until the version ages, so no update takes one, security
 # fixes included. The wait keeps out a release that is pulled within days of
-# publishing, as a compromised one usually is. Each Dependabot npm pull request also
-# moves `packageManager` to the newest pnpm this old
-# (`.github/scripts/dependency-bundles.mjs`).
+# publishing, as a compromised one usually is. The pnpm-update workflow moves
+# `packageManager` each week to the newest pnpm this old.
 minimumReleaseAge: 4320
 allowBuilds:
   "@anthropic-ai/claude-code": true

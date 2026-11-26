@@ -113,7 +113,10 @@ dev = [
 ]
 
 # `uv lock` resolves only releases at least three days old, the window
-# `.github/dependabot.yml` sets for every ecosystem.
+# `.github/dependabot.yml` sets for every ecosystem. uv reads a relative
+# `exclude-newer` from 0.9.17, the minimum `README.md` states. An older uv can't parse
+# this table, so it ignores all of it with a warning, a `required-version` here
+# included, and re-resolves the lock without the window.
 [tool.uv]
 exclude-newer = "3 days"
 

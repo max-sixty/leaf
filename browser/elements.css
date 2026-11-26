@@ -364,7 +364,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * fills the pane's width (`stretch`), and its own `max-inline-size` and margins place
  * it there, as a block's do in flow. An element the browser sizes by what it shows,
  * such as an image, a video or a control, holds no widget, so as a whole body it is no
- * container and keeps its own size, its inset inside the width it may take. */
+ * container and keeps its own size, up to the pane's width less its inset. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
   container-type: inline-size;
   /* Firefox lacks `stretch` in the inline axis (notes/browser-support.md, "A pane's
@@ -389,7 +389,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   ) {
   container-type: revert-layer;
   inline-size: revert-layer;
-  box-sizing: border-box;
+  /* Firefox lacks `stretch` (above). */
+  max-inline-size: -moz-available;
+  max-inline-size: stretch;
 }
 /* The body's top inset is named because a body that scrolls on its own holds a sticking
  * box that far below its scrollport's edge, where the rows it scrolls still show above

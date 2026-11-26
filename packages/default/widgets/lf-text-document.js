@@ -29,8 +29,8 @@
  * preview renders a file,
  * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. A new
  * text rewrites only the source rows it changes (`rewrite`) and the preview's text it
- * changes, reconciled already dressed, so code and formulas it leaves stay as drawn.
- * HTML lives in a separate
+ * changes, so code and formulas it leaves stay as drawn (`preparePreview`). HTML lives
+ * in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
@@ -74,6 +74,11 @@ const slugWords = (fragment) => {
     return fragment;
   }
 };
+
+// A node of a rendering as its markup, the same for nodes that draw the same.
+/** @param {Node} node */
+const drawnMarkup = (node) =>
+  node instanceof Element ? node.outerHTML : `${node.nodeType}:${node.textContent}`;
 
 // The key a heading of the Markdown preview takes before its address (`lfElementsFor`).
 const HEADING = "preview:";
@@ -1074,6 +1079,60 @@ class TextDocument extends LeafElement {
     return result;
   }
 
+  // The markup each block of the Markdown preview was drawn from (`preparePreview`).
+  /** @type {WeakMap<Node, string>} */
+  drawnFrom = new WeakMap();
+
+  // The Markdown preview's next children. A block whose markup is unchanged stands as a
+  // copy of the block already drawn for it, its code coloured and formulas typeset
+  // (`dressCode`); a changed block is dressed before it stands, so the reconciliation
+  // keeps every node the text leaves as it was, and any selection in it, and the
+  // dressing costs only what the text changed. A first draw stands undressed, and
+  // `show` dresses it in place. A link the file makes to one of its own headings names
+  // that heading in the preview (`lfElementsFor`), as GitHub's rendering of the file
+  // answers it; any other fragment names the page's own place.
+  /** @param {string} source @param {number} rendering */
+  async preparePreview(source, rendering) {
+    const template = document.createElement("template");
+    template.innerHTML = renderMarkdown(source, pageLinks, false);
+    const slugs = headingSlugs(
+      template.content.querySelectorAll("h1, h2, h3, h4, h5, h6"),
+    );
+    for (const link of template.content.querySelectorAll('a[href^="#"]')) {
+      const slug = (link.getAttribute("href") ?? "").slice(1);
+      if (this.id && slug && slugs.has(slugWords(slug)))
+        link.setAttribute("href", `#${this.id}:${HEADING}${slug}`);
+    }
+    const fresh = [...template.content.childNodes];
+    const markups = fresh.map(drawnMarkup);
+    const drawn = this.view?.preview;
+    if (!(drawn instanceof HTMLDivElement) || !drawn.hasChildNodes())
+      return { nodes: fresh, markups };
+    /** @type {Map<string, ChildNode[]>} */
+    const standing = new Map();
+    for (const node of drawn.childNodes) {
+      const markup = this.drawnFrom.get(node);
+      if (markup === undefined) continue;
+      const nodes = standing.get(markup);
+      if (nodes) nodes.push(node);
+      else standing.set(markup, [node]);
+    }
+    /** @type {Map<string, number>} */
+    const taken = new Map();
+    const nodes = fresh.map((node, at) => {
+      const markup = markups[at] ?? "";
+      const count = taken.get(markup) ?? 0;
+      taken.set(markup, count + 1);
+      return standing.get(markup)?.[count]?.cloneNode(true) ?? node;
+    });
+    await Promise.all(
+      nodes
+        .filter((node, at) => node === fresh[at] && node instanceof Element)
+        .map((node) => dressCode(/** @type {Element} */ (node))),
+    );
+    return rendering === this.rendering ? { nodes, markups } : null;
+  }
+
   /** @param {DocumentValue | null} value @param {boolean} [presented] whether this draw waited for the page to present */
   async show(value, presented = false) {
     const rendering = this.rendering + 1;
@@ -1102,6 +1161,11 @@ class TextDocument extends LeafElement {
         this.listed = this.checkVisibility();
         if (!this.listed && !presented) return drawLater(this, value, rendering);
       }
+      // The Markdown preview's next children, prepared before this draw writes
+      // anything, so the source rows, the preview and the marks naming their revision
+      // change together in one task (`preparePreview`).
+      const blocks =
+        preview === "markdown" ? await this.preparePreview(source, rendering) : null;
       if (rendering !== this.rendering || !this.isConnected) return;
       const next = lines(source);
       const { text } = next;
@@ -1182,28 +1246,11 @@ class TextDocument extends LeafElement {
       }
       let loaded = this.frameLoaded;
       const previewNode = view.preview;
-      if (previewNode instanceof HTMLDivElement) {
-        const template = document.createElement("template");
-        template.innerHTML = renderMarkdown(source, pageLinks, false);
-        // A link the file makes to one of its own headings names that heading in the
-        // preview (`lfElementsFor`), as GitHub's rendering of the file answers it; any
-        // other fragment names the page's own place.
-        const slugs = headingSlugs(
-          template.content.querySelectorAll("h1, h2, h3, h4, h5, h6"),
+      if (previewNode instanceof HTMLDivElement && blocks) {
+        setRenderedChildren(previewNode, blocks.nodes);
+        previewNode.childNodes.forEach((node, at) =>
+          this.drawnFrom.set(node, blocks.markups[at] ?? ""),
         );
-        for (const link of template.content.querySelectorAll('a[href^="#"]')) {
-          const slug = (link.getAttribute("href") ?? "").slice(1);
-          if (this.id && slugs.has(slugWords(slug)))
-            link.setAttribute("href", `#${this.id}:${HEADING}${slug}`);
-        }
-        // A preview already drawn takes the new rendering dressed (`dressCode`), as
-        // its own nodes are, so the reconciliation keeps the coloured code and typeset
-        // formulas the text leaves as they were, and any selection in them.
-        if (previewNode.hasChildNodes()) {
-          await dressCode(template.content);
-          if (rendering !== this.rendering || !this.isConnected) return;
-        }
-        setRenderedChildren(previewNode, template.content.childNodes);
       } else if (
         previewNode instanceof HTMLIFrameElement &&
         (!previewNode.isConnected ||

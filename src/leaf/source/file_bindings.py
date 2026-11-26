@@ -24,12 +24,12 @@ single file as its name, and no label spells out a host path.
 
 The page's reading stamps each bound file (`bound_paths`), so the news token moves
 and the page's watchers wake when a bound file does, and a state answer carries each
-binding's label and stamp (`bound_files`), naming which binding moved. A stamp only
-prompts a read; the read's revision decides what changed.
+binding's label (`bound_files`), an unreadable file's included.
 
 Each binding is also one of the page's data sources, read as `read_bound` reads it
-(`data.read_data`), so a widget shows the file by binding its id as it would any
-source, with no editor on the page.
+(`data.file_sources`), so a widget shows the file by binding its id as it would any
+source, with no editor on the page. The source's run moves with every write, which
+names the binding that moved to an editor that reads the file itself.
 """
 
 import hashlib
@@ -40,7 +40,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from leaf.base.files import file_stamp
 from leaf.base.leases import page_locked
 from leaf.base.locations import canonical_path, path_lock
 from leaf.base.refusals import Refused
@@ -156,18 +155,10 @@ def labels(paths: dict[str, Path]) -> dict[str, str]:
 
 
 def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
-    """Each binding's label and short stamp, the stamp moving whenever the file's
-    path or what the filesystem says of the file there (`file_stamp`) does."""
-    paths = bound_paths(page_dir)
-    named = labels(paths)
+    """Each binding's label (`labels`)."""
     return {
-        binding: {
-            "label": named[binding],
-            "stamp": hashlib.sha256(
-                repr((str(path), file_stamp(path))).encode()
-            ).hexdigest()[:16],
-        }
-        for binding, path in paths.items()
+        binding: {"label": label}
+        for binding, label in labels(bound_paths(page_dir)).items()
     }
 
 

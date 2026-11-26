@@ -193,8 +193,8 @@ def held_page_reading(page_dir: Path) -> str:
     the same stamps (`source_readings`), so a file source validation reads that could
     change without moving it would leave a save unactivated; `media/` is stamped
     without descending because its filenames are content-addressed. The state answer
-    also carries each bound file's label and stamp (`file_bindings.bound_files`),
-    naming which binding moved.
+    also carries each bound file as a source (`data.file_sources`), whose run names
+    which binding moved.
     """
     return _token([*page_stamps(page_dir), *_outside_stamps(page_dir)])
 

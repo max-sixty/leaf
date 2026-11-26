@@ -22,10 +22,11 @@ binds a source id nothing rewrites.
 A file the page binds (`file_bindings`) is a source too, under its binding's id:
 a `text-document` valued `{key, name, text, revision}`, the binding, the file's label,
 its text and the revision a save names, read again whenever its stamp moves
-(`file_sources`). Its run is the file's revision and `updated` when the file was last
-written. Nothing else writes it: `leaf data set` refuses its id (`page_data`), and a
-publication under that id stands behind it. A file the page can't read is a source
-holding the reason as its error.
+(`file_sources`). Its run digests the file's path and stamp, so it moves with every
+write, and `updated` is when the file was last written. Readers judge its value as
+they judge a publication's. Nothing else writes it: `leaf data set` refuses its id
+(`page_data`), and a publication under that id stands behind it. A file the page
+can't read is a source holding the reason as its error.
 """
 
 import hashlib
@@ -34,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.base.files import file_stamp, replace_files
-from leaf.base.page_memory import Slot, memo
+from leaf.base.page_memory import memo
 from leaf.base.schema import DATA_DIR
 from leaf.base.state import (
     STRING,
@@ -181,48 +182,76 @@ def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
     if kept is None:
         return None
     publication, revision = kept
-    contract, value = publication["contract"], publication["value"]
-    reading = {
-        "contract": contract,
-        "revision": revision,
-        "run": publication["run"],
-        "updated": publication["updated"],
-    }
+    return _judged(
+        source,
+        {
+            "contract": publication["contract"],
+            "revision": revision,
+            "run": publication["run"],
+            "updated": publication["updated"],
+            "value": publication["value"],
+        },
+        registry,
+    )
+
+
+def _judged(source: str, reading: dict, registry: dict) -> dict:
+    """`reading` as readers receive it: its value, or the error that keeps the value
+    from fitting its contract's declaration in `registry`."""
+    if "value" not in reading:
+        return reading
+    contract, value, revision = (reading[k] for k in ("contract", "value", "revision"))
     if error := _value_error(source, contract, value, revision, registry):
-        return {**reading, "error": error}
-    return {**reading, "value": value}
+        return {
+            **{key: item for key, item in reading.items() if key != "value"},
+            "error": error,
+        }
+    return reading
 
 
-class _Files(Slot):
-    """Every bound file's source, kept while no binding, label or file stamp moves."""
+class _Files:
+    """Each bound file's source, by binding, kept under its path, label and stamp. A
+    file the page couldn't read is read again each time, since a change to its
+    permissions moves no stamp."""
+
+    def __init__(self) -> None:
+        self.held: dict[str, tuple] = {}
 
 
 def file_sources(page_dir: Path) -> dict[str, dict]:
     """Each file the page binds as a source, by binding (the module header)."""
     paths = bound_paths(page_dir)
     named = labels(paths)
-    key = tuple(
-        (binding, path, file_stamp(path), named[binding])
-        for binding, path in paths.items()
-    )
-    return memo(page_dir, _Files).get(
-        key,
-        lambda: {
-            binding: _file_source(binding, path, named[binding])
-            for binding, path in paths.items()
-        },
-    )
+    held = memo(page_dir, _Files).held
+    for binding in held.keys() - paths.keys():
+        held.pop(binding, None)
+    sources = {}
+    for binding, path in paths.items():
+        key = (path, named[binding], file_stamp(path))
+        kept = held.get(binding)
+        reading = (
+            kept[1]
+            if kept is not None and kept[0] == key
+            else _file_source(binding, path, named[binding])
+        )
+        if "value" in reading:
+            held[binding] = (key, reading)
+        sources[binding] = reading
+    return sources
 
 
 def _file_source(binding: str, path: Path, label: str) -> dict:
+    # The write is named by what the filesystem says of the file, so rewriting the
+    # same bytes is a write of its own, as a rerun of a publication is.
+    stamp = file_stamp(path)
+    run = hashlib.sha256(repr((str(path), stamp)).encode()).hexdigest()[:16]
     try:
         read, written = read_bound(path, label)
     except FileBindingError as error:
-        revision = value_revision(str(error))
         return {
             "contract": FILE_CONTRACT,
-            "revision": revision,
-            "run": revision,
+            "revision": value_revision(str(error)),
+            "run": run,
             "updated": now_iso(),
             "error": str(error),
         }
@@ -235,7 +264,7 @@ def _file_source(binding: str, path: Path, label: str) -> dict:
     return {
         "contract": FILE_CONTRACT,
         "revision": value_revision(value),
-        "run": read["revision"],
+        "run": run,
         "updated": datetime.fromtimestamp(written)
         .astimezone()
         .isoformat(timespec="milliseconds"),
@@ -255,7 +284,10 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
     readings = (
         {
             **{source: read_source(page_dir, source, registry) for source in names},
-            **file_sources(page_dir),
+            **{
+                binding: _judged(binding, reading, registry)
+                for binding, reading in file_sources(page_dir).items()
+            },
         }
         if registry is not None
         else {}

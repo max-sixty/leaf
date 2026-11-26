@@ -115,15 +115,14 @@
           "additionalProperties": false
         },
         "files": {
-          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, and its stamp, which moves when the file may have, so an editor reads its file only when this stamp does.",
+          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, an unreadable file's included. The file itself is the source under the binding's id in `data`, whose run moves with each write.",
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "label": { "type": "string" },
-              "stamp": { "type": "string" }
+              "label": { "type": "string" }
             },
-            "required": ["label", "stamp"],
+            "required": ["label"],
             "additionalProperties": false
           }
         },

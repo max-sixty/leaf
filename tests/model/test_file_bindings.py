@@ -22,6 +22,7 @@ from interact_support import (
 
 from leaf.base.locations import PATH_LOCKS, path_lock_key
 from leaf.commands.cli import cli
+from leaf.log.construction import input_readings
 from leaf.records.page_data import cmd_data_set
 from leaf.source.data_contracts import DataError
 from leaf.source.file_bindings import (
@@ -36,6 +37,7 @@ from leaf.source.file_bindings import (
     save_file,
 )
 from leaf.source.page_inputs import page_reading
+from leaf.source.vocabulary import read_page_registry
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
@@ -384,33 +386,32 @@ def test_http_file_door_requires_key_origin_and_current_revision(
         )
 
 
-def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
+def test_a_bound_file_write_moves_the_page_reading_and_its_source_s_run(
     server, page_dir, tmp_path
 ):
-    """An editor reads its file only when the state answer stamps the binding anew,
-    so a write outside Leaf moves the reading a visible tab polls and that binding's
-    stamp."""
+    """An editor reads its file only when the state answer's source for the binding
+    names another write, so a write outside Leaf moves the reading a visible tab polls
+    and that source's run, and so does rewriting the same bytes."""
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
 
-    def stamps():
-        return {
-            binding: file["stamp"]
-            for binding, file in json.loads(fetch(f"{server}/api/state")[1])[
-                "files"
-            ].items()
-        }
+    def runs():
+        sources = json.loads(fetch(f"{server}/api/state")[1])["data"]["sources"]
+        return {binding: source["run"] for binding, source in sources.items()}
 
     # The first state read activates the page, which moves its reading once.
-    stamped = stamps()
+    ran = runs()
     reading = page_reading(page_dir)
-    assert set(stamped) == {"notes"}
-    assert (stamps(), page_reading(page_dir)) == (stamped, reading)
+    assert set(ran) == {"notes"}
+    assert (runs(), page_reading(page_dir)) == (ran, reading)
 
     target.write_text("edited outside Leaf\n")
     assert page_reading(page_dir) != reading
-    assert stamps()["notes"] != stamped["notes"]
+    assert runs()["notes"] != ran["notes"]
+    ran = runs()
+    target.write_text("edited outside Leaf\n")
+    assert runs()["notes"] != ran["notes"]
 
 
 def test_a_bound_file_is_the_page_s_source_under_its_binding(
@@ -419,8 +420,9 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
     """A widget shows a bound file by binding its id as it would any source, with no
     editor on the page: a `text-document` of the file's label, text and revision, read
     again as the file changes. A comment on what the widget drew names the file's
-    revision, and a file the page can't read is a source holding why. `leaf data set`
-    refuses the id, since a write to the file is what changes it."""
+    revision, and a file the page can't read is a source holding why, until it can
+    read it again. The file is what changes the source, so `leaf data set` refuses the
+    id and the widget's construction names the file to edit."""
     target = tmp_path / "README.md"
     target.write_text("# Notes\n")
     bind_file(page_dir, "readme", target)
@@ -468,5 +470,23 @@ def test_a_bound_file_is_the_page_s_source_under_its_binding(
     assert read_page_data(page_dir)["sources"]["readme"]["error"] == (
         "File contains binary control characters."
     )
+    target.write_text("# Notes\n")
+    target.chmod(0)
+    try:
+        assert read_page_data(page_dir)["sources"]["readme"]["error"] == (
+            "Could not access the bound file: Permission denied."
+        )
+    finally:
+        target.chmod(0o644)
+    assert read_page_data(page_dir)["sources"]["readme"]["value"]["text"] == "# Notes\n"
+
     with pytest.raises(DataError, match="'readme' is a bound file"):
         cmd_data_set(page_dir, "readme", "# Notes\n")
+    registry = read_page_registry(page_dir).registry
+    readings = input_readings(
+        {"id": "readme-preview", "source": "readme"},
+        registry["lf-text-document"],
+        read_page_data(page_dir),
+        page_dir,
+    )
+    assert readings["document"]["edit"]["file"] == str(target.resolve())

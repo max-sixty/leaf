@@ -629,16 +629,29 @@ def test_a_permitted_step_permits_nothing_after_it(browser):
     consume_browser_errors(page, moved_within("button#act"))
 
 
-@pytest.mark.parametrize(
-    "joins", [True, False], ids=["a-message-joins", "nothing-joins"]
-)
-def test_a_card_standing_on_its_foot_widens_and_rises_only_as_a_message_joins_it(
-    browser, joins
+# How a card's transcript changes as the card widens and its padding lifts its head,
+# and whether the watch credits that rise.
+RISES = {
+    "a-message-joins": ("log.append(answer)", True),
+    "the-reply-grows": ("log.lastElementChild.append(answer.textContent)", True),
+    "nothing-joins": ("card.style.paddingTop = '120px'", False),
+    "a-hidden-child-joins": (
+        "answer.hidden = true; log.append(answer); card.style.paddingTop = '120px'",
+        False,
+    ),
+}
+
+
+@pytest.mark.parametrize("change", list(RISES))
+def test_a_card_standing_on_its_foot_rises_as_it_widens_only_as_far_as_its_transcript_grew(
+    browser, change
 ):
     """A card over its subject stands on its foot (`data-lf-rises`), so the long message
     that widens it once (`data-lf-widens`) lifts its head in the same frame, carrying
-    its controls up and sideways. The same widening with no message joining its
-    transcript credits no rise."""
+    its controls up and sideways, whether the message joins its transcript or grows
+    the reply streaming into it. A card whose head rises further than its transcript
+    grew, as with no message or a hidden one, is reported."""
+    script, credited = RISES[change]
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -653,19 +666,17 @@ def test_a_card_standing_on_its_foot_widens_and_rises_only_as_a_message_joins_it
     )
     paint(page)
     page.evaluate(
-        """joins => new Promise((done) => {
+        """script => new Promise((done) => {
+          const answer = document.createElement("p");
+          answer.textContent = "An answer long enough to stand taller than wide. ".repeat(12);
           card.style.width = "320px";
-          if (joins) {
-            const answer = document.createElement("p");
-            answer.textContent = "An answer long enough to stand taller than wide. ".repeat(12);
-            log.append(answer);
-          } else card.style.paddingTop = "120px";
+          new Function("answer", script)(answer);
           requestAnimationFrame(() => requestAnimationFrame(done));
         })""",
-        joins,
+        script,
     )
     judge_watches()
-    if not joins:
+    if not credited:
         consume_browser_errors(
             page,
             lambda problem: (

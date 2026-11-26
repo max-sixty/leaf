@@ -2854,9 +2854,9 @@
   // take the new width. It is the one case where news may carry controls or words
   // sideways, which the user chose for a card that widens once. One that also declares
   // it may rise at its head (`data-lf-rises`), as a card over its subject does, may grow
-  // at its head and its foot as it widens where a message joins a region it holds that
-  // grows at its end (`data-lf-reflow="append"`), since that message lifts its head
-  // too (`appendGrowth`).
+  // at its head and its foot as it widens, by no more than a region it holds that grows
+  // at its end (`data-lf-reflow="append"`) grew, since the message that grew it lifts
+  // its head too (`appendGrowth`).
   const permittedWidening = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;
@@ -2873,24 +2873,30 @@
         return false;
       const from = boxAt(owner, first),
         to = boxAt(owner, last);
-      const joined = () =>
-        around[0].nodes.some((source) => {
-          const was = paintAt(source, first),
-            is = paintAt(source, last);
-          return (
-            was?.reflow === "append" &&
-            is?.reflow === "append" &&
-            ancestryAt(source, first).includes(owner) &&
-            is.appendChildren.some((child) => !was.appendChildren.includes(child))
-          );
-        });
+      // How far the regions it holds that grow at their end grew, on screen, which
+      // bounds how much taller a rising box may stand.
+      const grown = () =>
+        Math.max(
+          0,
+          ...around[0].nodes.map((source) => {
+            if (
+              paintAt(source, first)?.reflow !== "append" ||
+              paintAt(source, last)?.reflow !== "append" ||
+              !ancestryAt(source, first).includes(owner)
+            )
+              return 0;
+            const was = boxAt(source, first),
+              is = boxAt(source, last);
+            return was && is ? is.bottom - is.top - (was.bottom - was.top) : 0;
+          }),
+        );
       return (
         Boolean(from && to) &&
         (Math.abs(to.top - from.top) < 1 ||
           (paintAt(owner, first)?.rises &&
             to.top < from.top &&
             from.bottom - to.bottom < 1 &&
-            joined())) &&
+            to.bottom - to.top - (from.bottom - from.top) < grown() + 1)) &&
         to.right - to.left - (from.right - from.left) >= 1 &&
         (Math.abs(to.left - from.left) < 1 || Math.abs(to.right - from.right) < 1) &&
         inside(previousRect, from) &&

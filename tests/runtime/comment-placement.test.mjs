@@ -719,12 +719,13 @@ test("the card Send opens holds the edge its comment box held", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 120 }));
   const wide = block(40, 1240, 500, 700);
-  // The box stood by its right edge at the room's, its quoted words 1100px in. A
-  // sideways scroll then carried the words to 900px, nearer the place's start, where
-  // a fresh choice would hold the left edge.
+  // The box stood by its right edge, 1092px in, with its quoted words 200px further
+  // left than where it was placed. The same task's sideways scroll carried the words to
+  // 900px, nearer their place's start, where a fresh choice would hold the left edge
+  // at 700px, and the place's right end stands at the room's edge, 1292px.
   const card = commentPlacement();
   card.adopt({
-    box: new DOMRect(972, 716, 320, 120),
+    box: new DOMRect(772, 716, 320, 120),
     placement: { side: "bottom", boundary: boundary.key, moved: false, holds: "right" },
   });
   const seat = card.choose({
@@ -750,7 +751,7 @@ test("the card Send opens holds the edge its comment box held", async () => {
     { placement, middleware, platform, strategy: "fixed" },
   );
   assert.equal(card.capture().holds, "right");
-  assert.equal(Math.round(answer.x), 972);
+  assert.equal(Math.round(answer.x), 772);
 });
 
 test("a carried surface whose words scrolled past the room is no wider than the room", async () => {

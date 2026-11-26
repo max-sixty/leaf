@@ -585,7 +585,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    client rectangle. `adopt(frame)` queues that handoff for the next `choose`, which
    reports `adopted` until `landed` confirms a position.
    A superseded computation retains that hold. The placement owns its carried inline
-   offset from the passage's column, else `clear`'s left edge. That column moves with
+   offset, of the edge it holds from the passage's column, else `clear`'s left edge. That column moves with
    quoted words even when their scrollport stays still. A normal beside landing owns
    the same offset, so renewing placement follows the attachment native motion carries.
    `keeps` supplied to `options` names the line the surface keeps still, relative to
@@ -736,13 +736,13 @@ export function commentPlacement() {
             boundary.left,
             boundary.right - span(scale),
           );
-    // The inline edge the placement holds (the header's `fit`): a carried surface's
-    // left; beside its subject, the edge facing it; under or over, the end of its place
-    // nearer the quoted words or the element's right edge, and the left with nothing to
-    // stand by.
+    // The inline edge the placement holds (the header's `fit`): the one a carried
+    // offset names; beside its subject, the edge facing it; under or over, the end of
+    // its place nearer the quoted words or the element's right edge, and the left with
+    // nothing to stand by.
     /** @param {{x: number}} scale */
     const holdsLeft = (scale) => {
-      if (carriedInline !== null) return true;
+      if (carriedInline !== null) return holds !== "right";
       holds ??= !across
         ? side === "left"
           ? "right"
@@ -812,7 +812,9 @@ export function commentPlacement() {
       Math.min(
         boundary.width,
         carriedInline !== null
-          ? boundary.right - (column ?? clear.left) - carriedInline
+          ? holds === "right"
+            ? (column ?? clear.left) + carriedInline - boundary.left
+            : boundary.right - (column ?? clear.left) - carriedInline
           : across
             ? holdsLeft(scale)
               ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
@@ -876,24 +878,29 @@ export function commentPlacement() {
       name: "hold",
       /** @param {MiddlewareState} state */
       fn(state) {
-        // A carried inline offset holds the surface by its left edge, whichever side
-        // it stands on, so a field growing as it is typed in grows away from it. Under
-        // or over, the surface stands at the end of its place it is held by, in every
+        // A carried inline offset holds the edge it names, whichever side the surface
+        // stands on, so a field growing as it is typed in grows away from it. Under or
+        // over, the surface stands at the end of its place it is held by, in every
         // writing direction.
         const { line, attachmentInline, column, end, scale } = measure(state);
-        const carried = carriedInline !== null;
-        const edge = carried || !across ? null : holdsLeft(scale) ? "left" : "right";
+        const width = state.rects.floating.width;
+        const edge =
+          carriedInline !== null || across
+            ? holdsLeft(scale)
+              ? "left"
+              : "right"
+            : null;
         const data = {
           edge: spot && (keeps === "top" ? "top" : "bottom"),
-          inline: carried ? "left" : edge,
+          inline: edge,
         };
         /** @type {Partial<import("@floating-ui/dom").Coords>} */
         const position = {};
         if (carriedInline !== null)
-          position.x = attachmentInline + carriedInline / scale.x;
+          position.x =
+            attachmentInline + carriedInline / scale.x - (edge === "right" ? width : 0);
         else if (edge === "left") position.x = column + (inline ?? 0);
-        else if (edge === "right")
-          position.x = end + (inline ?? 0) - state.rects.floating.width;
+        else if (edge === "right") position.x = end + (inline ?? 0) - width;
         if (spot && !across) position.y = line + heldTop(state, spot);
         // Where the rule stands it before the boundary shifts it in, which a carried
         // surface's attachment limit takes in.
@@ -1092,12 +1099,13 @@ export function commentPlacement() {
       if (adopted) {
         // A draft can have lost its visible attachment before Send. Its card still
         // starts at that frame, then follows the card's attachment from this choice.
-        // The card holds the edge the frame held. A frame held by its left edge hands
-        // that edge to the card; the card's own placement stands a right edge at its
-        // place's end, where the frame's stood.
+        // The card holds the edge the frame held, where it stood, the left one where
+        // the user carried the frame.
         ({ side, moved, holds } = frame.placement);
-        if (moved || holds !== "right")
-          carriedInline = frame.box.left - (column ?? clear?.left ?? boundary.left);
+        if (moved) holds = "left";
+        carriedInline =
+          (holds === "right" ? frame.box.right : frame.box.left) -
+          (column ?? clear?.left ?? boundary.left);
         const line =
           column !== null
             ? row

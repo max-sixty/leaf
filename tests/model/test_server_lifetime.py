@@ -28,6 +28,7 @@ from interact_support import (
     fixture_service,
     read_record,
     serving,
+    vendored_at_another_protocol,
     wait_for,
     write_record,
 )
@@ -424,7 +425,8 @@ def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(
     )
     renewals = []
 
-    def renew(page_dir, harness):
+    def renew(page_dir, harness, still):
+        assert still(), "the server that asked is the one serving the page"
         renewals.append((page_dir, harness))
         service = server_model.read_service(page_dir)
         assert service is not None
@@ -448,6 +450,30 @@ def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(
     assert renewals == [(claimed, harness_model.claim_harness(claim))]
     assert restarted == [], "the follow restarted the renewed server again"
     assert clerk_model.waking("s1") == [str(held_back)]
+
+
+def test_a_stale_follow_leaves_the_server_that_took_its_place(page_dir, monkeypatch):
+    """A server can ask the new copy to follow it, and another start can put its own
+    server in place on the page before the follow runs. Where the page is at an
+    older page protocol, the follow's renewal restarts the page's server, so it
+    asks, under the renewal's locks, whether the server in place is still the one
+    that asked, and renews and restarts nothing where another took its place: that
+    server keeps running, as it does on a page that needs no renewal."""
+    serving(page_dir, available_loopback_port(), "session")
+    vendored_at_another_protocol(page_dir)
+    restarted = []
+
+    @contextlib.contextmanager
+    def restarting(directory, harness):
+        restarted.append(directory)
+        yield
+
+    monkeypatch.setattr(vendoring_model, "restarting_server", restarting)
+    follow(page_dir, "the-server-that-asked", {})
+    assert restarted == [], "the stale follow restarted the server in its place"
+    service = server_model.read_service(page_dir)
+    assert service is not None
+    assert service["enabled"] and service["server_id"] == "fixture-server"
 
 
 def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):

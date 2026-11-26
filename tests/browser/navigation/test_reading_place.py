@@ -1938,7 +1938,18 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     A fixed box stands still while every box around it scrolls, so a landing on one the
     window doesn't show, as a Tab's arrival makes, moves none of them. A fixed box a
     transformed box holds is placed in that box, not the window, so it rides the page's
-    scroll and a landing scrolls the page to show it."""
+    scroll and a landing scrolls the page to show it.
+
+    A control the user is on is measured out to its ring's room, all of it but what a box
+    clipping without scrolling hides, and along each axis only where a nearest landing
+    would move something along that axis. So these are shown and a nearest landing on
+    them moves nothing: the first row of a clipped group 4px below the band's top; a
+    button 4px from the window's side on a page that scrolls only down; one beside the
+    floating panel, standing in the panel's foot band, whose ring's room runs past the
+    window's side; and a fixed button 4px from the side of a page that scrolls across,
+    since scrolling the page moves no fixed box. A button 4px inside a mirrored pane's
+    edge is not shown while the pane can scroll its ring's room in, and a nearest
+    landing scrolls the pane until it is."""
     source = leaf_page(
         "Room",
         '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
@@ -1953,7 +1964,20 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
         '</div><div style="height:1600px"></div>'
         '<div id="short-pane" style="height:250px;overflow:auto">'
         '<div style="height:100px"></div><div id="long" style="height:300px"></div>'
-        '<div style="height:600px"></div></div><div style="height:1600px"></div>',
+        '<div style="height:600px"></div></div><div style="height:1600px"></div>'
+        '<button id="edge" style="position:relative">Edge</button>'
+        '<div style="height:1600px"></div>'
+        '<button id="pinned" style="position:fixed;top:500px;right:4px">Pinned</button>'
+        '<div id="mirror" style="width:400px;height:60px;overflow-x:auto;'
+        'overflow-y:hidden;transform:scaleX(-1)">'
+        '<div style="width:1200px;height:40px;position:relative">'
+        '<button id="mirrored" style="position:absolute;left:300px;top:8px;width:96px">'
+        "Mirrored</button></div></div>"
+        '<div style="height:1600px"></div>'
+        '<div id="group" style="overflow:clip;border:1px solid;width:300px">'
+        '<button id="row" style="display:block;width:100%;margin:0">First row</button>'
+        '<button style="display:block;width:100%">Second row</button></div>'
+        '<div style="height:1600px"></div>',
     )
     page = open_page(browser, serve(source))
     page.set_viewport_size({"width": 1280, "height": 900})
@@ -2049,6 +2073,120 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
         assert reading["seen"] == 250, reading
         assert reading["top"] == reading["before"]["top"], reading
         assert reading["after"] is True, reading
+
+    with subtests.test(case="a ring's room past a side no scroll reaches"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown} = await window.__lfCheckApi();
+          const edge = document.querySelector('#edge');
+          const root = document.documentElement;
+          scrollBy({top: edge.getBoundingClientRect().top - 300, behavior: 'instant'});
+          edge.style.left = `${root.clientWidth - 4 - edge.getBoundingClientRect().right}px`;
+          edge.focus();
+          return {gap: root.clientWidth - edge.getBoundingClientRect().right,
+                  room: parseFloat(getComputedStyle(edge).scrollMarginRight),
+                  across: root.scrollWidth - root.clientWidth,
+                  shown: alreadyShown(edge)};
+        }""")
+        assert reading["gap"] == pytest.approx(4, abs=0.5), reading
+        assert reading["room"] > reading["gap"], reading
+        assert reading["across"] == 0, reading
+        assert reading["shown"] is True, reading
+
+    with subtests.test(
+        case="a ring's room past a fixed box on a page that scrolls across"
+    ):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown} = await window.__lfCheckApi();
+          const pinned = document.querySelector('#pinned');
+          const root = document.documentElement;
+          const wide = document.createElement('div');
+          wide.style.cssText = 'width:calc(100vw + 200px);height:1px';
+          document.body.append(wide);
+          pinned.focus();
+          const reading = {gap: root.clientWidth - pinned.getBoundingClientRect().right,
+                           across: root.scrollWidth - root.clientWidth,
+                           shown: alreadyShown(pinned)};
+          pinned.blur();
+          wide.remove();
+          return reading;
+        }""")
+        assert reading["gap"] == pytest.approx(4, abs=0.5), reading
+        assert reading["across"] > 0, reading
+        assert reading["shown"] is True, reading
+
+    with subtests.test(case="a ring's room past the side, beside the panel"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const root = document.documentElement;
+          const band = landingBand(root);
+          const beside = document.createElement('button');
+          beside.textContent = 'Beside';
+          beside.style.cssText = 'position:absolute;width:80px;height:30px;margin:0';
+          document.body.append(beside);
+          beside.style.left = `${scrollX + root.clientWidth - 4 - 80}px`;
+          beside.style.top = `${scrollY + band.bottom + 2 - 30}px`;
+          beside.focus({preventScroll: true});
+          const box = beside.getBoundingClientRect();
+          const seen = seenRect(beside, new Map());
+          const y = scrollY;
+          const shown = alreadyShown(beside);
+          scrollIntoView(beside, {block: 'nearest', behavior: 'instant'});
+          const moved = scrollY - y;
+          beside.remove();
+          return {band: band.bottom, vh: innerHeight, bottom: box.bottom,
+                  whole: Boolean(seen) && seen.top <= box.top && seen.bottom >= box.bottom,
+                  shown, moved};
+        }""")
+        assert reading["band"] < reading["vh"], reading
+        assert reading["bottom"] > reading["band"], reading
+        assert reading["whole"], reading
+        assert reading["shown"] is True, reading
+        assert reading["moved"] == 0, reading
+
+    with subtests.test(case="a ring's room a clipping group hides"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const group = document.querySelector('#group');
+          const row = document.querySelector('#row');
+          row.focus({preventScroll: true});
+          const band = landingBand(document.scrollingElement);
+          scrollBy({top: group.getBoundingClientRect().top - (band.top + 4),
+                    behavior: 'instant'});
+          const y = scrollY;
+          const shown = alreadyShown(row);
+          scrollIntoView(row, {block: 'nearest', behavior: 'instant'});
+          return {room: parseFloat(getComputedStyle(row).scrollMarginTop),
+                  gap: group.getBoundingClientRect().top - band.top,
+                  shown, moved: scrollY - y};
+        }""")
+        assert reading["room"] > 4, reading
+        assert reading["shown"] is True, reading
+        assert reading["moved"] == 0, reading
+
+    with subtests.test(
+        case="a ring's room past a mirrored pane's edge it scrolls toward"
+    ):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const pane = document.querySelector('#mirror');
+          const button = document.querySelector('#mirrored');
+          scrollBy({top: pane.getBoundingClientRect().top - 300, behavior: 'instant'});
+          button.focus({preventScroll: true});
+          const gap = () =>
+            button.getBoundingClientRect().left - pane.getBoundingClientRect().left;
+          const before = {gap: gap(), shown: alreadyShown(button)};
+          scrollIntoView(button, {block: 'nearest', behavior: 'instant'});
+          return {before, gap: gap(), scrolled: pane.scrollLeft, shown: alreadyShown(button),
+                  room: parseFloat(getComputedStyle(button).scrollMarginRight)};
+        }""")
+        assert reading["before"]["gap"] == pytest.approx(4, abs=0.5), reading
+        assert reading["before"]["shown"] is False, reading
+        assert reading["scrolled"] > 0, reading
+        assert reading["gap"] == pytest.approx(reading["room"], abs=1), reading
+        assert reading["shown"] is True, reading
 
 
 def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser, serve):

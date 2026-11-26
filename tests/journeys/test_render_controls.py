@@ -76,6 +76,8 @@ from render_harness import (
 
 from leaf.agents import presence as presence_model
 from leaf.agents.server import SERVICE
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
 from leaf.base.schema import SERVICE_FILE
 from leaf.log import event_log as events_model
 from leaf.pages import hosting as hosting_model
@@ -2597,7 +2599,9 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     SERVICE.file(other_dir / SERVICE_FILE).unlink()
     with socket.create_server(("127.0.0.1", urlsplit(old_url).port)):
         new_url = hosting_model.start_server(
-            other_dir, persistent=True, harness=None
+            other_dir,
+            persistent=True,
+            harness=harness_model.claim_harness(service_model.page_claim(other_dir)),
         ).url.split("?")[0]
     assert urlsplit(new_url).port != urlsplit(old_url).port
     wait_for(

@@ -203,7 +203,9 @@ Every answer declares whose move it leaves:
   the same reference posts its reply in the thread, and Leaf names the to-do still
   open for `leaf task end`.
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
-  nothing to decide.
+  nothing to decide. Where a message needs no words back, such as a thanks, answer
+  with a reaction in their place, `--done --emoji 👍`: it answers the thread as
+  words would, and draws no message.
 
 ```bash
 leaf thread reply <answer.ref> --obligation --text "How long must exports be kept?"

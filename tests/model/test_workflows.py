@@ -1205,8 +1205,8 @@ def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir, changed):
     """The user takes back the pick the agent holds a reference to before it
     answers: a change of pick, which brings the first pick back, or their only
     pick. The reference names a pick that no longer stands, so a reply there is
-    refused and what stands stays owed. A turn's final there goes in answering
-    nothing."""
+    refused and what stands stays owed. A turn's final there goes in, answering the
+    pick it was written for, which leaves what stands owed all the same."""
     offer_choice(page_dir)
     first = choose(page_dir, "file")
     taken = choose(page_dir, "skip") if changed else first
@@ -1224,7 +1224,7 @@ def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir, changed):
         "Leaving it.",
         settlement=thread_model.ProviderFinal("turn"),
     )
-    assert late is not None and "responds" not in late
+    assert late is not None and late["responds"] == taken["id"]
     assert [item["input"] for item in owed(state_json(page_dir))] == (
         [first["id"]] if changed else []
     )

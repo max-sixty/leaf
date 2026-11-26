@@ -625,12 +625,13 @@ class _ClosureHistory:
 
 def in_history(event: dict, messages: frozenset[str]) -> bool:
     """Whether a thread's history keeps an event as a turn: a spoken message, of
-    `messages`' kinds, that is no progress, or the user's rewrite of one
-    (`exchange`), or an undo, which `build_threads` keeps only where it takes a turn
-    back: what settles a batch of turns."""
+    `messages`' kinds, that is no progress, or the agent's answer in a reaction, as
+    to a thanks that needs no words, or the user's rewrite of one (`exchange`), or
+    an undo, which `build_threads` keeps only where it takes a turn back: what
+    settles a batch of turns."""
     kind = event["kind"]
     if kind in messages:
-        return "emoji" not in event and not event.get("ephemeral")
+        return ("emoji" not in event or is_answer(event)) and not event.get("ephemeral")
     return kind == "undo" or (kind == "edit" and event["author"] != "agent")
 
 

@@ -619,9 +619,10 @@ class ProviderFinal:
     newer input in its thread (`settling_answer`; a failure receipt is no answer), so
     a turn's answer committed after its reservation lapsed never answers twice, and
     it writes nothing once another delivery holds the address. Where its reference no
-    longer names the thread's newest standing input, it goes in answering nothing
-    (`_resolve_obligation`): the turn can't write again, and the user watched it write
-    those words."""
+    longer names the thread's newest standing input, it skips that check and answers
+    the input it was written for (`_resolve_obligation`): the turn can't write again,
+    and the user watched it write those words. Codex alone writes this way, so it
+    stands as a special case outside the rule every other write follows."""
 
     reservation: str
 
@@ -664,6 +665,7 @@ def post_reply(
     address: dict,
     text,
     *,
+    emoji: str | None = None,
     settlement: Settlement = REFUSE,
     attempt: str | None = None,
     identity: dict | None = None,
@@ -712,6 +714,10 @@ def post_reply(
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
+    ``emoji`` answers with that reaction in place of ``text``, for a message that
+    needs no words back, such as a thanks: it settles what an answer in words would,
+    and draws no message (`events.in_history`).
+
     ``claimed_session`` names the session Leaf writes for, as a line fork's working
     message or a harness's failure receipt: Leaf's own write, which goes in as the
     claimant's and says nothing beside it.
@@ -741,8 +747,9 @@ def post_reply(
     """
     title = agent_title(title)
     todo = agent_title(todo)
-    text = checked_text(page_dir, text, html=True)
-    if check is not None and (markup := drawn_markup(text)):
+    if emoji is None:
+        text = checked_text(page_dir, text, html=True)
+    if check is not None and text and (markup := drawn_markup(text)):
         check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
@@ -788,6 +795,7 @@ def post_reply(
             addressed,
             posting_identity,
             text,
+            emoji=emoji,
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
@@ -906,10 +914,11 @@ def _resolve_obligation(
     newest standing input, answered or not (`workflows.Handover`), and an answer then
     settles every input up to there (`events.settle`). Any other is refused
     (`superseded-reply`): the user has added to the thread or taken that input back
-    since, and the agent writes again once it has read the thread as it stands. A receipt writes nothing instead, and a provider's final, which can't
-    be written again, goes in answering nothing. That is the one check on what a
-    reply answers: a second reply at the newest reference goes in like the first,
-    answering nothing new."""
+    since, and the agent writes again once it has read the thread as it stands. A
+    receipt writes nothing instead, and a provider's final, which can't be written
+    again, goes in answering the input it was written for (`ProviderFinal`). That is
+    the one check on what a reply answers: a second reply at the newest reference
+    goes in like the first, answering nothing new."""
     from leaf.agents.presence import read_work
 
     page_dir, events = page.page_dir, page.events
@@ -964,11 +973,7 @@ def _resolve_obligation(
             )
             found = {"event": responds, "held": held}
             raise Rejected([Finding("superseded-reply", values=found)])
-        if stale:
-            # A turn's final can't be written again, so the words the user watched
-            # it write go in, answering nothing, and what the thread owes stays owed.
-            answers = None
-        elif isinstance(settlement, Receipt) and not owed:
+        if isinstance(settlement, Receipt) and not owed:
             return None
         elif answered:
             # The to-dos earlier answers at this reference opened that are still
@@ -1050,8 +1055,9 @@ def _compose_and_append(
     page: PageTransaction,
     obligation: _Obligation,
     posting_identity: dict,
-    text: str,
+    text: str | None,
     *,
+    emoji: str | None = None,
     attempt: str | None,
     failure: str | None,
     validate_source: bool,
@@ -1080,13 +1086,13 @@ def _compose_and_append(
     through a filter, as `jq` with a field list does."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand, _advice = obligation
-    markup = drawn_markup(text)
+    markup = "" if text is None else drawn_markup(text)
     event = {
         "kind": "reply",
         "author": "agent",
         **posting_identity,
         "parent": parent,
-        "text": text,
+        **({"text": text} if emoji is None else {"emoji": emoji}),
         **({"responds": responds} if responds is not None else {}),
     }
     opening = _messages(events)[thread_id]
@@ -1208,6 +1214,7 @@ def _compose_and_append(
         and _goes_in_unannounced(before, asks=bool(explicit_obligation or asking))
         and not ephemeral
         and failure is None
+        and emoji is None
     )
     if unannounced:
         event["unannounced"] = True

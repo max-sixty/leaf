@@ -295,9 +295,11 @@ that one's place in the thread, the user's messages and their actions on widgets
 there alike (`events.settle`), so an answer never settles input the agent wasn't
 shown. A reply at an input the agent has already answered carries no `responds`; where
 that answer opened a to-do still open, the command names it for `leaf task end`. A
-Codex turn's final message at a reference that is no longer the thread's newest
-carries none either: the turn can't write again, so it goes in answering nothing. A
-substantive reply reopens a resolved thread, and brings back none of the questions the
+Codex turn's final message is the one write outside that check: the turn can't write
+again, so at a reference that is no longer the thread's newest it goes in answering
+the input it was written for, and what is newer stays owed. An agent's answer may be
+a reaction in place of words (`leaf thread reply --emoji`), as to a thanks: it settles
+what words would, and draws no message (`events.in_history`). A substantive reply reopens a resolved thread, and brings back none of the questions the
 resolve ended; reactions and failure receipts leave it closed, and so does an
 `unannounced` message of the agent's in a thread the user resolved (below).
 

@@ -156,6 +156,40 @@ def test_the_agents_reply_names_a_thread_nobody_titled(page_dir):
     assert titles()[other["id"]] is None
 
 
+def test_a_reaction_answers_a_thanks_without_a_message(page_dir):
+    """The agent can answer a message that needs no words back, such as a thanks,
+    with a reaction: it passes the same check as words and settles the thread, so
+    the agent owes nothing, and it draws no message. Into a thread the user resolved
+    as they said it, it goes in leaving the thread closed."""
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Great table!"}
+    )
+    stale = response_reference(page_dir, asked)
+    thanks = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Thanks."},
+    )
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    assert [item["input"] for item in owed_answers(page_dir)] == [thanks["id"]]
+
+    [refused] = command_findings(
+        "thread", "reply", stale, "--done", "--emoji", "👍", "--title", "Praise"
+    )
+    assert refused.code == "superseded-reply"
+    reference = response_reference(page_dir, thanks["id"])
+    command_notes(
+        "thread", "reply", reference, "--done", "--emoji", "👍", "--title", "Praise"
+    )
+    reaction = events_model.read_events(page_dir)[-1]
+    assert (reaction["emoji"], reaction["responds"]) == ("👍", thanks["id"])
+    assert "text" not in reaction and "unannounced" not in reaction
+    assert owed_answers(page_dir) == []
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] == "user"
+
+
 def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
     page_dir,
 ):
@@ -802,7 +836,8 @@ def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
     """A provider turn's opening is the agent's progress line, as any harness's first
     line is: once complete it posts once, taking the update in hand, so a message the
     user sends during the turn follows it. The turn's final message posts after that
-    message and answers nothing, since the turn never read it, so both stay owed. An
+    message and answers the comment it was written for, a special case of Codex's,
+    and the message the turn never read stays owed. An
     opening of several paragraphs posts as the one line progress is, and one whose
     completion a reconnect missed posts as the next item begins."""
     comment, _target, _delivery_id, stream = _reserved_author_response(page_dir)
@@ -856,7 +891,7 @@ def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
     ]
     progress, _, final = replies
     assert progress["ephemeral"] and progress["start"]["item"] == comment["id"]
-    assert "responds" not in final
+    assert final["responds"] == comment["id"]
     [owed_answer] = owed(state_json(page_dir))
     assert owed_answer["input"] == asked["id"]
 

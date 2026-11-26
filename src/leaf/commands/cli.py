@@ -1498,6 +1498,11 @@ def thread_create(
     help="the reply promises work it doesn't deliver; opens that to-do on the "
     "thread, ended by `leaf task end` with the reply's id",
 )
+@click.option(
+    "--emoji",
+    metavar="EMOJI",
+    help="answer with this reaction in place of words, as to a thanks that needs no reply",
+)
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
 @_title_option(required=False)
 @click.option(
@@ -1542,7 +1547,10 @@ def thread_reply(
     from leaf.agents.thread import post_reply, post_response
     from leaf.pages.render_gate.messages import message_check
 
-    text = read_body(options.pop("text"), options.pop("body_file"))
+    words = options.pop("text"), options.pop("body_file")
+    if options["emoji"] is not None and any(given is not None for given in words):
+        raise click.UsageError("--emoji answers in place of --text or --file")
+    text = None if options["emoji"] is not None else read_body(*words)
     # The agent names a thread nobody has titled yet (`untitled-thread`).
     options["title_owed"] = True
     if message is not None:

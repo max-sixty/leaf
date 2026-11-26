@@ -139,63 +139,10 @@
 import { coarsePointer } from "../../base/pointer.js";
 import { runtime } from "../../state/context.js";
 
-/** @template T @typedef {T | (() => T)} Cell */
-/** @typedef {Object} CommandData
- * @property {string} id
- * @property {Cell<string>} title
- * @property {Cell<readonly string[]>} [keys]
- * @property {Cell<readonly string[]>} [contextKeys]
- * @property {Cell<string | null | undefined>} [description]
- * @property {Cell<string>} [reach]
- * @property {Cell<string | null>} [label]
- * @property {Cell<Element | null> | undefined} [control]
- * @property {Cell<Element | null> | undefined} [bindingBadge]
- * @property {(() => boolean) | undefined} [ready]
- * @property {(() => boolean) | undefined} [when]
- * @property {() => boolean} [at]
- * @property {() => unknown} [keep]
- * @property {(from: Element | null) => HTMLElement | SVGElement | null | undefined} [lands]
- * @property {Cell<string> | false} [touch]
- * @property {Cell<string>} [touchValue]
- * @property {boolean} [decision]
- * @property {boolean} [commits]
- * @property {boolean} [recommended]
- * @property {boolean} [travels]
- * @property {boolean} [native]
- * @property {Cell<boolean>} [waits]
- * @property {boolean} [repeat]
- * @property {boolean} [exit]
- * @property {boolean} [retainCurrentLocation]
- * @property {Cell<readonly string[]>} [sequenceSteps]
- * @property {Cell<readonly string[]>} [completeSequenceSteps]
- * @property {readonly string[]} [intrinsicBindings]
- * @property {boolean} [runFromCommandReference]
- * @property {boolean} [sequenceControl]
- * @property {() => boolean} [commandReferenceWhen]
- * @property {import("../../base/page-controls.js").PageControlGroup} [menu]
- * @property {keyof typeof import("../../lib/icon-paths.js").ACTIONS} [action]
- * @property {Cell<readonly CommandRoute[]>} [routes]
- * @property {() => Scope | null} [opens]
- * @typedef {CommandData & ({run?: (() => unknown) | undefined, runKey?: never} | {run?: never, runKey: (binding: string) => unknown})} Command
+/** @import { Cell, DeclaredCommand, DeclaredScope } from "../../base/command-declaration.js" */
+/** @typedef {DeclaredCommand & {routes?: Cell<readonly CommandRoute[]>, opens?: () => Scope | null}} Command
  * @typedef {Command & {binding?: string, [ROUTED_COMMAND]?: CommandReference}} CommandRoute
- * @typedef {Object} Scope
- * @property {string | null | undefined} [title]
- * @property {Cell<string>} [reach]
- * @property {readonly Command[]} rows
- * @property {(() => boolean) | undefined} [when]
- * @property {(() => boolean) | undefined} [ready]
- * @property {Cell<Element | Document | null>} [root]
- * @property {(binding: string) => boolean} [shadow]
- * @property {Cell<readonly string[]>} [sequence]
- * @property {boolean} [contextual]
- * @property {object} [identity]
- * @property {Element} [el]
- * @property {Cell<string>} [says]
- * @property {() => boolean} [at]
- * @property {((binding: string) => boolean) | null | undefined} [claims]
- * @property {"inner" | "outer" | undefined} [escape]
- * @property {boolean | undefined} [liveInCommandReference]
- * @property {boolean} [validated]
+ * @typedef {Omit<DeclaredScope, "rows"> & {rows: readonly Command[]}} Scope
  * @typedef {{source: Element, scope: Scope, row: Command, id: string, binding: string | null}} CommandReference
  * @typedef {{id: string, binding: string | undefined, route: CommandRoute | null}} CommandEntry
  */

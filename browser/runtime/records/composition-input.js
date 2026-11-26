@@ -3,7 +3,8 @@
    wiring hands back. A thread's reply box and a message's rewrite wire their own fields
    from below the composer, so the contract is named here. */
 
-/** @import { Cell, Command } from "../dom/keyboard/bindings.js" */
+/** @import { Cell } from "../base/command-declaration.js" */
+/** @import { Command } from "../dom/keyboard/bindings.js" */
 /** @import { DraftDrawing } from "../../types/domain.js" */
 /** The text field the wiring takes, a `leaf-text` (annotations/composing/text-field.js),
  * by what the wiring reads of it and does to it.

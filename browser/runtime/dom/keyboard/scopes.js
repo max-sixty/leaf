@@ -79,6 +79,7 @@ import { stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS } from "../../lib/widget-events.js";
 import { reportFailure } from "../../lib/failure.js";
 
+/** @import { ScopeOptions } from "../../base/command-declaration.js" */
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").CommandRoute} CommandRoute
  * @typedef {import("./bindings.js").Scope} Scope
@@ -86,7 +87,6 @@ import { reportFailure } from "../../lib/failure.js";
  * @typedef {{source: Element, scope: Scope, rows?: readonly Command[]}} Declaration
  * @typedef {{source: Element, scope: Scope, row: Command, entry: CommandRoute}} ButtonCommand
  * @typedef {ButtonCommand & {run: () => unknown}} RunnableCommand
- * @typedef {{when?: () => boolean, ready?: () => boolean, escape?: "inner", claims?: (binding: string) => boolean}} ScopeOptions
  * @typedef {{scope: Scope}} CommandCapability
  */
 
@@ -623,7 +623,7 @@ function contextRows(declarations) {
 // restoring focus and invoking a command in the same turn sees the same routes.
 /** @type {Set<(origin: Element | null) => Scope | null>} */
 const contextScopeReaders = new Set();
-/** @param {string} title @param {(origin: Element | null) => {root: Element, declarations: import("./bindings.js").Cell<readonly Declaration[]>} | null} resolve */
+/** @param {string} title @param {(origin: Element | null) => {root: Element, declarations: import("../../base/command-declaration.js").Cell<readonly Declaration[]>} | null} resolve */
 export function contextScopes(title, resolve) {
   const identity = Object.freeze({});
   /** @param {Element | null} origin */

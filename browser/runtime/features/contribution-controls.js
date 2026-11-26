@@ -32,12 +32,11 @@ import {
   normalizeContributionReading,
   visibleContributionEntryLabel,
 } from "../base/contribution-model.js";
-/** @typedef {Omit<import("../base/contribution-model.js").EntryInput, "scope"> & {
- * scope?: NonNullable<Element["lfCommands"]> | import("../dom/keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
+/** @typedef {import("../base/contribution-model.js").EntryInput} EntryInput
  * @typedef {import("../base/contribution-model.js").ContributionEntry} Entry
  * @typedef {import("../base/contribution-model.js").OwnedEntry} OwnedEntry
  * @typedef {Entry & {owner?: string}} PresentedEntry
- * @typedef {Omit<import("../base/contribution-model.js").ReadingOptions, "entries"> & {entries?: readonly EntryInput[]}} ReadingOptions
+ * @typedef {import("../base/contribution-model.js").ReadingOptions} ReadingOptions
  * @typedef {import("../base/contribution-model.js").ContributionReading} ContributionReading
  * @typedef {import("./contributions.js").ContributionSource} ContributionSource
  * @typedef {import("./contributions.js").ContributionSurface} Surface

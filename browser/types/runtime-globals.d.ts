@@ -5,12 +5,7 @@ interface DocumentInputs {
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
   /** Which state a reload carries for a control (base/document-inputs.js). */
-  holdsValue(
-    node: Element,
-  ): node is
-    | HTMLInputElement
-    | HTMLTextAreaElement
-    | HTMLElementTagNameMap["leaf-text"];
+  holdsValue(node: Element): node is HTMLElement & { value: string };
   holdsTick(node: Element): node is HTMLInputElement;
   holdsOpen(node: Element): node is HTMLDetailsElement;
   readonly count: number;
@@ -188,7 +183,7 @@ interface Element {
    * the element says they changed (`lf-commands`; dom/keyboard/scopes.js): a scope's
    * title, rows and options. */
   lfCommands?:
-    | (import("../runtime/dom/keyboard/scopes.js").ScopeOptions & {
+    | (import("../runtime/base/command-declaration.js").ScopeOptions & {
         title: string | null;
         rows: readonly import("../runtime/dom/keyboard/bindings.js").Command[];
       })

@@ -76,7 +76,7 @@ import { closestAcross } from "../../lib/shadow-tree.js";
 /** @import { WireInput } from "../composition-input.js" */
 /** A reply box's field, which the box puts the caret back in as it changes hands.
  * @typedef {import("../composition-input.js").InputField & {setSelectionRange:
- * (start: number, end: number, direction?: "none" | "forward" | "backward") => void}} ReplyField */
+ * (...caret: import("../../base/held-place.js").Caret) => void}} ReplyField */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
  * wireInput: WireInput,
  * landSent: typeof import("./landing.js").landSent,
@@ -396,7 +396,7 @@ function wireReply(key, row, input, commands, options) {
   /** @type {Composition | undefined} */
   let composition;
   const box = () => composition?.binding?.box ?? options;
-  /** @param {import("../../dom/keyboard/bindings.js").Cell<string> | null} cell */
+  /** @param {import("../../base/command-declaration.js").Cell<string> | null} cell */
   const read = (cell) => (typeof cell === "function" ? cell() : cell);
   const sync = commands.wireInput(input, {
     hint: () => read(box().hint) ?? "",

@@ -298,6 +298,21 @@ test("publisher takes a pnpm pin only where nothing else in package.json or the 
         ),
       },
     ],
+    // The same tarball in YAML's block, quoted-key and explicit-key forms.
+    ...[
+      "    resolution:\n      tarball: https://example.com/pnpm.tgz\n      integrity: sha512-d29ybGQ=",
+      "    'resolution': {tarball: https://example.com/pnpm.tgz}",
+      "    ? resolution\n    : {tarball: https://example.com/pnpm.tgz}",
+    ].map((resolution) => [
+      pin[0],
+      {
+        path: "pnpm-lock.yaml",
+        content: lockfile("1.1.0").replace(
+          "    resolution: {integrity: sha512-d29ybGQ=}",
+          resolution,
+        ),
+      },
+    ]),
     [
       pin[0],
       {

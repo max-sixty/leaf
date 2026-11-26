@@ -87,11 +87,28 @@ function lockDocuments(text) {
   return [text.slice(0, at), text.slice(at)];
 }
 
-const importers = (first) => first.slice(0, first.indexOf("\npackages:"));
+// The first document's lines from `packages:` on, as pnpm writes them for pnpm
+// `version` and its platform binaries, each fetched from the registry by integrity
+// alone. A line of any other shape, such as a tarball URL, another package or YAML's
+// block or explicit-key syntax, fails the check.
+function pinLines(version) {
+  const v = version.replaceAll(".", "\\.");
+  const exe = "@pnpm/exe\\.[a-z0-9]+(?:-[a-z0-9]+)*";
+  return [
+    /^$/,
+    /^(?:packages|snapshots):$/,
+    new RegExp(`^ {2}(?:pnpm@${v}|'${exe}@${v}'):$`),
+    /^ {4}resolution: \{integrity: sha512-[A-Za-z0-9+/]+={0,2}\}$/,
+    /^ {4}(?:cpu|os|libc): \[[a-z0-9]+(?:, [a-z0-9]+)*\]$/,
+    /^ {4}engines: \{node: '[^']*'\}$/,
+    /^ {4}(?:hasBin|optional): true$/,
+    /^ {4}optionalDependencies:$/,
+    new RegExp(`^ {6}'${exe}': ${v}$`),
+  ];
+}
 
 // The build's package.json and lockfile may differ from the head's only in the pnpm
-// they pin: `packageManager`, and a first document naming that pnpm and its platform
-// binaries, each fetched from the registry by integrity alone.
+// they pin: `packageManager`, the importer that names it, and `pinLines`.
 async function checkPin(api, repo, head, files) {
   const read = (path) =>
     api("GET", `/repos/${repo}/contents/${path}?ref=${head}`, {
@@ -113,22 +130,18 @@ async function checkPin(api, repo, head, files) {
     throw new Error("Invalid pnpm pin: package.json");
   const [first, rest] = lockDocuments(files["pnpm-lock.yaml"] ?? "");
   const [headFirst, headRest] = lockDocuments(lock);
-  const binary = (key) => {
-    const at = key.lastIndexOf("@");
-    return (
-      key.slice(at + 1) === version &&
-      /^(?:pnpm|@pnpm\/exe\.[a-z0-9-]+)$/.test(key.slice(0, at))
-    );
-  };
+  const at = first.indexOf("\npackages:\n");
+  const headAt = headFirst.indexOf("\npackages:\n");
+  const shapes = pinLines(version);
   if (
     rest !== headRest ||
-    importers(first) !== importers(headFirst).replaceAll(previous, version) ||
-    [...first.slice(importers(first).length).matchAll(/^ {2}'?([^\s':]+)'?:/gm)].some(
-      ([, key]) => !binary(key),
-    ) ||
-    [...first.matchAll(/resolution: (.*)$/gm)].some(
-      ([, value]) => !/^\{integrity: sha512-[\w+/]+=*\}$/.test(value),
-    )
+    at < 0 ||
+    headAt < 0 ||
+    first.slice(0, at) !== headFirst.slice(0, headAt).replaceAll(previous, version) ||
+    !first
+      .slice(at + 1)
+      .split("\n")
+      .every((line) => shapes.some((shape) => shape.test(line)))
   )
     throw new Error("Invalid pnpm pin: lockfile");
   return version;

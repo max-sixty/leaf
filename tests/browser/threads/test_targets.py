@@ -37,11 +37,11 @@ from browser.threads import (
     seed_reply,
     thread_row,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -536,7 +536,7 @@ def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
     }""")
 
     # One transaction, so the page reads both records in one state answer.
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         for event in (
             {
                 "kind": "reply",
@@ -840,14 +840,14 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
             '<h1 id="title">Deployment review</h1><lf-text-document id="source" source="document"></lf-text-document>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "document", old)
+    page_data_model.cmd_data_set(serve.page_dir, "document", old)
     page = open_page(browser, live_url(url))
     select_words(page, "#source .lf-text-document-run > *")
     write(page.locator(".lf-composer leaf-text"), "Does the manual review still apply?")
     with sending(page, "the earlier data comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     told(page)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "document", "The deployment now uses automatic review."
     )
     told(page)

@@ -20,7 +20,7 @@ from render_harness import (
 
 from browser.margin import CARD_AT_REST
 from browser.threads import append_agent_reply, open_panel_thread, summarize_thread
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -279,6 +279,10 @@ def test_a_rewrite_written_in_a_card_back_returned_to_reopens_there(
     page.wait_for_function("navigation.transition === null")
     page.go_back()
     expect(card).to_have_attribute("data-lf-thread", first)
+    # The card Back reopens is still moving into its seat when it names the thread;
+    # a double-click issued mid-glide can land on the page beside it.
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
     card.locator(".lf-msg .lf-msg-text").first.dblclick()
     editor = card.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()

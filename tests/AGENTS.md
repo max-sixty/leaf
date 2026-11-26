@@ -192,7 +192,7 @@ A property a particular page causes belongs in `render_version`, because
 for every valid page, such as how the layer restores browser state
 (`arrival_findings`), belongs in the suite. A test of a state no authored page reaches,
 such as DOM a script changes after load, puts the page in
-that state and calls the probe through `leaf.render_checks.evaluate_probe`.
+that state and calls the probe through `leaf.source.render_checks.evaluate_probe`.
 
 Where the product already answers a question, use its answer: `root_overflow` for
 sideways scroll, `stored_draft` for drafts, `event_log.read_events` for the log. Read the page through its public
@@ -319,7 +319,7 @@ The `browser` fixture watches every page it makes and fails the test on any prob
 left at the end; don't install a second collector or filter it. Consume an expected
 problem where it happens with
 `consume_browser_errors`, or `reported_browser_errors` when it arrives in parts, naming
-it by its fields (`leaf/findings.py`) or by a
+it by its fields (`leaf/base/findings.py`) or by a
 fragment of the console message (`render_harness.is_problem`). For a recurring fault,
 close the page first and then consume.
 
@@ -365,13 +365,13 @@ where each end sets the port as `lfDocumentPort` on its bootstrap script element
 the first message (`bootstrap.js`, `host/sample.js`).
 
 `test_widget_quality.py` holds Leaf's own widgets to the report `package check --render`
-gives a package's author (`leaf/render_gate/widget_quality.py`).
+gives a package's author (`leaf/pages/render_gate/widget_quality.py`).
 `known_widget_findings.py` lists today's findings, each a defect awaiting a fix: a new
 finding fails the test, and so does an entry that no longer occurs.
 
 ## Page readiness
 
-Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
+Open pages through `open_page`, and call `wait_until_ready` (`leaf.source.render_checks`)
 after any manual navigation. It waits on the runtime's one readiness signal,
 `pageReadiness`; network quiet implies none of its stages, and a key pressed before
 replay can be lost silently. Never combine the stamps yourself or wait for a deferred
@@ -409,7 +409,7 @@ for one that has finished, so no assertion reads what a sleep left
 (`test_no_assertion_rests_on_a_sleep`), and a sleep doesn't prove that another process
 took a lock (`interact_support.lock_contention` reports that a second taker is
 waiting). Count
-frames (`one_frame` in `leaf.render_checks`) only where
+frames (`one_frame` in `leaf.source.render_checks`) only where
 one rendering update is itself the claim. A computed style under a transition reports
 the animated value, so check `getAnimations()` where the subject may be moving.
 `page.evaluate` takes no timeout: state readiness in the page and poll it with
@@ -443,7 +443,7 @@ matching frame even if the gesture goes on to another result. The helpers in
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
 - `undo` presses ⌘Z once the dispatcher would take it and waits for the undo's round
   trip;
-- `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
+- `rendered` (`leaf.source.render_checks`) waits for every repaint the input so far queued,
   and `available_commands` reads the dispatcher once after it;
 - `panel_settled` and `resized` wait for their motion to end, and
   `scroll_settled` (`leaf_dev.browser`) for a scroll's.

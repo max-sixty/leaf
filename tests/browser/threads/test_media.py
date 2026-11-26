@@ -30,9 +30,9 @@ from browser.threads import (
     open_capture_area,
     paste_image,
 )
-from leaf import event_log as events_model
-from leaf import media as media_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.serving import media as media_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

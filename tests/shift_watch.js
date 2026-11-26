@@ -2663,7 +2663,7 @@
     if (source?.carried && !inputRenderings.has(source.event))
       begin(nativePerformance.now(), null, new Set(), source.event);
   });
-  // Each finding goes to the fixture as a record (`leaf/findings.py` words it),
+  // Each finding goes to the fixture as a record (`leaf/base/findings.py` words it),
   // once per `key`, with every node in it named.
   const reported = new Set();
   const report = (key, finding) => {

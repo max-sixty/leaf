@@ -29,7 +29,7 @@ from datetime import datetime, timedelta
 
 from playwright.sync_api import Locator, Page, expect
 
-from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
+from leaf.source.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,

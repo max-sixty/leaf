@@ -37,8 +37,8 @@ from browser.controls import (
     RING_NEW_STOP,
 )
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf.render_checks import rendered
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -165,7 +165,7 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
         ident = "log"
     url = serve(leaf_page("Read the code", "<h1>Read the code</h1>" + content))
     if reading == "markdown":
-        data_model.cmd_data_set(serve.page_dir, "draft", f"```js\n{code}```\n")
+        page_data_model.cmd_data_set(serve.page_dir, "draft", f"```js\n{code}```\n")
     page = open_page(browser, url)
     page.get_by_role("tab").first.click()
     page.keyboard.press("Tab")

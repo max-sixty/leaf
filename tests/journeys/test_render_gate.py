@@ -91,15 +91,15 @@ from render_harness import (
     take_browser_errors,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.files import latest_revision
-from leaf.findings import Finding
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import scheme as render_gate_scheme
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_server
-from leaf.revision_artifact import read_revision
+from leaf.base.files import latest_revision
+from leaf.base.findings import Finding
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate import scheme as render_gate_scheme
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.pages.render_gate.preview import preview_server
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.revision_artifact import read_revision
 from leaf_dev.browser import chromium_metrics
 from leaf_dev.example_data import authored_sources, named_source
 

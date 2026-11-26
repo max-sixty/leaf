@@ -22,8 +22,8 @@ from render_harness import (
     write,
 )
 
-from leaf import interaction_log as interaction_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS
+from leaf.log import interaction_log as interaction_model
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS
 
 
 @pytest.mark.parametrize("surface", ["panel", "page"])

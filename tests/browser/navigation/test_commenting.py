@@ -51,8 +51,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -701,6 +701,43 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#route")).not_to_be_focused()
     expect(rest).to_be_hidden()
+
+
+def test_the_box_at_rest_shows_the_words_kept_on_its_target(browser, serve):
+    """A comment put away on a target leaves its words where the empty box says
+    Comment…, upright as the open box writes them and read as the margin reads a draft,
+    before the `c` that opens the box on them. Words longer than the box are cut short
+    before the key, and its preview reads them whole."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    rest = page.locator(".lf-fab-rest")
+    words = rest.locator(".lf-compose-placeholder-words")
+    field = page.locator(".lf-fab-input")
+    typed = (
+        "Take the **left** one, since the right one waits on a lock that the other "
+        "write holds for the whole of its read."
+    )
+    said = typed.replace("**", "")
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    page.keyboard.type(typed)
+    page.keyboard.press("Escape")
+    expect(page.locator("#route")).to_be_focused()
+    expect(words).to_have_text(said)
+    expect(rest.locator(".lf-compose-placeholder")).to_have_css("font-style", "normal")
+    key = rest.locator("kbd")
+    expect(key).to_have_text("c")
+    assert key.bounding_box()["x"] + key.bounding_box()["width"] <= (
+        rest.bounding_box()["x"] + rest.bounding_box()["width"]
+    )
+    assert words.evaluate("(words) => words.scrollWidth > words.clientWidth")
+
+    rest.hover()
+    expect(page.locator("#lf-preview .lf-preview-detail")).to_have_text(said)
+
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", typed)
 
 
 def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):

@@ -12,9 +12,9 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -470,7 +470,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         selector = "lf-diff .lf-page-thread"
     url = serve(authored)
     if place not in ("margin", "panel"):
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "change",
             'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return "old"\n+return "new"\n',

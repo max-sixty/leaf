@@ -10,10 +10,10 @@ import pytest
 from click.testing import CliRunner
 from interact_support import TOKEN, fetch, publish, running_http_server
 
-from leaf.cli import cli
-from leaf.http_connections import ConnectionError, bind, unbind
-from leaf.http_connections import fetch as connection_fetch
-from leaf.state import state_home
+from leaf.base.state import state_home
+from leaf.commands.cli import cli
+from leaf.serving.http_connections import ConnectionError, bind, unbind
+from leaf.serving.http_connections import fetch as connection_fetch
 
 
 @pytest.fixture
@@ -193,10 +193,10 @@ def test_connections_redact_transport_failures(server, page_dir, upstream, monke
 
 
 def test_connections_are_unavailable_in_read_only_previews(page_dir, upstream):
-    from leaf.files import latest_revision
-    from leaf.hosting import TemporaryPageServer
-    from leaf.page_snapshot import capture_page_snapshot
-    from leaf.revision_artifact import read_revision
+    from leaf.base.files import latest_revision
+    from leaf.pages.hosting import TemporaryPageServer
+    from leaf.pages.page_snapshot import capture_page_snapshot
+    from leaf.source.revision_artifact import read_revision
 
     origin, requests = upstream
     bind(page_dir, "source", origin, credential_env="CONNECTION_TEST_TOKEN")

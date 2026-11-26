@@ -11,7 +11,7 @@ from click.testing import CliRunner
 from PIL import Image
 from playwright.sync_api import expect
 
-from leaf.cli import cli
+from leaf.commands.cli import cli
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "packages/playwright"

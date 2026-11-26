@@ -29,8 +29,8 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from browser.widgets import hear_walks, walks_said
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 

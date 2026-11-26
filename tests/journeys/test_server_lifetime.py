@@ -28,17 +28,18 @@ from interact_support import (
     woken,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import presence as presence_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf.registry.storage import layer_record
+from leaf.agents import presence as presence_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry.storage import layer_record
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -268,8 +269,8 @@ from model.test_server_lifetime import (
     reaper_retires,
 )
 
-from leaf import harness as harness_model
-from leaf import schema as schema_model
+from leaf.base import harness as harness_model
+from leaf.base import schema as schema_model
 
 
 def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
@@ -353,7 +354,7 @@ def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
     hooks_run_this_tree("app-session")
     monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", "local_one")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     claim_record_2 = service_model.page_claim(page_dir)
     assert claim_record_2 is not None
@@ -484,11 +485,11 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
     hooks_run_this_tree("later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     # Without this the hook would skip the page for the wrong reason and the test
     # would pass with the bug in: the persistent check has to be what spares it.
-    assert page_dir in service_model.owned_pages("later")
+    assert page_dir in transaction_model.owned_pages("later")
 
     # A `server run` of its own finds this one up and reports the lifetime the
     # running server has, not the one this claiming launch would have given it.
@@ -502,7 +503,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     assert server_model.running_server(page_dir) == launched
     assert declared(page_dir)["state"] == "waiting"
     assert not service_model.claim_is_active(service_model.page_claim(page_dir))
-    assert page_dir not in service_model.owned_pages("later")
+    assert page_dir not in transaction_model.owned_pages("later")
     # Explicit stop crosses that server's release barrier before returning.
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
@@ -524,7 +525,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     hooks_run_this_tree("bg-job")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     assert read_record(page_dir / "service.json")["lifetime"] == "session"
     cleanup_model.end_harness_instance("bg-job")
@@ -533,7 +534,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert turn_record["turn_closed"] is not None
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
-    assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
+    assert transaction_model.owned_pages("bg-job") == [page_dir.resolve()]
     assert presence_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
@@ -543,7 +544,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
         lambda running: not running,
         failure="the background-job server stayed up after its job was deleted",
     )
-    assert service_model.owned_pages("bg-job") == []
+    assert transaction_model.owned_pages("bg-job") == []
     assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 

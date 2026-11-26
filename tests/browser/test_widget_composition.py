@@ -23,10 +23,10 @@ from render_cases_interaction import live_url
 from render_harness import leaf_page, open_page, round_trip, sending, told, undo
 from smoke.test_plain_page import ROOT, host_page, install
 
-from leaf import cli as cli_model
-from leaf import event_log
-from leaf.revision_delivery import layer_import_map
-from leaf.schema import PLUGIN_ROOT
+from leaf.base.schema import PLUGIN_ROOT
+from leaf.commands import cli as cli_model
+from leaf.log import event_log
+from leaf.serving.revision_delivery import layer_import_map
 
 FIXTURES = PLUGIN_ROOT / "tests" / "fixtures" / "packages"
 SHORTLIST = FIXTURES / "shortlist"

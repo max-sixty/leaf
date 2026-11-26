@@ -33,9 +33,9 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -278,7 +278,7 @@ def test_a_walk_to_a_stop_already_on_screen_is_a_back_step(browser, serve, walk)
         leaf_page("Stops on screen", f"<h1>Stops</h1>{body}"), anchored=anchored
     )
     if walk == "t between seats":
-        data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_LINE_PATCH)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_LINE_PATCH)
         for event in events:
             append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
@@ -1156,7 +1156,7 @@ def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
     text = "".join(
         f"Line {i:04d} names the place a reader stands.\n" for i in range(1500)
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", text)
     page = open_page(browser, url)
     resized(page, 1280, 900)
     rendered(page)
@@ -2459,7 +2459,7 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
         '@@ -1 +1 @@\n-return "old"\n+return "amber"\n'
     )
     url = serve(authored)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, live_url(url))
     line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(line).to_contain_text("amber")
@@ -2478,7 +2478,7 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
         return prepare.apply(this, args);
       };
     }""")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {
@@ -2794,7 +2794,7 @@ def test_history_returns_a_selection_across_lines_of_a_diff(request, serve, engi
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/AGENTS.md b/AGENTS.md\n--- a/AGENTS.md\n+++ b/AGENTS.md\n"

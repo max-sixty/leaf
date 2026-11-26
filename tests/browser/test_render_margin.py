@@ -34,8 +34,8 @@ from browser.margin import (
     _unfold,
     _unfold_suggestion_undo,
 )
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

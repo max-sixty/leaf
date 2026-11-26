@@ -14,8 +14,8 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 
@@ -45,7 +45,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
             f'<lf-diff id="native"><pre>{escape(patch)}</pre></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
         viewport={"width": 390 if touch else 1280, "height": 844},
         has_touch=touch,
@@ -147,7 +147,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             </style>""",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
         viewport={"width": 1280, "height": 900},
         has_touch=touch,
@@ -565,7 +565,7 @@ def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, sc
             layout="workspace" if pane else "column",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "change",
         patch_manifest(
@@ -673,7 +673,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
             f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "change",
         patch_manifest(
@@ -760,7 +760,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
             return prepareEntry(...args);
           };
         }""")
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "change",
             patch_manifest(
@@ -778,7 +778,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(row).to_have_attribute("aria-selected", "false")
     search.fill("")
     # A source update replaces the producer inventory, rather than leaving stale rows.
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "change",
         patch_manifest(patch("src/reader.py", "preserve_case = True")),
@@ -791,5 +791,5 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
     next_row.click()
     expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
     # Clearing the input clears the derived inventory too.
-    data_model.cmd_data_clear(serve.page_dir, "change")
+    page_data_model.cmd_data_clear(serve.page_dir, "change")
     expect(tree.get_by_role("treeitem")).to_have_count(0)

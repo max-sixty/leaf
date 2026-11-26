@@ -23,13 +23,13 @@ from interact_support import (
     suggested,
 )
 
-from leaf import cli as cli_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import structure as structure_model
-from leaf.events import build_threads
-from leaf.registry import storage as registry_storage
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log.events import build_threads
+from leaf.records import event_contracts as event_contracts_model
+from leaf.source import structure as structure_model
+from leaf.source.registry import storage as registry_storage
 
 
 def declare_part_prefixes(page_dir, *prefixes):
@@ -265,9 +265,9 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
     state_json(page_dir)
     assert events_model.read_events(page_dir) == events
 
-    from leaf.events import build_threads
-    from leaf.passages import enclosing_ids
-    from leaf.thread_context import sample_events
+    from leaf.log.events import build_threads
+    from leaf.log.thread_context import sample_events
+    from leaf.source.passages import enclosing_ids
 
     document = structure_model.SourceDocument((page_dir / "index.html").read_text())
     selected = {roots["Alpha"]["id"], roots["Gamma"]["id"]}
@@ -526,7 +526,7 @@ from interact_support import (
     response_reference,
 )
 
-from leaf import passages as passages_model
+from leaf.source import passages as passages_model
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

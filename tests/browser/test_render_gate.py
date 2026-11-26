@@ -83,23 +83,23 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import layer as layer_model
-from leaf import leases as leases_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf.findings import Finding
-from leaf.registry.contract import is_element_name
-from leaf.registry.validation import incoming_registry
-from leaf.render_checks import asked_again, rendered, wait_until_ready
-from leaf.render_gate import readings as render_gate_readings
-from leaf.render_gate import scheme as render_gate_scheme
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.widget_quality import own_tags
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base.findings import Finding
+from leaf.commands import cli as cli_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages.render_gate import readings as render_gate_readings
+from leaf.pages.render_gate import scheme as render_gate_scheme
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.pages.render_gate.widget_quality import own_tags
+from leaf.records import page_data as page_data_model
+from leaf.serving import http as http_model
+from leaf.source import layer as layer_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.registry.contract import is_element_name
+from leaf.source.registry.validation import incoming_registry
+from leaf.source.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import read_event_lines
 
@@ -1303,10 +1303,10 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
     held = render_gate_scheme.served(page, url, "/api/state").json()
-    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     expect(page.locator("#notes code")).to_have_text("Second.\n")
     expect(page.locator("body")).not_to_have_attribute(
         "data-lf-reading", held["reading"]
@@ -1366,13 +1366,13 @@ def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
     reads = []
     page.route("**/api/state*", lambda route: reads.append(route))
-    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     held = render_gate_scheme.served(page, url, "/api/state").json()
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     for read in reads:
         read.continue_()
     page.unroute("**/api/state*")
@@ -3262,7 +3262,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
         packages=("diff",),
     )
     wide = "_".join(["argument"] * 40)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(
@@ -3274,7 +3274,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
             )
         ),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"

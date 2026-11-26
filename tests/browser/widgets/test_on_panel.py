@@ -34,9 +34,9 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import open_on_me as open_on_me_by_pointer
 from leaf_dev.browser import panel_tab
 
@@ -962,7 +962,7 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
             '<p id="tail">The rollout can proceed once the line is reviewed.</p>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return "old"\n+return "new"\n',

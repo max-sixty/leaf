@@ -39,6 +39,7 @@ const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
   protocol: PROTOCOL,
+  drafts_format: "leaf-drafts/51",
   frame_ancestors: "frame-ancestors 'self'",
   routes: {
     layer: ["runtime", "widgets", "vendor"],

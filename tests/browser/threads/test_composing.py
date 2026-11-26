@@ -37,9 +37,9 @@ from browser.threads import (
     thread_row,
     to_window_foot,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered, wait_for_probe
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import one_frame, rendered, wait_for_probe
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -39,12 +39,12 @@ from render_harness import (
 
 from browser.widgets import PLAYGROUND_PAGE, expect_accept_all
 from journeys import first_thread_head
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1187,7 +1187,7 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         f"diff --git a/{previous} b/{path}\nsimilarity index 50%\n"
@@ -1424,7 +1424,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         for event in events_model.read_events(serve.page_dir)
         if event["id"] == action["id"]
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [logged_action],
@@ -1432,7 +1432,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
             turn="create-artifact",
         )
     with (
-        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        transaction_model.PageTransaction(serve.page_dir) as receipt_page,
         delivery_model.receive_batch(
             receipt_page,
             {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
@@ -1504,7 +1504,7 @@ body { font-family: system-ui, sans-serif; }
     assert "notification-configuration" in result_source
     assert "layout-workspace" not in result_source
     assert 'notification-artifact" hidden' not in result_source
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
         artifact.read_text(encoding="utf-8"),
@@ -1565,7 +1565,7 @@ body { font-family: system-ui, sans-serif; }
         if event["id"] == comment["id"]
     )
 
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [logged_comment],
@@ -1573,7 +1573,7 @@ body { font-family: system-ui, sans-serif; }
             turn="refine-artifact",
         )
     with (
-        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        transaction_model.PageTransaction(serve.page_dir) as receipt_page,
         delivery_model.receive_batch(
             receipt_page,
             {"events": [{"seq": logged_comment["seq"], "id": logged_comment["id"]}]},
@@ -1587,7 +1587,7 @@ body { font-family: system-ui, sans-serif; }
         "</article>",
     )
     artifact.write_text(second_artifact, encoding="utf-8")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
         artifact.read_text(encoding="utf-8"),

@@ -54,18 +54,18 @@ from typing import IO, NamedTuple, Self, overload
 
 import click
 
-from leaf.codex import APP_SERVER_ENV
-from leaf.event_log import initialized
-from leaf.harness import (
+from leaf.agents.codex import APP_SERVER_ENV
+from leaf.base.harness import (
     IDENTITY_VARIABLES,
     ClaudeCodeHarness,
     CodexHarness,
     claude_code_config,
 )
-from leaf.harness import codex_home as host_codex_home
-from leaf.registry.kernel import kernel_event_kinds
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import command as render_command_model
+from leaf.base.harness import codex_home as host_codex_home
+from leaf.log.event_log import initialized
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.source.registry.kernel import kernel_event_kinds
 from leaf_dev import LEAF_COMMAND, ROOT, plain_html
 from leaf_dev.browser import shell_executable
 from leaf_dev.leaf_assets import pinned_copy
@@ -744,11 +744,11 @@ def retire_sessions(payload: Path, state: Path) -> None:
             "-c",
             """
 import json
-from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home
-from leaf.leases import adapter_lease_path
-from leaf.codex_adapter import adapter_start_lock_path
-from leaf.hosting import cmd_stop
-from leaf.presence import live_servers
+from leaf.base.state import SESSION_SUFFIX, end_session, flocked, state_home
+from leaf.base.leases import adapter_lease_path
+from leaf.agents.codex_adapter import adapter_start_lock_path
+from leaf.pages.hosting import cmd_stop
+from leaf.agents.presence import live_servers
 
 sessions = state_home() / "sessions"
 for path in sessions.glob(f"*.{SESSION_SUFFIX}"):

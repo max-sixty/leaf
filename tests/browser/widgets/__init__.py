@@ -10,7 +10,7 @@ from render_harness import (
     panel_menu,
 )
 
-from leaf import data as data_model
+from leaf.records import page_data as page_data_model
 
 
 def expect_walk_says(page, words):
@@ -119,7 +119,7 @@ PLAYGROUND_PAGE = leaf_page(
 def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
     """The review the diff tests below read, with its feed in place before the page loads."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"

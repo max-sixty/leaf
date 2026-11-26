@@ -26,9 +26,9 @@ from render_harness import (
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -119,7 +119,7 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
         )
     )
     if captured:
-        data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
+        page_data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
     page = open_page(browser, url)
     if captured:
         # The caption stays above the source that scrolls, as wide as its figure.
@@ -1430,7 +1430,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         "() => document.querySelector('#lp-live-log pre').scrollTop === 120"
     )
     original = listing.text_content()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "release-log",
         f"{original.rstrip()}\n14:24:49 observer  checkout remains healthy\n",
@@ -1441,7 +1441,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
 
     # One at the end follows what arrives there.
     listing.evaluate("pre => pre.scrollTop = pre.scrollHeight")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "release-log",
         f"{listing.text_content().rstrip()}\n14:24:54 observer  sample=49 healthy\n",

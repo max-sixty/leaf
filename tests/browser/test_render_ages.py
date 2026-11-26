@@ -5,9 +5,9 @@ import pytest
 from model_folds import leaf_page
 from render_harness import open_page
 
-from leaf import anchor_capture as anchor_capture_model
-from leaf import passages as passages_model
-from leaf import structure as structure_model
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
 
 AGES = leaf_page(
     "Ages",

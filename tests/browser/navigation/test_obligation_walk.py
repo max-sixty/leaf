@@ -41,9 +41,9 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 

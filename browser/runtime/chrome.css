@@ -125,14 +125,6 @@ html[data-lf-region-capture] {
 html[data-lf-draw-mode] {
   touch-action: pinch-zoom;
 }
-/* The unanswered decision the user is in (markHere) wears the location ring
-   (`[data-lf-projected-location]`, surfaces.css). The ring stands outside the decision, so a
-   landing keeps its room at the scroller's edge, as a margin entry's does (controls.css): an obligation
-   landed at the top of a scrolling pane stood flush with it, the top of its ring cut
-   off under the pane's header rule. */
-[data-lf-obligation] {
-  scroll-margin-block: var(--lf-focus-ring-landing);
-}
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-working {

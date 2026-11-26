@@ -15,8 +15,8 @@ from render_harness import (
     told,
 )
 
-from leaf import cli
-from leaf.render_checks import asked_again, wait_until_ready
+from leaf.commands import cli
+from leaf.source.render_checks import asked_again, wait_until_ready
 
 
 def _source():

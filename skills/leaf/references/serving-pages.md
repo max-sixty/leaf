@@ -47,7 +47,7 @@ the URL's key, which the browser keeps in a cookie. One key covers every page on
 machine, so sharing one page's URL gives access to all of them. Leaf opens no public
 tunnel; binding beyond loopback exposes the port to that network.
 
-A page keeps its host and port in `<page>/service.json`, so serving again, changing
+A page keeps its host and port in its directory's service record, so serving again, changing
 its packages and reviving keep the same URL. `--host` changes the hostname and keeps the port. On
 macOS, restarting a `--host` page can wait about 30 seconds for the port to free up, and
 serving refuses if it is still taken.
@@ -156,7 +156,7 @@ Omit `--session` to include server requests and raw event records. The raw `<pag
 which `tail -F` follows live while you reproduce a problem, is in arrival order and
 still holds retries. Browser wall time stays in `observed_at`; order alone does not
 prove cause. The user's decisions are in `leaf page events <page>`, and
-[`interaction-batch.schema.json`](../../../src/leaf/interaction-batch.schema.json) defines
+[`interaction-batch.schema.json`](../../../src/leaf/log/interaction-batch.schema.json) defines
 the fields every browser row carries, and [page-storage.md](../../../src/leaf/page-storage.md)
 names the file's other owners.
 

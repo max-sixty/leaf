@@ -33,10 +33,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import wait_until_ready
-from leaf.runtime_selection import serving_runtime
+from leaf.commands import cli as cli_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import wait_until_ready
+from leaf.source.runtime_selection import serving_runtime
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
@@ -445,7 +445,7 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     url = serve(MANIFEST_DIFF_PAGE)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(

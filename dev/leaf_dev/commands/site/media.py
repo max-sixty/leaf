@@ -5,8 +5,8 @@ from pathlib import Path
 
 import click
 
-from leaf.media import require_media_type, write_media
-from leaf.schema import MEDIA_DIR
+from leaf.base.schema import MEDIA_DIR
+from leaf.serving.media import require_media_type, write_media
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import clone, publish
 from leaf_dev.page_fixtures import DEFAULT_PACKAGES

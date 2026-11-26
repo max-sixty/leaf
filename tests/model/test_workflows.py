@@ -1151,11 +1151,12 @@ def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
     assert events_model.read_events(page_dir)[-1]["text"] == "Filed it."
 
 
-def test_a_late_answer_to_a_pick_leaves_the_message_after_it_owed(page_dir):
+def test_a_pick_that_came_back_keeps_its_place_before_a_message(page_dir):
     """A turn delivered the user's pick and reserved its answer there. Before it
     answers, the user changes the pick, sends a message, and takes the change back,
-    which brings the first pick back. The turn's answer covers the pick it was
-    delivered, and the message it never read stays owed."""
+    which brings the first pick back where it was made. The thread's one answer goes
+    to the message. The turn's late answer covers the pick it was delivered, and the
+    message it never read stays owed until an answer to it."""
     asked = offer_choice(page_dir)
     first = choose(page_dir, "file")
     choose_again = choose(page_dir, "skip")
@@ -1163,13 +1164,18 @@ def test_a_late_answer_to_a_pick_leaves_the_message_after_it_owed(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": choose_again["id"]}
     )
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == message["id"]
     assert thread_model.post_reply(
         page_dir,
         {"parent": asked["id"], "responds": first["id"]},
         "Filing it.",
         settlement=thread_model.ProviderFinal("earlier-turn"),
     )
-    assert [item["input"] for item in owed(state_json(page_dir))] == [message["id"]]
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == message["id"]
+    thread_model.post_reply(page_dir, answer["answer"], "Waiting for your approval.")
+    assert owed(state_json(page_dir)) == []
 
 
 def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(

@@ -276,11 +276,11 @@ def page_action_unsettled(
 
 class _Walk(NamedTuple):
     """One thread's history walked (`events.settle`): the place each input last came
-    into force there, the inputs still waiting, and each agent turn that settled
-    some."""
+    into force there, the inputs still waiting, each by its position in the walk's
+    order, and each agent turn that settled some."""
 
     places: dict[str, int]
-    waiting: set[str]
+    waiting: dict[str, int]
     settlements: list
 
 
@@ -474,7 +474,7 @@ def handed_over(
             settled = settle(thread)
             walks[thread_id] = _Walk(
                 {turn["id"]: turn["seq"] for turn in thread["turns"]},
-                {turn["id"] for turn in settled.waiting},
+                {turn["id"]: at for at, turn in enumerate(settled.waiting)},
                 settled.settlements,
             )
         return walks[thread_id]
@@ -714,15 +714,17 @@ def handed_over(
         # here wait as one batch. Every exact input keeps its own transport/work
         # evidence, and the response contract coalesces the batch onto the newest
         # input's address, so only that input publishes a record, and each workflow
-        # names it. The record's workflow carries every start on the batch, which
-        # `activity.in_hand` reads.
+        # names it. The newest is the one `settle` holds last, which an answer to it
+        # settles with the rest. The record's workflow carries every start on the
+        # batch, which `activity.in_hand` reads.
+        order = walk(thread_id).waiting
         waiting = sorted(
             [
                 (source, target, coordinate, source["seq"])
                 for source in owed_turns(thread)
             ]
             + waiting_in.get(thread_id, []),
-            key=itemgetter(3),
+            key=lambda entry: order[entry[0]["id"]],
         )
         if not waiting:
             continue

@@ -72,7 +72,7 @@
  * telling an answer sent from this window from one sent from another (`sentHere`), so
  * that another window's answer left the card in place. It cost a name in the package
  * interface for a rare path, on which the card that moves is one the user answered.
- * Rejected too: a deck holding the tallest height it had stood at, so a
+ * Rejected by the user too: a deck holding the tallest height it had stood at, so a
  * shorter card at the page's end didn't let the browser pull the page down. It left
  * room inside a short card's frame, or below it, and ran in the deck's own code for a
  * fault every block at the page's end shares. */

@@ -678,8 +678,7 @@ def reaction_resting(page: Page) -> None:
     reaction_palette(page)
     strip = page.locator(f"{panel_view('thread')} .lf-react-strip").first
     strip.locator(".lf-react").first.hover()
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
+    rest_past_dwell(page)
 
 
 def reaction_thread(page: Page) -> None:

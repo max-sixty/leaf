@@ -14,7 +14,7 @@ name: tend-ci-failures
 # report trigger ordinary issue triage.
 on:
   workflow_run:
-    workflows: ["ci", "publish-site"]
+    workflows: ["ci", "publish-site", "pnpm-update"]
     types: [completed]
     branches: ["main"]
 

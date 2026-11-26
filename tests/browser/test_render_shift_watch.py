@@ -2306,13 +2306,17 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
     assert page.lf_errors == []
 
 
-def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(browser, serve):
+@pytest.mark.parametrize("late", [False, True], ids=["in-its-frame", "a-frame-late"])
+def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(
+    browser, serve, late
+):
     """News seals a preparation's landing still open, and its step's carry, begun in a
     ResizeObserver delivery after it lands, is a carry no input owns, as the carry of
     an answer arriving while a reply's preparation lands is (dom/box-motion.js). The
     answer grows a port standing on its foot, and the carry draws the port's head where
     it was and slides it to where the rise puts it, so the head moves nothing a carry
-    of news's step may not draw."""
+    of news's step may not draw. A carry begun a frame late, after a frame has painted
+    the head where the rise puts it, draws it back down and moves it, and fails."""
     page = open_page(
         browser,
         serve(
@@ -2337,7 +2341,8 @@ def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(browser, 
         '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
         '</div><button id="field">Comment</button></section>',
     )
-    page.evaluate("""async () => {
+    page.evaluate(
+        """async (late) => {
       const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       CSS.registerProperty({
         name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
@@ -2352,17 +2357,23 @@ def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(browser, 
         const grew = height !== null && now > height;
         height = now;
         if (!grew) return;
-        window.carries = [row, port].map((part) => {
-          part.style.translate = 'var(--carry)';
-          return part.animate(
-            [{'--carry': '0px 40px'}, {'--carry': '0px 0px'}], {duration: 300});
-        });
+        const carry = () => {
+          window.carries = [row, port].map((part) => {
+            part.style.translate = 'var(--carry)';
+            return part.animate(
+              [{'--carry': '0px 40px'}, {'--carry': '0px 0px'}], {duration: 300});
+          });
+        };
+        if (late) requestAnimationFrame(() => requestAnimationFrame(carry));
+        else carry();
       }).observe(port);
       document.querySelector('#press').addEventListener('click', () => {
         widget.querySelector(':scope > .lf-another').dispatchEvent(
           new PendingTaskEvent(gate.promise));
       }, {once: true});
-    }""")
+    }""",
+        late,
+    )
     page.locator("#press").click()
     rendered(page, facts=("updatesSettled",))
     judge_watches()
@@ -2384,7 +2395,11 @@ def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(browser, 
     )
     rendered(page)
     judge_watches()
-    assert take_browser_errors(page) == []
+    if not late:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#head"), errors
 
 
 @pytest.mark.parametrize(

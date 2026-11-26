@@ -37,6 +37,26 @@ leaf page instructions <page> --contract unified-diff | jq -er '.producer'
 `references/authoring-evidence.md`, "Source files and media", owns when evidence
 follows a source and when it keeps a snapshot.
 
+## Changes to a file being edited
+
+Where the reader edits a file on the page, `lf-diff` can show what they changed
+since an earlier text of it, such as the version last committed. It compares the two
+texts itself and follows each save, so it needs no patch:
+
+```html
+<lf-diff id="readme-changes" before="readme-committed" for="readme-editor"></lf-diff>
+```
+
+`for` names the file's editor, or any widget holding a `text-document` output. Set
+the earlier text as a source, naming the file:
+
+```bash
+git show HEAD:README.md | jq -Rs '{name: "README.md", text: .}' | leaf data set <page> readme-committed
+```
+
+Run it again after a commit to compare against the new version. A source holding the
+current text binds by `after` instead of `for`.
+
 ## Worktree snapshots
 
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.

@@ -27,6 +27,9 @@ from interact_support import (
 )
 
 from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
 from leaf.base import state as state_model
 from leaf.base.files import latest_revision
 from leaf.base.findings import Finding
@@ -40,6 +43,7 @@ from leaf.records.authored_checks.source import check_source
 from leaf.records.render_reading import read_reading
 from leaf.records.revisioning import activate_source
 from leaf.serving import handover_pass as handover_pass_model
+from leaf.serving import server_rows as server_rows_model
 from leaf.serving.served_state.context import read_page
 from leaf.source.revision_artifact import read_artifact
 
@@ -382,6 +386,63 @@ def test_advice_alone_wakes_nobody_and_goes_with_what_next_reaches_the_agent(
     assert batch["handling"][shown[0]["handling"][0]].startswith("Leaf's render check")
     # The receipt moved the cursor past it, so it reaches the agent once.
     assert event["id"] not in [e["id"] for e in deliverable(claimed)]
+
+
+def test_advice_wakes_nobody_once_what_came_with_it_is_answered(
+    claimed, interactive, told, monkeypatch
+):
+    """A comment the agent answered before its receipt still rides in the receipt
+    batch, and the advice told beside it goes with it (`delivery.deliverable`). With
+    the comment answered, advice is all that is left for the agent, and it wakes the
+    session by none of the three routes: a watch between turns, the nudge a watch
+    sends for what it leaves as it ends, and the server's nudge after a turn Escape
+    interrupted."""
+    session_model.cmd_waiting(claimed)
+    [advice] = told([ADVICE])
+    comment = append_command(
+        claimed,
+        {"kind": "comment", "author": "user", "text": "looks good", "revision": 1},
+    )
+    thread_model.post_reply(
+        claimed, {"parent": comment["id"], "responds": comment["id"]}, "Thanks."
+    )
+    assert [e["id"] for e in deliverable(claimed)] == [advice["id"], comment["id"]]
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(page) or True,
+    )
+
+    # A Stop hook closed the turn; its watch makes one pass, its harness process then
+    # ends, and the watch nudges for what it leaves.
+    leases_model.mark_hooks("s1")
+    state_model.close_session_turn("s1")
+    runs = iter([True])
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "process_runs",
+        lambda harness: next(runs, False),
+    )
+    monkeypatch.setattr(
+        session_model.Watch, "await_news", lambda watch, mark, timeout=0: False
+    )
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    assert hooks_model.cmd_watch("claude-code", stop) is None
+    assert nudged == []
+
+    # Escape interrupts the next turn, which Claude Code's record reads as idle.
+    state_model.prompt_turn("s1")
+    idle = {
+        "state": "idle",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(idle)
+    )
+    server_rows_model.nudge_interrupted(claimed)
+    assert nudged == []
 
 
 def test_advice_holds_no_turn_and_goes_in_with_what_a_hook_hands_over(

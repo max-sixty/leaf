@@ -25,7 +25,7 @@ private copy, or [explore the examples](https://leaf.page/examples/).
 
 ## Install
 
-You need [`uv`](https://docs.astral.sh/uv/),
+You need [`uv`](https://docs.astral.sh/uv/) 0.9.17 or newer,
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
 browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.

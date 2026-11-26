@@ -222,12 +222,13 @@ found = [e for e in read_events(Path(sys.argv[1])) if e["id"] == sys.argv[2]]
 print(json.dumps(found[0]["text"] if found else None))
 """
 
-# The page's words as the user reads them, as the turn-end check reads them.
+# The words of the session's one page as the user reads them, as the turn-end check
+# is shown them.
 PAGE_TEXT = """
 import json, sys
-from pathlib import Path
-from leaf.agents.clerk import _facts
-print(json.dumps(_facts(Path(sys.argv[1]))["text"]))
+from leaf.commands.agent_state import turn_end_facts
+[facts] = turn_end_facts(sys.argv[1])
+print(json.dumps(facts["text"]))
 """
 
 # The line Leaf's clerk queues for a finding, or null on an arm that queues none.
@@ -867,7 +868,7 @@ def score_turn_end(
     labels = scenario.get("labels", {})
     matched = match(items, labels)
     found, changed = matched["found"], applied.get("changed", [])
-    shown = words_of(leaf.python(PAGE_TEXT, str(page))) if changed else ""
+    shown = words_of(leaf.python(PAGE_TEXT, leaf.session)) if changed else ""
 
     def landed(label: dict, item: dict) -> bool:
         if label["edit"] is None:

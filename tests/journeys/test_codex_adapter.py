@@ -103,11 +103,12 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
     record_2 = codex_model.read_record(record_path)
     assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
     prepared = codex_model.offer_delivery(record_path, record_2, transport="app-server")
-    record = files_model.read_json(record_path)
+    record = codex_model.RECORD.read(record_path)
+    assert record is not None
     record.update(
         state="opened", turn="taken", pending=list(range(len(record["batches"])))
     )
-    cleanup_model.write_json(record_path, record)
+    codex_model.RECORD.write(record_path, record)
     starts = []
 
     def handle(socket):
@@ -734,10 +735,9 @@ def test_codex_retires_a_receipt_on_a_page_its_leaf_cannot_write(codex_claimed_p
     delivery_model.freeze_delivery([batch], delivery_id="bbbbbbbbbbbbbbbb")
     directory = codex_state_model.delivery_dir("codex-thread")
     directory.mkdir(parents=True)
-    cleanup_model.write_json(
+    codex_model.RECORD.write(
         directory / "bbbbbbbbbbbbbbbb.json",
         {
-            "format": codex_model.RECORD.format,
             "state": "queued",
             "created_at": 1,
             "pending": [0],
@@ -776,7 +776,6 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
 
     def epoch(event, *, created_at):
         return {
-            "format": codex_model.RECORD.format,
             "state": "queued",
             "created_at": created_at,
             "pending": [0],
@@ -797,10 +796,10 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
         with transaction_model.PageTransaction(page) as transaction:
             batch = delivery_model.batch_data(page, transaction, [event])
         delivery_model.freeze_delivery([batch], delivery_id=identity)
-    cleanup_model.write_json(
+    codex_model.RECORD.write(
         directory / "ffffffffffffffff.json", epoch(first, created_at=1)
     )
-    cleanup_model.write_json(
+    codex_model.RECORD.write(
         directory / "aaaaaaaaaaaaaaaa.json", epoch(second, created_at=2)
     )
 
@@ -1117,9 +1116,10 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     record_7 = codex_model.read_record(record_path)
     assert isinstance(record_7, (codex_model.Collecting, codex_model.Offering))
     codex_model.offer_delivery(record_path, record_7, transport="queue")
-    queue = files_model.read_json(record_path)
+    queue = codex_model.RECORD.read(record_path)
+    assert queue is not None
     queue.update(state="queued", pending=list(range(len(queue["batches"]))))
-    cleanup_model.write_json(record_path, queue)
+    codex_model.RECORD.write(record_path, queue)
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(claim_command(page, program)),

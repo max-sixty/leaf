@@ -1083,6 +1083,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         named = re.compile(rf"^{re.escape(phase)}(?:,| for )")
         expect(page.get_by_role("button", name=named)).to_have_count(0)
         expect(page.get_by_role("status", name=named)).to_have_count(1)
+        # Its name says the phase once, then what the receipt is about.
+        name = control.get_attribute("aria-label")
+        assert name.count(phase) == 1 and "choose" in name, name
         # Hover reveals the full-strength label without dimming or lifting the margin entry.
         resting_surface = {
             key: current[key]

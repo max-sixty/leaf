@@ -1304,12 +1304,18 @@ def _serve(
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _follow(page_dir: Path, server_id: str, handshake: int) -> None:
     """Private child a page server starts through the launcher of the copy that
-    replaced its own (`server_lifetime.stop_when_service_ends`)."""
+    replaced its own (`server_lifetime.stop_when_service_ends`), to restart it under
+    this copy (`vendoring.follow_copy`). The answer through `handshake` says only that
+    this copy runs, since only a failed launch is worth the server's trying again, so
+    it goes before the follow loads."""
     from leaf.base.detached import Handshake
-    from leaf.pages.hosting import follow_copy
 
     with Handshake(handshake) as answer:
-        follow_copy(page_dir, server_id, answer)
+        if not answer.announce():
+            return
+        from leaf.pages.vendoring import follow_copy
+
+        follow_copy(page_dir, server_id)
 
 
 @server.command(short_help="Stop a page's server.")

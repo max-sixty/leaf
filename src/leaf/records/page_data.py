@@ -37,7 +37,6 @@ from leaf.source.data_contracts import (
 )
 from leaf.source.registry.storage import read_page_registry
 from leaf.source.revision_artifact import read_revision, revision_history
-from leaf.source.structure import SourceDocument
 
 
 def page_data_document_readings(
@@ -74,18 +73,6 @@ def page_data_document_readings(
     if active_document is not None:
         documents.append(active_document)
     return [reading for group in documents for reading in group]
-
-
-def initial_data_document_readings(
-    authored: SourceDocument, events: list, registry: dict
-) -> list:
-    """A fresh page's source and seeded messages share its initial registry."""
-    documents = data_document_readings(authored, "index.html", registry)
-    for message, fragment in thread_structure(events).fragments.items():
-        documents.extend(
-            data_document_readings(fragment, f"event {message!r} markup", registry)
-        )
-    return documents
 
 
 def working_data_bindings(

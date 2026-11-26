@@ -1010,9 +1010,17 @@ summary {
   inset-block-start: var(--lf-sp-2);
   margin-block-end: calc(-1 * var(--lf-mark-size));
 }
+/* The end's box stands as far above the messages' end as its reach stands below its
+   face, and gives that back below, so the reach ends with the messages. A reach past
+   them would be scrollable overflow wherever it runs deeper than the box's padding, as
+   a finger's does in the floating panel: every thread there would scroll by the
+   difference with nothing to show, and keeping to its end would lift the first
+   message's presses into Close's reach. */
 .lf-thread-jump[data-lf-jump="end"] {
+  --lf-jump-overhang: max(0px, (var(--lf-aim-floor) - var(--lf-mark-size)) / 2);
   inset-block-end: var(--lf-sp-2);
-  margin-block-start: calc(-1 * var(--lf-mark-size));
+  margin-block: calc(-1 * (var(--lf-mark-size) + var(--lf-jump-overhang)))
+    var(--lf-jump-overhang);
 }
 .lf-thread-jump:focus {
   opacity: 1;

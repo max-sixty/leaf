@@ -1503,6 +1503,12 @@ def thread_create(
     help="the reply promises work it doesn't deliver; opens that to-do on the "
     "thread, ended by `leaf task end` with the reply's id",
 )
+@click.option(
+    "--waiting-on",
+    metavar="WHAT",
+    help="with --todo: what the work waits on that you don't control, in a few "
+    "words; the to-do reads Waiting on WHAT until you start or end it",
+)
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
 @_title_option(required=False)
 @click.option(
@@ -1667,7 +1673,15 @@ def task() -> None:
 @page_argument(renew=True)
 @click.argument("subject", metavar="SUBJECT")
 @click.option("--title", required=True, help="the to-do, in a few words")
-def task_create(page_dir: Path, subject: str, title: str) -> dict:
+@click.option(
+    "--waiting-on",
+    metavar="WHAT",
+    help="what the work waits on that you don't control, in a few words; the to-do "
+    "reads Waiting on WHAT until you start or end it",
+)
+def task_create(
+    page_dir: Path, subject: str, title: str, waiting_on: str | None
+) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
@@ -1676,7 +1690,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     answer, send a message with --obligation instead."""
     from leaf.commands.tasks import cmd_create
 
-    return cmd_create(page_dir, subject, title)
+    return cmd_create(page_dir, subject, title, waiting_on)
 
 
 @task.command(

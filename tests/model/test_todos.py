@@ -231,6 +231,8 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     for text, flags in (
         ("On it.", []),
         ("On it.", ["--done", "--todo", "Tighten"]),
+        # A blank to-do promises nothing, so it settles nothing either.
+        ("On it.", ["--todo", "   "]),
         ("On it.", ["--ephemeral", "--done"]),
         # HTML with no question in it asks nothing back, so it declares nothing.
         ('On it.\n\n<figure id="sketch"><p>A sketch.</p></figure>', []),
@@ -968,6 +970,110 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
         todo["id"],
         "Waiting on the build",
     )
+
+
+def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_dir):
+    """A to-do may name what its work waits on, opened by a reply or by `task
+    create`, and carries it until a start takes the work up: a start that lapses or
+    is put down later leaves it a to-do still to do, not waiting again, and an ended
+    one, or the plan step naming it, waits on nothing. Only a to-do
+    waits on something, and words too long to stand in a status are fitted rather
+    than refused."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Wait for it."},
+    )
+    reference = response_reference(page_dir, comment["id"])
+    lone = leaf(
+        "thread",
+        "reply",
+        reference,
+        "--text",
+        "Held.",
+        "--done",
+        "--waiting-on",
+        "Whose Words",
+        "--title",
+        "Thread title",
+    )
+    assert lone.exit_code != 0, lone.output
+    held = written(
+        leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            "Held.",
+            "--todo",
+            "Take up the card's top line",
+            "--waiting-on",
+            "Whose Words",
+            "--title",
+            "Thread title",
+        )
+    )
+    created = written(
+        leaf(
+            "task",
+            "create",
+            page_dir,
+            "page",
+            "--title",
+            "Merge the change",
+            "--waiting-on",
+            "its review by the release team and then CI",
+        )
+    )
+
+    def waits() -> dict:
+        return {
+            record["id"]: record["waiting_on"]
+            for record in open_todos(state_json(page_dir))
+        }
+
+    assert waits() == {
+        held["id"]: "Whose Words",
+        created["id"]: "its review by the release…",
+    }
+    # A plan step naming one says what it waits on, as the to-do does.
+    written(
+        CliRunner().invoke(
+            cli_model.cli,
+            ["task", "plan", str(page_dir)],
+            input=json.dumps(
+                [{"depth": 0, "item": held["id"]}, {"depth": 0, "item": created["id"]}]
+            ),
+        )
+    )
+
+    def steps() -> dict:
+        return {
+            step["item"]["id"]: (step["state"], step["waiting_on"])
+            for step in state_json(page_dir)["plan"]["steps"]
+        }
+
+    assert steps() == {
+        held["id"]: ("waiting", "Whose Words"),
+        created["id"]: ("waiting", "its review by the release…"),
+    }
+
+    written(leaf("task", "start", page_dir, held["id"], "--text", "Building it"))
+    written(leaf("page", "open", page_dir))
+    assert waits() == {
+        held["id"]: None,
+        created["id"]: "its review by the release…",
+    }
+
+    written(leaf("task", "end", page_dir, held["id"], "done"))
+    written(leaf("task", "end", page_dir, created["id"], "dropped"))
+    state = state_json(page_dir)
+    assert {
+        record["id"]: (record["state"], record["waiting_on"])
+        for record in state["obligations"]
+        if record["source"]["kind"] == "todo"
+    } == {held["id"]: ("done", None), created["id"]: ("done", None)}
+    assert steps() == {held["id"]: ("done", None), created["id"]: ("done", None)}
 
 
 @pytest.fixture

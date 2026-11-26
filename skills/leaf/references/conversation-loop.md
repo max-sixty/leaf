@@ -178,6 +178,7 @@ open one. Handing the work to another session, a background job, or a later turn
 such a promise too; a `--done` reply would tell the user nothing more is coming. So is
 holding a decision the user put off until other work lands: while the to-do stays open,
 the decision their thread is about stays off On Me, and ending the to-do puts it back.
+Name what such a to-do waits on with `--waiting-on` (`threads.md`).
 
 The progress line starts the to-do, so the user sees it under your reply and in On
 <your name> while the work runs, rather than a promise that reads the same whether or

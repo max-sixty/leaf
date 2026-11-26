@@ -319,6 +319,11 @@ test("a thread an open to-do holds waits on the agent in the to-do's words", () 
     word: { text: "Still to do", voice: "agent" },
     workflow: null,
   });
+  // One the agent named its work waiting on says so until a start takes it up.
+  assert.deepEqual(attention(todo({ waiting_on: "Whose Words" })).word, {
+    text: "Waiting on Whose Words",
+    voice: "agent",
+  });
   assert.deepEqual(attention(todo({ state: "running" })).word, {
     text: "On it",
     voice: "agent",

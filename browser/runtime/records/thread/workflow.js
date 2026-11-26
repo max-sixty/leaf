@@ -158,13 +158,20 @@ export function strongestWorkflow(workflows) {
 
 // An open to-do's word, wherever it stands, in the agent's voice since it opened the
 // to-do: On it while a start runs on it, else what it means for the user's request,
-// which the user chose over "To-do open". One whose start stopped or went quiet says
-// so in Leaf's voice, as an update's does.
-/** @param {{readonly state: Workflow["state"], readonly reason: Workflow["reason"]}} todo */
+// which the user chose over "To-do open": Waiting on what the agent named its work
+// waiting on (`waiting_on`), or Still to do. One whose start stopped or went quiet
+// says so in Leaf's voice, as an update's does.
+/** @param {{readonly state: Workflow["state"], readonly reason: Workflow["reason"], readonly waiting_on?: string | null}} todo */
 export const todoWord = (todo) =>
   todo.state === "blocked"
     ? leafSays(REASON_WORDS[todo.reason ?? "quiet"])
-    : agentSays(todo.state === "running" ? "On it" : "Still to do");
+    : agentSays(
+        todo.state === "running"
+          ? "On it"
+          : todo.waiting_on
+            ? `Waiting on ${todo.waiting_on}`
+            : "Still to do",
+      );
 
 // Whose turn a thread is while it isn't resolved, where it stands and its `word`: the
 // reading of the record that speaks for it (`attention`). `workflow` is the one an

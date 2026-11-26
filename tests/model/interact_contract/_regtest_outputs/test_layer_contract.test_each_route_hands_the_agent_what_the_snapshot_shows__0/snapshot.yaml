@@ -131,8 +131,9 @@ leaf wait:
             as `<lf-options id="…">` holding an `<lf-option id="…">` for each answer:
             the user answers with a press, and the choice waits on them by itself
             (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
-            when it is yours, promising work beyond this turn. `--done` when it
-            leaves nobody a move.
+            when it is yours, promising work beyond this turn, with `--waiting-on
+            "<what>"` where it can't start until something you don't control happens.
+            `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow card or panel. The thread
             already reaches the passage or section it is on, as a card beside it
@@ -222,8 +223,9 @@ Claude Code hook:
               asks, such as `<lf-options id="…">` holding an `<lf-option id="…">`
               for each answer: the user answers with a press, and the choice waits
               on them by itself (`references/threads.md`, "Ask for a pick"). `--todo
-              "<what you owe>"` when it is yours, promising work beyond this turn.
-              `--done` when it leaves nobody a move.
+              "<what you owe>"` when it is yours, promising work beyond this turn,
+              with `--waiting-on "<what>"` where it can't start until something
+              you don't control happens. `--done` when it leaves nobody a move.
             h3: >-
               Your reply renders as Markdown in a narrow card or panel. The thread
               already reaches the passage or section it is on, as a card beside
@@ -316,8 +318,9 @@ Codex queue:
             as `<lf-options id="…">` holding an `<lf-option id="…">` for each answer:
             the user answers with a press, and the choice waits on them by itself
             (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
-            when it is yours, promising work beyond this turn. `--done` when it
-            leaves nobody a move.
+            when it is yours, promising work beyond this turn, with `--waiting-on
+            "<what>"` where it can't start until something you don't control happens.
+            `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow card or panel. The thread
             already reaches the passage or section it is on, as a card beside it

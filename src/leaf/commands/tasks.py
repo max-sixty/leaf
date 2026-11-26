@@ -9,7 +9,7 @@ What each record means, and what admission accepts of it, is `todos`' and `plans
 
 from pathlib import Path
 
-from leaf.agents.thread import agent_title
+from leaf.agents.thread import agent_title, fitted
 from leaf.base.findings import Finding, Rejected, note
 from leaf.base.harness import message_identity
 from leaf.base.leases import contract_writer
@@ -21,14 +21,18 @@ from leaf.records.revisioning import activate_source
 from leaf.records.todos import PAGE_SUBJECT
 from leaf.records.transaction import PageTransaction
 from leaf.records.work import page_element, page_subject
+from leaf.source.registry.kernel import wait_limit
 
 
 @contract_writer
-def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
+def cmd_create(
+    page_dir: Path, subject: str, title: str, waiting_on: str | None = None
+) -> dict:
     """Create a to-do titled `title` on what `subject` names: a page widget, thread,
-    any other element of the page by its id, or `page` for the page as a whole; the
-    record. A thread attachment supplies discussion context without making a reply
-    complete the task. A long title is fitted (`thread.agent_title`)."""
+    any other element of the page by its id, or `page` for the page as a whole, with
+    what its work waits on (`waiting_on`, `todos`) where given; the record. A thread
+    attachment supplies discussion context without making a reply complete the task.
+    A long title or wait is fitted (`thread.agent_title`, `thread.fitted`)."""
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         named = (
@@ -53,6 +57,11 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
                 "author": "agent",
                 "subject": named,
                 "title": agent_title(title),
+                **(
+                    {"waiting_on": fitted(waiting_on, wait_limit())}
+                    if waiting_on is not None
+                    else {}
+                ),
             },
         )
         return record

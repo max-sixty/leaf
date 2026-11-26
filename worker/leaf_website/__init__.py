@@ -99,7 +99,8 @@ from leaf.serving.revision_delivery import Delivery, runtime_element
 from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.service import PageStateService
 from leaf.source.file_bindings import bound_files
-from leaf.source.registry.storage import layer_metadata, layer_record, selected
+from leaf.source.layer import selected_layer
+from leaf.source.registry.storage import layer_metadata, layer_record
 from leaf.source.revision_artifact import read_revision
 
 if TYPE_CHECKING:
@@ -1521,7 +1522,7 @@ class WebsitePageEndpoint(PageEndpoint):
     def _prewarm_agent(self) -> Response:
         started = time.monotonic()
         if (record := layer_record(self.page_dir)) is not None:
-            selected(record, self.page_dir)
+            selected_layer(record, self.page_dir)
         log_agent("layer_prewarm_completed", durationMs=elapsed_ms(started))
         return self._content(204, "application/json", b"")
 

@@ -21,17 +21,17 @@ from leaf.serving.revision_delivery import (
     mark_declared,
     rebase_document,
 )
+from leaf.source.resource_urls import ArtifactError
 from leaf.source.revision_artifact import (
-    ArtifactError,
     Resource,
     capture_artifact,
     capture_local_resource,
     read_artifact,
     resource_dependencies,
-    rewrite_css,
 )
 from leaf.source.runtime_selection import executing
 from leaf.source.structure import SourceDocument
+from leaf.source.styles import rewrite_css
 
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"

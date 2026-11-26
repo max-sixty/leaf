@@ -7,9 +7,7 @@ import turbohtml
 
 from leaf.base.findings import Finding, element_at
 from leaf.base.schema import INPUT_BINDINGS
-from leaf.log.gesture_words import element_name
-from leaf.log.obligations import group_tags, shown_in, widget_groups
-from leaf.log.projection import enclosing_widgets, recorded_owner
+from leaf.log.projection import recorded_owner
 from leaf.records.markup_checks.markup import (
     document_declaration_errors,
     found_at,
@@ -18,6 +16,8 @@ from leaf.records.markup_checks.markup import (
     repair_errors,
     structure_errors,
 )
+from leaf.source.obligation_sources import group_tags, shown_in, widget_groups
+from leaf.source.passages import element_name
 from leaf.source.registry.contract import (
     authored_inert,
     body_is_data,
@@ -32,6 +32,7 @@ from leaf.source.structure import (
     AUTHORED_ALLOCATIONS,
     SourceDocument,
     element_attrs,
+    enclosing_widgets,
     layout_boxes,
     layout_names,
 )
@@ -221,8 +222,8 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
 def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """Each widget a page asks with has a question to show on On Me: the label of the
-    named group round it (`obligations.widget_groups`), else the widget's own `label`
-    (`gesture_words.element_name`), the words On Me lists and the agent hears. Leaf
+    named group round it (`obligation_sources.widget_groups`), else the widget's own
+    `label` (`passages.element_name`), the words On Me lists and the agent hears. Leaf
     reads both from the author's markup and infers neither. A question with no words,
     as where neither the widget nor a group round it has a label that isn't blank, is
     refused (`unnamed-question`). Where the widget's own label alone names it, On Me

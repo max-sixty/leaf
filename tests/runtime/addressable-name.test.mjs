@@ -28,7 +28,7 @@ import {
 } from "/runtime/readings/addressable-names.js";
 import { registry } from "/runtime/state/registry.js";
 
-// The cases the server's `gesture_words.element_name` answers too.
+// The cases the server's `passages.element_name` answers too.
 const CASES = JSON.parse(
   readFileSync(new URL("../name_cases.json", import.meta.url), "utf8"),
 );

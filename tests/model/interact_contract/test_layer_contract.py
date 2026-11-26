@@ -44,9 +44,9 @@ from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
 from leaf.log import event_log as events_model
 from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
 from leaf.source.registry import layer as registry_layer
-from leaf.source.registry import storage as registry_storage
 from leaf.source.registry import validation as registry_validation
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
@@ -283,7 +283,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = registry_storage.load_registry(page_dir)[section]
+    merged = vocabulary_model.load_registry(page_dir)[section]
     shipped = shipped_core_registry()[section]
     assert merged == shipped
 
@@ -316,7 +316,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = registry_storage.load_registry(page_dir)["$events"]["handling"]
+    merged = vocabulary_model.load_registry(page_dir)["$events"]["handling"]
     shipped = cleanup_model.kernel_registry()["$events"]["handling"]
     assert merged["comment"] == [{"text": "Reply in French."}]
     assert "reply" not in merged
@@ -809,7 +809,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
-    page_events = registry_storage.load_registry(page_dir)["$events"]
+    page_events = vocabulary_model.load_registry(page_dir)["$events"]
     page_clauses = [
         *page_events["handling"]["comment"],
         *page_events["answering"][delivered["answer"]["kind"]],
@@ -821,7 +821,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "answer": delivered["answer"],
             "thread": thread,
         },
-        registry_storage.load_registry(page_dir),
+        vocabulary_model.load_registry(page_dir),
     )
     assert [clause["text"] for clause in applying] == [
         batch["handling"][ref] for ref in delivered["handling"]
@@ -1161,7 +1161,7 @@ def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
         ],
     )
     assert result.exit_code == 0, result.output
-    keys = registry_storage.load_registry(page_dir)["$keys"]
+    keys = vocabulary_model.load_registry(page_dir)["$keys"]
     assert keys["space"] == "wider, in this project"
     assert keys["verbatim"]  # the rest of the shipped members stand
 
@@ -1205,11 +1205,11 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
     shipped = cleanup_model.kernel_registry()["$events"][key]
 
     assert found(init_notes(page_dir), "fixed-events", key=key)
-    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
+    assert vocabulary_model.load_registry(page_dir)["$events"][key] == shipped
 
     (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
     assert found(init_notes(page_dir), "fixed-events", key=key)
-    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
+    assert vocabulary_model.load_registry(page_dir)["$events"][key] == shipped
 
 
 @pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
@@ -1219,12 +1219,12 @@ def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
     neither runtime; `page init` keeps the kernel's and says so."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    shipped = registry_storage.load_registry(page_dir)[fact]
+    shipped = vocabulary_model.load_registry(page_dir)[fact]
     member = next(key for key in shipped if key != "description")
     (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
 
     assert found(init_notes(page_dir), "fixed-kernel-fact", name=fact)
-    assert registry_storage.load_registry(page_dir)[fact] == shipped
+    assert vocabulary_model.load_registry(page_dir)[fact] == shipped
 
 
 def test_shared_package_declarations_compose_by_member():

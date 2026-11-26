@@ -401,7 +401,7 @@ const keptElements = new Map();
 // and each custom element, which a module upgrades once. A widget set among words
 // (`inline`) leaves its words, and any other goes whole, as a choice the drawing
 // asks in its own controls does. The innermost named group round a widget that asks,
-// an element whose declaration's `reading-role` is `group` (`obligations.widget_groups`
+// an element whose declaration's `reading-role` is `group` (`obligation_sources.widget_groups`
 // in Python), is its question, so it goes whole with it rather than leaving the
 // question's words with nothing to answer them. Any other group leaves what it holds,
 // less its widgets, as a figure keeps its caption when its chart goes.

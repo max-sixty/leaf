@@ -15,7 +15,7 @@ from leaf.serving.served_state.document import browser_document, browser_undo_ca
 from leaf.serving.served_state.queues import queues
 from leaf.serving.served_state.thread import browser_thread
 from leaf.serving.served_state.work import WorkState, work_state
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 
 
 class BrowserReading(NamedTuple):

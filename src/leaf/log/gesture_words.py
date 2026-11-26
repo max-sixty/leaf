@@ -21,10 +21,11 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself (`element_name`): a
-widget's `label` attribute (the registry's `$attributes`), else plain markup's caption
-(`caption_node`). It is the rule the browser's `addressableName` reads off the live
-page, read here off the document the gesture was made in.
+`name` is what the authoring contract calls it away from itself
+(`passages.element_name`): a widget's `label` attribute (the registry's
+`$attributes`), else plain markup's caption (`passages.caption_node`). It is the
+rule the browser's `addressableName` reads off the live page, read here off the
+document the gesture was made in.
 """
 
 from collections.abc import Callable
@@ -39,12 +40,15 @@ from leaf.log.thread_context import (
     message_wording,
     thread_structure,
 )
-from leaf.source.passages import SourceReading, collapse, created_words, enclosing_of
-from leaf.source.registry.contract import NAME_ATTRIBUTE, event_spec, is_element_name
+from leaf.source.passages import (
+    collapse,
+    created_words,
+    element_name,
+    enclosing_of,
+)
+from leaf.source.reading import SourceReading
+from leaf.source.registry.contract import event_spec
 from leaf.source.revision_artifact import read_revision
-
-HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
-SECTIONS = frozenset({"section", "article"})
 
 # revision → its immutable document read under the registry captured with it.
 RevisionReader = Callable[[int], SourceReading]
@@ -52,56 +56,6 @@ RevisionReader = Callable[[int], SourceReading]
 
 def revisions_on_disk(page_dir: Path) -> RevisionReader:
     return lambda revision: read_revision(page_dir, revision)
-
-
-def _text(node, root: bool = True) -> str:
-    """A node's words as a name reads them: a popover's below it, such as a gloss's
-    explanation, stand apart until shown and name nothing (readings/passages.js, `named`)."""
-    if isinstance(node, str):
-        return node
-    if not root and "popover" in node["attrs"]:
-        return ""
-    return "".join(_text(child, root=False) for child in node["content"])
-
-
-def _registered(node: dict, registry: dict) -> bool:
-    return is_element_name(node["tag"]) and node["tag"] in registry
-
-
-def caption_node(node: dict) -> dict | None:
-    """The caption that names plain markup: a disclosure's first <summary>, an
-    <hgroup>'s heading, or the heading a section or article opens with, alone or in an
-    <hgroup>. No other element is named by a heading inside it, and a <strong> names
-    nothing."""
-    elements = [child for child in node["content"] if not isinstance(child, str)]
-    if node["tag"] == "details":
-        return next((child for child in elements if child["tag"] == "summary"), None)
-    if node["tag"] == "hgroup":
-        return next((child for child in elements if child["tag"] in HEADINGS), None)
-    if node["tag"] not in SECTIONS:
-        return None
-    first = next((child for child in node["content"] if not _blank(child)), None)
-    if first is None or isinstance(first, str):
-        return None
-    if first["tag"] == "hgroup":
-        return caption_node(first)
-    return first if first["tag"] in HEADINGS else None
-
-
-def _blank(node) -> bool:
-    return isinstance(node, str) and not node.strip()
-
-
-def element_name(node: dict, registry: dict) -> str:
-    """What the authoring contract calls an element away from itself, in the words the
-    author wrote: a widget's `label` attribute (`contract.NAME_ATTRIBUTE`), else plain
-    markup's caption. A widget takes no name from its markup. The browser's
-    `addressableName` reads the same rule off the live page; `tests/name_cases.json`
-    holds both to the same cases."""
-    if _registered(node, registry):
-        return (node["attrs"].get(NAME_ATTRIBUTE) or "").strip()
-    caption = caption_node(node)
-    return collapse(_text(caption)) if caption else ""
 
 
 def _nodes(content: list):

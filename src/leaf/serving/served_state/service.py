@@ -37,7 +37,7 @@ from leaf.serving.served_state.document import browser_document
 from leaf.serving.served_state.thread import thread_counts
 from leaf.source import page_inputs
 from leaf.source.data import read_data
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 from leaf.source.revision_artifact import (
     Resource,
     RevisionArtifact,

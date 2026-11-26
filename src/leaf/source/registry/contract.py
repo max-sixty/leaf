@@ -67,7 +67,7 @@ def holds_for(attrs: dict, rule):
     `False` otherwise; any other declaration is returned as declared. Delivery's paint
     and every reader asking of one occurrence read a fact through this, as `exhibits`
     does; a reader asking whether the tag declares the fact at all reads the
-    declaration whatever its condition, as `obligations.shown_in` does."""
+    declaration whatever its condition, as `obligation_sources.shown_in` does."""
     when = fact_condition(rule)
     return rule if when is None else matches_when(attrs, when)
 
@@ -715,7 +715,7 @@ def stamp_states(registry: dict) -> dict:
 DECLARED_WORDS = (("tone", "$tones"),)
 # The attribute that holds an element's title on every widget that takes it
 # (`$attributes`), which names the element away from itself
-# (`gesture_words.element_name`, the browser's `addressableName`).
+# (`passages.element_name`, the browser's `addressableName`).
 NAME_ATTRIBUTE = "label"
 
 

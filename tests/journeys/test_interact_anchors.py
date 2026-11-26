@@ -29,7 +29,7 @@ from leaf.log import event_log as events_model
 from leaf.log.events import build_threads
 from leaf.records import event_contracts as event_contracts_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 
 
 def declare_part_prefixes(page_dir, *prefixes):
@@ -66,7 +66,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     refused = event_contracts_model.visual_anchor_error(
         {"anchor": {"section": "flow", "visual": "edge:B"}},
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-        registry_storage.read_page_registry(page_dir).registry,
+        vocabulary_model.read_page_registry(page_dir).registry,
     )
     assert (refused.code, refused.values["declared"]["prefixes"]) == (
         "undeclared-visual",
@@ -76,7 +76,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         assert event_contracts_model.visual_anchor_error(
             {"anchor": {"section": "flow", "visual": unrenderable}},
             {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-            registry_storage.read_page_registry(page_dir).registry,
+            vocabulary_model.read_page_registry(page_dir).registry,
         ), unrenderable
 
     # The file lists none of these parts, so markup cannot drop one; a declaration
@@ -402,7 +402,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     assert (reply["revision"], reply["anchor"]) == (2, None)
     events = events_model.read_events(page_dir)
     stored_reply = next(event for event in events if event["id"] == reply["id"])
-    contract = registry_storage.require_registry(page_dir)["$events"]["kinds"]["reply"]
+    contract = vocabulary_model.require_registry(page_dir)["$events"]["kinds"]["reply"]
     assert event_contracts_model.event_record_error(contract, stored_reply) is None
     assert state_json(page_dir)["threads"] == [
         {

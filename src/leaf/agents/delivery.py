@@ -533,7 +533,7 @@ def retire_gone_deliveries() -> None:
 
 def _registry(page_dir: Path):
     from leaf.source.registry.contract import RegistryError
-    from leaf.source.registry.storage import active_registry
+    from leaf.source.vocabulary import active_registry
 
     try:
         return active_registry(page_dir)

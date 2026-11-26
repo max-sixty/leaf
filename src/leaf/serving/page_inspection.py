@@ -37,22 +37,26 @@ from leaf.base.files import latest_revision, list_revisions
 from leaf.base.leases import page_locked
 from leaf.base.refusals import Refused
 from leaf.serving.user_views import read_user_views
+from leaf.source.layer import selected_layer
 from leaf.source.passages import page_passages
-from leaf.source.registry.storage import read_page_registry, selected
+from leaf.source.resource_urls import resolve_dependency
 from leaf.source.revision_artifact import (
     Resource,
     RevisionArtifact,
     capture_artifact,
-    css_dependencies,
-    css_syntax_errors,
     read_artifact,
     read_revision,
-    resolve_dependency,
     resource_dependencies,
 )
 from leaf.source.runtime_selection import executing
 from leaf.source.structure import SourceDocument, links_with_rel, script_kind
-from leaf.source.styles import css_block, css_stylesheet
+from leaf.source.styles import (
+    css_block,
+    css_dependencies,
+    css_stylesheet,
+    css_syntax_errors,
+)
+from leaf.source.vocabulary import read_page_registry
 
 
 def _css_counts(css: str, *, inline=False) -> dict:
@@ -142,7 +146,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
     resources = {
         **{
             path: running[path]
-            for path in selected(
+            for path in selected_layer(
                 json.loads(artifact.manifest)["layer"], artifact.page_dir
             ).files
         },

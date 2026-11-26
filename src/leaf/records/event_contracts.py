@@ -27,7 +27,7 @@ from leaf.log.events import (
     undo_error,
     unshown,
 )
-from leaf.log.obligations import questions_in_words, quoted_in
+from leaf.log.obligations import questions_in_words
 from leaf.log.projection import (
     AuthoredOrders,
     container_owner,
@@ -45,6 +45,7 @@ from leaf.records.read_state import read_contract_error
 from leaf.records.todos import todo_error
 from leaf.records.work import widget_seat_error
 from leaf.records.workflows import agent_inputs, attention_reading
+from leaf.source.obligation_sources import quoted_in
 from leaf.source.registry.contract import (
     created_child,
     detail_schema,

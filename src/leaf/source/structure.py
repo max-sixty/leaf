@@ -583,6 +583,14 @@ class SourceDocument:
         return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
 
 
+def enclosing_widgets(rec: dict):
+    """The lf-* elements standing around one, innermost first."""
+    rec = rec["holder"]
+    while rec is not None:
+        yield rec
+        rec = rec["holder"]
+
+
 class Authoring:
     """A `SourceDocument`'s indexes beyond its element index, read in one walk of
     its tree (`SourceDocument.authoring`): its assets, metadata, styles, references,

@@ -24,9 +24,9 @@ from leaf.records.markup_checks.instances import (
 from leaf.records.markup_checks.markup import fragment_style_errors
 from leaf.source.data import read_contracts
 from leaf.source.data_contracts import data_binding_errors
-from leaf.source.passages import JOINS_WORDS_TAGS, SourceReading, markdown_dialect
+from leaf.source.passages import JOINS_WORDS_TAGS, markdown_dialect
+from leaf.source.reading import SourceReading
 from leaf.source.registry.kernel import kinds_declaring
-from leaf.source.registry.storage import require_registry
 from leaf.source.revision_artifact import (
     document_drops,
     read_revision,
@@ -35,6 +35,7 @@ from leaf.source.revision_artifact import (
     uncaptured_errors,
 )
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import require_registry
 
 
 def checked_text(

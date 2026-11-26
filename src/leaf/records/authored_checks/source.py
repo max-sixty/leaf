@@ -40,20 +40,21 @@ from leaf.source.data_contracts import (
     measurement_lag,
 )
 from leaf.source.layer import other_serving_leaf
-from leaf.source.passages import SourceReading
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import RegistryError
-from leaf.source.registry.storage import IncompatibleLayer, read_page_registry
+from leaf.source.registry.storage import IncompatibleLayer
+from leaf.source.resource_urls import ArtifactError
 from leaf.source.revision_artifact import (
-    ArtifactError,
     RevisionArtifact,
     capture_artifact,
-    css_drops,
     document_drops,
     page_files,
     resource_type,
     unanswered_media,
 )
 from leaf.source.structure import SourceDocument
+from leaf.source.styles import css_drops
+from leaf.source.vocabulary import read_page_registry
 
 
 class SourceCheck(NamedTuple):
@@ -227,7 +228,7 @@ def uncaptured_sample_errors(page_dir: Path, holder: SourceDocument) -> list[Fin
 
 def _page_file_drops(page_dir: Path) -> list[Finding]:
     """Each declaration or rule a browser drops from a stylesheet under `page/`
-    (`revision_artifact.css_drops`), as the document's own sheets get from
+    (`styles.css_drops`), as the document's own sheets get from
     `check_source`. What delivery's reader can't read in one, or a file that isn't
     UTF-8, the capture refuses."""
     found = []

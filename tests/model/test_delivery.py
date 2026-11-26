@@ -43,8 +43,8 @@ from leaf.commands.session import set_status
 from leaf.log import event_log as events_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
-from leaf.source.registry import storage as registry_storage
 from model.interact_contract import _stateful_page_declaration
 
 
@@ -102,7 +102,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     plain, drawn, closed, resolved, on_page, in_thread = (
         [handling[clause] for clause in event.get("handling", [])] for event in shown
     )
-    declared = registry_storage.load_registry(page_dir)["$events"]
+    declared = vocabulary_model.load_registry(page_dir)["$events"]
     [reading_a_drawing] = [
         c["text"]
         for c in declared["handling"]["comment"]
@@ -138,7 +138,7 @@ def test_active_handling_survives_a_broken_page_declaration(page_dir, capsys):
     a page declaration the next revision cannot take leaves that handling intact."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     active = registry_contract.event_clauses(
         {
@@ -195,7 +195,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     assert [event["id"] for event in batch["events"]] == [
         event["id"] for event in selected
     ]
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     digests = {digest["id"]: digest for digest in batch["threads"]}
 
     def case(event):

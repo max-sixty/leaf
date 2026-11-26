@@ -63,15 +63,16 @@ from leaf.source.layer import (
     forget_layers,
     layer_inputs,
     package_files,
+    selected_layer,
     stylesheet,
 )
-from leaf.source.registry.storage import revision_vocabulary, selected
 from leaf.source.render_checks import PROBE_SOURCES
 from leaf.source.revision_artifact import (
     PAGE_DECLARATIONS,
     Resource,
     RevisionArtifact,
     resource_type,
+    revision_vocabulary,
 )
 
 # Non-CSS core inputs. Core stylesheet identity comes
@@ -289,7 +290,7 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     runtime = serving_runtime()
     manifest = json.loads(artifact.manifest)
     record = manifest["layer"]
-    composition = selected(record, artifact.page_dir)
+    composition = selected_layer(record, artifact.page_dir)
     held = runtime._executed.get(artifact)
     if held is not None and held[0] is composition:
         return held[1]

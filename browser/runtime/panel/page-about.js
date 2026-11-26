@@ -136,7 +136,7 @@ function runtimeLines() {
 
 // The layer names the Leaf that composed this page's registry, theme and widgets:
 // the one serving it, which also supplies its runtime
-// (`registry.storage.served_layer`). It can be older than the plugin now installed in
+// (`layer.served_layer`). It can be older than the plugin now installed in
 // the harness, since a server keeps the code it started with. Pages built outside Git retain a stable identity through
 // the composed layer fingerprint.
 /** @param {ReturnType<typeof pageIdentity>} identity */

@@ -755,8 +755,8 @@ def _reading(page_dir: Path, events: list, revision: int):
     """The page at `revision` under the log, whose `passages` are its words as the
     user reads them, which `leaf thread create` quotes against."""
     from leaf.log.projection import page_reading
-    from leaf.source.registry.storage import require_registry
     from leaf.source.revision_artifact import read_revision
+    from leaf.source.vocabulary import require_registry
 
     reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return page_reading(reading, events, revision)
@@ -893,7 +893,7 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     from leaf.agents.thread import OwedAnswer, fit_title
     from leaf.base.findings import Rejected
     from leaf.records.authored_checks.admission import checked_text
-    from leaf.source.registry.storage import require_registry
+    from leaf.source.vocabulary import require_registry
 
     registry = require_registry(page_dir)
     for item in asks:

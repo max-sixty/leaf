@@ -35,9 +35,9 @@ from leaf.source.data_contracts import (
     merge_data_document_readings,
     payload_error,
 )
-from leaf.source.registry.storage import read_page_registry
 from leaf.source.revision_artifact import read_revision, revision_history
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import read_page_registry
 
 
 def page_data_document_readings(

@@ -303,9 +303,10 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     from leaf.base.findings import Rejected, note
     from leaf.pages.render_gate.page_code import message_page, places_judged_widget
     from leaf.records.markup_checks.markup import repair_errors
-    from leaf.source.registry.storage import read_page_registry
-    from leaf.source.revision_artifact import ArtifactError, capture_artifact
+    from leaf.source.resource_urls import ArtifactError
+    from leaf.source.revision_artifact import capture_artifact
     from leaf.source.structure import SourceDocument
+    from leaf.source.vocabulary import read_page_registry
 
     if repair_errors(SourceDocument(markup, fragment=True)):
         # Markup the HTML parser repairs, such as a widget a `<pre>` closed along

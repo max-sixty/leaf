@@ -111,8 +111,10 @@ from leaf.serving.served_state import service as served_service
 from leaf.source import data_contracts as data_contracts_model
 from leaf.source import page_inputs
 from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
 from leaf.source import revision_artifact as artifact_model
 from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import storage as registry_storage
 from leaf.source.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.example_data import patch_manifest
@@ -1608,7 +1610,7 @@ def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, pag
 
 def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
     expected_tokens = list(
-        registry_storage.load_registry(page_dir)["$reactions"]["tokens"]
+        vocabulary_model.load_registry(page_dir)["$reactions"]["tokens"]
     )
     # Declared out of name order, so an order lost to sorting shows.
     assert expected_tokens != sorted(expected_tokens)
@@ -2163,10 +2165,10 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         },
     )
     events = event_model.read_events(page_dir)
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     views = served_browser.browser_state(
         {
-            revision: passages_model.SourceReading(document, registry)
+            revision: reading_model.SourceReading(document, registry)
             for revision, document in documents.items()
         },
         events,
@@ -2428,7 +2430,7 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
-    board = registry_storage.load_registry(page_dir)["lf-board"]["example"]
+    board = vocabulary_model.load_registry(page_dir)["lf-board"]["example"]
     publish(page_dir)
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("</section>", board + "\n</section>")
@@ -2879,6 +2881,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
     monkeypatch.setattr(transaction_model, "read_stream", no_fold)
     monkeypatch.setattr(artifact_model, "read_revision", no_fold)
+    monkeypatch.setattr(vocabulary_model, "read_revision", no_fold)
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
     assert row["activity"] == expected

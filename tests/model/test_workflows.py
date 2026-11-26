@@ -50,7 +50,7 @@ from leaf.records import transaction as transaction_model
 from leaf.records.event_meaning import AdmissionReadings
 from leaf.records.workflows import attention_reading
 from leaf.serving.served_state import work as work_served_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 
 
 @pytest.mark.parametrize(
@@ -564,7 +564,7 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     asked = append_carried_log_record(
         page_dir,
         {

@@ -54,8 +54,8 @@ from leaf.records import transaction as transaction_model
 from leaf.source import anchor_capture as anchor_capture_model
 from leaf.source import passages as passages_model
 from leaf.source import structure as structure_model
-from leaf.source.registry.storage import read_page_registry
 from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.vocabulary import read_page_registry
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 

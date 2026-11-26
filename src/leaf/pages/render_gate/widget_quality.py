@@ -58,7 +58,6 @@ from leaf.source.registry.contract import (
     element_declarations,
     read_registry_declarations,
 )
-from leaf.source.registry.storage import read_page_registry
 from leaf.source.render_checks import (
     RENDER_VIEWPORT,
     asked_again,
@@ -71,8 +70,10 @@ from leaf.source.render_checks import (
     wait_for_probe,
     wait_until_ready,
 )
-from leaf.source.revision_artifact import ArtifactError, capture_artifact
+from leaf.source.resource_urls import ArtifactError
+from leaf.source.revision_artifact import capture_artifact
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import read_page_registry
 
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 

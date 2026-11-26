@@ -3,8 +3,8 @@
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate thread sources without depending on a live renderer.
 A widget source owns identity; the group the author declares round it contributes
-only prompt words and arrival (`widget_groups`). A widget that asks owes one
-obligation, identified by the widget's id.
+only prompt words and arrival (`obligation_sources.widget_groups`). A widget that asks
+owes one obligation, identified by the widget's id.
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt.
 
@@ -59,10 +59,9 @@ from bisect import bisect_right
 from collections.abc import Callable
 from functools import partial
 from math import inf
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 from leaf.base import standing
-from leaf.base.page_memory import Slot
 from leaf.base.standing import ended, is_open, on
 from leaf.log.events import (
     is_reaction,
@@ -71,13 +70,11 @@ from leaf.log.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.log.gesture_words import element_name
 from leaf.log.projection import (
     AuthoredOrders,
     StateProjection,
     ThreadMarkupReading,
     attribute_marks,
-    enclosing_widgets,
     folded_value,
     markup_value,
     obligation_value,
@@ -85,59 +82,13 @@ from leaf.log.projection import (
     projected_action_holders,
 )
 from leaf.log.thread_context import widget_messages
-from leaf.source.registry.contract import exhibits, matches_when
+from leaf.source.obligation_sources import ObligationSources, obligation_sources
+from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import verb_writers
 from leaf.source.registry.reactions import reaction_tokens
 
 if TYPE_CHECKING:
     from leaf.records.todos import TodoReading
-
-
-def local_obligation_entry(entry: dict) -> bool:
-    """Whether a widget can originate an obligation when its predicate holds."""
-    return entry.get("awaits") is not None
-
-
-def group_tags(registry: dict) -> list[str]:
-    """The tags the vocabulary declares a named group (`reading-role: group`), such as
-    the default package's `lf-group`."""
-    return sorted(
-        tag
-        for tag, entry in registry.items()
-        if isinstance(entry, dict) and entry.get("reading-role") == "group"
-    )
-
-
-def widget_groups(content: list, registry: dict):
-    """Each widget in `content` that can ask, as its authoring node and its question:
-    the innermost named group round it (`group_tags`), or None. The group's `label`
-    (`gesture_words.element_name`) is the widget's prompt, and the group is where the
-    obligation stands and going to it starts while it holds no other
-    (`records/obligations/place.js` in the browser); the registry requires both its id and its
-    label. Python reads only the authored source, so a group the runtime draws holds no
-    question. A widget set among words (`inline`), such as a suggestion, has none: its
-    sentence and its own words name it.
-
-    The author declares the question's region and name on an element of Leaf's own,
-    and Leaf reads no heading and no ARIA to find them: the user chose one Leaf element
-    whose `label` names any group of things, questions among them, over HTML's group
-    named by `aria-labelledby` or a fieldset's legend, which gave a question several
-    ways to be written and leaned on accessibility attributes for one of Leaf's own
-    facts. Finding the section a heading opens round the widget is the alternative a
-    later change might reach for; it fails because it infers a region the author never
-    marked, so a section of prose round several questions would become their region."""
-    groups = set(group_tags(registry))
-
-    def walk(nodes: list, group: dict | None):
-        for node in nodes:
-            if isinstance(node, str):
-                continue
-            entry = registry.get(node["tag"]) or {}
-            if local_obligation_entry(entry):
-                yield node, None if entry.get("inline") else group
-            yield from walk(node["content"], node if node["tag"] in groups else group)
-
-    yield from walk(content, None)
 
 
 def question_ids(message: dict) -> list[str]:
@@ -168,42 +119,6 @@ def settle_by_words(record: dict, answer: dict | None) -> None:
             "value": {key: answer[key] for key in ("text", "token") if key in answer},
             "event": event_reference(answer),
         }
-
-
-class ObligationRegistration(NamedTuple):
-    """Compact registration inputs and the last event-dependent registration.
-
-    No parser records or holder chains survive here. The last dynamic answer uses
-    the canonical state fold and is keyed by its complete historical event basis.
-    """
-
-    tag: str
-    asking: bool
-    restated: bool
-    triggers: frozenset[str]
-    requested: Slot
-
-
-def obligation_registrations(
-    document, registry: dict
-) -> dict[str, ObligationRegistration]:
-    """Compact immutable registration inputs, separate from a revision's parse."""
-    return {
-        unit: ObligationRegistration(
-            record["tag"],
-            matches_when(record["attrs"], declaration.get("when")),
-            "restated" in record["attrs"],
-            frozenset(
-                verb
-                for verb, spec in registry[record["tag"]].get("verbs", {}).items()
-                if (spec.get("record") or {}).get("kind") == "value"
-                and spec["record"]["attr"] in declaration.get("when", {})
-            ),
-            Slot(),
-        )
-        for unit, record in document.by_id.items()
-        if (declaration := registry.get(record["tag"], {}).get("awaits")) is not None
-    }
 
 
 def settles(reaction: dict, turn: str, tokens: dict) -> bool:
@@ -476,14 +391,13 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
-    every obligation whose prompt target (its group, `widget_groups`) is the innermost
-    to enclose it. So a note on one obligation's option, or on a part of a group
-    holding one obligation, leaves its sibling in the group out, while one on anything
-    else in the group, such as the heading naming it where the group holds that
-    heading, or on a section holding the group, is about them all. A note on a name
-    that stands outside its group, as a workspace header's heading can, is about none
-    of the group's obligations. `within` is the document's containment
-    (`Passages.enclosing`).
+    every obligation whose prompt target (its group, `obligation_sources.widget_groups`)
+    is the innermost to enclose it. So a note on one obligation's option, or on a part
+    of a group holding one obligation, leaves its sibling in the group out, while one on
+    anything else in the group, such as the heading naming it where the group holds that
+    heading, or on a section holding the group, is about them all. A note on a name that
+    stands outside its group, as a workspace header's heading can, is about none of the
+    group's obligations. `within` is the document's containment (`Passages.enclosing`).
 
     The records are indexed once by source, prompt target and each id enclosing
     their source, so a caller asking for every thread on the page reads each
@@ -573,37 +487,6 @@ def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
                 record["next_actor"] = "agent"
 
 
-def shown_in(rec: dict, registry: dict) -> bool:
-    """Inside an element whose tag declares `exhibit`, a widget is shown rather than
-    asked, so it puts nothing on the user's list, whether or not the declaration's
-    condition holds there. The condition decides only whether it also takes no input
-    (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
-    page's log and Undo as a demonstration, and a page's On Me holds only what the page
-    itself asks. Same holder-chain walk as `quoted_in`."""
-    return any(
-        bool(registry.get(node["tag"], {}).get("exhibit"))
-        for node in enclosing_widgets(rec)
-    )
-
-
-def quoted_in(rec: dict, registry: dict) -> bool:
-    """Inside an element the registry marks `exhibit` where its condition holds, a
-    widget is a mention rather than a use: it takes no input and asks nothing.
-
-    The holder chain answers it, which is the walk `enclosing_slot` makes and the
-    one `quotedBy` makes over the DOM for a descriptor's own `quoted` flag. Asked of
-    `spoken` instead, containment became a question about the page's words: the
-    reading that says what stands around one widget walks every character of the
-    version to do it, so an action POST on a 90KB page spent forty milliseconds
-    finding out what a single id sat in. It reads a record rather than an id for the
-    same reason `quotedBy` takes an element — an element the author left unnamed
-    stands where it stands."""
-    return any(
-        exhibits(node["attrs"], registry.get(node["tag"], {}))
-        for node in enclosing_widgets(rec)
-    )
-
-
 def container_empty(
     owner: dict,
     within: str,
@@ -683,53 +566,6 @@ def answering_action(
             registry,
             projected_action_holders(projection, byid, registry),
         )
-    )
-
-
-class ObligationSources(NamedTuple):
-    """The widgets one document declares that can ask the user, read under one
-    vocabulary.
-
-    `asking` holds each declared widget, with whether it stands inside an exhibit
-    (`shown_in`).
-    `prompts` maps each one's id to its prompt: `text`, the words naming it, its group's
-    name (`widget_groups`) or else its own, and `target`, the id of the element going
-    to it starts at, its group or else itself.
-
-    These depend on the document and the vocabulary alone, and finding them is most
-    of the cost of reading a page's obligations. A stored revision's reading
-    therefore holds them across requests (`passages.SourceReading`), and each reading
-    against the log, such as admission's before and after an event, reads only what
-    the log decides."""
-
-    asking: tuple[tuple[dict, bool], ...]
-    prompts: dict[str, dict]
-
-
-def obligation_sources(source, registry: dict) -> ObligationSources:
-    """Read `ObligationSources` from a page document or a thread structure,
-    whose fragments each hold one message's markup."""
-    documents = (
-        list(source.fragments.values()) if hasattr(source, "fragments") else [source]
-    )
-
-    declared = [
-        record
-        for document in documents
-        for record in document.lf_elements
-        if local_obligation_entry(registry.get(record["tag"]) or {})
-    ]
-    prompts = {}
-    for document in documents:
-        for node, group in widget_groups(document.authoring.content, registry):
-            if not (identity := node["attrs"].get("id")):
-                continue
-            prompts[identity] = {
-                "text": element_name(group or node, registry),
-                "target": (group["attrs"].get("id") if group else None) or identity,
-            }
-    return ObligationSources(
-        tuple((record, shown_in(record, registry)) for record in declared), prompts
     )
 
 
@@ -1151,7 +987,8 @@ def waiting_in_thread(
     still wait on the user's pick, as a function of the thread and that seq: the
     user's words there may or may not answer them. Each is its `id` and the words
     that asked it: its prompt, the name of the group the message writes round the
-    widget or else the widget's own (`obligation_sources`), else the message holding it.
+    widget or else the widget's own (`obligation_sources.obligation_sources`), else the
+    message holding it.
 
     The open questions are grouped by thread once, so a batch asking for each of
     the user's words reads the records once rather than once per message."""

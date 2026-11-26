@@ -30,14 +30,10 @@ from leaf.commands import cli as cli_model
 from leaf.log.interaction_log import read_interactions
 from leaf.records import transaction
 from leaf.serving.media import media_name
-from leaf.source.layer import stylesheet
-from leaf.source.registry.storage import (
-    layer_packages,
-    layer_record,
-    load_registry,
-    selected,
-)
+from leaf.source.layer import selected_layer, stylesheet
+from leaf.source.registry.storage import layer_packages, layer_record
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview
 from leaf_dev.example_data import named_source
@@ -125,7 +121,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert layer_2 is not None
     assert (
         stylesheet(package / "overrides.css", package).rstrip()
-        in selected(layer_2, page).top_files["theme.css"].decode()
+        in selected_layer(layer_2, page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
@@ -368,7 +364,7 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
 def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
     from leaf.source.data import read_data
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
     from leaf_dev.example_data import data_file, page_files
 
     examples = tmp_path / "examples"
@@ -830,7 +826,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     """
     from leaf.records.publishing import authored_digest
     from leaf.source.data import read_data
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -948,7 +944,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
 def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
     """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.source.data import read_data
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(

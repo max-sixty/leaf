@@ -2481,14 +2481,6 @@ _TEXT = {
             + (v.get("held") or "read the current delivery or thread state")
         ),
     ),
-    "unseen-input": _refuses(
-        _NEWER,
-        lambda at, v: (
-            f"the thread holding event {v['event']!r} now also owes an answer to"
-            f" {', '.join(v['unseen'])}, which the delivery behind this reference"
-            f" didn't carry; {v['answer']} answers them all"
-        ),
-    ),
     # What `thread.post_reply` notes beside a message that answers nothing: progress
     # on an update no longer owed, which takes nothing in hand; an answer to an
     # update whose earlier answer promised a to-do still open; and an answer the

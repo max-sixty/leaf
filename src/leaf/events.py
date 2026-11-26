@@ -807,9 +807,9 @@ class Settled(NamedTuple):
 
 
 def covered(event: dict) -> list[str]:
-    """The inputs an agent's answer or failure receipt names: its ``covers``, where
-    it answers more than the input its ``responds`` names, or else that input."""
-    return event.get("covers", [event["responds"]])
+    """The inputs an agent's answer or failure receipt names, in log order: the one
+    its ``responds`` names and the others its thread owed with it, ``also``."""
+    return [*event.get("also", ()), event["responds"]]
 
 
 def settle(thread: dict) -> Settled:
@@ -820,10 +820,10 @@ def settle(thread: dict) -> Settled:
     (`build_threads`, ``turns``), in the order they come into force. An answer
     settles the inputs it covers (`covered`), the ones its writer was owed when the
     delivery it answers was captured (`thread.post_reply`), so an input that came
-    into force since, or came back, waits on. A failure receipt names the inputs it
-    gives up on the same way and hands them back to the user; `is_answer` tells the
-    two apart. A later answer covering one of them, as when the turn that failed
-    recovers, settles it.
+    into force since, or came back, waits on. A failure receipt covers the inputs
+    its delivery carried of those (`thread.fail_answer`) and hands them back to the
+    user; `is_answer` tells the two apart. A later answer covering one of them, as
+    when the turn that failed recovers, settles it.
 
     An input stops waiting when the user takes it back, and an action also stops when
     another action replaces it at its coordinate. An action an undo brings back
@@ -841,6 +841,8 @@ def settle(thread: dict) -> Settled:
     # force; and those of them waiting.
     standing: dict[str, dict] = {}
     waiting: dict[str, dict] = {}
+    # Each input waiting → where in the walk it came into force.
+    placed: dict[str, int] = {}
     answered: set[str] = set()
     # Each input a failure handed back that no answer has covered since → the failure.
     failed: dict[str, dict] = {}
@@ -863,13 +865,15 @@ def settle(thread: dict) -> Settled:
             standing[identity] = turn
             if identity not in answered and identity not in failed:
                 waiting[identity] = turn
+                placed[identity] = len(placed)
                 if turn["kind"] == "edit":
                     rewrites.setdefault(turn["message"], []).append(identity)
         elif "responds" in turn:
             named = set(covered(turn))
-            taken = [entry for identity, entry in waiting.items() if identity in named]
-            for entry in taken:
-                del waiting[entry["id"]]
+            taken = sorted(
+                (waiting.pop(identity) for identity in named & waiting.keys()),
+                key=lambda entry: placed[entry["id"]],
+            )
             if taken:
                 settled.append(Settlement(turn, taken))
             if is_answer(turn):

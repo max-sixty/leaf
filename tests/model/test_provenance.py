@@ -221,7 +221,7 @@ def test_each_revision_is_judged_by_the_log_before_it():
             "kind": "reply",
             "parent": "e1",
             "responds": "e2",
-            "covers": ["e1", "e2"],
+            "also": ["e1"],
             "text": "Red.",
             **AGENT,
         },
@@ -475,7 +475,11 @@ def test_the_line_reads_each_revision_as_a_fold_up_to_it_would():
                     "kind": "reply",
                     "parent": thread["id"],
                     "responds": owed[through - 1]["id"],
-                    "covers": [turn["id"] for turn in owed[:through]],
+                    **(
+                        {"also": [turn["id"] for turn in owed[: through - 1]]}
+                        if through > 1
+                        else {}
+                    ),
                     "text": f"Answer {at}",
                     **AGENT,
                 }

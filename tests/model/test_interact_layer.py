@@ -253,7 +253,19 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         ids.append(events_model.read_events(page)[-1]["id"])
     # A message by id answers nothing. Undelivered, the owed message has no
     # reference yet: the note names the wait that delivers one.
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
+    record(
+        [
+            "thread",
+            "reply",
+            str(page),
+            ids[0],
+            "--text",
+            "Answer",
+            "--title",
+            "Thread title",
+        ],
+        0,
+    )
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)

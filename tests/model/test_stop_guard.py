@@ -597,6 +597,8 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
                 response_reference(claimed, comment),
                 "--text",
                 "ok",
+                "--title",
+                "Thread title",
             ],
         )
         .exit_code
@@ -1111,6 +1113,8 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                 event["answer"]["ref"],
                 "--text",
                 "Here, next week.",
+                "--title",
+                "Thread title",
             ],
         )
         assert reply.exit_code == 0, reply.output

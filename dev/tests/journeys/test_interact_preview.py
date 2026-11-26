@@ -516,6 +516,8 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         [
             "thread",
             "reply",
+            "--title",
+            "Restart keeps the reply",
             "--done",
             comment["answer"]["ref"],
             "--text",

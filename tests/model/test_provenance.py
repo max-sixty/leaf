@@ -331,6 +331,8 @@ def test_a_revision_takes_its_place_in_the_log_from_the_event_naming_its_bundle(
             response_reference(page_dir, asked),
             "--text",
             "The rollout flag, off by default.",
+            "--title",
+            "Thread title",
         ],
         catch_exceptions=False,
     )

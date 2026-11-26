@@ -596,7 +596,9 @@ def answer(words: str, leaves: str) -> None:
         if "answer" in event
     )
     served.leaf("delivery", "ack", delivery["id"])
-    served.leaf("thread", "reply", ref, leaves, "--text", words)
+    served.leaf(
+        "thread", "reply", "--title", "Card placement", ref, leaves, "--text", words
+    )
 
 
 def caught_up(page: Page) -> None:

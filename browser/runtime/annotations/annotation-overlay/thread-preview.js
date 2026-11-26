@@ -156,6 +156,7 @@ import { spokenSubject } from "../../base/contribution-model.js";
 import { labelWords } from "../../lib/words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { slotTop } from "../../dom/geometry.js";
+import { elementBorderFrame } from "../../dom/element-axes.js";
 import {
   focusDestination,
   holdFocus,
@@ -763,16 +764,18 @@ export function createThreadPreview({
     }
     preview.style.setProperty("width", layoutPx(room));
     const transcript = session.transcript;
+    // The heights the caps are written from, to the fraction layout draws: a whole
+    // pixel's rounding, written back, would move the card's head by it.
+    const height = elementBorderFrame(preview).height;
     // Growing a top-held card may reveal new words below, but must not reveal lines
     // the reader had already scrolled past. Leave that scroll travel in its transcript.
     // Follow the tail only after this fit, when the available room is known.
     if (reading?.keepTop && transcript)
       cap = Math.min(
         cap,
-        preview.offsetHeight + Math.max(0, scrollLimit(transcript) - reading.scroll),
+        height + Math.max(0, scrollLimit(transcript) - reading.scroll),
       );
     const worn = parseFloat(preview.style.getPropertyValue("max-height"));
-    const height = preview.offsetHeight;
     /** @param {Element | null} box */
     const scrolls = (box) => Boolean(box && box.scrollHeight > box.clientHeight + 0.5);
     const overflow = [transcript, ...previewList.querySelectorAll(REPLY_BOX)].some(
@@ -784,7 +787,7 @@ export function createThreadPreview({
     );
     const share =
       ownLine && transcript && scrolls(transcript)
-        ? Math.max(0, cap - (height - transcript.offsetHeight))
+        ? Math.max(0, cap - (height - elementBorderFrame(transcript).height))
         : null;
     const shares =
       share === null ? wornShare >= 0 : !(Math.abs(wornShare - share) < 0.5);

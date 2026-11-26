@@ -4318,13 +4318,13 @@ export function createFloatingPanel({
       ? ""
       : asking
         ? messageReading(asking, { workflows: [] }).body.plainText
-        : record?.prompt?.text;
+        : record?.prompt.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     // The other questions the user answers at this card's place (`also`): further
     // messages its thread's reply answers, and on an obligation's card those asked in a
     // thread about it, so an answer about a decision rides on the decision. Each reads
     // as its message, as a question asked in words does above.
-    const carried = (also ?? []).flatMap((id) => {
+    const carried = also.flatMap((id) => {
       const other = readObligations().byId.get(id);
       if (!other) return [];
       const where = other.thread ? threadByKey(other.thread) : null;
@@ -4722,7 +4722,7 @@ export function createFloatingPanel({
       carrying.set(key, [
         ...new Set([
           ...(carrying.get(key) ?? []),
-          ...(item.also ?? []).filter((id) => !elsewhere.has(id)),
+          ...item.also.filter((id) => !elsewhere.has(id)),
         ]),
       ]);
     }

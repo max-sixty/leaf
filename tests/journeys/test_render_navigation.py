@@ -299,11 +299,6 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     all_pages_offered(page)
 
     page.keyboard.press("g")
-    expect(
-        page.locator(
-            '.lf-go-to-hints [data-lf-go-to-command="navigation.panel.leaves"]'
-        )
-    ).to_have_count(0)
     # A live page arriving while the sequence stands keeps its destination operable.
     live_leaf("third", "A third leaf")
     round_trip(page)

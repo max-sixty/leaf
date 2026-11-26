@@ -2,11 +2,15 @@
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
 that its harness supports hook delivery (`Harness.hooks_carry`), and the Leaf it
-runs with the skill that Leaf ships (`leases.mark_skill`). The first hook whose Leaf
-ships another skill than the previous hook's queues a notice telling the agent to
-read the skill again (`skill_changed`). An explicit
-`leaf wait` always prints the envelope; it does not depend on another hook
-running after it. SessionEnd retires the harness instance without reading pages;
+runs (`leases.mark_root`). The skill the agent read stays in its conversation as
+the harness keeps it: when an update or a merge changes the skill under a running
+session, Leaf tells the agent nothing, and the harness's own means, such as Claude
+Code's `/reload-skills`, pick the change up. The maintainer chose that over a
+notice each hook queued once the skill it ships differed from the previous
+hook's: the skill changes often, so the notice fired on most updates, and it
+needed a change for each way a copy of Leaf can change. An
+explicit `leaf wait` always prints the envelope; it does not depend on another
+hook running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
 
 Codex's startup hook captures its validated native source even when the first
@@ -73,7 +77,7 @@ import os
 import time
 from typing import TYPE_CHECKING, NoReturn
 
-from leaf.base.leases import first_hook_for_tool, mark_hooks, mark_skill
+from leaf.base.leases import first_hook_for_tool, mark_hooks, mark_root
 from leaf.base.refusals import Refused
 from leaf.base.state import (
     PLUGIN_ROOT,
@@ -113,8 +117,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
-    if (before := mark_skill(sid, now := skill_mark())) is not None:
-        skill_changed(sid, before, now)
+    mark_root(sid, PLUGIN_ROOT)
     assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
@@ -292,63 +295,6 @@ def reload_skill(session_id: str) -> str | None:
         "instructions` printed are gone, and the skill may be too. Before you next "
         f"reply or run a leaf command, read {SKILL_FILE} again, then the references "
         "and widget instructions your work in progress needs."
-    )
-
-
-def skill_mark() -> str:
-    """The Leaf this hook runs, by its plugin root, and the leaf skill it ships, by
-    the identity of every file under `skills/leaf/` (`layer.files_identity`), which
-    names the skill however its copy was made or updated. Each hook reads and hashes
-    the skill's files to take it (`leases.mark_skill`)."""
-    from leaf.base.schema import SKILL_FILE
-    from leaf.source.layer import files_identity
-
-    directory = SKILL_FILE.parent
-    skill = files_identity(
-        {
-            path.relative_to(directory).as_posix(): path.read_bytes()
-            for path in directory.rglob("*")
-            if path.is_file()
-        }
-    )
-    return f"{PLUGIN_ROOT}\n{skill}"
-
-
-def skill_changed(session_id: str, before: str, now: str) -> None:
-    """Queue a notice telling the session's agent to read the leaf skill again, where
-    `now`, the mark this hook took (`skill_mark`), names another skill than `before`,
-    the previous hook's.
-
-    The skill a session's hooks ship changes when Claude Code loads another copy,
-    which it does as a process starts, on a resume or a background job's wake, and at
-    `/reload-plugins`; when Codex or Pi replaces its copy in place, which the next hook
-    runs; and when the checkout a session's hooks run changes, by an edit or a merge.
-    The transcript carries over, so the agent still holds the skill and references it
-    read before, while its hooks and `leaf` commands run the new one. Two marks whose
-    skills match byte for byte, as an update that changed only code leaves them, need
-    no notice.
-
-    The notice joins the lines the next prompt or tool boundary carries beside the
-    input it hands over (`clerk.queue`, `hook_transport.carry_turn`), so the agent
-    reads it once. Those hooks carry it only in a session holding a page, as
-    `reload_skill` sends its notice only there. The hook that prints the notice
-    asks whether the session holds a page, rather than this one, since a resumed
-    session's claims stay inactive until its first prompt serves its pages again
-    (`reconnect`), after this hook marked the skill."""
-    if before.rpartition("\n")[2] == now.rpartition("\n")[2]:
-        return
-    from leaf.agents.clerk import queue
-    from leaf.base.schema import SKILL_FILE
-
-    queue(
-        session_id,
-        [
-            "This session's hooks and leaf commands now run a Leaf with a different "
-            "skill, so the leaf skill and references you read earlier may describe "
-            "commands and rules that have changed. Before you next reply or run a "
-            f"leaf command, read {SKILL_FILE} again, then the references your work "
-            "in progress needs."
-        ],
     )
 
 

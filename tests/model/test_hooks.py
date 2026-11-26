@@ -1806,70 +1806,6 @@ def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
     assert skill not in capsys.readouterr().out
 
 
-def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
-    claimed, monkeypatch, tmp_path, capsys
-):
-    """The skill the agent read under the Leaf its hooks ran before may describe
-    commands and rules the Leaf they run now changed, as after a resume,
-    `/reload-plugins`, an update Codex or Pi makes to its copy in place, a hand-off
-    to a checkout, or an edit or merge in the checkout the hooks run. The first prompt
-    whose Leaf ships another skill than the previous hook's names the skill to read
-    again, beside the input it hands over, and the next prompt doesn't. A prompt whose
-    Leaf ships the same skill, from the same copy or another, says nothing of it, and
-    the copy the previous hook ran from may be gone."""
-    shipped = schema_model.SKILL_FILE.parent
-
-    def prompt() -> str:
-        hooks_model.cmd_hook(
-            "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
-        )
-        out = capsys.readouterr().out
-        return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
-
-    def runs(root: Path, skill: str | None = None) -> str:
-        """The hooks run the copy at `root`, which ships this Leaf's skill, with
-        `skill` for its SKILL.md where given, and the path that names it."""
-        directory = root / "skills" / "leaf"
-        if not directory.is_dir():
-            shutil.copytree(shipped, directory)
-        if skill is not None:
-            (directory / "SKILL.md").write_text(skill)
-        monkeypatch.setattr(schema_model, "SKILL_FILE", directory / "SKILL.md")
-        monkeypatch.setattr(hooks_model, "PLUGIN_ROOT", root)
-        return str(directory / "SKILL.md")
-
-    assert str(schema_model.SKILL_FILE) not in prompt()
-    assert str(schema_model.SKILL_FILE) not in prompt()
-
-    same = tmp_path / "same"
-    assert runs(same) not in prompt()
-    assert runs(same, "A skill being edited.\n") in prompt()
-
-    local = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "local"
-    skill = runs(local, "A skill being edited.\n")
-    shutil.rmtree(same)
-    assert skill not in prompt()
-
-    runs(local, "An updated skill.\n")
-    asked = append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "Is it done?"}
-    )
-    context = prompt()
-    assert context.count(skill) == 1
-    assert asked["id"] in context
-    assert skill not in prompt()
-
-    pi = tmp_path / ".pi" / "agent" / "git" / "github.com" / "max-sixty" / "leaf"
-    skill = runs(pi, "An updated skill.\n")
-    assert skill not in prompt()
-    runs(pi, "Pi's update.\n")
-    assert skill in prompt()
-
-    skill = runs(tmp_path / "checkout", "A checkout's skill.\n")
-    assert skill in prompt()
-    assert skill not in prompt()
-
-
 def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot):
     """The real hook and CLI outputs, from the move's arrival through settlement:
     the Stop hook's watch wakes the session, and the prompt hook of the turn that
@@ -2307,7 +2243,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
     """Have session s1's hooks last run another Leaf, one whose kernel registry names
-    `protocol`, and return its root (`leases.mark_skill`)."""
+    `protocol`, and return its root (`leases.mark_root`)."""
     root = tmp_path / f"leaf at {protocol}"
     registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
         cleanup_model.PLUGIN_ROOT
@@ -2331,7 +2267,7 @@ def test_a_checkout_acts_only_for_a_session_whose_hooks_run_it(
     records. An installed copy acts for the session whatever the hooks last ran, as
     the copy a process loaded after an update does before its first hook."""
     # No hook of the session has run yet.
-    cleanup_model.session_file("s1", cleanup_model.SKILL_SUFFIX).unlink()
+    cleanup_model.session_file("s1", cleanup_model.ROOT_SUFFIX).unlink()
     assert harness_model.session_harness() is None
     hooks_run_leaf_at(tmp_path, LAYER.since + ahead)
     lifecycle = cleanup_model.session_record("s1")
@@ -2347,7 +2283,7 @@ def test_a_checkout_acts_only_for_a_session_whose_hooks_run_it(
         harness = harness_model.session_harness()
         assert harness is not None and harness.session == "s1"
 
-    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    hooks_run_this_tree("s1")
     harness = harness_model.session_harness()
     assert harness is not None and harness.session == "s1"
 
@@ -2389,7 +2325,7 @@ def test_only_the_holding_sessions_leaf_changes_a_held_page(claimed, tmp_path, a
     refusal = event_contracts_model.write_refusal(claimed)
     assert refusal is not None and refusal.code == "foreign-layer"
 
-    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    hooks_run_this_tree("s1")
     assert vendoring_model.cmd_init(claimed)["packages"]
     assert event_contracts_model.write_refusal(claimed) is None
 
@@ -2459,7 +2395,7 @@ def test_two_renewals_of_a_page_take_turns(claimed, monkeypatch):
     started nor reports a refusal, as it would were it to pass its first reading
     while the first is still stopping the server."""
     vendored_at_another_protocol(claimed)
-    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    hooks_run_this_tree("s1")
     outcomes, restarts = [], []
     second = threading.Thread(
         target=lambda: outcomes.append(vendoring_model.renew_held(claimed, "s1"))

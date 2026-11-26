@@ -305,6 +305,7 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
         manifest,
         declarations.data if declarations is not None else None,
         artifact.page_dir,
+        layer=composition.vocabulary,
     )
     layer["/registry.json"] = Resource(json_bytes(registry), "application/json")
     # Agent instructions belong to the composition's fingerprint, but only the

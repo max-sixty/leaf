@@ -25,7 +25,9 @@ class _Candidate(Slot):
 def load_registry(page_dir: Path):
     """The vocabulary of the page's layer, or None before `page init`."""
     record = layer_record(page_dir)
-    return None if record is None else layer_vocabulary(record, page_dir)
+    if record is None:
+        return None
+    return layer_vocabulary(record, selected_vocabulary(record, page_dir))
 
 
 def read_page_registry(page_dir: Path):
@@ -47,30 +49,26 @@ def read_page_registry(page_dir: Path):
         for path in widget_paths(page_dir, "page/widgets")
     )
     active = latest_revision(page_dir)
+    stamp = file_stamp(page_dir / LAYER_FILE)
     record = layer_record(page_dir)
+    if record is None:
+        return None
+    # The key and the composition read one resolution of the selection
+    # (`layer.selected_vocabulary`).
+    layer = selected_vocabulary(record, page_dir)
     key = (
-        file_stamp(page_dir / LAYER_FILE),
-        # The vocabulary the record selects, which a package install resolves to
-        # other roots (`layer.selected_vocabulary`).
-        selected_vocabulary(record, page_dir) if record else None,
+        stamp,
+        layer,
         file_stamp(page_dir / "page" / "registry.json"),
         widgets,
         active,
     )
 
     def compose():
-        layer = load_registry(page_dir)
-        if layer is None:
-            return None
-        record = layer_record(page_dir)
-        assert record is not None
         return compose_candidate(
             page_dir,
-            layer,
-            [
-                *layer_widgets(record, page_dir),
-                *(path for path, _ in widgets),
-            ],
+            layer_vocabulary(record, layer),
+            [*layer_widgets(layer), *(path for path, _ in widgets)],
             validated=read_revision(page_dir, active).inputs if active else None,
         )
 

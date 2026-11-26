@@ -15,6 +15,7 @@ from leaf.log.projection import (
     with_action,
 )
 from leaf.log.thread_context import thread_structure
+from leaf.records.todos import TodoReading
 from leaf.source.registry.contract import (
     deciding_verb,
     matches_when,
@@ -37,7 +38,6 @@ class AdmissionReadings:
 
     @cached_property
     def log(self):
-        from leaf.records.todos import TodoReading
 
         return TodoReading(self.events)
 

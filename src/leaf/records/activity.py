@@ -29,6 +29,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
 
+from leaf.base.harness import session_harness
+from leaf.base.service import may_receive, page_claim
 from leaf.base.standing import STRANDED, strength
 from leaf.base.state import turn_closed, turn_open
 from leaf.log.obligations import response_address
@@ -216,8 +218,6 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     (`service.may_receive`)."""
     if "ref" in answer:
         return f"`leaf thread reply {answer['ref']}`"
-    from leaf.base.harness import session_harness
-    from leaf.base.service import may_receive, page_claim
 
     harness = session_harness()
     claim = (

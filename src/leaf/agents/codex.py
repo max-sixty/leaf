@@ -132,7 +132,7 @@ from leaf.agents.delivery import (
 )
 from leaf.base.codex_transcript import reverse_transcript_lines
 from leaf.base.harness import CodexHarness, Harness
-from leaf.base.json_block import json_block
+from leaf.base.json_block import json_block, json_value
 from leaf.base.refusals import Refused
 from leaf.base.service import delivery_reply_attempt
 from leaf.base.state import (
@@ -384,8 +384,6 @@ def app_server_request(
         message = json.loads(socket.recv())
         if message.get("id") == request_id and "method" not in message:
             if error := message.get("error"):
-                from leaf.base.json_block import json_value
-
                 raise AppServerRequestRejected(
                     error.get("message") or json_value(error)
                 )

@@ -18,6 +18,7 @@ from leaf.log.projection import thread_markup_reading
 from leaf.records.document_reading import read_document
 from leaf.records.plans import plan_reading
 from leaf.records.todos import TodoReading
+from leaf.records.workflows import handed_over
 
 
 class WorkReading:
@@ -102,7 +103,6 @@ class WorkReading:
 
     @cached_property
     def _handover(self):
-        from leaf.records.workflows import handed_over
 
         return handed_over(
             self.threads,

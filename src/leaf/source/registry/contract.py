@@ -4,6 +4,7 @@ import json
 import re
 from collections.abc import Mapping
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -611,7 +612,6 @@ def state_definition(
     `attention` declaration changes delivery, not the state operation; admission
     records that decision separately on the event.
     """
-    from copy import deepcopy
 
     return deepcopy(
         {

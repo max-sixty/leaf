@@ -15,6 +15,7 @@ from leaf.base.files import require_revision
 from leaf.base.findings import Finding, Rejected
 from leaf.base.leases import contract_writer
 from leaf.records.event_contracts import append_admitted
+from leaf.records.revisioning import activate_source
 from leaf.records.transaction import PageTransaction
 
 
@@ -23,7 +24,6 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     """Append a report of `verb` on `widget`, stamped with the posting session's
     voice. Each field is `name=value`; values are strings, since the declared detail
     schemas for reports speak in attribute values, which is all a report may move."""
-    from leaf.records.revisioning import activate_source
 
     detail = {}
     for field in fields:

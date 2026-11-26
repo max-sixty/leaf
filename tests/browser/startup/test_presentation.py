@@ -75,9 +75,9 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
         assert page.locator("body > main").bounding_box()["y"] == pytest.approx(
             0, abs=1
         )
-        assert page.locator("body").bounding_box()["height"] == pytest.approx(
-            900, abs=1
-        )
+        # The body fills the window at least, past which its end keeps room for the
+        # last line to rise (layouts.css).
+        assert page.locator("body").bounding_box()["height"] >= 900 - 1
     finally:
         for route in boot:
             route.continue_()

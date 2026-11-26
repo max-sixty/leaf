@@ -883,6 +883,61 @@ def test_a_retry_after_a_save_with_no_answer_keeps_the_typing_after_it(
     )
 
 
+def test_a_retry_while_saves_lose_their_answers_keeps_the_typing_after_them(
+    browser, serve, tmp_path
+):
+    """Every save reaches the file and loses its answer, as when the host's store
+    refuses each commit after the write. The reader types an edit and then types it
+    away, adds a line, and retries; then retries again once answers come back. Each
+    Retry settles the earlier save against the file before sending, so the edit the
+    reader typed away never comes back, and the file holds what they last typed."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n\nEnd.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    landed = []
+
+    def lose(route):
+        if route.request.method != "POST":
+            route.continue_()
+            return
+        route.fetch()
+        landed.append(route)
+        route.abort()
+
+    page.route("**/api/files/notes", lose)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    expect(retry).to_be_visible()
+    assert file.read_text() == "Notes.\n\nEnd.\nDraft."
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.insert_text("Added.")
+    page.keyboard.press("Enter")
+    last = "Added.\nNotes.\n\nEnd.\n"
+    retry.click()
+    holding(page, landed, 2, "the save the retry sends")
+    expect(retry).not_to_have_attribute("aria-disabled", "true")
+    page.unroute("**/api/files/notes", lose)
+    retry.click()
+    expect(retry).to_be_hidden()
+    expect(editor).to_have_text(last.replace("\n", ""))
+    assert file.read_text() == last
+    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
+
+
 def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
     browser, serve, tmp_path
 ):

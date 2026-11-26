@@ -61,6 +61,7 @@ from leaf.base.schema import (
 from leaf.base.server import page_origin, preview_metadata, running_server
 from leaf.base.state import page_key, state_home
 from leaf.log.interaction_log import admit_batch, append_interactions, client_records
+from leaf.records.transaction import PageTransaction, commit_provider
 from leaf.serving.drafts import write_draft
 from leaf.serving.event_endpoint import (
     accept_event,
@@ -1257,9 +1258,10 @@ class PageEndpoint:
             if not self.source.writable:
                 return self._json(None)
             try:
-                return self._json(read_file(self.page_dir, match[1]))
+                file = read_file(self.page_dir, match[1])
             except FileBindingError as error:
                 return self._refuse(str(error))
+            return self._file_answer(self._json(file))
         if match := re.fullmatch(r"/api/files/([^/]+)/beside", path):
             return self._file_beside(match[1], self.query.get("path", [""])[0])
         if probe_source := serving_runtime().probes.get(path):
@@ -1454,11 +1456,27 @@ class PageEndpoint:
 
     def _save_file(self, name: str) -> Response:
         try:
-            return self._json(save_file(self.page_dir, name, self.posted))
+            answer = self._json(save_file(self.page_dir, name, self.posted))
         except StaleFileError as error:
-            return self._json({"error": str(error), "current": error.current}, 409)
+            answer = self._json({"error": str(error), "current": error.current}, 409)
         except (FileBindingError, UnicodeEncodeError) as error:
             return self._refuse(str(error))
+        return self._file_answer(answer)
+
+    def _file_answer(self, answer: Response) -> Response:
+        """`answer`, which tells the browser what a bound file holds, once a host
+        that keeps the page elsewhere holds the page as it now stands. Such a host
+        holds a page as a page transaction commits it (`transaction.commit_provider`),
+        and `file_bindings` reads and writes the file outside one, so this commits
+        one. The host then holds the text a save's receipt, the newer file a stale
+        save meets, or a read names, or a later write to the file. A read is how the
+        editor settles a save whose commit failed. A page this machine keeps needs no
+        commit, and a transaction's reading of the log would make each save cost more
+        as the log grows."""
+        if commit_provider() is not None:
+            with PageTransaction(self.page_dir):
+                pass
+        return answer
 
     def _write_draft(self) -> Response:
         try:

@@ -28,7 +28,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/58",
+     "format": "leaf-delivery/59",
      "id": "188cde63f4b346e3",
      "created_at": 1794335180.031,
      "acknowledge": null,
@@ -217,7 +217,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "6c2fdd6d1238bd20",
          "created_at": 1794335180.031,
          "acknowledge": null,
@@ -401,7 +401,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "188cde63f4b346e3",
          "created_at": 1794335180.031,
          "acknowledge": null,
@@ -572,7 +572,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "6c2fdd6d1238bd20",
          "created_at": 1794335180.031,
          "acknowledge": null,

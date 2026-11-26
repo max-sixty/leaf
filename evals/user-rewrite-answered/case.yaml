@@ -5,7 +5,7 @@
 # and the user then rewrote the request to add the launch date. Delivery id, page path
 # and the reply's id are substituted for readable stable ones. It is frozen with
 # `freeze_delivery`: answers name `parent` and `responds`, the format is
-# `leaf-delivery/58`, and ids, page, claim and times are substituted.
+# `leaf-delivery/59`, and ids, page, claim and times are substituted.
 # The envelope carries the delivery's own handling, so `--base` arms differ only in
 # the references, and a handling change is scored by pasting each wording into the
 # prompt. Its thread is titled for its subject, which the rewrite keeps, so it also
@@ -23,7 +23,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/58",
+     "format": "leaf-delivery/59",
      "id": "e7f1a2c3",
      "created_at": 1791448199.576215,
      "acknowledge": null,
@@ -150,7 +150,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/58",
+         "format": "leaf-delivery/59",
          "id": "e7f1a2c3",
          "created_at": 1791448199.576215,
          "acknowledge": null,

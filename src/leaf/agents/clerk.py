@@ -88,8 +88,9 @@ asks for the run or script behind a count far more often than the user asks for
 material.
 
 This module is the fork's one home, shared by every harness: what it is asked
-(`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
-the answer it must give (`ANSWER`), and what Leaf does with that answer
+(`fork_prompt`, with each page's On Me and started items as `page_facts` selects them
+from the page's agent-facing state, which `agent_state.turn_end_facts` reads), the
+answer it must give (`ANSWER`), and what Leaf does with that answer
 (`apply_answer`). A harness only makes the fork and carries the two halves: Claude
 Code's hooks module reports each main-loop turn the model answered (`turn_ended`),
 makes the fork Leaf answers with, and reports its answer (`checked`), as it carries
@@ -384,9 +385,9 @@ QUEUED = Record(
 OPENING = "<leaf-fork-check>"
 
 
-def page_facts(state: dict, events: list) -> dict:
-    """What the fork is shown of one page, from `state` as `leaf page state` prints
-    it and the page's `events`.
+def page_facts(page_dir: Path, state: dict, events: list) -> dict:
+    """What the fork is shown of the page at `page_dir`, from `state` as `leaf page
+    state` prints it and the page's `events`, both read in one open transaction.
 
     It is shown the page's On Me, and the questions the agent asked that still stand
     while the next move is the agent's, as a choice does once the user answers it with
@@ -397,9 +398,11 @@ def page_facts(state: dict, events: list) -> dict:
     no longer holds, each with the id `thread.ask_again` takes, its thread and how it
     ended (answered, or its thread closed), so it words one anew only to ask it again
     under its id. A message of the user's, which an update records, asks the user
-    nothing and is in neither list. Last, it is shown each item the agent has started,
-    with the line its start gives it (`todos.item_starts`)."""
+    nothing and is in neither list. It is also shown each item the agent has started,
+    with the line its start gives it (`todos.item_starts`), and last the page's words
+    as the user reads them, a block to a line (`page_text`)."""
     from leaf.agents.thread import widget_question
+    from leaf.base.files import latest_revision
     from leaf.records.todos import item_starts
 
     threads = {thread["id"]: thread for thread in state["threads"]}
@@ -506,6 +509,7 @@ def page_facts(state: dict, events: list) -> dict:
         else:
             continue
         started.append({"item": item, "about": about, "line": start["text"]})
+    revision = latest_revision(page_dir)
     return {
         "title": state["title"],
         "path": state["page"],
@@ -513,6 +517,9 @@ def page_facts(state: dict, events: list) -> dict:
         "held": held,
         "asked": list(asked.values()),
         "started": started,
+        "text": ""
+        if revision is None
+        else page_text(_reading(page_dir, events, revision).passages()),
     }
 
 
@@ -611,20 +618,20 @@ def basis(session_id: str) -> dict | None:
     return record and {"turn": record["turn"], "opened": record["turn_opened"]}
 
 
-def turn_ended(session_id: str) -> dict | None:
+def turn_ended(session_id: str, pages: list[dict]) -> dict | None:
     """Leaf's answer to the end of a main-loop turn the model answered
-    (`hooks.cmd_fork`): the fork to make with the turn-end check's question, where the
-    session holds a page. Its basis is the turn the fork reads (`basis`), which its
-    answer comes back with (`checked`)."""
+    (`hooks.cmd_fork`): the fork to make with the turn-end check's question about
+    `pages`, what the fork is shown of each page the session holds (`page_facts`),
+    or None where there are none. Its basis is the turn the fork reads (`basis`),
+    which its answer comes back with (`checked`)."""
     import uuid
 
     from leaf.agents.carrier import fork
 
-    asked = question(session_id)
-    if asked is None:
+    if not pages:
         return None
-    basis = {"kind": "check", **(asked["basis"] or {})}
-    return {"do": [fork(f"check:{uuid.uuid4().hex}", asked["prompt"], basis)]}
+    turn = {"kind": "check", **(basis(session_id) or {})}
+    return {"do": [fork(f"check:{uuid.uuid4().hex}", fork_prompt(pages), turn)]}
 
 
 def checked(session_id: str, payload: dict) -> dict:
@@ -676,21 +683,6 @@ def checked(session_id: str, payload: dict) -> dict:
     }
 
 
-def question(session_id: str) -> dict | None:
-    """What to fork `session_id`'s conversation with, as `{"prompt", "basis"}`, or
-    None where it holds no page this Leaf reads. A page at another page protocol
-    is left out (`registry.storage.layer_record`): this Leaf could write nothing the
-    fork finds there."""
-    from leaf.records.transaction import owned_pages
-
-    facts = [
-        facts for page in owned_pages(session_id) if (facts := _facts(page)) is not None
-    ]
-    if not facts:
-        return None
-    return {"prompt": fork_prompt(facts), "basis": basis(session_id)}
-
-
 def take_answer(
     session_id: str, text: str | None, asked: dict | None, run: dict | None = None
 ) -> dict:
@@ -731,24 +723,6 @@ def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) ->
             **outcome,
         },
     )
-
-
-def _facts(page_dir: Path) -> dict | None:
-    from leaf.base.files import latest_revision
-    from leaf.commands.agent_state import page_state
-    from leaf.records.transaction import PageTransaction
-    from leaf.source.registry.storage import IncompatibleLayer
-
-    try:
-        with PageTransaction(page_dir) as page:
-            facts = page_facts(page_state(page_dir, page.events), page.events)
-            revision = latest_revision(page_dir)
-            if revision is None:
-                return {**facts, "text": ""}
-            passages = _reading(page_dir, page.events, revision).passages()
-            return {**facts, "text": page_text(passages)}
-    except (FileNotFoundError, IncompatibleLayer):
-        return None
 
 
 def _reading(page_dir: Path, events: list, revision: int):

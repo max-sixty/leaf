@@ -133,6 +133,9 @@ export const ACTIONS = {
   edit: { name: "Edit", icon: "edit" },
   expand: { name: "Expand", icon: "expand" },
   find: { name: "Find", icon: "search" },
+  // A thread's jumps over its messages (records/thread/thread-card.js, `#jumps`).
+  "first-message": { name: "Go to the first message", icon: "up" },
+  "latest-message": { name: "Go to the latest message", icon: "down" },
   "collapse-all": { name: "Collapse all", icon: "fold" },
   "expand-all": { name: "Expand all", icon: "unfold" },
   fit: { name: "Fit", icon: "fit" },

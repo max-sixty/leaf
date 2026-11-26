@@ -31,8 +31,8 @@
    - `mark`: a small symbol seated on the thing it acts on, at a corner or on a
      block's border toolbar, where a larger face would cover the thing. One riding a
      corner stands on a patch of its ground (`data-lf-corner`), and one standing alone
-     as its block's toolbar, as a code block's Copy does, wears the toolbar's frame
-     (`data-lf-bar`).
+     as its block's toolbar, as a code block's Copy and a thread's jumps to the start
+     and end of its messages do, wears the toolbar's frame (`data-lf-bar`).
    - `inline`: a press read as part of the line of words it stands in, such as a
      thread's held news, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with

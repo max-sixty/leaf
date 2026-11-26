@@ -1672,7 +1672,7 @@ wa-copy-button.lf-icon-action {
 }
 /* A toolbar of marks (`.lf-mark-bar`, integration.css) is a patch of the card ground in
    a hairline frame, and so is a mark that stands as a toolbar of its own
-   (`data-lf-bar`), as a code block's Copy does. */
+   (`data-lf-bar`), as a code block's Copy and a thread's jumps over its messages do. */
 .lf-mark-bar,
 .lf-mark-action[data-lf-bar] {
   border: 1px solid var(--lf-border);

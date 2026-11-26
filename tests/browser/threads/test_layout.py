@@ -1030,7 +1030,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     Threads list does, and its top row names whoever wrote the words under it. The
     card pinned the root's name beside its actions, so it opened at the top to keep
     that name true, leaving the newest turn out of view. A continuation fades the
-    words below the moving name without fading the next message's author."""
+    words below the moving name without fading the next message's author. A jump
+    stands over the turns toward each edge they run on past, and a press on one glides
+    them to that edge."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -1070,6 +1072,22 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         landed["under"] == -1 and landed["endGap"]
     ), landed
     assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
+
+    def jump(to):
+        return page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+            f' > .lf-thread-jump[data-lf-jump="{to}"]'
+        )
+
+    def jumps(above, below):
+        """Whether the jump to the turns' start and the jump to their end stand."""
+        for to, stands in (("start", above), ("end", below)):
+            if stands:
+                expect(jump(to)).to_be_visible()
+            else:
+                expect(jump(to)).to_be_hidden()
+
+    jumps(above=True, below=False)
 
     def continuation():
         """Read the fade's actual painted box, including its grid positioning."""
@@ -1132,6 +1150,16 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             ), cue
         else:
             assert cue["height"] == 0, cue
+        jumps(above=index > 0, below=True)
+
+    jump("end").click()
+    jumps(above=True, below=False)
+    assert transcript.evaluate(
+        "box => box.scrollHeight - box.clientHeight - box.scrollTop <= 2"
+    )
+    jump("start").click()
+    jumps(above=False, below=True)
+    assert transcript.evaluate("box => box.scrollTop") == 0
 
     # Follow the outgoing header as the next author pushes it off the top, then
     # follow the transcript edge through the gap. Neither position fades a name. The

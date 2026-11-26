@@ -309,6 +309,7 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
     original = read_file(page_dir, "notes")
+    assert original is not None
     url = f"{server}/api/files/notes"
     assert fetch(url, token=None)[0] == 401
     assert json.loads(fetch(url)[1]) == {
@@ -318,7 +319,6 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     assert fetch(f"{server}/files.json")[0] == 404
     # A binding the page lacks reads as no file, and only a save against it refuses.
     assert fetch(f"{server}/api/files/unbound") == (200, b"null")
-    assert original is not None
     posted = json.dumps({"revision": original["revision"], "text": "edited\n"}).encode()
     assert (
         fetch(f"{server}/api/files/unbound", data=posted, headers={"Origin": server})[0]
@@ -345,7 +345,7 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     assert target.read_text() == "hello\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 200, raw
-    assert json.loads(raw)["text"] == read_file(page_dir, "notes")["text"]
+    assert json.loads(raw)["text"] == "edited\n"
     assert target.read_text() == "edited\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 409

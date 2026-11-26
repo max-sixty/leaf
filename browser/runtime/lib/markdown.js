@@ -430,14 +430,22 @@ export function markdownSourceOffset(body, source, node, offset, html) {
       // A fence's code starts on the line after its opening marker, whose info string
       // can spell the code's first word, as `sh` does in a fence of shell commands.
       const begin = token.type === "fence" ? lineAfter(source, from) : from;
-      // A block of HTML aligns its words with what its source shows outside its markup
-      // (`htmlText`), so a word never lands in a tag's attribute or a comment.
-      const { text, ends } =
-        token.type === "html_block"
-          ? htmlText(source.slice(begin, to))
-          : { text: source.slice(begin, to), ends: null };
+      // A block of HTML aligns its words with what its source draws (`htmlText`), so a
+      // word never lands in a tag's attribute or a comment. A caret where markup
+      // stands between two characters takes the side of the text it is in: the next
+      // character's at a text's start, else the previous one's.
+      const drawn = token.type === "html_block" && htmlText(source.slice(begin, to));
+      const text = drawn ? drawn.text : source.slice(begin, to);
       /** @param {number} index */
-      const place = (index) => begin + (ends ? parserItem(ends, index) : index);
+      const place = (index) =>
+        begin +
+        (!drawn
+          ? index
+          : offset === 0 && index < drawn.starts.length
+            ? parserItem(drawn.starts, index)
+            : index > 0
+              ? parserItem(drawn.ends, index - 1)
+              : 0);
       let index = 0;
       let tokenAt = start;
       for (const run of alignText(text, words, characters, Infinity)) {
@@ -466,36 +474,41 @@ export function markdownSourceOffset(body, source, node, offset, html) {
 // quoted attributes may hold a `>`, a declaration or processing instruction, and a
 // script or style with what it holds), a character reference, or a line ending.
 const HTML_READING =
-  /(<!--[\s\S]*?(?:-->|$)|<(script|style)\b[\s\S]*?(?:<\/\2\s*>|$)|<(?:\/?[a-z](?:[^>"']|"[^"]*"|'[^']*')*|[!?][^>]*)>?)|&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);|\r\n?/gi;
+  /(<!--[\s\S]*?(?:-->|$)|<(script|style)\b[\s\S]*?(?:<\/\2\s*>|$)|<(?:\/?[a-z](?:[^>"']|"[^"]*"|'[^']*')*|[!?][^>]*)>?)|&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);?|\r\n?/gi;
 
 // The words a span of HTML source draws, as a rendering's words read them
-// (`fragmentWords`): its text outside markup, each character reference as the character
-// it names, each line ending as a newline, and a `<br>`, which a browser also reads
-// `</br>` as, as a line break. `ends` holds, for each place between the characters of
-// `text`, where in the span the character before it ends (0 before the first), so a
-// caret between two characters stands just after the first, on its line, wherever
-// markup puts the second.
-/** @param {string} span @returns {{text: string, ends: number[]}} */
+// (`fragmentWords`): its text outside markup, each character reference as what the
+// browser reads it as, each line ending as a newline, and a `<br>`, which a browser
+// also reads `</br>` as, as a line break. For each character of `text`, `starts` holds
+// where in the span it starts and `ends` where it ends, so a caret between two
+// characters can stand on either one's line, wherever markup puts the other.
+/** @param {string} span @returns {{text: string, starts: number[], ends: number[]}} */
 function htmlText(span) {
   let text = "";
-  const ends = [0];
-  /** @param {string} words @param {number} end */
-  const read = (words, end) => {
+  /** @type {number[]} */
+  const starts = [];
+  /** @type {number[]} */
+  const ends = [];
+  /** @param {string} words @param {number} start @param {number} end */
+  const read = (words, start, end) => {
     text += words;
-    for (let at = 0; at < words.length; at++) ends.push(end);
+    for (let at = 0; at < words.length; at++) {
+      starts.push(start);
+      ends.push(end);
+    }
   };
   let from = 0;
   for (const { index, 0: found, 1: markup } of span.matchAll(HTML_READING)) {
-    for (let at = from; at < index; at++) read(span.charAt(at), at + 1);
+    for (let at = from; at < index; at++) read(span.charAt(at), at, at + 1);
     const end = index + found.length;
     if (markup === undefined) {
       probe.innerHTML = found;
-      read(found.startsWith("&") ? probe.content.textContent : "\n", end);
-    } else if (/^<\/?br\b/i.test(markup)) read("\n", end);
+      read(found.startsWith("&") ? probe.content.textContent : "\n", index, end);
+    } else if (/^<\/?br\b/i.test(markup)) read("\n", index, end);
     from = end;
   }
-  for (let at = from; at < span.length; at++) read(span.charAt(at), at + 1);
-  return { text, ends };
+  for (let at = from; at < span.length; at++) read(span.charAt(at), at, at + 1);
+  return { text, starts, ends };
 }
 
 /** Where the line after the one holding `at` starts. @param {string} source @param {number} at */

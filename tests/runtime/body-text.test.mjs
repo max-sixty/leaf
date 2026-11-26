@@ -154,7 +154,7 @@ test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds it
     "</p>",
     "",
     '<div title="a > b">',
-    "&#65;&#66;cd tail <span",
+    "&#65;&#66;cd &copy tail <span",
     ' title="tip">next</span>',
     "</div>",
     "",
@@ -175,13 +175,14 @@ test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds it
   body.querySelector("style")?.remove();
   assert.ok(body.querySelector("details > p"));
   // A quoted `>` in an attribute ends no tag, a character reference stands for its
-  // character, and a caret at a text's end stands on its line, though the next word
-  // stands on the next one.
+  // character, with or without its semicolon, and a caret where markup between two
+  // texts spans lines stands on the line of the text it is in.
   for (const [word, caret, at] of [
     ["Gizmo", 2, source.indexOf("Gizmo &amp;") + 2],
     ["friends", 2, source.indexOf("friends") + 2],
-    ["cd", 1, source.indexOf("cd tail") + 1],
+    ["cd", 1, source.indexOf("cd &copy") + 1],
     ["tail ", 5, source.indexOf("tail ") + 5],
+    ["next", 0, source.indexOf("next")],
     ["source", 2, source.indexOf("source") + 2],
     ["build", 2, source.indexOf("build") + 2],
     ["Last", 2, source.indexOf("Last") + 2],

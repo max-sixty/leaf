@@ -65,7 +65,7 @@
      user left in the margin is, stands on the chip, and a row standing as a pin over
      its block (`data-lf-place="pin"`) fills its entries with the pin's attention
      colour.
-   - `reaction`: a reaction's token in a message's strip, its own glyph rather than
+   - `reaction`: a reaction's emoji in a message's strip, its own mark rather than
      an action's symbol, quiet until hovered and kept in the accent while in force
      (`aria-pressed="true"`).
    - `response`: a choice of the response bar, which Leaf builds: Comment, Suggest or

@@ -495,7 +495,7 @@ _CLAUSES = {
 # The shape of each shared layer fact a complete vocabulary carries, every one
 # required and each held to its schema on its own (`registry.validation.check_layer_facts`).
 # Its consumers read each directly: a string `$tones.names` would answer the tone
-# check's membership test by substring, and a token without a `glyph` paints nothing.
+# check's membership test by substring, and a blank reaction emoji paints nothing.
 # What names another fact, or needs more than a shape (a clause's `when` and a
 # contract's `schema` are JSON Schemas, `resources` are JMESPath), the same module's
 # `validate_layer_declarations` checks.
@@ -558,26 +558,18 @@ LAYER_FACTS = {
     "$reactions": {
         "type": "object",
         "properties": {
-            "tokens": {
+            "emoji": {
                 "type": "object",
-                "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
+                # An emoji is a mark: at most four code points.
+                "propertyNames": {"pattern": r"\S", "maxLength": 4},
                 "additionalProperties": {
                     "type": "object",
-                    # A glyph is a mark: at most four code points.
-                    "properties": {
-                        "glyph": {
-                            "type": "string",
-                            "pattern": r"\S",
-                            "maxLength": 4,
-                        },
-                        "settles": {"type": "boolean"},
-                    },
-                    "required": ["glyph"],
+                    "properties": {"settles": {"type": "boolean"}},
                     "additionalProperties": False,
                 },
             }
         },
-        "required": ["tokens"],
+        "required": ["emoji"],
     },
 }
 # The work roles, which Leaf owns and `runtime/host/work.js` reads: what each role's

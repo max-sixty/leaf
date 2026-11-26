@@ -72,7 +72,7 @@ import {
 import { createCurrentTarget } from "./runtime/annotations/composing/current-target.js";
 import {
   createReactionController,
-  reactionTokens,
+  reactionEmoji,
   sendReaction,
 } from "./runtime/annotations/reactions.js";
 import { createAnchorPlacement } from "./runtime/annotations/anchor-placement.js";
@@ -585,7 +585,7 @@ async function boot() {
     isReactArmed: () => reactions.isReactArmed(),
     reactionContextContains: (...args) =>
       Boolean(reactions.reactionContextContains(...args)),
-    reactionTokens,
+    reactionEmoji,
     setReact: (...args) => reactions.setReact(...args),
     openPageThread: app.threadDestinations.openPageThread,
     drawModeActive: () => drawing.drawModeActive(),

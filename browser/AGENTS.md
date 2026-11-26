@@ -247,7 +247,9 @@ needs (`../skills/leaf/SOUL.md`, "Let the user work as directly as in a terminal
   the action, such as a speech bubble for answering a question, leaves the reader
   guessing, and a preview doesn't fix that: the reader must already suspect the control
   to point at it. The rows of the leaf's menu keep their words, since the user opened
-  the menu to read them.
+  the menu to read them. A reaction shows its emoji with no word, since the emoji is
+  the message the user sends rather than a symbol for an action: the maintainer chose
+  to let the user and the agent work out what each emoji means between them.
 
 ### Pointing reads; pressing acts
 

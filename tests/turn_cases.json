@@ -4,7 +4,7 @@
     "events": [
       { "kind": "comment", "id": "c", "text": "Why this order?" },
       { "kind": "reply", "id": "r", "parent": "c", "text": "And the second step?" },
-      { "kind": "reply", "id": "x", "parent": "c", "token": "thumbs-up" }
+      { "kind": "reply", "id": "x", "parent": "c", "emoji": "👍" }
     ],
     "turns": [
       ["c", "c"],
@@ -26,7 +26,7 @@
   },
   {
     "id": "a reaction opening a thread is no turn",
-    "events": [{ "kind": "comment", "id": "x", "token": "thumbs-up" }],
+    "events": [{ "kind": "comment", "id": "x", "emoji": "👍" }],
     "turns": []
   }
 ]

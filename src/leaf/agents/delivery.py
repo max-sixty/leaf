@@ -166,8 +166,8 @@ _THREAD_DIGEST = object_schema(
                             "Marks a one-line progress reply, which answers nothing.",
                             {"const": True},
                         ),
-                        "token": described(
-                            "A reaction's word, in place of `text`.", STRING
+                        "emoji": described(
+                            "A reaction's emoji, in place of `text`.", STRING
                         ),
                         "drawing": {"$ref": "leaf:event/comment#/properties/drawing"},
                         "suggestion": described(
@@ -456,7 +456,7 @@ DELIVERY = Record(
             },
         ),
     ),
-    since=52,
+    since=58,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 
@@ -562,7 +562,7 @@ def _users_words_in_a_thread(event: dict) -> bool:
     return (
         event["kind"] == "reply"
         and event.get("author") == "user"
-        and "token" not in event
+        and "emoji" not in event
     )
 
 

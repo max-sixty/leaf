@@ -186,7 +186,7 @@ import { inChrome } from "../../base/ui-marks.js";
 /** @typedef {import("./selection.js").Anchor} Anchor
  * @typedef {import("./selection.js").ComposerOptions} ComposerOptions
  * @typedef {ReturnType<typeof import("../../records/thread/destination.js").createThreadDestinations>} ThreadDestinations
- * @typedef {Pick<ComposerOptions, "reactionTokens" | "setReact" | "designModeActive" | "openPageThread" | "createComment" | "landSent" | "refreshThread" | "wireInput" | "drawingEdits"> & {
+ * @typedef {Pick<ComposerOptions, "reactionEmoji" | "setReact" | "designModeActive" | "openPageThread" | "createComment" | "landSent" | "refreshThread" | "wireInput" | "drawingEdits"> & {
  * rememberSelection: ReturnType<typeof import("./capture.js").createPassageSelection>["remember"],
  * landIn: typeof import("../../records/thread/landing.js").landIn,
  * threadHere: ThreadDestinations["threadHere"], threadAtCurrentLocation: ThreadDestinations["threadAtCurrentLocation"], threadTarget: ThreadDestinations["threadTarget"],
@@ -222,7 +222,7 @@ export function createResponseSurface({
   openOnDesign,
   isReactArmed,
   reactionContextContains,
-  reactionTokens,
+  reactionEmoji,
   setReact,
   openPageThread,
   drawModeActive,
@@ -240,7 +240,7 @@ export function createResponseSurface({
 }) {
   /** @param {Anchor | null} anchor */
   const hasOtherResponses = (anchor) =>
-    reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
+    reactionEmoji().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
   // ---------- selection → comment ----------
   // What the comment box's bar answers, a signal since its rows' availability reads it
@@ -1137,7 +1137,7 @@ export function createResponseSurface({
   // gesture, so one owner builds both and boot wires neither to the other.
   const composer = createSelectionComposer({
     setReact,
-    reactionTokens,
+    reactionEmoji,
     reactionAvailable,
     designModeActive,
     openPageThread,

@@ -108,7 +108,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
             responds="third",
             failure="startup_failed",
         ),
-        event("comment", "reaction", 13, author="user", token="keep"),
+        event("comment", "reaction", 13, author="user", emoji="👍"),
         event(
             "pickup",
             "delivery-failed",

@@ -23,7 +23,7 @@ answered it; `response_address` derives the operation that answers it. A thread 
 never an obligation itself: its messages publish them.
 
 An agent message carrying `obligation` asks a question the user answers in words:
-their next message in its thread, or a reaction there whose token settles it, is its
+their next message in its thread, or a reaction there whose emoji settles it, is its
 answer. The message owns identity and prompt; its thread only locates it.
 
 That answer takes effect at once, whatever the words say, so the user can clear On Me
@@ -88,7 +88,7 @@ from leaf.source.obligation_sources import ObligationSources, obligation_sources
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import verb_writers
-from leaf.source.registry.reactions import reaction_tokens
+from leaf.source.registry.reactions import reaction_emoji
 
 if TYPE_CHECKING:
     from leaf.records.todos import TodoReading
@@ -119,20 +119,20 @@ def settle_by_words(record: dict, answer: dict | None) -> None:
     if answer is not None:
         record.update(ended("done"))
         record["answer"] = {
-            "value": {key: answer[key] for key in ("text", "token") if key in answer},
+            "value": {key: answer[key] for key in ("text", "emoji") if key in answer},
             "event": event_reference(answer),
         }
 
 
-def settles(reaction: dict, turn: str, tokens: dict) -> bool:
-    """Whether a message is the user's reaction on the agent's `turn` with a token
+def settles(reaction: dict, turn: str, emoji: dict) -> bool:
+    """Whether a message is the user's reaction on the agent's `turn` with an emoji
     the registry declares `settles` (`$reactions`), which answers the question that
-    turn asks as a reply would. `tokens` is `$reactions.tokens`."""
+    turn asks as a reply would. `emoji` is `$reactions.emoji`."""
     return (
         is_reaction(reaction)
         and reaction["author"] == "user"
         and reaction.get("parent") == turn
-        and bool((tokens.get(reaction["token"]) or {}).get("settles"))
+        and bool((emoji.get(reaction["emoji"]) or {}).get("settles"))
     )
 
 
@@ -851,7 +851,7 @@ def thread_obligation_readings(
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
     obligation does (`anchors_with_agent`). That turn instead answers a message
-    obligation, as does a reaction on the message whose token settles it; `log` is the
+    obligation, as does a reaction on the message whose emoji settles it; `log` is the
     page's `todos.TodoReading`, whose `owed` holds the work replies promised."""
     reducer = _ObligationReducer(
         obligation_sources(reading.structure, registry),
@@ -891,7 +891,7 @@ def thread_obligation_readings(
         }
         for question, (identity, message) in newest.items()
     )
-    tokens = reaction_tokens(registry)
+    emoji = reaction_emoji(registry)
     # The newest open to-do on each thread.
     newest_todo: dict[str, int] = {}
     for todo in log.owed:
@@ -904,7 +904,7 @@ def thread_obligation_readings(
     for record in records:
         thread = threads[record["thread"]]
         if record["thread"] not in readings:
-            readings[record["thread"]] = ThreadAnswers(thread, tokens)
+            readings[record["thread"]] = ThreadAnswers(thread, emoji)
         answers = readings[record["thread"]]
         in_words = answered_in_words(record)
         asked = answers.seq(record["message"])
@@ -941,10 +941,10 @@ def thread_obligation_readings(
 class ThreadAnswers:
     """What answers the questions one thread asks, read once for every obligation
     in it: where each message stands, the user's messages in words, each message's
-    first reaction whose token settles it (`settles`), and the turn the agent owes
+    first reaction whose emoji settles it (`settles`), and the turn the agent owes
     (`unanswered_agent_turn`)."""
 
-    def __init__(self, thread: dict, tokens: dict):
+    def __init__(self, thread: dict, emoji: dict):
         self.messages = thread["msgs"]
         self.position = {message["id"]: i for i, message in enumerate(self.messages)}
         # A message the user deleted has no words left to answer.
@@ -959,7 +959,7 @@ class ThreadAnswers:
         self.settling: dict[str, int] = {}
         for i, message in enumerate(self.messages):
             parent = message.get("parent")
-            if parent is not None and settles(message, parent, tokens):
+            if parent is not None and settles(message, parent, emoji):
                 self.settling.setdefault(parent, i)
         self.owed = unanswered_agent_turn(thread)
 
@@ -968,7 +968,7 @@ class ThreadAnswers:
 
     def first_answer(self, message: str) -> dict | None:
         """The first message after `message` that answers it: the user's words, or
-        their reaction on it whose token settles it."""
+        their reaction on it whose emoji settles it."""
         at = self.position[message]
         later = bisect_right(self.words, at)
         found = [i for i in (self.settling.get(message),) if i is not None]

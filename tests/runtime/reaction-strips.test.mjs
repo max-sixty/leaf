@@ -1,13 +1,13 @@
 /* A reply's reaction strip asks for the state its press means: off for a reaction the
    user already has on the reply, on for one they don't. The choices come from the
-   thread model's `tokenChoices`, so the strip reads the field that model writes. */
+   thread model's `emojiChoices`, so the strip reads the field that model writes. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 const { ReactionStripView } =
   await import("/runtime/records/thread/reaction-strips.js");
-const { tokenChoices } = await import("/runtime/state/thread/model.js");
+const { emojiChoices } = await import("/runtime/state/thread/model.js");
 
 function strip(inForce) {
   const asked = [];
@@ -21,27 +21,27 @@ function strip(inForce) {
     thread: "t1",
     message: "m1",
     latest: true,
-    choices: tokenChoices({ ok: { glyph: "👍" }, no: { glyph: "👎" } }, inForce),
+    choices: emojiChoices({ "👍": {}, "👎": {} }, inForce),
   });
-  const press = (token) =>
-    view.node.querySelector(`[data-lf-token="${token}"]`).click();
+  const press = (emoji) =>
+    view.node.querySelector(`[data-lf-emoji="${emoji}"]`).click();
   return { asked, press, view };
 }
 
 test("pressing a reaction the user has takes it back", () => {
-  const { asked, press, view } = strip([{ id: "r1", token: "ok" }]);
+  const { asked, press, view } = strip([{ id: "r1", emoji: "👍" }]);
   assert.equal(
-    view.node.querySelector('[data-lf-token="ok"]').getAttribute("aria-pressed"),
+    view.node.querySelector('[data-lf-emoji="👍"]').getAttribute("aria-pressed"),
     "true",
   );
-  press("ok");
-  assert.deepEqual(asked, [["t1", "m1", "ok", false]]);
+  press("👍");
+  assert.deepEqual(asked, [["t1", "m1", "👍", false]]);
 });
 
 test("pressing a reaction the user does not have puts it on", () => {
-  const { asked, press } = strip([{ id: "r1", token: "ok" }]);
-  press("no");
-  assert.deepEqual(asked, [["t1", "m1", "no", true]]);
+  const { asked, press } = strip([{ id: "r1", emoji: "👍" }]);
+  press("👎");
+  assert.deepEqual(asked, [["t1", "m1", "👎", true]]);
 });
 
 test("a trigger drawn again is the one the picker opens from", async () => {
@@ -76,10 +76,10 @@ test("a mounted reaction sends before closing the picker and revealing held news
     thread: "t1",
     message: "m1",
     latest: true,
-    choices: tokenChoices({ ok: { glyph: "👍" } }, []),
+    choices: emojiChoices({ "👍": {} }, []),
   });
   document.body.replaceChildren(head, view.node);
   render(html`${view.trigger}`, head);
-  view.node.querySelector('[data-lf-token="ok"]').click();
+  view.node.querySelector('[data-lf-emoji="👍"]').click();
   assert.deepEqual(order, ["send", "close", "news"]);
 });

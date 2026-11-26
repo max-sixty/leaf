@@ -171,7 +171,7 @@ def test_a_message_taken_back_keeps_no_rewrite_of_it():
         pytest.param(
             (
                 {"kind": "reply", "parent": "e1", "text": "And the docs?"},
-                {"kind": "reply", "parent": "e2", "token": "keep"},
+                {"kind": "reply", "parent": "e2", "emoji": "👍"},
                 {
                     "kind": "reply",
                     **AGENT,
@@ -290,7 +290,7 @@ def test_a_reply_taken_back_reopens_nothing():
         {"kind": "reply", **AGENT, "parent": "e1", "responds": "e1", "text": "Done."},
         {"kind": "resolve", "parent": "e1"},
         {"kind": "reply", "parent": "e2", "text": "One more thing."},
-        {"kind": "reply", "parent": "e4", "token": "keep"},
+        {"kind": "reply", "parent": "e4", "emoji": "👍"},
         {"kind": "undo", "undoes": "e4"},
     )
     state = model.reading(HUB, log)
@@ -514,7 +514,7 @@ def test_a_reaction_or_another_thread_s_message_ends_no_step():
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
         {**reply, "text": "Checking mounts.", "ephemeral": True},
-        {**reply, "token": "keep"},
+        {**reply, "emoji": "👍"},
         {
             **reply,
             "text": "Connection failed.",
@@ -713,7 +713,7 @@ def test_questions_settle_one_by_one():
         "message:first",
         "message:second",
     ]
-    state = add("reply", "reaction", "user", parent="second", token="keep")
+    state = add("reply", "reaction", "user", parent="second", emoji="👍")
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:first"
     ]
@@ -756,7 +756,7 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
             + '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
         {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
-        {"kind": "reply", "parent": "e1", "token": "keep"},
+        {"kind": "reply", "parent": "e1", "emoji": "👍"},
     ]
     state = model.reading(HUB, events)
     thread = model.threads(state)["e1"]

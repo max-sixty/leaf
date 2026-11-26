@@ -786,7 +786,7 @@
             { "type": "null" }
           ]
         },
-        "token": { "type": "string" },
+        "emoji": { "type": "string" },
         "holds": {
           "anyOf": [
             { "$ref": "leaf:event/comment#/properties/holds" },
@@ -1299,7 +1299,7 @@
                       "type": "object",
                       "properties": {
                         "text": { "type": "string" },
-                        "token": { "type": "string" }
+                        "emoji": { "type": "string" }
                       },
                       "additionalProperties": false
                     }

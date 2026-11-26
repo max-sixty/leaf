@@ -986,7 +986,7 @@ def test_page_check_names_no_move_of_a_withdrawn_reaction(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "wording"},
         },
     )
@@ -1306,7 +1306,7 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "flow"},
         },
     )

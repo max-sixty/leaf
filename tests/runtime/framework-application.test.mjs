@@ -763,7 +763,7 @@ test("every thread gesture the ledger holds names the thread it stands in", () =
     for (const event of events) app.enqueue(event, "2026-09-22T10:01:00-07:00");
     return app.read().effective.thread.gestured;
   };
-  const reaction = { kind: "reply", parent: "root", attempt: "mark", token: "keep" };
+  const reaction = { kind: "reply", parent: "root", attempt: "mark", emoji: "👍" };
   for (const gesture of [
     { kind: "reply", parent: "root", attempt: "say", text: "Second", revision: 1 },
     reaction,
@@ -1480,7 +1480,7 @@ test("a pending gesture leaves obligations and On Me as served until the log ans
     id: "kept",
     parent: item.id,
     author: "user",
-    token: "keep",
+    emoji: "👍",
     ts: "now",
   };
   const app = setup();
@@ -1491,7 +1491,7 @@ test("a pending gesture leaves obligations and On Me as served until the log ans
     thread: item.id,
     message: item.id,
     prompt: { text: item.text, target: null },
-    answer: { value: { token: "keep" }, event: kept },
+    answer: { value: { emoji: "👍" }, event: kept },
     end: null,
     ...ANSWERED,
   };
@@ -1648,7 +1648,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
     kind: "comment",
     id: "reaction-root",
     author: "agent",
-    token: "ack",
+    emoji: "👍",
     parent: "passage",
     ts: "now",
   };

@@ -7,8 +7,8 @@
    wherever it is offered; an icon an action doesn't name marks what something is or
    holds, such as a kind or a state. */
 
-// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
-// are authored content and may supply emoji; structural Leaf faces keep their line
+// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reactions
+// are authored content, each its emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 

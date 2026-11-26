@@ -11,10 +11,11 @@
      pointer leaves out with every other advertised key. Its face is its own words, a
      select's chosen option rather than every option, and the words of the labels beside
      it. It says a name the control's markup gives where either holds the other's words,
-     as a key chip or a count beside a name leaves it said, and a name its content gives
-     unless it cuts a word of it short. A face that cuts none leaves unsaid only the
-     control's quiet words (`.lf-quiet`, records/declared-words.js), which the screen doesn't
-     show, as a check's verdict beside a case's title. The preview reads those words
+     as a key chip or a count beside a name leaves it said, or where the name is marks
+     alone that the face draws and nothing more, as a reaction's emoji, and a name its
+     content gives unless it cuts a word of it short. A face that cuts none leaves
+     unsaid only the control's quiet words (`.lf-quiet`, records/declared-words.js),
+     which the screen doesn't show, as a check's verdict beside a case's title. The preview reads those words
      alone; where key chips stand in it, the control's whole name heads them. A control
      whose face says its name and that no key reaches previews nothing. A field the user
      types in previews nothing: its words are what they read. A control is any native or
@@ -598,6 +599,9 @@ const wordsOf = (text) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
+// What `text` draws, its spaces aside, as a face of marks with no words is read.
+/** @param {string} text */
+const marksOf = (text) => text.replace(/\s+/gu, "");
 // The elements labelling a form control: its `<label>`s, and what `aria-labelledby`
 // names, as a playground's words beside its range do.
 /** @param {Element} control @returns {Element[]} */
@@ -661,13 +665,14 @@ const faceWalker = (root, skip) =>
 /** @param {Element | null} parent @param {Element} root */
 const heardIn = (parent, root) =>
   Boolean(parent && drawsText(parent) && !overIn(parent, '[aria-hidden="true"]', root));
-/** @typedef {{words: string, joined: string, partial: boolean, cut: boolean, quiet: string, chips: string[]}} Face */
+/** @typedef {{words: string, joined: string, marks: string, partial: boolean, cut: boolean, quiet: string, chips: string[]}} Face */
 // What `root` shows the user whole, less any part inside `skip`, or null where it holds
 // more than a face. A run of its text counts where the browser draws it (`drawsText`) and
 // every box that clips it leaves it whole (`clippedContents`), so words an ellipsis, a
 // clamp to a few lines, a visually hidden label or a panel scrolled past them cut short
 // don't count. `words` reads the runs apart, as a row's words and its key chip stand, and
-// `joined` together, as a word split by its markup reads; `partial` says some of its words
+// `joined` together, as a word split by its markup reads, and `marks` what it draws
+// with its spaces aside, as a reaction's emoji is read; `partial` says some of its words
 // or numbers don't show, so the face can't stand for a name it only begins, and `cut`
 // that some of those are words a listener hears (`heardIn`). `quiet` is the quiet words
 // a listener hears in `root` (`.lf-quiet`, records/declared-words.js), which the screen never
@@ -722,6 +727,7 @@ function faceOf(root, skip = null) {
   return {
     words: wordsOf(runs.join(" ")),
     joined: wordsOf(runs.join("")),
+    marks: marksOf(runs.join("")),
     partial,
     cut,
     quiet: quiet.join(" ").replace(/\s+/g, " ").trim(),
@@ -736,14 +742,15 @@ function faceOf(root, skip = null) {
 function controlFace(control) {
   const chosen =
     control instanceof HTMLSelectElement
-      ? wordsOf(control.selectedOptions[0]?.textContent ?? "")
+      ? (control.selectedOptions[0]?.textContent ?? "")
       : null;
   const own =
     chosen === null
       ? faceOf(control)
       : {
-          words: chosen,
-          joined: chosen,
+          words: wordsOf(chosen),
+          joined: wordsOf(chosen),
+          marks: marksOf(chosen),
           partial: false,
           cut: false,
           quiet: "",
@@ -763,32 +770,37 @@ function controlFace(control) {
   return {
     words: all("words"),
     joined: all("joined"),
+    marks: faces.map((face) => face.marks).join(""),
     partial: faces.some((face) => face.partial),
     cut: own.cut,
     quiet: own.quiet,
     chips: [...own.chips, ...drawnKeys(control)],
   };
 }
-// Whether `face` shows `line` whole, read apart or together.
+// Whether `face` shows `line` whole, read apart or together. A line of marks with no
+// words, as a reaction's emoji, it shows where it draws those marks and nothing else.
 /** @param {Face} face @param {Words | null} line */
 const shows = (face, line) =>
   typeof line === "string" &&
-  /\p{L}/u.test(line) &&
-  [face.words, face.joined].some((words) =>
-    ` ${words} `.includes(` ${wordsOf(line)} `),
-  );
+  (/\p{L}/u.test(line)
+    ? [face.words, face.joined].some((words) =>
+        ` ${words} `.includes(` ${wordsOf(line)} `),
+      )
+    : !wordsOf(line) && Boolean(face.marks) && face.marks === marksOf(line));
 // Whether a control's face says its name: the name's words stand in it, as beside a key
 // chip or a count, or, where all its words show, its words stand in the name, as a
 // symbol's short word under its longer label. A count alone, as a folded list's "1"
-// beside its mark, names nothing.
+// beside its mark, names nothing; a name of marks alone, as a reaction's emoji, the
+// face says where it draws just those marks (`shows`).
 /** @param {Face} face @param {string} name */
 const faceSays = (face, name) =>
-  /\p{L}/u.test(face.words) &&
-  (shows(face, name) ||
-    (!face.partial &&
-      [face.words, face.joined].some((words) =>
-        ` ${wordsOf(name)} `.includes(` ${words} `),
-      )));
+  (/\p{L}/u.test(face.words) &&
+    (shows(face, name) ||
+      (!face.partial &&
+        [face.words, face.joined].some((words) =>
+          ` ${wordsOf(name)} `.includes(` ${words} `),
+        )))) ||
+  (!wordsOf(name) && shows(face, name));
 // A control's name as its markup gives it, short of its content.
 /** @param {Element} control */
 function markupName(control) {

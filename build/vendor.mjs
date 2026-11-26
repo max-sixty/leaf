@@ -333,8 +333,8 @@ const bundles = {
             // tags its tokenizer recognizes; other characters stay in its text buffer
             // and the SVG builder escapes them. Breaks are handled before this scan.
             [
-              "if(b||o_.has(m)){c+=u[0].length;continue}",
-              "if(b){c+=u[0].length;continue}",
+              "if(y||aT.has(m)){c+=d[0].length;continue}",
+              "if(y){c+=d[0].length;continue}",
               "Pele literal unsupported label tags",
             ],
             // Pele's flowchart renderers write an edge's classes on its group, but
@@ -342,28 +342,28 @@ const bundles = {
             // edge label's group takes none. Carry the authored classes to both, as
             // a node's reach its group, so page CSS can mark an edge in theme tokens.
             [
-              'classes:"edge-thickness-normal edge-pattern-solid flowchart-link",arrowTypeStart:"none"',
-              'classes:"edge-thickness-normal edge-pattern-solid flowchart-link "+y.classes.join(" "),arrowTypeStart:"none"',
+              'minlen:b.length,classes:"edge-thickness-normal edge-pattern-solid flowchart-link",arrowTypeStart:"none"',
+              'minlen:b.length,classes:"edge-thickness-normal edge-pattern-solid flowchart-link "+b.classes.join(" "),arrowTypeStart:"none"',
               "Pele edge classes",
             ],
             [
-              'classes:A.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link",',
-              'classes:(A.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link ")+A.classes.join(" "),',
+              'classes:x.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link",',
+              'classes:(x.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link ")+x.classes.join(" "),',
               "Pele edge classes",
             ],
             [
-              'function rn(e,t,n,r,o,s){let a=t.width+8,i=t.height;return`<g class="pele-edge-label" data-id',
-              'function rn(e,t,n,r,o,s,cl=""){let a=t.width+8,i=t.height;return`<g class="pele-edge-label${cl}" data-id',
+              'function ln(e,t,n,r,i,s){let a=t.width+8,o=t.height;return`<g class="pele-edge-label" data-id',
+              'function ln(e,t,n,r,i,s,cl=""){let a=t.width+8,o=t.height;return`<g class="pele-edge-label${cl}" data-id',
               "Pele edge label classes",
             ],
             [
-              'rn(Y.id,G,Q,v,z?.text??"",p)',
-              'rn(Y.id,G,Q,v,z?.text??"",p,Z)',
+              'ln(ne.id,q,J,te,se?.text??"",h)',
+              'ln(ne.id,q,J,te,se?.text??"",h,ue)',
               "Pele edge label classes",
             ],
             [
-              'rn(Y.id,G,Q,v,se?.text??"",b)',
-              'rn(Y.id,G,Q,v,se?.text??"",b,_t(Y.classes.replace(/edge-thickness-normal|edge-pattern-solid|flowchart-link/g,"")))',
+              'ln(ne.id,q,J,te,k?.text??"",y)',
+              'ln(ne.id,q,J,te,k?.text??"",y,Nt(ne.classes.replace(/edge-thickness-normal|edge-pattern-solid|flowchart-link/g,"")))',
               "Pele edge label classes",
             ],
           ].reduce((text, edit) => seam(text, ...edit), source),

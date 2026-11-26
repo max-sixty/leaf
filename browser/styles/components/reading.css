@@ -358,11 +358,15 @@
     }
     th,
     td {
-      text-align: start;
       padding: 8px 14px;
       border-bottom: 1px solid var(--lf-rule);
       vertical-align: top;
       --lf-block-frame: 1;
+    }
+    /* A cell whose markup gives it an `align`, as a README's HTML table does, keeps it. */
+    th:where(:not([align])),
+    td:where(:not([align])) {
+      text-align: start;
     }
     @media screen and (max-width: 640px) {
       th,

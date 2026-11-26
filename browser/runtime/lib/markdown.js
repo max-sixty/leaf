@@ -529,8 +529,7 @@ function renderedElement(markup, tag) {
 // Native Markdown tokens are the editor's reading, too. Link admission annotates the
 // opening token before it reaches either renderer, so both draw the same safe label.
 /** @param {string} text @param {boolean} message @param {boolean} html */
-const markdownTokens = (text, message, html) =>
-  tokenize?.(text, message, html) ?? null;
+const markdownTokens = (text, message, html) => tokenize?.(text, message, html) ?? null;
 
 // Source spans are recorded where the parser consumes them, before its presentation
 // passes join text tokens or recognize bare links. No second Markdown grammar lives

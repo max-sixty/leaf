@@ -1276,7 +1276,8 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     editor selects its word as the browser does."""
     file = tmp_path / "README.md"
     file.write_text(
-        '<p align="center">\n  <strong>Gizmo</strong>\n  <br>\n'
+        '<p align="center" title="Gizmo">\n  <!-- Gizmo\'s logo -->\n'
+        "  <style>.Gizmo { color: red }</style>\n  <strong>Gizmo</strong>\n  <br>\n"
         "  A tool that <em>does</em> things.\n</p>\n\n"
         "[To the end](#the-end)\n\nA paragraph's first line\nwraps onto a second line."
         "\n\n<details>\n<summary>From source</summary>\n\nRun the build.\n\n</details>"

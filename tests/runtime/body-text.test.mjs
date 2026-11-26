@@ -162,8 +162,9 @@ test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds it
     "",
     "Last words.",
   ].join("\n");
-  // The file's HTML draws as its tags say, less the style a sanitizer takes out, and
-  // the fold holds the paragraph inside it.
+  // The file's HTML draws as its tags say, less the style the preview's sanitizer takes
+  // out (`markdownFileFragment`, whose sanitizer keeps it under happy-dom), and the fold
+  // holds the paragraph inside it.
   const body = document.createElement("div");
   body.innerHTML = makeMarkdown(module, false, true).render(source, { links: {} });
   body.querySelector("style")?.remove();

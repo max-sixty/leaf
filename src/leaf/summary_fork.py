@@ -67,9 +67,9 @@ from .clerk import queue, read_answer, reference_paragraph
 from .events import active_summaries, build_threads, spoken_turns
 from .refusals import Refused
 from .revision_artifact import active_enclosing
-from .service import PageTransaction
 from .thread import cmd_summarize
 from .thread_context import summary_hint
+from .transaction import PageTransaction
 
 OPENING = "<leaf-summary-fork>"
 

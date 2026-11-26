@@ -45,6 +45,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf import transaction as transaction_model
 from leaf.render_checks import rendered
 from leaf.served_state import context as served_context
 
@@ -263,7 +264,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
 
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "delivered")
@@ -484,7 +485,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(browser, serve
         if event["kind"] == "comment"
     ]
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     claimed = CliRunner().invoke(
         cli_model.cli,
@@ -684,7 +685,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
         if event["kind"] == "comment"
     ]
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "delivered")
@@ -891,7 +892,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     # Observe pickup separately from the task that made these moves input.
     declare_idle(serve.page_dir)
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, moves)
     told(page)
     page.keyboard.press("Escape")
@@ -1183,7 +1184,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
     record_claim(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)
     assert_status("Delivered", "just now")

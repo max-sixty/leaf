@@ -12,7 +12,7 @@ from unidiff import PatchSet
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import service as service_model
+from leaf import transaction as transaction_model
 from leaf.authored_checks.declarations import declaration_advice
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
@@ -295,7 +295,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     # The browser's command: what it posts, before the door stamps anything.
     command_fields = ("kind", "revision", "widget", "action", "detail", "attempt")
     ids = {}
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         for record in shown:
             command = {k: record[k] for k in command_fields if k in record}
             if "undoes" in record:

@@ -41,6 +41,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import transaction as transaction_model
 from leaf.findings import Finding
 from leaf.json_block import read_json_block
 from leaf.registry import contract as registry_contract
@@ -788,7 +789,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # wait's complete delivery, acknowledged by its reader.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     posted = {
         "kind": "comment",
@@ -1011,12 +1012,12 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # The adapter's queue route: collect the batch, then offer its pointer.
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         append_batch_result = codex_model.append_batch(
             "codex-queue-task",
             page_dir,
             transaction,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
         )
         assert append_batch_result is not None
         path, _, _ = append_batch_result
@@ -1039,7 +1040,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
 
     # Claude Code: the native watcher wakes the session after its turn closes,
     # and the next prompt hook hands the delivery over.
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     cleanup_model.close_session_turn(session)
     harness_2 = harness_model.session_harness()
     assert harness_2 is not None

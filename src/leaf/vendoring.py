@@ -62,14 +62,9 @@ from .schema import (
     PAGE_OWNED_FILES,
     SERVER_LOCK,
 )
-from .service import (
-    PageTransaction,
-    claim_path,
-    held_elsewhere,
-    page_claim,
-    refuse_held,
-)
+from .service import claim_path, held_elsewhere, page_claim, refuse_held
 from .state import flocked, hooks_run_here, remove_claim
+from .transaction import PageTransaction
 
 
 def cmd_init(

@@ -390,7 +390,7 @@ from leaf.delivery import record_receipt
 from leaf.event_contracts import append_admitted
 from leaf.event_log import EventRefused
 from leaf.files import list_revisions
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 
 page = Path(sys.argv[1])
 stamped, acknowledge = (flag == "1" for flag in sys.argv[2:])

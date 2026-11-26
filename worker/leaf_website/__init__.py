@@ -86,11 +86,8 @@ from leaf.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
 from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
-from leaf.service import (
-    PageTransaction,
-    page_claim,
-    restore_page_claim,
-)
+from leaf.service import page_claim
+from leaf.session import set_status
 from leaf.state import (
     advance_turn,
     close_session_turn,
@@ -103,6 +100,7 @@ from leaf.thread import (
     release_delivery_reply,
 )
 from leaf.thread_titles import app_server_title, name_thread
+from leaf.transaction import PageTransaction, restore_page_claim
 
 if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
@@ -985,7 +983,7 @@ class WebsiteCodexHarness:
                     and claim["id"] == thread_id
                     and claim["turn"] == turn["id"]
                 ):
-                    page.set_status("waiting")
+                    set_status(page, "waiting")
                     advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
@@ -1064,7 +1062,7 @@ class WebsiteCodexHarness:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
-                page.set_status("waiting")
+                set_status(page, "waiting")
         self._hold_waiter(page_dir, thread_id)
         prepared = prepare_codex_delivery(
             page_dir, website_harness(thread_id, process.pid)

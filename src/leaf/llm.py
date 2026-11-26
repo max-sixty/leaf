@@ -23,7 +23,7 @@ from .harness import claim_harness
 from .inference import harness_generator
 from .refusals import Refused
 from .registry.schema import check_schema, unresolved_schema_reference
-from .service import PageTransaction
+from .transaction import PageTransaction
 
 MAX_INPUT_BYTES = 64 * 1024
 

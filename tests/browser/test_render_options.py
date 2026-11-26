@@ -68,7 +68,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import service as service_model
+from leaf import transaction as transaction_model
 from leaf.render_checks import rendered
 from leaf_dev.example_data import named_source
 
@@ -2761,7 +2761,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
     expect(status).to_have_text(re.compile(r"^Queued for "))
     record_claim(d)
-    with service_model.PageTransaction(d) as transaction:
+    with transaction_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
     expect(status).to_have_text("Delivered")

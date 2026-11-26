@@ -133,13 +133,7 @@ from .harness import CodexHarness, Harness
 from .json_block import json_block
 from .refusals import Refused
 from .registry.schema import aware_instant
-from .service import (
-    ClaimTransition,
-    PageTransaction,
-    delivery_reply_attempt,
-    owned_pages,
-    restore_page_claim,
-)
+from .service import delivery_reply_attempt
 from .state import (
     Record,
     close_session_turn,
@@ -152,6 +146,12 @@ from .state import (
     sessions_home,
     start_session_turn,
     turn_open,
+)
+from .transaction import (
+    ClaimTransition,
+    PageTransaction,
+    owned_pages,
+    restore_page_claim,
 )
 
 START_TIMEOUT = 20

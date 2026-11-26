@@ -2,7 +2,7 @@
 
 `admitted_event` validates and derives a record from `page_view.PageView`, the
 current log, and a command. `append_admitted` performs that reading and write
-under `service.PageTransaction`'s lease, and `append_all_admitted` does so for
+under `transaction.PageTransaction`'s lease, and `append_all_admitted` does so for
 several events that land together or not at all.
 
 This module selects each kind's gates. Their implementations stay with their
@@ -14,7 +14,7 @@ from pathlib import Path
 from leaf.event_log import (
     APPEND_STAMPED,
     EventRefused,
-    _matching_attempt,
+    matching_attempt,
     new_event_id,
 )
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
@@ -919,7 +919,7 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     """Admit one event and append it, under the page transaction's log lease; the
     record, and whether this call appended it.
 
-    The one door. `page` is an open `service.PageTransaction`, whose lease makes
+    The one door. `page` is an open `transaction.PageTransaction`, whose lease makes
     every decision here one transaction: the current log the gates read, the
     meaning derived from it, and the write. A refusal raises `EventRefused` on the
     finding that says what to do about it, which the CLI presents as an error and the browser
@@ -932,7 +932,7 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     # its attempt already carried, and the page it was admitted against may since
     # have moved past admitting it. Content and time play no part: an intentional
     # later identical message has a fresh attempt and is a second event.
-    if accepted := page.matching_attempt(event):
+    if accepted := matching_attempt(page.events, event):
         return accepted, False
     if refusal := write_refusal(page.page_dir):
         raise EventRefused(refusal, event)
@@ -954,7 +954,7 @@ def append_all_admitted(page, events: list[dict]) -> list[dict]:
     for event in events:
         # A retry the trial already holds appends nothing, and one whose attempt
         # names another payload is refused here, before anything is written.
-        if _matching_attempt(trial, voiced(event)) is not None:
+        if matching_attempt(trial, voiced(event)) is not None:
             continue
         record = admitted_event(view, trial, voiced(event))
         # Stamped as the append stamps it, so the next is read after it.

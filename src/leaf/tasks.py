@@ -16,10 +16,10 @@ from .harness import message_identity
 from .leases import contract_writer
 from .plans import skipped_levels
 from .revisioning import activate_source
-from .service import PageTransaction
 from .state import acting_turn
 from .thread import agent_title
 from .todos import PAGE_SUBJECT
+from .transaction import PageTransaction
 from .work import page_element, page_subject
 
 
@@ -60,7 +60,7 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
 
 def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     """Append the start taking `item` in hand with `text` as its line, written as
-    `identity`, within `page`, an open `service.PageTransaction`; the record.
+    `identity`, within `page`, an open `transaction.PageTransaction`; the record.
 
     The start names the turn the command acts in when the posting session holds the
     page (`state.acting_turn`): the claimant's. That is what lets the turn end over the

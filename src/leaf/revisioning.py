@@ -67,7 +67,7 @@ from leaf.revision_artifact import (
     stage_artifact,
     staged_reading,
 )
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 
 
 class Activation(NamedTuple):

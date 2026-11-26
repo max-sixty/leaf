@@ -22,7 +22,7 @@ from .schema import (
     SERVER_LOCK,
     SERVICE_FILE,
 )
-from .service import PREVIEW, PageTransaction, page_claim, page_holder
+from .service import PREVIEW, page_claim, page_holder
 from .state import (
     PLUGIN_ROOT,
     STRING,
@@ -34,6 +34,7 @@ from .state import (
     object_schema,
     state_home,
 )
+from .transaction import PageTransaction
 
 if TYPE_CHECKING:
     from .record_types import AccessRecord, ServiceRecord

@@ -52,7 +52,7 @@ from .schema import DATA_DIR
 from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
-from .service import PageTransaction, unacknowledged
+from .transaction import PageTransaction, unacknowledged
 from .user_views import read_user_views, viewed_at
 from .work import page_subject
 

@@ -1115,7 +1115,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     page_dir, monkeypatch
 ):
     from leaf import revisioning
-    from leaf.service import PageTransaction
+    from leaf.transaction import PageTransaction
 
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
@@ -1162,7 +1162,7 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     page_dir, monkeypatch
 ):
     from leaf import revisioning
-    from leaf.service import PageTransaction
+    from leaf.transaction import PageTransaction
 
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
     (page_dir / "index.html").write_text(original)

@@ -41,11 +41,11 @@ from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import rendered_revision
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.service import PageTransaction
 from leaf.session import cmd_waiting
 from leaf.state import session_record
 from leaf.tasks import cmd_start
 from leaf.thread import post_reply
+from leaf.transaction import PageTransaction
 from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import PageClient

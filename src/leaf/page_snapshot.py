@@ -35,9 +35,9 @@ from .revision_artifact import (
 )
 from .runtime_selection import executing
 from .served_state.context import PageRead
-from .service import PageTransaction
 from .state import now_iso
 from .structure import SourceDocument
+from .transaction import PageTransaction
 
 
 @dataclass(frozen=True, slots=True)

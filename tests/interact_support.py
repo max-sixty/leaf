@@ -79,6 +79,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
 from leaf.http import assets_path
@@ -91,6 +92,7 @@ from leaf.registry.validation import incoming_registry
 from leaf.revision_artifact import active_enclosing, read_artifact
 from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
+from leaf.session import set_status
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
@@ -137,7 +139,7 @@ def append_command(page_dir, command):
     A test of raw storage or retired vocabulary passes an explicitly admitted
     event, including meaning and attention, to event_log.append_event instead.
     """
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return event_contracts_model.append_admitted(page, command)[0]
 
 
@@ -146,7 +148,7 @@ def response_reference(page_dir, event):
     from leaf.delivery import batch_data, freeze_delivery
 
     event_id = event["id"] if isinstance(event, dict) else event
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         captured = next(item for item in page.events if item["id"] == event_id)
         batch = batch_data(page_dir, page, [captured])
     return freeze_delivery([batch])["batches"][0]["events"][0]["answer"]["ref"]
@@ -1020,13 +1022,13 @@ def stored_file(path):
 
 
 def acknowledged_through(page_dir):
-    """The page's acknowledgement cursor (`service.acknowledged`), read off its log."""
-    return service_model.acknowledged(events_model.read_events(page_dir))
+    """The page's acknowledgement cursor (`transaction.acknowledged`), read off its log."""
+    return transaction_model.acknowledged(events_model.read_events(page_dir))
 
 
 def acknowledge_through(page_dir, seq):
     """Confirm receipt of the page's input through `seq`, as a receipt does."""
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         delivery_model.record_receipt(page, seq)
 
 
@@ -1376,7 +1378,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
-    original_append_record = service_model.PageTransaction._append_record
+    original_append_record = transaction_model.PageTransaction._append_record
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
@@ -1394,7 +1396,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         return None
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "_append_record", held_append_record
+        transaction_model.PageTransaction, "_append_record", held_append_record
     )
     # The held writer keeps whichever page locks it took until it resumes, so a
     # re-vendor found waiting on one of them is waiting on the writer.
@@ -1931,8 +1933,8 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
 def declare_idle(page_dir):
     """Write the page's `idle` declaration directly, past `leaf page close`'s refusal
     over unanswered moves, for a test whose subject is what an idle page does."""
-    with service_model.PageTransaction(page_dir) as page:
-        return page.set_status("idle")
+    with transaction_model.PageTransaction(page_dir) as page:
+        return set_status(page, "idle")
 
 
 def declared(page_dir):
@@ -2150,7 +2152,7 @@ class ContextRecord:
 
         return {
             event_id
-            for page in service_model.owned_pages(harness.session)
+            for page in transaction_model.owned_pages(harness.session)
             for pickup in pickup_receipts(read_events(page), phase="opened")
             if pickup["session"] == harness.session
             for event_id in pickup["events"]
@@ -2180,7 +2182,7 @@ def claimed(page_dir, monkeypatch, context_record):
     it puts the session id and its pid into every Bash tool call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     return page_dir
 
 
@@ -2351,7 +2353,7 @@ import json, sys
 from pathlib import Path
 from leaf.harness import session_harness
 from leaf.hosting import start_server
-from leaf.service import claim_page
+from leaf.transaction import claim_page
 page = Path(sys.argv[1])
 claim_page(page)
 started = start_server(page, harness=session_harness())
@@ -2789,7 +2791,7 @@ def claim_and_wait_command(page: Path) -> str:
 
 def last_deliverable_seq(page_dir: Path) -> int:
     """The last event a wait can print, excluding page-owned pickup records."""
-    return service_model.unacknowledged(events_model.read_events(page_dir), 0)[-1][
+    return transaction_model.unacknowledged(events_model.read_events(page_dir), 0)[-1][
         "seq"
     ]
 
@@ -2880,7 +2882,7 @@ def codex_loop(monkeypatch):
 
 def freeze_events(page_dir: Path, events: list[dict]) -> dict:
     """Freeze selected page events through the harness-neutral delivery boundary."""
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         stored = {event["id"]: event for event in transaction.events}
         batch = delivery_model.batch_data(
             page_dir,
@@ -2894,7 +2896,7 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
 
 def delivery_through(page_dir: Path, seq: int) -> str:
     """Freeze the complete deliverable prefix used to arrange a received fixture."""
-    events = service_model.unacknowledged(events_model.read_events(page_dir), 0)
+    events = transaction_model.unacknowledged(events_model.read_events(page_dir), 0)
     return freeze_events(
         page_dir, [event for event in events if event["seq"] <= int(seq)]
     )["id"]
@@ -2902,10 +2904,10 @@ def delivery_through(page_dir: Path, seq: int) -> str:
 
 def receive_through(page_dir: Path, seq: int) -> None:
     harness = session_model.session_harness()
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         held = harness is not None and page.claim_of(harness.session) is not None
     if not held:
-        service_model.claim_page(page_dir)
+        transaction_model.claim_page(page_dir)
     delivery_model.receive_delivery(delivery_through(page_dir, seq))
 
 

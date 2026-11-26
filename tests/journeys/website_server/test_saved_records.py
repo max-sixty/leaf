@@ -31,7 +31,7 @@ from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.runtime_selection import serving_runtime
-from leaf.service import PageTransaction, acknowledged, unacknowledged
+from leaf.transaction import PageTransaction, acknowledged, unacknowledged
 
 
 def test_saved_website_record_restores_comments_choices_and_private_revision(
@@ -141,7 +141,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 sys.executable,
                 "-c",
                 (
-                    "from pathlib import Path; import sys; from leaf.service import PageTransaction; "
+                    "from pathlib import Path; import sys; from leaf.transaction import PageTransaction; "
                     "page = PageTransaction(Path(sys.argv[1])); page.__enter__(); page.__exit__(None, None, None)"
                 ),
                 str(private),

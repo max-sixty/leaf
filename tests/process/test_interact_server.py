@@ -103,6 +103,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_titles as thread_titles_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
@@ -503,7 +504,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
             # Both allocations reach the expensive stage while neither holds the
             # parent's lease. A parent update can commit before they finish.
             allocating.wait(timeout=STATED_TIMEOUT)
-            with service_model.PageTransaction(page_dir) as page:
+            with transaction_model.PageTransaction(page_dir) as page:
                 page._append_record(
                     {
                         "kind": "reply",
@@ -2732,7 +2733,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
     events = event_model.read_events(page_dir)
     error = events[-1]
     assert error["kind"] == "error" and error["author"] == "page"
-    assert error in service_model.unacknowledged(events, 0)
+    assert error in transaction_model.unacknowledged(events, 0)
     assert presence_model.presence(page_dir, events)["pending"] == 0
     delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert delivered.exit_code == 0, delivered.output
@@ -2875,7 +2876,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
 
     monkeypatch.setattr(server_model.SERVICE, "read", small_read)
     monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
-    monkeypatch.setattr(service_model, "read_stream", no_fold)
+    monkeypatch.setattr(transaction_model, "read_stream", no_fold)
     monkeypatch.setattr(artifact_model, "read_revision", no_fold)
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
@@ -3382,8 +3383,8 @@ def test_a_record_torn_before_its_newline_still_answers_its_retry(page_dir):
     }
     with open(page_dir / "events.jsonl", "ab") as f:
         f.write(event_model.jsonl_line(torn).encode())
-    with service_model.PageTransaction(page_dir) as page:
-        assert page.matching_attempt(torn) == {**torn, "seq": 2}
+    with transaction_model.PageTransaction(page_dir) as page:
+        assert event_model.matching_attempt(page.events, torn) == {**torn, "seq": 2}
 
 
 def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
@@ -3396,7 +3397,7 @@ def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
         real_fsync(fd)
         raise OSError("failed after syncing")
 
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         assert page.events == []
         with monkeypatch.context() as patch:
             patch.setattr(event_model.os, "fsync", sync_then_fail)
@@ -4801,7 +4802,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     before any `leaf page open`, answers `/api/state` as a page waiting on its
     user."""
     publish(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
 
     status, raw = fetch(f"{server}/api/state")
 
@@ -4830,7 +4831,7 @@ def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
     publish(page_dir)
     published = False
 
-    class ConcurrentPublication(service_model.PageTransaction):
+    class ConcurrentPublication(transaction_model.PageTransaction):
         def __exit__(self, exc_type, exc, traceback):
             nonlocal published
             answer = super().__exit__(exc_type, exc, traceback)

@@ -38,6 +38,7 @@ from leaf import presence as presence_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import transaction as transaction_model
 from leaf.refusals import Refused
 
 
@@ -159,7 +160,7 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     work = tmp_path / "api"
     work.mkdir()
     monkeypatch.chdir(work)
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     claim_record_2 = service_model.page_claim(page_dir)
     assert claim_record_2 is not None
     assert claim_record_2["cwd"] == str(work)
@@ -172,7 +173,7 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "input", "author": "user", "text": "why?"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         started = take_in_hand(
             page, "input", "Reading it", {"session": "s1", "agent": "Claude"}
         )
@@ -204,7 +205,7 @@ def test_a_page_names_its_claimant_as_the_harness_does_now(page_dir, monkeypatch
     name now. A session whose harness record is gone has no name."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert presence_model.presence(page_dir, [])["session_name"] is None
 
     record = harness_model.claude_code_sessions() / f"{os.getpid()}.json"
@@ -330,7 +331,7 @@ def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypa
     assert presence_model.presence(page_dir, voiced)["agent"] == "Claude"
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     claim_record_4 = service_model.page_claim(page_dir)
     assert claim_record_4 is not None
     claimant = claim_record_4["agent"]
@@ -399,7 +400,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     # Ownership is acquired explicitly before taking the session wait lease.
     if not identity_names:
         record_claim(page_dir, id="past-session")
-        service_model.claim_page(page_dir)
+        transaction_model.claim_page(page_dir)
     harness = harness_model.session_harness()
     if identity_names:
         lease_path = page_dir / "waiter.lock"
@@ -654,7 +655,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first")
     hooks_run_this_tree("first")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     first = harness_model.session_harness()
     claim_record_8 = service_model.page_claim(page_dir)
     assert claim_record_8 is not None
@@ -666,7 +667,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     lease = leases_model.take_wait_lease(lease_path_2)
     assert lease and page_state(page_dir)["listening"]
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     claim_record_9 = service_model.page_claim(page_dir)
     assert claim_record_9 is not None
     assert claim_record_9["turn"] == first_turn
@@ -674,7 +675,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
     hooks_run_this_tree("replacement")
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     claim_record_10 = service_model.page_claim(page_dir)
     assert claim_record_10 is not None
     assert claim_record_10["turn"] != first_turn
@@ -692,7 +693,7 @@ def test_page_claim_takes_a_page_without_watching_it(page_dir, monkeypatch):
     record_claim(page_dir, id="s2")
     result = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert result.exit_code == 0, result.output
-    assert service_model.owned_pages("s7") == [page_dir.resolve()]
+    assert transaction_model.owned_pages("s7") == [page_dir.resolve()]
     assert not leases_model.wait_is_live(page_dir, "s7")
 
 
@@ -762,7 +763,7 @@ def test_a_claim_naming_a_harness_this_leaf_doesnt_know_still_names_its_session(
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(stale)]).exit_code == 0
     )
-    assert service_model.claim_page(stale)
+    assert transaction_model.claim_page(stale)
     claim = service_model.page_claim(stale)
     assert claim is not None
 
@@ -811,7 +812,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     hooks_run_this_tree("guarded")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
-    assert service_model.claim_page(page)
+    assert transaction_model.claim_page(page)
     value = service_model.page_claim(page)
     assert value is not None
     assert "pid" not in value
@@ -841,8 +842,8 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     other.mkdir()
     (other / "events.jsonl").write_bytes(b"")
     record_claim(other, id="other-guarded")
-    assert service_model.owned_pages("guarded") == []
-    assert service_model.owned_pages("other-guarded") == [other.resolve()]
+    assert transaction_model.owned_pages("guarded") == []
+    assert transaction_model.owned_pages("other-guarded") == [other.resolve()]
 
 
 @pytest.mark.parametrize("evidence", ["missing", "deleted", "other-chat"])

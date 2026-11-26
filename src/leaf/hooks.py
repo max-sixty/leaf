@@ -75,7 +75,6 @@ from typing import TYPE_CHECKING, NoReturn
 
 from .leases import first_hook_for_tool, mark_hooks, mark_skill
 from .refusals import Refused
-from .service import owned_pages
 from .state import (
     PLUGIN_ROOT,
     CopyReplaced,
@@ -92,6 +91,10 @@ from .state import (
     turn_closed,
     worker_tool_batch,
 )
+from .transaction import owned_pages
+
+if TYPE_CHECKING:
+    from .harness import Harness
 
 if TYPE_CHECKING:
     from .harness import Harness

@@ -25,6 +25,7 @@ from leaf import harness as harness_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import transaction as transaction_model
 from leaf.user_views import USER_VIEWS
 
 
@@ -409,9 +410,9 @@ def test_failed_claim_discovery_publication_preserves_ownership(
         with pytest.raises(OSError, match="discovery publication interrupted"):
             record_claim(page_dir, id="successor")
     assert service_model.page_claim(page_dir) == before
-    assert service_model.owned_pages("successor") == []
+    assert transaction_model.owned_pages("successor") == []
     if previous_owner:
-        assert service_model.owned_pages(previous_owner) == [page_dir]
+        assert transaction_model.owned_pages(previous_owner) == [page_dir]
 
 
 @pytest.mark.parametrize("preparation_phase", ["waiting", "subscribing"])
@@ -487,7 +488,7 @@ def test_native_watch_follows_a_prepared_claim_until_ownership_commits(
                             service_model.claim_path(page_dir)
                         ).name
                     ).is_symlink()
-                    assert service_model.owned_pages("successor") == []
+                    assert transaction_model.owned_pages("successor") == []
                     assert list(watch.tick()) == []
                     # Reconnect to the prepared discovery set, then consume any
                     # preparation notifications before the later commit.

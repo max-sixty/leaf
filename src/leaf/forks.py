@@ -130,8 +130,8 @@ from pathlib import Path
 from . import summary_fork
 from .events import unlined
 from .json_block import json_block
-from .service import PageTransaction
 from .state import page_key
+from .transaction import PageTransaction
 
 # The words that open the line fork's question, which the transcript carries.
 LINE_OPENING = "<leaf-line-fork>"

@@ -15,6 +15,7 @@ from model_folds import leaf_page
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.cli import cli
 from leaf.drafts import DRAFTS
@@ -128,7 +129,7 @@ def test_taking_over_a_page_held_at_another_shape_leaves_one_owner(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "taker")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     hooks_run_this_tree("taker")
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
 
     assert state_model.CLAIM.others(payload) == []
     taken = service_model.page_claim(page_dir)
@@ -170,9 +171,9 @@ def test_a_rolled_back_takeover_leaves_the_other_shapes_holder_in_place(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     hooks_run_this_tree("taker")
 
-    transition = service_model.take_page_claim(page_dir)
+    transition = transaction_model.take_page_claim(page_dir)
     assert transition is not None and not other.exists()
-    service_model.restore_page_claim(page_dir, transition)
+    transaction_model.restore_page_claim(page_dir, transition)
 
     assert other.read_bytes() == held
     assert service_model.page_claim(page_dir) is None

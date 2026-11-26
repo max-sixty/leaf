@@ -137,7 +137,6 @@ from .leases import (
     wait_is_live,
 )
 from .refusals import Refused
-from .service import owned_pages
 from .session import Watch, read_watch_pass
 from .state import (
     LoadedCopy,
@@ -153,6 +152,7 @@ from .state import (
     turn_closed,
 )
 from .thread import delivery_reply_reserved
+from .transaction import owned_pages
 
 QUEUE_TIMEOUT = 20
 ADAPTER = Record(

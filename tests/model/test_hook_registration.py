@@ -34,6 +34,7 @@ from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import transaction as transaction_model
 
 # Each harness's own registrations of Leaf's hooks (`harness.hook_harness`); Pi's
 # are its extension's calls (`test_interact_pi.py`).
@@ -423,7 +424,7 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     assert run("Stop", session) == {"hook_event_name": "Stop", "session_id": session}
 
     # Claiming a page marks the session for the rest of its generation.
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert run("PostToolUse", session) == {
         "hook_event_name": "PostToolUse",
         "session_id": session,
@@ -609,7 +610,7 @@ def test_codex_startup_can_claim_its_first_page_without_a_prompt(
         with pytest.raises(Refused, match="validated native transcript"):
             harness.lifetime()
         return
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(harness)
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)

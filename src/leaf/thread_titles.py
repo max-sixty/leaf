@@ -82,9 +82,9 @@ from .events import build_threads, spoken_turns
 from .inference import RateLimited
 from .interaction_log import append_interactions
 from .revision_artifact import active_enclosing
-from .service import PageTransaction
 from .thread import fit_title, name_untitled
 from .thread_context import thread_names
+from .transaction import PageTransaction
 
 INSTRUCTIONS = (
     "You write titles for discussion threads on a page. Each request holds a "

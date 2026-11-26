@@ -33,10 +33,10 @@ from leaf import leases as leases_model
 from leaf import rows as rows_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
-from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf import thread_titles as thread_titles_model
+from leaf import transaction as transaction_model
 from leaf.harness import NUDGE_WORDS
 from leaf.interaction_log import read_interactions
 
@@ -129,7 +129,7 @@ def holding_page(
     hooks_run_this_tree(driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     hooks_run_this_tree(driven.session)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     if serve:
         serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
@@ -679,7 +679,7 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
     hooks_run_this_tree(driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     hooks_run_this_tree(driven.session)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     # Ids the fork's answer names as the range it chose.
     opened = admitted(
         page_dir, {"kind": "comment", "author": "user", "id": "q0", "text": "Q0?"}
@@ -781,7 +781,7 @@ def test_a_line_fork_whose_step_leaf_could_not_take_posts_nothing(
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         assert [event["id"] for event in delivery_model.deliverable(page)] == [
             asked["id"]
         ]

@@ -157,11 +157,7 @@ from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
 )
-from .service import (
-    PREVIEW,
-    PageTransaction,
-    owned_pages,
-)
+from .service import PREVIEW
 from .state import (
     STATUS_CHECKED_SUFFIX,
     STATUS_RENEWAL,
@@ -175,6 +171,7 @@ from .state import (
     session_record,
     status_check_due,
 )
+from .transaction import PageTransaction, owned_pages
 
 
 def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:

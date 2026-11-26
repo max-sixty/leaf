@@ -295,18 +295,9 @@ def delivery_turn(session_id: str) -> str | None:
     observed = hook_turn(session_id)
     if not observed or not observed["running"]:
         return None
-    from .presence import claimant_reading
-    from .service import PageTransaction, owned_pages
+    from .presence import session_turn_running
 
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                present, turn = claimant_reading(page_dir, page.events)
-                if present["claim_session"] == session_id and turn.running:
-                    return observed["turn"]
-        except FileNotFoundError:
-            continue
-    return None
+    return observed["turn"] if session_turn_running(session_id) else None
 
 
 def confirm_codex_pointer(session_id: str, payload: dict) -> list[Path]:

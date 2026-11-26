@@ -69,12 +69,7 @@ from .event_log import jsonl_line
 from .harness import session_harness
 from .interaction_log import acting_on
 from .refusals import Refused
-from .service import (
-    PageTransaction,
-    may_receive,
-    requires_agent_attention,
-    unacknowledged,
-)
+from .service import may_receive
 from .state import (
     STRING,
     Record,
@@ -89,6 +84,7 @@ from .state import (
     state_home,
     turn_closed,
 )
+from .transaction import PageTransaction, requires_agent_attention, unacknowledged
 
 if TYPE_CHECKING:
     from .served_state.work import WorkState
@@ -1253,7 +1249,7 @@ def confirm_entered(harness, payload: dict) -> None:
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
     from .hook_transport import INLINE_OPENING, inline_delivery
-    from .service import owned_pages
+    from .transaction import owned_pages
 
     entered = {
         event["id"]
@@ -1378,7 +1374,7 @@ def receive_batch(
 def record_receipt(page: PageTransaction, through: int) -> None:
     """Confirm receipt of the page's input through seq `through`, under the
     caller's page transaction: a `receipt` event, which moves the acknowledgement
-    cursor (`service.acknowledged`) and nothing else. A position the cursor has
+    cursor (`transaction.acknowledged`) and nothing else. A position the cursor has
     already passed writes nothing, so the cursor only moves forward and a retried
     receipt appends nothing."""
     if through <= page.cursor:

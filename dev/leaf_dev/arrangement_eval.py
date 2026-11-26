@@ -36,9 +36,9 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.render_checks import SERVED_TIMEOUT_MS
 from leaf.render_gate import command as render_command_model
-from leaf.service import requires_agent_attention
 from leaf.structure import source_index, splice
 from leaf.thread import successful_replies
+from leaf.transaction import requires_agent_attention
 from leaf.user_views import read_user_views
 from leaf_dev import ROOT, pane_readings, plain_html
 from leaf_dev.arms import (

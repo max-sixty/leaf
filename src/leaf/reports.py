@@ -15,7 +15,7 @@ from leaf.event_contracts import append_admitted
 from leaf.files import require_revision
 from leaf.findings import Finding, Rejected
 from leaf.leases import contract_writer
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 
 
 @contract_writer

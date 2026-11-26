@@ -986,7 +986,7 @@ def test_created_ids_cannot_collide_across_page_and_thread_content():
 def test_several_events_land_together_or_not_at_all(page_dir):
     """`append_all_admitted` admits each event after the ones before it and writes
     none of them where any is refused, a retry naming another payload included."""
-    from leaf.service import PageTransaction
+    from leaf.transaction import PageTransaction
 
     publish(page_dir)
     before = events_model.read_events(page_dir)

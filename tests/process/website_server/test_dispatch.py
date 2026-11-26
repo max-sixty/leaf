@@ -28,6 +28,7 @@ from leaf.event_log import read_events
 from leaf.hosting import LeafHTTPServer
 from leaf.refusals import Refused
 from leaf.registry.storage import layer_record
+from leaf.session import set_status
 from leaf.state import session_record
 from leaf.thread import post_reply
 from process.website_server import (
@@ -784,7 +785,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             page.take_claim(
                 website_server.website_harness("hosted-thread", os.getpid())
             )
-            page.set_status("waiting")
+            set_status(page, "waiting")
         current = session_record("hosted-thread")
         assert current is not None
         leaf_codex.set_stream_activity(

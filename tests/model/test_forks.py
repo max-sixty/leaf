@@ -30,10 +30,11 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as state_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 from leaf.interaction_log import read_interactions
 from leaf.registry import kernel as kernel_model
 from leaf.served_state.context import read_page
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 
 # What Leaf's Claude Code hooks module gives the pages follower of session s1
 # (`hooks.cmd_pages`).
@@ -736,7 +737,7 @@ def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
     that it would otherwise close its own subscriptions and wake at once, pass
     after pass."""
     for n in range(page_memory_model.PageMemories.LIMIT):
-        service_model.claim_page(
+        transaction_model.claim_page(
             initialized_page(tmp_path / f"more-{n}", page_packages())
         )
 

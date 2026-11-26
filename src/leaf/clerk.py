@@ -681,7 +681,7 @@ def question(session_id: str) -> dict | None:
     None where it holds no page this Leaf reads. A page at another page protocol
     is left out (`registry.storage.layer_record`): this Leaf could write nothing the
     fork finds there."""
-    from .service import owned_pages
+    from .transaction import owned_pages
 
     facts = [
         facts for page in owned_pages(session_id) if (facts := _facts(page)) is not None
@@ -699,7 +699,7 @@ def take_answer(
     why it failed where `text` is None. A fork that failed, or whose answer `ANSWER`
     refuses, writes only its note in each page's diagnostics."""
     from .refusals import Refused
-    from .service import owned_pages
+    from .transaction import owned_pages
 
     run = run or {}
 
@@ -737,7 +737,7 @@ def _facts(page_dir: Path) -> dict | None:
     from .agent_state import page_state
     from .files import latest_revision
     from .registry.storage import IncompatibleLayer
-    from .service import PageTransaction
+    from .transaction import PageTransaction
 
     try:
         with PageTransaction(page_dir) as page:
@@ -786,7 +786,7 @@ def apply_answer(
     it, with `run`."""
     from .leases import page_locked
     from .presence import nudge_unwatched
-    from .service import PageTransaction, owned_pages
+    from .transaction import PageTransaction, owned_pages
 
     wrote: list[dict] = []
     changed: list[dict] = []

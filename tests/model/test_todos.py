@@ -48,6 +48,7 @@ from leaf import state as state_model
 from leaf import tasks as tasks_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
+from leaf import transaction as transaction_model
 from leaf.event_contracts import append_admitted
 from leaf.findings import Rejected
 from leaf.served_state.page import full_state
@@ -867,7 +868,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
             refusals.append(refused)
 
     claiming = threading.Thread(target=run_claim, name="claim")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         claiming.start()
         assert claim_waits.wait(STATED_TIMEOUT)
         # Another session's resolve answers for the thread; the user's own would
@@ -1774,7 +1775,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
         "blocked": 0,
         "unseen": 1,
     }
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
     *_, pickup = (
@@ -1852,7 +1853,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     ]
 
     claim = record_claim(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [answer],

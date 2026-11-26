@@ -17,8 +17,8 @@ from model.interact_contract import vocabulary
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
-from leaf import service as service_model
 from leaf import session as session_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
 from leaf_dev.page_fixtures import package_selection_args
@@ -160,7 +160,7 @@ def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, batch, _ = delivered(capsys)
     clauses = list(batch["handling"].values())

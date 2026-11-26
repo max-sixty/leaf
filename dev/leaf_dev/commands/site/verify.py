@@ -403,7 +403,7 @@ SAVED_STATE_FIXTURE = (
 from leaf.event_contracts import append_admitted
 from leaf.files import latest_revision, revision_path
 from leaf.revisioning import activate_source
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 stylesheet = "#saved-state-recall { font-weight: 600; }\n"
 (page / "page").mkdir(exist_ok=True)
 (page / "page/saved-state-recall.css").write_text(stylesheet)

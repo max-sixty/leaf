@@ -23,6 +23,7 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import transaction as transaction_model
 from leaf.event_log import read_events
 from leaf.files import published_versions
 from leaf.served_state.service import PageStateService
@@ -277,7 +278,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     assert lease_path is not None
     lease = leases_model.take_wait_lease(lease_path)
     assert lease
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "OBSERVEDWORD"}
         )

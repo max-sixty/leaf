@@ -26,7 +26,7 @@ from interact_support import (
 from model_folds import leaf_page
 
 from leaf import cli as cli_model
-from leaf import server, service
+from leaf import server, service, transaction
 from leaf.interaction_log import read_interactions
 from leaf.layer import stylesheet
 from leaf.media import media_name
@@ -674,7 +674,7 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
             if transferred:
                 from leaf.harness import ClaudeCodeHarness
 
-                with service.PageTransaction(page_dir) as page:
+                with transaction.PageTransaction(page_dir) as page:
                     page.take_claim(ClaudeCodeHarness("successor", "Claude"))
             raise KeyboardInterrupt
         return sent(speaker, data)

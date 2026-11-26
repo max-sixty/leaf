@@ -20,18 +20,18 @@ from leaf.log import event_log as events_model
 from leaf.pages import vendoring as vendoring_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf_dev.page_fixtures import package_selection_args
 
 
-def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
+def test_init_allows_a_log_holding_a_reaction_the_incoming_layer_dropped(
     page_dir, monkeypatch
 ):
-    """Removing a reaction token leaves its recorded gestures in history."""
+    """Removing a reaction leaves its recorded gestures in history."""
     publish(page_dir)
     append_carried_log_record(
         page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
+        {"kind": "comment", "author": "user", "revision": 1, "emoji": "✂️"},
     )
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
@@ -40,7 +40,7 @@ def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
     layer = page_dir.parent / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(
-        json.dumps({"$reactions": {"tokens": {"shorten": None}}})
+        json.dumps({"$reactions": {"emoji": {"✂️": None}}})
     )
     monkeypatch.chdir(page_dir.parent)
     result = CliRunner().invoke(
@@ -119,7 +119,7 @@ def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
         json.dumps({"$events": {"handling": {"comment": [{"text": package_handling}]}}})
     )
     vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
-    reply = registry_storage.load_registry(page_dir)["$events"]["answering"]["reply"]
+    reply = vocabulary_model.load_registry(page_dir)["$events"]["answering"]["reply"]
     older = reply[0]["text"]
     current = "Answer with the newer package's leaf thread reply command."
     revised = page_dir.parent / ".revised"

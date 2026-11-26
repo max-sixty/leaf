@@ -19,9 +19,9 @@ from interact_support import (
 )
 
 from leaf.agents import codex as codex_model
-from leaf.agents import server as server_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.commands import hooks as hooks_model

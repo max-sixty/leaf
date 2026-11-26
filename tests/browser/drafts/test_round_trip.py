@@ -171,7 +171,7 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {
                 **({"section": section} if section else {}),
                 "quote": "Run the migration before deploying.",
@@ -430,7 +430,17 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     )
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "create", str(d), "--quote", "It is online.", "--text", "x"],
+        [
+            "thread",
+            "create",
+            str(d),
+            "--title",
+            "Status",
+            "--quote",
+            "It is online.",
+            "--text",
+            "x",
+        ],
     )
     assert refused.exit_code != 0 and "doesn't say" in refused.output
     written = CliRunner().invoke(
@@ -439,6 +449,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
             "thread",
             "create",
             str(d),
+            "--title",
+            "Timing",
             "--quote",
             "It takes about a minute.",
             "--text",

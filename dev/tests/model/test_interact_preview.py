@@ -25,20 +25,15 @@ from interact_support import (
 )
 from model_folds import leaf_page
 
-from leaf.agents import server
-from leaf.base import service
+from leaf.base import server, service
 from leaf.commands import cli as cli_model
 from leaf.log.interaction_log import read_interactions
 from leaf.records import transaction
 from leaf.serving.media import media_name
-from leaf.source.layer import stylesheet
-from leaf.source.registry.storage import (
-    layer_packages,
-    layer_record,
-    load_registry,
-    selected,
-)
+from leaf.source.layer import selected_layer, stylesheet
+from leaf.source.registry.storage import layer_packages, layer_record
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview
 from leaf_dev.example_data import named_source
@@ -126,7 +121,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert layer_2 is not None
     assert (
         stylesheet(package / "overrides.css", package).rstrip()
-        in selected(layer_2, page).top_files["theme.css"].decode()
+        in selected_layer(layer_2, page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
@@ -369,7 +364,7 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
 def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
     from leaf.source.data import read_data
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
     from leaf_dev.example_data import data_file, page_files
 
     examples = tmp_path / "examples"
@@ -707,22 +702,30 @@ def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
 ):
     """A developer's flow: a checkout's `--user` preview, in a session whose hooks run
     another Leaf, as an installed copy, acts for no session. It serves the page
-    unclaimed and says so, and the checkout's own `leaf wait` on the page hears the
-    user."""
+    unclaimed and says so in the reading it prints beneath the URL, the line a read
+    of the log for the URL meets, and the checkout's own `leaf wait` on the page
+    hears the user."""
+    from leaf.base.findings import hold, release
     from leaf.commands.session import cmd_wait
     from leaf.pages.hosting import cmd_stop
 
     installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
     hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], installed)
     owner = preview.PreviewService(page_dir, user=True)
+    hold()
     try:
-        with owner.starting():
+        with owner.starting() as url:
             pass
+        reading = json.loads(owner.reading(url))
+        assert release() == []
         assert owner.claim is None
         assert service.page_claim(page_dir) is None
         assert server.running_server(page_dir)
-        notes = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
-        assert [note["code"] for note in notes] == ["serves-for-no-session"]
+        assert reading["url"] == url
+        assert [note["code"] for note in reading["findings"]] == [
+            "serves-for-no-session"
+        ]
+        assert capsys.readouterr().err == ""
 
         append_carried_log_record(
             page_dir, {"kind": "comment", "author": "user", "text": "for the checkout"}
@@ -732,6 +735,7 @@ def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
         [batch] = delivery["batches"]
         assert [event["text"] for event in batch["events"]] == ["for the checkout"]
     finally:
+        release()
         cmd_stop(page_dir)
 
 
@@ -831,7 +835,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     """
     from leaf.records.publishing import authored_digest
     from leaf.source.data import read_data
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -949,7 +953,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
 def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
     """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.source.data import read_data
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(

@@ -54,6 +54,7 @@ from leaf.agents import codex_desktop as codex_desktop_model
 from leaf.agents import codex_state as codex_state_model
 from leaf.agents import delivery as delivery_model
 from leaf.agents import thread as thread_model
+from leaf.base import codex_transcript as codex_transcript_model
 from leaf.base import files as files_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
@@ -62,6 +63,8 @@ from leaf.base import state as cleanup_model
 from leaf.base.json_block import json_block, read_json_block
 from leaf.base.refusals import Refused
 from leaf.base.service import PREVIEW
+from leaf.commands import codex_run as codex_run_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import hook_transport as hook_transport_model
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
@@ -571,17 +574,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     session_model.cmd_waiting(page_dir)
     successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     with transaction_model.PageTransaction(page_dir) as page:
-        reading = session_model.PageTick(
-            page_dir,
-            page.status,
-            [delivered],
-            True,
-            "watching",
-            False,
-            None,
-            page,
-        )
-        assert codex_adapter_model.capture_batch("original", reading)
+        assert codex_adapter_model.capture_batch("original", page, [delivered])
     epoch_path, epoch = current_codex_record("original")
     record_4 = codex_model.read_record(epoch_path)
     assert isinstance(record_4, (codex_model.Collecting, codex_model.Offering))
@@ -676,22 +669,14 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
                 "kind": "comment",
                 "id": event_id,
                 "author": "user",
-                "token": "mark",
+                "emoji": "👍",
             },
         )
         delivered = events_model.read_events(page)[-1]
         with transaction_model.PageTransaction(page) as transaction:
-            reading = session_model.PageTick(
-                page,
-                transaction.status,
-                [delivered],
-                True,
-                "watching",
-                False,
-                None,
-                transaction,
+            assert codex_adapter_model.capture_batch(
+                "codex-thread", transaction, [delivered]
             )
-            assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
     record_5 = codex_model.read_record(epoch_path)
     assert isinstance(record_5, (codex_model.Collecting, codex_model.Offering))
@@ -737,8 +722,8 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     for name in CLAUDE_IDENTITY:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
-    monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: [])
-    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(codex_run_model, "owned_pages", lambda _session: [])
+    monkeypatch.setattr(codex_run_model, "check_queue_command", lambda _path: None)
     persistent = tmp_path / "persistent"
     persistent.mkdir()
     for task, page, identity in (
@@ -784,7 +769,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
         )
     codex_adapter_model.adapter_log_path("codex-thread").write_text("started\n")
 
-    assert codex_adapter_model.run_adapter("codex") == 0
+    assert codex_run_model.run_adapter("codex") == 0
     kept = codex_state_model.delivery_dir("codex-thread")
     assert not codex_state_model.delivery_dir("ended-task").exists()
     assert not codex_adapter_model.adapter_log_path("codex-thread").exists()
@@ -803,14 +788,14 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
 def test_an_adapter_observer_that_cannot_start_releases_its_leases(monkeypatch):
     """Acquisition failure keeps the original error and releases both listening proofs."""
     harness = harness_model.CodexHarness(session="codex-thread", agent="Codex")
-    monkeypatch.setattr(codex_adapter_model, "session_harness", lambda: harness)
+    monkeypatch.setattr(codex_run_model, "session_harness", lambda: harness)
 
     def refuse_start(_thread):
         raise OSError("no thread resources")
 
     monkeypatch.setattr(threading.Thread, "start", refuse_start)
     with pytest.raises(OSError, match="no thread resources"):
-        codex_adapter_model.run_adapter("codex", app_server="ws://127.0.0.1:1")
+        codex_run_model.run_adapter("codex", app_server="ws://127.0.0.1:1")
     assert not leases_model.adapter_is_live(harness.session)
     assert not leases_model.wait_is_live(None, harness.session)
 
@@ -844,11 +829,11 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     if not installed:
         # A checkout acts for the task only where the task's hooks run it.
         hooks_run_leaf("codex-thread", root)
-    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(codex_run_model, "check_queue_command", lambda _path: None)
     monkeypatch.setattr(
-        codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]
+        codex_run_model, "owned_pages", lambda _session: [tmp_path / "page"]
     )
-    monkeypatch.setattr(codex_adapter_model, "retry_delay", lambda _failures: 0)
+    monkeypatch.setattr(codex_run_model, "retry_delay", lambda _failures: 0)
     passes = itertools.count()
 
     def replace_the_copy(_session):
@@ -878,10 +863,10 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     monkeypatch.setattr(codex_adapter_model, "starting_detached", starting)
     if not installed:
         with pytest.raises(_NextPass):
-            codex_adapter_model.run_adapter("codex")
+            codex_run_model.run_adapter("codex")
         assert started == []
         return
-    assert codex_adapter_model.run_adapter("codex") == 0
+    assert codex_run_model.run_adapter("codex") == 0
     launcher = (root / "bin" / "leaf").resolve()
     assert started == [(["codex", "run", "--codex-path", "codex"], launcher)] * 2
 
@@ -914,7 +899,7 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
     )
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     hooks_model.cmd_hook(
         "codex",
         {
@@ -954,7 +939,7 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     )
     assert not capsys.readouterr().out
     assert len(codex_records("codex-thread")) == 1
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -966,7 +951,7 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
         "user-turn",
     )
     cleanup_model.close_session_turn("codex-thread", "user-turn")
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert not queued
 
 
@@ -1000,7 +985,7 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
         # the running turn's hooks may still offer it.
         with transaction_model.PageTransaction(page_dir) as transaction:
             codex_model.append_batch("codex-thread", page_dir, transaction, [comment])
-        assert not codex_adapter_model._offer_queued_delivery(
+        assert not codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
         hooks_model.cmd_hook(
@@ -1030,10 +1015,10 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
         turn_record_2 = cleanup_model.session_record("codex-thread")
         assert turn_record_2 is not None
         assert not turn_record_2["turn_closed"]
-        assert not codex_adapter_model._offer_queued_delivery(
+        assert not codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
-        delivery_model.cmd_delivery_ack(envelope["id"])
+        delivery_ack_model.cmd_delivery_ack(envelope["id"])
         [pickup] = [
             event
             for event in events_model.read_events(page_dir)
@@ -1081,7 +1066,7 @@ def test_codex_hook_keeps_oversized_input_whole_for_its_reader(
     assert acknowledged_through(page_dir) == 0
     reading = delivery_model.cmd_delivery_read(path.stem)
     assert reading["batches"][0]["events"][0]["text"] == text
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     assert not codex_records("codex-thread")
 
 
@@ -1131,7 +1116,7 @@ def test_codex_hook_pointer_read_cannot_move_its_offer_to_a_newer_turn(
     cleanup_model.prompt_turn("codex-thread", "newer")
     delivery_model.cmd_delivery_read(path.stem)
     with pytest.raises(delivery_model.ReceiptRefused, match="receiving turn"):
-        delivery_model.cmd_delivery_ack(path.stem)
+        delivery_ack_model.cmd_delivery_ack(path.stem)
     assert codex_records("codex-thread")[0][1]["state"] == "hook"
     assert not any(e["kind"] == "pickup" for e in events_model.read_events(page_dir))
 
@@ -1197,12 +1182,12 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     capsys.readouterr()
     append("task_started", "resumed", partial=True)
     before = cleanup_model.session_record("codex-thread")
-    assert codex_state_model.sync_transcript_turn("codex-thread") == before
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == before
     with source.open("a") as stream:
         stream.write("\n")
     # Hooks start cold in separate processes; their ordering proof must also
     # work without the resident adapter's earlier source reading.
-    codex_state_model.transcript_turns.cache_clear()
+    codex_transcript_model.transcript_turns.cache_clear()
     comment = append_carried_log_record(
         page_dir,
         {
@@ -1217,7 +1202,7 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
         lambda *_: pytest.fail("resumed turn was queued"),
     )
     if prior_step:
-        assert not codex_adapter_model._offer_queued_delivery(
+        assert not codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
         turn_record_4 = cleanup_model.session_record("codex-thread")
@@ -1250,9 +1235,9 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     turn_record_5 = cleanup_model.session_record("codex-thread")
     assert turn_record_5 is not None
     assert turn_record_5["turn_closed"] is None
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     delivery_model.cmd_delivery_read(path.stem)
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     [pickup] = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
     assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
         "opened",
@@ -1260,12 +1245,14 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
         [comment["id"]],
     )
     append("task_complete", "prior")
-    sync_transcript_turn_result = codex_state_model.sync_transcript_turn("codex-thread")
+    sync_transcript_turn_result = codex_transcript_model.sync_transcript_turn(
+        "codex-thread"
+    )
     assert sync_transcript_turn_result is not None
     assert sync_transcript_turn_result["turn_closed"] is None
     append("task_complete", "resumed")
-    codex_state_model.transcript_turns.cache_clear()
-    closed = codex_state_model.sync_transcript_turn("codex-thread")
+    codex_transcript_model.transcript_turns.cache_clear()
+    closed = codex_transcript_model.sync_transcript_turn("codex-thread")
     assert closed is not None
     assert closed["turn_closed"] is not None
     hooks_model.cmd_hook(
@@ -1279,15 +1266,17 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     assert cleanup_model.session_record("codex-thread") == closed
     # A newer prompt can precede its native transcript append.
     newest = cleanup_model.prompt_turn("codex-thread", "newest")
-    codex_state_model.transcript_turns.cache_clear()
-    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
+    codex_transcript_model.transcript_turns.cache_clear()
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == newest
     foreign = tmp_path / "other.jsonl"
     foreign.write_text(source.read_text().replace('"codex-thread"', '"other-session"'))
-    assert codex_state_model.sync_transcript_turn("codex-thread", foreign) == newest
+    assert (
+        codex_transcript_model.sync_transcript_turn("codex-thread", foreign) == newest
+    )
     # Replacing the source with an earlier prefix is another lagging reading,
     # rather than proof that the new prompt ended or moved backwards.
     source.write_text("\n".join(source.read_text().splitlines()[:2]) + "\n")
-    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
+    assert codex_transcript_model.sync_transcript_turn("codex-thread") == newest
 
 
 def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
@@ -1419,15 +1408,12 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
         {"kind": "comment", "author": "user", "text": "Change this before finishing"},
     )
     with transaction_model.PageTransaction(page_dir) as page:
-        reading = session_model.PageTick(
-            page_dir, page.status, [comment], True, "watching", False, None, page
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", page, [comment])
     queued = []
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
     )
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert not queued
     hooks_model.cmd_hook(
         "codex",
@@ -1443,7 +1429,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
     )[0] == delivery_model.cmd_delivery_read(path.stem)
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     delivery_model.cmd_delivery_read(path.stem)
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -1499,22 +1485,19 @@ def _comment_before_the_first_tool_step(
     else:
         prompt("earlier-turn")
         append("task_complete", "earlier-turn")
-        codex_state_model.sync_transcript_turn("codex-thread")
+        codex_transcript_model.sync_transcript_turn("codex-thread")
         cleanup_model.session_file("codex-thread", cleanup_model.HOOKS_SUFFIX).unlink()
         append("task_started", "user-turn")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Rename the column"}
     )
     with transaction_model.PageTransaction(page_dir) as page:
-        reading = session_model.PageTick(
-            page_dir, page.status, [comment], True, "watching", False, None, page
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", page, [comment])
     queued = []
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
     )
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     turn_record_6 = cleanup_model.session_record("codex-thread")
     assert turn_record_6 is not None
     assert turn_record_6["turn"] == "user-turn"
@@ -1551,8 +1534,8 @@ def test_a_comment_before_a_turns_first_tool_step_enters_that_turn(
         [(path, record)] = codex_records("codex-thread")
         assert (record["state"], record["turn"]) == ("hook", "user-turn")
         assert capsys.readouterr().out
-        delivery_model.cmd_delivery_ack(path.stem)
-        assert not codex_adapter_model._offer_queued_delivery(
+        delivery_ack_model.cmd_delivery_ack(path.stem)
+        assert not codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
         assert not queued
@@ -1580,7 +1563,7 @@ def test_a_comment_left_to_a_turn_whose_hooks_never_run_is_queued_as_it_ends(
         page_dir, codex_loop, monkeypatch, tmp_path, "transcript"
     )
     append("task_complete", "user-turn")
-    assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     [(_, _, pointer)] = queued
     assert "<leaf-delivery " in pointer
     [pickup] = [
@@ -1877,13 +1860,13 @@ def test_a_codex_tool_step_wins_a_queue_offer_based_on_stale_activity(
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
     )
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert prompts[0] is not None
     assert not queued
     [(path, record)] = codex_records("codex-thread")
     assert record["state"] == "hook"
     delivery_model.cmd_delivery_read(path.stem)
-    delivery_model.cmd_delivery_ack(path.stem)
+    delivery_ack_model.cmd_delivery_ack(path.stem)
     assert not codex_records("codex-thread")
     [pickup] = [
         event
@@ -1928,7 +1911,7 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
         shutil.rmtree(page_dir)
     envelope = delivery_model.cmd_delivery_read(path.stem)
     with pytest.raises(delivery_model.ReceiptRefused, match="no longer owns"):
-        delivery_model.cmd_delivery_ack(path.stem)
+        delivery_ack_model.cmd_delivery_ack(path.stem)
     assert {
         event["id"] for batch in envelope["batches"] for event in batch["events"]
     } == {comment["id"], resolved["id"]}
@@ -1995,7 +1978,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         monkeypatch.setattr(
             codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
         )
-        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
         assert prompt is not None
         assert read_json_block(prompt)[0] == delivery_model.cmd_delivery_read(path.stem)
         assert [args[2] for args in queued] == [
@@ -2010,7 +1993,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         assert [(event["phase"], event["turn"]) for event in pickups] == [
             ("queued", None)
         ]
-        assert not codex_adapter_model._offer_queued_delivery(
+        assert not codex_adapter_model.offer_queued_delivery(
             "codex", "codex-thread", None
         )
         assert not codex_model.RECORD.file(path).exists()
@@ -2056,8 +2039,8 @@ def test_desktop_wake_follows_queue_acceptance_without_resending(
         return subprocess.CompletedProcess(arguments, 0)
 
     monkeypatch.setattr(subprocess, "run", open_app)
-    assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert len(queued) == 1
     assert opened == (
         []
@@ -2225,7 +2208,7 @@ def test_an_open_desktop_chat_takes_input_with_no_message_in_the_users_name(
         socket_dir,
         {"thread-owner-discovery": OWNED, "thread-follower-start-turn": STARTED},
     ) as requests:
-        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
 
     assert chat.queued == [] and chat.opened == []
     assert [
@@ -2272,7 +2255,7 @@ def test_an_open_desktop_chat_takes_input_with_no_message_in_the_users_name(
     assert cleanup_model.turn_open(
         cleanup_model.session_record("codex-thread"), "desktop-turn"
     )
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
 
 
 @pytest.mark.parametrize(
@@ -2318,7 +2301,7 @@ def test_a_desktop_chat_the_app_cannot_start_falls_back_to_the_queue(
             monkeypatch.setenv("CODEX_HOME", str(socket_dir))
         else:
             stack.enter_context(desktop_router(monkeypatch, socket_dir, answers))
-        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
 
     assert len(chat.queued) == 1
     assert chat.opened == [["open", "-g", "codex://threads/wake/codex-thread"]]
@@ -2358,7 +2341,7 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
         monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
     answers = {"thread-owner-discovery": OWNED, "thread-follower-start-turn": start}
     with desktop_router(monkeypatch, socket_dir, answers) as requests:
-        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     output = sent_delivery(requests)
     assert "unconfirmed" in capsys.readouterr().err
     [(_, record)] = codex_records("codex-thread")
@@ -2368,17 +2351,17 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
     monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE")
     # Until the transcript settles it, nothing else is offered or sent, and another
     # delivery's tool output doesn't settle it.
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     chat.transcript("event_msg", type="task_started", turn_id="other-turn")
     chat.tool_output("other-turn", json.dumps({**json.loads(output), "id": "0badc0de"}))
     chat.transcript("event_msg", type="task_complete", turn_id="other-turn")
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert [record["state"] for _, record in codex_records("codex-thread")] == [
         "starting"
     ]
     chat.transcript("event_msg", type="task_started", turn_id="desktop-turn")
     chat.tool_output("desktop-turn", output)
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == [] and chat.opened == []
     assert desktop_pickups(page_dir) == [("opened", "desktop-turn", None)]
 
@@ -2400,10 +2383,10 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
     with desktop_router(
         monkeypatch, socket_dir, {"thread-owner-discovery": OWNED}
     ) as requests:
-        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     sent_delivery(requests)
     [(path, _)] = codex_records("codex-thread")
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert desktop_pickups(page_dir) == []
 
     file = codex_model.RECORD.file(path)
@@ -2417,7 +2400,7 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
             type="task_started",
             turn_id="later-turn",
         )
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == [] and chat.opened == []
     assert desktop_pickups(page_dir) == (
         [("failed", None, codex_model.UNCONFIRMED_DELIVERY)] if abandoned else []
@@ -2453,8 +2436,8 @@ def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
     ):
         failing.setattr(codex_adapter_model, "queue_delivery", time_out)
         with pytest.raises(Refused):
-            codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
-    assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+            codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
+    assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert len(chat.queued) == 1
     assert desktop_pickups(page_dir) == [("queued", None, None)]
 
@@ -2474,14 +2457,14 @@ def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
     ):
         stopped.setattr(codex_desktop_model, "accept_codex_delivery", stop)
         with pytest.raises(OSError):
-            codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+            codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     output = sent_delivery(sent)
 
     # The router is gone, so a second start would show as a queued message.
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     chat.transcript("event_msg", type="task_started", turn_id="desktop-turn")
     chat.tool_output("desktop-turn", output)
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == []
     assert desktop_pickups(page_dir) == [("opened", "desktop-turn", None)]
 
@@ -2513,7 +2496,7 @@ def _queued_with_lost_acceptance(page_dir, monkeypatch) -> tuple[Path, dict, lis
             codex_adapter_model, "accept_codex_delivery", lost_acceptance
         )
         with pytest.raises(OSError, match="state home unavailable"):
-            codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+            codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     return path, comment, queued
 
 
@@ -2522,7 +2505,7 @@ def _ack_in(turn: str, delivery_id: str, capsys) -> list[dict]:
     pointer does, and return the notes the ack printed."""
     cleanup_model.prompt_turn("codex-thread", turn)
     capsys.readouterr()
-    delivery_model.cmd_delivery_ack(delivery_id)
+    delivery_ack_model.cmd_delivery_ack(delivery_id)
     notes = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
     cleanup_model.close_session_turn("codex-thread", turn)
     return notes
@@ -2538,7 +2521,7 @@ def test_a_codex_delivery_queued_twice_tells_its_second_turn_it_repeats(
     owe, so that turn repeats no work."""
     codex_loop(page_dir)
     path, comment, queued = _queued_with_lost_acceptance(page_dir, monkeypatch)
-    assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     pointer = delivery_model.delivery_pointer_prompt(path.stem)
     assert [args[2] for args in queued] == [pointer, pointer]
 
@@ -2564,7 +2547,7 @@ def test_a_queued_turn_that_acks_before_the_retry_takes_the_delivery_once(
     path, comment, queued = _queued_with_lost_acceptance(page_dir, monkeypatch)
 
     assert _ack_in("queued-turn", path.stem, capsys) == []
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     assert len(queued) == 1
     pickups = [
         (event["phase"], event["turn"], event["events"])
@@ -2608,15 +2591,13 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
         with pytest.raises(OSError, match="receipt storage unavailable"):
             if transport == "hook":
                 delivery_model.cmd_delivery_read(path.stem)
-                delivery_model.cmd_delivery_ack(path.stem)
+                delivery_ack_model.cmd_delivery_ack(path.stem)
             elif transport == "app-server":
                 observer = _observer()
                 assert observer._observe_lifecycle("user-turn")
                 observer._fold("user-turn", path.stem, follow=True)
             else:
-                codex_adapter_model._offer_queued_delivery(
-                    "codex", "codex-thread", None
-                )
+                codex_adapter_model.offer_queued_delivery("codex", "codex-thread", None)
     accepted = files_model.read_json(codex_model.RECORD.file(path))
     assert accepted["state"] == ("queued" if transport == "queue" else "opened")
     assert accepted["pending"] == [0]

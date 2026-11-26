@@ -338,6 +338,33 @@ def test_a_preview_leaves_out_what_its_control_already_shows(engine, request, se
     expect(preview.locator("kbd.lf-key-badge")).to_have_count(0)
 
 
+# Presses that draw only an emoji: one named by it, one whose markup names it by the same
+# emoji over a face hidden from a listener, as Leaf's reactions are, and one whose
+# markup names it in words.
+EMOJI_PRESSES = """<p id="presses">
+<button id="said" type="button">👍</button>
+<button id="marked" type="button" aria-label="👍"><span aria-hidden="true">👍</span></button>
+<button id="worded" type="button" aria-label="Thumbs up">👍</button>
+</p>"""
+
+
+def test_a_press_named_by_the_emoji_it_draws_previews_nothing(browser, serve):
+    """A reaction is its emoji: a press whose name is the emoji it draws shows its whole
+    name, so a resting pointer reads nothing more, whether the name comes from its
+    content or its markup. One whose markup names the emoji in words previews them."""
+    page = open_page(clocked(browser), serve(leaf_page("Emoji", EMOJI_PRESSES)))
+    preview = page.locator(PREVIEW)
+    for press in ["#said", "#marked"]:
+        page.mouse.move(2, 2)
+        page.locator(press).hover()
+        dwelt(page)
+        assert not preview.is_visible(), (press, preview.inner_text())
+    page.mouse.move(2, 2)
+    page.locator("#worded").hover()
+    dwelt(page)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Thumbs up")
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_inside_a_modal_takes_escape_before_the_modal(engine, request, serve):
     """The image viewer is a modal dialog, and its Close previews inside it. While the
@@ -1506,7 +1533,8 @@ def test_a_threads_row_previews_its_thread(engine, request, serve):
     keyboard moving onto it, which hears the word the row's state already says once,
     and to a pointer resting on it."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
@@ -1577,7 +1605,8 @@ def test_the_row_back_from_a_thread_returns_focus_to_previews_nothing(
     previews nothing until they step onto it again. Threads about the whole page open
     in the panel whatever the user chose for threads."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?")
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
@@ -1608,7 +1637,8 @@ def test_a_tap_after_a_finger_read_a_threads_row_opens_its_thread(browser, serve
     The hold's release presses nothing, but Chromium counts it into a run of clicks
     with the tap, a run begun on the row the tap presses."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True

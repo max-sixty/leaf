@@ -22,6 +22,7 @@ from leaf.base.findings import Finding, Rejected, element_at, note
 from leaf.base.harness import message_identity
 from leaf.base.leases import contract_writer
 from leaf.base.service import delivery_reply_attempt, same_claim
+from leaf.base.state import acting_turn
 from leaf.log.event_log import read_events
 from leaf.log.events import (
     active_summaries,
@@ -29,7 +30,7 @@ from leaf.log.events import (
     is_answer,
     taken_back,
 )
-from leaf.log.obligations import local_obligation_entry, questions_in_words, shown_in
+from leaf.log.obligations import questions_in_words
 from leaf.log.projection import page_reading
 from leaf.log.thread_context import thread_message, thread_names, thread_structure
 from leaf.records.activity import answer_command, reply_command
@@ -42,18 +43,31 @@ from leaf.records.authored_checks.admission import (
 )
 from leaf.records.authored_checks.source import (
     SourceCheck,
+    check_source,
     moved_threads,
     source_advice,
 )
-from leaf.records.event_contracts import append_admitted
+from leaf.records.event_contracts import append_admitted, append_all_admitted
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
+from leaf.records.work import page_subject
 from leaf.source.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
-from leaf.source.passages import SourceReading, holds_html, message_markup
+from leaf.source.data import read_data
+from leaf.source.obligation_sources import local_obligation_entry
+from leaf.source.passages import holds_html, message_markup
+from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import kinds_declaring, title_limit
 from leaf.source.revision_artifact import active_enclosing, read_revision
-from leaf.source.structure import SourceDocument
+from leaf.source.structure import SourceDocument, shown_in
+from leaf.source.vocabulary import require_registry
+
+# The browser check a message's markup runs before it posts
+# (`render_gate.messages.message_check`): given the page, the kind of message and the
+# markup, it raises `Rejected` where a widget in the markup doesn't draw. The render
+# gate stands above this module, so each write takes the check from its command, and
+# a write given none posts the markup unrun, as on a host with no browser.
+MessageCheck = Callable[[Path, str, str], None]
 
 
 def drawn_markup(text: str) -> str:
@@ -148,8 +162,6 @@ def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]
     """The thread `name` names (`work.page_subject`), and the message a write into it
     names (`thread_context.thread_message`). Refuses a name that reaches no thread,
     with what the log holds it as instead, and a widget on the page."""
-    from leaf.records.work import page_subject
-
     subject = page_subject(page_dir, events, name)
     if subject is None:
         _unknown_message(page_dir, events, name)
@@ -250,7 +262,6 @@ def current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    from leaf.source.registry.storage import require_registry
 
     reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
@@ -341,7 +352,6 @@ def _drawn_part(
     the page would show nowhere as a capture refuses its target."""
     if drawing is None:
         from leaf.records.render_reading import drawn_visuals
-        from leaf.source.data import read_data
 
         data = read_data(page_dir, read_revision(page_dir, revision).registry)
         visuals = drawn_visuals(
@@ -374,6 +384,7 @@ def cmd_comment(
     title: str | None = None,
     obligation: bool = False,
     drawn: Drawn | None = None,
+    check: MessageCheck | None = None,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -387,13 +398,13 @@ def cmd_comment(
     Two targets need the drawn page, which the command draws and passes back as
     `drawn` (`render_gate.drawn_anchor`), since the render gate stands above this
     module. A quote the file's reading lacks is refused as `UnsaidQuote`, and a part in
-    a visual no render reading of the version read as `UndrawnPart`."""
+    a visual no render reading of the version read as `UndrawnPart`. For the same
+    reason the command passes `check`, which runs the message's HTML before the page
+    lease is taken."""
     title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
-    if markup := drawn_markup(body):
-        from leaf.pages.render_gate.command import message_check
-
-        message_check(page_dir, "comment", markup)
+    if check is not None and (markup := drawn_markup(body)):
+        check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         return open_thread(
             page_dir,
@@ -493,8 +504,6 @@ def ask_again(
     asked in its thread (`thread_questions`). `OwedAnswer` where the thread owes the
     user a reply, which the question waits on. Refused, as an agent's reply is, where
     its HTML doesn't validate (`check_markup`)."""
-    from leaf.source.registry.storage import require_registry
-
     message = question.removeprefix("message:")
     name = f"message:{message}"
     try:
@@ -529,6 +538,7 @@ def ask_again(
         part="",
         detach=False,
         title=None,
+        title_owed=False,
     )[0]
 
 
@@ -642,6 +652,8 @@ def post_reply(
     part: str = "",
     detach: bool = False,
     title: str | None = None,
+    title_owed: bool = False,
+    check: MessageCheck | None = None,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor;
     the appended record, or the earlier reply a repeated `attempt` names, or none
@@ -677,9 +689,17 @@ def post_reply(
     message or a harness's failure receipt: Leaf's own write, which goes in as the
     claimant's and says nothing beside it.
 
+    ``check`` runs the reply's HTML before the page lease is taken
+    (`MessageCheck`).
+
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
+
+    ``title`` names the thread where it has no title yet, and ``title_owed`` refuses
+    a reply into an untitled thread that gives none (`untitled-thread`), as the
+    agent's own command does: Leaf's own writes, such as a line fork's working line
+    or a Codex turn's final message, owe none.
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry an obligation, a to-do, widgets, failure or
@@ -695,10 +715,8 @@ def post_reply(
     title = agent_title(title)
     todo = agent_title(todo)
     text = checked_text(page_dir, text, html=True)
-    if markup := drawn_markup(text):
-        from leaf.pages.render_gate.command import message_check
-
-        message_check(page_dir, "reply", markup)
+    if check is not None and (markup := drawn_markup(text)):
+        check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -755,6 +773,7 @@ def post_reply(
             part=part,
             detach=detach,
             title=title,
+            title_owed=title_owed,
         )
     if claimed_session is None:
         note(*addressed.advice)
@@ -997,12 +1016,20 @@ def _compose_and_append(
     part: str,
     detach: bool,
     title: str | None,
+    title_owed: bool,
 ) -> tuple[dict, "_Published | None"]:
     """Check the reply's content (`drawn_markup`) against the page, compose its event
     and append it at `obligation`. Successful replies publish saved edits when
     `validate_source` requests it. Progress and failure reports use the active
     revision; detaching still checks saved source. Return the appended record and any checked
-    publication for `_revision_advice` to read."""
+    publication for `_revision_advice` to read.
+
+    `title_owed` refuses a reply into an untitled thread that gives no `title`
+    (`untitled-thread`). The user asked for every thread to have a title, whether or
+    not a surface shows it. On a page no session claims, no harness is asked for one
+    as the user posts (`thread_titles`), so the agent's reply is where it comes from,
+    and the delivery's request for one goes unread by an agent that reads the delivery
+    through a filter, as `jq` with a field list does."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand, _advice = obligation
     markup = drawn_markup(text)
@@ -1015,6 +1042,9 @@ def _compose_and_append(
         **({"responds": responds} if responds is not None else {}),
     }
     opening = _messages(events)[thread_id]
+    # Admission refuses a reply whose thread is taken back, so where the thread is
+    # gone from the reading there is nothing to say of it.
+    before = build_threads(events, active_enclosing(page_dir)).get(thread_id)
     moving = bool(quote or section or part)
     widget = bool(markup) and bool(SourceDocument(markup).lf_elements)
     if ephemeral and (
@@ -1026,13 +1056,12 @@ def _compose_and_append(
     relocating = moving or detach
     if relocating and opening.get("holds"):
         raise Rejected([Finding("held-anchor", values={"thread": thread_id})])
+    if title_owed and title is None and before is not None and before["title"] is None:
+        raise Rejected([Finding("untitled-thread", values={"thread": thread_id})])
     if detach:
-        current_thread = build_threads(events, active_enclosing(page_dir)).get(
-            thread_id
-        )
         # A thread the user took back whole is gone from the reading, and the
         # append door refuses a reply into it (`withdrawn-parent`).
-        if current_thread is not None and current_thread["anchor"] is None:
+        if before is not None and before["anchor"] is None:
             # Already where --detach would put it: activating the edit that removed
             # the passage, which any tab's poll may do first, detached it. The reply
             # lands without a transition, so the thread keeps the anchor it left.
@@ -1056,8 +1085,7 @@ def _compose_and_append(
                     "anchor": None,
                 },
             ]
-        from leaf.records.authored_checks.source import check_source
-        from leaf.records.revisioning import planned_activation
+        from leaf.records.revision_publication import planned_activation
 
         checked = check_source(page_dir, source_events)
         if checked.errors:
@@ -1127,9 +1155,6 @@ def _compose_and_append(
     if asks_back and not explicit_obligation and asking is None:
         unasked = unasked_widget(fragment, publication.registry) if markup else {}
         raise Rejected([Finding("undeclared-answer", values=unasked)])
-    # Admission refuses a reply whose thread is taken back, so where the thread is
-    # gone from the reading there is nothing to say of it.
-    before = build_threads(events, active_enclosing(page_dir)).get(thread_id)
     unannounced = (
         before is not None
         and _goes_in_unannounced(before, asks=bool(explicit_obligation or asking))
@@ -1142,7 +1167,6 @@ def _compose_and_append(
         event["ephemeral"] = True
     if in_hand is not None:
         event["start"] = {"item": in_hand}
-    from leaf.base.state import acting_turn
 
     # The turn the reply's command acts in, which names the start it carries
     # (`todos.start_reading`) and says whether the turn that wrote a progress
@@ -1165,7 +1189,7 @@ def _compose_and_append(
         event["title"] = title
     published = None
     if checked is not None:
-        from leaf.records.revisioning import publish_checked_event
+        from leaf.records.revision_publication import publish_checked_event
 
         record = publish_checked_event(page, checked, event)
         if failure is None:
@@ -1217,7 +1241,12 @@ def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
 
 
 def post_response(
-    reference: str, text, *, reservation: str | None = None, **options
+    reference: str,
+    text,
+    *,
+    reservation: str | None = None,
+    check: MessageCheck | None = None,
+    **options,
 ) -> dict | None:
     """Author a complete reply at the delivery's exact captured response address.
 
@@ -1267,6 +1296,7 @@ def post_response(
         settlement=REFUSE if reservation is None else ProviderFinal(reservation),
         attempt=attempt,
         validate_source=True,
+        check=check,
         **options,
     )
 
@@ -1400,7 +1430,12 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
 
 @contract_writer
 def cmd_edit(
-    page_dir: Path, message: str, text, *, title: str | None = None
+    page_dir: Path,
+    message: str,
+    text,
+    *,
+    title: str | None = None,
+    check: MessageCheck | None = None,
 ) -> list[dict]:
     """Append a text revision to one agent-authored message, rename the thread it is
     in, or both, and return the records appended.
@@ -1408,10 +1443,10 @@ def cmd_edit(
     The message event is immutable: the edit points back to it, so the log retains
     every wording while readings take the latest, its HTML included
     (`thread_context.thread_structure`). HTML in the new words meets the gates a new
-    message's does, under the revision the user is looking at, which the edit names
-    as such a message does. Where the message
-    holds a widget the user has acted on, the edit goes in and Leaf says what becomes
-    of their answer (`_answered_widgets`). A summary folding the message stands, and
+    message's does, `check` included, under the revision the user is looking at,
+    which the edit names as such a message does. Where the message holds a widget
+    the user has acted on, the edit goes in and Leaf says what becomes of their
+    answer (`_answered_widgets`). A summary folding the message stands, and
     Leaf names it (`_folding_summaries`), since only the agent knows whether its
     edit changes what the summary reports. Admission refuses a message another voice
     wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
@@ -1419,9 +1454,6 @@ def cmd_edit(
     (`event_contracts.append_all_admitted`), so a refused title leaves the text
     unedited.
     """
-    from leaf.records.event_contracts import append_all_admitted
-    from leaf.source.registry.storage import require_registry
-
     title = agent_title(title)
     body = (
         checked_text(page_dir, text, html=True)
@@ -1429,10 +1461,8 @@ def cmd_edit(
         else None
     )
     markup = drawn_markup(body) if body is not None else ""
-    if markup:
-        from leaf.pages.render_gate.command import message_check
-
-        message_check(page_dir, "edit", markup)
+    if markup and check is not None:
+        check(page_dir, "edit", markup)
     answered = []
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
@@ -1548,8 +1578,6 @@ def cmd_summarize(
     thread its first message sits in; or nothing, where `fence`, given the page
     under its lock, says the writer no longer should, as a fork that summarizes a
     thread for the agent (`summary_fork`)."""
-    from leaf.source.registry.storage import require_registry
-
     body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:
         if fence is not None and not fence(page):

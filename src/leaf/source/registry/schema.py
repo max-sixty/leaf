@@ -14,8 +14,9 @@ covers `pattern`, `patternProperties` and the `additionalProperties` and
 `unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns,
 and the `regex` format checks a value, with the same engine.
 
-jsonschema, referencing, regress and pywhatwgurl load when this module first checks a
-schema or builds a validator (`_checkers`), not when it is imported. Most commands
+jsonschema, referencing and regress load when this module first checks a schema or
+builds a validator (`_checkers`), and pywhatwgurl when it first reads a browser URL
+(`is_browser_url`), not when the module is imported. Most commands
 and hooks read a page without validating anything, and those imports would cost each
 of them tens of milliseconds.
 """
@@ -24,20 +25,15 @@ from __future__ import annotations
 
 import functools
 import json
-import re
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from leaf.base.json_block import json_value
+from leaf.base.state import aware_instant
 
 if TYPE_CHECKING:
     import regress
     from jsonschema import FormatChecker
     from jsonschema.protocols import Validator
-
-RFC3339_DATE_TIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
-)
 
 
 def is_aware_datetime(value) -> bool:
@@ -60,18 +56,6 @@ def is_browser_url(value) -> bool:
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
     return URL.can_parse(value)
-
-
-def aware_instant(value: str):
-    """The one parse of Leaf's date-time format, or None where the spelling fails."""
-    if not RFC3339_DATE_TIME.fullmatch(value):
-        return None
-    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError:
-        return None
-    return parsed if parsed.utcoffset() is not None else None
 
 
 @functools.cache

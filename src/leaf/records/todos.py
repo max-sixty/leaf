@@ -55,7 +55,7 @@ make another session start the to-do first, a step that protects nothing.
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
 widget the newest revision declares (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
-`TodoReading` reads the log's to-dos, starts and ends, and `served_state.work` serves
+`TodoReading` reads the log's to-dos, starts and ends, and `work_state` serves
 each standing as `activity` reads it. The `leaf task` commands that write them are
 `tasks`'.
 
@@ -195,7 +195,7 @@ def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
     prompt, the start in force on an open one as its `line`, and how it ended, by its
     `todo_end` in force (`ends`) or by the first stamped version whose `--completes`
     names it, whichever came first. Its `thread` is the one it was opened on; a reader
-    holding the thread markup adds a widget's (`served_state.work.work_state`)."""
+    holding the thread markup adds a widget's (`work_state.work_state`)."""
     todos: dict[str, dict] = {}
     threads = thread_names(events)
     for event in events:
@@ -245,7 +245,6 @@ def todo_error(
     element_error,
     owed: set[str],
     items,
-    registry: dict,
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
 

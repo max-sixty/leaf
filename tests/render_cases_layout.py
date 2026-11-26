@@ -23,7 +23,7 @@ from render_harness import (
 
 from leaf.pages.render_gate import scheme as render_gate_model
 from leaf.source import render_checks as render_checks_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry.contract import element_declarations
 from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
@@ -257,12 +257,12 @@ def prose_beside_identifiers(held):
         (
             "Log shape",
             (
-                "<code>token</code> in place of <code>text</code> on <code>comment</code>"
-                " and <code>reply</code>; a record is one or the other, and a token rides"
+                "<code>emoji</code> in place of <code>text</code> on <code>comment</code>"
+                " and <code>reply</code>; a record is one or the other, and an emoji rides"
                 " no suggestion, hold, or markup."
             ),
             [
-                "test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares_and_refuses_one_it_does_not"
+                "test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares_and_refuses_one_it_does_not"
             ],
         ),
         (
@@ -799,7 +799,7 @@ def aim_targets(page_dir):
     clicking its prose. The vocabulary is read from the page's own registry rather than
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
-    tags = ", ".join(element_declarations(registry_storage.load_registry(page_dir)))
+    tags = ", ".join(element_declarations(vocabulary_model.load_registry(page_dir)))
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
 

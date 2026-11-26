@@ -302,7 +302,7 @@ def import_referenced_media(
             run_leaf("page", "media", str(page), str(candidate))
         return capture_local_resource(page, path)
 
-    from leaf.source.registry.storage import selected_vocabulary
+    from leaf.source.layer import selected_vocabulary
 
     # The arm preparing the page may speak another protocol, which this Leaf would
     # refuse to serve; finding the media its documents name needs only a vocabulary,
@@ -339,9 +339,9 @@ def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> 
     what the page now holds there. Unchanged captures retain their run receipts;
     sources no longer captured remain available to historical revisions.
     """
+    from leaf.records.page_data import working_data_bindings
     from leaf.source.data import read_data
-    from leaf.source.data_contracts import working_data_bindings
-    from leaf.source.registry.storage import load_registry
+    from leaf.source.vocabulary import load_registry
 
     registry = load_registry(page)
     current = read_data(page, registry)["sources"]

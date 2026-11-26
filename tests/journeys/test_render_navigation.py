@@ -59,9 +59,9 @@ from render_harness import (
 )
 
 from journeys import expect_showing
-from leaf.agents import server as server_model
+from leaf.base import server as server_model
 from leaf.log import event_log as events_model
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, show_resolved
 from leaf_dev.example_data import named_source, published_sources
@@ -727,7 +727,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         "feature-gallery-source.toml · lines 1–4"
     )
     changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
-    data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
+    page_data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
     expect(live.locator("code")).to_have_text(changed)
     expect(page.locator("#bg-measurement-guide")).to_contain_text(
         "measurement is behind its source"

@@ -18,7 +18,7 @@ log or document. Only changed row content is replaced. Neighbor consumers read
 this small output and server liveness, without folding any neighboring page.
 A change in those facts is also how the server learns that the claimant's turn was
 interrupted, which runs no hook, so the producer then messages a claimant whose
-interrupted turn left input nothing will carry (`presence.nudge_interrupted`).
+interrupted turn left input nothing will carry (`nudge_interrupted`).
 The lifetime supervisor runs independently: a page writer holding the transaction
 must never prevent a stop. A failed producer ends the serving process, so its
 lease withdraws the row. The enabled service remains eligible for the existing
@@ -30,13 +30,20 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from leaf.agents.presence import PRESENCE_CACHE_S, live_facts, nudge_interrupted
-from leaf.agents.server import exit_serving
+from leaf.agents.delivery import deliverable, wake_inputs
+from leaf.agents.presence import (
+    PRESENCE_CACHE_S,
+    live_facts,
+    nudge_unwatched,
+    read_work,
+)
 from leaf.base.page_memory import memory_of
 from leaf.base.rows import ROW, row_path
 from leaf.base.service import page_claim
-from leaf.base.state import page_key
+from leaf.base.state import page_key, turn_closed
+from leaf.records.transaction import PageTransaction
 from leaf.serving.served_state.service import PageStateService
+from leaf.serving.server_lifetime import exit_serving
 from leaf.source.page_inputs import page_reading
 
 
@@ -110,3 +117,31 @@ class RowPublisher:
                 },
             )
             self.row = row
+
+
+def nudge_interrupted(page_dir: Path) -> None:
+    """Message the claimant whose turn was interrupted, as Escape ends one, for the
+    input that turn left on the page (`presence.nudge_unwatched`): what arrived while
+    it ran and its tool boundaries had not yet taken, and what its hooks handed over
+    that its harness's record does not show reached the model
+    (`delivery.deliverable`), as when Escape landed while another prompt hook still
+    ran and Claude Code dropped the prompt with Leaf's context.
+
+    No hook runs on an interrupt, so nothing on the page moves when one happens;
+    the page's server reads it from the harness's own record, among the live facts
+    it looks at every presence interval (`RowPublisher.refresh`), and calls this
+    when they change. Claude Code's prompt hook starts a watch that holds the lease
+    through its turn and wakes for what an interrupt leaves, so this sends only
+    where no watch runs: after a turn whose prompt came before the session held any
+    page, whose watch ended at once, or once a watch has failed. A watch that wakes
+    the session marks the ending it woke it for (`session.woke_after`), so the
+    moment between its lease going and the woken turn starting sends nothing more.
+    A turn a Stop hook closed is left alone: that hook starts the watch that wakes
+    for what the turn left."""
+    with PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        if claim is None or turn_closed(claim):
+            return
+        work = read_work(page_dir, page.events)
+        if wake_inputs(deliverable(page, work), work):
+            nudge_unwatched(page)

@@ -17,7 +17,7 @@ delivered at prompt:
   instruction: >-
     Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
-    format: leaf-delivery/52
+    format: leaf-delivery/58
     id: <delivery>
     created_at: <time>
     acknowledge: null
@@ -138,6 +138,8 @@ answer:
   responds: event-3
   turn: <turn>
   attempt: <attempt>
+  title: >-
+    Thread title
   revision: 1
   id: event-7
   attention: false

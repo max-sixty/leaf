@@ -1106,3 +1106,19 @@ test("the field's keys keep their promises over generated drafts", async () => {
     [],
   );
 });
+
+test("a file's formula holds its dollars as the markers round its words", async () => {
+  assert.equal(await loadMarkdown(), true);
+  const source = "Cost $`c(x)`$ a request.";
+  const placed = placedMarkdownTokens(source, false);
+  const words = (/** @type {string} */ type) =>
+    placed
+      .filter(({ token }) => token.type === type)
+      .map(({ from, to }) => source.slice(from, to));
+  assert.deepEqual(words("code_inline"), ["$`c(x)`$"]);
+  assert.deepEqual(words("text"), ["Cost ", " a request."]);
+  assert.equal(
+    placed.find(({ token }) => token.type === "code_inline")?.token.markup,
+    "$`",
+  );
+});

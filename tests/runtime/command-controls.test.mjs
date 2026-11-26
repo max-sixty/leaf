@@ -1981,7 +1981,10 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   ]);
   reflectFirstScopes();
   control.focus();
-  const hints = createCommandHints({ presentedControl: (control) => control });
+  const hints = createCommandHints({
+    presentedControl: (control) => control,
+    coveredEntry: () => null,
+  });
   try {
     hints.paint();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
@@ -2060,7 +2063,10 @@ test("a face shows over its control or the box that holds it, and is withheld ov
   );
   reflectFirstScopes();
   mark.focus();
-  const hints = createCommandHints({ presentedControl: (control) => control });
+  const hints = createCommandHints({
+    presentedControl: (control) => control,
+    coveredEntry: () => null,
+  });
   try {
     hints.paint();
     assert.deepEqual(

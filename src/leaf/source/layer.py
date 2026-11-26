@@ -1,7 +1,10 @@
-"""Layer input resolution, composition, and content identity.
+"""Layer input resolution, composition and content identity, and which Leaf runs:
+this process (`running_leaf`) and a page's server (`other_serving_leaf`).
 
-A selection has two compositions, held together by the inputs it resolves to, for
-the process or in the page's memory (`_held`). Its vocabulary (`selected_vocabulary`,
+A page's layer record (`registry.storage.LAYER`) selects two compositions, held
+together by the inputs the selection resolves to, for the process or in the page's
+memory (`_held`), and each is refused as a registry fault (`layer-unavailable`) where
+the selection no longer resolves or composes. Its vocabulary (`selected_vocabulary`,
 `LayerVocabulary`) is all a reader of the page needs, merged and stamped but not
 validated. The full composition
 (`selected_layer`, `LayerComposition`) is built over that vocabulary, validates its
@@ -42,8 +45,10 @@ from leaf.base.schema import (
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
 )
+from leaf.base.server import running_server
 from leaf.base.state import PLUGIN_ROOT, installed_copy
-from leaf.source.registry.contract import MODULES, is_element_name
+from leaf.source.registry.contract import MODULES, is_element_name, registry_error
+from leaf.source.registry.storage import layer_metadata_of
 
 
 def named_package(name: str) -> Path | None:
@@ -336,8 +341,7 @@ def _stylesheet_parts(css: str, source: Path) -> tuple:
     """
     import tinycss2
 
-    from leaf.source.revision_artifact import css_syntax_errors
-    from leaf.source.styles import css_stylesheet
+    from leaf.source.styles import css_stylesheet, css_syntax_errors
 
     # Maintained layer code refuses declarations the browser drops; page CSS
     # reports those as advice.
@@ -691,7 +695,7 @@ class LayerVocabulary:
     instructions by audience file (`composed_instructions`).
 
     Reading a page's documents, state or instructions needs only this
-    (`registry.storage.page_vocabulary`, `page.page_instructions`), so it is composed
+    (`vocabulary.page_vocabulary`, `page.page_instructions`), so it is composed
     apart from the layer's files (`LayerComposition`), which Leaf parses only to
     serve, export, check or inspect a page, or to capture a revision whose markup
     names one of them."""
@@ -730,11 +734,13 @@ class LayerComposition:
         }
 
 
-def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerComposition:
-    """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages`, in the order it lists them: its core and bundled packages, the
-    user's installed ones, as this process first read them, and the copies the page
-    holds of packages it selects by path.
+def selected_layer(record: dict, page_dir: Path) -> LayerComposition:
+    """The layer, with every file it serves, that this Leaf composes to serve, export
+    or check the page at `page_dir` whose layer record is `record`: the packages the
+    record selects, in the order it lists them, from the core and bundled packages,
+    the user's installed ones, as this process first read them, and the copies the
+    page holds of packages it selects by path. Refused as a registry fault where a
+    selected package is gone or invalid.
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
@@ -742,20 +748,61 @@ def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerCompositio
     the selection resolves to rather than its spelling, since an installed name
     resolves to another snapshot after `package install`; `_held` says for how
     long."""
-    inputs, held = _held(packages, page_dir)
-    return once(
-        held,
-        "layer",
-        lambda: _composition(
-            checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, held)
-        ),
+    try:
+        inputs, held = _held(tuple(record["packages"]), page_dir)
+        return once(
+            held,
+            "layer",
+            lambda: _composition(
+                checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, held)
+            ),
+        )
+    except Refused as error:
+        raise registry_error("layer-unavailable", error=str(error)) from None
+
+
+def selected_vocabulary(record: dict, page_dir: Path) -> LayerVocabulary:
+    """The vocabulary of the layer `selected_layer` composes for the same record, all
+    a reader of the page's documents needs, without reading the layer's files, held
+    with that layer. Refused as `selected_layer` refuses a selected package that is
+    gone or whose registry can't be read or merged. Its registry is not validated
+    (`compose_vocabulary`).
+
+    Each call resolves the selection anew, and a `package install` between two calls
+    points an installed name at another snapshot (`named_package`). So a reading that
+    needs several of the layer's facts takes them all from one call, which it passes
+    to `layer_vocabulary` and `layer_widgets`."""
+    try:
+        return _vocabulary(*_held(tuple(record["packages"]), page_dir))
+    except Refused as error:
+        raise registry_error("layer-unavailable", error=str(error)) from None
+
+
+def layer_vocabulary(record: dict, vocabulary: LayerVocabulary) -> dict:
+    """The registry of `vocabulary`, the layer `record` selects, with the selection
+    and the generation the browser speaks under `$layer`. Each call makes a new copy
+    of the layer's registry, sharing its entries."""
+    return {**vocabulary.registry, "$layer": layer_metadata_of(record)}
+
+
+def layer_widgets(vocabulary: LayerVocabulary) -> list[str]:
+    """The page-root-relative widget entry modules the layer of `vocabulary` serves."""
+    return sorted(
+        f"widgets/{name}"
+        for name in vocabulary.widgets
+        if re.fullmatch(r"lf-[^/]*\.js", name)
     )
 
 
-def selected_vocabulary(packages: tuple[str, ...], page_dir: Path) -> LayerVocabulary:
-    """The vocabulary of the layer `selected_layer` composes for the same selection,
-    without reading the layer's files, held with that layer."""
-    return _vocabulary(*_held(packages, page_dir))
+def served_layer(metadata: dict, page_dir: Path) -> dict:
+    """`metadata` as the served state names the layer the page at `page_dir` is read
+    under: with the fingerprint of the layer this Leaf composes for it, and this Leaf
+    as its producer, the one About this page shows (`runtime/panel/page-about.js`)."""
+    return {
+        **metadata,
+        "fingerprint": selected_layer(metadata, page_dir).fingerprint,
+        "producer": running_leaf(),
+    }
 
 
 def _vocabulary(inputs: tuple[Path, ...], held: dict) -> LayerVocabulary:
@@ -940,7 +987,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         # Nobody edits a harness's clone, but Codex's lacks what it strips on
         # install, such as the `.agents/skills` link, and adds its own record,
         # which Git would count as changes; and a status costs a hook that asks
-        # which Leaf it runs (`server.other_serving_leaf`) most of its reading.
+        # which Leaf it runs (`other_serving_leaf`) most of its reading.
         provenance["dirty"] = False
         return provenance
     try:
@@ -963,6 +1010,30 @@ def running_leaf() -> dict:
     that server is built (`http.page_app`): the Leaf whose code the process runs,
     however its checkout moves on afterwards."""
     return payload_provenance()
+
+
+def other_serving_leaf(page_dir: Path) -> dict | None:
+    """The Leaf the page's running server records (`payload_provenance`), where it is
+    another Leaf than the one this process runs (`running_leaf`), or None where no
+    server runs or this Leaf started it.
+
+    A server keeps the runtime and layer it started with, so what this process checks
+    may not be what the user's tab draws until the server restarts. Another Leaf is
+    another install or checkout, or this one at another commit, as a checkout is after
+    a commit, or a copy Codex or Pi updated in place is until its server follows the
+    update (`server_lifetime.stop_when_service_ends`). Uncommitted edits don't count,
+    since the record can't say whether they changed after the server started.
+    `leaf server start` restarts such a server under this Leaf
+    (`hosting.start_page`), and `page check` notes it
+    (`authored_checks.source.source_advice`)."""
+    server = running_server(page_dir)
+    if server is None:
+        return None
+    served = server["runtime"]
+    here = {"path": str(PLUGIN_ROOT), "commit": running_leaf().get("commit")}
+    if all(served.get(key) == value for key, value in here.items()):
+        return None
+    return served
 
 
 def provenance_label(provenance: dict) -> str:
@@ -1013,7 +1084,7 @@ def _composition(
     as valid, its modules checked for private kernel imports, and its sheets and
     browser files read."""
     from leaf.source.registry.validation import incoming_registry
-    from leaf.source.revision_artifact import (
+    from leaf.source.resource_urls import (
         PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,

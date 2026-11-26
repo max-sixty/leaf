@@ -86,10 +86,10 @@ from render_harness import (
 from browser.threads import open_panel_thread, thread_row
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import data as data_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.render_checks import evaluate_probe, rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
@@ -311,7 +311,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
     expect(page.locator("#gate-milestone > .lf-column-name")).to_have_count(1)
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
+    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
     cases = [
         ("#gate-card strong", "Build feeders", "gate-card"),
         ("#gate-card", "Two classic models.", "gate-card"),
@@ -415,6 +415,8 @@ def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
                 "thread",
                 "create",
                 str(serve.page_dir),
+                "--title",
+                "Lanterns",
                 "--quote",
                 quote,
                 "--text",
@@ -447,7 +449,7 @@ DRAWN_PARTS_PAGE = leaf_page(
     "drawn parts",
     """
 <h1 id="title">Deploy</h1>
-<lf-diagram id="flow" parts="all"><pre>flowchart LR
+<lf-diagram id="flow"><pre>flowchart LR
   build[Build] --&gt; test[Test] --&gt; ship[Ship]</pre></lf-diagram>
 <lf-timeline id="deploy-order" aria-label="Deploy order">
   <lf-lane label="Build">
@@ -473,6 +475,8 @@ def test_a_part_no_check_has_read_is_checked_on_the_page_as_drawn(serve):
                 "thread",
                 "create",
                 str(serve.page_dir),
+                "--title",
+                "Slow step",
                 "--section",
                 section,
                 "--part",
@@ -519,6 +523,8 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
                 "thread",
                 "create",
                 str(serve.page_dir),
+                "--title",
+                "Release wording",
                 "--section",
                 "revised-quotes",
                 "--quote",
@@ -581,7 +587,7 @@ def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, ser
     track = page.locator("#track").bounding_box()
     body = page.locator("#body").bounding_box()
     assert track["x"] + track["width"] <= body["x"], (track, body)
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
+    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
     cases = [
         ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
         ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
@@ -646,7 +652,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     url = live_url(serve(markup))
     page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
+    registry = vocabulary_model.read_page_registry(serve.page_dir).registry
     expected = anchor_capture_model.capture_anchor(
         structure_model.SourceDocument(markup), registry, quote, "review"
     )
@@ -2054,7 +2060,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert inherited["connected"], inherited
     assert inherited["after"] == ["rgb(161, 35, 69)"] * 3, inherited
 
-    langs = registry_storage.load_registry(serve.page_dir)["$languages"]["names"]
+    langs = vocabulary_model.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
@@ -3198,7 +3204,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "fig"},
         },
     )
@@ -3396,6 +3402,8 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
             "drift",
             "--quote",
             revised_passage,
+            "--title",
+            "Drifted passage",
             "--text",
             "I revised this passage and moved the thread onto it.",
         ],
@@ -3465,6 +3473,8 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
             "--done",
             response_reference(d, root["id"]),
             "--detach",
+            "--title",
+            "Removed section",
             "--text",
             "I removed the section; this thread no longer has a page target.",
         ],
@@ -4188,7 +4198,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
         "collapsed></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {
@@ -4366,7 +4376,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
             f"</lf-diff><section id=far>{filler}</section>",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -4436,7 +4446,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 """,
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -4535,7 +4545,7 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
         "collapsed></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         TWO_FILE_MANIFEST,
@@ -4644,8 +4654,8 @@ def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
             }
         ]
     }
-    data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
-    data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
+    page_data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
     line = '["long.py","new",280]'
     earlier = {"source": "earlier-patch", "source_revision": "0" * 16}
     for section, datum, anchor in (
@@ -4738,7 +4748,7 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
             "{ content-visibility: visible; visibility: hidden; }</style>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
     for anchor in (
         {"section": "folded"},
         {"section": "unchosen"},
@@ -4828,7 +4838,7 @@ def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
             '<lf-diff id="patch" source="long-patch" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "long-patch",
         {
@@ -4888,7 +4898,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
             "collapsed></lf-diff>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
     page = open_page(browser, url, init_script=HOLD_SECOND_FILE)
     page.locator("lf-diff summary").first.click()
     first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
@@ -4941,13 +4951,13 @@ def test_a_diff_tracks_each_write_of_its_source(browser, serve):
             ]
         }
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("first.py", "old", "first")
     )
     page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("second.py", "old", "second")
     )
     told(page)
@@ -5158,7 +5168,9 @@ new file mode 120000
     )
     url = serve(authored)
     if manifest:
-        data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))
+        page_data_model.cmd_data_set(
+            serve.page_dir, "native-patch", patch_manifest(source)
+        )
     context = browser.new_context(
         viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
     )

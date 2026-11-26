@@ -1130,6 +1130,8 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
             response_reference(claimed, comment),
             "--text",
             "ok",
+            "--title",
+            "Thread title",
         ],
     )
     assert replied.exit_code == 0, replied.output

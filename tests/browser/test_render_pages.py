@@ -90,8 +90,8 @@ from leaf.base import schema as schema_model
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.pages.render_gate.scheme import console_finding
-from leaf.source.registry.storage import load_registry
 from leaf.source.render_checks import asked_again, rendered, wait_until_ready
+from leaf.source.vocabulary import load_registry
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -435,6 +435,8 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
             "thread",
             "create",
             str(d),
+            "--title",
+            "Version stamp",
             "--quote",
             "The version stamp never lands",
             "--text",
@@ -486,6 +488,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
                 "thread",
                 "create",
                 str(d),
+                "--title",
+                "Retry cap",
                 "--quote",
                 "Retries are capped at three",
                 "--text",
@@ -2451,8 +2455,9 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
 
 def test_the_document_holds_no_room_for_the_chrome_on_screen_or_paper(browser, serve):
     """The floating panel stands over the foot of the document, which keeps no room
-    for it, so the document ends where its own content does, under a mouse, under a
-    finger and on paper, which prints no chrome."""
+    for it, so the document ends where its own content and the room for its last line
+    to rise (layouts.css) do, under a mouse, under a finger and on paper, which prints
+    no chrome."""
     page = open_page(browser, serve(LONG_PAGE))
     for width in (1440, 390):
         resized(page, width, 844)

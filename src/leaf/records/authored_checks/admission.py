@@ -1,40 +1,24 @@
 """What an agent's writer hands in: message bodies, the HTML in them, and the ids it
 names."""
 
-from collections.abc import Iterator
-from collections.abc import Set as AbstractSet
 from pathlib import Path
-
-import turbohtml
 
 from leaf.base.findings import Finding, Rejected, note
 from leaf.base.piped_input import NO_BODY
 from leaf.base.refusals import Refused
-from leaf.base.schema import MEDIA_DIR
-from leaf.log.event_log import logged_ids
 from leaf.log.events import build_threads
-from leaf.log.thread_context import thread_ids, thread_names, thread_structure
+from leaf.log.thread_context import thread_names
 from leaf.records.activity import answer_command
-from leaf.records.markup_checks.instances import (
-    invoker_errors,
-    markup_findings,
-    message_settlement_advice,
-    reference_errors,
+from leaf.records.authored_checks.documents import (
+    message_markup_findings,
+    text_media_errors,
 )
-from leaf.records.markup_checks.markup import fragment_style_errors
 from leaf.source.data import read_contracts
-from leaf.source.data_contracts import data_binding_errors
-from leaf.source.passages import JOINS_WORDS_TAGS, SourceReading, markdown_dialect
+from leaf.source.reading import SourceReading
 from leaf.source.registry.kernel import kinds_declaring
-from leaf.source.registry.storage import require_registry
-from leaf.source.revision_artifact import (
-    document_drops,
-    read_revision,
-    revision_history,
-    unanswered_media,
-    uncaptured_errors,
-)
+from leaf.source.revision_artifact import read_revision, revision_history
 from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import require_registry
 
 
 def checked_text(
@@ -56,33 +40,6 @@ def checked_text(
     if errs := text_media_errors(text, page_dir, html=html):
         raise Rejected(errs, "text names media the page won't show")
     return text
-
-
-def text_media_errors(
-    text: str, page_dir: Path, *, html: bool = False
-) -> list[Finding]:
-    """Each `/media/` reference in a message's Markdown that the page won't answer
-    (`revision_artifact.unanswered_media`).
-
-    Markup names a picture in an attribute or a stylesheet, where the parsed reading
-    finds it (`revision_artifact.uncaptured_errors`); a message names one as a
-    Markdown destination, which that reading cannot see — so a screenshot an agent
-    sends that way would come through the one door that never asks. `check_markup`
-    runs only on a message holding HTML, and text without it would reach the log
-    unread.
-
-    A reference is a rendered link or image destination, never a scan of the words.
-    Parsing the Markdown resolves referenced definitions and leaves fenced examples
-    and unused definitions as text, so neither asks for a file the page will not load."""
-    refs = {
-        url
-        for token in markdown_dialect(True, html=html).parse(text)
-        for child in token.children or ()
-        if child.type in {"link_open", "image"}
-        if (url := child.attrGet("href" if child.type == "link_open" else "src"))
-        and url.startswith(f"/{MEDIA_DIR}/")
-    }
-    return unanswered_media(refs, page_dir)
 
 
 def thread_obligation(events: list, responses: dict, message: str) -> dict | None:
@@ -198,14 +155,13 @@ def check_markup(
     `publication` is the document and registry the message is stored with, which
     its writer decides before the check: the revision it names
     (`revision_publication`), or the candidate where a reply publishes saved edits
-    it has checked (`thread.post_reply`). No later check reads the fragment for a
-    conflicting binding again (`data_contracts.data_binding_errors`), so it is
-    checked here under the registry it is stored with."""
+    it has checked (`thread.post_reply`). The page's data inventory and `leaf data
+    set` read the fragment's bindings under that registry
+    (`page_data.page_data_document_readings`), so it is checked here under that
+    one; a sample's child that copies the message reads it under its own, and checks
+    it there (`documents.initial_sample_events`)."""
     registry, page = publication.registry, publication.document
     frag = SourceDocument(markup)
-    extra_errors = data_binding_errors(
-        page_dir, registry, [(frag, f"incoming {kind} markup")]
-    )
     found = message_markup_findings(
         page_dir,
         frag,
@@ -213,7 +169,6 @@ def check_markup(
         registry,
         page,
         revision_history(page_dir).ids,
-        extra_errors,
         read_contracts(page_dir),
         thread,
         replacing=replacing,
@@ -261,148 +216,3 @@ def drawn(markup: str, findings: list[Finding]) -> str:
         + "\n".join(rows)
         + "\nFindings"
     )
-
-
-def split_preformatted(frag: SourceDocument) -> list[Finding]:
-    """Each `<pre>` holding a block, such as a `<p>`, `<ul>` or `<h1>`, which HTML's
-    content model keeps out of a `<pre>` and only a message's Markdown draws there: a
-    blank line inside a block of HTML ends the block, a `<pre>` within it included,
-    and Markdown reads the lines after it as its own blocks. The text loses its blank
-    lines, its indents and any list marks, `#` or asterisks, and the HTML stays well
-    formed, so no other check reports it. A block is any HTML element outside phrasing
-    content (`$passages.phrasing`); a custom element is phrasing content."""
-    findings = []
-    for pre in frag.tree.descendants:
-        if not (isinstance(pre, turbohtml.Element) and pre.tag == "pre"):
-            continue
-        block = next(
-            (
-                inner
-                for inner in pre.descendants
-                if isinstance(inner, turbohtml.Element)
-                and inner.namespace is turbohtml.Namespace.HTML
-                and inner.tag not in JOINS_WORDS_TAGS
-                and "-" not in inner.tag
-            ),
-            None,
-        )
-        if block is not None:
-            line = SourceDocument._position(block)[0]
-            findings.append(
-                Finding("split-pre", "<pre>", {"line": line, "block": block.tag})
-            )
-    return findings
-
-
-def message_markup_findings(
-    page_dir: Path,
-    frag: SourceDocument,
-    events: list,
-    registry: dict,
-    page: SourceDocument,
-    prior_ids: AbstractSet[str],
-    extra_errors: list[Finding],
-    contracts: dict,
-    thread_id: str | None,
-    *,
-    replacing: str | None = None,
-) -> list[Finding]:
-    """The shared message-fragment gate for a stored or newly constructed page.
-
-    Callers supply their lifetime's binding checks. The
-    fragment's structure, vocabulary, presentation, media, ids, references and
-    live sample children have one gate regardless of whether its page has been
-    allocated yet. `thread_id` is the thread the message joins, where known, and
-    `replacing` the message an edit rewrites: its markup leaves the page as this
-    takes its place, and an id any of its wordings held is its own to keep
-    (`thread_context.thread_structure`). Each stage reads only a fragment the stages
-    before it accept, so the gate gives the findings of the first stage that refuses
-    the fragment, or where none does, what every stage advises.
-    """
-    advice = []
-    for found in _message_stages(
-        page_dir,
-        frag,
-        events,
-        registry,
-        page,
-        prior_ids,
-        extra_errors,
-        contracts,
-        thread_id,
-        replacing,
-    ):
-        if any(finding.refuses for finding in found):
-            return found
-        advice += found
-    return advice
-
-
-def _message_stages(
-    page_dir: Path,
-    frag: SourceDocument,
-    events: list,
-    registry: dict,
-    page: SourceDocument,
-    prior_ids: AbstractSet[str],
-    extra_errors: list[Finding],
-    contracts: dict,
-    thread_id: str | None,
-    replacing: str | None,
-) -> Iterator[list[Finding]]:
-    """The findings of each stage of `message_markup_findings`, in order, each read
-    only once the gate asks for it."""
-    yield split_preformatted(frag)
-    yield markup_findings(
-        frag,
-        registry,
-        lambda: [
-            *message_settlement_advice(frag, registry),
-            *extra_errors,
-            *fragment_style_errors(frag),
-            *uncaptured_errors(frag, page_dir),
-        ],
-    )
-    thread = thread_structure(events)
-    held = {
-        identity for identity, message in thread.holders.items() if message != replacing
-    }
-    clash = sorted(frag.ids & (prior_ids | page.ids | held))
-    yield [Finding("ids-taken", values={"ids": clash})] if clash else []
-    logged = sorted(frag.ids & logged_ids(events))
-    yield [Finding("ids-taken-by-events", values={"ids": logged})] if logged else []
-    # A reference reads the message's own document and then the page
-    # (`runtime/readings/references.js`), so an id in another message would resolve to nothing.
-    ids = page.ids | frag.ids
-    yield reference_errors(
-        frag.lf_elements,
-        registry,
-        ids,
-        {**page.by_id, **frag.by_id},
-        thread_ids=thread_ids(events),
-    ) + invoker_errors(frag, ids)
-    # A child selecting the thread this message joins would hold this sample again,
-    # and its child the same, without end.
-    looping = sorted(
-        sample["attrs"].get("id", "<unnamed>")
-        for sample in frag.samples
-        if thread_id in sample["attrs"].get("data-sample-threads", "").split()
-    )
-    yield (
-        [Finding("sample-loop", values={"samples": looping, "thread": thread_id})]
-        if looping
-        else []
-    )
-    # A live sample's child is a page of its own, built from this message once it is
-    # logged. Imported here because checking a child calls this gate back for each
-    # fixture message in its history.
-    from leaf.records.authored_checks.source import (
-        sample_errors,
-        uncaptured_sample_errors,
-    )
-
-    yield [
-        *sample_errors(page_dir, page, events, frag, registry, contracts),
-        *uncaptured_sample_errors(page_dir, frag),
-        *document_drops(frag),
-    ]

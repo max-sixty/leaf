@@ -25,8 +25,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from leaf.base.schema import USER_VIEWS_FILE, USER_VIEWS_LOCK
-from leaf.base.state import Record, described, flocked, object_schema
-from leaf.source.registry.schema import aware_instant, schema_error
+from leaf.base.state import Record, aware_instant, described, flocked, object_schema
+from leaf.source.registry.schema import schema_error
 
 FRESH_FOR_S = 45
 RETAIN_FOR = timedelta(days=1)

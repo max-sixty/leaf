@@ -8,7 +8,7 @@ from render_cases_interaction import PANEL_PAGE
 from render_harness import ROOT, leaf_page, open_page, rendered, selection_field, write
 
 from browser.test_render_reactions import select_paragraph
-from leaf.source import data as data_model
+from leaf.records import page_data as page_data_model
 
 
 @pytest.mark.parametrize("touch,width", [(False, 1280), (True, 390)])
@@ -41,7 +41,7 @@ def test_response_picker_keeps_the_comment_in_place(
             if reactions
             else {
                 "$reactions": {
-                    "tokens": {name: None for name in registry["$reactions"]["tokens"]}
+                    "emoji": {emoji: None for emoji in registry["$reactions"]["emoji"]}
                 }
             }
         )
@@ -52,7 +52,7 @@ def test_response_picker_keeps_the_comment_in_place(
             ),
             layer_registry=layer,
         )
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "patch-data",
             "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
@@ -102,7 +102,7 @@ def test_response_picker_keeps_the_comment_in_place(
     assert abs(after["height"] - before["height"]) <= 1, (before, after)
     if seat == "floating":
         expect(bar.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
-    expect(bar.get_by_role("button", name="keep", exact=True)).to_be_visible()
+    expect(bar.get_by_role("button", name="👍", exact=True)).to_be_visible()
     page.keyboard.press("Escape")
     expect(bar.locator(".lf-response-options")).to_be_hidden()
     expect(field).to_be_focused()

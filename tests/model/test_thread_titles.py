@@ -478,7 +478,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
         finally:
             stopped.append(executable)
 
-    monkeypatch.setattr(inference, "private_app_server", title_server)
+    monkeypatch.setattr(codex_model, "private_app_server", title_server)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -513,7 +513,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
 
     # A reaction opens a thread with no words; the reply that gives it some names it.
     reaction = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "token": "mark"}
+        page_dir, {"kind": "comment", "author": "user", "emoji": "👍"}
     )
     status, body = endpoint_model.accept_event(
         page_dir,

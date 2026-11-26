@@ -67,7 +67,7 @@ def holds_for(attrs: dict, rule):
     `False` otherwise; any other declaration is returned as declared. Delivery's paint
     and every reader asking of one occurrence read a fact through this, as `exhibits`
     does; a reader asking whether the tag declares the fact at all reads the
-    declaration whatever its condition, as `obligations.shown_in` does."""
+    declaration whatever its condition, as `structure.shown_in` does."""
     when = fact_condition(rule)
     return rule if when is None else matches_when(attrs, when)
 
@@ -271,42 +271,32 @@ def created_child(event: dict, spec: dict) -> tuple[str, str] | None:
 
 @dataclass(frozen=True)
 class VisualParts:
-    """The part ids one authored element admits as `anchor.visual`.
-
-    A widget admits its complete registered inventory when its opt-in attribute is
-    present, or ids beginning its declared prefixes. Admission does not say a part
-    is on screen; the browser resolves that, and `thread create --part` checks an
-    agent's id against what the page drew (`anchor_capture.drawn_part`). An admitted
-    id nothing renders detaches, unless the widget's module draws parts on request or
-    finds them by id, as a chart finds its points; then it stands on the whole element.
+    """The part ids one authored element admits as `anchor.visual`: ids beginning one
+    of its widget's declared prefixes. Admission does not say a part is on screen; the
+    browser resolves that, and `thread create --part` checks an agent's id against what
+    the page drew (`anchor_capture.drawn_part`). An admitted id nothing renders
+    detaches, unless the widget's module draws parts on request or finds them by id, as
+    a chart finds its points; then it stands on the whole element.
     """
 
     prefixes: tuple[str, ...] = ()
-    all: bool = False
 
     def __contains__(self, part: str) -> bool:
-        return part.split() == [part] and (
-            self.all
-            or any(
-                part.startswith(prefix) and part != prefix for prefix in self.prefixes
-            )
+        return part.split() == [part] and any(
+            part.startswith(prefix) and part != prefix for prefix in self.prefixes
         )
 
     def __bool__(self) -> bool:
-        return bool(self.prefixes or self.all)
+        return bool(self.prefixes)
 
     def __str__(self) -> str:
-        return admitted_parts(self.prefixes, self.all)
+        return admitted_parts(self.prefixes)
 
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:
     """The visual-part ids one authored Leaf element admits."""
     visual = registry.get(record.get("tag"), {}).get("visual")
-    if not isinstance(visual, dict):
-        return VisualParts()
-    if "prefixes" in visual:
-        return VisualParts(prefixes=tuple(visual["prefixes"]))
-    return VisualParts(all=visual["parts"] in record.get("attrs", {}))
+    return VisualParts(tuple(visual["prefixes"]) if isinstance(visual, dict) else ())
 
 
 class RegistryError(Rejected):
@@ -715,7 +705,7 @@ def stamp_states(registry: dict) -> dict:
 DECLARED_WORDS = (("tone", "$tones"),)
 # The attribute that holds an element's title on every widget that takes it
 # (`$attributes`), which names the element away from itself
-# (`gesture_words.element_name`, the browser's `addressableName`).
+# (`passages.element_name`, the browser's `addressableName`).
 NAME_ATTRIBUTE = "label"
 
 

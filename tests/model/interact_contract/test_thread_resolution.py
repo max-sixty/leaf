@@ -24,8 +24,9 @@ from leaf.log import event_log as events_model
 from leaf.log import events as event_folds_model
 from leaf.records import event_contracts as event_contracts_model
 from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -38,7 +39,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
     thread_model.cmd_resolve(page_dir, "question")
     for message in (
-        {"author": "user", "token": "keep"},
+        {"author": "user", "emoji": "👍"},
         {
             "author": "agent",
             "text": "Delivery failed",
@@ -279,11 +280,11 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             },
         },
     )
-    spk = passages_model.SourceReading(
+    spk = reading_model.SourceReading(
         structure_model.SourceDocument(
             (page_dir / "index.html").read_text(encoding="utf-8")
         ),
-        registry_storage.require_registry(page_dir),
+        vocabulary_model.require_registry(page_dir),
     ).spoken
     threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
@@ -364,10 +365,10 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     whole reading and the distinction this rests on would not exist. The diagram's
     data body is the element whose words the vocabulary changes."""
     document = structure_model.SourceDocument(FLOW_PAGE)
-    registry = registry_storage.require_registry(page_dir)
-    full = passages_model.SourceReading(document, registry).spoken
+    registry = vocabulary_model.require_registry(page_dir)
+    full = reading_model.SourceReading(document, registry).spoken
     assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
-    bare = passages_model.SourceReading(document, {}).spoken
+    bare = reading_model.SourceReading(document, {}).spoken
     assert any(full[wid].words != bare[wid].words for wid in full)
 
 
@@ -407,8 +408,8 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.SourceReading(
-        document, registry_storage.require_registry(page_dir)
+    spk = reading_model.SourceReading(
+        document, vocabulary_model.require_registry(page_dir)
     ).spoken
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
@@ -510,7 +511,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     from leaf.log.projection import page_reading
     from leaf.log.thread_context import thread_memberships
 
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     registry = deepcopy(registry)
     registry["lf-suggestion"]["verbs"]["label"] = {
         "detail": {"type": "object"},
@@ -537,7 +538,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     events.append({**accepted, "id": "accept1", "seq": 2})
     events.append(event_contracts_model.admitted_event(stated, events, event))
     page = page_reading(
-        passages_model.SourceReading(structure_model.SourceDocument(html), registry),
+        reading_model.SourceReading(structure_model.SourceDocument(html), registry),
         events,
         1,
     )

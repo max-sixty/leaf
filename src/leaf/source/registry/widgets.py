@@ -262,18 +262,8 @@ def _validate_widget_structure(
         raise registry_error(
             "undeclared-attributes", path, tag, key="refers", names=unknown
         )
-    if isinstance(entry.get("visual"), dict):
-        if "id" not in required:
-            raise registry_error("visual-id", path, tag)
-        part_attribute = entry["visual"].get("parts")
-        if part_attribute and part_attribute not in properties:
-            raise registry_error(
-                "undeclared-attributes",
-                path,
-                tag,
-                key="visual.parts",
-                names=[part_attribute],
-            )
+    if isinstance(entry.get("visual"), dict) and "id" not in required:
+        raise registry_error("visual-id", path, tag)
     return properties
 
 

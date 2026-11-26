@@ -57,10 +57,10 @@ from leaf.base.schema import (
     PAGE_STATE_FILES,
     SESSION_ROUTE_DIRS,
 )
-from leaf.base.state import record_name
+from leaf.base.state import kernel_protocol, record_name
 from leaf.log.event_log import initialized
+from leaf.serving.drafts import DRAFTS
 from leaf.serving.live_shell import write_live_shell
-from leaf.source.registry.kernel import kernel_protocol
 from leaf.source.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import ROOT, docs
 from leaf_dev.arms import run_leaf
@@ -362,6 +362,9 @@ def publish_live_shells(
         # The Worker keys a visitor's private record by it, so the record outlives a
         # deploy until the protocol moves (`worker/src/index.ts`).
         "protocol": kernel_protocol(),
+        # The Worker keys a page's drafts store by it, so a release reads and replaces
+        # only the stores written at its own drafts shape (`worker/src/storage.ts`).
+        "drafts_format": DRAFTS.format,
         "frame_ancestors": FRAME_ANCESTORS_CSP,
         "routes": {
             "layer": list(BROWSER_DIRS),

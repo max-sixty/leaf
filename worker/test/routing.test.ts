@@ -43,6 +43,7 @@ const frame_ancestors = "frame-ancestors 'self'";
 const manifest = {
   release: "a".repeat(64),
   protocol: 60,
+  drafts_format: "leaf-drafts/51",
   frame_ancestors,
   routes,
   pages,

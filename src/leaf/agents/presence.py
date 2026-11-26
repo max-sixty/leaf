@@ -1,6 +1,6 @@
-"""Page and neighboring-leaf presence readings, and the one write that follows
-from them: the message to a claimant whose input nothing will carry
-(`nudge_unwatched`, `nudge_interrupted`)."""
+"""Page and neighboring-leaf presence readings, the page's work folded with its
+presence (`read_work`), and the one write that follows from them: the message to a
+claimant whose input nothing will carry (`nudge_unwatched`)."""
 
 import hashlib
 import json
@@ -8,16 +8,17 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from leaf.agents.server import running_server
-from leaf.base.files import file_stamp
+from leaf.base.files import file_stamp, latest_revision, list_revisions
 from leaf.base.harness import claim_harness
 from leaf.base.leases import lock_is_held, wait_is_live, waiter_lease_path
 from leaf.base.page_memory import memo
 from leaf.base.rows import ROW, read_row, row_path
 from leaf.base.schema import SERVER_LOCK, UNNAMED_AGENT
+from leaf.base.server import running_server
 from leaf.base.service import claim_is_active, claim_records, page_claim, read_stream
-from leaf.base.state import now_iso, state_home, turn_closed
+from leaf.base.state import now_iso, state_home
 from leaf.records.activity import (
     Turn,
     current_turn,
@@ -32,6 +33,10 @@ from leaf.records.transaction import (
     owned_pages,
     unacknowledged,
 )
+from leaf.source.revision_artifact import latest_title, read_revision
+
+if TYPE_CHECKING:
+    from leaf.records.work_state import WorkState
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -225,8 +230,6 @@ def page_list() -> list[dict]:
     The counts a row carries (`on_user`, `threads`) are a serving page's; a page
     with no live row, stopped or closed, has none here, and `page state` reads it
     whole. Its title is its latest revision's."""
-    from leaf.source.revision_artifact import latest_title
-
     rows = {page.resolve(): row for page, row in live_leaves()}
     claims = {Path(claim["page"]).resolve(): claim for claim in claim_records()}
     listed = []
@@ -405,6 +408,30 @@ def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
     return present, turn
 
 
+def read_work(page_dir: Path, events: list) -> "WorkState":
+    """The page's work as the served state folds it (`work_state.work_state`,
+    `served_state.context.PageRead.work`): the log over the live revision, with the
+    claim's presence and live activity, for a transport or command that reads no
+    other part of the served page. The fold loads here, so a reader of presence
+    alone, such as `leaf page list`, loads none of it."""
+    from leaf.records.work_state import work_state
+
+    revision = latest_revision(page_dir)
+    source = read_revision(page_dir, revision) if revision is not None else None
+    revisions = frozenset(list_revisions(page_dir))
+    present, live_stream = presence_with_activity(page_dir, events)
+    return work_state(
+        events,
+        source,
+        revision,
+        present,
+        now_iso(),
+        live_stream,
+        revisions=revisions,
+        revision_reader=lambda number: read_revision(page_dir, number),
+    )
+
+
 def session_turn_running(session_id: str) -> bool:
     """Whether a page `session_id` holds reads that session's turn as running
     (`claimant_reading`), each page read under its own transaction."""
@@ -483,9 +510,9 @@ def nudge_unwatched(page: PageTransaction) -> None:
     process of its own has nowhere to put this and answers no.
 
     Admission calls it, and so does a watch giving up its lease, and the page's
-    server once it reads a turn interrupted (`nudge_interrupted`). It runs under the
-    page's lock, so the mark it leaves is exact: a local socket accepts or refuses at
-    once, and input after a refusal tries again."""
+    server once it reads a turn interrupted (`server_rows.nudge_interrupted`). It
+    runs under the page's lock, so the mark it leaves is exact: a local socket
+    accepts or refuses at once, and input after a refusal tries again."""
     claim, page_dir = page.active_claim, page.page_dir
     if not claim or wait_is_live(page_dir, claim["id"]):
         return
@@ -505,35 +532,3 @@ def turn_ending(claim: dict) -> str:
     turn's id and its close stamp, or for an interrupted turn its last opening
     (`PageTransaction.note_messaged`)."""
     return f"{claim['turn']}@{claim['turn_closed'] or claim['turn_opened']}"
-
-
-def nudge_interrupted(page_dir: Path) -> None:
-    """Message the claimant whose turn was interrupted, as Escape ends one, for the
-    input that turn left on the page (`nudge_unwatched`): what arrived while it ran
-    and its tool boundaries had not yet taken, and what its hooks handed over that
-    its harness's record does not show reached the model (`delivery.deliverable`),
-    as when Escape landed while another prompt hook still ran and Claude Code
-    dropped the prompt with Leaf's context.
-
-    No hook runs on an interrupt, so nothing on the page moves when one happens;
-    the page's server reads it from the harness's own record, among the live facts
-    it looks at every presence interval (`server_rows`), and calls this when they
-    change. Claude Code's prompt hook starts a watch that holds the lease through
-    its turn and wakes for what an interrupt leaves, so this sends only where no
-    watch runs: after a turn whose prompt came before the session held any page,
-    whose watch ended at once, or once a watch has failed. A watch that wakes the
-    session marks the ending it woke it for (`session.woke_after`), so the moment
-    between its lease going and the woken turn starting sends nothing more. A turn
-    a Stop hook closed is left alone: that hook starts the watch that wakes for
-    what the turn left."""
-    from leaf.agents.delivery import deliverable
-    from leaf.commands.session import wake_inputs
-
-    with PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        if (
-            claim is not None
-            and not turn_closed(claim)
-            and wake_inputs(page, deliverable(page))
-        ):
-            nudge_unwatched(page)

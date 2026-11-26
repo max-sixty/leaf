@@ -18,9 +18,9 @@ from interact_support import STATED_TIMEOUT
 from playwright.sync_api import BrowserContext
 from playwright.sync_api import Page as BrowserPage
 
+from leaf.agents.delivery import inline_context
 from leaf.base import harness
 from leaf.base.harness import NUDGE_WORDS
-from leaf.commands.hook_transport import inline_context
 from leaf.log.interaction_log import read_interactions
 from leaf_dev import ROOT
 from leaf_dev.commands.journey import _claude_code as journey_claude_code

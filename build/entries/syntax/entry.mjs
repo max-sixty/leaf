@@ -10,6 +10,7 @@ import {
   getTokenStyleObject,
   normalizeTheme,
   stringifyTokenStyle,
+  tokenizeWithTheme,
 } from "@shikijs/core";
 import { createJavaScriptRegexEngine } from "@shikijs/engine-javascript";
 
@@ -172,12 +173,20 @@ export const tokenDeclarations = () => {
   return [...declarations.values()];
 };
 
+/** The grammar each state was read in. Shiki compiles a grammar that embeds others
+ * lazily, as Markdown does each fence's language, again whenever one of them loads, and
+ * a state read in the old grammar fails in the new one ("Not supported!"). So a text
+ * continued from a state stays in the grammar it began in, and a text begun afresh takes
+ * the language's current grammar, with every language loaded by then.
+ * @type {WeakMap<import("@shikijs/core").GrammarState, import("@shikijs/core").Grammar>} */
+const grammarOf = new WeakMap();
+
 /** @param {Awaited<ReturnType<typeof createHighlighter>>} instance @param {string} source
  * @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
 function tokenized(instance, source, lang, state) {
-  const lines = instance.codeToTokensBase(source, {
-    lang,
-    theme: themeName,
+  const grammar = (state && grammarOf.get(state)) ?? instance.getLanguage(lang);
+  const { theme, colorMap } = instance.setTheme(themeName);
+  const lines = tokenizeWithTheme(source, grammar, theme, colorMap, {
     tokenizeTimeLimit: 0,
     tokenizeMaxLineLength: maxLineLength,
     ...(state && { grammarState: state }),
@@ -202,7 +211,9 @@ function tokenized(instance, source, lang, state) {
       cursor = token.offset + token.content.length;
     }
   if (cursor < source.length) append(source.slice(cursor), {});
-  return { tokens, state: instance.getLastGrammarState(lines) };
+  const next = instance.getLastGrammarState(lines);
+  if (next) grammarOf.set(next, grammar);
+  return { tokens, state: next };
 }
 
 /** @param {string} source @param {import("@shikijs/core").CodeToHastOptions<string, string>} options */

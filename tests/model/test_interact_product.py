@@ -48,7 +48,6 @@ from leaf.base.findings import Finding, Rejected
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.log import events as event_folds_model
-from leaf.log import obligations as obligations_model
 from leaf.log.thread_context import logged_fragment, thread_digest
 from leaf.records import revisioning as revisioning_model
 from leaf.records import todos as todos_model
@@ -60,7 +59,8 @@ from leaf.records.authored_checks.admission import (
 from leaf.records.authored_checks.declarations import declaration_advice
 from leaf.records.markup_checks.instances import question_errors, reference_errors
 from leaf.source import layer as layer_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import obligation_sources as obligation_sources_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry.contract import element_declarations
 from leaf.source.registry.validation import incoming_registry
 from leaf.source.structure import SourceDocument
@@ -227,7 +227,7 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
 
 
 def test_page_events_name_revisions_and_stamps_name_both(page_dir):
-    kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
+    kinds = vocabulary_model.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
@@ -240,7 +240,7 @@ def test_page_events_name_revisions_and_stamps_name_both(page_dir):
 
 def test_options_require_an_id(page_dir):
     # Actions name their widget by id, and every group takes them.
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     errs = markup_findings(
         '<lf-options><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',
         registry,
@@ -252,7 +252,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     # The registry marks a sample's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     errs = markup_findings(
         '<lf-sample id="sp" label="a decision">'
         '<lf-options id="g"><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>'
@@ -272,7 +272,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     label is blank, and advises on one its own label alone names; the registry refuses
     a group without a label or an id. A message's widget, a mention in a sample, a
     widget that asks nothing and one set among words need none."""
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     first = (
         '<lf-options id="g-one">'
         '<lf-option id="o-one" label="One"><strong>One</strong></lf-option>'
@@ -286,7 +286,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
 
     def prompts(body):
         document = SourceDocument(f"<main>{body}</main>")
-        return obligations_model.obligation_sources(document, registry).prompts
+        return obligation_sources_model.obligation_sources(document, registry).prompts
 
     # The label names the question, wherever the widget stands in the group; several
     # widgets in one group share it.
@@ -364,7 +364,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
 def test_a_worker_is_assigned_only_to_a_goal(page_dir):
     """The work reading assigns a worker only to the goal its `on` names, so an id of
     an element with another role is refused, while a goal's passes."""
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     parser = SourceDocument(
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="active"><strong>Goal</strong>'
@@ -390,7 +390,7 @@ def test_a_worker_is_assigned_only_to_a_goal(page_dir):
 
 
 def test_registry_examples_validate(page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     assert any(
         tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
@@ -398,7 +398,7 @@ def test_registry_examples_validate(page_dir):
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     registry["lf-diff"]["example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
@@ -420,7 +420,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     `paths` is what a filename means, which is how a diff colours a file nobody declared
     a language for. A path resolving outside `names` would resolve to a language neither
     bundle is required to carry."""
-    reg = registry_storage.load_registry(page_dir)
+    reg = vocabulary_model.load_registry(page_dir)
     names = set(reg["$languages"]["names"])
     paths = reg["$languages"]["paths"]
     assert (
@@ -620,6 +620,8 @@ def test_a_message_admits_an_option_that_leads_with_a_strong_and_no_label(page_d
         '<lf-group id="ask" label="Which?">\n<h2 id="ask-h">Which?</h2>'
         '<lf-options id="pick"><lf-option id="a"><strong>A</strong> first.</lf-option>'
         '<lf-option id="b"><strong>B</strong> second.</lf-option></lf-options></lf-group>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.at) for f in noted] == [
         ("unnamed-card", "<lf-option id=a>"),
@@ -655,6 +657,8 @@ def test_reply_assigns_a_worker_to_a_goal_on_the_page(page_dir):
                 f'<lf-test-plan id="quoted"><lf-test-worker id="quoted-worker"'
                 f' state="working" on="{on}"><strong>Worker</strong>'
                 "</lf-test-worker></lf-test-plan>",
+                "--title",
+                "Thread title",
             ],
         )
 
@@ -675,9 +679,16 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["thread", "reply", "--done", response_reference(page_dir, for_event)]
+            [
+                "thread",
+                "reply",
+                "--done",
+                response_reference(page_dir, for_event),
+                "--title",
+                "Thread title",
+            ]
             if for_event
-            else ["thread", "reply", str(page_dir), to]
+            else ["thread", "reply", str(page_dir), to, "--title", "Thread title"]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -784,6 +795,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
                 '<lf-option id="o1" label="A"><strong>A</strong></lf-option>'
                 "</lf-options></lf-group>"
             ),
+            "--title",
+            "Thread title",
         ],
     )
     assert reply.exit_code != 0
@@ -796,7 +809,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 def test_agent_messages_preserve_a_single_space(page_dir):
     """Only the zero-length string is empty; every typed character reaches the log."""
     empty = CliRunner().invoke(
-        cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
+        cli_model.cli,
+        ["thread", "create", str(page_dir), "--text", "", "--title", "Agent thread"],
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stdout)["error"] == (
@@ -951,7 +965,16 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "The work is ready."],
+        [
+            "thread",
+            "reply",
+            "--done",
+            reference,
+            "--text",
+            "The work is ready.",
+            "--title",
+            "Thread title",
+        ],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -999,9 +1022,9 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
 
     def progress(text, *, proactive=False):
         route = (
-            ["thread", "reply", str(claimed), root["id"]]
+            ["thread", "reply", str(claimed), root["id"], "--title", "Thread title"]
             if proactive
-            else ["thread", "reply", reference]
+            else ["thread", "reply", reference, "--title", "Thread title"]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -1080,6 +1103,8 @@ def test_an_agent_reply_asks_the_user_only_through_a_declared_obligation(page_di
             response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1131,6 +1156,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1277,6 +1304,8 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
                 response_reference(page_dir, event_id),
                 "--text",
                 text,
+                "--title",
+                "Thread title",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1396,7 +1425,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     reaction = append_command(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
+        {"kind": "reply", "author": "user", "parent": answer["id"], "emoji": "👍"},
     )
     before = events_model.read_events(page_dir)
     for target, refusal in [
@@ -1456,7 +1485,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     def said():
         """What the user's choice says, in the words they chose it in."""
         from leaf.log.gesture_words import GestureWords
-        from leaf.source.registry.storage import require_registry
+        from leaf.source.vocabulary import require_registry
 
         events = events_model.read_events(page_dir)
         words = GestureWords(events, require_registry(page_dir), {}.__getitem__)
@@ -1600,6 +1629,8 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
                 response_reference(page_dir, said["id"]),
                 "--text",
                 f"A{n}",
+                "--title",
+                "Thread title",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1790,6 +1821,8 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
             reference,
             "--text",
             f"See:\n\n{markup}" if markup else "See:",
+            "--title",
+            "Thread title",
         ],
     )
     assert result.exit_code != 0, result.output
@@ -1832,9 +1865,8 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
 def test_page_state_reads_reactions_as_marks(page_dir):
     """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
-    reaction back in once someone answers it, as the panel does. Its durable token
-    is enough; packages may add an explanation, but the default layer does not
-    prescribe one."""
+    reaction back in once someone answers it, as the panel does. Its emoji is all it
+    carries; the agent reads it as the user meant it."""
     published(page_dir)
     bare = append_carried_log_record(
         page_dir,
@@ -1842,13 +1874,13 @@ def test_page_state_reads_reactions_as_marks(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
     answered = append_carried_log_record(
         page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
+        {"kind": "comment", "author": "user", "revision": 1, "emoji": "❌"},
     )
     # A bare reaction owes no response; adding speech to it is proactive.
     posted = CliRunner().invoke(
@@ -1860,6 +1892,8 @@ def test_page_state_reads_reactions_as_marks(page_dir):
             answered["id"],
             "--text",
             "Which part?",
+            "--title",
+            "Thread title",
         ],
     )
     assert posted.exit_code == 0, posted.output
@@ -1874,9 +1908,9 @@ def test_page_state_reads_reactions_as_marks(page_dir):
         answered["id"],
         reply["id"],
     ]
-    assert [(r["token"], r["thread"]) for r in state["reactions"]] == [
-        ("shorten", bare["id"]),
-        ("change", answered["id"]),
+    assert [(r["emoji"], r["thread"]) for r in state["reactions"]] == [
+        ("✂️", bare["id"]),
+        ("❌", answered["id"]),
     ]
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
@@ -1894,7 +1928,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
@@ -1902,7 +1936,16 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     def reply(target, text):
         posted = CliRunner().invoke(
             cli_model.cli,
-            ["thread", "reply", str(page_dir), target, "--text", text],
+            [
+                "thread",
+                "reply",
+                str(page_dir),
+                target,
+                "--text",
+                text,
+                "--title",
+                "Thread title",
+            ],
         )
         assert posted.exit_code == 0, posted.output
         return json.loads(posted.output)
@@ -1915,7 +1958,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "author": "user",
             "revision": 1,
             "parent": answer["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
     kept = reply(nod["id"], "Keeping that part.")
@@ -1926,7 +1969,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "author": "user",
             "revision": 1,
             "parent": kept["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
     # The agent closes the thread by the reaction it acted on, as its instructions say.
@@ -1953,9 +1996,9 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
         nod["id"],
         kept["id"],
     ]
-    for gesture, undo, said in ((mark, undos[2], "shorten"), (nod, undos[1], "keep")):
+    for gesture, undo, said in ((mark, undos[2], "✂️"), (nod, undos[1], "👍")):
         placed = next(m for m in thread["msgs"] if m["id"] == gesture["id"])
-        assert "token" not in placed and placed["text"] == ""
+        assert "emoji" not in placed and placed["text"] == ""
         assert placed["withdrawn"] == {"id": undo["id"], "ts": undo["ts"], "was": said}
     assert not event_folds_model.bare_reaction(thread)
     assert event_folds_model.unanswered_turns(thread) == []
@@ -1986,6 +2029,8 @@ def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
             "--obligation",
             "--text",
             "Which part?",
+            "--title",
+            "Thread title",
         ],
     )
     assert answer.exit_code == 0, answer.output

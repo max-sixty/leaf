@@ -93,8 +93,8 @@ from leaf.pages.render_gate import readings as render_gate_readings
 from leaf.pages.render_gate import scheme as render_gate_scheme
 from leaf.pages.render_gate import version as render_gate_model
 from leaf.pages.render_gate.widget_quality import own_tags
+from leaf.records import page_data as page_data_model
 from leaf.serving import http as http_model
-from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.registry.contract import is_element_name
@@ -157,7 +157,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     takes the drawing's height, as an inline diff's source text can.
     """
     findings = []
-    _, _, completed = render_gate_scheme._render_page(
+    _, _, completed = render_gate_model._render_page(
         browser,
         serve(
             leaf_page(
@@ -548,7 +548,7 @@ def test_an_unanswered_entry_fails_the_render_gate(
         def new_page(self, **options):
             return page
 
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         ExistingPage(),
         dropped,
         {"width": 1200, "height": 900},
@@ -609,7 +609,7 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     controlled = primed(
         browser.unwatched, lambda page: page.set_default_timeout(EXPECTED_STALL_MS)
     )
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         controlled,
         refused,
         {"width": 1200, "height": 900},
@@ -1076,7 +1076,7 @@ def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve)
                 "diagram semantics",
                 """
 <h1 id="title">Diagram semantics</h1>
-<lf-diagram id="life" parts="all"><pre>
+<lf-diagram id="life"><pre>
 stateDiagram-v2
   [*] --&gt; A
   A --&gt; B
@@ -1085,7 +1085,7 @@ stateDiagram-v2
     Fetch --&gt; Build
   }
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   title Order handshake
   loop Retry
@@ -1093,11 +1093,11 @@ sequenceDiagram
   end
   Note right of Server: Checks order
 </pre></lf-diagram>
-<lf-diagram id="relationships" parts="all"><pre>
+<lf-diagram id="relationships"><pre>
 erDiagram
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="identities" parts="all"><pre>
+<lf-diagram id="identities"><pre>
 flowchart TD
   123[Start] --&gt; Ω[Done]
 </pre></lf-diagram>
@@ -1208,16 +1208,16 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     monkeypatch.chdir(tmp_path)
     _author_lying_callout(tmp_path)
     if failed_stage == "pageSettled":
-        probe = render_gate_scheme.wait_for_probe
+        probe = render_gate_model.wait_for_probe
 
         def moving(page, name, *args, **kwargs):
             if name == "pageSettled":
                 raise PlaywrightTimeout("held moving")
             return probe(page, name, *args, **kwargs)
 
-        monkeypatch.setattr(render_gate_scheme, "wait_for_probe", moving)
+        monkeypatch.setattr(render_gate_model, "wait_for_probe", moving)
     else:
-        ready = render_gate_scheme.wait_until_ready
+        ready = render_gate_model.wait_until_ready
 
         def unready(page, *args, through=None, **kwargs):
             # The page upgrades, and then stops at the stage held.
@@ -1225,9 +1225,9 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
                 return ready(page, *args, through=through, **kwargs)
             raise render_checks_model.PageNotReady(failed_stage, f"held {failed_stage}")
 
-        monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
+        monkeypatch.setattr(render_gate_model, "wait_until_ready", unready)
 
-    failures, _notices, completed = render_gate_scheme._render_page(
+    failures, _notices, completed = render_gate_model._render_page(
         browser,
         serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
         {"width": 1200, "height": 900},
@@ -1303,10 +1303,10 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
     held = render_gate_scheme.served(page, url, "/api/state").json()
-    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     expect(page.locator("#notes code")).to_have_text("Second.\n")
     expect(page.locator("body")).not_to_have_attribute(
         "data-lf-reading", held["reading"]
@@ -1366,13 +1366,13 @@ def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
     reads = []
     page.route("**/api/state*", lambda route: reads.append(route))
-    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     held = render_gate_scheme.served(page, url, "/api/state").json()
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     for read in reads:
         read.continue_()
     page.unroute("**/api/state*")
@@ -3165,7 +3165,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     # The example's chain fits any column it is laid out for; a row of six calls
     # still runs past a 678px viewport and scrolls, which this test needs.
     source, drawn = re.subn(
-        r'(id="security-before-flow") data-height="449"( parts="all">\s*<pre>).*?</pre>',
+        r'(id="security-before-flow") data-height="449"(>\s*<pre>).*?</pre>',
         lambda m: f'{m[1]} data-height="240"{m[2]}\n{FAN_OUT}</pre>',
         source,
         count=1,
@@ -3262,7 +3262,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
         packages=("diff",),
     )
     wide = "_".join(["argument"] * 40)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(
@@ -3274,7 +3274,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
             )
         ),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"

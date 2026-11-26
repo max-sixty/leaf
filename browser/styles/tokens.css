@@ -605,7 +605,7 @@
      - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry
-       in hand; at 1px in the contour ink, the target of an action.
+       in hand; at 1px in the action target's ink, the target of an action.
      - A drawing's part, a shape or a group of them: any of these whole, along the
        contour of each shape it draws (surfaces.css).
 
@@ -687,10 +687,9 @@
      what tells that rule from a contour painted in the same ink. */
   --lf-focus-shadow: 0 0 0 var(--lf-focus-ring-w) var(--lf-ok);
   --lf-target-trace-ink: color-mix(in srgb, var(--lf-ink-2) 42%, var(--lf-paper));
-  /* A drawing's part wears a comment's mark in this quieter ink and width, and an
-     action's target wears its brackets at 1px in this ink (surfaces.css). */
-  --lf-mark-contour-w: 1.5px;
-  --lf-mark-contour-ink: color-mix(in srgb, var(--lf-accent) 72%, var(--lf-paper));
+  /* An action's target wears its brackets at 1px in this quieter ink
+     (element-marks.css). */
+  --lf-action-target-ink: color-mix(in srgb, var(--lf-accent) 72%, var(--lf-paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover, or that
      a reaction the user added rests on. It is the card with a tenth of the accent in

@@ -77,7 +77,19 @@
    by the same rule (`placesEnd`). The user chose New reply for the panel, and the rest
    of the floating panel's growth with it (panel/floating-panel.js, which records it); the
    margin card takes it too, so one mechanism serves both, and that mechanism's rule at
-   its end, under the user's request for one thread view (thread-preview.js). */
+   its end, under the user's request for one thread view (thread-preview.js).
+
+   Two jumps stand over that box, presses that glide it to the messages' start or end
+   (`#jumps`), each shown by its container's rules while some of the messages stand
+   past its edge (surfaces.css), as chat apps float one at a conversation's foot. A
+   press moves focus to the thread, as New reply's does, so it doesn't fall to the page
+   as the press hides. Each is a mark standing as its own toolbar, the face a code
+   block's Copy wears over its code (controls.css), since a jump stands over words as
+   Copy does. A pin's lifted face read too heavy among the card's other presses, none
+   of which is lifted. The user chose the jumps over a hairline across the card at each
+   cut edge; over a bare chevron at the card's side, which looked unpolished to them;
+   and over a column kept clear of words for the chevrons, which took its width from
+   every message. */
 import { nextRender, sizeObserver } from "../../lib/frame-pass.js";
 import {
   holdFocus,
@@ -91,6 +103,7 @@ import { share } from "../../base/snapshot.js";
 import { turns, threadKey } from "../../state/thread/model.js";
 import {
   HOLDS,
+  LISTED_NAME,
   anchorPlace,
   messageReading,
   threadName,
@@ -109,6 +122,7 @@ import {
 } from "./replies.js";
 import {
   glideBy,
+  glideTo,
   SCROLL_SLACK,
   scrollGoal,
   scrollLimit,
@@ -149,6 +163,7 @@ import { Transcript } from "./transcript.js";
 import { partTrail } from "./placement.js";
 import { addressableLabel } from "../../readings/addressable-names.js";
 import { PRESS } from "../../lib/keys.js";
+import { excerptWords } from "../../lib/words.js";
 
 /** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @typedef {ReturnType<typeof messageReading>} MessageReading */
@@ -865,9 +880,10 @@ export class ThreadView {
     keeps(this.node, "data-lf-resolved", model.resolved);
     keeps(this.node, "data-lf-attempt", model.attempt || null);
     // A card is itself where a send or a walk stands the user, so it carries the
-    // thread's name.
+    // thread's name, cut short: an untitled thread's name is its first message, which
+    // the card reads next, and said whole in the name it was heard twice.
     keeps(this.node, "role", "group");
-    keeps(this.node, "aria-label", `Thread, ${model.name}`);
+    keeps(this.node, "aria-label", `Thread, ${excerptWords(model.name, LISTED_NAME)}`);
     // A thread whose reply stands elsewhere ends with its messages, so it grows only at
     // its foot, the growing tail of the region holding it, as the panel's view is
     // (tests/shift_watch.js).
@@ -884,8 +900,9 @@ export class ThreadView {
     // anchored to the header beside the controls' box at its end (surfaces.css,
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
     keeps(notice.node, "data-lf-reflow", lined ? null : "text");
+    const [toStart, toEnd] = this.#jumps();
     const body = html`
-      ${this.#drawQuote()}${this.#transcript.node}
+      ${toStart}${this.#drawQuote()}${this.#transcript.node}${toEnd}
       ${
         lined
           ? (inLine ?? nothing)
@@ -993,6 +1010,36 @@ export class ThreadView {
     >
       ${iconTemplate("down", "lf-action-icon")}Next unread
     </button>`;
+  }
+
+  // The jumps to the start and the end of the messages, where a box scrolls them (the
+  // header). The start's comes first in the thread's body and the end's after the
+  // transcript, so in a box that scrolls the whole thread, the start's sticks from the
+  // box's first scroll.
+  #jumps() {
+    if (!this.#outlets.scroller) return [nothing, nothing];
+    return /** @type {const} */ ([
+      ["start", "first-message"],
+      ["end", "latest-message"],
+    ]).map(
+      ([to, action]) =>
+        html`<button
+          type="button"
+          ${offeredAction("mark", "lf-thread-jump", undefined, { action })}
+          data-lf-bar
+          data-lf-jump=${to}
+          @click=${() => this.#jump(to)}
+        ></button>`,
+    );
+  }
+
+  /** @param {"start" | "end"} to */
+  #jump(to) {
+    const box = this.#outlets.scroller?.(this.#transcript.node);
+    if (!box) return;
+    focusDestination(wholeThread(this.node), "move");
+    if (to === "end") scrollToEnd(box, "smooth");
+    else glideTo(box, 0);
   }
 
   // New reply, at the transcript's end, which sticks at the foot of the box scrolling it.

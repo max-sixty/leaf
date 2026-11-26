@@ -92,7 +92,7 @@ have reached the model, so it is input again (`delivery.deliverable`): Claude Co
 submits a wake Escape interrupted again at once as a new prompt, and the watch
 its turn's prompt started wakes for it (`hooks.cmd_watch`), or where none runs, as
 after the turn that first claimed the page, the page's server nudges the session
-(`presence.nudge_interrupted`). The hook of the prompt that opens confirms what the
+(`server_rows.nudge_interrupted`). The hook of the prompt that opens confirms what the
 transcript shows before it reads the page, so it hands over again only what never
 reached the model, and names an update the model did read and left unanswered as
 owed.
@@ -118,9 +118,8 @@ says how long the line has stood. This was the user's choice over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, what a summary fork wrote (`summary_fork`), and the notice that
-the session's hooks now run a Leaf with another skill (`hooks.skill_changed`), one line
-each (`clerk.queued`), and take them off the queue once printed (`clerk.heard`).
+the last turn's end and what a summary fork wrote (`summary_fork`), one line each
+(`clerk.queued`), and take them off the queue once printed (`clerk.heard`).
 Stop carries none: the clerk forks only after the turn has ended.
 
 A subagent's tool boundary carries nothing: Claude Code names the subagent in its
@@ -146,13 +145,13 @@ from leaf.agents.delivery import (
     deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
+    inline_context,
     reads_reference,
     receive_held,
     record_pickup,
 )
 from leaf.base.findings import Finding
 from leaf.base.harness import HOOK_TIMEOUT_S, Harness, claim_harness
-from leaf.base.json_block import json_block, read_json_block
 from leaf.base.schema import ANSWER_INSTRUCTION, PREVIEW_FILE
 from leaf.base.service import PREVIEW
 from leaf.base.state import (
@@ -279,10 +278,10 @@ def new_input(session_id: str) -> bool:
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
+    from leaf.agents.presence import read_work
     from leaf.pages.vendoring import renew_held
     from leaf.records.activity import acknowledged_obligations, turn_obligations
     from leaf.records.event_contracts import write_refusal
-    from leaf.serving.served_state.context import read_page
 
     plans = []
     for page_dir in owned_pages(session_id):
@@ -298,8 +297,8 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 # lock over a page projection or taking locks in reverse order.
                 while True:
                     lifecycle = session_record(session_id)
-                    work = read_page(page_dir, page.events).work
-                    state = {**work.presence, "activity": work.activity}
+                    work = read_work(page_dir, page.events)
+                    state: dict = {**work.presence, "activity": work.activity}
                     claim = page.active_claim
                     if session_record(session_id) == lifecycle:
                         break
@@ -330,7 +329,6 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     for item in turn_obligations(state, watched=watched)
                     if item["input"] not in redelivered
                 ]
-                responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
                     PagePlan(
                         page_dir,
@@ -339,7 +337,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         harness,
                         state,
                         pending,
-                        batch_data(page_dir, page, pending, responses=responses)
+                        batch_data(page_dir, page, pending, work=work)
                         if pending
                         else None,
                         owed,
@@ -447,8 +445,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     turn would put the update past its start's reach and count as the reminder it
     never got (`delivery.reminded`).
     """
+    from leaf.agents.presence import read_work
     from leaf.records.activity import acknowledged_obligations, in_hand
-    from leaf.serving.served_state.context import read_page
 
     for plan in plans:
         if not plan.acknowledged or plan.unwritable:
@@ -467,7 +465,7 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                     plan.claim["turn"],
                 ):
                     continue
-                work = read_page(plan.page, page.events).work
+                work = read_work(plan.page, page.events)
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
                     item["input"]
@@ -497,32 +495,6 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
 # start and the interpreter's imports before it, and the receipt's writes and exit
 # after it.
 CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
-
-
-# The words that open a delivery's context inline.
-INLINE_OPENING = (
-    "Leaf has new input for your turn. Read this complete delivery before answering."
-)
-
-
-def inline_context(delivery: dict) -> str:
-    """The context that hands `delivery` over inline: its opening line
-    (`INLINE_OPENING`), a blank line and the delivery's block (`json_block`), which
-    `inline_delivery` reads back."""
-    return "\n\n".join([INLINE_OPENING, json_block(delivery)])
-
-
-def inline_delivery(context: str) -> tuple[dict, str] | None:
-    """The delivery a hook's `context` handed over inline (`inline_context`) and the
-    lines after its block, or None where it handed none over: a pointer, a reminder,
-    or a context cut short."""
-    opening, _, rest = context.partition("\n\n")
-    if opening != INLINE_OPENING:
-        return None
-    try:
-        return read_json_block(rest)
-    except ValueError:
-        return None
 
 
 def pointer_opening(delivery: dict) -> str:

@@ -35,8 +35,8 @@ from leaf.base import leases as leases_model
 from leaf.base import service as service_model
 from leaf.commands import cli as cli_model
 from leaf.commands.session import set_status
+from leaf.records import page_data as page_data_model
 from leaf.records import transaction as transaction_model
-from leaf.source import data as data_model
 from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
@@ -230,7 +230,7 @@ def long_diff_thread(serve, lead=""):
             "</lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,79 +1,79 @@\n"
@@ -570,7 +570,7 @@ def pressed_send_surface(browser, serve, surface):
                 'source="review-patch"></lf-diff>',
             )
         )
-        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
         page = open_page(browser, url)
         line = page.locator(
             'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'

@@ -30,6 +30,7 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    without_end_room,
     write,
 )
 
@@ -145,6 +146,8 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
             "thread",
             "create",
             str(serve.page_dir),
+            "--title",
+            "Rehearsal report",
             "--text",
             "The rehearsal is complete.",
             *(["--section", "title"] if anchor != "page" else []),
@@ -732,6 +735,8 @@ def test_a_new_step_shows_at_once_in_the_thread_being_written_in(browser, serve,
         ephemeral=True,
     )
     page = open_page(browser, url)
+    if room == "short":
+        without_end_room(page)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
     words = thread.locator(".lf-thread-working-words")
@@ -1129,6 +1134,8 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
             "reply",
             "--done",
             response_reference(serve.page_dir, root),
+            "--title",
+            "Deploy log",
             "--text",
             "Here is its log." + "\n\n" + (markup),
         ],

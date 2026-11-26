@@ -19,6 +19,7 @@ from pathlib import Path
 from leaf.base.files import list_revisions
 from leaf.base.findings import Finding
 from leaf.base.leases import page_locked
+from leaf.base.schema import DRAFTS_FILE
 from leaf.log.event_log import read_events
 from leaf.records.authored_checks.source import (
     check_source,
@@ -26,8 +27,10 @@ from leaf.records.authored_checks.source import (
     source_advice,
 )
 from leaf.serving.handover_pass import remember_reading
+from leaf.source.browser_judged import needs_browser
+from leaf.source.layer import selected_layer
 from leaf.source.registry.contract import RegistryError
-from leaf.source.registry.storage import layer_record, selected
+from leaf.source.registry.storage import layer_record
 
 
 def cmd_check(page_dir: Path, render: bool = False) -> dict:
@@ -44,7 +47,6 @@ def other_version_drafts(page_dir: Path) -> list[Finding]:
     directory, which this Leaf reads none of (`state.Record.others`): the user's
     unsent words, which only the user can say are no longer wanted. The page's other
     records of other shapes are disposable, so `page check` names none of them."""
-    from leaf.base.schema import DRAFTS_FILE
     from leaf.serving.drafts import DRAFTS
 
     return [
@@ -75,7 +77,7 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         # reading the page needs only its vocabulary (`layer.LayerVocabulary`).
         try:
             if (record := layer_record(page_dir)) is not None:
-                selected(record, page_dir)
+                selected_layer(record, page_dir)
         except RegistryError as error:
             return reported(1, list(error.findings)), None
         events = read_events(page_dir)
@@ -89,8 +91,6 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         ]
         if result.errors:
             return reported(1, found), None
-        from leaf.pages.render_gate.page_code import needs_browser
-
         assert result.artifact is not None
         runs_code = needs_browser(result.document, result.artifact)
         if not (runs_code or render):

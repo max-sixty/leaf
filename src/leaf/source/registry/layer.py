@@ -48,7 +48,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
-    only way a project can take a shipped reaction token off its bar, or a user
+    only way a project can take a shipped reaction off its bar, or a user
     an extension off `$languages.paths`, without restating the whole map.
     """
     for name, entry in declarations.items():

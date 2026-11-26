@@ -1,5 +1,5 @@
-"""Dependency-free machine storage, the persisted record (`Record`), and the
-session lifecycle authority.
+"""Dependency-free machine storage, the persisted record (`Record`) and the page
+protocol that versions it (`kernel_protocol`), and the session lifecycle authority.
 
 The standalone SessionEnd entry runs on system Python 3.9 without a managed
 Leaf environment. One atomic record owns harness lifetime, generation, turn identity
@@ -129,8 +129,8 @@ TOOLS_SUFFIX = "tools"
 # The harness process its Leaf module last ran in, or whose user Leaf told it
 # didn't (`leases.mark_module`).
 MODULE_SUFFIX = "module"
-# The Leaf its hooks last ran and the skill it ships (`leases.mark_skill`).
-SKILL_SUFFIX = "skill"
+# The root of the Leaf its hooks last ran (`leases.mark_root`).
+ROOT_SUFFIX = "root"
 # When its tool boundaries last checked its pages' status lines
 # (`hook_transport.status_reminders`), by the file's mtime.
 STATUS_CHECKED_SUFFIX = "status-checked"
@@ -272,13 +272,11 @@ def still_named(held: int, path: Path) -> bool:
 
 def hooks_root(session_id: str) -> Path | None:
     """The root of the Leaf the session's hooks last ran, which each of them records
-    with the skill it ships (`hooks.skill_mark`, `leases.mark_skill`), or None where
-    no hook of the session has run."""
+    (`leases.mark_root`), or None where no hook of the session has run."""
     try:
-        marked = session_file(session_id, SKILL_SUFFIX).read_text()
+        return Path(session_file(session_id, ROOT_SUFFIX).read_text())
     except FileNotFoundError:
         return None
-    return Path(marked.rpartition("\n")[0])
 
 
 def hooks_run_here(session_id: str) -> bool:
@@ -384,8 +382,25 @@ class CopyReplaced(Exception):
     holding no page never loads."""
 
 
+RFC3339_DATE_TIME = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+)
+
+
+def aware_instant(value: str):
+    """The one parse of Leaf's date-time format, or None where the spelling fails."""
+    if not RFC3339_DATE_TIME.fullmatch(value):
+        return None
+    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    return parsed if parsed.utcoffset() is not None else None
+
+
 def now_iso() -> str:
-    """Now in Leaf's date-time format, which `registry.schema.aware_instant` reads."""
+    """Now in Leaf's date-time format, which `aware_instant` reads."""
     return datetime.now().astimezone().isoformat(timespec="milliseconds")
 
 
@@ -448,10 +463,10 @@ def write_json(path: Path, obj) -> None:
     replace_bytes([(path, json_bytes(obj), not path.is_symlink())])
 
 
-# The running Leaf's kernel registry, the facts no layer changes, whose `$events`
-# state its page protocol (`registry.kernel`). It sits in the runtime, which the
-# browser reads it from too (`runtime/state/kernel-facts.js`), and composition lays each
-# layer over it (`registry.layer.merged_registry`).
+# The running Leaf's kernel registry, the facts no layer changes. Its `$events` state
+# the page protocol (`kernel_protocol`), and `registry.kernel` reads the rest. It sits
+# in the runtime, which the browser reads it from too (`runtime/state/kernel-facts.js`),
+# and composition lays each layer over it (`registry.layer.merged_registry`).
 KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
 
 
@@ -459,6 +474,25 @@ KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
 def kernel_registry() -> dict:
     """The kernel registry (`KERNEL_REGISTRY`), read once."""
     return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))
+
+
+def kernel_protocol() -> int:
+    """The page protocol: the number of the contract between a page and the Leaf
+    serving it, which a page's layer record names in its `format`
+    (`registry.storage.LAYER`). It versions the other records Leaf keeps outside a
+    page too (`Record`)."""
+    return kernel_registry()["$events"]["protocol"]
+
+
+def installed_protocol() -> int:
+    """The protocol of the kernel registry on disk now. It moves past
+    `kernel_protocol` when the checkout a long-running process loaded moves on under
+    it, as a worktree's does when its branch is updated: the process still speaks the
+    protocol it loaded, and the newer Leaf the session's hooks now run reads that
+    process's leases as no one's (`leases.lease_speaks_here`)."""
+    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))["$events"][
+        "protocol"
+    ]
 
 
 # Every declared `Record` by its kind, which names one shape.
@@ -892,7 +926,7 @@ def advance_turn(
 
 def open_session_turn(session_id: str) -> dict | None:
     """Open the session's turn for an explicit reader acknowledgement
-    (`delivery.receive_delivery`). A provider names its own turns, so this opens
+    (`delivery_ack.receive_delivery`). A provider names its own turns, so this opens
     none of a provider's but the one it holds open: a late consumer or callback
     can't restart a turn the harness ended. One after the session's files retired
     starts a generation no claim names."""

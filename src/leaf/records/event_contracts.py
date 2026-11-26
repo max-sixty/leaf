@@ -27,7 +27,7 @@ from leaf.log.events import (
     undo_error,
     unshown,
 )
-from leaf.log.obligations import questions_in_words, quoted_in
+from leaf.log.obligations import questions_in_words
 from leaf.log.projection import (
     AuthoredOrders,
     container_owner,
@@ -42,7 +42,7 @@ from leaf.records.markup_checks.instances import attribute_slot_errors
 from leaf.records.page_view import CandidatePageView, PageView
 from leaf.records.plans import plan_error
 from leaf.records.read_state import read_contract_error
-from leaf.records.todos import todo_error
+from leaf.records.todos import start_reading, todo_error
 from leaf.records.work import widget_seat_error
 from leaf.records.workflows import agent_inputs, attention_reading
 from leaf.source.registry.contract import (
@@ -59,9 +59,10 @@ from leaf.source.registry.kernel import (
     kinds_declaring,
     verb_writers,
 )
-from leaf.source.registry.reactions import reaction_tokens
+from leaf.source.registry.reactions import reaction_emoji
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
+from leaf.source.structure import quoted_in
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -297,10 +298,7 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
             values={
                 "visual": visual,
                 "section": section,
-                "declared": {
-                    "prefixes": list(available.prefixes),
-                    "all": available.all,
-                },
+                "prefixes": list(available.prefixes),
             },
         )
     return None
@@ -547,13 +545,13 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
 
 
 def _reaction_error(event: dict, registry: dict) -> Finding | None:
-    if not event.get("token"):
+    if not event.get("emoji"):
         return None
-    tokens = reaction_tokens(registry)
-    if event["token"] not in tokens:
+    declared = reaction_emoji(registry)
+    if event["emoji"] not in declared:
         return Finding(
             "unknown-reaction",
-            values={"token": event["token"], "tokens": sorted(tokens)},
+            values={"emoji": event["emoji"], "declared": list(declared)},
         )
     return None
 
@@ -747,8 +745,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a declared widget, an element, or the page; a
     `todo_end` names an open to-do; and a start names explicit agent work or an owed
     update (`todos.todo_error`)."""
-    from leaf.records.todos import start_reading
-
     if start := start_reading(event):
         event = start
     elif event["kind"] not in {"todo", "todo_end"}:
@@ -776,7 +772,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
-        registry=readings.work.registry,
     )
 
 
@@ -837,7 +832,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     registry = admitting_registry(view, event)
     # The kernel's records are this Leaf's own, whichever Leaf initialized the page: no
     # layer can change them, and a page at this protocol reads what they add
-    # (`registry.kernel.kernel_protocol`).
+    # (`state.kernel_protocol`).
     contracts = kernel_event_kinds()
     if error := command_error(event, contracts):
         raise EventRefused(error, event)

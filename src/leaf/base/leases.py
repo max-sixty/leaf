@@ -11,6 +11,7 @@ replaced the shared path while it was opening it, and a holder that can be
 superseded asks the same of its own descriptor.
 """
 
+import contextlib
 import fcntl
 import functools
 import os
@@ -24,14 +25,14 @@ from leaf.base.schema import WAITER_LOCK
 from leaf.base.state import (
     HOOKS_SUFFIX,
     MODULE_SUFFIX,
-    SKILL_SUFFIX,
+    ROOT_SUFFIX,
     TOOLS_SUFFIX,
     flocked,
     flocked_descriptor,
+    kernel_protocol,
     session_file,
     still_named,
 )
-from leaf.source.registry.kernel import kernel_protocol
 
 
 def lock_is_held(path: Path) -> bool:
@@ -245,31 +246,19 @@ def mark_hooks(session_id: str) -> None:
     session_file(session_id, HOOKS_SUFFIX).touch()
 
 
-def mark_skill(session_id: str, mark: str) -> str | None:
-    """Record `mark`, the Leaf this hook runs and the skill it ships
-    (`hooks.skill_mark`), as the session's hooks' latest, and return the mark it
-    replaced, or None where the mark is unchanged or the session's first.
+def mark_root(session_id: str, root: Path) -> None:
+    """Record `root`, the Leaf this hook runs, as the Leaf the session's hooks last
+    ran (`state.hooks_root`).
 
     Unlike the hooks mark, this one outlives the harness instance while a claim
-    names the session (`state._retire`), so the first hook of a resumed or woken
-    process compares its mark with the mark of the process before. An unchanged
-    mark costs one read. Hooks that run at once, as PreToolUse's registrations do,
-    change the mark under its lock, so only one of them returns the mark it
-    replaced."""
-    path = session_file(session_id, SKILL_SUFFIX)
-    try:
-        if path.read_text() == mark:
-            return None
-    except FileNotFoundError:
-        pass
-    with flocked(path) as held:
-        held.seek(0)
-        before = held.read().decode()
-        if before == mark:
-            return None
-        held.truncate(0)
-        held.write(mark.encode())
-    return before or None
+    names the session (`state._retire`), so a page server and a command of a
+    resumed or woken process find the Leaf the session ran before that process's
+    first hook. An unchanged mark costs one read."""
+    path = session_file(session_id, ROOT_SUFFIX)
+    with contextlib.suppress(FileNotFoundError):
+        if path.read_text() == str(root):
+            return
+    path.write_text(str(root))
 
 
 def mark_module(session_id: str, pid: int) -> None:

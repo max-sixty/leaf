@@ -23,9 +23,10 @@ from leaf.base import leases as leases_model
 from leaf.base import service as service_model
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 from leaf.source import data as data_model
-from leaf.source.registry.storage import read_page_registry
 from leaf.source.render_checks import rendered
+from leaf.source.vocabulary import read_page_registry
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
@@ -1041,7 +1042,7 @@ def data_projection_page(serve):
         layer_widgets={"lf-feed.js": DATA_PROJECTION_MODULE},
     )
     d = serve.page_dir
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         d,
         "deployments",
         [

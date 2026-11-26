@@ -97,7 +97,7 @@ lf-sample > * {
   --lf-box-cap: 100%;
 }
 /* A quoted sample's note, "quoted", says it takes no input. It takes the label font
- * (base.css, `.lf-label`), stated here since a pseudo-element can't wear the class. A
+ * (elements.css, `.lf-label`), stated here since a pseudo-element can't wear the class. A
  * sample that works, interactive or live, wears none, since its gutter or frame already
  * marks it a sample. The user chose that over opening with "interactive sample" or
  * "live sample", a word whose one distinction, this page's log or the sample's own, the

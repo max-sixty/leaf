@@ -52,7 +52,7 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { declarationFor, tokenEntry } from "../../state/registry.js";
+import { declarationFor } from "../../state/registry.js";
 import {
   isCanonicalMediaUrl,
   readAttachedMedia,
@@ -170,13 +170,10 @@ function proseReading(message) {
 // What a deleted message reads in its place, in Leaf's voice, as what the user did.
 const DELETED = leafSays("Deleted");
 
-/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
+/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly emoji?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
 export function messageText(message) {
   if (message.body?.kind === "authored") return message.body.text;
-  if (message.token) {
-    const token = tokenEntry(message.token);
-    return `${token?.glyph ?? ""} ${message.token}`.trim();
-  }
+  if (message.emoji) return message.emoji;
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
@@ -195,10 +192,11 @@ export const messageWords = (message) =>
 export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 
 // Whether a title is on its way to an untitled thread. Leaf asks the claimant's
-// harness for one as the user's words are admitted, and the agent for one with its
-// reply (thread_titles.py), so one comes while a session holds the page's claim and the
-// agent owes the thread work. A turn that ended, stalled or was never picked up sends
-// none, nor does a page nobody has claimed, and the thread reads its opening words.
+// harness for one as the user's words are admitted, and the agent's reply names the
+// thread (thread_titles.py), so one comes while a session holds the page's claim and
+// the agent owes the thread work. A turn that ended, stalled or was never picked up
+// sends none. On a page nobody has claimed only an agent's reply names the thread, and
+// the page can't tell whether an agent hears it, so the thread reads its opening words.
 /** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly next_actor: string | null, readonly state: string, readonly source: {readonly kind: string}} | null}} thread */
 export const titlePending = (thread) =>
   thread.title == null &&
@@ -234,6 +232,9 @@ const authorName = (message) => (message.author === "agent" ? message.agent : "M
 // The characters of a thread's name or a message's opening line a preview keeps,
 // which wrap within its width.
 export const PREVIEWED_LINE = 120;
+// The characters of a thread's name a preview listing several threads keeps of each,
+// and a thread card's own name keeps.
+export const LISTED_NAME = 60;
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
 // and how many messages it holds, each said by whoever says it, less the part `said`,
@@ -317,7 +318,7 @@ export function threadPreview(threads, said = null) {
       items: threads.map((thread) =>
         standing(
           threadStands(thread, null),
-          `${excerptWords(threadName(thread), 60)} · `,
+          `${excerptWords(threadName(thread), LISTED_NAME)} · `,
         ),
       ),
       more: (count) =>
@@ -340,6 +341,9 @@ export const draftWords = (draft) => {
     drawing: payload?.drawing,
   });
 };
+// A listed draft's words as a preview reads them: a line of them, cut at its length.
+/** @param {import("../drafts.js").ListedDraft} draft */
+export const draftLine = (draft) => excerptWords(draftWords(draft), PREVIEWED_LINE);
 // What drafts say when pointed at, on a row of Threads and on a margin entry: each
 // one's words, a line of them, under what it is about where the place pointed at
 // doesn't already say it. What Send makes of it stands beside it on both.
@@ -347,16 +351,14 @@ export const draftWords = (draft) => {
  * @param {import("../../base/voice.js").Words | null} [about]
  * @returns {import("../../annotations/preview.js").Preview | null} */
 export function draftPreview(drafts, about = null) {
-  /** @param {import("../drafts.js").ListedDraft} draft */
-  const said = (draft) => excerptWords(draftWords(draft), PREVIEWED_LINE);
   const [only] = drafts;
   if (!only) return null;
   if (drafts.length === 1)
-    return { name: about ? voiced(about) : "Draft", detail: [said(only)] };
+    return { name: about ? voiced(about) : "Draft", detail: [draftLine(only)] };
   return {
     name: counted(drafts.length, "draft"),
     list: {
-      items: drafts.map(said),
+      items: drafts.map(draftLine),
       more: (count) =>
         voiced(leafSays(`and ${counted(count, "more draft", "more drafts")}`)),
     },
@@ -400,7 +402,7 @@ const keptElements = new Map();
 // and each custom element, which a module upgrades once. A widget set among words
 // (`inline`) leaves its words, and any other goes whole, as a choice the drawing
 // asks in its own controls does. The innermost named group round a widget that asks,
-// an element whose declaration's `reading-role` is `group` (`obligations.widget_groups`
+// an element whose declaration's `reading-role` is `group` (`obligation_sources.widget_groups`
 // in Python), is its question, so it goes whole with it rather than leaving the
 // question's words with nothing to answer them. Any other group leaves what it holds,
 // less its widgets, as a figure keeps its caption when its chart goes.
@@ -655,7 +657,6 @@ export function messageReading(
   { authoredRank = 0, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = message.token ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
     : deleted(message)
@@ -711,8 +712,7 @@ export function messageReading(
         ? message.body.text
         : (prose?.plainText ?? message.text ?? ""),
       drawing: Boolean(message.drawing),
-      token: message.token ?? null,
-      glyph: token?.glyph ?? "",
+      emoji: message.emoji ?? "",
       authored,
     }),
     // The message as its Copy control copies it: its Markdown as written, any HTML in
@@ -1148,7 +1148,7 @@ export class MessageView {
       </div>`;
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
-        <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
+        <span class="lf-react-said">${body.emoji}</span>
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;

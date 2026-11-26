@@ -73,13 +73,13 @@ from interact_support import (
 
 from leaf.agents import inference as inference_model
 from leaf.agents import presence as presence_model
-from leaf.agents import server as server_model
 from leaf.agents import thread_titles as thread_titles_model
 from leaf.base import detached as detached_model
 from leaf.base import files as files_model
 from leaf.base import leases as leases_model
 from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.base.refusals import Refused
@@ -95,6 +95,7 @@ from leaf.pages import page_snapshot as page_snapshot_model
 from leaf.pages import vendoring as vendoring_model
 from leaf.records import activity as activity_model
 from leaf.records import document_reading as document_reading_model
+from leaf.records import page_data as page_data_model
 from leaf.records import publishing as publishing_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
@@ -107,11 +108,13 @@ from leaf.serving.served_state import context as served_context
 from leaf.serving.served_state import document as served_document
 from leaf.serving.served_state import page as served_page
 from leaf.serving.served_state import service as served_service
-from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
 from leaf.source import page_inputs
 from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
 from leaf.source import revision_artifact as artifact_model
 from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import storage as registry_storage
 from leaf.source.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.example_data import patch_manifest
@@ -627,6 +630,8 @@ def test_a_message_sample_starts_from_its_message_html(server, page_dir):
             response_reference(page_dir, "aabb0011"),
             "--text",
             f"Try it:\n\n{markup}",
+            "--title",
+            "Thread title",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -700,7 +705,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             "text": "Frozen seed",
         },
     )
-    data_model.cmd_data_set(page_dir, "builds", ["checked"])
+    page_data_model.cmd_data_set(page_dir, "builds", ["checked"])
     template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
         PAGE.replace("</main>", template + "</main>")
@@ -717,7 +722,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             "text": "Later reply",
         },
     )
-    data_model.cmd_data_set(page_dir, "builds", ["later"])
+    page_data_model.cmd_data_set(page_dir, "builds", ["later"])
     parent_events = event_model.read_events(page_dir)
     with hosting_model.TemporaryPageServer(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
@@ -967,11 +972,7 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
 
 
 def test_a_visual_comment_requires_its_sections_inventory(server, page_dir):
-    (page_dir / "index.html").write_text(
-        FLOW_PAGE.replace(
-            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-        )
-    )
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     publish(page_dir)
 
     valid = {
@@ -992,14 +993,16 @@ def test_a_visual_comment_requires_its_sections_inventory(server, page_dir):
         assert status == 400
         assert refused_on(body).code == "visual-with-passage"
 
-    (page_dir / "index.html").write_text(FLOW_PAGE)
-    publish(page_dir)
-    invalid = {**valid, "revision": 2, "text": "no opted-in inventory"}
+    invalid = {
+        **valid,
+        "text": "not a box",
+        "anchor": {**valid["anchor"], "visual": "edge:A"},
+    }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
     undeclared = refused_on(body)
     assert undeclared.code == "undeclared-visual"
-    assert undeclared.values["declared"] == {"prefixes": [], "all": False}
+    assert undeclared.values["prefixes"] == ["node:"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1018,7 +1021,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
         )
     )
     publish(page_dir)
-    data_model.cmd_data_set(page_dir, "review-patch", "first patch")
+    page_data_model.cmd_data_set(page_dir, "review-patch", "first patch")
     first = read_page_data(page_dir)["sources"]["review-patch"]["revision"]
     event = {
         "kind": "comment",
@@ -1035,7 +1038,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
     assert status == 200, body
 
-    data_model.cmd_data_set(page_dir, "review-patch", "replacement patch")
+    page_data_model.cmd_data_set(page_dir, "review-patch", "replacement patch")
     assert read_page_data(page_dir)["sources"]["review-patch"]["revision"] != first
     stale = {
         **event,
@@ -1062,7 +1065,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     assert status == 400
     assert refused_on(body).code == "datum-unsupplied-source"
 
-    data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
+    page_data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
     wrong_source = {
         **event,
         "anchor": {**event["anchor"], "source": "other-patch"},
@@ -1187,7 +1190,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
         },
         contract="build-map",
     )
-    data_model.cmd_data_set(page_dir, "builds", {"main": "green"})
+    page_data_model.cmd_data_set(page_dir, "builds", {"main": "green"})
 
     status, body = fetch(f"{server}/api/state")
 
@@ -1204,7 +1207,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     unmoved = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
     assert unmoved == {"version": data["version"]}
 
-    data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
+    page_data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
     rewritten = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
     assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
     assert rewritten["version"] != data["version"]
@@ -1229,14 +1232,14 @@ def test_a_tab_holding_a_reading_is_sent_only_the_source_a_write_changed(
         )
     )
     assert revisioning_model.activate_source(page_dir).error is None
-    data_model.cmd_data_set(page_dir, "builds", "green")
-    data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
+    page_data_model.cmd_data_set(page_dir, "builds", "green")
+    page_data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
     version = json.loads(fetch(f"{server}/api/state")[1])["data"]["version"]
     holding = {"Leaf-Data-Version": version}
     held = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
     assert held["data"] == {"version": version}
 
-    data_model.cmd_data_set(page_dir, "builds", "red")
+    page_data_model.cmd_data_set(page_dir, "builds", "red")
     holding["Leaf-Held-Basis"] = held["browser"]["basis"]["key"]
     tail = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
 
@@ -1275,7 +1278,7 @@ def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
+    page_data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
     assert first.revision is not None
     first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
         "$layer"
@@ -1605,12 +1608,10 @@ def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, pag
     assert meta(reworded["executable"]) not in live
 
 
-def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
-    expected_tokens = list(
-        registry_storage.load_registry(page_dir)["$reactions"]["tokens"]
-    )
-    # Declared out of name order, so an order lost to sorting shows.
-    assert expected_tokens != sorted(expected_tokens)
+def test_a_revision_serves_reactions_in_their_declared_order(page_dir):
+    expected = list(vocabulary_model.load_registry(page_dir)["$reactions"]["emoji"])
+    # Declared out of code point order, so an order lost to sorting shows.
+    assert expected != sorted(expected)
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
     )
@@ -1620,13 +1621,13 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
     assert activated.created
     assert activated.revision is not None
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
-    assert list(artifact.registry["$reactions"]["tokens"]) == expected_tokens
+    assert list(artifact.registry["$reactions"]["emoji"]) == expected
 
     artifact_root = revision_root(page_dir, activated.revision)
     with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as temporary:
         status, served = fetch(temporary.origin + artifact_root + "/registry.json")
     assert status == 200
-    assert list(json.loads(served)["$reactions"]["tokens"]) == expected_tokens
+    assert list(json.loads(served)["$reactions"]["emoji"]) == expected
 
 
 def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
@@ -2020,12 +2021,12 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
             "author": "user",
             "parent": "c1",
         },
-        {"id": "rx1", "kind": "comment", "author": "user", "token": "keep"},
+        {"id": "rx1", "kind": "comment", "author": "user", "emoji": "👍"},
         {
             "id": "rx2",
             "kind": "comment",
             "author": "user",
-            "token": "keep",
+            "emoji": "👍",
         },
         {
             "id": "reply",
@@ -2162,10 +2163,10 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         },
     )
     events = event_model.read_events(page_dir)
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     views = served_browser.browser_state(
         {
-            revision: passages_model.SourceReading(document, registry)
+            revision: reading_model.SourceReading(document, registry)
             for revision, document in documents.items()
         },
         events,
@@ -2427,7 +2428,7 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
-    board = registry_storage.load_registry(page_dir)["lf-board"]["example"]
+    board = vocabulary_model.load_registry(page_dir)["lf-board"]["example"]
     publish(page_dir)
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("</section>", board + "\n</section>")
@@ -2571,6 +2572,8 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
                 '<lf-option id="exhibited-a" label="A"><strong>A</strong></lf-option>'
                 "</lf-options></lf-sample>"
             ),
+            "--title",
+            "Thread title",
         ],
     )
     assert reply.exit_code == 0, reply.output
@@ -2878,6 +2881,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
     monkeypatch.setattr(transaction_model, "read_stream", no_fold)
     monkeypatch.setattr(artifact_model, "read_revision", no_fold)
+    monkeypatch.setattr(vocabulary_model, "read_revision", no_fold)
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
     assert row["activity"] == expected
@@ -3737,7 +3741,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "old"}]}
     )
     publish(page_dir)
@@ -3771,7 +3775,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             "text": "Arrived after the browser check began",
         },
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "new"}]}
     )
     (page_dir / "index.html").write_text(
@@ -4011,8 +4015,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     first.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>First</text></svg>')
     second.write_text(first.read_text().replace("First", "Second"))
     urls = [item["path"] for item in media_model.cmd_media(page_dir, [first, second])]
-    data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
+    page_data_model.cmd_data_set(
         page_dir,
         "images",
         {
@@ -4020,12 +4024,12 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
             "prose": "/media/missing.png",
         },
     )
-    with pytest.raises(data_model.DataError, match="canonical /media/"):
-        data_model.cmd_data_set(
+    with pytest.raises(data_contracts_model.DataError, match="canonical /media/"):
+        page_data_model.cmd_data_set(
             page_dir, "images", {"images": [{"url": "/media/../secret"}]}
         )
-    with pytest.raises(data_model.DataError, match="must select URL strings"):
-        data_model.cmd_data_set(page_dir, "images", {"images": [{"url": 123}]})
+    with pytest.raises(data_contracts_model.DataError, match="must select URL strings"):
+        page_data_model.cmd_data_set(page_dir, "images", {"images": [{"url": 123}]})
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -4039,7 +4043,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     assert urls[1] not in artifact.resources
     # The preview serves the bytes captured with its data, even after a later write.
     (page_dir / urls[1].lstrip("/")).write_text("Changed after capture")
-    data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
+    page_data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
     with hosting_model.TemporaryPageServer(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
@@ -4068,7 +4072,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     )
     assert current.data_resources == {}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
-    data_model.cmd_data_set(page_dir, "images", {"other": [{"url": urls[0]}]})
+    page_data_model.cmd_data_set(page_dir, "images", {"other": [{"url": urls[0]}]})
     revised = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,

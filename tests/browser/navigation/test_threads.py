@@ -30,6 +30,7 @@ from render_harness import (
     scroll_settled,
     sending,
     wait_for_check_api,
+    without_end_room,
     write,
 )
 
@@ -567,6 +568,44 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     assert ring_rule(box, "after")
     expect(field).to_have_js_property("value", "About the passage.")
     expect(field).to_have_js_property("selectionStart", len("About the passage."))
+
+
+def test_a_thread_stop_wears_c_on_a_reply_box_holding_words(browser, serve):
+    """A thread card the walk stands on whose reply box holds a draft wears `c` as a chip
+    on that box's corner, since the draft's words cover the placeholder that says `c`
+    in an empty box. `c` puts the caret after the words, and the chip goes."""
+    url = serve(
+        leaf_page(
+            "a reply draft",
+            '<h1>A reply draft</h1><p id="said">The thread on this paragraph waits.</p>',
+        ),
+        anchored=[("said", "thread on this paragraph")],
+    )
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator("leaf-text")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    page.locator("h1").click()
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip).to_have_count(0)
+    page.keyboard.press("c")
+    write(reply, "Left unsent.")
+    page.keyboard.press("Escape")
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip.filter(has_text="c")).to_be_visible()
+    frame = card.locator(".lf-compose-field").bounding_box()
+    at = chip.bounding_box()
+    assert frame and at
+    assert abs(at["x"] + at["width"] / 2 - frame["x"]) < 2
+    assert abs(at["y"] + at["height"] / 2 - frame["y"]) < 2
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("selectionStart", len("Left unsent."))
+    expect(chip).to_have_count(0)
 
 
 def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(
@@ -1746,7 +1785,7 @@ def test_a_link_to_a_folded_message_opens_its_fold(browser, serve):
 @pytest.mark.parametrize(
     "named",
     [
-        {"author": "user", "token": "keep"},
+        {"author": "user", "emoji": "👍"},
         {"author": "agent", "agent": "Claude", "text": "Reading.", "ephemeral": True},
     ],
     ids=["reaction", "progress"],
@@ -1788,6 +1827,8 @@ def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engin
         },
     )
     page = open_page(request.getfixturevalue(engine), thread_url(url, root))
+    # The last paragraph ends a page with no room below it, so the view stands over it.
+    without_end_room(page)
     thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(thread).to_be_focused()
 

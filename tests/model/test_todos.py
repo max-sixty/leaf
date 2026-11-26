@@ -84,6 +84,8 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
             "--text",
             "Merge or abandon?",
             "--obligation",
+            "--title",
+            "Agent thread",
         )
     )
     queue = state_json(page_dir)
@@ -159,6 +161,8 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
             "Building it now.",
             "--todo",
             "Rebuild the banner quieter",
+            "--title",
+            "Thread title",
         )
     )
     assert (todo["kind"], todo["todo"]) == ("reply", "Rebuild the banner quieter")
@@ -231,12 +235,32 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
         # HTML with no question in it asks nothing back, so it declares nothing.
         ('On it.\n\n<figure id="sketch"><p>A sketch.</p></figure>', []),
     ):
-        result = leaf("thread", "reply", reference, "--text", text, *flags)
+        result = leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            text,
+            *flags,
+            "--title",
+            "Thread title",
+        )
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
         ("update", f"update:{comment['id']}")
     ]
-    reply = written(leaf("thread", "reply", reference, "--text", "Done.", "--done"))
+    reply = written(
+        leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            "Done.",
+            "--done",
+            "--title",
+            "Thread title",
+        )
+    )
     assert "todo" not in reply
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
@@ -343,7 +367,16 @@ def test_a_plan_reads_each_steps_state_from_the_records_it_arranges(page_dir):
     # A question whose thread the agent resolved, as it does once the user answers
     # elsewhere, reads done, and a rewrite that leaves the to-do out leaves it owed.
     question = written(
-        leaf("thread", "create", page_dir, "--text", "Merge?", "--obligation")
+        leaf(
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            "Merge?",
+            "--obligation",
+            "--title",
+            "Agent thread",
+        )
     )
     asked = f"message:{question['id']}"
     written(leaf("thread", "resolve", page_dir, question["id"]))
@@ -511,6 +544,8 @@ def test_a_long_todo_or_plan_step_title_is_fitted_rather_than_refused(page_dir):
             "On it.",
             "--todo",
             words,
+            "--title",
+            "Thread title",
         )
     )
     assert answered["todo"] == fitted
@@ -619,7 +654,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
             "author": "user",
             "revision": 1,
             "parent": question["id"],
-            **({"text": "Warm."} if answer_kind == "reply" else {"token": "keep"}),
+            **({"text": "Warm."} if answer_kind == "reply" else {"emoji": "👍"}),
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
@@ -643,7 +678,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
 
 
 def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
-    """A reaction answers an obligation only when its token settles (`$reactions`): one
+    """A reaction answers an obligation only when its emoji settles (`$reactions`): one
     that doesn't leaves the obligation on the user, and the one that does is the
     outcome the ended obligation records."""
     publish(page_dir)
@@ -659,10 +694,12 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
             "--text",
             "Warm or cool?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
 
-    def react(token):
+    def react(emoji):
         return append_carried_log_record(
             page_dir,
             {
@@ -670,11 +707,11 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
                 "author": "user",
                 "revision": 1,
                 "parent": question["id"],
-                "token": token,
+                "emoji": emoji,
             },
         )
 
-    react("clarify")
+    react("🤔")
     assert standing_model.is_open(
         next(
             item
@@ -682,7 +719,7 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
             if item["source"]["id"] == question["id"]
         )
     )
-    keep = react("keep")
+    keep = react("👍")
     assert standing_model.answered(
         next(
             item
@@ -732,6 +769,8 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
             "--text",
             "Short or long title?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
     state = state_json(page_dir)
@@ -788,6 +827,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
             response_reference(page_dir, comment["id"]),
             "--text",
             "Done.",
+            "--title",
+            "Thread title",
         )
     )
     state = state_json(page_dir)
@@ -922,6 +963,8 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
             "On it.",
             "--todo",
             "Rebuild the chart",
+            "--title",
+            "Thread title",
         )
     )
     line = ("--text", "Waiting on the build")
@@ -1288,6 +1331,8 @@ def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_d
             "--text",
             "Warm or cool?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
     asked = f"message:{question['id']}"
@@ -1343,6 +1388,8 @@ def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
             "--obligation",
             "--text",
             "Can you try the build on your phone?",
+            "--title",
+            "Thread title",
         )
     )
     item = f"message:{question['id']}"
@@ -1424,6 +1471,8 @@ def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
             "--obligation",
             "--text",
             "Can you try the build?",
+            "--title",
+            "Thread title",
         )
     )
     second = written(
@@ -1483,6 +1532,8 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
                 "--obligation",
                 "--text",
                 text,
+                "--title",
+                "Thread title",
             )
         )
 
@@ -1560,6 +1611,8 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             '<lf-option id="store-account" label="Account store"><strong>Account store</strong></lf-option>'
             '<lf-option id="store-own" label="Their own store"><strong>Their own store</strong></lf-option>'
             "</lf-options>",
+            "--title",
+            "Thread title",
         )
     )
     said = append_command(
@@ -1800,6 +1853,8 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
                 response_reference(page_dir, "c2"),
                 "--text",
                 "Because.",
+                "--title",
+                "Thread title",
             ],
         )
         .exit_code
@@ -2037,7 +2092,13 @@ def test_explicit_message_obligations_need_no_html(page_dir, route):
             if route == "addressed"
             else ["thread", "reply", page_dir, thread]
         )
-    message = written(leaf(*command, "--obligation", "--text", "Which environment?"))
+    message = written(
+        leaf(
+            *command,
+            *("--title", "Release environment"),
+            *("--obligation", "--text", "Which environment?"),
+        )
+    )
     identity = f"message:{message['id']}"
     state = state_json(page_dir)
     [item] = [item for item in state["obligations"] if item["id"] == identity]
@@ -2080,7 +2141,7 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "plan"},
         },
     )
@@ -2101,7 +2162,7 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
             )["threads"]
             if thread["id"] == root["id"]
         ]
-        assert kept["root"]["withdrawn"]["was"] == "keep"
+        assert kept["root"]["withdrawn"]["was"] == "👍"
         # The thread stays a thread, so the agent may attach more work to it.
         append_command(page_dir, {**task, "title": "Check on a tablet"})
         assert opened["id"] in {
@@ -2116,7 +2177,11 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
 def test_obligations_are_not_progress_or_user_authored(page_dir):
     """The admission boundary prevents unanswerable requests on non-agent messages."""
     publish(page_dir)
-    root = written(leaf("thread", "create", page_dir, "--text", "Status"))
+    root = written(
+        leaf(
+            "thread", "create", page_dir, "--text", "Status", "--title", "Agent thread"
+        )
+    )
     before = events_model.read_events(page_dir)
     for extra in (
         {"author": "user"},

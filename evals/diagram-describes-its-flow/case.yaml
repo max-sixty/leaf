@@ -1,0 +1,32 @@
+# Every named box of a diagram takes a comment of its own, so the author's part is the
+# source: valid Mermaid that draws the stated flow, named and described for a reader
+# who can't see it. This case checks the author's choice at page creation. It is a
+# probe given a page with its packages.
+description: diagram-describes-its-flow
+metadata:
+  purpose: A diagram draws the stated flow and describes it for a reader who can't see it.
+  page: [diagram]
+  tags:
+    - diagram
+    - comments
+vars:
+  prompt: |
+    Write a Leaf page reviewing this release flow, drawn as a diagram. The user
+    wants to comment on individual boxes in the diagram, especially the decisions,
+    as well as on the diagram as a whole.
+
+    The flow is: Ready? (A) goes to Tested? (B) on yes and Wait (C) on no.
+    Tested? goes to Ship (D) on yes and Test (E) on no.
+assert:
+  - type: llm-rubric
+    metric: flow-drawn
+    value: |
+      Pass only if the HTML contains one lf-diagram whose valid Mermaid source draws
+      all five boxes, each a named node, with the stated yes/no relationships.
+  - type: llm-rubric
+    metric: accessible-diagram
+    value: |
+      Pass if the lf-diagram's Mermaid source supplies an accTitle and accDescr
+      that name and explain the release flow for a reader who cannot see it.
+      Mentioning accessibility outside the diagram source does not pass.
+      Do not demand exact wording.

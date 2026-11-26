@@ -40,13 +40,14 @@ from leaf.base import state as cleanup_model
 from leaf.base.findings import Finding
 from leaf.base.json_block import read_json_block
 from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
 from leaf.log import event_log as events_model
 from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.registry import contract as registry_contract
 from leaf.source.registry import layer as registry_layer
-from leaf.source.registry import storage as registry_storage
 from leaf.source.registry import validation as registry_validation
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
@@ -108,9 +109,7 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     named = {"description": "Build facts.", "schema": {}}
     refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
     assert refused.values["keyword"] == "pattern"
-    refused = registry_refusal(
-        lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
-    )
+    refused = registry_refusal(lambda: facts(reactions={"emoji": {" ": {}}}))
     assert refused.values["keyword"] == "pattern"
 
 
@@ -122,7 +121,7 @@ def test_one_check_names_the_first_departure_in_each_layer_fact():
     registry["$data"] = {"contracts": {"a\n": named, "b\n": named}}
     registry["$reactions"] = {
         **registry["$reactions"],
-        "tokens": {"keep\n": {"glyph": "+"}},
+        "emoji": {" ": {}},
     }
 
     with pytest.raises(registry_contract.RegistryError) as refused:
@@ -283,13 +282,13 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = registry_storage.load_registry(page_dir)[section]
+    merged = vocabulary_model.load_registry(page_dir)[section]
     shipped = shipped_core_registry()[section]
     assert merged == shipped
 
 
 def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tmp_path):
-    """`$events.handling` merges by kind like `$reactions.tokens`: a project layer
+    """`$events.handling` merges by kind like `$reactions.emoji`: a project layer
     replaces one kind's clauses, deletes one with null, and inherits every other."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
@@ -316,7 +315,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = registry_storage.load_registry(page_dir)["$events"]["handling"]
+    merged = vocabulary_model.load_registry(page_dir)["$events"]["handling"]
     shipped = cleanup_model.kernel_registry()["$events"]["handling"]
     assert merged["comment"] == [{"text": "Reply in French."}]
     assert "reply" not in merged
@@ -657,7 +656,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment a newer message answers through": {"kind": "comment"},
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
-        "reaction on the page": {"kind": "comment", "token": "+1"},
+        "reaction on the page": {"kind": "comment", "emoji": "👍"},
         "reply": {"kind": "reply", **titled, **owes("reply")},
         "reply in an untitled thread": {
             "kind": "reply",
@@ -689,7 +688,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "settled": [{"id": "message:m1", "text": "Can you try the build?"}],
             **owes("reply"),
         },
-        "reaction on a message": {"kind": "reply", "token": "+1"},
+        "reaction on a message": {"kind": "reply", "emoji": "👍"},
         "rewritten message": {
             "kind": "edit",
             "text": "Tuesdays, after the report run",
@@ -805,11 +804,11 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     assert session_model.cmd_wait(page_dir) == 0
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["acknowledge"] is not None
-    assert delivery_model.receive_delivery(envelope["id"]) == [page_dir]
+    assert delivery_ack_model.receive_delivery(envelope["id"]) == [page_dir]
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
-    page_events = registry_storage.load_registry(page_dir)["$events"]
+    page_events = vocabulary_model.load_registry(page_dir)["$events"]
     page_clauses = [
         *page_events["handling"]["comment"],
         *page_events["answering"][delivered["answer"]["kind"]],
@@ -821,7 +820,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "answer": delivered["answer"],
             "thread": thread,
         },
-        registry_storage.load_registry(page_dir),
+        vocabulary_model.load_registry(page_dir),
     )
     assert [clause["text"] for clause in applying] == [
         batch["handling"][ref] for ref in delivered["handling"]
@@ -1161,7 +1160,7 @@ def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
         ],
     )
     assert result.exit_code == 0, result.output
-    keys = registry_storage.load_registry(page_dir)["$keys"]
+    keys = vocabulary_model.load_registry(page_dir)["$keys"]
     assert keys["space"] == "wider, in this project"
     assert keys["verbatim"]  # the rest of the shipped members stand
 
@@ -1205,11 +1204,11 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
     shipped = cleanup_model.kernel_registry()["$events"][key]
 
     assert found(init_notes(page_dir), "fixed-events", key=key)
-    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
+    assert vocabulary_model.load_registry(page_dir)["$events"][key] == shipped
 
     (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
     assert found(init_notes(page_dir), "fixed-events", key=key)
-    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
+    assert vocabulary_model.load_registry(page_dir)["$events"][key] == shipped
 
 
 @pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
@@ -1219,12 +1218,12 @@ def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
     neither runtime; `page init` keeps the kernel's and says so."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    shipped = registry_storage.load_registry(page_dir)[fact]
+    shipped = vocabulary_model.load_registry(page_dir)[fact]
     member = next(key for key in shipped if key != "description")
     (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
 
     assert found(init_notes(page_dir), "fixed-kernel-fact", name=fact)
-    assert registry_storage.load_registry(page_dir)[fact] == shipped
+    assert vocabulary_model.load_registry(page_dir)[fact] == shipped
 
 
 def test_shared_package_declarations_compose_by_member():

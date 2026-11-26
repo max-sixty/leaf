@@ -1322,7 +1322,13 @@ def ask_agent(tab: Tab) -> Goals:
     enough to scroll, so the panel's pinned reply row takes each arriving turn."""
     if not tab.bench.thread:
         created = tab.bench.leaf(
-            "thread", "create", tab.bench.directory, "--text", THREAD_TEXT
+            "thread",
+            "create",
+            "--title",
+            "Bench thread",
+            tab.bench.directory,
+            "--text",
+            THREAD_TEXT,
         )
         tab.bench.thread = json.loads(created)["id"]
         told(tab.page)
@@ -2661,8 +2667,8 @@ def server_pages(
     before its values and log are written, so the pages of every size together
     activate each version once."""
     from leaf.pages.vendoring import cmd_init
+    from leaf.records.page_data import cmd_data_set
     from leaf.records.revisioning import activate_source
-    from leaf.source.data import cmd_data_set
     from leaf_dev.page_fixtures import DEFAULT_PACKAGES
 
     # The packages the browser's bench builds the same pages with

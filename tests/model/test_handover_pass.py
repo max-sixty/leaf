@@ -27,6 +27,9 @@ from interact_support import (
 )
 
 from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
 from leaf.base import state as state_model
 from leaf.base.files import latest_revision
 from leaf.base.findings import Finding
@@ -34,13 +37,14 @@ from leaf.commands import hooks as hooks_model
 from leaf.commands import session as session_model
 from leaf.commands.session import set_status
 from leaf.log.event_log import read_events
+from leaf.records import page_data as page_data_model
 from leaf.records import transaction as transaction_model
 from leaf.records.authored_checks.source import check_source
 from leaf.records.render_reading import read_reading
 from leaf.records.revisioning import activate_source
 from leaf.serving import handover_pass as handover_pass_model
+from leaf.serving import server_rows as server_rows_model
 from leaf.serving.served_state.context import read_page
-from leaf.source import data as data_model
 from leaf.source.revision_artifact import read_artifact
 
 FAILURE: dict[str, Any] = {
@@ -51,10 +55,6 @@ FAILURE: dict[str, Any] = {
     "values": {"by": 40},
     "text": "at 360–900px wide, <div id=wide> is set 40px past the column",
 }
-# A diagram whose boxes a thread may name (`parts`), and what a reading of it drew.
-PARTS_PAGE = FLOW_PAGE.replace(
-    '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-)
 DRAWN = {
     "flow": {
         "parts": [{"id": "node:A", "label": "A"}, {"id": "node:B", "label": "B"}],
@@ -208,7 +208,7 @@ def test_a_data_update_after_the_declaration_still_hands_the_version_over(pass_p
     # The save that binds the data, which a tab makes live.
     declare_data_input(pass_page.dir, "builds", {"type": "array"})
     session_model.cmd_waiting(pass_page.dir)
-    data_model.cmd_data_set(pass_page.dir, "builds", ["green"])
+    page_data_model.cmd_data_set(pass_page.dir, "builds", ["green"])
     pass_page.passes.look()
     assert len(pass_page.reads) == 1
 
@@ -388,6 +388,63 @@ def test_advice_alone_wakes_nobody_and_goes_with_what_next_reaches_the_agent(
     assert event["id"] not in [e["id"] for e in deliverable(claimed)]
 
 
+def test_advice_wakes_nobody_once_what_came_with_it_is_answered(
+    claimed, interactive, told, monkeypatch
+):
+    """A comment the agent answered before its receipt still rides in the receipt
+    batch, and the advice told beside it goes with it (`delivery.deliverable`). With
+    the comment answered, advice is all that is left for the agent, and it wakes the
+    session by none of the three routes: a watch between turns, the nudge a watch
+    sends for what it leaves as it ends, and the server's nudge after a turn Escape
+    interrupted."""
+    session_model.cmd_waiting(claimed)
+    [advice] = told([ADVICE])
+    comment = append_command(
+        claimed,
+        {"kind": "comment", "author": "user", "text": "looks good", "revision": 1},
+    )
+    thread_model.post_reply(
+        claimed, {"parent": comment["id"], "responds": comment["id"]}, "Thanks."
+    )
+    assert [e["id"] for e in deliverable(claimed)] == [advice["id"], comment["id"]]
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(page) or True,
+    )
+
+    # A Stop hook closed the turn; its watch makes one pass, its harness process then
+    # ends, and the watch nudges for what it leaves.
+    leases_model.mark_hooks("s1")
+    state_model.close_session_turn("s1")
+    runs = iter([True])
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "process_runs",
+        lambda harness: next(runs, False),
+    )
+    monkeypatch.setattr(
+        session_model.Watch, "await_news", lambda watch, mark, timeout=0: False
+    )
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    assert hooks_model.cmd_watch("claude-code", stop) is None
+    assert nudged == []
+
+    # Escape interrupts the next turn, which Claude Code's record reads as idle.
+    state_model.prompt_turn("s1")
+    idle = {
+        "state": "idle",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(idle)
+    )
+    server_rows_model.nudge_interrupted(claimed)
+    assert nudged == []
+
+
 def test_advice_holds_no_turn_and_goes_in_with_what_a_hook_hands_over(
     claimed, printing, told, capsys
 ):
@@ -502,7 +559,7 @@ def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed):
     """The reading of a version hands `page state` the parts each visual drew in it,
     on the visual's element, and a later version shows none of them until it is read
     in turn: its visuals may draw other parts."""
-    (claimed / "index.html").write_text(PARTS_PAGE)
+    (claimed / "index.html").write_text(FLOW_PAGE)
     assert activate_source(claimed).error is None
     handover_pass_model.read_and_tell(claimed, checking([], visuals=DRAWN))
     assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
@@ -514,13 +571,13 @@ def test_a_data_update_lists_no_parts_until_a_check_reads_it(claimed):
     """A data update makes no new version but can change what a visual draws, so the
     parts a check drew list only while the page holds the data it read, and the next
     check lists them again."""
-    (claimed / "index.html").write_text(PARTS_PAGE)
+    (claimed / "index.html").write_text(FLOW_PAGE)
     declare_data_input(claimed, "builds", {"type": "array"})
     handover_pass_model.remember_reading(
         claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
     )
     assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
-    data_model.cmd_data_set(claimed, "builds", ["green"])
+    page_data_model.cmd_data_set(claimed, "builds", ["green"])
     assert "parts" not in flow_element(claimed)
     handover_pass_model.remember_reading(
         claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)

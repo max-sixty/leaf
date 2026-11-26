@@ -156,6 +156,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             str(page_dir),
             "--text",
             f"the panel now:\n\n![shot]({missing})",
+            "--title",
+            "Agent thread",
         ],
     )
     assert posted.exit_code == 1, (
@@ -173,6 +175,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             str(page_dir),
             "--text",
             f"write it as `{missing}` in the message",
+            "--title",
+            "Agent thread",
         ],
     )
     assert mention.exit_code == 0, (
@@ -188,6 +192,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             str(page_dir),
             "--text",
             f"Here is the source:\n\n```md\n![shot]({missing})\n```\n\n[unused]: {missing}",
+            "--title",
+            "Agent thread",
         ],
     )
     assert quoted.exit_code == 0, (
@@ -203,6 +209,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             str(page_dir),
             "--text",
             f"the panel now:\n\n    ![shot]({missing})",
+            "--title",
+            "Agent thread",
         ],
     )
     assert indented.exit_code == 1, (
@@ -218,6 +226,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             str(page_dir),
             "--text",
             f'[the panel](<{missing}> "shot")',
+            "--title",
+            "Agent thread",
         ],
     )
     assert linked.exit_code == 1, (
@@ -233,6 +243,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             str(page_dir),
             "--text",
             f"![shot][ref]\n\n[ref]: {missing}",
+            "--title",
+            "Agent thread",
         ],
     )
     assert referenced.exit_code == 1, (
@@ -254,6 +266,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
                 str(page_dir),
                 "--text",
                 f"look:\n\n![shot](/media/{unserved})",
+                "--title",
+                "Agent thread",
             ],
         )
         assert unnamed.exit_code == 1, (
@@ -275,6 +289,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             str(page_dir),
             "--text",
             f"the panel now:\n\n![shot]({missing})",
+            "--title",
+            "Agent thread",
         ],
     )
     assert answered.exit_code == 0, (

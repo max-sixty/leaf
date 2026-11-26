@@ -14,6 +14,10 @@ Codex constrains the answer to the schema. Claude Code's completion and Pi take 
 answer schema, so the system prompt carries it (`answering`), and the answer is
 parsed and validated here (`answered`); an answer that is not JSON matching the
 schema fails the request as any other failure does.
+
+Each Codex call site imports the App Server transport (`codex.py`) itself, since
+importing it registers an exit handler, which a process that asks Codex nothing has
+no use for.
 """
 
 import json
@@ -27,12 +31,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from leaf.agents import completions
-from leaf.agents.codex import (
-    app_server_connect,
-    app_server_handshake,
-    app_server_request,
-    private_app_server,
-)
 from leaf.base.harness import IDENTITY_VARIABLES, Harness
 from leaf.base.json_block import json_block
 from leaf.source.registry.schema import json_validator
@@ -190,6 +188,8 @@ def open_thread(socket, page_dir: Path, instructions: str) -> str:
     """Open the ephemeral thread one request is asked on, on Luna, over
     a new connection to an App Server, run in the page directory, and return its
     id."""
+    from leaf.agents.codex import app_server_handshake, app_server_request
+
     app_server_handshake(socket, 0, "leaf-inference", "Leaf inference")
     # A thread starts every MCP server the user configured, its project's included,
     # and an override replacing the table leaves them configured, so each is turned
@@ -222,6 +222,8 @@ def open_thread(socket, page_dir: Path, instructions: str) -> str:
 def ask(socket, thread_id: str, request: str, schema: dict, deadline: float) -> dict:
     """Ask for structured JSON in one turn on the thread `open_thread` opened, and read
     the answer by `deadline` (`time.monotonic`)."""
+    from leaf.agents.codex import app_server_request
+
     # A thread that took longer to open than the request waits asks nothing.
     if time.monotonic() >= deadline:
         raise TimeoutError(f"no structured answer within {TIMEOUT} s")
@@ -277,6 +279,7 @@ def ask(socket, thread_id: str, request: str, schema: dict, deadline: float) -> 
 def app_server_generate(endpoint: str) -> Callable[..., dict]:
     """A structured request as an ephemeral thread on the App Server at
     `endpoint`, run in the page directory."""
+    from leaf.agents.codex import app_server_connect
 
     def generate(
         request: str,
@@ -309,6 +312,8 @@ def codex_generate(
     instructions: str,
 ) -> dict:
     """Ask Codex on demand; no server remains idle between requests."""
+    from leaf.agents.codex import private_app_server
+
     started = time.monotonic()
     executable = shutil.which("codex")
     if executable is None:

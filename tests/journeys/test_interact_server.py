@@ -34,11 +34,11 @@ from interact_support import (
 )
 
 from leaf.agents import presence as presence_model
-from leaf.agents import server as server_model
 from leaf.base import files as files_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
 from leaf.base import rows as rows_model
+from leaf.base import server as server_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
 from leaf.commands import cli as cli_model
@@ -54,7 +54,7 @@ from leaf.serving.http import assets_path
 from leaf.source import render_checks as render_checks_model
 from leaf.source import revision_artifact as artifact_model
 from leaf.source import structure as structure_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 from leaf.source.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.page_fixtures import package_selection_args
 
@@ -122,7 +122,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
 
 
 def test_server_round_trip(server, page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     source = page_dir / "index.html"
@@ -359,7 +359,7 @@ def test_server_round_trip(server, page_dir):
         {
             "kind": "comment",
             "revision": 2,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "feeder-board"},
             "drawing": drawing,
         },
@@ -589,7 +589,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
 ):
     """An open old tab may outlive the selection of the package that upgraded its
     widget."""
-    shipped = registry_storage.load_registry(page_dir)
+    shipped = vocabulary_model.load_registry(page_dir)
     overlay = page_dir.parent / ".leaf"
     (overlay / "widgets").mkdir(parents=True)
     (overlay / "registry.json").write_text(
@@ -682,10 +682,14 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    record_claim(neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible")
+    holder = record_claim(
+        neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible"
+    )
     declare(neighbor)
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, persistent=True, harness=None)
+    hosting_model.start_server(
+        neighbor, persistent=True, harness=harness_model.claim_harness(holder)
+    )
 
     def rows():
         return presence_model.other_leaves(page_dir)
@@ -1096,8 +1100,9 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     """The held reservation cannot impersonate a dead committed incarnation."""
     neighbor = cleanup_model.state_home() / "pages" / "private-revival"
     neighbour_page(neighbor, title="Private revival", dead=True, port=0)
-    record_claim(neighbor, id="private-revival")
-    hosting_model.start_server(neighbor, persistent=True, harness=None)
+    # Only the holding session serves the page, the revival below included.
+    holder = harness_model.claim_harness(record_claim(neighbor, id="private-revival"))
+    hosting_model.start_server(neighbor, persistent=True, harness=holder)
     previous = server_model.running_server(neighbor)
     assert previous is not None
     wait_for(
@@ -1123,7 +1128,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             "persistent",
             "--revive",
             "--harness",
-            "null",
+            harness_model.harness_argument(holder),
             "--handshake",
             str(end.fileno()),
         ],

@@ -47,10 +47,10 @@ from leaf.records import activity as activity_model
 from leaf.records import event_contracts as event_contracts_model
 from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
+from leaf.records import work_state as work_state_model
 from leaf.records.event_meaning import AdmissionReadings
 from leaf.records.workflows import attention_reading
-from leaf.serving.served_state import work as work_served_model
-from leaf.source.registry import storage as registry_storage
+from leaf.source import vocabulary as vocabulary_model
 
 
 @pytest.mark.parametrize(
@@ -412,7 +412,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
             "kind": "reply",
             "author": "user",
             "parent": question["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
 
@@ -564,7 +564,7 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     asked = append_carried_log_record(
         page_dir,
         {
@@ -649,7 +649,7 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     # A mark is no turn; the agent's next spoken turn takes the move in.
     append_carried_log_record(
         page_dir,
-        {"kind": "reply", "author": "agent", "parent": asked["id"], "token": "keep"},
+        {"kind": "reply", "author": "agent", "parent": asked["id"], "emoji": "👍"},
     )
     state, attention = reading()
     assert [item["input"] for item in state["workflows"]] == [moved["id"]]
@@ -869,7 +869,7 @@ def test_served_workflows_list_the_strongest_first():
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
-        served = work_served_model.served_workflows(workflows, thread_reading, records)
+        served = work_state_model.served_workflows(workflows, thread_reading, records)
         assert [item["id"] for item in served] == expected
 
 

@@ -155,7 +155,7 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     page = open_page(browser, serve(named_source("ship-review")))
     open_on_me(page)
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
-        has_text="The vendor release is the only schedule"
+        has_text="Blocking on the vendor's fix"
     )
     card.locator(".lf-fp-show").click()
     preview = page.locator(".lf-margin-preview")
@@ -832,7 +832,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "first-control"},
         },
     )

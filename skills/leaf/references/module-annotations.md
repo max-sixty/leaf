@@ -126,7 +126,7 @@ the visual shows.
 that calls it redraws when it changes. A thread the user just started is there at once;
 only `phase === "ready"` means every saved thread is. A Thread's `turns` are the
 messages a drawing of it shows, in order: its opening message and each later message
-that is not a reaction. `nameOf(thread)` returns its name in words
+but the user's reactions, which a message's `reactions` holds. `nameOf(thread)` returns its name in words
 (`module-reading.md`, "Naming").
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`

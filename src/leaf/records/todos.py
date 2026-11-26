@@ -8,7 +8,7 @@ a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no 
 of its own to any of them. The user chose this over a to-do on the user
 (`leaf task create --on user`): the widget or thread
 an ask stands on is sovereign over how it is answered, and a step such as trying a
-build is asked in a thread, which the user's reply or settling reaction answers.
+build is asked in a thread, which the user's reply answers, in words or a reaction.
 
 An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. `leaf task start` writes a

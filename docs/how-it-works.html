@@ -1367,12 +1367,12 @@ sequenceDiagram
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's
                 <code>leaf thread</code> command would. The user's pick answers a
-                choice, and any other ask carries an obligation, which their reply or a
-                settling reaction answers. A question asked again goes in its thread,
-                and reopens the thread if the user closed it. Any other opens a thread
-                of its own, on that passage, or on the page as a whole where the fork
-                named none or the page doesn't show its words once. Nothing on the page
-                marks where an ask came from.
+                choice, and any other ask carries an obligation, which their reply
+                answers. A question asked again goes in its thread, and reopens the
+                thread if the user closed it. Any other opens a thread of its own, on
+                that passage, or on the page as a whole where the fork named none or the
+                page doesn't show its words once. Nothing on the page marks where an ask
+                came from.
               </p>
               <p id="fork-fixes">
                 Where a few of a page's words have gone stale, the fork can give the
@@ -3072,7 +3072,7 @@ flowchart TD
               obligation is answered by the actions its
               <code>awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
-              answered by the user’s reply there or a settling reaction, such as 👍. The
+              answered by the user’s reply there, in words or a reaction such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and ends a thread
               question the user answered elsewhere, such as in chat, by resolving its
               thread. Done history records the outcome, including withdrawn obligations
@@ -3144,7 +3144,7 @@ flowchart TD
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On Me and makes the thread read
-                <em>Your turn</em>. A reply or settling reaction answers it at once, so
+                <em>Your turn</em>. A reply, words or a reaction, answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
                 such as trying a build, is asked this way where only words can give its
                 answer, such as what an error said; where its outcomes can be listed,

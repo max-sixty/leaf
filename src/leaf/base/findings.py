@@ -2128,13 +2128,6 @@ _TEXT = {
             f" and r{v['newest']} authors {v['container']!r} differently"
         ),
     ),
-    "unknown-reaction": _refuses(
-        _ADMITS,
-        lambda at, v: (
-            f"unknown reaction {v['emoji']!r}; this layer declares"
-            f" {json_value(v['declared'])}"
-        ),
-    ),
     # A comment's anchor and hold.
     "datum-unknown-section": _refuses(
         _ADMITS, lambda at, v: f"datum anchor names unknown section {v['section']!r}"

@@ -109,7 +109,7 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     named = {"description": "Build facts.", "schema": {}}
     refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
     assert refused.values["keyword"] == "pattern"
-    refused = registry_refusal(lambda: facts(reactions={"emoji": {" ": {}}}))
+    refused = registry_refusal(lambda: facts(reactions={"emoji": [" "]}))
     assert refused.values["keyword"] == "pattern"
 
 
@@ -656,7 +656,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment a newer message answers through": {"kind": "comment"},
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
-        "reaction on the page": {"kind": "comment", "emoji": "👍"},
+        "reaction on the page": {
+            "kind": "comment",
+            "emoji": "👍",
+            **untitled,
+            **owes("reply"),
+        },
         "reply": {"kind": "reply", **titled, **owes("reply")},
         "reply in an untitled thread": {
             "kind": "reply",
@@ -688,7 +693,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "settled": [{"id": "message:m1", "text": "Can you try the build?"}],
             **owes("reply"),
         },
-        "reaction on a message": {"kind": "reply", "emoji": "👍"},
+        "reaction on a message": {
+            "kind": "reply",
+            "emoji": "👍",
+            **titled,
+            **owes("reply"),
+        },
         "rewritten message": {
             "kind": "edit",
             "text": "Tuesdays, after the report run",

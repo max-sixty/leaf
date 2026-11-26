@@ -60,7 +60,6 @@ from leaf.source.registry.kernel import (
     kinds_declaring,
     verb_writers,
 )
-from leaf.source.registry.reactions import reaction_emoji
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
 from leaf.source.structure import quoted_in
@@ -557,18 +556,6 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
     return record_contract_error(view, event, spec, readings)
 
 
-def _reaction_error(event: dict, registry: dict) -> Finding | None:
-    if not event.get("emoji"):
-        return None
-    declared = reaction_emoji(registry)
-    if event["emoji"] not in declared:
-        return Finding(
-            "unknown-reaction",
-            values={"emoji": event["emoji"], "declared": list(declared)},
-        )
-    return None
-
-
 def _anchored_comment_error(view, event: dict, registry: dict):
     """Why a comment's declared target is not a place on the page it names.
 
@@ -732,7 +719,6 @@ def admission_error(
         or _revision_error(view, event)
         or _action_error(view, event, readings)
         or _report_error(view, event, readings)
-        or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
         or _named_question_error(event, events)

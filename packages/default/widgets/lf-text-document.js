@@ -1175,7 +1175,8 @@ class TextDocument extends LeafElement {
 
   // Puts the editor's caret at the start of the double-clicked word's line in the
   // file. The dialect's alignment of rendered words to source finds the word in the
-  // file (`markdownSourceOffset`), and the widget `for` names reveals `<key>:<line>`,
+  // file (`markdownSourceOffset`), reading the file's HTML as the preview draws it
+  // (`markdownFileFragment`), and the widget `for` names reveals `<key>:<line>`,
   // as the file editor does for a link to that line (lf-file-editor.js,
   // `lfRevealDatum`). The widget is assumed to answer such a key: the file editor is
   // the one widget whose `text-document` value names a file by `key`. A double-click
@@ -1191,6 +1192,7 @@ class TextDocument extends LeafElement {
         words.text,
         words.caret.offsetNode,
         words.caret.offset,
+        true,
       );
     if (!words || offset === null) return;
     const line = words.text.slice(0, offset).split(/\r\n|\r|\n/).length;

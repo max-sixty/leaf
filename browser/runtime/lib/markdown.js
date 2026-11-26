@@ -62,7 +62,7 @@ let renderInline = escapedSource;
 let renderAuthored = escapedSource;
 /** @type {(text: string) => Promise<string>} */
 let renderFile = async (text) => escapedSource(text);
-/** @type {((source: string, message: boolean) => NativeToken[]) | null} */
+/** @type {((source: string, message: boolean, html: boolean) => NativeToken[]) | null} */
 let tokenize = null;
 /** @type {Promise<void> | undefined} */
 let ready;
@@ -258,9 +258,11 @@ const isBeforeJoinedInline = (token) => token.type === "inline";
 export const isBlockPlacement = (placed, type) => placed.token.type === type;
 
 /** @param {string} source @param {boolean} [message] the reading (`renderMarkdown`)
+ * @param {boolean} [html] whether the reading keeps the source's HTML
+ * (`markdownFileFragment`) rather than showing its tags as words
  * @returns {PlacedToken[]} */
-export function placedMarkdownTokens(source, message = true) {
-  const tokens = markdownTokens(source, message);
+export function placedMarkdownTokens(source, message = true, html = false) {
+  const tokens = markdownTokens(source, message, html);
   if (!tokens) return [];
   const starts = [0];
   for (let at = 0; at < source.length; at++) {
@@ -300,7 +302,14 @@ export function placedMarkdownTokens(source, message = true) {
                 parserItem(starts, line) + a,
                 parserItem(starts, line) + b,
               ]),
-              words: token.nesting ? null : token.content,
+              // A block of HTML shows the words its source draws (`htmlText`). The
+              // white space around them belongs to no word, and a caret just past it
+              // stands at the next block's first word, not at this block's end.
+              words: token.nesting
+                ? null
+                : token.type === "html_block"
+                  ? htmlText(token.content).text.trim()
+                  : token.content,
             }
           : null;
       if (placed) found.push(placed);
@@ -394,9 +403,13 @@ export function placedMarkdownTokens(source, message = true) {
 // is unsuitable here: its deliberate coarse replacement must never send a caret to
 // the end of a long formatted document. Token placement gives an ordered source span;
 // the local exact alignment handles omitted delimiters, entities and escapes. `body`
-// holds the rendering of `source`, read as a Markdown file.
-/** @param {HTMLElement} body @param {string} source @param {Node} node @param {number} offset */
-export function markdownSourceOffset(body, source, node, offset) {
+// holds the rendering of `source`, read as a Markdown file, and `html` says which
+// rendering: one that keeps the file's HTML (`markdownFileFragment`), or one that shows
+// its tags as words (`paintMarkdown`). Placement parses the source as that rendering
+// did, so the HTML's words, and the Markdown it wraps, stand in the order drawn.
+/** @param {HTMLElement} body @param {string} source @param {Node} node @param {number} offset
+ * @param {boolean} html */
+export function markdownSourceOffset(body, source, node, offset, html) {
   if (!body.contains(node)) return null;
   const range = document.createRange();
   range.selectNodeContents(body);
@@ -405,7 +418,7 @@ export function markdownSourceOffset(body, source, node, offset) {
   const aim = fragmentWords(range.cloneContents()).length;
   let shownAt = 0;
   let sourceEnd = 0;
-  for (const placed of placedMarkdownTokens(source, false)) {
+  for (const placed of placedMarkdownTokens(source, false, html)) {
     const { token, from, to } = placed;
     if (token.nesting) continue;
     const words = placed.words;
@@ -416,25 +429,37 @@ export function markdownSourceOffset(body, source, node, offset) {
     if (aim <= start + words.length) {
       // A fence's code starts on the line after its opening marker, whose info string
       // can spell the code's first word, as `sh` does in a fence of shell commands.
-      let sourceAt = token.type === "fence" ? lineAfter(source, from) : from;
+      const begin = token.type === "fence" ? lineAfter(source, from) : from;
+      // A block of HTML aligns its words with what its source draws (`htmlText`), so a
+      // word never lands in a tag's attribute or a comment. A caret where markup
+      // stands between two characters takes the side of the text it is in: the next
+      // character's at a text's start, else the previous one's.
+      const drawn = token.type === "html_block" && htmlText(source.slice(begin, to));
+      const text = drawn ? drawn.text : source.slice(begin, to);
+      /** @param {number} index */
+      const place = (index) =>
+        begin +
+        (!drawn
+          ? index
+          : offset === 0 && index < drawn.starts.length
+            ? parserItem(drawn.starts, index)
+            : index > 0
+              ? parserItem(drawn.ends, index - 1)
+              : 0);
+      let index = 0;
       let tokenAt = start;
-      for (const run of alignText(
-        source.slice(sourceAt, to),
-        words,
-        characters,
-        Infinity,
-      )) {
+      for (const run of alignText(text, words, characters, Infinity)) {
         // A caret before an escaped first character stands before its backslash, which
         // a key there would split from the character.
         if (run.kind === "delete") {
-          if (aim === tokenAt && placed.spelled?.some(([a]) => a === sourceAt))
-            return sourceAt;
-          sourceAt += run.text.length;
+          if (aim === tokenAt && placed.spelled?.some(([a]) => a === place(index)))
+            return place(index);
+          index += run.text.length;
         } else {
           if (aim <= tokenAt + run.text.length)
-            return sourceAt + (run.kind === "same" ? aim - tokenAt : 0);
+            return place(index + (run.kind === "same" ? aim - tokenAt : 0));
           tokenAt += run.text.length;
-          if (run.kind === "same") sourceAt += run.text.length;
+          if (run.kind === "same") index += run.text.length;
         }
       }
       return to;
@@ -443,6 +468,47 @@ export function markdownSourceOffset(body, source, node, offset) {
     sourceEnd = to;
   }
   return sourceEnd;
+}
+
+// How a span of HTML source reads: markup, which draws no words (a comment, a tag, whose
+// quoted attributes may hold a `>`, a declaration or processing instruction, and a
+// script or style with what it holds), a character reference, or a line ending.
+const HTML_READING =
+  /(<!--[\s\S]*?(?:-->|$)|<(script|style)\b[\s\S]*?(?:<\/\2\s*>|$)|<(?:\/?[a-z](?:[^>"']|"[^"]*"|'[^']*')*|[!?][^>]*)>?)|&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);?|\r\n?/gi;
+
+// The words a span of HTML source draws, as a rendering's words read them
+// (`fragmentWords`): its text outside markup, each character reference as what the
+// browser reads it as, each line ending as a newline, and a `<br>`, which a browser
+// also reads `</br>` as, as a line break. For each character of `text`, `starts` holds
+// where in the span it starts and `ends` where it ends, so a caret between two
+// characters can stand on either one's line, wherever markup puts the other.
+/** @param {string} span @returns {{text: string, starts: number[], ends: number[]}} */
+function htmlText(span) {
+  let text = "";
+  /** @type {number[]} */
+  const starts = [];
+  /** @type {number[]} */
+  const ends = [];
+  /** @param {string} words @param {number} start @param {number} end */
+  const read = (words, start, end) => {
+    text += words;
+    for (let at = 0; at < words.length; at++) {
+      starts.push(start);
+      ends.push(end);
+    }
+  };
+  let from = 0;
+  for (const { index, 0: found, 1: markup } of span.matchAll(HTML_READING)) {
+    for (let at = from; at < index; at++) read(span.charAt(at), at, at + 1);
+    const end = index + found.length;
+    if (markup === undefined) {
+      probe.innerHTML = found;
+      read(found.startsWith("&") ? probe.content.textContent : "\n", index, end);
+    } else if (/^<\/?br\b/i.test(markup)) read("\n", index, end);
+    from = end;
+  }
+  for (let at = from; at < span.length; at++) read(span.charAt(at), at, at + 1);
+  return { text, starts, ends };
 }
 
 /** Where the line after the one holding `at` starts. @param {string} source @param {number} at */
@@ -481,8 +547,8 @@ function renderedElement(markup, tag) {
 
 // Native Markdown tokens are the editor's reading, too. Link admission annotates the
 // opening token before it reaches either renderer, so both draw the same safe label.
-/** @param {string} text @param {boolean} message */
-const markdownTokens = (text, message) => tokenize?.(text, message) ?? null;
+/** @param {string} text @param {boolean} message @param {boolean} html */
+const markdownTokens = (text, message, html) => tokenize?.(text, message, html) ?? null;
 
 // Source spans are recorded where the parser consumes them, before its presentation
 // passes join text tokens or recognize bare links. No second Markdown grammar lives
@@ -735,7 +801,7 @@ const linksOf = (env) =>
   /** @type {{links?: MarkdownLinks} | undefined} */ (env)?.links;
 
 // The blocks the parser emits whole, with no opening and closing pair.
-const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
+const BLOCK_LEAVES = new Set(["fence", "code_block", "hr", "html_block"]);
 
 // Each code span between a text's closing `$` and the next text's opening one, before
 // text joining, while an escaped `\$` is still a token of its own.
@@ -998,14 +1064,14 @@ export function loadMarkdown(onError = null) {
         ? (await sanitizer()).sanitize(markup, GITHUB_HTML)
         : markup;
     };
-    /** @type {Map<boolean, MarkdownIt>} */
+    /** @type {Map<string, MarkdownIt>} */
     const positioned = new Map();
-    tokenize = (text, message) => {
-      let parser = positioned.get(message);
+    tokenize = (text, message, html) => {
+      let parser = positioned.get(`${message} ${html}`);
       if (!parser) {
-        parser = makeMarkdown(module, message);
+        parser = makeMarkdown(module, message, html);
         sourcePositions(parser);
-        positioned.set(message, parser);
+        positioned.set(`${message} ${html}`, parser);
       }
       return parser.parse(text, {});
     };

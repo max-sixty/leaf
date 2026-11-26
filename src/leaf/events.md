@@ -264,9 +264,9 @@ What each thread command does for the user, and when an agent uses it, is
 ### Reactions
 
 A reaction is a `comment` or `reply` whose content is one emoji (`emoji`) in place of
-`text`. The user's is either, on the passage, element or page a comment's anchor names
-or on the message a reply's `parent` names. The agent's is a reply, written by
-`leaf thread reply --emoji`.
+`text`. The user's reaction is a comment, on the passage, element or page its anchor
+names, or a reply, on the message its `parent` names. The agent's is a reply, written
+by `leaf thread reply --emoji`.
 
 A reaction is a message, and every rule for messages applies to it unchanged. The
 user's reaction is a turn the agent owes an answer: it wakes the agent as words do,
@@ -278,9 +278,10 @@ browser offers the user to pick from, held to the same form.
 The browser draws two kinds of reaction as a mark on what they are on: the reaction that
 opened a thread nothing else has been said in, on its anchor (`events.bare_reaction`),
 and the user's reaction on the agent's message, as a chip on that message. It draws
-every other reaction as a message in its thread, the agent's included. The user takes
-back a reaction of theirs by pressing its emoji again while its thread is open,
-whatever has been said since.
+the agent's reactions as messages in their thread, and a thread a reaction opened as a
+thread once anything else is said in it. The user takes back a reaction of theirs by
+pressing its emoji again, while its thread is open and stands where the reaction was
+put, whatever has been said since.
 
 ### Read state
 

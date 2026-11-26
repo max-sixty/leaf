@@ -212,7 +212,7 @@ and **Still to do** until you end the to-do. A promise declared `--done` reads a
 finished work.
 
 A reply may be one emoji in place of words, `--emoji 👍` for `--text`, where an emoji
-says all the answer needs to, as for a thanks that asks nothing. It declares what it
+says all the answer needs to, as for a thanks in words that asks nothing. It declares what it
 leaves with `--done` or `--todo`; a reply that asks (`--obligation`), reports progress
 (`--ephemeral`) or moves its thread needs words.
 

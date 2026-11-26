@@ -354,7 +354,11 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     open_on_me(page)
     panel_settled(page, view="queue")
     # The page's field takes words while the first state answer is still held.
-    expect(page_comment(page)).to_be_editable()
+    field = page_comment(page)
+    page.keyboard.type("x")
+    expect(field).to_have_js_property("value", "x")
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "")
     page.keyboard.press("Escape")
 
     held.pop(0).continue_()

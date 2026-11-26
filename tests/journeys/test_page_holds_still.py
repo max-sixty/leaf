@@ -1479,7 +1479,7 @@ def new_thread(page, built, target, place):
             "n => n.getBoundingClientRect().top"
             " > n.closest('.lf-page-map-list').getBoundingClientRect().top"
         ), "the row would join above the list's view"
-        drawn = map_row(page, "One more question?")
+        drawn = map_row(page, "More questions")
     else:
         where = page.evaluate(WHERE, f"#{target}")
         assert where["above"] and where["shown"], f"the seat stands {where}"

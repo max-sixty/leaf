@@ -1076,7 +1076,7 @@ def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve)
                 "diagram semantics",
                 """
 <h1 id="title">Diagram semantics</h1>
-<lf-diagram id="life" parts="all"><pre>
+<lf-diagram id="life"><pre>
 stateDiagram-v2
   [*] --&gt; A
   A --&gt; B
@@ -1085,7 +1085,7 @@ stateDiagram-v2
     Fetch --&gt; Build
   }
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   title Order handshake
   loop Retry
@@ -1093,11 +1093,11 @@ sequenceDiagram
   end
   Note right of Server: Checks order
 </pre></lf-diagram>
-<lf-diagram id="relationships" parts="all"><pre>
+<lf-diagram id="relationships"><pre>
 erDiagram
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="identities" parts="all"><pre>
+<lf-diagram id="identities"><pre>
 flowchart TD
   123[Start] --&gt; Ω[Done]
 </pre></lf-diagram>
@@ -3165,7 +3165,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     # The example's chain fits any column it is laid out for; a row of six calls
     # still runs past a 678px viewport and scrolls, which this test needs.
     source, drawn = re.subn(
-        r'(id="security-before-flow") data-height="449"( parts="all">\s*<pre>).*?</pre>',
+        r'(id="security-before-flow") data-height="449"(>\s*<pre>).*?</pre>',
         lambda m: f'{m[1]} data-height="240"{m[2]}\n{FAN_OUT}</pre>',
         source,
         count=1,

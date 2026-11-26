@@ -8,9 +8,10 @@ Each module owns one concern and states its contract in its header, and each lay
 package's `__init__.py` says what the package holds, so read the headers to find an
 owner (`head -n 3 leaf/*/*.py leaf/*/*/*.py`). Callers import the owning module
 directly; a package's `__init__.py` holds only its header, never a second API. The
-packages stand in one order, and a module imports only from its own package and the
-packages below it (`../.config/importlinter.ini`, whose header says what to do when a
-change breaks it).
+packages stand in one order, a module imports only from its own package and the
+packages below it, and the modules inside a package import each other without a cycle
+(`../.config/importlinter.ini`, whose header says what to do when a change breaks
+either rule).
 Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
 transport boundary exits, prints or answers HTTP. A command returns its result and
 never prints it (`cli.py`'s header).

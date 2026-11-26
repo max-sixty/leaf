@@ -115,10 +115,10 @@
     "patchedDependencies": {
       "@floating-ui/dom": "build/@floating-ui__dom.patch",
       "@types/sortablejs": "build/@types__sortablejs.patch",
-      "@observablehq/plot@0.6.17": "build/@observablehq__plot@0.6.17.patch",
-      "pele@1.13.0": "build/pele@1.13.0.patch",
-      "@awesome.me/webawesome@3.14.0": "build/@awesome.me__webawesome@3.14.0.patch",
-      "@pierre/diffs@1.6.1": "build/@pierre__diffs@1.6.1.patch"
+      "@observablehq/plot": "build/@observablehq__plot.patch",
+      "pele": "build/pele.patch",
+      "@awesome.me/webawesome": "build/@awesome.me__webawesome.patch",
+      "@pierre/diffs": "build/@pierre__diffs.patch"
     }
   }
 }

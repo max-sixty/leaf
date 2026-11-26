@@ -12,24 +12,24 @@ overrides:
   '@hono/node-server@<2.1.6': ^2.1.6
 
 patchedDependencies:
-  '@awesome.me/webawesome@3.14.0':
+  '@awesome.me/webawesome':
     hash: fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653
-    path: build/@awesome.me__webawesome@3.14.0.patch
+    path: build/@awesome.me__webawesome.patch
   '@floating-ui/dom':
     hash: a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3
     path: build/@floating-ui__dom.patch
-  '@observablehq/plot@0.6.17':
+  '@observablehq/plot':
     hash: f602482c1f245ba15df1a45fef7b5cb6a1c1258918796f27cff4efabe93ba4d4
-    path: build/@observablehq__plot@0.6.17.patch
-  '@pierre/diffs@1.6.1':
+    path: build/@observablehq__plot.patch
+  '@pierre/diffs':
     hash: 3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1
-    path: build/@pierre__diffs@1.6.1.patch
+    path: build/@pierre__diffs.patch
   '@types/sortablejs':
     hash: 8f399c7b8ef692d8358fbf89f41a16df2f1a7c284d442ab8e5e1130904082c60
     path: build/@types__sortablejs.patch
-  pele@1.13.0:
+  pele:
     hash: 1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d
-    path: build/pele@1.13.0.patch
+    path: build/pele.patch
 
 importers:
 

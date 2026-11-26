@@ -302,14 +302,13 @@ export function placedMarkdownTokens(source, message = true, html = false) {
                 parserItem(starts, line) + a,
                 parserItem(starts, line) + b,
               ]),
-              // A block of HTML shows the words outside its markup (`htmlText`), its
-              // entities read as characters. The white space around them belongs to no
-              // word, and a caret just past it stands at the next block's first word,
-              // not at this block's end.
+              // A block of HTML shows the words its source draws (`htmlText`). The
+              // white space around them belongs to no word, and a caret just past it
+              // stands at the next block's first word, not at this block's end.
               words: token.nesting
                 ? null
                 : token.type === "html_block"
-                  ? renderedWords(htmlText(token.content).text).trim()
+                  ? htmlText(token.content).text.trim()
                   : token.content,
             }
           : null;
@@ -433,12 +432,12 @@ export function markdownSourceOffset(body, source, node, offset, html) {
       const begin = token.type === "fence" ? lineAfter(source, from) : from;
       // A block of HTML aligns its words with what its source shows outside its markup
       // (`htmlText`), so a word never lands in a tag's attribute or a comment.
-      const { text, at } =
+      const { text, ends } =
         token.type === "html_block"
           ? htmlText(source.slice(begin, to))
-          : { text: source.slice(begin, to), at: null };
+          : { text: source.slice(begin, to), ends: null };
       /** @param {number} index */
-      const place = (index) => begin + (at ? parserItem(at, index) : index);
+      const place = (index) => begin + (ends ? parserItem(ends, index) : index);
       let index = 0;
       let tokenAt = start;
       for (const run of alignText(text, words, characters, Infinity)) {
@@ -463,33 +462,40 @@ export function markdownSourceOffset(body, source, node, offset, html) {
   return sourceEnd;
 }
 
-// The markup in HTML source, which draws no words: a comment, a tag, a declaration or
-// processing instruction, and a script or style with what it holds.
-const MARKUP =
-  /<!--[\s\S]*?(?:-->|$)|<(script|style)\b[\s\S]*?(?:<\/\1\s*>|$)|<(?:\/?[a-z]|[!?])[^>]*>?/gi;
+// How a span of HTML source reads: markup, which draws no words (a comment, a tag, whose
+// quoted attributes may hold a `>`, a declaration or processing instruction, and a
+// script or style with what it holds), a character reference, or a line ending.
+const HTML_READING =
+  /(<!--[\s\S]*?(?:-->|$)|<(script|style)\b[\s\S]*?(?:<\/\2\s*>|$)|<(?:\/?[a-z](?:[^>"']|"[^"]*"|'[^']*')*|[!?][^>]*)>?)|&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);|\r\n?/gi;
 
-// The characters a span of HTML source holds outside its markup (`MARKUP`), as `text`,
-// and where each stands in the span, as `at`, which ends with the span's length. A
-// `<br>`, which a browser also reads `</br>` as, stands for the line break the words of
-// a rendering read it as (`fragmentWords`).
-/** @param {string} span @returns {{text: string, at: number[]}} */
+// The words a span of HTML source draws, as a rendering's words read them
+// (`fragmentWords`): its text outside markup, each character reference as the character
+// it names, each line ending as a newline, and a `<br>`, which a browser also reads
+// `</br>` as, as a line break. `ends` holds, for each place between the characters of
+// `text`, where in the span the character before it ends (0 before the first), so a
+// caret between two characters stands just after the first, on its line, wherever
+// markup puts the second.
+/** @param {string} span @returns {{text: string, ends: number[]}} */
 function htmlText(span) {
   let text = "";
-  /** @type {number[]} */
-  const at = [];
+  const ends = [0];
+  /** @param {string} words @param {number} end */
+  const read = (words, end) => {
+    text += words;
+    for (let at = 0; at < words.length; at++) ends.push(end);
+  };
   let from = 0;
-  for (const { index, 0: markup } of span.matchAll(MARKUP)) {
-    text += span.slice(from, index);
-    for (let place = from; place < index; place++) at.push(place);
-    if (/^<\/?br\b/i.test(markup)) {
-      text += "\n";
-      at.push(index);
-    }
-    from = index + markup.length;
+  for (const { index, 0: found, 1: markup } of span.matchAll(HTML_READING)) {
+    for (let at = from; at < index; at++) read(span.charAt(at), at + 1);
+    const end = index + found.length;
+    if (markup === undefined) {
+      probe.innerHTML = found;
+      read(found.startsWith("&") ? probe.content.textContent : "\n", end);
+    } else if (/^<\/?br\b/i.test(markup)) read("\n", end);
+    from = end;
   }
-  text += span.slice(from);
-  for (let place = from; place <= span.length; place++) at.push(place);
-  return { text, at };
+  for (let at = from; at < span.length; at++) read(span.charAt(at), at + 1);
+  return { text, ends };
 }
 
 /** Where the line after the one holding `at` starts. @param {string} source @param {number} at */

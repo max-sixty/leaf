@@ -153,6 +153,11 @@ test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds it
     "  Gizmo &amp; friends",
     "</p>",
     "",
+    '<div title="a > b">',
+    "&#65;&#66;cd tail <span",
+    ' title="tip">next</span>',
+    "</div>",
+    "",
     "<details>",
     "<summary>From source</summary>",
     "",
@@ -169,19 +174,24 @@ test("a caret in a file's HTML, or in Markdown that a fold of it wraps, finds it
   body.innerHTML = makeMarkdown(module, false, true).render(source, { links: {} });
   body.querySelector("style")?.remove();
   assert.ok(body.querySelector("details > p"));
-  for (const [word, at] of [
-    ["Gizmo", source.indexOf("Gizmo &amp;")],
-    ["friends", source.indexOf("friends")],
-    ["source", source.indexOf("source")],
-    ["build", source.indexOf("build")],
-    ["Last", source.indexOf("Last")],
+  // A quoted `>` in an attribute ends no tag, a character reference stands for its
+  // character, and a caret at a text's end stands on its line, though the next word
+  // stands on the next one.
+  for (const [word, caret, at] of [
+    ["Gizmo", 2, source.indexOf("Gizmo &amp;") + 2],
+    ["friends", 2, source.indexOf("friends") + 2],
+    ["cd", 1, source.indexOf("cd tail") + 1],
+    ["tail ", 5, source.indexOf("tail ") + 5],
+    ["source", 2, source.indexOf("source") + 2],
+    ["build", 2, source.indexOf("build") + 2],
+    ["Last", 2, source.indexOf("Last") + 2],
   ]) {
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
     let node = walker.nextNode();
     while (node && !node.data.includes(word)) node = walker.nextNode();
     assert.equal(
-      markdownSourceOffset(body, source, node, node.data.indexOf(word) + 2, true),
-      at + 2,
+      markdownSourceOffset(body, source, node, node.data.indexOf(word) + caret, true),
+      at,
       word,
     );
   }

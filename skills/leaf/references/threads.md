@@ -199,17 +199,23 @@ Every answer declares whose move it leaves:
   ([Long-running work](conversation-loop.md#long-running-work)). A later `--done` on
   the same reference posts its reply in the thread, and Leaf names the to-do still
   open for `leaf task end`.
+
+  Where the work can't start until something you don't control happens, such as the
+  user's pick elsewhere on the page or another change landing, add
+  `--waiting-on "<what>"`, naming it in a few words as the user knows it.
+
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
   nothing to decide.
 
 ```bash
 leaf thread reply <answer.ref> --obligation --text "How long must exports be kept?"
 leaf thread reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
+leaf thread reply <answer.ref> --todo "Redo the card's top line" --waiting-on "Whose Words" --text "Held until Whose Words lands, since the top line depends on it."
 ```
 
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
-and **Still to do** until you end the to-do. A promise declared `--done` reads as
-finished work.
+and **Still to do**, or **Waiting on <what>**, until you start or end the to-do. A
+promise declared `--done` reads as finished work.
 
 ### Ask for a pick
 

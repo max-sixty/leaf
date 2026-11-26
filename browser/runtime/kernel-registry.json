@@ -178,7 +178,7 @@
     "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in readings/passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"lf-tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
   },
   "$events": {
-    "protocol": 58,
+    "protocol": 59,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/records/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 52,
@@ -564,7 +564,7 @@
     "answering": {
       "reply": [
         {
-          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
           "when": {
             "properties": {
               "answer": {
@@ -911,6 +911,13 @@
               "pattern": "\\S",
               "not": { "pattern": "[\\r\\n]" }
             },
+            "waiting_on": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
             "ephemeral": { "const": true },
             "unannounced": { "const": true },
             "start": {
@@ -984,6 +991,7 @@
               "properties": { "author": { "const": "agent" } },
               "not": { "required": ["failure"] }
             },
+            "waiting_on": { "required": ["todo"] },
             "failure": {
               "required": ["text", "responds"],
               "properties": { "author": { "const": "agent" } }
@@ -1011,6 +1019,9 @@
             "anyOf": [
               {
                 "required": ["todo"]
+              },
+              {
+                "required": ["waiting_on"]
               },
               {
                 "required": ["anchor"]
@@ -1256,7 +1267,14 @@
               "not": { "pattern": "[\\r\\n]" }
             },
             "agent": { "type": "string", "minLength": 1 },
-            "session": { "type": "string", "minLength": 1 }
+            "session": { "type": "string", "minLength": 1 },
+            "waiting_on": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            }
           },
           "required": [
             "attention",

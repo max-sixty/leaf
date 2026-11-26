@@ -17,7 +17,7 @@ once and share readings"). For a part, it reads what each visual draws, as the r
 check does (`drawnVisuals` in `render-checks/widgets.js`), which
 `anchor_capture.drawn_part` checks the part against. The browser runs before the
 command takes the page's lease to write, as a message's check does
-(`command.message_check`), since it takes a second or more and the user's gestures wait
+(`messages.message_check`), since it takes a second or more and the user's gestures wait
 on that lease.
 
 A host with no browser, a page that doesn't start, or words the drawn page doesn't

@@ -787,7 +787,7 @@
   }
   .lf-margin-thread .lf-page-thread > .lf-thread-jump[data-lf-jump="end"] {
     inset-block-end: calc(var(--lf-sp-2) - (var(--lf-msg-gap) - var(--lf-thread-pad)));
-    margin-block-start: 0;
+    margin-block: 0;
   }
   .lf-margin-thread
     .lf-page-thread:has(> .lf-thread-transcript[data-lf-more-above])

@@ -414,7 +414,7 @@ export function createPlayground(host) {
     );
   const instructionId = `${host.id}-instruction`;
   const submitLabel =
-    pageSubmit?.textContent?.trim() ||
+    pageSubmit?.textContent.trim() ||
     host.getAttribute("submit-label") ||
     "Use these settings";
   // The submission says what pressing it does: send the working values, or withdraw

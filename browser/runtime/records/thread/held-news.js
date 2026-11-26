@@ -174,11 +174,11 @@ const gestured = (key) => {
   return thread !== null && gesturedOn(thread);
 };
 
-// The reactions in force a strip draws, by token, since a reaction keeps its token but
+// The reactions in force a strip draws, by emoji, since a reaction keeps its emoji but
 // not its id when the log answers it.
 /** @param {NonNullable<MessageReading["reactions"]>} reactions */
-const tokens = (reactions) =>
-  new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
+const inForceEmoji = (reactions) =>
+  new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ emoji }) => emoji));
 
 // A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
 // draws, that it folds. A reaction reply it covers draws as a strip.
@@ -264,8 +264,8 @@ export function threadChange(was, now) {
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
     else if (message.reactions && prior?.reactions) {
-      const turned = tokens(prior.reactions).symmetricDifference(
-        tokens(message.reactions),
+      const turned = inForceEmoji(prior.reactions).symmetricDifference(
+        inForceEmoji(message.reactions),
       );
       news.reactions += turned.size;
       if (turned.size) changed.add(message.key);

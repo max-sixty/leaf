@@ -140,7 +140,7 @@ import { renderedParent, renderedUnder } from "../lib/shadow-tree.js";
 import { setScroll } from "../dom/arrivals.js";
 
 /** @typedef {Element | Range} Destination
- * @typedef {import("../dom/rect.js").Box} Box
+ * @typedef {import("../base/box.js").Box} Box
  * @typedef {"Top" | "Right" | "Bottom" | "Left"} MarginSide
  * @typedef {{box: Element, local: number, moved: number, ahead: number}} ScrollMove
  */
@@ -553,7 +553,7 @@ function landingAim(
       return scrollGoal(box);
     if (within) {
       for (const move of innerMoves(where, targetScroller, within, sideways))
-        if (move.box === box) return box.scrollTop + (move.by.top ?? 0);
+        if (move.box === box) return box.scrollTop + move.by.top;
       return null;
     }
     const move = readingBandMoves(aligned, holder, block).moves.find(

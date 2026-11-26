@@ -423,7 +423,7 @@ export const closeControl = ({ name, className = "" }) =>
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
-// change vocabulary without each inventing a button shape. A reaction shows its glyph,
+// change vocabulary without each inventing a button shape. A reaction shows its emoji,
 // and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
 // a control already wears writes nothing (lib/keeps.js).
 /** @template {HTMLElement} T @param {T} control

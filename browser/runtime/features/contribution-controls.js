@@ -32,11 +32,14 @@ import {
   normalizeContributionReading,
   visibleContributionEntryLabel,
 } from "../base/contribution-model.js";
-/** @typedef {import("../base/contribution-model.js").EntryInput} EntryInput
+/** An entry as a contributor offers it, its command scope by the keyboard's own contract
+ * (dom/keyboard/scopes.js), whose rows carry the routes and scopes base can't name.
+ * @typedef {Omit<import("../base/contribution-model.js").EntryInput, "scope"> & {
+ * scope?: NonNullable<Element["lfCommands"]> | import("../dom/keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
  * @typedef {import("../base/contribution-model.js").ContributionEntry} Entry
  * @typedef {import("../base/contribution-model.js").OwnedEntry} OwnedEntry
  * @typedef {Entry & {owner?: string}} PresentedEntry
- * @typedef {import("../base/contribution-model.js").ReadingOptions} ReadingOptions
+ * @typedef {Omit<import("../base/contribution-model.js").ReadingOptions, "entries"> & {entries?: readonly EntryInput[]}} ReadingOptions
  * @typedef {import("../base/contribution-model.js").ContributionReading} ContributionReading
  * @typedef {import("./contributions.js").ContributionSource} ContributionSource
  * @typedef {import("./contributions.js").ContributionSurface} Surface
@@ -211,7 +214,7 @@ const publishedWorkflows = readPart((root) => root.effective.workflows);
 // The published workflows the kept claims were last checked against.
 /** @type {ReturnType<typeof publishedWorkflows> | null} */
 let claimsChecked = null;
-/** @param {import("../state/semantic-application.js").Workflow} receipt */
+/** @param {import("../../types/domain.js").Workflow} receipt */
 const claimOf = (receipt) =>
   JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]);
 function dropSettledClaims() {
@@ -239,7 +242,7 @@ function agentWorkflowDescription(control) {
   return reading;
 }
 
-/** @param {Element} control @param {import("../state/semantic-application.js").Workflow | null | undefined} receipt */
+/** @param {Element} control @param {import("../../types/domain.js").Workflow | null | undefined} receipt */
 function syncAgentArrival(control, receipt) {
   dropSettledClaims();
   if (!receipt || progressFace(receipt) !== "working") {
@@ -321,7 +324,7 @@ function syncAgentDescriptionBase(control, description, title) {
   paintAgentDescription(control);
 }
 
-/** @param {Element} control @param {import("../state/semantic-application.js").Workflow | null | undefined} receipt */
+/** @param {Element} control @param {import("../../types/domain.js").Workflow | null | undefined} receipt */
 function syncContributionAgentWorkflow(control, receipt) {
   const paintedStage = progressFace(receipt);
   syncAgentArrival(control, receipt);
@@ -463,7 +466,7 @@ export const contributionHost = elementDirective(
 // it directly, or pass `receipt` and `awaitsUser` to `presentContributionEntry` where
 // they draw the entry in the same pass; templates bind
 // `${contributionReceipts(receipt, awaitsUser)}`.
-/** @param {Element} control @param {import("../state/semantic-application.js").Workflow | null | undefined} receipt @param {boolean} awaitsUser */
+/** @param {Element} control @param {import("../../types/domain.js").Workflow | null | undefined} receipt @param {boolean} awaitsUser */
 export function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
   syncContributionTurn(control, awaitsUser);
@@ -479,8 +482,8 @@ export const contributionReceipts = elementDirective(
 // each receipt (`presentContributionReceipts`), `receipt` and `awaitsUser`, is painted
 // where the options carry it, and otherwise left as the seat last painted it.
 /** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
- * @param {HostOptions & {preview?: import("../annotations/preview.js").Read | null, unread?: boolean,
- * receipt?: import("../state/semantic-application.js").Workflow | null, awaitsUser?: boolean}} [options] */
+ * @param {HostOptions & {preview?: import("../base/preview-declaration.js").Read | null, unread?: boolean,
+ * receipt?: import("../../types/domain.js").Workflow | null, awaitsUser?: boolean}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))

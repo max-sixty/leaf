@@ -23,8 +23,8 @@ import { drawingSchema } from "../../state/kernel-facts.js";
 
 /** @typedef {NonNullable<import("../../../types/contract.js").EventMap["comment"]["drawing"]>} Drawing
  * @typedef {Pick<Drawing, "strokes" | "frame">} DrawingInk
- * @typedef {Drawing & {at?: readonly [number, number, number, number, number, number]}} DraftDrawing
  */
+/** @import { DraftDrawing } from "../../../types/domain.js" */
 
 // Every bound is read from the schema admission holds a comment's drawing to, in the
 // kernel registry, each field from its own declaration, so a bound changes there

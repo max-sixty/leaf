@@ -17,7 +17,7 @@ import {
   forgetContributionControls,
 } from "./contribution-controls.js";
 import { focusDestination, focused } from "../dom/focus.js";
-/** @typedef {import("../base/contribution-model.js").ReadingOptions} ReadingOptions
+/** @typedef {import("./contribution-controls.js").ReadingOptions} ReadingOptions
  * @typedef {import("../base/contribution-model.js").ContributionReading} ContributionReading
  * @typedef {import("../base/contribution-model.js").OwnedEntry} OwnedEntry
  * @typedef {import("../base/contribution-model.js").ContributionModel} ContributionModel

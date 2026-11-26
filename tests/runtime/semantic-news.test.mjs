@@ -206,7 +206,7 @@ test("current content versions and admitted messages determine arrivals", () => 
           attempt: "pending",
           unread: false,
         }),
-        message("reaction", { token: "agree", unread: false }),
+        message("reaction", { emoji: "👍", unread: false }),
         message("failed-reply", { failure: "turn_failed" }),
       ]),
     ],

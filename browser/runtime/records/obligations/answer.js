@@ -14,7 +14,7 @@ import { leafSays } from "../../base/voice.js";
 import { hasObligationSource } from "../../state/obligations/source.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
-/** @typedef {Exclude<import("../../state/semantic-application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
+/** @import { AnswerableObligation } from "../../state/obligations/source.js" */
 
 const awaitingWidgets = perVocabulary(() =>
   tagsDeclaring((entry) => entry.awaits).join(","),
@@ -38,7 +38,7 @@ export function obligationWord(item) {
 export function answerWords(item) {
   if (item.answer === null) return "";
   if (answeredInWords(item))
-    return item.answer.value.text ?? item.answer.value.token ?? "";
+    return item.answer.value.text ?? item.answer.value.emoji ?? "";
   if (!hasObligationSource(item, "widget")) return "";
   const source = addressableAt(item.source.id);
   const formatter = customElements.get(item.source.tag)?.answerWords;

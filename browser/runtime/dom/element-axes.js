@@ -85,9 +85,12 @@ function ownTransform(node) {
 // caller copies it before changing it.
 /** @param {Element} source @param {DOMMatrixReadOnly} [above] @returns {DOMMatrixReadOnly} */
 export function elementMatrix(source, above) {
+  // Only an SVG element that draws has a screen matrix: a `<stop>` or `<title>` has none.
   const drawn =
     isSVG(source) && source.ownerSVGElement
-      ? /** @type {SVGGraphicsElement} */ (source).getScreenCTM?.()
+      ? /** @type {SVGElement & Partial<SVGGraphicsElement>} */ (
+          source
+        ).getScreenCTM?.()
       : null;
   if (drawn)
     return new window.DOMMatrixReadOnly([drawn.a, drawn.b, drawn.c, drawn.d, 0, 0]);
@@ -158,9 +161,7 @@ export function elementBorderFrame(
     if (style.boxSizing === "border-box") return size;
     const borders = px(style[`border${start}Width`]) + px(style[`border${end}Width`]);
     const gutter =
-      offset === undefined || client === undefined
-        ? 0
-        : Math.max(0, Math.round(offset - client - borders));
+      offset === undefined ? 0 : Math.max(0, Math.round(offset - client - borders));
     return (
       size +
       px(style[`padding${start}`]) +
@@ -185,7 +186,7 @@ export function elementBorderFrame(
 // `inner` carried; where the browser turns the box in a way the frame doesn't read, as a
 // motion path or a perspective does, the rect keeps the answer within those insets of
 // where the box is drawn. Null for a box with no frame.
-/** @typedef {import("./rect.js").Box} Box */
+/** @typedef {import("../base/box.js").Box} Box */
 /** @overload @param {HTMLElement} source @param {Box} inner @param {DOMMatrixReadOnly} [matrix] @returns {Box} */
 /** @overload @param {Element} source @param {Box} inner @param {DOMMatrixReadOnly} [matrix] @returns {Box | null} */
 /** @param {Element} source @param {Box} inner @param {DOMMatrixReadOnly} [matrix] @returns {Box | null} */
@@ -211,7 +212,7 @@ export function innerBox(source, inner, matrix) {
 // The box `box` covers once `matrix` carries it: the bounds of its four corners. A
 // frame's matrix carries a box of its pixels into the viewport, and its inverse a box
 // of the viewport into the frame.
-/** @param {DOMMatrixReadOnly} matrix @param {import("./rect.js").Box} box */
+/** @param {DOMMatrixReadOnly} matrix @param {import("../base/box.js").Box} box */
 export function carriedBox(matrix, { left, top, right, bottom }) {
   /** @param {number} x @param {number} y */
   const corner = (x, y) => {

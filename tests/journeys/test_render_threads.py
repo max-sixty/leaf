@@ -48,7 +48,7 @@ from render_harness import (
 from journeys import detached_threads
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -183,7 +183,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     )
     comment = page.locator("#pr-exact-patch .lf-diff-file-comment").first
     comment.click()
-    field = page.get_by_role("textbox", name=re.compile(r"^Comment on .+ · file$"))
+    field = text_field(page, name=re.compile(r"^Comment on .+ · file$"))
     expect(field).to_be_focused()
     page.keyboard.type("Earlier file comment.")
     with sending(page, "the earlier file comment"):

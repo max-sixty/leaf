@@ -594,7 +594,7 @@ const signature = (node) => {
   if (node instanceof CharacterData) return `${node.nodeType}:${node.data}`;
   if (!(node instanceof Element))
     throw new Error("Authored child nodes must be elements or character data");
-  const words = tree(node).textContent ?? "";
+  const words = tree(node).textContent;
   return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 

@@ -513,7 +513,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
 
     # A reaction opens a thread with no words; the reply that gives it some names it.
     reaction = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "token": "mark"}
+        page_dir, {"kind": "comment", "author": "user", "emoji": "👍"}
     )
     status, body = endpoint_model.accept_event(
         page_dir,

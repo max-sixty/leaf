@@ -13,7 +13,7 @@
 // face carries listening. Sending and explicit closing retire capture before the
 // draft can change; Escape keeps its existing close-and-keep-draft meaning.
 // Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too,
-// except in a one-line field (`aria-multiline="false"`), where Return sends everywhere.
+// except in a one-line field (`one-line`), where Return sends everywhere.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
 // accepts images, a paste or capture uploads bytes to page media; one that does not says
@@ -102,36 +102,9 @@ import { coarsePointer } from "../../base/pointer.js";
 import { PRESS } from "../../lib/keys.js";
 import { restArming } from "../../lib/rest-arming.js";
 
-/** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
- * @typedef {import("./text-field.js").LeafTextElement} TextField
- * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string, alternate: boolean) => unknown} Sender
- * @typedef {{word: string, keys: readonly string[], run: () => unknown}} BoxPress
- * @typedef {Object} InputOptions
- * @property {import("../../dom/keyboard/bindings.js").Cell<string>} hint
- * @property {(() => unknown) | null} [hintParts]
- * @property {() => unknown} [hintLead]
- * @property {() => string | BoxPress | null} [enters]
- * @property {import("../../dom/keyboard/bindings.js").Cell<string> | null} [accessibleName]
- * @property {() => boolean} [closed]
- * @property {() => boolean} [cornerAtRest]
- * @property {(value: string) => unknown} save
- * @property {Sender} send
- * @property {string} [sendClass]
- * @property {import("../../dom/keyboard/bindings.js").Cell<string>} sends
- * @property {import("../../dom/keyboard/bindings.js").Cell<string>} [action]
- * @property {import("../../dom/keyboard/bindings.js").Cell<string | null>} [altLabel]
- * @property {() => true | string} [allowsMedia]
- * @property {() => boolean} [busy]
- * @property {(raw: string) => boolean} [hasContent]
- * @property {{read: () => Drawing | null, target: () => Element | null, replace: (drawing: Drawing | null) => unknown, undoStroke: () => unknown, remove: () => unknown} | null} [drawing]
- * @property {readonly import("../../dom/keyboard/bindings.js").Command[]} [rows]
- * @property {HTMLElement | null} [submitIn]
- * @property {boolean} [sentMedia]
- * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
- * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
- * composition: () => {field: HTMLElement, frame: CompositionField}, addMedia: (images: readonly Blob[]) => Promise<boolean>,
- * writing: () => boolean, covered: () => HTMLElement | null}} InputSync
- * @typedef {TextField & {[INPUT_DRAFT]?: InputSync}} WiredInput
+/** @import { BoxPress, InputField, InputOptions, InputSync } from "../../records/composition-input.js" */
+/** @typedef {import("../../../types/domain.js").DraftDrawing} Drawing
+ * @typedef {InputField & {[INPUT_DRAFT]?: InputSync}} WiredInput
  */
 
 const INPUT_DRAFT = Symbol("composition draft");
@@ -445,7 +418,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const inputError = computed(() => errorOver(ta));
     // A one-line field, such as an option's title, has no line for Return to break, so
     // Return sends it from every keyboard, a phone's included.
-    const oneLine = ta.getAttribute("aria-multiline") === "false";
+    const oneLine = ta.hasAttribute("one-line");
     const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
     const sendKey = () => sendBindings().slice(0, 1).map(spell).join("");
     // Where Return sends a box that holds lines, Shift+Return makes one.

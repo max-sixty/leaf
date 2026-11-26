@@ -167,10 +167,10 @@ export function layerHeaders(headers) {
  * }} WholeAnswer
  * @typedef {WholeAnswer | import("../../types/contract.js").ServedTail} StateAnswer
  * @typedef {Omit<WholeAnswer, "data"> & {
- * data: {version: string, sources: Record<string, import("../host/data.js").SourceReading>}
+ * data: {version: string, sources: Record<string, import("../../types/domain.js").SourceReading>}
  * }} CompletedState
  * @typedef {{
- * data: {version: string | null, sources: Record<string, import("../host/data.js").SourceReading>},
+ * data: {version: string | null, sources: Record<string, import("../../types/domain.js").SourceReading>},
  * state: CompletedState | null
  * }} Held */
 
@@ -617,7 +617,8 @@ export function reportCarried(reason, context = "") {
   if (!reported) reportPageError(reason, context);
 }
 
-window.addEventListener("error", (e) => {
+// Any `error` event that reaches the window, a package's plain `Event` among them.
+window.addEventListener("error", (/** @type {Event & Partial<ErrorEvent>} */ e) => {
   // A widget's own failure, which it shows where it stands and dispatches
   // (`reportFailure`, lib/failure.js), named for the widget it happened in.
   const failure = failureOf(e);

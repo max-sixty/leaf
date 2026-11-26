@@ -156,7 +156,7 @@ REWRITTEN_TWICE = (
 
 # A reaction the agent answered, and the user's own reaction on that answer.
 ANSWERED_REACTION = (
-    {"kind": "comment", "token": "change"},
+    {"kind": "comment", "emoji": "❌"},
     {
         "kind": "reply",
         "author": "agent",
@@ -164,7 +164,7 @@ ANSWERED_REACTION = (
         "parent": "e1",
         "text": "Which part?",
     },
-    {"kind": "reply", "parent": "e2", "token": "keep"},
+    {"kind": "reply", "parent": "e2", "emoji": "👍"},
 )
 
 # A reply the user sent in a thread, and the agent's answer to it.
@@ -290,7 +290,7 @@ def build() -> dict:
             **{
                 name: _served(
                     (
-                        {"kind": "comment", "token": "change"},
+                        {"kind": "comment", "emoji": "❌"},
                         {
                             "kind": "todo",
                             "author": "agent",
@@ -314,8 +314,8 @@ def build() -> dict:
             **{
                 name: _served(
                     (
-                        {"kind": "comment", "token": "change"},
-                        {"kind": "reply", "parent": "e1", "token": "keep"},
+                        {"kind": "comment", "emoji": "❌"},
+                        {"kind": "reply", "parent": "e1", "emoji": "👍"},
                         {"kind": "undo", "undoes": "e1"},
                         *tail,
                     )

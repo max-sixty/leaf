@@ -32,7 +32,7 @@ from render_harness import (
     FAKE_RECOGNITION,
     LONG_PAGE,
     PREVIEW,
-    accessible_node,
+    accessible_tree,
     clocked,
     close_panel_menu,
     consume_browser_errors,
@@ -368,7 +368,7 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    assert events_model.read_events(serve.page_dir)[-1]["token"]
+    assert events_model.read_events(serve.page_dir)[-1]["emoji"]
     expect(pressed).to_have_count(1)
     expect(thread.locator(".lf-msg")).to_have_count(2)
 
@@ -410,11 +410,21 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     press = field_press(page)
     expect(press.locator(".lf-compose-press-word")).to_have_text("Next thread")
     expect(press.locator("kbd")).to_have_text("t")
-    # A screen reader is given the press too, though the field's words are hidden
-    # from it as its placeholder.
-    node = accessible_node(press)
-    assert not node.get("ignored") and node["role"]["value"] == "button", node
-    assert node["name"]["value"].startswith("Next thread"), node
+    # A screen reader finds the field's one textbox empty, since its words are its
+    # placeholder, and the press as a button beside that textbox rather than in it.
+    field = accessible_tree(page.locator(".lf-fp-field leaf-text"))
+
+    def within(node):
+        for child in node["children"]:
+            yield child
+            yield from within(child)
+
+    nodes = [field, *within(field)]
+    [textbox] = [node for node in nodes if node["role"] == "textbox"]
+    assert not textbox["value"].strip(), field
+    assert "button" not in {node["role"] for node in within(textbox)}, field
+    [button] = [node for node in nodes if node["role"] == "button"]
+    assert button["name"].startswith("Next thread"), field
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     undo(page)
@@ -2619,6 +2629,9 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
+    # The box shrinks to the row after the view goes, and stands over the paragraph
+    # for the start of that motion, so the paragraph reads whole once it rests.
+    panel_settled(page, open=False)
     whole = page.evaluate(
         """async () => {
           const {seenRect} = await window.__lfCheckApi();
@@ -4964,8 +4977,12 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     on_mark.click()
     queue = page.locator(panel_view("queue"))
     expect(queue).to_be_focused()
-    expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
-    expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text("2")
+    # Each tab is named for its list and described by its count.
+    on_me = page.get_by_role("button", name="On Me", exact=True)
+    expect(on_me).to_have_accessible_description("2")
+    threads = page.get_by_role("button", name="Threads", exact=True)
+    expect(threads).to_have_accessible_description("2")
+    expect(threads.locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
     page.keyboard.press("ArrowDown")

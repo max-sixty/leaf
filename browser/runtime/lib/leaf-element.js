@@ -76,7 +76,7 @@ class UpdateBoundary extends LitElement {
   }
 }
 
-/** @typedef {ReturnType<typeof import("../host/widget-controller.js").widgetState>} WidgetState */
+/** @import { WidgetState } from "../../types/domain.js" */
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** Whether the element draws into an open shadow root of its own. */
@@ -116,9 +116,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  holds an empty one once Leaf has set its inputs. Undefined where no host set it:
    *  off a Leaf page, and for a widget the page did not capture, such as one with no
    *  id.
-   *  @returns {WidgetState} */
+   *  @returns {WidgetState | undefined} */
   get state() {
-    return /** @type {WidgetState} */ (this.#state);
+    return this.#state;
   }
   /** @param {WidgetState | undefined} value */
   set state(value) {

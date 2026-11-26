@@ -26,9 +26,9 @@ const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS))
 /** @param {Response} response @param {EventAnswer} answer
  * @returns {answer is Extract<EventAnswer, { ok: true }>} */
 const acceptedAnswer = (response, answer) =>
-  response.ok && !!answer && "state" in answer && !("final" in answer);
+  response.ok && "state" in answer && !("final" in answer);
 /** @param {EventAnswer} answer @returns {answer is Extract<EventAnswer, { final: true }>} */
-const refusedAnswer = (answer) => !!answer && "final" in answer;
+const refusedAnswer = (answer) => "final" in answer;
 /** @typedef {import("../transport/layer-client.js").CompletedState} State
  * @typedef {import("../records/pending/state.js").DeliveryHandle} Entry
  * @typedef {import("../../types/domain.js").Event} Event
@@ -209,7 +209,7 @@ export async function deliverBookkeeping(event, applyState) {
   const { response } = answered;
   /** @type {EventAnswer} */
   const answer = answered.decoded.answer;
-  if (answer && answer.state)
+  if (answer.state)
     await applyAnswerState(applyState, completeState(answer.state, held));
   return acceptedAnswer(response, answer)
     ? "accepted"

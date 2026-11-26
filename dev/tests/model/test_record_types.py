@@ -10,7 +10,7 @@ from leaf_dev.commands.generate import record_types as record_types
 
 
 def test_record_types_follow_schema_changes(tmp_path, monkeypatch):
-    output = tmp_path / "record_types.pyi"
+    output = tmp_path / "record_types.py"
     monkeypatch.setattr(record_types, "OUTPUT", output)
     output.write_text(record_types.generated_types())
     runner = CliRunner()

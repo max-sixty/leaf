@@ -30,6 +30,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
 from leaf.source import render_checks as render_checks_model
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -277,7 +278,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     row = group.locator(":scope > .lf-settled")
 
     row.click()
-    field = group.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(group, name="Another option", exact=True)
     write(field, "Insulate the camera battery")
     group.get_by_role("button", name="Add and select option", exact=True).click()
     round_trip(page)

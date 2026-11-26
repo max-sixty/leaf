@@ -61,7 +61,7 @@ from browser.margin import (
 from leaf.log import event_log as events_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -661,7 +661,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(close).to_have_text("")
     expect(resolve).to_have_text("")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     expect(reply).to_be_visible()
     geometry = preview.evaluate(
         """preview => {
@@ -1019,7 +1019,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     assert preview_box["x"] + preview_box["width"] <= width, preview_box
     # The send leaves the user on its card.
     expect(thread).to_be_focused()
-    press_visible(page, thread.get_by_role("textbox", name="Reply", exact=True))
+    press_visible(page, text_field(thread, name="Reply", exact=True))
     expect(thread.locator("leaf-text")).to_be_focused()
     page.keyboard.type("the next thought")
     expect(thread.locator("leaf-text")).to_have_js_property("value", "the next thought")

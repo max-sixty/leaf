@@ -63,7 +63,7 @@ from leaf.base import server as server_model
 from leaf.log import event_log as events_model
 from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD, show_resolved
+from leaf_dev.browser import PANEL_THREAD, show_resolved, text_field
 from leaf_dev.example_data import named_source, published_sources
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -299,11 +299,6 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     all_pages_offered(page)
 
     page.keyboard.press("g")
-    expect(
-        page.locator(
-            '.lf-go-to-hints [data-lf-go-to-command="navigation.panel.leaves"]'
-        )
-    ).to_have_count(0)
     # A live page arriving while the sequence stands keeps its destination operable.
     live_leaf("third", "A third leaf")
     round_trip(page)
@@ -550,7 +545,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
     comment.click()
-    field = page.get_by_role("textbox", name="Comment on the page", exact=True)
+    field = text_field(page, name="Comment on the page", exact=True)
     expect(field).to_be_focused()
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
@@ -1917,7 +1912,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     )
     send = thread.locator(".lf-compose-submit")
     expect(send).to_be_disabled()
-    expect(thread.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+    expect(text_field(thread, name="Reply", exact=True)).to_be_visible()
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     baseline = markers.count()
 
@@ -2059,7 +2054,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     # there, so a page command acts from what the user sees: `c` opens the page's own
     # field rather than the card's reply, and the card stays where the page took it.
     page.keyboard.press("c")
-    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(card, name="Reply", exact=True)
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
     rendered(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == foot

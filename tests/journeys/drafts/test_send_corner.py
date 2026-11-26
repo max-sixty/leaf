@@ -8,6 +8,7 @@ from playwright.sync_api import expect
 from render_harness import open_page, sending
 
 from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 # How long the pointer rests on Send before it takes a press (input.js, `SEND_DWELL`).
 SEND_DWELL = 150
@@ -72,7 +73,7 @@ SENTENCE = (
 def _open_card_reply(page):
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    card.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(card, name="Reply", exact=True).click()
     return card.locator(".lf-thread-reply .lf-compose-field")
 
 

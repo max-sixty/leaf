@@ -17,8 +17,6 @@ import { kept, version } from "./kept.js";
 /** A deciding verb and the member tags each outcome retires, stamped by registry.contract.stamp_decisions.
  * @typedef {{verb: string, retires: Record<string, readonly string[]>}} Decision */
 export const registry = runtime.registry;
-/** @param {string} name */
-export const tokenEntry = (name) => registry.$reactions?.tokens[name];
 
 // Which vocabulary stands: moved when a reader finds the layer's generation changed,
 // as the vocabulary is adopted (`adoptRegistry`), and on every reading before one is,

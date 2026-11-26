@@ -488,7 +488,7 @@ const pressKeys = (press) =>
 // each ask, so a box standing it rechecks its keys without reading the field's words
 // again (annotations/composing/input.js, `pressing`), and what it does: its own `run`, else the
 // command it names.
-/** @param {FieldPress} press @returns {import("../annotations/composing/input.js").BoxPress} */
+/** @param {FieldPress} press @returns {import("../records/composition-input.js").BoxPress} */
 const pressReading = (press) => ({
   word: actionName(press.action),
   get keys() {
@@ -1260,7 +1260,7 @@ export function createFloatingPanel({
   // the news showed, where it showed one (`shown`, the messages drawn before it); and
   // reopened where the user had read it to (`reading`, records/thread/reply-landing.js,
   // `restoreCurrentLocation`).
-  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../records/thread/reply-landing.js").ThreadReading} | null} */
+  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("../base/held-place.js").ThreadReading} | null} */
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -3582,7 +3582,7 @@ export function createFloatingPanel({
         ?data-lf-resolved=${thread.resolved}
         data-lf-turn=${attention?.turn === "user" ? "user" : nothing}
         .lfPreview=${(
-          /** @type {import("../annotations/preview.js").Route} */ route,
+          /** @type {import("../base/preview-declaration.js").Route} */ route,
         ) => {
           const read = threadPreview(
             [thread],
@@ -3975,7 +3975,7 @@ export function createFloatingPanel({
   // taken back (records/undo.js).
   /** @param {import("../state/semantic-application.js").ObligationRecord} item */
   const answerGesture = (item) => {
-    const id = item?.answer?.event?.id ?? item?.answer?.event;
+    const id = item.answer?.event?.id ?? item.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
@@ -4318,13 +4318,13 @@ export function createFloatingPanel({
       ? ""
       : asking
         ? messageReading(asking, { workflows: [] }).body.plainText
-        : record?.prompt?.text;
+        : record?.prompt.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     // The other questions the user answers at this card's place (`also`): further
     // messages its thread's reply answers, and on an obligation's card those asked in a
     // thread about it, so an answer about a decision rides on the decision. Each reads
     // as its message, as a question asked in words does above.
-    const carried = (also ?? []).flatMap((id) => {
+    const carried = also.flatMap((id) => {
       const other = readObligations().byId.get(id);
       if (!other) return [];
       const where = other.thread ? threadByKey(other.thread) : null;
@@ -4551,7 +4551,7 @@ export function createFloatingPanel({
     /** @type {unknown} */
     let end = nothing;
     // The clock time behind the age the line's end shows, which its preview says.
-    /** @type {import("../annotations/preview.js").Line} */
+    /** @type {import("../base/preview-declaration.js").Line} */
     let ageSaid = null;
     const work = list === "agent" ? workOn(item) : null;
     if (work) {
@@ -4722,7 +4722,7 @@ export function createFloatingPanel({
       carrying.set(key, [
         ...new Set([
           ...(carrying.get(key) ?? []),
-          ...(item.also ?? []).filter((id) => !elsewhere.has(id)),
+          ...item.also.filter((id) => !elsewhere.has(id)),
         ]),
       ]);
     }
@@ -4940,7 +4940,9 @@ export function createFloatingPanel({
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
   // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
   // On <agent>'s, where they would press it from where the user is, so the user meets
-  // the key where they reach for the list.
+  // the key where they reach for the list. A tab is named for its list alone and
+  // described by its count, so a screen reader hears "Threads", then "2", and its
+  // preview's keys follow "Threads", not "Threads 2".
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count @param {(name: T) => string | null} door */
@@ -4954,6 +4956,8 @@ export function createFloatingPanel({
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
+            aria-label=${label(name)}
+            aria-description=${counted === null ? nothing : String(counted)}
             .lfPreview=${() => {
               const steps = opens && current !== name ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
@@ -5390,7 +5394,7 @@ export function createFloatingPanel({
   // first, so Close leaves the end. A finger, shown no keys, has the ✕ as its way out,
   // so Close stands only where the page shows keys. It asks the dispatcher whether a
   // stance stands now (`innermostStance`), as `fieldExit` does.
-  /** @returns {import("../annotations/composing/input.js").BoxPress | null} */
+  /** @returns {import("../records/composition-input.js").BoxPress | null} */
   function stanceClose() {
     const held = innermostStance();
     const exit = held ? rows().find((entry) => entry.exit) : null;
@@ -5527,7 +5531,7 @@ export function createFloatingPanel({
     // The field's search, the menu's or Threads', clears its words first; then, empty,
     // the menu's closes the menu and Threads' returns to Threads, as a find box returns
     // to its panel (dom/keyboard/AGENTS.md, "Escape").
-    if (focused()?.matches?.(".lf-fp-search"))
+    if (focused()?.matches(".lf-fp-search"))
       return query
         ? {
             root: host,
@@ -5610,7 +5614,7 @@ export function createFloatingPanel({
         : null;
   };
   /** @returns {HTMLElement | null} */
-  const tabOn = () => focused()?.closest?.(".lf-fp-tab") ?? null;
+  const tabOn = () => focused()?.closest(".lf-fp-tab") ?? null;
   // Whether the user stands where ← and → turn the On view's tabs: on a tab, or where
   // ↑ and ↓ walk its rows, a list that holds none included.
   const atTabs = () =>
@@ -5866,7 +5870,7 @@ export function createFloatingPanel({
   };
   /** @param {Element | null} node */
   const onMeHolds = (node) => doors.queue.shows() && onMe.lists(node);
-  /** @param {Pick<import("../features/anchor-travel.js").Arrival, "where" | "focus">} destination
+  /** @param {Pick<import("../dom/arrival-plan.js").Arrival, "where" | "focus">} destination
    * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
     if (!focus && ownPassage(where)) return;
@@ -6100,7 +6104,7 @@ export function createFloatingPanel({
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
   async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
-    if (!thread || !currentLocation) return false;
+    if (!thread) return false;
     const { reading, focus } = currentLocation;
     const intent = retainUserIntent();
     const returnFocus = () => {

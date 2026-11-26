@@ -98,6 +98,29 @@ window.Selection.prototype.getComposedRanges ??= function ({ shadowRoots = [] } 
   const [endContainer, endOffset] = rescoped(range.endContainer, range.endOffset, true);
   return [{ startContainer, startOffset, endContainer, endOffset }];
 };
+// Nor an element's `part`, the token list of its `part` attribute, which every engine
+// ships and dom/focus.js marks a focused part with. As a DOMTokenList does, a change
+// writes the attribute unless it is absent and stays empty, and tokens split at ASCII
+// whitespace alone.
+if (!("part" in Element.prototype))
+  Object.defineProperty(Element.prototype, "part", {
+    configurable: true,
+    get() {
+      const tokens = () =>
+        (this.getAttribute("part") ?? "").split(/[\t\n\f\r ]+/).filter(Boolean);
+      /** @param {string[]} list */
+      const write = (list) => {
+        if (list.length || this.hasAttribute("part"))
+          this.setAttribute("part", [...new Set(list)].join(" "));
+      };
+      return {
+        contains: (/** @type {string} */ token) => tokens().includes(token),
+        add: (/** @type {string[]} */ ...added) => write([...tokens(), ...added]),
+        remove: (/** @type {string[]} */ ...gone) =>
+          write(tokens().filter((token) => !gone.includes(token))),
+      };
+    },
+  });
 // happy-dom has no StaticRange either, which the runtime builds for a span of the page
 // it reads rather than selects (readings/passages.js, `runReading`).
 globalThis.StaticRange ??= class StaticRange {

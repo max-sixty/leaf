@@ -31,11 +31,12 @@ import { shownParts } from "../runtime/dom/geometry.js";
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
 /** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
-/** @typedef {import("../runtime/base/contribution-model.js").EntryInput} EntryInput */
+/** @typedef {import("../runtime/features/contribution-controls.js").EntryInput} EntryInput */
 const WORDS = { accept: "Accept", reject: "Reject" };
-// The outcome of the decision in force, or null while the suggestion is undecided.
-/** @param {SuggestionState} state */
-const outcomeOf = (state) => state.decide?.detail?.outcome ?? null;
+// The outcome of the decision in force, or null while the suggestion is undecided or
+// has no reading.
+/** @param {SuggestionState | undefined} state */
+const outcomeOf = (state) => state?.decide?.detail?.outcome ?? null;
 /** @type {Record<Outcome, Pick<EntryInput, "action" | "tone" | "rank">>} */
 const FACE = {
   accept: { action: "accept", tone: "positive", rank: "primary" },
@@ -294,7 +295,7 @@ customElements.define(
       );
     }
 
-    /** @returns {import("../runtime/base/contribution-model.js").ReadingOptions} */
+    /** @returns {import("../runtime/features/contribution-controls.js").ReadingOptions} */
     #readMargin() {
       const outcome = this.#outcome();
       const entries = this.#entries();
@@ -580,7 +581,7 @@ customElements.define(
       return nothing;
     }
 
-    /** @param {SuggestionState} state */
+    /** @param {SuggestionState | undefined} state */
     #draw(state) {
       const outcome = outcomeOf(state);
       if (outcome) return this.#settle(outcome);
@@ -596,7 +597,7 @@ customElements.define(
     }
 
     #outcome() {
-      return this.state ? outcomeOf(this.state) : null;
+      return outcomeOf(this.state);
     }
   },
 );

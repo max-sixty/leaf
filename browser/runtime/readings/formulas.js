@@ -130,7 +130,7 @@ export async function typesetFormulas(root) {
     // Temml renders into an element, which a shadow root isn't.
     const into = document.createElement("span");
     try {
-      renderer.render(code.textContent ?? "", into, {
+      renderer.render(code.textContent, into, {
         displayMode: display,
         wrap: "tex",
         throwOnError: true,

@@ -101,6 +101,13 @@ leaf-text.lf-fab-input,
   white-space: pre-wrap;
   margin-block: 1lh;
 }
+/* The user's own paragraphs also break their lines where the editor does, so a rewrite
+   opens with every word where it stood (response.css, `.lf-msg-editor`). An editor
+   can't take the reading face's `pretty` (reading.css, `p`): the lines before the caret
+   would break anew as the user typed. */
+.lf-msg:where([data-lf-author="user"]) .lf-msg-text > p {
+  text-wrap-style: auto;
+}
 /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
      no wrap can help. A table is the one block in a reply with somewhere else to
      put the width — the reading face makes it scroll inside itself — so breaking its

@@ -123,14 +123,14 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
 test("a reply to a thread reads its own message and the reactions it moves", () => {
   const reacting = {
     ...NO_DOCUMENT,
-    registry: { $reactions: { tokens: { yes: { glyph: "+" } } } },
+    registry: { $reactions: { emoji: { "👍": {} } } },
   };
   const root = agent("root", { kind: "comment", author: "user" });
   const first = agent("first", { seq: 2 });
   const liked = {
     ...agent("liked", { seq: 3, author: "user" }),
     parent: "first",
-    token: "yes",
+    emoji: "👍",
   };
   const second = agent("second", { seq: 4 });
   const thread = servedThread([root, first, liked, second]);
@@ -476,8 +476,8 @@ test("held news keeps a reaction taken back elsewhere as it was drawn", async ()
     const mark = {
       ...said("mark", 3, "user", "answer", ""),
       ...(taken
-        ? { withdrawn: { id: "undo", ts: "now", was: "keep" } }
-        : { token: "keep" }),
+        ? { withdrawn: { id: "undo", ts: "now", was: "👍" } }
+        : { emoji: "👍" }),
     };
     if (!taken) delete mark.text;
     const source = servedThread([
@@ -510,7 +510,7 @@ test("held news keeps a reaction taken back elsewhere as it was drawn", async ()
   const mark = drawn.msgs.find(({ id }) => id === "mark");
   held.dispose();
   owner.remove();
-  assert.equal(mark?.token, "keep");
+  assert.equal(mark?.emoji, "👍");
   assert.equal(mark?.withdrawn, undefined);
   // The held thread's turns are those of the messages it holds, so a package reading
   // them draws what the seat does: the mark still a reaction, and no turn.

@@ -134,7 +134,7 @@ customElements.define(
     }
 
     get #savedText() {
-      const value = this.state.edit?.value;
+      const value = this.state?.edit?.value;
       if (typeof value !== "string")
         throw new Error("A draft reading must contain its Markdown text");
       return value;

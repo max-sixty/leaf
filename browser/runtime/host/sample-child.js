@@ -105,7 +105,6 @@ if (child) {
   // rendering to deliver a resize (sample.js).
   let height = 0;
   const measure = () => {
-    if (!document.body) return;
     const next = Math.ceil(document.body.getBoundingClientRect().height);
     if (next !== height) {
       height = next;
@@ -129,7 +128,7 @@ if (child) {
         sampleNotice({ type: "arrived" });
       });
     }
-    if (upgraded || !(document.body && pageUpgraded())) return;
+    if (upgraded || !pageUpgraded()) return;
     upgraded = true;
     child.present();
     height = Math.ceil(document.body.getBoundingClientRect().height);

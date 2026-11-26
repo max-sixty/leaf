@@ -15,7 +15,7 @@ import { wordsText } from "../base/voice.js";
  * @typedef {import("../base/contribution-model.js").OwnedEntry} EntryRecord
  * @typedef {import("../base/voice.js").Words} Words
  * @typedef {{key: string, icon: string | null, label: string, visibleLabel: string, context: Words | null | undefined,
- * receipt: import("../state/semantic-application.js").Workflow | null | undefined, awaitsUser: boolean}} ActionBase
+ * receipt: import("../../types/domain.js").Workflow | null | undefined, awaitsUser: boolean}} ActionBase
  */
 /** @template {Offer} O @typedef {ActionBase & {kind: "item", entry: import("./margin-model.js").MarginEntry<O>, item: Item, visibleWords: Words, glyph?: never, id?: never}} ItemAction */
 /** @template {Offer} O @typedef {ActionBase & {kind: "control", id: string, entry: import("./margin-model.js").MarginEntry<O>, offered: O, record: EntryRecord, glyph: string | null, item?: never, visibleWords?: never}} ControlAction */

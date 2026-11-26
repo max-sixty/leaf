@@ -193,17 +193,14 @@ function createMarginClusterViewsOwner({
       return node;
     }
     if (item.kind === "reading") return materializeReading(item);
-    if (item.kind === "notice") {
-      let node = contributionNotices.get(item.offered.source());
-      if (!node) {
-        node = el("span", "lf-margin-receipt");
-        contributionNotices.set(item.offered.source(), node);
-      }
-      keeps(node, "data-lf-margin-receipt", item.notice.tone);
-      render(html`${item.notice.text}`, node);
-      return node;
+    let node = contributionNotices.get(item.offered.source());
+    if (!node) {
+      node = el("span", "lf-margin-receipt");
+      contributionNotices.set(item.offered.source(), node);
     }
-    throw new Error("Unknown margin presentation item");
+    keeps(node, "data-lf-margin-receipt", item.notice.tone);
+    render(html`${item.notice.text}`, node);
+    return node;
   }
 
   /** @param {readonly Item[]} items */

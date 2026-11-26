@@ -84,7 +84,7 @@
     "modern-tar": "0.8.6",
     "oxc-parser": "0.155.0",
     "parse5": "8.0.1",
-    "pele": "1.9.0",
+    "pele": "1.13.0",
     "photoswipe": "5.4.4",
     "playwright": "1.65.0",
     "promptfoo": "0.125.1",
@@ -116,7 +116,7 @@
       "@floating-ui/dom": "build/@floating-ui__dom.patch",
       "@types/sortablejs": "build/@types__sortablejs.patch",
       "@observablehq/plot@0.6.17": "build/@observablehq__plot@0.6.17.patch",
-      "pele@1.9.0": "build/pele@1.9.0.patch",
+      "pele@1.13.0": "build/pele@1.13.0.patch",
       "@awesome.me/webawesome@3.14.0": "build/@awesome.me__webawesome@3.14.0.patch",
       "@pierre/diffs@1.6.1": "build/@pierre__diffs@1.6.1.patch"
     }

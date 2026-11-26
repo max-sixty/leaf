@@ -612,7 +612,7 @@ opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chro
 its frame shows, except that a block's page counts until it arrives or a deadline
 passes, since its arrival sets the frame's height (`browser/runtime/host/sample.js`), and
 `page check --render` scrolls each frame still waiting into view
-(`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
+(`src/leaf/source/render_checks.py`, `start_near_work`). A sample the reader saw as it started
 holds the page's presentation, or the jump that showed it, only while they still see
 its frame (`browser/runtime/host/sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
@@ -622,7 +622,7 @@ whose first assertion fails once Chromium draws the chart out of view.
 ### Page cache
 
 Every Leaf server, locally and on leaf.page, sends `no-cache` for a page's
-document and state (`CACHE_CONTROL`, `src/leaf/http.py`), so a browser may keep
+document and state (`CACHE_CONTROL`, `src/leaf/serving/http.py`), so a browser may keep
 the page in its back/forward cache. On 2026-10-20, Chromium 153.0.8010.12 and
 installed Firefox 158.0.1 restored a local `release-notes` page on Back and
 applied state changes made while away. Firefox loaded a page containing samples
@@ -664,6 +664,19 @@ So `browser/layouts.css` centres an `available` table on the column's axis with 
 relative offset and a translate instead. Recheck with that two-box fixture; once
 Firefox centres it, the table can take `justify-self: center` and lose the offset
 and the translate.
+
+### A pane's body sized by `stretch` in Firefox
+
+A pane's body is a grid item and an inline-size container (elements.css). A grid
+item with an `auto` inline margin is sized to fit its content, which containment
+counts as empty, so a body an author centred with `margin-inline: auto` and a
+`max-inline-size` drew 0px wide inside its padding. `browser/elements.css` gives a
+body `inline-size: stretch`, which fills the pane before the margins share what the
+`max-inline-size` leaves. On 2026-11-25 Playwright Firefox 159.0 (build 1572)
+rejected `stretch` in the inline axis and took `-moz-available`; Playwright Chromium 159.0.8154.6 and WebKit 27.2 took `stretch`.
+Recheck with `uv run leaf-dev probe --browser firefox` on a pane whose body has
+`margin-inline: auto; max-inline-size: 30rem`; once Firefox centres it without the
+prefixed value, the prefixed declaration can go.
 
 ### A moved box's place in flow in Firefox's scroll size
 

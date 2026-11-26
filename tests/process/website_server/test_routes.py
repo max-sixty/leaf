@@ -22,17 +22,17 @@ from interact_support import (
 )
 
 import leaf_website as website_server
-from leaf.event_log import read_events
-from leaf.file_bindings import bind_file
-from leaf.files import revision_path
-from leaf.hosting import LeafHTTPServer
-from leaf.http import page_delivery
-from leaf.registry.storage import load_registry
-from leaf.revision_artifact import capture_artifact
-from leaf.revision_delivery import compose_document
-from leaf.runtime_selection import executing, serving_runtime
-from leaf.served_state import page as served_page
-from leaf.structure import SourceDocument
+from leaf.base.files import revision_path
+from leaf.log.event_log import read_events
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.serving.http import page_delivery
+from leaf.serving.revision_delivery import compose_document
+from leaf.serving.served_state import page as served_page
+from leaf.source.file_bindings import bind_file
+from leaf.source.revision_artifact import capture_artifact
+from leaf.source.runtime_selection import executing, serving_runtime
+from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.page_fixtures import example_media
 from leaf_dev.website import activation_url

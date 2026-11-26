@@ -8,19 +8,11 @@ import pytest
 import tinycss2
 from interact_support import PAGE, package_path, page_packages
 
-from leaf import revisioning as revisioning_model
-from leaf.exporting import AssetInliner, ReadableAssets
-from leaf.files import revision_path
-from leaf.revision_artifact import (
-    ArtifactError,
-    Resource,
-    capture_artifact,
-    capture_local_resource,
-    read_artifact,
-    resource_dependencies,
-    rewrite_css,
-)
-from leaf.revision_delivery import (
+from leaf.base.files import revision_path
+from leaf.base.schema import ASSETS
+from leaf.pages.exporting import AssetInliner, ReadableAssets
+from leaf.records import revisioning as revisioning_model
+from leaf.serving.revision_delivery import (
     Delivery,
     DeliveryAddress,
     compose_document,
@@ -29,9 +21,17 @@ from leaf.revision_delivery import (
     mark_declared,
     rebase_document,
 )
-from leaf.runtime_selection import executing
-from leaf.schema import ASSETS
-from leaf.structure import SourceDocument
+from leaf.source.capture_refusals import ArtifactError
+from leaf.source.revision_artifact import (
+    Resource,
+    capture_artifact,
+    capture_local_resource,
+    read_artifact,
+    resource_dependencies,
+)
+from leaf.source.runtime_selection import executing
+from leaf.source.structure import SourceDocument
+from leaf.source.styles import rewrite_css
 
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
@@ -468,7 +468,7 @@ def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     the layer's file wins over the runtime's, and the revision captures neither."""
     from click.testing import CliRunner
 
-    from leaf import cli as cli_model
+    from leaf.commands import cli as cli_model
 
     provider = "/vendor/floating-ui.esm.js"
     own = b"export const computePosition = () => 'the package\\'s own';"
@@ -963,7 +963,7 @@ def test_exhibit_paint_follows_the_occurrence_condition():
 def test_stylesheet_cors_mark_preserves_an_unquoted_trailing_slash():
     import turbohtml
 
-    from leaf.revision_delivery import rebase_document
+    from leaf.serving.revision_delivery import rebase_document
 
     delivered = rebase_document(
         '<link rel=stylesheet href="/theme.css" title=a/>', lambda path: path

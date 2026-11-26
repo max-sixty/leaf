@@ -231,8 +231,9 @@
     border-radius: calc(var(--lf-r-l) - 1px);
   }
   /* The box at rest beside a target (annotations/composing/surface.js, `restFab`) wears the field's
-     face in the field's cell of the same frame, so opening it moves nothing. It carries
-     no words to carry, so it shows no grip. */
+     face in the field's cell of the same frame, so opening it empty moves nothing; kept
+     words it cuts short wrap once it opens, and its key's room goes. The user
+     doesn't carry it, so it shows no grip. */
   .lf-fab-bar > .lf-fab-rest {
     grid-column: 1;
     grid-row: 1;
@@ -242,10 +243,18 @@
     font: var(--lf-font-message);
     cursor: text;
   }
-  /* Its words in the empty field's ink and Leaf's italic. */
+  /* Its words in the empty field's ink and Leaf's italic, cut short within the box,
+     where its key stays whole. */
   .lf-fab-rest > .lf-compose-placeholder {
+    min-width: 0;
     color: var(--lf-muted);
     font-style: italic;
+  }
+  /* A kept draft's words in their place, in the ink and face the open box writes them
+     in. */
+  .lf-fab-rest > .lf-compose-placeholder[data-lf-words] {
+    color: var(--lf-ink);
+    font-style: normal;
   }
   .lf-fab-bar[data-lf-rest] > .lf-surface-grip {
     display: none;

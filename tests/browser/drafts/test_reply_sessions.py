@@ -23,9 +23,9 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -572,7 +572,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
         '<lf-diff id="patch" source="review-patch"></lf-diff><p id="p3">',
     )
     url = serve(source)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -600,7 +600,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
     page.keyboard.press("Tab")
     expect(inline.get_by_role("button", name="Send", exact=True)).to_be_focused()
     rendered(page)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", patch + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
@@ -628,7 +628,7 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
         '<lf-diff id="patch" source="review-patch"></lf-diff><a id="after-diff" href="#p3">After the diff</a><p id="p3">',
     )
     url = serve(source)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -670,7 +670,7 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     expect(after).to_be_focused()
     rendered(page)
     expect(inline.locator("leaf-text")).to_be_visible()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", patch + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
@@ -701,7 +701,7 @@ def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
         ),
         packages=("diff", "file-tree"),
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -766,7 +766,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     )
     source = source.replace("<body>", '<body data-annotations="page">', 1)
     url = serve(source)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -806,7 +806,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     expect(after).to_be_focused()
     rendered(page)
     expect(inline.locator("leaf-text")).to_be_visible()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", patch + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)

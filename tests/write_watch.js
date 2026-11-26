@@ -27,7 +27,7 @@
   // A step with neither id nor class is followed by its parent, and the last step in a
   // shadow tree by `#shadow-root` and the tree's host, so `div.cm-line` in a
   // `leaf-text#field` is `["div.cm-line", "#shadow-root", "leaf-text#field"]`.
-  // Findings carry the steps; `leaf/findings.py` writes their words.
+  // Findings carry the steps; `leaf/base/findings.py` writes their words.
   const place = (node) => {
     const element = node.nodeType === 1;
     const step = element

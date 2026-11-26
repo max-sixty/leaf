@@ -103,6 +103,7 @@ import { share } from "../../base/snapshot.js";
 import { turns, threadKey } from "../../state/thread/model.js";
 import {
   HOLDS,
+  LISTED_NAME,
   anchorPlace,
   messageReading,
   threadName,
@@ -162,6 +163,7 @@ import { Transcript } from "./transcript.js";
 import { partTrail } from "./placement.js";
 import { addressableLabel } from "../../readings/addressable-names.js";
 import { PRESS } from "../../lib/keys.js";
+import { excerptWords } from "../../lib/words.js";
 
 /** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @typedef {ReturnType<typeof messageReading>} MessageReading */
@@ -878,9 +880,10 @@ export class ThreadView {
     keeps(this.node, "data-lf-resolved", model.resolved);
     keeps(this.node, "data-lf-attempt", model.attempt || null);
     // A card is itself where a send or a walk stands the user, so it carries the
-    // thread's name.
+    // thread's name, cut short: an untitled thread's name is its first message, which
+    // the card reads next, and said whole in the name it was heard twice.
     keeps(this.node, "role", "group");
-    keeps(this.node, "aria-label", `Thread, ${model.name}`);
+    keeps(this.node, "aria-label", `Thread, ${excerptWords(model.name, LISTED_NAME)}`);
     // A thread whose reply stands elsewhere ends with its messages, so it grows only at
     // its foot, the growing tail of the region holding it, as the panel's view is
     // (tests/shift_watch.js).

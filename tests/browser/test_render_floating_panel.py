@@ -64,17 +64,18 @@ from render_harness import (
     undo,
     wait_for_revision,
     watched,
+    without_end_room,
     write,
 )
 from render_harness import leaf_page as titled_page
 
 from browser.threads import dispatch_paste, paste_image
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.agents import thread as thread_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import choose_threads_in_panel, open_on_me, panel_tab
 from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, near, settled
@@ -2205,7 +2206,7 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(messages.last.locator(".lf-msg-text")).to_contain_text(
@@ -2661,6 +2662,8 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
         '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
     )
     page = floating(browser, serve(LONG_PAGE.replace("</main>", foot, 1), comments=12))
+    # The page ends at its last stop, with no room kept below it.
+    without_end_room(page)
     page.evaluate(
         "() => scrollTo({top: document.scrollingElement.scrollHeight,"
         " behavior: 'instant'})"
@@ -2678,10 +2681,11 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#foot")).to_be_focused()
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    # The box shrinks only once the leaving view's fade ends (panel/floating-panel.js),
+    # so wait for the panel to stand closed rather than for the motions playing now.
+    panel_settled(page, open=False)
     seen = page.evaluate(
         """async () => {
-          await Promise.all(document.getAnimations().map((motion) => motion.finished
-            .catch(() => {})));
           const {seenRect} = await window.__lfCheckApi();
           return Boolean(seenRect(document.querySelector('#foot'), new Map()));
         }"""

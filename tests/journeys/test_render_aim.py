@@ -39,8 +39,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -396,7 +396,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
 def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     browser, serve
 ):
-    """`parts` follows the ids the renderer carries, not one diagram type.
+    """A diagram's parts follow the ids the renderer carries, not one diagram type.
 
     State names, sequence participants, class names, and ER entities are written in the
     source the way a flowchart node is, so each addresses a box across a re-render. A
@@ -413,8 +413,9 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
         "path": {"A", "B"},
         "exchange": {"User", "Server"},
         "model": {"Job", "Runner"},
+        "trend": set(),
     }
-    assert page.locator("lf-diagram[parts]").evaluate_all("""diagrams =>
+    assert page.locator("lf-diagram").evaluate_all("""diagrams =>
       Object.fromEntries(diagrams.map(diagram => [diagram.id,
         [...diagram.visualParts.keys()].sort()]))
     """) == {

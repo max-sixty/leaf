@@ -41,6 +41,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    without_end_room,
     write,
 )
 
@@ -49,7 +50,7 @@ from browser.threads import (
     open_panel_thread,
     thread_row,
 )
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -992,6 +993,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
 
     # A window tall enough to hold the whole page, so the root has no scroll range and the
     # browser will not focus body as a scrolling affordance.
+    without_end_room(page)
     resized(page, 1200, 2400)
     assert not page.evaluate(
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"

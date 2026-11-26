@@ -75,22 +75,22 @@ from playwright.sync_api import (
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf import cli as cli_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import presence as presence_model
-from leaf import publishing as publishing_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf.findings import Finding, placed
-from leaf.registry.contract import element_declarations
-from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.render_gate import scheme as render_gate_model
+from leaf.agents import presence as presence_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding, placed
+from leaf.commands import cli as cli_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages.render_gate import scheme as render_gate_model
+from leaf.records import publishing as publishing_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import structure as structure_model
+from leaf.source.registry.contract import element_declarations
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
     PANEL,
@@ -745,7 +745,7 @@ def page_registry(page):
 
 def page_declarations(page):
     """The element declarations of this page's registry, which is what the render gate
-    hands every reading that takes declarations (`scheme._render_page`). The registry
+    hands every reading that takes declarations (`version._render_page`). The registry
     also describes HTML elements and selectors, such as `button`, which no reading asks
     after as a widget."""
     return element_declarations(page_registry(page))
@@ -1673,7 +1673,7 @@ def _judge_frame_watches(frame):
 
 def watched(page, *, java_script_enabled=True):
     """Collect browser problems into one retained list per page, each a record
-    (`leaf/findings.py`) a test reads by its fields.
+    (`leaf/base/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
     them: console warnings and errors, and uncaught exceptions. Firefox's warning that
@@ -3305,6 +3305,14 @@ def preview_text(target):
     """The words `target`'s preview shows a resting pointer, as its face's
     `textContent` reads them where no key chip stands beside its name."""
     return "".join(preview_parts(target))
+
+
+def without_end_room(page):
+    """Take away the room a column or sidebar page keeps below its last line
+    (layouts.css), so the page ends where its content does, as one with no Layout
+    does. A test whose subject is what happens where no scroll is left, a destination
+    at the page's foot or content leaving below that clamps the page, needs it."""
+    page.add_style_tag(content="body { padding-bottom: 0 !important; }")
 
 
 def resized(page, width, height):

@@ -6,18 +6,18 @@ import json
 import pytest
 from interact_support import DRAFTED, PAGE, append_carried_log_record, edit
 
-from leaf import clerk as clerk_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import state as state_model
-from leaf import tasks as tasks_model
-from leaf.agent_state import cmd_page_state
-from leaf.files import require_revision
-from leaf.interaction_log import read_interactions
-from leaf.refusals import Refused
-from leaf.registry.kernel import title_limit
-from leaf.revisioning import activate_source
+from leaf.agents import clerk as clerk_model
+from leaf.base import harness as harness_model
+from leaf.base import state as state_model
+from leaf.base.files import require_revision
+from leaf.base.refusals import Refused
+from leaf.commands import hooks as hooks_model
+from leaf.commands import tasks as tasks_model
+from leaf.commands.agent_state import cmd_page_state
+from leaf.log import event_log as events_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records.revisioning import activate_source
+from leaf.source.registry.kernel import title_limit
 
 
 def hook(capsys, event: str, prompt_id: str = "p1") -> str:
@@ -30,9 +30,12 @@ def hook(capsys, event: str, prompt_id: str = "p1") -> str:
 
 
 def asked() -> dict:
-    question = clerk_model.question("s1")
-    assert question is not None
-    return question
+    """The turn-end check's question as the hooks module gets it at a turn's end
+    (`hooks.cmd_fork`), with the turn its fork reads (`clerk.basis`)."""
+    answer = hooks_model.cmd_fork({"session_id": "s1", "turn_end": True})
+    assert answer is not None
+    [check] = answer["do"]
+    return {"prompt": check["request"]["prompt"], "basis": clerk_model.basis("s1")}
 
 
 def reply(page, *titles: str, passage: str = "", again: str = "", choice="") -> str:

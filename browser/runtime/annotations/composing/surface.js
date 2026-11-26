@@ -83,6 +83,7 @@ import {
   addressedFocus,
   anchoringIsReady,
   lightSeat,
+  rangeHoldsWords,
   resolveAnchor,
   sectionOf,
   visualAt,
@@ -114,7 +115,7 @@ import {
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../../records/thread/landing.js";
 import { advertisesKeys } from "../../dom/keyboard/bindings.js";
-import { commandKeysNow } from "../../dom/keyboard/control-keys.js";
+import { commandBindingsNow, commandKeysNow } from "../../dom/keyboard/control-keys.js";
 import { pageCommand, pageRung, pageScope } from "../../dom/keyboard/register.js";
 
 import {
@@ -129,7 +130,7 @@ import {
   selectionAnchor,
   snapSelection,
 } from "./capture.js";
-import { takesNoWords } from "./input.js";
+import { coveredFrame, takesNoWords } from "./input.js";
 import { repaint } from "../../dom/repaint.js";
 import {
   drawn,
@@ -157,7 +158,8 @@ import {
   pointerAt,
   pressIsKeyboardActivation,
 } from "../../base/pointer.js";
-import { anchorLabel } from "../../records/thread/messages.js";
+import { anchorLabel, draftLine, draftWords } from "../../records/thread/messages.js";
+import { draftsReading } from "../../records/drafts.js";
 import { seatOf } from "../../state/thread/model.js";
 
 import { livePoint } from "../../readings/pointed-place.js";
@@ -731,10 +733,12 @@ export function createResponseSurface({
   // its occurrence without guessing from quote length.
   /** @param {Anchor | import("../../readings/anchor-resolution.js").CapturedAnchor | null} anchor @returns {anchor is Anchor & {quote: string}} */
   const hasQuote = (anchor) => Boolean(anchor?.quote?.trim());
+  // Whether words stand selected on the page, which a comment on the selection would
+  // quote. It reads none of the context a capture reads around them, so a repaint
+  // asking where `c` goes, and each surface asking whether `c` is live, capture nothing.
   const hasPageSelectionTarget = () => {
     const selection = pageSelection();
-    const anchor = selection ? selectionAnchor(selection) : null;
-    return hasQuote(anchor);
+    return selection !== null && rangeHoldsWords(pageRange(selection));
   };
 
   // Observed selection belongs to the browser until Comment is pressed. Native handles
@@ -756,16 +760,20 @@ export function createResponseSurface({
     offeredSelection = anchor;
     pageComment.offer(
       anchor
-        ? { quote: anchor.quote, comment: () => commentOnOfferedSelection(anchor) }
+        ? {
+            quote: anchor.quote,
+            comment: () => commentOnSelection(selectedWords() ?? anchor),
+          }
         : null,
     );
   };
-  /** @param {Anchor | null} [settled] */
-  function commentOnOfferedSelection(settled = offeredSelection) {
+  // The words selected on the page, as the passage a comment on them quotes, or null
+  // while none are or anchoring can't quote them yet.
+  const selectedWords = () => {
     const selection = anchoringIsReady() ? pageSelection() : null;
-    const currentLocation = selection ? selectionAnchor(selection) : null;
-    commentOnSelection(hasQuote(currentLocation) ? currentLocation : settled);
-  }
+    const anchor = selection ? selectionAnchor(selection) : null;
+    return hasQuote(anchor) ? anchor : null;
+  };
   /** @param {Anchor | null} anchor */
   const commentOnSelection = (anchor) => {
     offerSelection(null);
@@ -774,12 +782,15 @@ export function createResponseSurface({
     openComment(anchor, "");
   };
 
+  // Whether a press is still selecting words. They are the press's until it completes,
+  // which offers or places whatever it selected (`updateFab`), so no box stands for them
+  // meanwhile: the panel's field quotes none, whatever else asks, such as a key released
+  // mid-press, and no box shows `c` for them (`commentDestination`).
+  const pressSelecting = () => Boolean(pagePresses.kept()?.selecting?.());
+  // The panel's field offers the selected words while no bar stands for them.
   function observeSelection() {
-    const selection = anchoringIsReady() ? pageSelection() : null;
-    const anchor = selection ? selectionAnchor(selection) : null;
-    offerSelection(
-      hasQuote(anchor) && !sameAnchor(anchor, fabAnchor.value) ? anchor : null,
-    );
+    const words = pressSelecting() ? null : selectedWords();
+    offerSelection(words && !sameAnchor(words, fabAnchor.value) ? words : null);
   }
 
   function updateFab() {
@@ -996,14 +1007,31 @@ export function createResponseSurface({
     fabRest.addEventListener("click", () => {
       if (resting) commentOnTarget(resting);
     });
+    // Kept words the box cuts short read whole under its name.
+    fabRest.lfPreview = () => {
+      const words = fabRest.querySelector(".lf-compose-placeholder-words");
+      const kept = resting && keptDraft(resting.anchor);
+      return kept && words && words.scrollWidth > words.clientWidth
+        ? { detail: [draftLine(kept)] }
+        : null;
+    };
   }
-  // Whether the page's own words stood selected when the keys were last painted.
-  // Escape owns the selection from its first glyph. Paint only that crossing, including
-  // a selection begun in a label whose pointer press is not a page-word gesture; growing
-  // a selection that already stands needs no repaint on each drag frame.
-  let selectionStood = false;
+  // What the page's selection held when the keys were last painted: nothing, only
+  // spaces, or words; null once a press begins. Escape owns the selection from its first
+  // glyph, and `c` comments on it from its first word (`commentDestination`). A press can
+  // also change the words without either crossing, as a Shift-press extending them does,
+  // and its first change takes `c` off the box standing for the words it began with.
+  // Paint only those changes, including a selection begun in a label whose pointer press
+  // is not a page-word gesture; growing a selection that already holds words needs no
+  // repaint on each drag frame.
+  /** @type {"nothing" | "spaces" | "words" | null} */
+  let selectionStood = "nothing";
   const reflectSelection = () => {
-    const stands = Boolean(pageSelection());
+    const stands = hasPageSelectionTarget()
+      ? "words"
+      : pageSelection()
+        ? "spaces"
+        : "nothing";
     if (stands === selectionStood) return;
     selectionStood = stands;
     repaint();
@@ -1141,31 +1169,46 @@ export function createResponseSurface({
     if (press?.selecting?.()) {
       rememberPointerSelection(press);
       if (coarsePointer.matches && !press.claimed) rememberSelection();
+      observeSelection();
       reflectSelection();
+      return;
+    }
+    // Words selected in a box are the box's, so a box holding focus offers no passage.
+    if (takesLetters(focused())) {
+      offerSelection(null);
+      retireBarePassage();
       return;
     }
     // Focus and action handoffs own the captured target while the browser collapses
     // its selection. Outside those handoffs, observe the browser's live passage;
     // only the completed page gesture above/below may replace the composer.
-    if (takesLetters(focused())) {
-      offerSelection(null);
-      return;
-    }
     if (press?.action || targetActivation) return;
     const selection = pageSelection();
     if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
     observeSelection();
-    // A bare selected passage only stands while the browser still holds it.
-    // Focusing Comment captures that passage, and a written draft keeps it even
-    // after focus moves elsewhere; neither belongs to the native selection now.
-    if (
-      !selection &&
-      fabAnchor.value?.quote &&
-      !fabHoldsCapturedPassage() &&
-      !composer.composerHolds()
-    )
-      putAwayFab();
+    retireBarePassage();
     reflectSelection();
+  }
+  // A bare passage is selected words the bar stands beside, which the user has neither
+  // entered nor written in. Its bar is the browser selection's, and stands only while
+  // the browser still holds those words. Focusing Comment captures the passage, and a
+  // written draft keeps it even after focus moves elsewhere; neither belongs to the
+  // native selection then.
+  const barePassage = () => {
+    const passage = fabAnchor.value;
+    return passage?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds()
+      ? passage
+      : null;
+  };
+  // Other words selected, or none, end a bare passage. A box that takes the selection,
+  // as page search's does, ends it too, however soon focus leaves the box again. Only a
+  // bare passage's bar reads the selection here, so a keystroke in a box reads nothing.
+  // A press under way leaves the bar until the press completes (`selectionChanged`), and
+  // meanwhile `c` reads the same rule (`commentDestination`).
+  function retireBarePassage() {
+    const passage = barePassage();
+    if (!passage || (pageSelection() && !anchoringIsReady())) return;
+    if (!sameAnchor(selectedWords(), passage)) putAwayFab();
   }
 
   function mount() {
@@ -1176,11 +1219,10 @@ export function createResponseSurface({
       "pointerdown",
       (ev) => {
         if (drawModeActive()) return;
-        // Read here, ahead of the browser's own collapse, so the first crossing this press
-        // makes is measured against what the line already says rather than against nothing,
-        // and what the press took is told from what it merely landed in.
+        // Read here, ahead of the browser's own collapse, so what the press took is told
+        // from what it merely landed in. Its first change repaints (`reflectSelection`).
         const stood = pageSelection();
-        selectionStood = Boolean(stood);
+        selectionStood = null;
         // A second contact is no part of the press under way.
         if (!ev.isPrimary) return;
         // Admission reads the press's origin across widget shadow roots. The host
@@ -1423,18 +1465,35 @@ export function createResponseSurface({
         (inlineBox ? { held: inline, box: inlineBox } : null),
     };
   }
-  /** @returns {{title: string, box: Element | null, go: () => unknown, rest?: NonNullable<ReturnType<ResponseOptions["currentTarget"]>>}} */
+  // `onWords` marks a destination where c puts the caret in the words its box holds now.
+  // The comment box moved to where the user stands is no such place: it opens on that
+  // place's own draft, whatever words the box holds.
+  /** @returns {{title: string, box: Element | null, onWords?: boolean, go: () => unknown, rest?: NonNullable<ReturnType<ResponseOptions["currentTarget"]>>}} */
   function commentDestination() {
-    // The panel's field quotes the selected words, and a press there does what c does,
-    // so the field carries c's badge.
-    if (offeredSelection)
+    const anchor = fabAnchorAt();
+    // Words selected on the page outrank where the user stands, and a comment on them
+    // opens beside them. The box standing for those words carries c: the panel's field
+    // while it quotes them, since a press there comments on them too, or the bar beside
+    // them. A box standing for other words carries none, and words a press is still
+    // selecting have no box, though the old words' box stands until the press completes.
+    // Only the box needs to know which words are selected, so the title and `when`
+    // capture none.
+    if (anchoringIsReady() && hasPageSelectionTarget())
       return {
         ...commenting("selection"),
-        box: pageComment.box,
-        go: commentOnOfferedSelection,
+        get box() {
+          if (pressSelecting()) return null;
+          const words = selectedWords();
+          if (sameAnchor(words, offeredSelection)) return pageComment.box;
+          return sameAnchor(words, anchor) ? fabInput : null;
+        },
+        // Placed beside the words as they stand, like a target's box below.
+        go: () => {
+          landGlides();
+          commentOnSelection(selectedWords());
+        },
       };
     const { here, threadId, said } = focusedPlace();
-    const anchor = fabAnchorAt();
     // The thread drawn with the user's place (`threadHere`), such as the card beside it,
     // is one place with it, so its reply box is where c writes, even where the thread is
     // about a block enclosing what they stand on: the box they see is the one c names,
@@ -1457,12 +1516,15 @@ export function createResponseSurface({
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // current target. Read both page and thread location before choosing the aim.
     // After the user lands elsewhere, Comment names that new place and opens its own
-    // draft, the old words staying with theirs.
+    // draft, the old words staying with theirs. The element holding a passage is
+    // elsewhere too: the user standing on it is about the whole element, not the words
+    // the draft quotes. A bare passage's words are no longer selected here, so its bar
+    // is no destination, even while a press under way still shows it.
     if (
       anchor &&
-      (pageSelection() ||
-        fabHoldsCapturedPassage() ||
-        (!said && !subject && (!here || here.element === fabTargetAt())))
+      !barePassage() &&
+      (fabHoldsCapturedPassage() ||
+        (!said && !subject && (!here || sameAnchor(here.anchor, anchor))))
     )
       return {
         ...commenting(
@@ -1471,12 +1533,14 @@ export function createResponseSurface({
             : addressableWord(elementById(anchor.section)) || "element",
         ),
         box: fabInput,
+        onWords: true,
         go: focusFabComment,
       };
     if (said)
       return {
         ...commenting("thread"),
         box: said.box,
+        onWords: true,
         go: () => {
           composer.leaveForThread();
           landIn(said);
@@ -1496,10 +1560,12 @@ export function createResponseSurface({
           landIn({ box: destination });
         },
       };
+    // The bar opens beside the target the user stands on. While the bar stands beside
+    // another subject, its box is not where c writes, so it shows no c.
     if (here)
       return {
         ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
-        box: fabInput,
+        box: anchor ? null : fabInput,
         rest: here,
         // The box's placement measures its target where it stands, so the glides under
         // way land first (dom/scrolling.js, `landGlides`): `c` pressed as `m` sets off
@@ -1511,7 +1577,12 @@ export function createResponseSurface({
         },
       };
     // The page's own box is the floating panel's field.
-    return { ...commenting("page"), box: pageComment.box, go: pageComment.open };
+    return {
+      ...commenting("page"),
+      box: pageComment.box,
+      onWords: true,
+      go: pageComment.open,
+    };
   }
 
   // The destination's box is the identity chrome uses to place a contextual binding badge,
@@ -1523,6 +1594,17 @@ export function createResponseSurface({
     const { box } = commentDestination();
     commentKey = commandKeysNow("comment.create").join(" ");
     return { box, label: commentKey };
+  };
+  // The box c puts the caret in the words of, while those words cover the placeholder
+  // that would name c, with that key: the key chips hang it on the box's corner
+  // (input.js, `coveredFrame`; readings/key-badges/command-hints.js). Comment declares no
+  // control to carry the chip, since a control it lacked would leave c dead everywhere
+  // else (dom/keyboard/bindings.js, `commandAvailable`).
+  const coveredEntry = () => {
+    const { box, onWords } = commentDestination();
+    const control = onWords ? coveredFrame(box) : null;
+    const [binding] = control ? commandBindingsNow("comment.create") : [];
+    return control && binding ? { control, binding } : null;
   };
 
   // The target the box rests beside: the one `c` would open it on, while the user can see
@@ -1549,6 +1631,12 @@ export function createResponseSurface({
     placement?.release();
     keeps(fabBar, "data-lf-rest", null);
   }
+  // The draft kept on a target, as the margin and Threads list it.
+  /** @param {Anchor} anchor */
+  const keptDraft = (anchor) => {
+    const key = composer.draftKey(anchor);
+    return draftsReading().find(({ context }) => context === key);
+  };
   // Read in each repaint, since where `c` goes follows focus, whether a scroll has taken
   // it out of sight (readings/user-place.js), and the state.
   function restFab() {
@@ -1564,9 +1652,13 @@ export function createResponseSurface({
       placement?.stop({ reset: true });
     }
     keeps(fabBar, "data-lf-rest", "");
+    // A draft kept on the target shows its words where the empty box says Comment…,
+    // since `c` opens the box on them, as a box holding words shows them.
+    const draft = keptDraft(target.anchor);
+    const kept = draft ? draftWords(draft) : "";
     render(
-      html`<span class="lf-compose-placeholder"
-        ><span class="lf-compose-placeholder-words">${COMMENT_HINT}</span
+      html`<span class="lf-compose-placeholder" ?data-lf-words=${Boolean(kept)}
+        ><span class="lf-compose-placeholder-words">${kept || COMMENT_HINT}</span
         ><kbd class="lf-key-badge">${key}</kbd></span
       >`,
       fabRest,
@@ -1610,21 +1702,10 @@ export function createResponseSurface({
     // page still are, since a comment on them opens a box of its own.
     when: () =>
       (anchoringIsReady() || !pageSelection()) &&
-      (Boolean(offeredSelection) || !takesNoWords(commentDestination().box)),
-    run: () => {
-      // Activation reads the current native selection directly. Painting its offer
-      // first would displace the reading controls only to restore them in this press.
-      const selection = pageSelection();
-      const anchor = selection ? selectionAnchor(selection) : null;
-      if (hasQuote(anchor)) {
-        // Placed beside the words as they stand, like a target's box below.
-        landGlides();
-        commentOnSelection(anchor);
-        return;
-      }
-      updateFab();
-      commentDestination().go();
-    },
+      (hasPageSelectionTarget() || !takesNoWords(commentDestination().box)),
+    // The press goes where the badge and title it was read from said: one reading
+    // decides all three.
+    run: () => commentDestination().go(),
   });
 
   // Tab opens responses from the editor, outside a list item, where the editor takes
@@ -1687,6 +1768,7 @@ export function createResponseSurface({
     watchHeldDrawings: composer.watchHeldDrawings,
     setDraftDrawing: composer.setDraftDrawing,
     commentHint,
+    coveredEntry,
     restFab,
     fabPositioned,
     showFab,

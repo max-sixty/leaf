@@ -38,11 +38,11 @@ from interact_support import running_http_server
 from playwright.sync_api import expect
 from render_harness import consume_browser_errors, leaf_page, open_page
 
-from leaf.layer import compose_layer, layer_inputs
-from leaf.revision_artifact import Resource, resource_type
-from leaf.revision_delivery import layer_import_map
-from leaf.runtime_selection import read_runtime
-from leaf.schema import BROWSER_DIRS
+from leaf.base.schema import BROWSER_DIRS
+from leaf.serving.revision_delivery import layer_import_map
+from leaf.source.layer import compose_layer, layer_inputs
+from leaf.source.revision_artifact import Resource, resource_type
+from leaf.source.runtime_selection import read_runtime
 
 
 @dataclass(frozen=True)
@@ -86,7 +86,7 @@ PORTABLE = [
         "diagram",
         # The host reserves the diagram's room, as Leaf's stylesheet does from the
         # height an occurrence states, so the drawing arriving moves nothing below it.
-        '<lf-diagram id="lf-diagram" parts="all" style="height: 240px"><pre>\n'
+        '<lf-diagram id="lf-diagram" style="height: 240px"><pre>\n'
         "flowchart TD\n"
         "  accTitle: Checkout\n  accDescr: A cart reaches payment.\n"
         "  Cart([Cart]) --&gt; Pay{Paid?}\n</pre></lf-diagram>",

@@ -379,7 +379,7 @@ Decision, made on this evidence:
   every failure its browser run caught came from a trigger it already has.
 - A thread message whose markup places a widget that criterion names is run once
   before it posts and refused on what the run reports (`bed5963ff`,
-  `render_gate/command.message_check`), reversing #1691 for those messages only.
+  `render_gate/messages.message_check`), reversing #1691 for those messages only.
   Reposting the 32 eval messages with it refused exactly the 5 that don't draw and
   posted the other 27, each in 1.3–1.9 s at a load of 10–20; markup without such a
   widget waits on no browser.
@@ -552,7 +552,7 @@ weigh the advice.
 
 ## The render pass, 2026-11-05
 
-The pass is built in `src/leaf/handover_pass.py`, whose header holds its
+The pass is built in `src/leaf/serving/handover_pass.py`, whose header holds its
 contract and its cost. These runs scored it against the merge base, where the driver's
 `render` move posts the same findings as the page's `error`:
 

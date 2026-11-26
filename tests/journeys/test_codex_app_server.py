@@ -6,10 +6,9 @@ from interact_support import (
     append_carried_log_record,
 )
 
-from leaf import codex_adapter as codex_adapter_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import session as session_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
@@ -28,18 +27,10 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
     append_carried_log_record(
         page, {"kind": "comment", "id": "later", "author": "user", "text": "and this"}
     )
-    with service_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [events_model.read_events(page)[-1]],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
+    with transaction_model.PageTransaction(page) as transaction:
+        assert codex_adapter_model.capture_batch(
+            "codex-thread", transaction, [events_model.read_events(page)[-1]]
         )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
 
     observer = _observer()
     observer._read(
@@ -61,7 +52,7 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
         lambda *_: pytest.fail("the task was asked while a turn of its own ran"),
     )
 
-    assert not codex_adapter_model._offer_queued_delivery(
+    assert not codex_adapter_model.offer_queued_delivery(
         "codex", "codex-thread", observer
     )
 

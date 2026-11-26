@@ -130,7 +130,7 @@ import { restArming } from "../../lib/rest-arming.js";
  * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
  * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
  * composition: () => {field: HTMLElement, frame: CompositionField}, addMedia: (images: readonly Blob[]) => Promise<boolean>,
- * writing: () => boolean}} InputSync
+ * writing: () => boolean, covered: () => HTMLElement | null}} InputSync
  * @typedef {TextField & {[INPUT_DRAFT]?: InputSync}} WiredInput
  */
 
@@ -294,6 +294,17 @@ export const writesIn = (ta) => Boolean(ta?.[INPUT_DRAFT]?.writing());
 // also sets on a box that `c` may still move to another passage.
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const takesNoWords = (ta) => Boolean(ta?.[INPUT_DRAFT]?.closed());
+// A box shows the key that enters it: in its placeholder while it is empty, and as a key
+// chip on its corner once its words cover the placeholder, as a draft's do. So a box
+// the user isn't in says how to get back into its words, as a thread card's reply box
+// holding a draft does while `t` stands on the card. The user chose this rule,
+// accepting one more mark wherever the key would go into a box holding words, over the
+// key only in an empty box. This is the frame that chip stands on, while the box's
+// words cover its placeholder and the caret isn't in them. The key on it is the comment
+// key (annotations/composing/surface.js, `coveredEntry`); a box focus stands on wears
+// `text.enter`'s instead (below).
+/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
+export const coveredFrame = (ta) => ta?.[INPUT_DRAFT]?.covered() ?? null;
 // Whether an error stands at a box, which says it there; the panel's dot marks only
 // those that stand nowhere. A box that stops showing the words passes its errors, so a
 // standing one is always on screen.
@@ -881,15 +892,26 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const visualField = field.querySelector("div.lf-compose-field");
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
+    sync.covered = () =>
+      focused() !== ta && hasContent(draftValue()) ? visualField : null;
     // A box the user stands on rather than in, as a walk's stop at a kept comment
-    // leaves them (features/anchor-travel.js, `onFrame`), takes Enter into its words, with the
-    // caret after them, as `c` there does.
+    // leaves them (features/anchor-travel.js, `onFrame`), takes `c` or Enter into its
+    // words, with the caret after them. It keeps its resting edge (response.css) and
+    // wears `c` as a key chip on its corner (`bindingBadge`), since its words cover the
+    // placeholder, as every box whose words do wears the key that enters it
+    // (`coveredFrame`). The user chose this. Rejected: the key after the words, where the
+    // caret will stand, which has no room where the last line runs to the box's end,
+    // as a one-line comment's does in a wide window; the key in the panel's walk
+    // status, away from the box the user is reading; and the words greyed until the
+    // caret enters, which reads as a placeholder.
     keys(visualField, "On a text box", [
       {
         id: "text.enter",
         touch: false,
-        keys: ["Enter"],
+        keys: ["c", "Enter"],
         title: "write",
+        control: visualField,
+        bindingBadge: null,
         when: () => focused() === visualField,
         run: () => {
           const end = ta.value.length;

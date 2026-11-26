@@ -74,11 +74,14 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import presence as presence_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
-from leaf.schema import SERVICE_FILE
+from leaf.agents import presence as presence_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base.schema import SERVICE_FILE
+from leaf.base.server import SERVICE
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source
 
@@ -2593,10 +2596,12 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     # The recovery a taken port's refusal names: with the service record deleted, the
     # restarted server derives its address again, and binds past the port still taken.
     hosting_model.cmd_stop(other_dir)
-    (other_dir / SERVICE_FILE).unlink()
+    SERVICE.file(other_dir / SERVICE_FILE).unlink()
     with socket.create_server(("127.0.0.1", urlsplit(old_url).port)):
         new_url = hosting_model.start_server(
-            other_dir, persistent=True, harness=None
+            other_dir,
+            persistent=True,
+            harness=harness_model.claim_harness(service_model.page_claim(other_dir)),
         ).url.split("?")[0]
     assert urlsplit(new_url).port != urlsplit(old_url).port
     wait_for(

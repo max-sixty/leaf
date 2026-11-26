@@ -37,13 +37,14 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
+    without_end_room,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
@@ -1310,6 +1311,8 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
         },
     )
     page = open_page(browser, live_url(url))
+    # A page with no room below it, so no scroll lifts its obligations clear of a view.
+    without_end_room(page)
 
     # A thread is chrome holding no obligation, so the walk starts from the page.
     page.keyboard.press("t")

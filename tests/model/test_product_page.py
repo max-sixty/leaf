@@ -9,19 +9,19 @@ import click
 from click.testing import CliRunner
 from unidiff import PatchSet
 
-from leaf import cli as cli_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.authored_checks.declarations import declaration_advice
-from leaf.registry import validation as registry_validation
-from leaf.registry.contract import complete_declarations
-from leaf.registry.layer import stamp_composition
-from leaf.registry.schema import check_schema
-from leaf.registry.storage import load_registry
-from leaf.schema import DEFAULT_PACKAGE
-from leaf.state import kernel_registry
-from leaf.structure import SourceDocument
+from leaf.base.schema import DEFAULT_PACKAGE
+from leaf.base.state import kernel_registry
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.declarations import declaration_advice
+from leaf.source.registry import validation as registry_validation
+from leaf.source.registry.contract import complete_declarations
+from leaf.source.registry.layer import stamp_composition
+from leaf.source.registry.schema import check_schema
+from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev import declared_records, docs
 from leaf_dev.docs import EXAMPLES, product_sources
 from leaf_dev.example_data import named_source, published_sources
@@ -295,7 +295,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     # The browser's command: what it posts, before the door stamps anything.
     command_fields = ("kind", "revision", "widget", "action", "detail", "attempt")
     ids = {}
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         for record in shown:
             command = {k: record[k] for k in command_fields if k in record}
             if "undoes" in record:

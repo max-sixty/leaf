@@ -29,7 +29,7 @@ from datetime import datetime, timedelta
 
 from playwright.sync_api import Locator, Page, expect
 
-from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
+from leaf.source.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
@@ -507,7 +507,7 @@ def floating_thread(page: Page) -> None:
     back, Show on page, Resolve and Close."""
     choose_threads_in_panel(page)
     go_to_threads(page)
-    page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
+    page.locator('.lf-fp-thread[data-lf-key="7b3e0a41"]').click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
 
 
@@ -584,6 +584,8 @@ def answer_the_turn() -> None:
     served.leaf(
         "thread",
         "reply",
+        "--title",
+        "On call over the weekend",
         next(refs(delivery)),
         "--done",
         "--text",
@@ -872,7 +874,13 @@ def summarize_plan_stop() -> None:
     """The plan's stop thread with a summary of its opening messages, and the agent's
     latest reply after it."""
     root = "9303f850cbdc9b9f79f1725011251d36"
-    as_agent("thread", "reply", root, "--text", "Export now checks the sandbox first.")
+    as_agent(
+        "thread",
+        "reply",
+        root,
+        "--text",
+        "Export now checks the sandbox first.",
+    )
     # A summary speaks in its agent's voice, which a session gives it.
     served = served_page.get()
     served.leaf(
@@ -1304,6 +1312,8 @@ def section_ring_by_keyboard(page: Page) -> None:
     as_agent(
         "thread",
         "create",
+        "--title",
+        "Implementation order",
         "--section",
         "plan-implementation",
         "--text",
@@ -1350,7 +1360,15 @@ def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
         page.keyboard.insert_text("Drafting a reply while the news arrives")
     root = thread.get_attribute("data-lf-thread")
     assert root
-    as_agent("thread", "reply", root, "--text", "That one goes first.")
+    as_agent(
+        "thread",
+        "reply",
+        "--title",
+        "Which goes first",
+        root,
+        "--text",
+        "That one goes first.",
+    )
     # The notice says one count of all it holds; its preview says each fact.
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_text("1 new")
@@ -1381,7 +1399,16 @@ def card_held_step(page: Page) -> None:
     page.keyboard.insert_text("Drafting a reply while the agent works")
     root = thread.get_attribute("data-lf-thread")
     assert root
-    as_agent("thread", "reply", root, "--ephemeral", "--text", "Checking the stop.")
+    as_agent(
+        "thread",
+        "reply",
+        "--title",
+        "Stop check",
+        root,
+        "--ephemeral",
+        "--text",
+        "Checking the stop.",
+    )
     state = PageClient(served_page.get().address).state()
     wait_until_ready(page, state, through="state")
 
@@ -1396,6 +1423,8 @@ def card_promise(page: Page) -> None:
     as_agent(
         "thread",
         "reply",
+        "--title",
+        "Stop check on staging",
         root,
         "--todo",
         "Rerun the stop check on staging",
@@ -1434,6 +1463,8 @@ def card_after_interjection(page: Page) -> None:
     served.leaf(
         "thread",
         "reply",
+        "--title",
+        "Interjected detail",
         reference,
         "--done",
         "--text",
@@ -1449,7 +1480,14 @@ def seat_held_news(page: Page) -> None:
     reads beside it: the agent's question on a goal, which a reload draws in place. A
     thread the user drafts in draws its news at once (held-news.js)."""
     as_agent(
-        "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
+        "thread",
+        "create",
+        "--title",
+        "First worker",
+        "--section",
+        "goal-parser",
+        "--text",
+        "Which worker first?",
     )
     load(page, served_page.get().address)
     thread = page.locator("#goal-parser .lf-page-thread")
@@ -1462,7 +1500,14 @@ def seat_comment_box(page: Page) -> None:
     words of a second comment typed, long enough to wrap: the box stands in the row's
     own outlet, with the send that holds the goal beside it."""
     as_agent(
-        "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
+        "thread",
+        "create",
+        "--title",
+        "First worker",
+        "--section",
+        "goal-parser",
+        "--text",
+        "Which worker first?",
     )
     load(page, served_page.get().address)
     goal = page.locator("#goal-parser")
@@ -1591,6 +1636,26 @@ def option_row_by_keyboard(page: Page) -> None:
     )
 
 
+def settled_option_row_by_keyboard(page: Page) -> None:
+    """An opened settled decision with the keyboard on the row it didn't pick, whose
+    mark wears its own focus ring, above the picked row, with the group's digits
+    showing."""
+    settled = page.locator("#comparison-policy > .lf-settled")
+    settled.scroll_into_view_if_needed()
+    box = settled.bounding_box()
+    assert box is not None
+    # The row ends a workspace that fills the window, so the floating panel's row
+    # stands over its middle; the user presses its words, at its start.
+    settled.click(position={"x": 8, "y": box["height"] / 2})
+    keyboard_modality(page)
+    page.locator("#comparison-policy-current > .lf-pick").focus()
+    expect(
+        page.locator(
+            "#comparison-policy-current > .lf-key-badge[data-lf-binding-badge]"
+        )
+    ).to_have_count(1)
+
+
 def go_to_on_me(page: Page) -> None:
     """Open On Me by Go to On Me (`g` then `M`), the route every runtime shares, as
     `go_to_threads` opens Threads."""
@@ -1615,6 +1680,8 @@ def on_me_question(page: Page) -> None:
     as_agent(
         "thread",
         "create",
+        "--title",
+        "The build",
         "--section",
         "plan-context",
         "--text",
@@ -1633,6 +1700,8 @@ def on_me_thread_choice(page: Page) -> None:
     as_agent(
         "thread",
         "create",
+        "--title",
+        "Pull request timing",
         "--section",
         "plan-context",
         "--text",
@@ -1752,9 +1821,20 @@ def threads_returning(page: Page) -> None:
     )
     opened = int(count.inner_text())
     as_agent(
-        "thread", "reply", returning, "--text", "The resend covers a cold start too."
+        "thread",
+        "reply",
+        returning,
+        "--text",
+        "The resend covers a cold start too.",
     )
-    as_agent("thread", "create", "--text", "Should the beta notes mention the resend?")
+    as_agent(
+        "thread",
+        "create",
+        "--title",
+        "Beta notes",
+        "--text",
+        "Should the beta notes mention the resend?",
+    )
     expect(count).to_have_text(str(opened + 2))
     settle(page)
 
@@ -2851,6 +2931,8 @@ def card_choice_by_keyboard(page: Page) -> None:
     as_agent(
         "thread",
         "create",
+        "--title",
+        "Opening the pull request",
         "--section",
         "plan-context",
         "--text",
@@ -2897,6 +2979,8 @@ def option_thread_open(page: Page) -> None:
     as_agent(
         "thread",
         "create",
+        "--title",
+        "Shipping with the workaround",
         "--section",
         "off-workaround-approve",
         "--text",
@@ -3378,6 +3462,13 @@ def authored_timeline_step(page: Page) -> None:
     page.keyboard.press("Space")
 
 
+def deck_card_by_keyboard(page: Page) -> None:
+    """The open card of a deck that fills a workspace, reached by Next On Me."""
+    keyboard_modality(page)
+    page.keyboard.press("m")
+    settle(page)
+
+
 @dataclass(frozen=True)
 class State:
     """The page `source` names, brought to this state by `drive` once it has loaded,
@@ -3394,6 +3485,7 @@ class State:
 
 
 STATES = (
+    State("deck-card-keyboard", "catch-up", deck_card_by_keyboard, region="#cu-deck"),
     State(
         "dynamic-request-preview",
         "dynamic-widgets",
@@ -3534,6 +3626,12 @@ STATES = (
         "ship-review",
         option_row_by_keyboard,
         region="#off-workaround-decision",
+    ),
+    State(
+        "settled-option-row-keyboard",
+        "current-proposed-comparison",
+        settled_option_row_by_keyboard,
+        region="#comparison-policy",
     ),
     State(
         "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"

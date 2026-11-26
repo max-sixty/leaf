@@ -47,10 +47,10 @@ from browser.widgets import (
     hear_walks,
     walks_said,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -679,7 +679,9 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
             for index in range(count)
         )
 
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(12)))
+    page_data_model.cmd_data_set(
+        serve.page_dir, "review-patch", patch_manifest(patch(12))
+    )
     page = open_page(browser, url)
     diff = page.locator("#patch")
     search = diff.locator(".lf-diff-search input")
@@ -697,7 +699,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
     for width in (390, 1280):
         resized(page, width, 844)
         for total in (12, 2):
-            data_model.cmd_data_set(
+            page_data_model.cmd_data_set(
                 serve.page_dir, "review-patch", patch_manifest(patch(total))
             )
             told(page)
@@ -719,7 +721,9 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
                 assert after == before, (width, query, before, after)
                 expect(search).to_be_focused()
 
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(1)))
+    page_data_model.cmd_data_set(
+        serve.page_dir, "review-patch", patch_manifest(patch(1))
+    )
     told(page)
     expect(rows).to_have_count(1)
     expect(diff.locator(".lf-diff-search")).to_have_count(0)
@@ -730,7 +734,7 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):
     belong to the reader inspecting the same files. The evidence is a manifest, whose
     files the widget loads one at a time."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", patch_manifest(MULTI_HUNK_PATCH)
     )
     page = open_page(browser, url)
@@ -749,7 +753,7 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):
               top: diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]').getBoundingClientRect().top};
     }"""
     before = page.evaluate(reading)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(MULTI_HUNK_PATCH.replace("new route", "new routing")),
@@ -764,7 +768,7 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):
 def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     """Replacing a file's evidence retains its code scrollport and focused line."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.locator("lf-diff summary").first.focus()
     # Each step walks from the row the last one landed on, so each waits for its landing.
@@ -788,7 +792,7 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     before = page.evaluate(reading)
     assert before["sideways"] == 200
     assert before["focus"] is not None
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         MULTI_HUNK_PATCH.replace("new first", "new beginning"),
@@ -825,7 +829,7 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(browser, serve):
     own numbered control."""
     url = two_diff_page(serve)
     for _, source, value in DIFF_FORMS:
-        data_model.cmd_data_set(serve.page_dir, source, value(MULTI_HUNK_PATCH))
+        page_data_model.cmd_data_set(serve.page_dir, source, value(MULTI_HUNK_PATCH))
     page = open_page(browser, url)
     patch, manifest = DIFF_FORMS
     for (diff, source, value), edit in (
@@ -868,7 +872,7 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
             '+    return "new beginning"\n',
             '+    return "new beginning"\n+    inserted = True\n',
         )
-    data_model.cmd_data_set(serve.page_dir, source, value(patch))
+    page_data_model.cmd_data_set(serve.page_dir, source, value(patch))
     told(page)
     rendered(page)
     assert page.evaluate("() => getSelection().toString()") == before, diff
@@ -904,7 +908,7 @@ def test_a_closed_diff_file_reads_current_evidence_across_source_forms(browser, 
     """File disclosure keeps its owner and loads the current patch in either form: the
     evidence goes from a raw patch to a manifest while the file is closed, then back."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     code = page.locator("lf-diff code[data-code]").first
     code.evaluate("node => { node.scrollLeft = 200; }")
@@ -913,7 +917,7 @@ def test_a_closed_diff_file_reads_current_evidence_across_source_forms(browser, 
     for words, form in (("new beginning", patch_manifest), ("new start", None)):
         summary.click()
         patch = MULTI_HUNK_PATCH.replace("new first", words)
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir, "review-patch", form(patch) if form else patch
         )
         told(page)
@@ -929,21 +933,21 @@ def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serv
     render cannot authorize reuse of the evidence its error removed."""
     url = serve(LONG_LINE_DIFF_PAGE)
     good = patch_manifest(MULTI_HUNK_PATCH)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", good)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", good)
     page = open_page(browser, url)
     failed_file = patch_manifest(MULTI_HUNK_PATCH)
     failed_file["files"][0]["patch"] = "invalid diff"
     repeated_path = MULTI_HUNK_PATCH + MULTI_HUNK_PATCH
     error = page.locator("lf-diff .lf-error")
     for bad in (failed_file, repeated_path, repeated_path):
-        data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
         told(page)
         rendered(page)
         expect(error).to_have_count(1)
         expect(error).to_be_visible()
         # Dressed as the failure box in the document is, not as plain text.
         expect(error).to_have_css("border-top-style", "solid")
-        data_model.cmd_data_set(serve.page_dir, "review-patch", good)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", good)
         told(page)
         rendered(page)
         expect(error).to_have_count(0)
@@ -974,7 +978,7 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):
     for (_, source, value), initial in zip(
         DIFF_FORMS, (rename, MULTI_HUNK_PATCH), strict=True
     ):
-        data_model.cmd_data_set(serve.page_dir, source, value(initial))
+        page_data_model.cmd_data_set(serve.page_dir, source, value(initial))
     page = open_page(browser, url)
     for form, starts_as_rename in zip(DIFF_FORMS, (True, False), strict=True):
         diff_file_keeps_focus(page, serve, *form, rename, starts_as_rename)
@@ -997,7 +1001,7 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
     scroll_settled(page)
     before = page.evaluate("() => scrollY")
     for patch in (other, initial):
-        data_model.cmd_data_set(serve.page_dir, source, value(patch))
+        page_data_model.cmd_data_set(serve.page_dir, source, value(patch))
         told(page)
         rendered(page)
         assert owner.evaluate("node => node.isConnected")
@@ -1009,12 +1013,12 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
                 page.locator(f'{diff} [data-lf-datum=\'["app/handlers.py","new",2]\']')
             ).to_contain_text("new first")
     if starts_as_rename:
-        data_model.cmd_data_set(serve.page_dir, source, value(regular))
+        page_data_model.cmd_data_set(serve.page_dir, source, value(regular))
         told(page)
         rendered(page)
     summary = page.locator(f"{diff} summary").first
     summary.click()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, source, value(regular.replace("new first", "new beginning"))
     )
     told(page)
@@ -1042,11 +1046,13 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     )
     regular = MULTI_HUNK_PATCH.replace("app/handlers.py", path)
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(rename))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(rename))
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = open_page(browser, url, context=context)
     expect(page.locator("lf-diff .lf-diff-metadata")).to_have_count(1)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(regular))
+    page_data_model.cmd_data_set(
+        serve.page_dir, "review-patch", patch_manifest(regular)
+    )
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
@@ -1062,7 +1068,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
             f"--- a/{source}\n+++ b/{path}\n"
             "@@ -1 +1 @@\n-old()\n+new()\n"
         )
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir, "review-patch", patch_manifest(changed_rename)
         )
         told(page)
@@ -1092,7 +1098,7 @@ def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, en
         "Here is the plan.",
         '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(first))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(first))
     page = open_page(request.getfixturevalue(engine), url)
     frame = page.locator("lf-diff .lf-diff-thread-outlet iframe")
     expect(frame).to_be_attached()
@@ -1108,7 +1114,9 @@ def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, en
       else frame.addEventListener("load", settle, {once: true});
     })""")
     redrawn = patch("0.py", "@@ -1 +1 @@\n-x\n+y\n") + first.replace("+new", "+newer")
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(redrawn))
+    page_data_model.cmd_data_set(
+        serve.page_dir, "review-patch", patch_manifest(redrawn)
+    )
     told(page)
     rendered(page)
     expect(
@@ -1126,7 +1134,7 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
     cards rather than run-together text, and the part the runtime gives it to anchor
     from the document is no attribute the render check refuses."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(
@@ -1175,7 +1183,7 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     )
     value = patch_manifest if manifest else lambda patch: patch
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
     page = open_page(browser, url)
     page.get_by_role("button", name="Comment on a.py · new line 1", exact=True).click()
     write(page.locator(".lf-composer leaf-text"), "Please clarify this.")
@@ -1192,7 +1200,7 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     reading = "e => ({scroll: scrollY, value: e.value, start: e.selectionStart, end: e.selectionEnd})"
     before = reply.evaluate(reading)
     assert before["end"] - before["start"] == 4
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(next_patch))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", value(next_patch))
     told(page)
     rendered(page)
     # The editor the user is located in. Chromium leaves an editor carried through a hidden
@@ -1220,7 +1228,7 @@ def test_a_file_opened_while_a_newer_source_draws_shows_the_newer_lines(browser,
         return patch_manifest(patch("a.py", word) + patch("b.py", word))
 
     url = serve(MANIFEST_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value("first"))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", value("first"))
     page = open_page(browser, url)
     a, b = (page.locator("lf-diff summary").nth(index) for index in (0, 1))
     a.click()
@@ -1246,7 +1254,7 @@ def test_a_file_opened_while_a_newer_source_draws_shows_the_newer_lines(browser,
         return prepare.call(this, source, renderKey);
       };
     }""")
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value("latest"))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", value("latest"))
     page.wait_for_function("Boolean(window.__leafHeld.newer)")
     b.click()
     page.wait_for_function("window.__leafHeld.opened === true")
@@ -1645,7 +1653,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     Short enough a window that the patch overflows the pane, and still tall enough that
     the workspace holds it."""
     url = serve(PANE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1024, "height": 560})
     page.wait_for_function(
@@ -1812,7 +1820,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
         "#patch { width: 1000px; max-inline-size: none; }</style>",
     )
     url = serve(source)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.keyboard.press("Tab")
     for left in (0, 150):
@@ -1843,7 +1851,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     already holds each parsed file's evidence, so this step must open only the last
     file."""
     url = serve(MANIFEST_DIFF_PAGE)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(MULTI_HUNK_PATCH),
@@ -2067,8 +2075,8 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
 
 def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, serve):
     """Author prose is independent of patch data, including when its line disappears."""
-    from leaf import anchor_capture, passages, structure
-    from leaf.registry.storage import read_page_registry
+    from leaf.source import anchor_capture, passages, structure
+    from leaf.source.vocabulary import read_page_registry
 
     source = leaf_page(
         "Annotated patch",
@@ -2085,7 +2093,7 @@ def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, 
         "@@ -1,2 +1,2 @@\n context\n-old line\n+new line\n"
     )
     url = serve(source)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
     registry = read_page_registry(serve.page_dir).registry
     file_reading = passages.page_passages(structure.SourceDocument(source), registry)
     assert "Explain the new line." in file_reading.text
@@ -2131,7 +2139,7 @@ def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, 
     )
     # Keep the authored object itself through a replacement, not just a copied label.
     held = note.element_handle()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(

@@ -25,19 +25,19 @@ import pytest
 from click.testing import CliRunner
 from playwright.sync_api import Frame, Page, sync_playwright
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import codex_adapter as codex_adapter_model
-from leaf import handover_pass as handover_pass_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import layer as layer_model
-from leaf import leases as leases_model
-from leaf import machine as machine_model
-from leaf import state as cleanup_model
-from leaf.registry.schema import schema_error, with_leaf_resources
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import command as render_command_model
+from leaf.agents import codex as codex_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import machine as machine_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.serving import handover_pass as handover_pass_model
+from leaf.source import layer as layer_model
+from leaf.source.registry.schema import schema_error, with_leaf_resources
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import FIREFOX_PREFS, linux_font_environment, shell_executable
 from leaf_dev.page_fixtures import package_selection_args
@@ -611,28 +611,25 @@ CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 # The sessions whose hooks this tree runs, as a real first hook records it
-# (`leases.mark_skill`), so this tree, a checkout, acts for them
+# (`leases.mark_root`), so this tree, a checkout, acts for them
 # (`state.runs_session`): the hooked sessions, and the Codex task the Codex tests
 # run as, whose hooks those tests leave unrun.
 ROOTED_SESSIONS = (*HOOKED_SESSIONS, "codex-thread")
-# What a hook of this tree records of the Leaf it runs (`hooks.skill_mark`), taken
-# once, since it reads every file of the skill.
-SKILL_MARK = hooks_model.skill_mark()
 
 
 def hooks_run_this_tree(session_id: str) -> None:
     """Record that `session_id`'s hooks run this tree, as its first hook would
-    (`leases.mark_skill`), so this tree, a checkout, acts for the session
+    (`leases.mark_root`), so this tree, a checkout, acts for the session
     (`state.runs_session`). A test that runs as a session of its own calls it before
     that session's first command."""
-    leases_model.mark_skill(session_id, SKILL_MARK)
+    leases_model.mark_root(session_id, hooks_model.PLUGIN_ROOT)
 
 
 def hooks_run_leaf(session_id: str, root: Path) -> None:
     """Record that `session_id`'s hooks run the Leaf at `root`, a copy other than
     this tree, such as a preview's runtime, so that copy acts for the session and
     this tree acts for none (`state.runs_session`)."""
-    leases_model.mark_skill(session_id, f"{root.resolve()}\nits skill")
+    leases_model.mark_root(session_id, root.resolve())
 
 
 # The tests this worker has isolated so far (`isolated_session`).

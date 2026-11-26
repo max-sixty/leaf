@@ -22,15 +22,15 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import codex as codex_model
-from leaf import completions, inference, thread_titles
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import interaction_log as interaction_model
-from leaf import state as cleanup_model
-from leaf.json_block import json_block
-from leaf.thread import fit_title
+from leaf.agents import codex as codex_model
+from leaf.agents import completions, inference, thread_titles
+from leaf.agents.thread import fit_title
+from leaf.base import harness as harness_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import json_block
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_model
+from leaf.serving import event_endpoint as endpoint_model
 from leaf_dev.claude_code_module import claude_code_module
 
 # What Codex's turn reports when the account cannot use the model it asks for.
@@ -478,7 +478,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
         finally:
             stopped.append(executable)
 
-    monkeypatch.setattr(inference, "private_app_server", title_server)
+    monkeypatch.setattr(codex_model, "private_app_server", title_server)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
     status, body = endpoint_model.accept_event(
         page_dir,

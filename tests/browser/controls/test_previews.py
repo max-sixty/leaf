@@ -38,7 +38,7 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread, thread_row
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.

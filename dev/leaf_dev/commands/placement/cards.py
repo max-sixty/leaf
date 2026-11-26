@@ -68,8 +68,8 @@ from pathlib import Path
 import click
 from playwright.sync_api import Page
 
-from leaf.event_log import read_events
-from leaf.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
+from leaf.log.event_log import read_events
+from leaf.source.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import (
     PageClient,
@@ -596,7 +596,9 @@ def answer(words: str, leaves: str) -> None:
         if "answer" in event
     )
     served.leaf("delivery", "ack", delivery["id"])
-    served.leaf("thread", "reply", ref, leaves, "--text", words)
+    served.leaf(
+        "thread", "reply", "--title", "Card placement", ref, leaves, "--text", words
+    )
 
 
 def caught_up(page: Page) -> None:

@@ -33,7 +33,7 @@ from render_harness import (
     ticked,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 def test_native_clipping_preserves_only_painted_carry(browser, serve):

@@ -33,17 +33,19 @@ from interact_support import (
     woken,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import thread as thread_model
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import schema as schema_model
+from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
+from leaf.commands import session as session_model
+from leaf.commands.session import set_status
+from leaf.log import event_log as events_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry import contract as registry_contract
 from model.interact_contract import _stateful_page_declaration
 
 
@@ -92,7 +94,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     ):
         append_carried_log_record(page_dir, event)
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     envelope, header, shown = delivered(capsys)
     handling = header["handling"]
@@ -101,7 +103,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     plain, drawn, closed, resolved, on_page, in_thread = (
         [handling[clause] for clause in event.get("handling", [])] for event in shown
     )
-    declared = registry_storage.load_registry(page_dir)["$events"]
+    declared = vocabulary_model.load_registry(page_dir)["$events"]
     [reading_a_drawing] = [
         c["text"]
         for c in declared["handling"]["comment"]
@@ -137,7 +139,7 @@ def test_active_handling_survives_a_broken_page_declaration(page_dir, capsys):
     a page declaration the next revision cannot take leaves that handling intact."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     active = registry_contract.event_clauses(
         {
@@ -154,7 +156,7 @@ def test_active_handling_survives_a_broken_page_declaration(page_dir, capsys):
     session_model.cmd_waiting(page_dir)
     append_carried_log_record(page_dir, comment)
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, batch, [shown] = delivered(capsys)
     assert active and [batch["handling"][ref] for ref in shown["handling"]] == [
@@ -180,7 +182,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         },
     ):
         append_carried_log_record(page_dir, {"author": "user", **event})
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         selected = transaction.events[:3]
         append_batch_result = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
@@ -194,7 +196,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     assert [event["id"] for event in batch["events"]] == [
         event["id"] for event in selected
     ]
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     digests = {digest["id"]: digest for digest in batch["threads"]}
 
     def case(event):
@@ -239,7 +241,7 @@ def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_
     def write(kind, **fields):
         event = append_command(page_dir, {"kind": kind, "author": "user", **fields})
         log = events_model.read_events(page_dir)
-        selected = service_model.unacknowledged(log, event["seq"] - 1)
+        selected = transaction_model.unacknowledged(log, event["seq"] - 1)
         assert selected == ([event] if event["attention"] else [])
         return event
 
@@ -285,13 +287,15 @@ def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_
             "Checking the change.",
             "--todo",
             "Check the change",
+            "--title",
+            "Thread title",
         ],
     )
     assert opened.exit_code == 0, opened.output
     assert owed_answers(page_dir) == []
-    with service_model.PageTransaction(page_dir) as page:
-        page.set_status("idle")
-    assert retired in service_model.unacknowledged(
+    with transaction_model.PageTransaction(page_dir) as page:
+        set_status(page, "idle")
+    assert retired in transaction_model.unacknowledged(
         events_model.read_events(page_dir), newest["seq"]
     )
     assert not write(
@@ -323,7 +327,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
 
     composing = action("choice", "choose", {"value": ["flag-first"]})
     assert not composing["attention"]
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     completed = action("choice", "answer", {})
     assert completed["attention"]
     receive_through(page_dir, completed["seq"])
@@ -363,7 +367,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
         == 0
     )
     assert action("draft", "edit", {"value": "Orange room."})["attention"]
-    selected = service_model.unacknowledged(
+    selected = transaction_model.unacknowledged(
         events_model.read_events(page_dir), completed["seq"]
     )
     assert quiet not in selected
@@ -373,8 +377,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
 def test_recordless_requests_wake_without_user_obligations(
     page_dir, sessionless, capsys
 ):
-    from leaf.files import latest_revision
-    from leaf.served_state.context import read_page
+    from leaf.agents.presence import read_work
+    from leaf.base.files import latest_revision
 
     (page_dir / "page").mkdir(exist_ok=True)
     declaration = _stateful_page_declaration(page_dir, "lf-archive")
@@ -408,7 +412,7 @@ def test_recordless_requests_wake_without_user_obligations(
         )
 
     def work():
-        return read_page(page_dir, events_model.read_events(page_dir)).work.durable
+        return read_work(page_dir, events_model.read_events(page_dir)).durable
 
     assert work().all_obligations["all"] == []
     quiet = action("edit")
@@ -421,7 +425,7 @@ def test_recordless_requests_wake_without_user_obligations(
     payload, _, events = printed(capsys.readouterr().out)
     assert [event["id"] for event in events] == [first["id"]]
     assert "answer" not in events[0]
-    delivery_model.receive_delivery(payload["id"])
+    delivery_ack_model.receive_delivery(payload["id"])
     assert page_state(page_dir)["pending"] == 0
 
     repeated = action("archive")
@@ -441,7 +445,7 @@ def test_recordless_requests_wake_without_user_obligations(
     assert undone["attention"]
     fresh = action("archive")
     assert fresh["attention"]
-    assert service_model.unacknowledged(
+    assert transaction_model.unacknowledged(
         events_model.read_events(page_dir), first["seq"]
     ) == [repeated, undone, fresh]
 
@@ -519,7 +523,7 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
             "text": "The task view failed.",
         },
     )
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == [
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == [
         done,
         undo,
         report,
@@ -553,7 +557,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(page_dir
         ],
     )
     assert named.exit_code == 0, named.output
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exit_code == 0, waited.output
     _, header, shown = woken(waited.output)
@@ -759,7 +763,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
         },
     )
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [chose["id"]]
@@ -849,7 +853,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "detail": {},
         },
     )
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, _, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [answered["id"]]
@@ -901,7 +905,7 @@ def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
             "detail": {},
         },
     )
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, _, [shown] = delivered(capsys)
     assert shown["id"] == answered["id"]
@@ -1213,7 +1217,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
         {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
     )
     assert quiet["attention"] is False
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     answer = append_command(
         page_dir,
         {"kind": "reply", "author": "user", "parent": question["id"], "token": "keep"},
@@ -1225,7 +1229,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     assert shown["id"] == answer["id"] and shown["token"] == "keep"
     assert "answer" not in shown
     assert page_state(page_dir)["pending"] == 1
-    delivery_model.receive_delivery(payload["id"])
+    delivery_ack_model.receive_delivery(payload["id"])
     assert page_state(page_dir)["pending"] == 0
     restored = append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": answer["id"]}
@@ -1248,7 +1252,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 
 
 def test_successful_replies_require_an_exact_agent_answer():
-    from leaf.thread import successful_replies
+    from leaf.agents.thread import successful_replies
 
     comment = {
         "kind": "comment",
@@ -1298,8 +1302,8 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
     `freeze_delivery`."""
     import yaml
 
-    from leaf.json_block import read_json_block
-    from leaf.registry.schema import schema_error, with_leaf_resources
+    from leaf.base.json_block import read_json_block
+    from leaf.source.registry.schema import schema_error, with_leaf_resources
 
     def strings(value):
         if isinstance(value, str):

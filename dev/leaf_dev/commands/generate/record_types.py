@@ -16,10 +16,10 @@ from datamodel_code_generator import (
     generate,
 )
 
-from leaf.server import ACCESS, SERVICE
+from leaf.base.server import ACCESS, SERVICE
 from leaf_dev import ROOT
 
-OUTPUT = ROOT / "src/leaf/record_types.pyi"
+OUTPUT = ROOT / "src/leaf/base/record_types.pyi"
 
 
 def generated_types() -> str:

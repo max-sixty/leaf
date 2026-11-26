@@ -129,15 +129,13 @@ const partsOf = (source) => {
   return source.lfParts;
 };
 
-/** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
- * The inventory's order is also the order of the visual's targets. */
-/** @param {Element} visual @param {VisualDeclaration | null} declaration */
-export function visualPartAdmission(visual, declaration) {
+/** The part ids a visual's declared prefixes admit. The inventory's order is also the
+ * order of the visual's targets. */
+/** @param {VisualDeclaration | null} declaration */
+export function visualPartAdmission(declaration) {
   if (!declaration || typeof declaration !== "object") return null;
-  if ("prefixes" in declaration)
-    return (/** @type {string} */ id) =>
-      declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
-  return visual.hasAttribute(declaration.parts) ? () => true : null;
+  return (/** @type {string} */ id) =>
+    declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
 }
 
 /** Whether a part absent from the current state may still be drawn: on request, or
@@ -160,13 +158,11 @@ export function revealRegisteredVisualPart(source, id) {
  * be in, and the picture is then one target. */
 /** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
-  if (!declaration || typeof declaration !== "object") return [];
-  const parts = registeredVisualParts(source);
-  const admission = visualPartAdmission(source, declaration);
-  const outside =
-    "prefixes" in declaration && admission
-      ? parts.filter((part) => !admission(part.id)).map((part) => part.id)
-      : [];
+  const admits = visualPartAdmission(declaration);
+  if (!admits) return [];
+  const outside = registeredVisualParts(source)
+    .filter((part) => !admits(part.id))
+    .map((part) => part.id);
   return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
 }
 

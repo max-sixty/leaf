@@ -5,9 +5,9 @@ import json
 from interact_support import append_carried_log_record, append_command, publish
 from model.interact_contract import _stateful_page_declaration
 
-from leaf import files as files_model
-from leaf import revisioning as revisioning_model
-from leaf import thread as thread_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.records import revisioning as revisioning_model
 
 
 def test_candidate_vocabulary_can_change_after_thread_widget_actions(page_dir):

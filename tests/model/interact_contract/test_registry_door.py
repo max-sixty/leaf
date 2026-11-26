@@ -23,11 +23,11 @@ from interact_support import (
     registry_refusal,
 )
 
-from leaf.registry import contract as registry_contract
-from leaf.registry import schema as registry_schema
-from leaf.registry import validation as registry_validation
-from leaf.registry.storage import read_page_registry
-from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID
+from leaf.base.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import schema as registry_schema
+from leaf.source.registry import validation as registry_validation
+from leaf.source.vocabulary import read_page_registry
 from model.interact_contract import declare_vocabulary, vocabulary
 
 

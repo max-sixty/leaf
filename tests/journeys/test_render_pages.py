@@ -32,16 +32,16 @@ from render_harness import (
 )
 
 from journeys import detached_threads, listed_threads
-from leaf import event_log as events_model
-from leaf import events as thread_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.hosting import TemporaryPageServer
-from leaf.passages import enclosing_ids, page_passages
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import evaluate_probe, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.thread_context import logged_fragment
+from leaf.log import event_log as events_model
+from leaf.log import events as thread_model
+from leaf.log.thread_context import logged_fragment
+from leaf.pages.hosting import TemporaryPageServer
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.passages import enclosing_ids, page_passages
+from leaf.source.render_checks import evaluate_probe, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import read_event_lines
@@ -361,7 +361,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # had rendered one here. It needs its thread open in the panel: shut, the
         # fragment has no box at all, so a reading that walks text nodes sees it
         # and every reading that measures one does not.
-        registry = registry_storage.load_registry(serve.page_dir)
+        registry = vocabulary_model.load_registry(serve.page_dir)
         carried_ids = set()
         carried_threads = set()
         for carried in events:
@@ -444,7 +444,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     d = serve.page_dir
     anchors = written_anchors(d, html)
     document = structure_model.SourceDocument(html)
-    registry = registry_storage.load_registry(d)
+    registry = vocabulary_model.load_registry(d)
     authored = page_passages(document, registry).text
     assert authored.strip(), f"{source.stem} has no file passage for this sweep"
     # Nine overlapping anchors exercise section, prefix, and suffix resolution across

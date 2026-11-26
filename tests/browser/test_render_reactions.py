@@ -62,10 +62,10 @@ from render_harness import (
 from browser.margin.test_pins import FOLDING_PAGE
 from browser.test_render_outbox import undo_offered
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1153,7 +1153,7 @@ def test_plain_clicks_stay_native_and_explicit_gestures_comment_on_visuals(
 <figure id="figure"><svg viewBox="0 0 80 40" width="160" height="80"
   role="img" aria-label="Plain picture"><rect x="2" y="2" width="76" height="36" /></svg>
   <figcaption>Plain picture</figcaption></figure>
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   S[Start request] --&gt; H[Handle request]
 </pre></lf-diagram>
@@ -1322,7 +1322,7 @@ def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
 <figure id="tabbed"><svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></figure>
 </lf-tab><lf-tab id="second" label="Second"><p>More.</p></lf-tab></lf-tabs>
 <div id="stage" role="application" tabindex="0" aria-label="Stage">
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   S[Start request] --> H[Handle request]
 </pre></lf-diagram>
@@ -2331,7 +2331,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
             '<h1>Review</h1><lf-diff id="patch" source="patch"></lf-diff>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch",
         """diff --git a/app.py b/app.py

@@ -39,8 +39,8 @@ from browser.threads import (
     open_panel_thread,
     paste_image,
 )
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered
+from leaf.agents import thread as thread_model
+from leaf.source.render_checks import one_frame, rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

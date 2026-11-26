@@ -35,8 +35,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
 
@@ -155,7 +155,7 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     page = open_page(browser, serve(named_source("ship-review")))
     open_on_me(page)
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
-        has_text="The vendor release is the only schedule"
+        has_text="Blocking on the vendor's fix"
     )
     card.locator(".lf-fp-show").click()
     preview = page.locator(".lf-margin-preview")

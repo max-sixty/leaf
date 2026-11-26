@@ -35,23 +35,24 @@ from interact_support import (
     state_json,
 )
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as contracts_model
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import plans as plans_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import standing as standing_model
-from leaf import state as state_model
-from leaf import tasks as tasks_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.event_contracts import append_admitted
-from leaf.findings import Rejected
-from leaf.served_state.page import full_state
-from leaf.state import EVENTS_FILE
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as state_model
+from leaf.base.findings import Rejected
+from leaf.base.state import EVENTS_FILE
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.records import event_contracts as contracts_model
+from leaf.records import plans as plans_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
+from leaf.records.event_contracts import append_admitted
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving.served_state.page import full_state
 
 
 def leaf(*args):
@@ -83,6 +84,8 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
             "--text",
             "Merge or abandon?",
             "--obligation",
+            "--title",
+            "Agent thread",
         )
     )
     queue = state_json(page_dir)
@@ -158,6 +161,8 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
             "Building it now.",
             "--todo",
             "Rebuild the banner quieter",
+            "--title",
+            "Thread title",
         )
     )
     assert (todo["kind"], todo["todo"]) == ("reply", "Rebuild the banner quieter")
@@ -230,12 +235,32 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
         # HTML with no question in it asks nothing back, so it declares nothing.
         ('On it.\n\n<figure id="sketch"><p>A sketch.</p></figure>', []),
     ):
-        result = leaf("thread", "reply", reference, "--text", text, *flags)
+        result = leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            text,
+            *flags,
+            "--title",
+            "Thread title",
+        )
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
         ("update", f"update:{comment['id']}")
     ]
-    reply = written(leaf("thread", "reply", reference, "--text", "Done.", "--done"))
+    reply = written(
+        leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            "Done.",
+            "--done",
+            "--title",
+            "Thread title",
+        )
+    )
     assert "todo" not in reply
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
@@ -342,7 +367,16 @@ def test_a_plan_reads_each_steps_state_from_the_records_it_arranges(page_dir):
     # A question whose thread the agent resolved, as it does once the user answers
     # elsewhere, reads done, and a rewrite that leaves the to-do out leaves it owed.
     question = written(
-        leaf("thread", "create", page_dir, "--text", "Merge?", "--obligation")
+        leaf(
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            "Merge?",
+            "--obligation",
+            "--title",
+            "Agent thread",
+        )
     )
     asked = f"message:{question['id']}"
     written(leaf("thread", "resolve", page_dir, question["id"]))
@@ -510,6 +544,8 @@ def test_a_long_todo_or_plan_step_title_is_fitted_rather_than_refused(page_dir):
             "On it.",
             "--todo",
             words,
+            "--title",
+            "Thread title",
         )
     )
     assert answered["todo"] == fitted
@@ -658,6 +694,8 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
             "--text",
             "Warm or cool?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
 
@@ -731,6 +769,8 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
             "--text",
             "Short or long title?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
     state = state_json(page_dir)
@@ -787,6 +827,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
             response_reference(page_dir, comment["id"]),
             "--text",
             "Done.",
+            "--title",
+            "Thread title",
         )
     )
     state = state_json(page_dir)
@@ -867,7 +909,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
             refusals.append(refused)
 
     claiming = threading.Thread(target=run_claim, name="claim")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         claiming.start()
         assert claim_waits.wait(STATED_TIMEOUT)
         # Another session's resolve answers for the thread; the user's own would
@@ -921,6 +963,8 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
             "On it.",
             "--todo",
             "Rebuild the chart",
+            "--title",
+            "Thread title",
         )
     )
     line = ("--text", "Waiting on the build")
@@ -1287,6 +1331,8 @@ def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_d
             "--text",
             "Warm or cool?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
     asked = f"message:{question['id']}"
@@ -1342,6 +1388,8 @@ def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
             "--obligation",
             "--text",
             "Can you try the build on your phone?",
+            "--title",
+            "Thread title",
         )
     )
     item = f"message:{question['id']}"
@@ -1423,6 +1471,8 @@ def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
             "--obligation",
             "--text",
             "Can you try the build?",
+            "--title",
+            "Thread title",
         )
     )
     second = written(
@@ -1482,6 +1532,8 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
                 "--obligation",
                 "--text",
                 text,
+                "--title",
+                "Thread title",
             )
         )
 
@@ -1559,6 +1611,8 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             '<lf-option id="store-account" label="Account store"><strong>Account store</strong></lf-option>'
             '<lf-option id="store-own" label="Their own store"><strong>Their own store</strong></lf-option>'
             "</lf-options>",
+            "--title",
+            "Thread title",
         )
     )
     said = append_command(
@@ -1774,7 +1828,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
         "blocked": 0,
         "unseen": 1,
     }
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
     *_, pickup = (
@@ -1799,6 +1853,8 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
                 response_reference(page_dir, "c2"),
                 "--text",
                 "Because.",
+                "--title",
+                "Thread title",
             ],
         )
         .exit_code
@@ -1852,7 +1908,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     ]
 
     claim = record_claim(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [answer],
@@ -2036,7 +2092,13 @@ def test_explicit_message_obligations_need_no_html(page_dir, route):
             if route == "addressed"
             else ["thread", "reply", page_dir, thread]
         )
-    message = written(leaf(*command, "--obligation", "--text", "Which environment?"))
+    message = written(
+        leaf(
+            *command,
+            *("--title", "Release environment"),
+            *("--obligation", "--text", "Which environment?"),
+        )
+    )
     identity = f"message:{message['id']}"
     state = state_json(page_dir)
     [item] = [item for item in state["obligations"] if item["id"] == identity]
@@ -2115,7 +2177,11 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
 def test_obligations_are_not_progress_or_user_authored(page_dir):
     """The admission boundary prevents unanswerable requests on non-agent messages."""
     publish(page_dir)
-    root = written(leaf("thread", "create", page_dir, "--text", "Status"))
+    root = written(
+        leaf(
+            "thread", "create", page_dir, "--text", "Status", "--title", "Agent thread"
+        )
+    )
     before = events_model.read_events(page_dir)
     for extra in (
         {"author": "user"},

@@ -33,11 +33,11 @@ from render_harness import (
     told,
 )
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 from leaf_dev.browser import choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -120,7 +120,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         ),
     )
     # Durable delivery into the open turn advances the exact same row in place.
-    with service_model.PageTransaction(d) as transaction:
+    with transaction_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
     expect(held_workflow).to_have_text("Delivered")
@@ -247,6 +247,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
             "reply",
             str(d),
             held,
+            "--title",
+            "Reconnect traces",
             "--text",
             "I'll re-run it against the rolling deploy.",
             "--todo",

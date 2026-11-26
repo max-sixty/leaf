@@ -31,22 +31,24 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf.findings import Finding
-from leaf.json_block import read_json_block
-from leaf.registry import contract as registry_contract
-from leaf.registry import layer as registry_layer
-from leaf.registry import storage as registry_storage
-from leaf.registry import validation as registry_validation
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.base.json_block import read_json_block
+from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import layer as registry_layer
+from leaf.source.registry import validation as registry_validation
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -282,7 +284,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = registry_storage.load_registry(page_dir)[section]
+    merged = vocabulary_model.load_registry(page_dir)[section]
     shipped = shipped_core_registry()[section]
     assert merged == shipped
 
@@ -315,7 +317,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = registry_storage.load_registry(page_dir)["$events"]["handling"]
+    merged = vocabulary_model.load_registry(page_dir)["$events"]["handling"]
     shipped = cleanup_model.kernel_registry()["$events"]["handling"]
     assert merged["comment"] == [{"text": "Reply in French."}]
     assert "reply" not in merged
@@ -443,7 +445,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     from markdown_it import MarkdownIt
 
     kinds = cleanup_model.kernel_registry()["$events"]["kinds"]
-    text = Path(schema_model.__file__).with_name("events.md").read_text()
+    text = (Path(schema_model.__file__).parents[1] / "events.md").read_text()
     tokens = MarkdownIt("commonmark").enable("table").parse(text)
     start = next(
         index for index, token in enumerate(tokens) if token.type == "table_open"
@@ -788,7 +790,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # wait's complete delivery, acknowledged by its reader.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     posted = {
         "kind": "comment",
@@ -804,11 +806,11 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     assert session_model.cmd_wait(page_dir) == 0
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["acknowledge"] is not None
-    assert delivery_model.receive_delivery(envelope["id"]) == [page_dir]
+    assert delivery_ack_model.receive_delivery(envelope["id"]) == [page_dir]
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
-    page_events = registry_storage.load_registry(page_dir)["$events"]
+    page_events = vocabulary_model.load_registry(page_dir)["$events"]
     page_clauses = [
         *page_events["handling"]["comment"],
         *page_events["answering"][delivered["answer"]["kind"]],
@@ -820,7 +822,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "answer": delivered["answer"],
             "thread": thread,
         },
-        registry_storage.load_registry(page_dir),
+        vocabulary_model.load_registry(page_dir),
     )
     assert [clause["text"] for clause in applying] == [
         batch["handling"][ref] for ref in delivered["handling"]
@@ -1011,12 +1013,12 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # The adapter's queue route: collect the batch, then offer its pointer.
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         append_batch_result = codex_model.append_batch(
             "codex-queue-task",
             page_dir,
             transaction,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
         )
         assert append_batch_result is not None
         path, _, _ = append_batch_result
@@ -1039,7 +1041,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
 
     # Claude Code: the native watcher wakes the session after its turn closes,
     # and the next prompt hook hands the delivery over.
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     cleanup_model.close_session_turn(session)
     harness_2 = harness_model.session_harness()
     assert harness_2 is not None
@@ -1160,7 +1162,7 @@ def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
         ],
     )
     assert result.exit_code == 0, result.output
-    keys = registry_storage.load_registry(page_dir)["$keys"]
+    keys = vocabulary_model.load_registry(page_dir)["$keys"]
     assert keys["space"] == "wider, in this project"
     assert keys["verbatim"]  # the rest of the shipped members stand
 
@@ -1204,11 +1206,11 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
     shipped = cleanup_model.kernel_registry()["$events"][key]
 
     assert found(init_notes(page_dir), "fixed-events", key=key)
-    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
+    assert vocabulary_model.load_registry(page_dir)["$events"][key] == shipped
 
     (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
     assert found(init_notes(page_dir), "fixed-events", key=key)
-    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
+    assert vocabulary_model.load_registry(page_dir)["$events"][key] == shipped
 
 
 @pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
@@ -1218,12 +1220,12 @@ def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
     neither runtime; `page init` keeps the kernel's and says so."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    shipped = registry_storage.load_registry(page_dir)[fact]
+    shipped = vocabulary_model.load_registry(page_dir)[fact]
     member = next(key for key in shipped if key != "description")
     (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
 
     assert found(init_notes(page_dir), "fixed-kernel-fact", name=fact)
-    assert registry_storage.load_registry(page_dir)[fact] == shipped
+    assert vocabulary_model.load_registry(page_dir)[fact] == shipped
 
 
 def test_shared_package_declarations_compose_by_member():

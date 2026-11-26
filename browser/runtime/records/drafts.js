@@ -9,7 +9,7 @@
    - a thread's first message and replies;
    - an `lf-draft` edit.
 
-   The page's server keeps each draft (`src/leaf/drafts.py`), because the words must
+   The page's server keeps each draft (`src/leaf/serving/drafts.py`), because the words must
    survive reload, version navigation, closing the tab where they were typed, and the
    user moving to another tab or device. This document holds its copy of each
    (`draftCache`), which every box here reads and writes at once, and the copy goes on

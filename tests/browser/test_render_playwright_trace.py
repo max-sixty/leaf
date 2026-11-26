@@ -18,8 +18,8 @@ from render_harness import (
     told,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 
@@ -55,7 +55,7 @@ def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     user = open_page(browser, url, context=context)
     widget = user.locator("#before")
@@ -113,7 +113,7 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     page = open_page(browser, url)
     parts = page.locator("#journey [data-lf-projection]")
 
@@ -135,7 +135,7 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
     ), first
 
     record["actions"][0]["title"] += " (rerun)"
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     told(page)
     rerun = source_revision(serve.page_dir, "trace")
     assert rerun != revision
@@ -203,7 +203,7 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     context = browser.new_context(viewport={"width": width, "height": 900})
     page = open_page(browser, url, context=context)
     widget = page.locator("#journey")
@@ -328,7 +328,7 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
     call = widget.locator(f'.lf-trace-call-bar[data-lf-id="{setup["id"]}"]')
@@ -422,7 +422,7 @@ def scrolled_closed_tree(browser, serve, motion):
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "review-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "review-trace", record)
     context = browser.new_context(
         viewport={"width": 1280, "height": 500}, reduced_motion=motion
     )
@@ -551,7 +551,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "before-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "before-trace", record)
     user = open_page(browser, url)
     before = user.locator("#before")
     before.locator(".lf-trace-bookmark").click()
@@ -580,7 +580,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
     # it has any data or an archive-specific scope in which to save that view.
     user.get_by_role("radio", name="After", exact=True).click()
     after = user.locator("#after")
-    data_model.cmd_data_set(serve.page_dir, "after-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "after-trace", record)
     expect(after.locator(".lf-trace-phase")).to_have_attribute(
         "data-lf-datum", targets[1]
     )
@@ -654,7 +654,7 @@ def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "review-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "review-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
     expect(widget.get_by_role("radio", name="Stream 2", exact=True)).to_have_attribute(
@@ -716,7 +716,7 @@ def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, ser
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "hidden-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "hidden-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
     expect(widget).to_be_hidden()
@@ -1016,7 +1016,7 @@ def test_trace_images_stand_at_their_own_capture_times(browser, serve):
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "timed-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "timed-trace", record)
     user = open_page(browser, url)
     resized(user, 1280, 900)
     widget = user.locator("#journey")
@@ -1092,7 +1092,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "recording", record)
+    page_data_model.cmd_data_set(serve.page_dir, "recording", record)
     user = open_page(browser, url)
     before = user.locator("#before")
     after = user.locator("#after")

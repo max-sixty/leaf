@@ -40,7 +40,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix` where
 the neighbouring text tells two identical passages apart. The browser writes it from
 the user's selection. `leaf thread create`, and a reply command that moves a thread,
-write it from a quote read out of the authored HTML through `leaf.passages`, so they
+write it from a quote read out of the authored HTML through `leaf.source.passages`, so they
 write only anchors the file confirms (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
@@ -88,15 +88,15 @@ browser reads all of this off the rendered page, which no file reading can repro
 the door bounds its shape, the stroke count and 500 characters of `says`, refuses a
 drawing without an anchor or `box`, and does not re-read it. `$events.handling.comment`
 tells the agent how to read a drawing, and `leaf page picture` redraws one as the user
-saw it (`render_gate/picture.py`).
+saw it (`pages/render_gate/picture.py`).
 
 A note, a reply that publishes the saved source, or an `activation` carries
 `publication`, the exact immutable bundle name (`r<revision>-<digest>`). It is the
 first event of the revision's publication, and its seq is the revision's place in the
 log. A page's first revision, when a read activates it, has no such event, since no
 comparison reads its place. Only the checked source publisher supplies it;
-`revisioning.py`'s header says how a publication and the anchor moves that depend on
-it land together.
+`revision_publication.py`'s header says how a publication and the anchor moves that
+depend on it land together.
 
 ## Undo
 
@@ -162,7 +162,7 @@ told of the withdrawal, whether it has yet to read the gesture or has already ac
 it. A user's edit
 carries it as a reply does; read marks, and closing or reopening an answered thread that
 holds no obligation, do not. `leaf wait`, delivery, pickup, the Stop guard and the idle
-gate read the field through `service.requires_agent_attention`, and the pending count
+gate read the field through `transaction.requires_agent_attention`, and the pending count
 counts only the user's events.
 
 Either side can open or close a thread. A thread has served its purpose once the user
@@ -349,7 +349,7 @@ widgets', thread widgets', message requests and user-owned tasks, with a record 
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses and its next
 actor. `$keys.awaits` in `browser/registry.json` says when a widget's obligation
-exists and what its id is, and `Obligation` in `served_state/state.schema.json` lists
+exists and what its id is, and `Obligation` in `serving/served_state/state.schema.json` lists
 the served fields. `obligations.collection` selects `all`, `user` and `unanswered` from
 it. To-dos are separate records, and no to-do is made from an obligation.
 

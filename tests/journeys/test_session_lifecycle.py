@@ -27,15 +27,15 @@ from model.test_session_lifecycle import (
     prompt,
 )
 
-from leaf import files as files_model
-from leaf import hook_transport as hook_transport_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import schema as schema_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf.registry import storage as registry_storage
+from leaf.base import files as files_model
+from leaf.base import schema as schema_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import hooks as hooks_model
+from leaf.pages import hosting as hosting_model
+from leaf.source.registry import storage as registry_storage
 
 
 def test_the_server_a_prompt_hook_starts_lives_as_long_as_its_session(claimed):
@@ -153,8 +153,15 @@ def test_a_prompt_serves_only_a_page_its_session_still_means_to_serve(page_dir, 
         sid = f"reconnect-{case}"
         record_claim(page_dir, id=sid)
         write_record(page_dir / "service.json", service)
-        claim_path = service_model.claim_path(page_dir)
+        claim_path = service_model.CLAIM.file(service_model.claim_path(page_dir))
         raw = files_model.read_json(claim_path)
+        service_file = server_model.SERVICE.file(page_dir / "service.json")
+        # A Leaf of another shape's records, which this Leaf reads none of.
+        older_claim = claim_path.with_name(
+            f"{service_model.claim_path(page_dir).stem}@0.json"
+        )
+        older_service = page_dir / "service@0.json"
+        watched = claim_path
         events = (page_dir / "events.jsonl").read_bytes()
         if case == "stop":
             assert not hosting_model.cmd_stop(page_dir)
@@ -163,37 +170,41 @@ def test_a_prompt_serves_only_a_page_its_session_still_means_to_serve(page_dir, 
                 page_dir / "service.json", {**service, "lifetime": "persistent"}
             )
         elif case == "preview":
-            cleanup_model.write_json(page_dir / "preview.json", {})
+            cleanup_model.write_json(
+                service_model.PREVIEW.file(page_dir / "preview.json"), {}
+            )
         elif case == "transferred":
             record_claim(page_dir, id="successor")
         elif case == "foreign-harness":
             record_claim(page_dir, id=sid, harness="codex")
         elif case == "obsolete-claim":
-            cleanup_model.write_json(
-                claim_path,
-                {**raw, "format": "leaf-claim/0"},
-            )
+            cleanup_model.write_json(older_claim, {**raw, "format": "leaf-claim/0"})
+            claim_path.unlink()
+            watched = older_claim
         elif case == "obsolete-service":
             cleanup_model.write_json(
-                page_dir / "service.json",
+                older_service,
                 {
-                    **files_model.read_json(page_dir / "service.json"),
+                    **files_model.read_json(service_file),
                     "format": "leaf-service/0",
                 },
             )
+            service_file.unlink()
         elif case == "missing-service":
-            (page_dir / "service.json").unlink()
+            service_file.unlink()
         elif case == "uninitialized-page":
             (page_dir / "events.jsonl").unlink()
         elif case == "new-session":
             sid = "never-claimed-a-leaf"
-        claimed_before = claim_path.read_bytes()
+        claimed_before = watched.read_bytes()
         prompt(sid)
         assert "did not start again" not in capsys.readouterr().out, case
         assert server_model.running_server(page_dir) is None, case
-        assert claim_path.read_bytes() == claimed_before, case
+        assert watched.read_bytes() == claimed_before, case
         (page_dir / "events.jsonl").write_bytes(events)
-        (page_dir / "preview.json").unlink(missing_ok=True)
+        service_model.PREVIEW.remove(page_dir / "preview.json")
+        older_claim.unlink(missing_ok=True)
+        older_service.unlink(missing_ok=True)
 
     record_claim(page_dir, id="reconnect-control")
     write_record(page_dir / "service.json", service)

@@ -18,19 +18,19 @@ from interact_support import (
     state_json,
 )
 
-from leaf import activity as activity_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import standing as standing_model
-from leaf import thread as thread_model
-from leaf.served_state.context import read_page
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.agents.presence import read_work
+from leaf.base import standing as standing_model
+from leaf.log import event_log as events_model
+from leaf.records import activity as activity_model
+from leaf.records import transaction as transaction_model
 
 
 def _owed_answers(page_dir, reading):
     """The answers `reading` (`blocking_obligations` or `turn_obligations`) holds the
     agent to, by input and operation, with the delivery's reference left off."""
-    work = read_page(page_dir, events_model.read_events(page_dir)).work
+    work = read_work(page_dir, events_model.read_events(page_dir))
     state = {**work.presence, "activity": work.activity}
     return [
         (
@@ -276,7 +276,7 @@ def test_a_queued_update_holds_the_agent_once_it_starts_it(claimed):
         )
         for text in ("Tighten the lede.", "And the title?")
     )
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         delivery_model.record_pickup(transaction, [started, waiting], phase="queued")
     acknowledge_through(claimed, waiting["seq"])
     assert _owed_answers(claimed, activity_model.blocking_obligations) == []

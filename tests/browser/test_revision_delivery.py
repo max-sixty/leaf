@@ -6,7 +6,7 @@ from urllib.parse import quote
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
 
-from leaf.revision_delivery import (
+from leaf.serving.revision_delivery import (
     media_size,
 )
 

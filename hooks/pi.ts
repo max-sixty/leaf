@@ -1,7 +1,7 @@
 /**
  * Leaf's watcher and hook transport in Pi: the extension does for a Pi session what `hooks.json`
  * does for a Claude Code one (`PiHarness` in
- * `src/leaf/harness.py`).
+ * `src/leaf/base/harness.py`).
  *
  * Highly experimental: a trial of Leaf on Pi. The site and most references
  * still name only Claude Code and Codex.

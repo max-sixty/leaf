@@ -19,7 +19,7 @@ handled is a retry: do not repeat its repository edits or external actions.
 ## One envelope on every transport
 
 Every transport delivers the same immutable object.
-`DELIVERY` in the plugin’s `src/leaf/delivery.py` declares every field, with the thread
+`DELIVERY` in the plugin’s `src/leaf/agents/delivery.py` declares every field, with the thread
 digests. Some harnesses put it in your context; others give a pointer, which
 `leaf delivery read <id>` resolves. A large envelope reads in numbered parts
 instead: each reading names its `part` of `parts` and holds a slice of the

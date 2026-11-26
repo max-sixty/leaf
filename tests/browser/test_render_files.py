@@ -22,7 +22,7 @@ from render_harness import (
 )
 
 from browser.test_render_gate import AIM_BOXES, aim_selectors
-from leaf.file_bindings import bind_file
+from leaf.source.file_bindings import bind_file
 
 
 def test_file_editor_page_navigation_preserves_the_caret_position(
@@ -82,19 +82,23 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
 ):
     """A rendered copy bound to the editor with `for` follows what the reader types once
     it saves, and its passages name the file, so a comment on one says which file it is
-    about. A link naming a line far down the file, followed or loaded, brings that line
-    to the middle of the editor rather than its foot."""
+    about. Its code is coloured and its formulas typeset while the editor colours the
+    same file beside it, and the file's link to one of its headings lands there. A link
+    naming a line far down the file, followed or loaded, brings that line to the middle
+    of the editor rather than its foot."""
     file = tmp_path / "README.md"
     file.write_text(
-        "# Notes\n\n"
+        "# Notes\n\nCost: $`c(x) = h\\,x`$ a request, [as at the end](#the-end), "
+        "beside [the regions](#regions).\n\n"
+        '```json\n{"floor": 300000}\n```\n\n'
         + "\n\n".join(f"Paragraph {number}." for number in range(1, 201))
-        + "\n"
+        + "\n\n## The end\n\n> ## Notes\n\n## Source\n"
     )
     url = serve(
         leaf_page(
             "Notes",
             '<main class="layout-workspace"><header><h1>Notes</h1>'
-            '<p><a id="to-line" href="#notes-file:notes:301">paragraph 150</a></p>'
+            '<p><a id="to-line" href="#notes-file:notes:307">paragraph 150</a></p>'
             '</header><div id="regions" style="display: grid; '
             'grid-template-columns: 1fr 1fr">'
             '<lf-pane id="source" label="Source">'
@@ -110,9 +114,23 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     preview = page.locator("#preview .lf-text-document-preview")
-    expect(preview.get_by_role("heading", name="Notes")).to_be_visible()
+    expect(preview.get_by_role("heading", name="Notes", level=1)).to_be_visible()
 
     expect(preview).to_have_attribute("data-lf-identity", "preview:notes")
+    expect(preview.locator("code.language-math[data-lf-formula]")).to_have_count(1)
+    expect(preview.locator("code.language-json [data-lf-syn]").first).to_be_attached()
+    preview.get_by_role("link", name="as at the end").click()
+    expect(preview.get_by_role("heading", name="The end")).to_be_in_viewport()
+    # A fragment naming no heading of the file names the page's own place.
+    expect(preview.get_by_role("link", name="the regions")).to_have_attribute(
+        "href", "#regions"
+    )
+    # A heading's address is GitHub's, counted past one an earlier heading took, and
+    # never a reading's own key.
+    assert page.locator("#preview").evaluate(
+        """element => ["preview:notes-1", "preview:source", "source"].map(
+          (key) => element.lfElementsFor(key)[0]?.localName)"""
+    ) == ["h2", "h2", "pre"]
     centred = """() => {
       const root = document.querySelector('lf-file-editor').shadowRoot;
       const line = root.querySelector('.cm-activeLine').getBoundingClientRect();
@@ -130,7 +148,7 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     expect(preview).to_contain_text("Typed here. Paragraph 150.")
     assert "Typed here. Paragraph 150." in file.read_text()
 
-    loaded = open_page(browser, live_url(url) + "#notes-file:notes:301")
+    loaded = open_page(browser, live_url(url) + "#notes-file:notes:307")
     loaded_editor = loaded.locator("lf-file-editor").get_by_role(
         "textbox", name="File contents", exact=True
     )

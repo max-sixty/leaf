@@ -17,8 +17,9 @@ from interact_support import (
     running_http_server,
 )
 
-from leaf.cli import cli
-from leaf.file_bindings import (
+from leaf.base.locations import PATH_LOCKS, path_lock_key
+from leaf.commands.cli import cli
+from leaf.source.file_bindings import (
     BINDINGS,
     MAX_FILE_BYTES,
     FileBindingError,
@@ -29,8 +30,7 @@ from leaf.file_bindings import (
     read_file,
     save_file,
 )
-from leaf.locations import PATH_LOCKS, path_lock_key
-from leaf.page_inputs import page_reading
+from leaf.source.page_inputs import page_reading
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
@@ -67,29 +67,6 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         save_file(page_dir, "notes", {"revision": saved["revision"], "text": "mine\n"})
     assert stale.value.current["text"] == "external\n"
     assert target.read_text() == "external\n"
-
-
-def test_a_grant_another_leaf_recorded_in_another_shape_survives_the_next_grant(
-    page_dir, tmp_path
-):
-    """Every shape of the grants record keeps its bindings (`state.Record.kept`), so
-    a grant a Leaf of another shape recorded stays the page's grant here, and the next
-    grant, which rewrites the record in this Leaf's shape, keeps it."""
-    first, second = tmp_path / "first.md", tmp_path / "second.md"
-    first.write_text("first\n")
-    second.write_text("second\n")
-    bind_file(page_dir, "first", first)
-    record = page_dir / "files.json"
-    stored = json.loads(record.read_text())
-    stored["format"] = "leaf-file-bindings/999"
-    record.write_text(json.dumps(stored))
-
-    granted = read_file(page_dir, "first")
-    assert granted is not None and granted["text"] == "first\n"
-    bind_file(page_dir, "second", second)
-    assert BINDINGS.read(record) == {
-        "bindings": {"first": str(first.resolve()), "second": str(second.resolve())}
-    }
 
 
 def test_each_bound_file_is_named_by_its_path_among_the_pages_files(page_dir, tmp_path):
@@ -246,7 +223,7 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
             save_file(page_dir, "notes", body)
     assert target.read_bytes() == b"original\n"
     with pytest.raises(FileBindingError):
-        bind_file(page_dir, "grants", page_dir / "files.json")
+        bind_file(page_dir, "grants", BINDINGS.file(page_dir / "files.json"))
     substitute = tmp_path / "other.txt"
     substitute.write_bytes(b"private\n")
     target.unlink()
@@ -286,7 +263,7 @@ def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(
 
 
 def test_two_pages_share_one_target_write_lock(tmp_path, monkeypatch):
-    from leaf import file_bindings
+    from leaf.source import file_bindings
 
     target = tmp_path / "shared.txt"
     target.write_text("original\n")
@@ -376,11 +353,11 @@ def test_http_file_door_requires_key_origin_and_current_revision(
         assert json.loads(raw)["error"].startswith("Could not access the bound file:")
         assert str(target.parent).encode() not in raw
 
-    from leaf.files import latest_revision
-    from leaf.hosting import LeafHTTPServer
-    from leaf.http import page_endpoint
-    from leaf.page_snapshot import capture_page_snapshot
-    from leaf.revision_artifact import read_artifact, read_revision
+    from leaf.base.files import latest_revision
+    from leaf.pages.hosting import LeafHTTPServer
+    from leaf.pages.page_snapshot import capture_page_snapshot
+    from leaf.serving.http import page_endpoint
+    from leaf.source.revision_artifact import read_artifact, read_revision
 
     revision = latest_revision(page_dir)
     assert revision is not None

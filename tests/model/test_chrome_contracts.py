@@ -13,8 +13,8 @@ from render_harness import (
     watched,
 )
 
-from leaf.findings import Finding
-from leaf.render_checks import SERVED_TIMEOUT_MS
+from leaf.base.findings import Finding
+from leaf.source.render_checks import SERVED_TIMEOUT_MS
 
 
 def said(text):

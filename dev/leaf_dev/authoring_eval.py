@@ -28,8 +28,8 @@ import sys
 import time
 from pathlib import Path
 
-from leaf.media import media_name
-from leaf.render_gate import command as render_command_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.serving.media import media_name
 from leaf_dev.arms import (
     author_failure,
     blocks,
@@ -141,8 +141,8 @@ def bound_sources(page: Path, state: Path) -> dict:
     code = (
         "import json, sys\n"
         "from pathlib import Path\n"
-        "from leaf.data import read_data\n"
-        "from leaf.registry.storage import load_registry\n"
+        "from leaf.source.data import read_data\n"
+        "from leaf.source.vocabulary import load_registry\n"
         "page = Path(sys.argv[1])\n"
         'print(json.dumps(read_data(page, load_registry(page))["sources"]))\n'
     )

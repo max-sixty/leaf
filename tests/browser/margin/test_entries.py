@@ -33,8 +33,8 @@ from browser.margin import (
     DENSE_SUGGESTIONS_PAGE,
     _comment_on,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1144,7 +1144,7 @@ PICTURE_PARTS_PAGE = leaf_page(
     "parts of pictures",
     '<h1 id="t">Parts</h1>'
     + chart_markup("weeks", WEEKS).replace("<lf-chart ", '<lf-chart data-height="220" ')
-    + '<lf-diagram id="flow" parts="all"><pre>\ngraph LR\n'
+    + '<lf-diagram id="flow"><pre>\ngraph LR\n'
     "  S[Start request] --> H[Handle request] --> U[Result]\n</pre></lf-diagram>",
 )
 

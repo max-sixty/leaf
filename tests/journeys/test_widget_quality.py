@@ -16,9 +16,9 @@ from known_widget_findings import KNOWN, PACKAGES
 from model_folds import leaf_page
 from playwright.sync_api import expect
 
-from leaf import event_log
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.widget_quality import widget_findings
+from leaf.log import event_log
+from leaf.pages.render_gate.widget_quality import widget_findings
+from leaf.source.render_checks import wait_until_ready
 
 
 @pytest.mark.parametrize("package", PACKAGES, ids=lambda package: package.name)

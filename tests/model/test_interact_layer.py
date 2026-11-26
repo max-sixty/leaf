@@ -52,38 +52,40 @@ from model_folds import leaf_page
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as interact_files
-from leaf import hooks as hooks_model
-from leaf import layer as layer_model
-from leaf import locations as interact_locations
-from leaf import machine as machine_model
-from leaf import packages as packages_model
-from leaf import page_memory
-from leaf import revision_artifact as artifact_model
-from leaf import schema as schema_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf import styles as styles_model
-from leaf import vendoring as vendoring_model
-from leaf.findings import Finding
-from leaf.page import page_instructions
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.refusals import Refused
-from leaf.registry import storage as registry_storage
-from leaf.registry import widgets as registry_widgets
-from leaf.registry.contract import (
+from leaf.agents import delivery as delivery_model
+from leaf.agents.thread import fit_title
+from leaf.base import files as interact_files
+from leaf.base import locations as interact_locations
+from leaf.base import machine as machine_model
+from leaf.base import page_memory
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.log import event_log as events_model
+from leaf.pages import packages as packages_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.pages.page import page_instructions
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate.preview import preview_server
+from leaf.records.revisioning import activate_source
+from leaf.source import data as data_model
+from leaf.source import layer as layer_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import structure as structure_model
+from leaf.source import styles as styles_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry import storage as registry_storage
+from leaf.source.registry import widgets as registry_widgets
+from leaf.source.registry.contract import (
     DECLARED_WORDS,
     complete_declarations,
     stamp_grammars,
 )
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate.preview import preview_server
-from leaf.revisioning import activate_source
-from leaf.thread import fit_title
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     authored_sources,
@@ -119,14 +121,14 @@ def layer_files(page: Path) -> dict[str, bytes]:
     """The files the layer `page` selects serves, by rooted path."""
     layer_2 = registry_storage.layer_record(page)
     assert layer_2 is not None
-    return registry_storage.selected(layer_2, page).files
+    return layer_model.selected_layer(layer_2, page).files
 
 
 def layer_instructions(page: Path) -> dict[str, bytes]:
     """The instructions the layer `page` selects composes, by file name."""
     record = registry_storage.layer_record(page)
     assert record is not None
-    return registry_storage.selected_vocabulary(record, page).instructions
+    return layer_model.selected_vocabulary(record, page).instructions
 
 
 def test_cli_help_groups_commands_with_complete_summaries(regtest):
@@ -252,7 +254,19 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         ids.append(events_model.read_events(page)[-1]["id"])
     # A message by id answers nothing. Undelivered, the owed message has no
     # reference yet: the note names the wait that delivers one.
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
+    record(
+        [
+            "thread",
+            "reply",
+            str(page),
+            ids[0],
+            "--text",
+            "Answer",
+            "--title",
+            "Thread title",
+        ],
+        0,
+    )
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
@@ -349,7 +363,7 @@ def test_a_page_an_older_leaf_initialized_is_renewed_keeping_its_packages(claime
     `--package` keeps the packages it selected, the one field this Leaf reads off
     another Leaf's record. Read as none, the page would never be renewed, and `page
     init` would select no packages."""
-    from leaf.event_contracts import write_refusal
+    from leaf.records.event_contracts import write_refusal
 
     path = claimed / schema_model.LAYER_FILE
     record = registry_storage.layer_record(claimed)
@@ -385,7 +399,7 @@ def test_a_page_a_newer_leaf_initialized_is_refused_whatever_its_shape(claimed):
     reads the page's layer, name the newer Leaf as the repair, rather than crashing
     on the shape or reading it as none and naming `page init`, and none rewrites the
     file."""
-    from leaf.event_contracts import write_refusal
+    from leaf.records.event_contracts import write_refusal
 
     publish(claimed)
     path = claimed / schema_model.LAYER_FILE
@@ -868,7 +882,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
     # A harness's copy carries no `.git`, so the time it was made is the only date it
     # has: every file written then, the running module's own included.
     copied_at = 1_790_000_000
-    layer = cached / "src" / "leaf" / "layer.py"
+    layer = cached / "src" / "leaf" / "source" / "layer.py"
     os.utime(layer, (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
@@ -1197,8 +1211,8 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
     assert revendored.exit_code == 0, revendored.output
     assert registry_storage.layer_metadata(page)["generation"] == generation
     assert {name: (authored / name).read_text() for name in files} == files
-    assert "lf-local" not in registry_storage.load_registry(page)
-    composed = registry_storage.read_page_registry(page)
+    assert "lf-local" not in vocabulary_model.load_registry(page)
+    composed = vocabulary_model.read_page_registry(page)
     assert composed.widget_sources["lf-local"] == "page/widgets/lf-local.js"
 
 
@@ -1231,7 +1245,8 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "layer.json").unlink()
     (first / "layer.json").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    (first / "stream.json").write_text("{}")
+    stream = service_model.STREAM.file(Path("stream.json"))
+    (first / stream).write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1241,7 +1256,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     for name in ("layer.json", "events.jsonl"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     # A stream the test wrote is a file it added, so the reset takes it away.
-    assert not (second / "stream.json").exists()
+    assert not (second / stream).exists()
 
 
 def _css_parse_errors(nodes):
@@ -2698,7 +2713,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
     sources = (
         schema_model.ASSETS,
         schema_model.BUNDLED_PACKAGES,
-        Path(schema_model.__file__).parent,
+        Path(schema_model.__file__).parents[1],
     )
     paths = sorted(path for root in sources for path in root.rglob("*"))
     names, prefixes = styles_model.set_properties(
@@ -2880,7 +2895,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     read = json.loads(js_facts("literals", [page_paint]))
     assets = schema_model.ASSETS
     sheet = (assets / "base.css").read_text() + (
-        assets / "runtime/chrome.css"
+        assets / "styles/components/element-marks.css"
     ).read_text()
 
     spelling = (
@@ -3139,7 +3154,7 @@ def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypa
     assert state["event_seq"] == 0
     assert state["data"] == {"dir": "data", "errors": []}
     assert (
-        data_model.read_data(page, registry_storage.load_registry(page))["sources"]
+        data_model.read_data(page, vocabulary_model.load_registry(page))["sources"]
         == {}
     )
 
@@ -3249,7 +3264,7 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
 
     def request():
         together.wait(STATED_TIMEOUT)
-        read.append(registry_storage.selected_vocabulary(record, page_dir))
+        read.append(layer_model.selected_vocabulary(record, page_dir))
 
     requests.extend(threading.Thread(target=request) for _ in range(8))
     for thread in requests:
@@ -3267,12 +3282,12 @@ def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
     """Pages that select the same packages read one layer vocabulary, held for the
     process (`layer._held`). The vocabulary a page's revision is read in names the
     page's generation, so it is the page's reading, kept in the page's memory
-    (`registry.storage._Revisions`): the page's revisions that declare the same share
+    (`revision_artifact._Revisions`): the page's revisions that declare the same share
     one, a vocabulary composed over a replaced layer replaces the one before it, and
     the shared layer keeps none of them once their pages' memories go."""
     monkeypatch.chdir(tmp_path)
     composed: list[weakref.ref] = []
-    compose = registry_storage._compose_revision
+    compose = artifact_model._compose_revision
 
     class Composition(list):
         """A revision's composed vocabulary and its inputs, held weakly here, as a
@@ -3287,7 +3302,7 @@ def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
         gc.collect()
         return sum(held() is not None for held in composed)
 
-    monkeypatch.setattr(registry_storage, "_compose_revision", watched)
+    monkeypatch.setattr(artifact_model, "_compose_revision", watched)
     pages = [tmp_path / f"page-{n}" for n in range(3)]
     for page in pages:
         page.mkdir()
@@ -3304,12 +3319,12 @@ def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
     for page in pages:
         record = registry_storage.layer_record(page)
         assert record is not None
-        vocabularies.add(registry_storage.selected_vocabulary(record, page))
+        vocabularies.add(layer_model.selected_vocabulary(record, page))
     assert len(vocabularies) == 1
 
     def vocabulary(page, revision):
         manifest = artifact_model.read_revision(page, revision).manifest
-        return registry_storage.revision_vocabulary(manifest, None, page)
+        return artifact_model.revision_vocabulary(manifest, None, page)
 
     for page in pages:
         assert vocabulary(page, 1) is vocabulary(page, 2)
@@ -3352,7 +3367,7 @@ def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     page's state needs no package sheet or module, nor a validated registry, so the
     page reads on, and `page check` and a server about to bind (`http.page_endpoint`,
     which `server start` runs) refuse it, naming the repair."""
-    from leaf.http import page_endpoint
+    from leaf.serving.http import page_endpoint
 
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "notes"
@@ -3740,7 +3755,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    registry = registry_storage.load_registry(page)
+    registry = vocabulary_model.load_registry(page)
     composed = stamp_grammars(
         complete_declarations(
             {"lf-local": project_entry, "lf-project-only": project_only}
@@ -3783,7 +3798,7 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert result.exit_code == 0, result.output
-    registry = registry_storage.load_registry(page)
+    registry = vocabulary_model.load_registry(page)
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())
     assert registry[".hazard"] == hazard
     assert registry["aside.sidenote"] == sidenote
@@ -4180,7 +4195,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     )
 
     assert result.exit_code == 0, result.output
-    registry = registry_storage.load_registry(page)
+    registry = vocabulary_model.load_registry(page)
     assert registry["$layer"]["packages"] == ["./packages/first", "./packages/second"]
     assert registry["lf-shared"]["description"] == "second"
     assert layer_files(page)["/widgets/shared.js"] == b"// second\n"
@@ -4953,7 +4968,7 @@ def test_selecting_the_bundled_default_package_is_redundant(tmp_path):
         cli_model.cli, ["page", "init", "--package", "default", str(page)]
     )
     assert result.exit_code == 0, result.output
-    assert "lf-options" in registry_storage.load_registry(page)
+    assert "lf-options" in vocabulary_model.load_registry(page)
 
 
 def test_page_init_refuses_to_publish_an_absolute_package_path(tmp_path, monkeypatch):
@@ -5029,7 +5044,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     )
 
     assert initialized.exit_code == 0, initialized.output
-    registry = registry_storage.load_registry(page)
+    registry = vocabulary_model.load_registry(page)
     assert registry["$layer"]["packages"] == ["./packages/solo", "./packages/night"]
     assert "lf-solo" in registry
     assert "/widgets/lf-solo.js" in layer_files(page)
@@ -5057,7 +5072,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.load_registry(page)["$layer"]["packages"] == [
+    assert vocabulary_model.load_registry(page)["$layer"]["packages"] == [
         "./packages/solo",
         "./packages/night",
     ]
@@ -5077,7 +5092,7 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
 
     assert checked.exit_code == 0, checked.output
     assert initialized.exit_code == 0, initialized.output
-    registry = registry_storage.load_registry(page)
+    registry = vocabulary_model.load_registry(page)
     widget = registry["lf-pr-brief"]
     assert registry["$layer"]["packages"] == ["./packages/pr-walkthrough.page"]
     assert widget["inputs"] == {
@@ -5215,8 +5230,8 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
 
     assert bundled_result.exit_code == 0, bundled_result.output
     assert local_result.exit_code == 0, local_result.output
-    bundled_registry = registry_storage.load_registry(bundled)
-    local_registry = registry_storage.load_registry(local_page)
+    bundled_registry = vocabulary_model.load_registry(bundled)
+    local_registry = vocabulary_model.load_registry(local_page)
     assert "lf-diagram" in bundled_registry
     assert "lf-local" not in bundled_registry
     assert bundled_registry["$layer"]["packages"] == ["diagram"]
@@ -5226,10 +5241,10 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
 
 
 def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
-    from leaf.revision_artifact import read_artifact
+    from leaf.source.revision_artifact import read_artifact
 
     manifest = json.loads(read_artifact(page, revision).manifest)
-    return registry_storage.selected(manifest["layer"], page).files
+    return layer_model.selected_layer(manifest["layer"], page).files
 
 
 def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
@@ -5262,7 +5277,7 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    tokens = registry_storage.load_registry(page)["$reactions"]["tokens"]
+    tokens = vocabulary_model.load_registry(page)["$reactions"]["tokens"]
     assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
     assert tokens["keep"] == {"glyph": "👍", "settles": True}
     assert tokens["meh"] == {"glyph": "~"}
@@ -5786,7 +5801,7 @@ def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
     layer's list as its `enum` in the vocabulary a page
     composes, so its schema says what it accepts to validation and to an author
     reading the entry, and the selected entry's instructions list the words."""
-    registry = registry_storage.read_page_registry(page_dir).registry
+    registry = vocabulary_model.read_page_registry(page_dir).registry
     checked = set()
     for attr, fact in DECLARED_WORDS:
         for name, entry in registry.items():

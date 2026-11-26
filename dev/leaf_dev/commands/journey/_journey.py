@@ -96,19 +96,19 @@ from playwright.sync_api import BrowserContext, Locator, Page
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf import inference, thread_titles
-from leaf.event_log import read_events
-from leaf.events import build_threads
-from leaf.files import revision_path
-from leaf.findings import Finding
-from leaf.interaction_log import read_interactions
-from leaf.leases import wait_is_live
-from leaf.render_checks import open_render_context, open_render_page
-from leaf.server import running_server
-from leaf.service import claim_is_active, page_claim
-from leaf.state import session_live, session_record, turn_open
-from leaf.structure import SourceDocument
-from leaf.thread import successful_replies
+from leaf.agents import inference, thread_titles
+from leaf.agents.thread import successful_replies
+from leaf.base.files import revision_path
+from leaf.base.findings import Finding
+from leaf.base.leases import wait_is_live
+from leaf.base.server import running_server
+from leaf.base.service import claim_is_active, page_claim
+from leaf.base.state import session_live, session_record, turn_open
+from leaf.log.event_log import read_events
+from leaf.log.events import build_threads
+from leaf.log.interaction_log import read_interactions
+from leaf.source.render_checks import open_render_context, open_render_page
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT, state_home
 from leaf_dev.arms import (
     PAYLOAD,
@@ -994,7 +994,7 @@ def stop_left_running(state: Path) -> list[str]:
     journey's session and what it started have, and name each. One outlives the
     session by design: the sandbox bridge, which Claude Code's hooks start and
     which retires on its next sweep after the last session it serves ends
-    (`leaf.bridge`), writing the state home as it goes. Each gets 10 s to exit on
+    (`leaf.base.bridge`), writing the state home as it goes. Each gets 10 s to exit on
     SIGTERM before SIGKILL. The system hides its own binaries' environments, such
     as `sleep`'s, but not Leaf's Python or a harness's, which are what write the
     state home."""
@@ -1326,7 +1326,7 @@ class User:
     the release ask, each later step's comment, and how long each step took. A
     harness module drives the steps and checks them; `events` reads the page's log,
     `forks` the `fork_outcome` records its forks left in the page's diagnostics
-    (`leaf.forks.route`), and `terminal` is the session, where the journey runs
+    (`leaf.agents.forks.route`), and `terminal` is the session, where the journey runs
     them."""
 
     def __init__(
@@ -1492,7 +1492,7 @@ class User:
         return {"userEnd": self.end.name, "case": self.case, **release, "steps": steps}
 
 
-# What a sample keeps of a fork's `fork_outcome` record (`leaf.forks.route`).
+# What a sample keeps of a fork's `fork_outcome` record (`leaf.agents.forks.route`).
 FORK_READING = ("outcome", "why", "elapsedMs", "usage")
 # The usage counts a fork reports, as a step prints them.
 FORK_TOKENS = (

@@ -223,6 +223,14 @@ the page's own grid of panes:
 }
 ```
 
+Give material beside the regions' work, such as a list of open items or a report, a view
+of its own, so the regions keep the room the reader works in. Make the body a tab set
+with `flow="page"`, put the regions in its first tab, so the page still opens on them,
+and add a tab for the material. A grid of panes that is a tab's one block fills the
+window below the tab strip, as it does as the body. Written as a second block beside the
+body, the material would split the window's height with it, and written as another
+region, it would take room from the others.
+
 A widget that asks, such as a playground, stands in its question's group
 (`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
 heading asks the question, the group's label asks it too:
@@ -264,7 +272,9 @@ neighbours, such as its age or suggested outcome. Leave out the item's group, wh
 heading shows. Where items fall into kinds the user works through in turn, such as
 merge, close and FYI, give each item its kind as `group` and place each kind's items
 together in the order to take them; adjacent tabs with the same group share one
-heading.
+heading. Where the user would rather take the items one at a time than see the list,
+make the body a pile of cards that shows one at a time and counts what is left, such
+as a deck.
 
 ## Bounds and widths
 

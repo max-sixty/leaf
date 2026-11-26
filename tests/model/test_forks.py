@@ -14,26 +14,25 @@ from interact_support import (
     stamp,
 )
 
-from leaf import clerk as clerk_model
-from leaf import delivery as delivery_model
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import file_changes as file_changes_model
-from leaf import forks as forks_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import page_memory as page_memory_model
-from leaf import presence as presence_model
-from leaf import revision_artifact as revision_artifact_model
-from leaf import server_rows as server_rows_model
-from leaf import service as service_model
-from leaf import state as state_model
-from leaf import thread as thread_model
-from leaf.interaction_log import read_interactions
-from leaf.registry import kernel as kernel_model
-from leaf.served_state.context import read_page
-from leaf.service import PageTransaction
+from leaf.agents import clerk as clerk_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import forks as forks_model
+from leaf.agents import presence as presence_model
+from leaf.agents import thread as thread_model
+from leaf.agents.presence import read_work
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import page_memory as page_memory_model
+from leaf.base import service as service_model
+from leaf.base import state as state_model
+from leaf.commands import hooks as hooks_model
+from leaf.log import event_log as events_model
+from leaf.log import file_changes as file_changes_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records import transaction as transaction_model
+from leaf.records.transaction import PageTransaction
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving import server_rows as server_rows_model
 
 # What Leaf's Claude Code hooks module gives the pages follower of session s1
 # (`hooks.cmd_pages`).
@@ -95,7 +94,7 @@ def on_it(page_dir) -> list[str]:
     """The inputs the served workflows of the page, which has a document, read as the
     agent's work in hand (`running`), which the page words On it while their delivery
     stands."""
-    work = read_page(page_dir, events_model.read_events(page_dir)).work
+    work = read_work(page_dir, events_model.read_events(page_dir))
     return sorted(
         item["input"] for item in work.workflows if item["state"] == "running"
     )
@@ -198,7 +197,7 @@ def test_a_line_after_a_newer_message_leaves_one_its_turn_left_stopped(claimed):
         },
     )
 
-    work = read_page(claimed, events_model.read_events(claimed)).work
+    work = read_work(claimed, events_model.read_events(claimed))
     assert {
         item["input"]: (item["state"], item["reason"]) for item in work.workflows
     } == {
@@ -629,7 +628,7 @@ def test_the_follower_reads_a_thread_a_version_reopened_as_the_fold_does(
         for offset, event in enumerate(logged, 1):
             log.write(json.dumps({**event, "seq": seq + offset, "ts": ts}) + "\n")
     monkeypatch.setattr(
-        revision_artifact_model, "active_enclosing", lambda page_dir: {"sec1": ["w1"]}
+        forks_model, "active_enclosing", lambda page_dir: {"sec1": ["w1"]}
     )
     assert listed(claimed) == [basis(claimed, "contained-c1", "contained-c1")]
 
@@ -707,9 +706,9 @@ def test_the_follower_ends_once_its_tree_moves_on_under_it(
     monkeypatch.setattr(file_changes_model, "wait", wait)
     if moved == "protocol":
         monkeypatch.setattr(
-            kernel_model,
+            hooks_model,
             "installed_protocol",
-            lambda: kernel_model.kernel_protocol() + len(waited),
+            lambda: state_model.kernel_protocol() + len(waited),
         )
     else:
         launcher = state_model.PLUGIN_ROOT / "bin" / "leaf"
@@ -736,7 +735,7 @@ def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
     that it would otherwise close its own subscriptions and wake at once, pass
     after pass."""
     for n in range(page_memory_model.PageMemories.LIMIT):
-        service_model.claim_page(
+        transaction_model.claim_page(
             initialized_page(tmp_path / f"more-{n}", page_packages())
         )
 

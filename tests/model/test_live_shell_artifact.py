@@ -7,13 +7,13 @@ import pytest
 from interact_support import PAGE
 from interact_support import append_carried_log_record as append_event
 
-from leaf.files import revision_path
-from leaf.live_shell import write_live_shell
-from leaf.registry.storage import load_registry
-from leaf.revision_artifact import read_artifact
-from leaf.revision_delivery import json_script, layer_import_map
-from leaf.revisioning import activate_source
-from leaf.runtime_selection import executing
+from leaf.base.files import revision_path
+from leaf.records.revisioning import activate_source
+from leaf.serving.live_shell import write_live_shell
+from leaf.serving.revision_delivery import json_script, layer_import_map
+from leaf.source.revision_artifact import read_artifact
+from leaf.source.runtime_selection import executing
+from leaf.source.vocabulary import load_registry
 
 
 @pytest.mark.parametrize(

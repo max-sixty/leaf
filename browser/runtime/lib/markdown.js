@@ -1,7 +1,7 @@
 /* Leaf's Markdown dialect: one reading of Markdown to HTML, in a message's reading and
    a file's (`renderMarkdown`), the words a rendering shows (`markdownWords`), and the
    source offset under a caret in a rendering (`markdownSourceOffset`). Python reads the
-   same dialect (`leaf.passages.markdown_dialect`), and the shared case files
+   same dialect (`leaf.source.passages.markdown_dialect`), and the shared case files
    (`tests/*markdown*_cases.json`, `tests/message_html_cases.json`) hold the two to the
    same words.
 
@@ -78,7 +78,7 @@ let ready;
 export const renderMarkdown = (text, links, message = true) =>
   render(text, links, message);
 // An agent's message holding HTML (`html` on its served message) reads as a message
-// that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`),
+// that keeps the raw HTML in it, as Python checked it (`leaf.source.passages.message_markup`),
 // so it is for markup its caller has already checked. Every other reading shows a tag
 // as the words that spell it, since what the user types is no markup Leaf checked. The
 // HTML reads by CommonMark's rules, as GitHub reads a comment's, which agents already
@@ -131,7 +131,7 @@ export function inlineMarkdownFragment(text, links, message = true) {
 // this source already holds its rendering and is left as it is; a paint before the
 // parser loads leaves the element unstamped, so the next paint renders. The body reads
 // as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
-// (`leaf.passages.markdown_markup`) and the field editing it in place reads it
+// (`leaf.source.passages.markdown_markup`) and the field editing it in place reads it
 // (annotations/composing/field-editor.js, `read`).
 /** @param {Element} element @param {string} source @param {MarkdownLinks} links */
 export function paintMarkdown(element, source, links) {
@@ -683,6 +683,40 @@ const linksOf = (env) =>
 // The blocks the parser emits whole, with no opening and closing pair.
 const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
 
+// Each code span between a text's closing `$` and the next text's opening one, before
+// text joining, while an escaped `\$` is still a token of its own.
+/** @param {import("markdown-it").StateCore} state */
+function inlineFormulas(state) {
+  for (const block of state.tokens) {
+    if (!isInlineToken(block)) continue;
+    const children = block.children;
+    for (let at = 1; at < children.length - 1; at++) {
+      const [before, code, after] = children.slice(at - 1, at + 2);
+      if (
+        code?.type !== "code_inline" ||
+        before?.type !== "text" ||
+        after?.type !== "text" ||
+        !before.content.endsWith("$") ||
+        !after.content.startsWith("$")
+      )
+        continue;
+      before.content = before.content.slice(0, -1);
+      after.content = after.content.slice(1);
+      code.attrJoin("class", "language-math");
+      // The dollars are the formula's markers, as its backticks are, in the reading that
+      // places tokens in the source (`sourcePositions`), so a field editing the file
+      // treats them as it does the backticks.
+      code.markup = "$" + code.markup;
+      const [a, b, c] = [before, code, after].map((token) => token.lfSource?.source);
+      if (a && b && c && before.lfSource && code.lfSource && after.lfSource) {
+        before.lfSource.source = [a[0], a[1] - 1];
+        code.lfSource.source = [b[0] - 1, b[1] + 1];
+        after.lfSource.source = [c[0] + 1, c[1]];
+      }
+    }
+  }
+}
+
 // The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`), which
 // passages.py reads the same (`markdown_dialect`).
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message
@@ -711,6 +745,13 @@ export function makeMarkdown(module, message, html = false) {
       }
     });
   }
+  // A file's inline formula is GitHub's: a code span with a `$` against each of its
+  // backticks, as in $`x^2`$. It draws as the page writes a formula, a code span in
+  // the math language (readings/formulas.js), without the dollars. An escaped `\$`
+  // beside a code span leaves it code. Left out: GitHub's bare `$x$`, whose dollars
+  // GitHub tells from prices by rules of its own.
+  if (!message)
+    markdown.core.ruler.before("text_join", "file_formulas", inlineFormulas);
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });

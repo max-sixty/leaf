@@ -2248,22 +2248,24 @@ def test_a_column_stated_in_font_units_gives_every_breakout_the_same_room(
 
 
 @pytest.mark.parametrize(
-    ("engine", "layout", "direction"),
+    ("engine", "layout", "direction", "measure"),
     [
-        (engine, layout, "ltr")
+        (engine, layout, "ltr", None)
         for engine in ("browser", "firefox_browser", "webkit_browser")
         for layout in ("column", "sidebar")
     ]
-    + [("browser", "sidebar", "rtl")],
+    + [("browser", "sidebar", "rtl", None), ("browser", "sidebar", "ltr", "40em")],
 )
 def test_a_figure_that_takes_the_room_keeps_its_caption_under_the_prose(
-    request, serve, engine, layout, direction
+    request, serve, engine, layout, direction, measure
 ):
     """A figure given `data-width="available"` takes the room on both sides of the
-    prose, and its caption, being words, stays on the column: under the prose and as
-    wide. Beside a sidebar the room before the prose is narrower than the room after,
-    so a caption centred in the figure would stand off the prose's edge. A caption
-    written in the other direction from the page stands there too."""
+    prose, and its caption, being words, stays on the column: it starts where the
+    prose starts and keeps the measure. Beside a sidebar the room before the prose is
+    narrower than the room after, so a caption centred in the figure would stand off
+    the prose's edge. A caption or a figure written in the other direction from the
+    page stands there too. A measure stated in `em` keeps the prose's start edge,
+    though the caption's smaller face sets it narrower than the prose."""
     browser = request.getfixturevalue(engine)
     other = "rtl" if direction == "ltr" else "ltr"
     body = (
@@ -2275,22 +2277,28 @@ def test_a_figure_that_takes_the_room_keeps_its_caption_under_the_prose(
         '<figure data-width="available"><div>Exhibit</div>'
         f'<figcaption id="turned" dir="{other}">A caption written the other way.'
         "</figcaption></figure>"
+        f'<figure dir="{other}" data-width="available"><div>Exhibit</div>'
+        '<figcaption id="reversed">A caption in a figure written the other way.'
+        "</figcaption></figure>"
     )
     if layout == "sidebar":
         body = (
             "<aside><div class='layout-track'><p>Summary.</p></div></aside>"
             f"<div class='layout-column'>{body}</div>"
         )
-    source = leaf_page("Figure caption", body, layout=layout).replace(
+    head = f"<style>:root {{ --lf-col: {measure}; }}</style>" if measure else ""
+    source = leaf_page("Figure caption", body, head=head, layout=layout).replace(
         '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
     )
     page = open_page(browser, serve(source))
     resized(page, 1600, 900)
+    captions = ("caption", "turned", "reversed")
     at = page.evaluate(
-        """() => Object.fromEntries(['prose', 'figure', 'caption', 'turned'].map((id) => {
+        """(ids) => Object.fromEntries(ids.map((id) => {
           const box = document.getElementById(id).getBoundingClientRect();
           return [id, {left: box.left, right: box.right}];
-        }))"""
+        }))""",
+        ["prose", "figure", *captions],
     )
     prose, figure = at["prose"], at["figure"]
     assert figure["left"] < prose["left"] - 1 and figure["right"] > prose["right"] + 1
@@ -2298,9 +2306,14 @@ def test_a_figure_that_takes_the_room_keeps_its_caption_under_the_prose(
         before = prose["left"] - figure["left"]
         after = figure["right"] - prose["right"]
         assert abs(before - after) > 16, at
-    for caption in ("caption", "turned"):
-        for edge in ("left", "right"):
-            assert at[caption][edge] == pytest.approx(prose[edge], abs=1), at
+    start, end = ("left", "right") if direction == "ltr" else ("right", "left")
+    for caption in captions:
+        assert at[caption][start] == pytest.approx(prose[start], abs=1), at
+        if measure:
+            width = at[caption]["right"] - at[caption]["left"]
+            assert width < prose["right"] - prose["left"], at
+        else:
+            assert at[caption][end] == pytest.approx(prose[end], abs=1), at
     assert root_overflow(page) == 0
 
 

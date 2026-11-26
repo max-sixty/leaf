@@ -515,6 +515,13 @@
     inherits: false;
     initial-value: 0;
   }
+  /* The measure an available figure resolves in its own font for its caption
+   * (Breakouts, below). */
+  @property --lf-prose-width {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0px;
+  }
   [data-lf-space] {
     contain: inline-size;
     inline-size: 100%;
@@ -599,28 +606,33 @@
           margin-right: calc(-1 * var(--lf-free-start));
         }
         /* A figure's caption is words, so in a figure that takes the room it starts
-         * where the prose does, by a margin on the holder's start side as the figure's
-         * is, and keeps the measure. The prose is a measure wide and stands in the
-         * middle of the room where the room on each side is the same, as on a column
-         * page. Beside a sidebar the sides differ, so the figure also states how far
-         * the prose's centre stands from its own toward the holder's end. It can't
-         * pass the room itself, which is stated against the width of the box that
-         * reads it, the prose for the figure but the figure for its caption; the
-         * difference between the sides doesn't depend on that width. A page that
-         * widens the column's box past the measure moves the prose off the middle of
-         * the room, and the caption then starts off the prose's edge. */
+         * where the prose does and keeps the measure. Inside the caption, 100% is the
+         * figure's width rather than the prose's, so the caption can't read the room on
+         * each side, which is stated against the reader's width. It finds the prose's
+         * edge from the figure's width, the measure, and half the difference between
+         * the room on the two sides, which the figure states: zero where the room is
+         * even, as on a column page, and a length beside a sidebar. The figure states
+         * the measure too, as a length in its own font, the prose's, since the
+         * caption's smaller face would read an `em` or `ch` measure as narrower. The
+         * margin stands on the holder's start side, as the figure's own does, and the
+         * other is auto, whichever way the figure is written. A page that sets the
+         * column's box wider or narrower than its measure moves the prose off the
+         * room's middle, and the caption then starts off the prose's edge. */
         > figure[data-lf-space="available"] {
           --lf-prose-shift: calc((var(--lf-free-start) - var(--lf-free-end)) / 2);
+          --lf-prose-width: var(--lf-measure);
         }
         &:dir(ltr) > figure[data-lf-space="available"] > figcaption {
           margin-left: calc(
-            (100% - min(var(--lf-measure), 100%)) / 2 + var(--lf-prose-shift)
+            (100% - min(var(--lf-prose-width), 100%)) / 2 + var(--lf-prose-shift)
           );
+          margin-right: auto;
         }
         &:dir(rtl) > figure[data-lf-space="available"] > figcaption {
           margin-right: calc(
-            (100% - min(var(--lf-measure), 100%)) / 2 + var(--lf-prose-shift)
+            (100% - min(var(--lf-prose-width), 100%)) / 2 + var(--lf-prose-shift)
           );
+          margin-left: auto;
         }
         > table[data-lf-space] {
           max-inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));

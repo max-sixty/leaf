@@ -145,7 +145,9 @@ Choose the Layout after the content: `layout-column` supports a sequence of view
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
 working region; `layout-workspace` lets the user work within one screen. A Layout is a
 class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
-tiles, and pages with tabs or parts.
+tiles, and pages with tabs or parts. Use a workspace when the page's whole task
+happens in one view whose height changes as the user works, such as a stack of cards
+taken one at a time. When that view is part of a report, keep it in the report's flow.
 
 A dashboard the reader glances at keeps its working state in the first window, since
 a glance doesn't scroll.

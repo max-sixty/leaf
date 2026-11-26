@@ -1011,12 +1011,13 @@ function lineAnchor(segments) {
 // the reader can scroll. A box that only clips, as `overflow: hidden` around floats or
 // a decoration hanging past its foot does, moves its words only with the page. Where a
 // scrolling box is no reading region of its own, its words move with its scroll as well
-// as the page's, so they name no place in `box`.
+// as the page's, so they name no place in `box`. The box itself stands between nothing,
+// so its own words, as a bounded region's body draws them, scroll with it alone.
 /** @param {Node} node @param {Element} box */
 function scrollsAlone(node, box) {
   let alone = null;
   for (
-    let at = renderedParent(node);
+    let at = node === box ? null : renderedParent(node);
     at?.nodeType === 1 && at !== box;
     at = renderedParent(at)
   )

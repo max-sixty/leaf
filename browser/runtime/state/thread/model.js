@@ -16,7 +16,6 @@
    workflow, placement, and view names it by. Its `root` is its opening message, a
    message like any other, and what a reply or settlement addresses as its `parent`. A
    thread this tab opened goes by its pending message's id until the log answers. */
-import { sameAnchor } from "../../base/anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 import { kept, keptEach } from "../kept.js";
 
@@ -341,19 +340,19 @@ export function foldThreads(threads, gestures) {
   return [...copies, ...opened];
 }
 
-// The user's reactions in force on exactly this anchor — the bar's own question, asked
-// so its chips can say which emoji are already there and a press can take one back:
-// the root of each open thread a reaction of theirs opened there, whether or not the
-// agent has answered it. Anchors are compared as records, the way the file compares
-// them.
-export const reactionsAt = (threads, anchor) =>
+// The user's reactions in force where `standsHere` says a thread stands on the bar's
+// target — the bar's own question, asked so its chips can say which emoji are already
+// there and a press can take one back: the root of each open thread a reaction of
+// theirs opened there, whether or not the agent has answered it. Where a thread stands
+// is the page's to say (annotations/reactions.js, `standsOn`).
+export const reactionsAt = (threads, standsHere) =>
   threads
     .filter(
       (thread) =>
         isReaction(thread.root) &&
         thread.root.author === "user" &&
         !thread.resolved &&
-        sameAnchor(thread.anchor, anchor),
+        standsHere(thread),
     )
     .map((thread) => thread.root);
 

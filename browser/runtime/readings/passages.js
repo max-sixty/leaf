@@ -2705,10 +2705,12 @@ const STEP = 32;
 // The letters of raw[lo..end), taken out by the platform's own replace, which keeps every
 // code unit as it stands, and the marks counted after.
 const GAPS = new RegExp(`[${EDGE}${COLLAPSE_CHARS}]+`, "g");
+// A quote's or a reading's spelling: its letters, its words run together. Two quotes
+// spelled alike can stand on the same words.
+export const spellingOf = (text) => text.replace(GAPS, "");
 function spell(raw, lo, end) {
-  const spelling = (lo === 0 && end === raw.length ? raw : raw.slice(lo, end)).replace(
-    GAPS,
-    "",
+  const spelling = spellingOf(
+    lo === 0 && end === raw.length ? raw : raw.slice(lo, end),
   );
   const marks = new Int32Array(Math.ceil(spelling.length / STEP));
   for (let i = lo, n = 0; n < spelling.length; i++) {

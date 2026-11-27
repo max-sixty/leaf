@@ -790,6 +790,13 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     # out because it only encloses the option chosen in it.
     assert shown[0]["says"] == {"m-cap": "Cap retries Bound retry load."}
     assert shown[0]["names"] == {"m-cap": "Cap retries"}
+    # The line that wakes the session quotes the pick in the same words.
+    assert (
+        delivery_model.quoted_input(
+            page_dir, events_model.read_events(page_dir), [chose]
+        )
+        == "The user chose “Cap retries Bound retry load.”"
+    )
 
     # In force, so a later delivery in this thread carries what the user
     # settled. Without it the agent meets the question with no answer under it

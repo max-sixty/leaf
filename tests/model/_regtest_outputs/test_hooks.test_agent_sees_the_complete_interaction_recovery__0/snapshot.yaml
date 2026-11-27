@@ -11,7 +11,8 @@ idle before pickup:
     findings: []
 
 the watch wakes the session: >-
-  <page> has new input; Leaf's prompt hook puts it in your context with this notification
+  <page> has new input; Leaf's prompt hook puts it in your context with this notification.
+  The user wrote “Add the camera first.”
 
 delivered at prompt:
   instruction: >-

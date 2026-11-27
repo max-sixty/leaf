@@ -918,7 +918,7 @@ def test_a_decision_s_picks_keep_their_chips_when_go_to_arms_on_it(browser, serv
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     page.keyboard.press("m")
     page.keyboard.press("Tab")
-    expect(page.locator("#c-heater > .lf-key-badge")).to_be_visible()
+    expect(page.locator("#c-heater .lf-key-badge")).to_be_visible()
     page.keyboard.press("g")
     routes = heard_routes(page)
     for name in ("Immersion heater", "Heated cable", "Break the ice"):

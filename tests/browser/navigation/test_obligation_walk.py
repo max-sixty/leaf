@@ -296,7 +296,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     Moving focus does not replace the obligation's numeric action context with a widget copy.
     """
     page = open_page(browser, serve_obligations(serve))
-    nums = page.locator("#live-question > lf-option > .lf-key-badge")
+    nums = page.locator("#live-question > lf-option .lf-key-badge")
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("m")
@@ -306,7 +306,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     # are the next Tab stops.
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
+            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     page.evaluate(
@@ -321,7 +321,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     )
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
+            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
@@ -329,7 +329,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     expect_walk_position(page, "1 of 4 waiting on me")
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
+            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
@@ -731,7 +731,7 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
 
     page.keyboard.press("m")
     page.keyboard.press("Tab")
-    digit = page.locator("#right > .lf-key-badge")
+    digit = page.locator("#right .lf-key-badge")
     expect(digit).to_be_visible()
     scroll(down=True)
     expect(page.locator("#routes")).not_to_be_in_viewport()
@@ -778,7 +778,7 @@ def test_a_digit_shows_on_its_choice_as_a_scroll_brings_the_choice_into_view(
         ),
     )
     page.keyboard.press("m")
-    expect(page.locator("#left > .lf-key-badge")).to_be_visible()
+    expect(page.locator("#left .lf-key-badge")).to_be_visible()
     gesture_writes(page, 2600)
     expect(page.locator("#right")).not_to_be_in_viewport()
     _, _, samples = gesture_writes(
@@ -786,7 +786,7 @@ def test_a_digit_shows_on_its_choice_as_a_scroll_brings_the_choice_into_view(
         -1200,
         sample="""() => {
           const choice = document.getElementById('right');
-          const digit = choice.querySelector(':scope > .lf-key-badge');
+          const digit = choice.shadowRoot.querySelector('.lf-key-badge');
           const top = choice.getBoundingClientRect().top;
           return {
             seen: top >= 0 && top < innerHeight / 2,

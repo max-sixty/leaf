@@ -95,6 +95,18 @@ export function defineWidget(
     constructor() {
       super();
       if (shadow) this.attachShadow({ mode: "open" });
+      // A host may set a property before the tag upgrades, as a group parsed in an
+      // inert document and then adopted sets its options' faces before they upgrade,
+      // which leaves an own property hiding the accessor. Its value moves into the
+      // props here, without the accessor's mount: an element upgraded in the document
+      // mounts from `connectedCallback`, once Leaf has answered `lf-connect`.
+      const own = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this));
+      for (const name of properties)
+        if (Object.hasOwn(this, name)) {
+          const value = own[name];
+          delete own[name];
+          this.#set = { ...this.#set, [name]: value };
+        }
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
       this.addEventListener(CONNECT, (event) => {

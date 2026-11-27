@@ -28,8 +28,9 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
              const form = el.getBoundingClientRect();
              const press = el.querySelector('.lf-compose-submit').getBoundingClientRect();
              const mark = el.querySelector('.lf-key-badge').getBoundingClientRect();
-             const card = el.parentElement
-               .querySelector(':scope > lf-option > .lf-key-badge')
+             const card = el.getRootNode().host
+               .querySelector(':scope > lf-option').shadowRoot
+               .querySelector('.lf-key-badge')
                .getBoundingClientRect();
              return {
                columnStart: mark.left - card.left,

@@ -731,7 +731,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     assert active_digit_bindings(page) == "1–3"
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
+            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
 
@@ -977,18 +977,21 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     resized(page, 900, 900)
 
     page.keyboard.press("m")
+    # Each option's badge in its own shadow root, and the add field's in the group's.
     selector = (
-        "#live-question :is(lf-option, .lf-another) "
+        "#live-question :is(lf-option > [data-lf-form], .lf-another) "
         "> .lf-key-badge[data-lf-binding-badge]"
     )
     item = page.locator(selector)
-    expect(item).to_have_text(["1", "2", "3"])
+    expect(item).to_have_count(3)
+    # In the order they stand down the group, which the trees they stand in don't keep.
     centers = """nodes => nodes.map(node => {
           const box = node.getBoundingClientRect();
           return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY,
-                  right: box.right};
-        })"""
+                  right: box.right, text: node.textContent};
+        }).sort((a, b) => a.y - b.y)"""
     obligation_centers = item.evaluate_all(centers)
+    assert [point["text"] for point in obligation_centers] == ["1", "2", "3"]
     addition = page.locator("#live-question .lf-another")
     submit = addition.locator(".lf-compose-submit")
     empty_submit = submit.evaluate(
@@ -1003,8 +1006,9 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)
-    expect(focused).to_have_text(["1", "2", "3"])
+    expect(focused).to_have_count(3)
     focused_centers = focused.evaluate_all(centers)
+    assert [point["text"] for point in focused_centers] == ["1", "2", "3"]
     assert len(obligation_centers) == len(focused_centers) == 3
     assert len({round(point["x"], 1) for point in obligation_centers[:-1]}) == 1
     for obligation_point, focused_point in zip(
@@ -1174,7 +1178,7 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     expect(page.locator("#rows-decision")).to_be_focused()
     scroll_settled(page)
     expect(
-        page.locator("#rows > lf-option > .lf-key-badge[data-lf-binding-badge]")
+        page.locator("#rows > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     # Put the second row's badge one pixel into the panel row's band. The first stays a
     # row above it, so a placement pass that reserves the legend keeps one and removes
@@ -1182,9 +1186,10 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     # fixture to today's spacing.
     page.evaluate(
         """() => {
-          const badges = document.querySelectorAll(
-            '#rows > lf-option > .lf-key-badge[data-lf-binding-badge]'
-          );
+          const badges = [...document.querySelectorAll('#rows > lf-option')]
+            .map((option) => option.shadowRoot.querySelector(
+              '.lf-key-badge[data-lf-binding-badge]'))
+            .filter(Boolean);
           const last = badges[badges.length - 1].getBoundingClientRect();
           const line = document.querySelector('.lf-fp-row').getBoundingClientRect();
           scrollTo(0, scrollY + last.top - line.top - 1);
@@ -1192,7 +1197,7 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     )
     scroll_settled(page)
     expect(
-        page.locator("#rows > lf-option > .lf-key-badge[data-lf-binding-badge]")
+        page.locator("#rows > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {

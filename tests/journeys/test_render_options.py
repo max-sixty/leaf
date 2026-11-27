@@ -54,7 +54,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     # anywhere the user is holding something.
     assert active_digit_bindings(page) == "1–3"
     assert "Escape" in available_commands(page)["navigation.release"]
-    option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
+    option_hints = page.locator("#storage-options > lf-option .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
     write_hint = page.locator("#storage-options .lf-another > .lf-key-badge")
@@ -81,7 +81,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     expect(mark).to_have_attribute("aria-checked", "false")
     expect(
         page.locator(
-            "#storage-options > lf-option > .lf-key-badge[data-lf-binding-badge]"
+            "#storage-options > lf-option .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     assert active_digit_bindings(page) == "1–3"

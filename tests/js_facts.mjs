@@ -379,8 +379,10 @@ function carriesRequest(made, parents) {
 //   only carries a request (`carriesRequest`); "role as it is made" when it is made as
 //   the element of `offerActionElement` or `offerContentElement`, or the variable that
 //   holds it, and only it, is later handed to one.
-// - "selectable": a selectable button, `selectableOffer("button", …)`; "role as it is
-//   made" when it names its face (the fourth argument). A selectable offer of another
+// - "selectable": a selectable button, `selectableOffer("button", …)` or the marks a view
+//   that builds its own sets, `selectableAttributes("button", …)`; "role as it is made"
+//   when it names its face (the offer's fourth argument, the marks' third). A selectable
+//   offer of another
 //   role, such as a tab, chooses rather than presses, as a native choice does, and is
 //   no press.
 // - "copy control": a `copyControl(…)`, "role in its options" when they name a role,
@@ -388,6 +390,11 @@ function carriesRequest(made, parents) {
 // - "scripted role": an element a module makes, bound in scope, and gives the role
 //   "button" with `setAttribute`, `keeps` or `keepsAttribute`. An element the code was
 //   handed, as a margin entry's host writer is, can't be followed and isn't read.
+// Where a selectable button's builder takes the face it names.
+const SELECTABLE_FACE = new Map([
+  ["selectableOffer", 3],
+  ["selectableAttributes", 2],
+]);
 function presses() {
   const read = {};
   for (const file of files) {
@@ -452,12 +459,13 @@ function presses() {
           later.length > 0;
         press(node.start, node.end, "made", asMade && "role as it is made");
       }
-      if (name === "selectableOffer" && words(args[0], parents).includes("button"))
+      const faceAt = SELECTABLE_FACE.get(name);
+      if (faceAt && words(args[0], parents).includes("button"))
         press(
           node.start,
           node.end,
           "selectable",
-          words(args[3], parents).length > 0 && "role as it is made",
+          words(args[faceAt], parents).length > 0 && "role as it is made",
         );
       if (name === "copyControl" && node.callee.type === "Identifier") {
         const option = (name) => args[1]?.properties?.find((p) => p.key?.name === name);
@@ -503,6 +511,7 @@ const DRESSERS = {
   actionClass: [0, 1],
   selectableOffer: [3, 1],
   selectableOffered: [2, 1],
+  selectableAttributes: [2, 1],
   copyControl: ["role", 0],
 };
 

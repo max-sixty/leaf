@@ -126,9 +126,10 @@
  *   closed disclosure hides.
  * - Leaf's controls are drawn by Effect UI in shadow roots (`shadow: true`), and author
  *   content shows through a `<slot>`. The group's root holds the settled row, the add
- *   field and Done. Each option is a small widget of its own, `lf-option`, whose root
- *   holds its key badge, its mark and its § reference around the option's slot, since
- *   a mark stands inside its option's box.
+ *   field and Done. Each option is a small widget of its own, `lf-option`
+ *   (lf-option.js), whose root holds its key badge, its mark and its § reference
+ *   around the option's slot, since a mark stands inside its option's box. The
+ *   registry declares both roots (`shadow`), so the page's readings search them.
  * - The theme restyles those controls through shadow parts: `mark`, `key` and `ref` on
  *   an option; `cell` on each of the group's own cells, with `settled`, `another` or
  *   `done` naming which. A document rule names the part after the host's own state
@@ -139,13 +140,13 @@
  *   turns gestures into Leaf's services (`RecordAction`, `TakeBack`), and one Mount on
  *   its slot (`ShowChoice`) does what only a host's own code can: it writes the light
  *   DOM record above, gives each option its face (the `face` property, which the
- *   option's widget declares, as a host sets `state`), states the group's key scope and `choice` output on the host, and hears
- *   the host's events — a click on an option's own words, an invoker command,
- *   `beforematch` — as messages. The add field is an editor Leaf hosts, so a Mount of
- *   its own builds it (lf-options-addition.js). */
+ *   option's widget declares, as a host sets `state`), states the group's key
+ *   scope and `choice` output on the host, and hears the host's events — a click on
+ *   an option's own words, an invoker command, `beforematch` — as messages. The add
+ *   field is an editor Leaf hosts, so a Mount of its own builds it
+ *   (lf-options-addition.js). */
 import {
   Command,
-  Component,
   Effect,
   Html,
   Mount,
@@ -159,14 +160,10 @@ import {
   comparisonChanges,
   elementById,
   focusDestination,
-  landInThread,
   named,
   nameOf,
-  placePreview,
-  rowWalk,
   scrollIntoView,
   tabStore,
-  threadInput,
 } from "/runtime/widget-api.js";
 import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
 import { RecordAction, RememberForTab, TakeBack } from "/runtime/widget-services.js";
@@ -176,6 +173,7 @@ import { addressableWord } from "/runtime/lib/element-word.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
 import { AddField, addedOptions } from "./lf-options-addition.js";
+import { KeyBadge, SECTION, badgeOf, fieldOf, markOf, optionsOf } from "./lf-option.js";
 import { SettledRow, settledKey } from "./lf-options-settled.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
@@ -197,7 +195,6 @@ const optionValue = (option) => option.getAttribute("value") || option.id;
 // replaced, and knows it while the obligation is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
-const SECTION = "In the options";
 
 /** @param {unknown} value @returns {readonly string[]} */
 function choiceIds(value) {
@@ -335,10 +332,15 @@ const openSettled = ($, open) =>
 export const Options = Html.component({
   name: "Options",
   props: OptionsProps,
-  model: Schema.Struct({ open: Schema.NullOr(Schema.Boolean) }),
+  // `chose` is the user's own last pick in this tab, which the add field's words
+  // remember beside them.
+  model: Schema.Struct({
+    open: Schema.NullOr(Schema.Boolean),
+    chose: Schema.NullOr(Schema.Array(Schema.String)),
+  }),
   message: OptionsMessage,
 }).make({
-  init: () => ({ open: null }),
+  init: () => ({ open: null, chose: null }),
   update: {
     // Toggling is one gesture both ways, so a user who picked by mistake needn't pick
     // something else to get out of it. Without `multiple` the set the toggle starts
@@ -357,7 +359,7 @@ export const Options = Html.component({
         : dropped
           ? `Dropped “${option.name}”`
           : `Chose “${option.name}”`;
-      return $.run(choose(next, says));
+      return $.evolve({ chose: next }).run(choose(next, says));
     },
     // A `--choose` the group's mount has already matched to one option, or to none for
     // the empty value, recorded under the words the sending button says.
@@ -455,6 +457,7 @@ export const Options = Html.component({
               .onMount(
                 AddField({
                   picked: [...picked],
+                  chose: model.chose,
                   added: additions(state).map(({ id }) => id),
                   multiple,
                 }),
@@ -492,167 +495,8 @@ export const Options = Html.component({
   },
 });
 
-/** A key badge the keyboard presenter paints. @param {any} h */
-export const KeyBadge = (h) =>
-  h.span
-    .attrs(offerAttributes("span", "lf-key-badge"))
-    .attr("aria-hidden", "true")
-    .attr("part", "key");
-
-/** What an option shows of the group's state: its mark, as a press, an image of a
- *  pick, or nothing, with the mark's words, and its § reference. */
-const Face = Schema.Struct({
-  mark: Schema.Literals(["press", "image", "none"]),
-  checked: Schema.Boolean,
-  word: Schema.String,
-  name: Schema.String,
-  available: Schema.Boolean,
-  ref: Schema.NullOr(Schema.Struct({ target: Schema.String, text: Schema.String })),
-  form: Schema.Literals(["card", "row"]),
-  settled: Schema.Boolean,
-});
-
-// The mark's own scope and a pick's, which read the group as it stands when asked.
-/** @param {Element} option */
-const markOf = (option) =>
-  /** @type {HTMLElement | null} */ (
-    option.shadowRoot?.querySelector(".lf-pick[role=checkbox]") ?? null
-  );
-/** @param {Element} option */
-const badgeOf = (option) => option.shadowRoot?.querySelector(".lf-key-badge") ?? null;
-/** @param {Element} host */
-const optionsOf = (host) =>
-  /** @type {HTMLElement[]} */ (
-    [...host.children].filter((c) => c.localName === "lf-option")
-  );
-/** @param {Element} host */
-const fieldOf = (host) =>
-  /** @type {HTMLElement | null} */ (
-    host.shadowRoot?.querySelector(".lf-another leaf-text") ?? null
-  );
-// A page obligation owns the ordinary add form below its options. An obligation already
-// inside a thread has no second form; its surrounding thread owns the reply.
-/** @param {Element} host */
-const replyOf = (host) => (fieldOf(host) ? null : threadInput(host));
-
-// Pointing at the mark reads nothing: its round or square corner says whether the group
-// takes one option or any, the option's words stand beside it, and the digit drawn on
-// its option while focus is in the group says its key. Its name stays a listener's,
-// rather than a preview of "choose one", the word its shape stands for.
-const noPreview = () => false;
-
-// From a mark, arrows walk the options and Space toggles. Declared on the mark rather
-// than the group, because the group holds the option's own argument too — a link, a
-// say-box, a tabbed exhibit — and a scope over the whole subtree would promise local
-// mechanics from any of them.
-const MarkKeys = Mount.make("MarkKeys", {}, (/** @type {HTMLElement} */ mark) =>
-  Effect.sync(() => {
-    const option = /** @type {ShadowRoot} */ (mark.getRootNode()).host;
-    const host = /** @type {HTMLElement} */ (option.parentElement);
-    /** @type {any} */ (mark).lfCommands = {
-      title: SECTION,
-      rows: [
-        {
-          id: "option.reply",
-          keys: ["Enter"],
-          title: "reply",
-          when: () => Boolean(replyOf(host)),
-          // The box hands the user back to the thread it belongs to, and to this option
-          // where that thread is nowhere to stand — the route `landInThread` records
-          // for exactly that case, and the one Escape out of a text box reads.
-          run: () => {
-            const reply = replyOf(host);
-            if (reply)
-              landInThread(reply, { target: mark, line: "back to the options" });
-          },
-        },
-        ...rowWalk({
-          id: "option",
-          noun: "Option",
-          plural: "options",
-          rows: () => optionsOf(host).flatMap((o) => markOf(o) ?? []),
-        }),
-        { id: "option.toggle", keys: [" "], title: "toggle", run: () => mark.click() },
-        { id: "option.reach", keys: [], label: "⇥", title: "Reach an option's mark" },
-      ],
-    };
-    mark.dispatchEvent(
-      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-    );
-    // The group's scope names this mark as its option's control.
-    host.dispatchEvent(
-      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-    );
-    return Component.noop;
-  }),
-);
-
-const OptionFace = Html.component({
-  name: "OptionFace",
-  props: Schema.Struct({
-    ...widgetProps,
-    face: Schema.optional(Face),
-    option: Schema.Unknown,
-  }),
-  model: Schema.Struct({}),
-  message: Schema.Never,
-}).make({
-  init: () => ({}),
-  update: {},
-  view: (h) => {
-    const { face } = h.props;
-    const option = /** @type {Element} */ (h.props.option);
-    const pressable = face?.mark === "press";
-    const mark =
-      face && face.mark !== "none"
-        ? h.span
-            .key("mark")
-            .attr("class", pressable ? "lf-pick lf-ui" : "lf-pick")
-            .attr("part", pressable ? "mark press" : "mark")
-            .attr("data-lf-gen", "1")
-            .attr("data-lf-offer", pressable ? "checkbox" : undefined)
-            .attr("role", pressable ? "checkbox" : "img")
-            .attr("aria-label", face.name)
-            .attr("aria-checked", pressable ? String(face.checked) : undefined)
-            .attr("aria-disabled", pressable ? String(!face.available) : undefined)
-            .attr("tabindex", pressable ? (face.available ? "0" : "-1") : undefined)
-            .prop("lfPreview", noPreview)
-            .children(face.word)
-        : null;
-    // The mark stands where the user starts reading the label, not at the line's end,
-    // which in a full-width group is ~620px from the words it answers for. Both forms
-    // place it out of flow, a card in its header and a row in its leading column, so
-    // the theme states each form's placement.
-    return h.span
-      .style({ display: "contents" })
-      .attr("data-lf-form", face?.form)
-      .attr("data-lf-settled", face?.settled ? "" : undefined)
-      .children(
-        pressable ? KeyBadge(h).key("key") : null,
-        mark && pressable ? mark.onMount(MarkKeys({})) : mark,
-        h.slot.key("slot"),
-        face?.ref ? Reference(h, face.ref, option).key("ref") : null,
-      );
-  },
-});
-
-// The block this option is about. A pointer, not a voice: it names the block by the name
-// the chrome gives it (`nameOf`), else by its word, and by the id only where no block in
-// the option's message or on the page answers to it. After § a kind word such as
-// "section" says nothing, so the name stands alone, and pointing at it previews the
-// block, as a link into the page does (`placePreview`). It is chrome throughout — a
-// thing to work and nothing else, so paper drops it.
-/** @param {any} h @param {{target: string, text: string}} ref @param {Element} option */
-const Reference = (h, { target, text }, option) =>
-  h.a
-    .attrs(offerAttributes("a", "lf-ref"))
-    .attr("part", "ref")
-    .attr("href", `#${target}`)
-    .prop("lfPreview", () => {
-      const block = elementById(target, option);
-      return block ? placePreview(block) : null;
-    })
-    .children(text);
+/** @type {WeakMap<HTMLElement, {added: Map<string, HTMLElement>, end: Comment}>} */
+const drawnBy = new WeakMap();
 
 /** What the group states outside its shadow root, kept by its slot's mount. */
 class GroupLight {
@@ -665,9 +509,10 @@ class GroupLight {
   #numbers = new Map();
   #scopeKey = "";
   #choiceSaid = "null";
-  /** @type {Map<string, HTMLElement>} */
-  #added = new Map();
-  #end = document.createComment("added options");
+  // The options this group's `add`s drew and the marker after them, kept by the host
+  // across mounts, since they stand in its light tree after its root closes: a group
+  // put back on the page takes up the nodes it drew rather than drawing them again.
+  #drawn;
   /** The face each option was last given, as its words, so an option is told only a
    *  change. @type {WeakMap<Element, string>} */
   #faces = new WeakMap();
@@ -676,6 +521,11 @@ class GroupLight {
   constructor(host, send) {
     this.host = host;
     this.send = send;
+    this.#drawn = drawnBy.get(host) ?? {
+      added: new Map(),
+      end: document.createComment("added options"),
+    };
+    drawnBy.set(host, this.#drawn);
     host.addEventListener("click", this.#click);
     host.addEventListener("command", this.#command);
     host.addEventListener("beforematch", this.#reveal, true);
@@ -696,7 +546,8 @@ class GroupLight {
       if (args.offered) this.#keys("write");
       if (args.multiple) this.#keys("done");
     }
-    this.#added = addedOptions(this.host, args.added, this.#added, this.#end, () =>
+    const drawn = this.#drawn;
+    drawn.added = addedOptions(this.host, args.added, drawn.added, drawn.end, () =>
       this.show(this.args),
     );
     const faces = new Map(args.faces.map((/** @type {any} */ f) => [f.id, f.face]));
@@ -712,8 +563,24 @@ class GroupLight {
       else if (option.getAttribute("hidden") === "until-found")
         option.removeAttribute("hidden");
     }
+    this.#controls();
     this.#declare();
     this.#hold(args.choice);
+  }
+
+  // A settled row controls every option the group holds, the user's added ones too.
+  // The options stand in the light tree, which an id the row names in its shadow root
+  // can't reach, so the row names them as elements; the added ones are drawn here, so
+  // the row is told here, once they stand.
+  #controls() {
+    const row = /** @type {HTMLElement | null | undefined} */ (
+      this.host.shadowRoot?.querySelector(".lf-settled")
+    );
+    if (!row) return;
+    const options = optionsOf(this.host);
+    const was = row.ariaControlsElements ?? [];
+    if (was.length !== options.length || was.some((el, i) => el !== options[i]))
+      row.ariaControlsElements = options;
   }
 
   /** @param {string} identity */
@@ -894,12 +761,6 @@ const reference = (option, host) => {
   const block = elementById(target, host);
   return { target, text: `§ ${nameOf(block) || addressableWord(block) || target}` };
 };
-
-defineWidget("lf-option", OptionFace, {
-  shadow: true,
-  properties: ["face"],
-  inputs: (option) => ({ option }),
-});
 
 defineWidget("lf-options", Options, {
   shadow: true,

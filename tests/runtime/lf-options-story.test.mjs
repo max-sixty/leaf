@@ -50,12 +50,13 @@ const chose = (value, says) =>
   RecordAction.make({ verb: "choose", detail: { value }, says });
 
 test("a pick in a group taking one replaces the pick in force", () =>
-  tell({ state: reading(["ship"]) }, (s) =>
-    s
-      .send({ _tag: "Picked", id: "hold" })
+  tell({ state: reading(["ship"]) }, (s) => {
+    s.send({ _tag: "Picked", id: "hold" })
       .expectExact(chose(["hold"], "Chose “Hold it”"))
-      .resolve(RecordAction, Component.noop),
-  ));
+      .resolve(RecordAction, Component.noop);
+    // The add field's words remember the pick the user made beside them.
+    assert.deepEqual(s.model.chose, ["hold"]);
+  }));
 
 test("picking the one option in force again clears the pick", () =>
   tell({ state: reading(["ship"]) }, (s) =>
@@ -157,13 +158,13 @@ test("the settled disclosure opens from where this tab left it, and remembers", 
     s.send({ _tag: "ToggledSettled" })
       .expectExact(RememberForTab.make({ key: "lf-settled:choice", value: "0" }))
       .resolve(RememberForTab, Component.noop);
-    assert.deepEqual(s.model, { open: false });
+    assert.deepEqual(s.model, { open: false, chose: null });
   });
   tell({ settled: true }, (s) => {
     s.send({ _tag: "Revealed" })
       .expectExact(RememberForTab.make({ key: "lf-settled:choice", value: "1" }))
       .resolve(RememberForTab, Component.noop);
-    assert.deepEqual(s.model, { open: true });
+    assert.deepEqual(s.model, { open: true, chose: null });
     // A reveal inside an open group leaves it as it stands.
     s.send({ _tag: "Revealed" }).expectNone();
   });

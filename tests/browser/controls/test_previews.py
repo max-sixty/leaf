@@ -325,7 +325,7 @@ def test_a_preview_leaves_out_what_its_control_already_shows(engine, request, se
     assert not preview.is_visible(), preview.inner_text()
     tab_onto(mark)
     rendered(page)
-    expect(page.locator("#feeder-porch > .lf-key-badge")).to_have_text("1")
+    expect(page.locator("#feeder-porch .lf-key-badge")).to_have_text("1")
     assert not preview.is_visible(), preview.inner_text()
 
     done = page.locator("#feeders .lf-done")
@@ -1816,6 +1816,32 @@ def test_a_preview_that_found_no_place_to_stand_warms_no_next_one(
     dwelt(page)
     expect(tip.locator(".lf-preview-word")).to_have_text("The one after")
     expect(tip).to_have_attribute("data-lf-fade", "")
+
+
+def test_a_pointer_moving_within_a_shadow_tree_reads_what_it_reaches(browser, serve):
+    """The platform tells the document of no `pointerover` for a move between two
+    nodes of one shadow tree, as from an option group's add field onto its Add button,
+    so the preview hears the arrival from the move itself and reads the second node."""
+    page = open_page(
+        clocked(browser),
+        serve(leaf_page("Shadow tree", '<p id="host">Host</p>')),
+    )
+    page.evaluate(
+        """() => {
+          const root = document.getElementById('host').attachShadow({mode: 'open'});
+          root.innerHTML = '<span id="first">First</span> and <span id="second">second</span>';
+          root.getElementById('first').lfPreview = () => ({name: 'The first'});
+          root.getElementById('second').lfPreview = () => ({name: 'The second'});
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#first").hover()
+    dwelt(page)
+    expect(tip.locator(".lf-preview-word")).to_have_text("The first")
+    page.locator("#second").hover()
+    dwelt(page)
+    expect(tip.locator(".lf-preview-word")).to_have_text("The second")
 
 
 def test_a_standing_preview_reads_its_element_again_as_the_page_presents_news(

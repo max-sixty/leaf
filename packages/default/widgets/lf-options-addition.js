@@ -30,7 +30,7 @@ const available = (host, verb) =>
   Boolean(/** @type {any} */ (host).state?.[verb]?.available);
 
 class OptionAddition {
-  /** @type {{picked: readonly string[], added: readonly string[], multiple: boolean}} */
+  /** @type {{picked: readonly string[], chose: readonly string[] | null, added: readonly string[], multiple: boolean}} */
   args;
   #stop;
 
@@ -76,9 +76,10 @@ class OptionAddition {
 
   /** @param {any} args */
   show(args) {
-    const picked = args.picked.join(" ") !== this.args.picked.join(" ");
+    const chose =
+      args.chose !== null && args.chose.join(" ") !== this.args.chose?.join(" ");
     this.args = args;
-    if (picked) this.remember();
+    if (chose) this.remember(args.chose);
     this.sync();
   }
 
@@ -87,11 +88,13 @@ class OptionAddition {
   }
 
   // The words being written keep the pick they were written beside, so a resend after
-  // a reload picks what the user had picked.
-  remember() {
+  // a reload picks what the user had picked. The user's own pick is remembered as they
+  // make it (`chose`); a pick another tab makes arrives as the state's, which the
+  // words keep only once they are written again.
+  remember(picked = this.args.picked) {
     const { input } = this;
     if (!input.value && this.draft.read() === null) return;
-    this.draft.save(input.value, { value: [...this.args.picked] });
+    this.draft.save(input.value, { value: [...picked] });
   }
 
   /* The choice the generation recorded, less any option the group no longer holds:
@@ -168,6 +171,7 @@ export const AddField = Mount.make(
   {
     args: {
       picked: Schema.Array(Schema.String),
+      chose: Schema.NullOr(Schema.Array(Schema.String)),
       added: Schema.Array(Schema.String),
       multiple: Schema.Boolean,
     },

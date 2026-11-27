@@ -1738,7 +1738,7 @@ def settled_option_row_by_keyboard(page: Page) -> None:
     page.locator("#comparison-policy-current .lf-pick").focus()
     expect(
         page.locator(
-            "#comparison-policy-current > .lf-key-badge[data-lf-binding-badge]"
+            "#comparison-policy-current .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_count(1)
 

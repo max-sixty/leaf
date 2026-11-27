@@ -308,6 +308,7 @@
     "refers": {
       "for": {}
     },
+    "shadow": true,
     "instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card's `label` is its name wherever Leaf names it, such as On Me, and the card draws none of it: show its title in its own HTML, a leading `<strong>`. Write in the option any consequence the title or chips leave unstated, with pictures in block HTML, such as `svg.lf-drawing`. A `.lf-facts` list as a direct child of a card with a `label` floats right as a narrow column where the option is wide enough, so the options' figures line up. A compact option has no `label`: its words are its label. Mark the option you advise `recommended`, which draws its badge. Give your reason for the recommendation in prose beside the options, such as the question's paragraph, so each card states only what choosing it does. `selected` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the options' answer, such as a board column, and the option answers with its id where it has none (read the `lf-board` instructions for the composition)."
   },
   "lf-code": {

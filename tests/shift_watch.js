@@ -58,10 +58,11 @@
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, or a popover's implicit anchor, the
-// `source` it was shown with, and a direct native anchor inset, inline or in their
+// `source` it was shown with, and a direct native anchor inset (the anchor's edge,
+// alone or added to an offset that reads no anchor), inline or in their
 // tree's own rules, or a `position-area` placing them against that anchor, retain that
-// scroller and their anchor's own animation too; nested
-// CSS expressions, ambiguous names and rules that disagree receive no inferred
+// scroller and their anchor's own animation too; an anchor's edge nested in a
+// larger expression, ambiguous names and rules that disagree receive no inferred
 // ownership.
 //
 // Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
@@ -437,11 +438,38 @@
       axis === "left"
         ? "(?:left|right|center|start|end)"
         : "(?:top|bottom|center|start|end)";
-    const anchor = `anchor\\(${side}(?:,\\s*-?[\\d.]+px)?\\)`;
-    const offset = "(?:-?[\\d.]+px|var\\(--[\\w-]+\\))";
-    return new RegExp(
-      `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*${offset}|${offset}\\s*\\+\\s*${anchor}|${anchor})\\))$`,
-    ).test(value);
+    // Its fallback is a length, or for a far edge a length back from the far side.
+    const fallback = "(?:-?[\\d.]+px|calc\\(100%\\s*[+-]\\s*-?[\\d.]+px\\))";
+    const anchor = `anchor\\(${side}(?:,\\s*${fallback})?\\)`;
+    const term = new RegExp(`^${anchor}$`);
+    value = value.trim();
+    if (term.test(value)) return true;
+    const sum = /^calc\((.*)\)$/s.exec(value)?.[1];
+    if (!sum) return false;
+    // The inset follows its anchor where one added term of the sum is that anchor's
+    // edge and no other term reads an anchor: the rest is an offset the anchor's travel
+    // leaves alone. Terms split at a top-level `+` or `-`, which calc() sets off by
+    // whitespace.
+    const terms = [];
+    let depth = 0;
+    let from = 0;
+    let sign = "+";
+    for (let i = 0; i < sum.length; i++) {
+      const char = sum[i];
+      if (char === "(") depth++;
+      else if (char === ")") depth--;
+      else if (!depth && /\s/.test(char) && /^\s[+-]\s/.test(sum.slice(i, i + 3))) {
+        terms.push({ sign, text: sum.slice(from, i).trim() });
+        sign = sum[i + 1];
+        from = i + 3;
+        i += 2;
+      }
+    }
+    terms.push({ sign, text: sum.slice(from).trim() });
+    const anchored = terms.filter(({ text }) => /anchor(?:-size)?\(/.test(text));
+    return (
+      anchored.length === 1 && anchored[0].sign === "+" && term.test(anchored[0].text)
+    );
   };
   // Declarations that can win a property: an important inline one alone, else
   // important matching rules, else inline style, else every matching rule. No API
@@ -510,6 +538,53 @@
           found[priority(rule.style, property) ? "important" : "normal"].push(value);
       }
     return found;
+  };
+  // The anchor names a `::part()` rule in its host's tree gives `node`. Those names
+  // belong to the host's tree, as css-anchors.js names a widget's box from the
+  // document; a name the shadow tree's own style gives stays private to it.
+  const partAnchorNames = (node) => {
+    const names = new Set();
+    const host = node.getRootNode().host;
+    if (!host || !node.part.length) return names;
+    const outer = host.getRootNode();
+    for (const sheet of [
+      ...(outer.styleSheets ?? []),
+      ...(outer.adoptedStyleSheets ?? []),
+    ])
+      for (const { rule, conditions } of rulesStating(sheet, "anchor-name")) {
+        if (!conditions.every(holds)) continue;
+        // The selector list's top-level members, split outside parentheses.
+        const selectors = [];
+        let depth = 0;
+        let from = 0;
+        [...rule.selectorText].forEach((char, i) => {
+          if (char === "(") depth++;
+          else if (char === ")") depth--;
+          else if (char === "," && !depth) {
+            selectors.push(rule.selectorText.slice(from, i));
+            from = i + 1;
+          }
+        });
+        selectors.push(rule.selectorText.slice(from));
+        const named = selectors.some((selector) => {
+          const found = /^(.*?)::part\(([^)]*)\)$/s.exec(selector.trim());
+          if (!found) return false;
+          const parts = found[2].trim().split(/\s+/);
+          if (!parts.every((part) => node.part.contains(part))) return false;
+          const prefix = found[1];
+          try {
+            return host.matches(
+              !prefix.trim() ? "*" : /[\s>+~]$/.test(prefix) ? `${prefix}*` : prefix,
+            );
+          } catch {
+            return false;
+          }
+        });
+        if (named)
+          for (const name of rule.style.getPropertyValue("anchor-name").split(","))
+            names.add(name.trim());
+      }
+    return names;
   };
   // A direct translation consumer is proved from declarations, not a coincidental
   // equality of computed values. Keep the existing conservative cascade tiers:
@@ -1744,17 +1819,23 @@
     for (const node of nodes)
       if (leaving.has(node)) readDrawn.delete(node);
       else readDrawn.add(node);
+    // An anchor name belongs to the tree whose style declares it: a name a
+    // `::part()` rule gives a shadow tree's box belongs to the host's tree.
     const anchors = new Map();
-    for (const node of nodes.filter((node) => node instanceof Element)) {
-      const tree = node.getRootNode();
+    const register = (tree, name, node) => {
       if (!anchors.has(tree)) anchors.set(tree, new Map());
       const names = anchors.get(tree);
-      for (const name of getComputedStyle(node)
+      names.set(name, names.has(name) ? null : node);
+    };
+    for (const node of nodes.filter((node) => node instanceof Element)) {
+      const tree = node.getRootNode();
+      const given = getComputedStyle(node)
         .anchorName.split(",")
-        .map((name) => name.trim())) {
-        if (!name || name === "none") continue;
-        names.set(name, names.has(name) ? null : node);
-      }
+        .map((name) => name.trim())
+        .filter((name) => name && name !== "none");
+      const outer = given.length ? partAnchorNames(node) : new Set();
+      for (const name of given)
+        register(outer.has(name) ? tree.host.getRootNode() : tree, name, node);
     }
     const modal = document
       .querySelector("script[data-lf-entry]")
@@ -2849,10 +2930,14 @@
     return true;
   };
   // A runtime box that declares it may widen (`data-lf-widens`), as a thread card at its
-  // least width does until a long message arrives (thread-preview.js), may grow at its
-  // inline end, keeping its inline start and top, and carry all it holds as its words
-  // take the new width. It is the one case where news may carry controls sideways,
-  // which the user chose for a card that widens once.
+  // least width does until a long message arrives (thread-preview.js), may grow at one
+  // inline edge, keeping the other and its top, and carry all it holds as its words
+  // take the new width. It is the one case where news may carry controls or words
+  // sideways, which the user chose for a card that widens once. One that also declares
+  // it may rise at its head (`data-lf-rises`), as a card over its subject does, may grow
+  // at its head and its foot as it widens, by no more than the content that joined a
+  // region it holds that grows at its end (`data-lf-reflow="append"`), since the
+  // message that joined lifts its head too (`appendGrowth`).
   const permittedWidening = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;
@@ -2869,11 +2954,48 @@
         return false;
       const from = boxAt(owner, first),
         to = boxAt(owner, last);
+      // How much the regions it holds that grow at their end gained on screen, which
+      // bounds how much taller a rising box may stand: the room the children that
+      // joined take after the last old one, and the growth of a tail that streams
+      // (`data-lf-append-tail`).
+      const grown = () => {
+        let by = 0;
+        for (const source of around[0].nodes) {
+          const was = paintAt(source, first),
+            is = paintAt(source, last);
+          if (
+            was?.reflow !== "append" ||
+            is?.reflow !== "append" ||
+            !ancestryAt(source, first).includes(owner)
+          )
+            continue;
+          const kept = was.appendChildren.filter((child) =>
+            is.appendChildren.includes(child),
+          );
+          const tail = kept.at(-1);
+          const joined = is.appendChildren
+            .filter((child) => !was.appendChildren.includes(child))
+            .map((child) => boxAt(child, last))
+            .filter((box) => box && box.bottom > box.top);
+          const start = tail ? boxAt(tail, last)?.bottom : boxAt(source, last)?.top;
+          if (joined.length && start !== undefined)
+            by += Math.max(...joined.map((box) => box.bottom)) - start;
+          const before = tail && paintAt(tail, first)?.appendTail && boxAt(tail, first),
+            after = before && boxAt(tail, last);
+          if (after)
+            by += Math.max(0, after.bottom - after.top - (before.bottom - before.top));
+        }
+        return by;
+      };
       return (
         Boolean(from && to) &&
-        Math.abs(to.left - from.left) < 1 &&
-        Math.abs(to.top - from.top) < 1 &&
-        to.right - from.right >= 1 &&
+        (Math.abs(to.top - from.top) < 1 ||
+          (paintAt(owner, first)?.rises &&
+            to.top < from.top &&
+            from.bottom - to.bottom < 1 &&
+            to.bottom - to.top - (from.bottom - from.top) < grown() + 1)) &&
+        to.right - to.left - (from.right - from.left) >= 1 &&
+        (Math.abs(to.left - from.left) < 1 || Math.abs(to.right - from.right) < 1) &&
         inside(previousRect, from) &&
         inside(currentRect, to)
       );

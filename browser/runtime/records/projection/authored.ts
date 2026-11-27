@@ -1,0 +1,148 @@
+/* This module owns typed authored initial values and anchor parentage. It decodes the
+ * authored initial condition once from validated source markup, before content modules
+ * upgrade or render it. Those values are inputs to the complete widget projection; no
+ * cloned DOM, inverse action, or restoration statement is retained. */
+import { recordedWidgetSelector, stateSpecs } from "../../state/registry.js";
+import { elementReading } from "../../readings/passages.js";
+import { readPart } from "../../state/semantic-state.js";
+import { dataBody } from "../../lib/data-body.js";
+import { authoredRank } from "../../lib/rank.js";
+import type { ActionSpec, AuthoredWidget, StateRecord } from "../../../types/domain.js";
+
+/* `rememberAuthoredParents` records parent identities before imports for anchor
+   ownership. `stageAuthoredStates` decodes source elements while their validated
+   attributes, member order, and data bodies are intact. The complete staged document
+   enters the application publisher before its content modules render. Page revisions
+   and thread markup use the same boundary, so presentation never becomes a
+   semantic input.
+
+   `authoredStates` holds the one typed initial condition per owner. Provenance
+   origins compare those same typed values through `state/projection/model.js`; a body's
+   Markdown source is never reconstructed from its rendered words.
+
+   The complete initial value, by record kind:
+
+   - `attribute`: sorted owned ids carrying the declared attribute;
+   - `value`: the attribute string, or `null` when absent;
+   - `position`: ordered id lists for each container the widget orders, itself
+     included where `within` names its own tag, and each listed unit's authored
+     rank (lib/rank.js);
+   - `body`: the parsed data body's exact text, including indentation and trailing whitespace;
+   - no record: `null` for a widget verb, an empty unit map otherwise.
+
+   Ownership of record members stops at the nearest ancestor recording the same
+   physical slot: an attribute set's attribute, or a position. A position's
+   container belongs to the nearest element at or above it recording positions, so a
+   container and its members have one owner (Python's `projection.container_owner`).
+   Other attributes and record kinds coexist, including scalar state on a member or
+   container. */
+export const authoredStates = readPart((root) => root.document.authored);
+export const authoredParents = new WeakMap();
+
+const recordedOwner = (member: Element, record: StateRecord) => {
+  const selector = recordedWidgetSelector(record);
+  return selector ? (member.parentElement?.closest(selector) ?? null) : null;
+};
+const ownedRecordMembers = (widget: Element, selector: string, record: StateRecord) =>
+  [...widget.querySelectorAll(selector)].filter(
+    // Only a Leaf element holds recorded state, as the server's index reads it
+    // (structure.py): a native `<option selected>` inside an option's card is the
+    // author's own control, not a pick.
+    (member) =>
+      member.localName.startsWith("lf-") && recordedOwner(member, record) === widget,
+  );
+
+export function domValue(el: Element, record: StateRecord) {
+  if (record.kind === "attribute")
+    return ownedRecordMembers(el, `[${record.attr}]`, record)
+      .map((o) => o.id)
+      .filter(Boolean)
+      .sort();
+  if (record.kind === "value") return el.getAttribute(record.attr);
+  if (record.kind === "position") return el.closest(record.within)?.id ?? null;
+  return elementReading(el);
+}
+
+// `parent` states where a root that is not yet in the document will stand, so the
+// readings that ask about its place are right before insertion; a root already in the
+// document answers for itself.
+export function rememberAuthoredParents(
+  root: Document | Element | DocumentFragment = document,
+  parent: Element | null = root.parentElement,
+  original: (node: Element) => Element = (node) => node,
+) {
+  const remember = (element: Element) => {
+    const live = original(element);
+    if (authoredParents.has(live)) return;
+    authoredParents.set(
+      live,
+      element.parentElement
+        ? original(element.parentElement)
+        : (parent ?? live.parentElement),
+    );
+  };
+  if (root.nodeType === Node.ELEMENT_NODE) remember(root as Element);
+  for (const element of root.querySelectorAll("*")) remember(element);
+}
+
+function initialState(
+  widget: Element,
+  spec: ActionSpec,
+): AuthoredWidget["state"][string] {
+  const record = spec.record;
+  if (spec.unit !== "widget") {
+    const value: Record<string, string[]> = {};
+    if (record?.kind !== "position") return { value, units: {} };
+    const ranks: Record<string, string> = {};
+    const containers = [...widget.querySelectorAll(record.within)];
+    if (widget.matches(record.within)) containers.unshift(widget);
+    for (const container of containers)
+      if (
+        container.id &&
+        container.closest(recordedWidgetSelector(record)) === widget
+      ) {
+        const ids = [...container.children]
+          .filter((part) => part.id)
+          .map((part) => part.id);
+        value[container.id] = ids;
+        ids.forEach((id, index) => (ranks[id] = authoredRank(index)));
+      }
+    return { value, ranks, units: {} };
+  }
+  let value = null;
+  if (record?.kind === "attribute")
+    value = ownedRecordMembers(widget, `[${record.attr}]`, record)
+      .map((member) => member.id)
+      .filter(Boolean)
+      .sort();
+  else if (record?.kind === "value") value = widget.getAttribute(record.attr);
+  else if (record?.kind === "body") value = dataBody(widget);
+  return { action: null, value, detail: record ? { value } : {} };
+}
+
+export function stageAuthoredStates(
+  root: Document | Element | DocumentFragment,
+): Map<string, AuthoredWidget> {
+  const captured = new Map<string, AuthoredWidget>();
+  const byTag = new Map<string, Map<string, ActionSpec>>();
+  for (const { tag, verb, spec } of stateSpecs()) {
+    const specs = byTag.get(tag) ?? new Map();
+    specs.set(verb, spec);
+    byTag.set(tag, specs);
+  }
+  for (const [tag, specs] of byTag) {
+    const widgets = [...root.querySelectorAll(tag)];
+    if (root instanceof Element && root.matches(tag)) widgets.unshift(root);
+    for (const widget of widgets) {
+      if (!widget.id) continue;
+      captured.set(widget.id, {
+        tag,
+        specs,
+        state: Object.fromEntries(
+          [...specs].map(([verb, spec]) => [verb, initialState(widget, spec)]),
+        ),
+      });
+    }
+  }
+  return captured;
+}

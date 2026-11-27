@@ -28,6 +28,12 @@ A command goes to the Leaf that owns what it acts on (`src/leaf/session-lifetime
   session, as a dev server of any project would: it serves a page unclaimed,
   `leaf-dev preview --user` included, and `<root>/bin/leaf wait PAGE` hears it.
 
+So serve the user the page you talk to them on as a session in any other project
+would, through the session's own `leaf`, even when its subject is a change to Leaf.
+A checkout preview reaches the user as a link from that page, for trying a runtime
+change, as a dev server's URL would. Only the session's own pages reach its hooks
+and Leaf's line above Claude Code's prompt.
+
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
@@ -125,7 +131,10 @@ and lists the computed styles that differ in it, shadow trees included, with the
 declarations behind them (its module header covers `--base`, `--authored` and
 `--browser`). For a change to where a rule sits, such as its sheet, layer or selector,
 read those lists, with the corpus states covering every composed page, rather than
-writing a computed-style sweep. Where no state reaches a surface the change touches,
+writing a computed-style sweep. It also lists each geometry fault the change adds,
+such as a box nearly touching its frame's edge or a focus ring a clip cuts
+(`leaf_dev.geometry`); hand over none the change can fix.
+Where no state reaches a surface the change touches,
 add one to `STATES` as the `dev/leaf_dev/states.py` header says, rather than driving
 the surface by hand. In a screenshot you take yourself, capture the viewport where fixed
 chrome should appear: a Playwright screenshot of an element taller than the viewport

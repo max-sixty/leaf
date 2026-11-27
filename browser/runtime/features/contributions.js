@@ -1,3 +1,4 @@
+// Compiled from contributions.ts by build/typescript.mjs; edit that file.
 /* One current reading and activation capability for every contributed page action.
    The registration owns data and commands; shared control views retain browser
    capabilities, and each subscribed renderer owns its own paint and geometry.
@@ -17,45 +18,15 @@ import {
   forgetContributionControls,
 } from "./contribution-controls.js";
 import { focusDestination, focused } from "../dom/focus.js";
-/** @typedef {import("./contribution-controls.js").ReadingOptions} ReadingOptions
- * @typedef {import("../base/contribution-model.js").ContributionReading} ContributionReading
- * @typedef {import("../base/contribution-model.js").OwnedEntry} OwnedEntry
- * @typedef {import("../base/contribution-model.js").ContributionModel} ContributionModel
- * @typedef {"margin" | "map" | "inline"} ContributionSurface
- * @typedef {{origin?: Element | null, surface?: ContributionSurface | null,
- * input?: "keyboard" | "pointer", focus?: (key: string) => boolean}} ActivationRequest
- * @typedef {ActivationRequest & {entry: OwnedEntry, focus: (key: string) => boolean}} ActivationContext
- * @typedef {(activation: string, context: ActivationContext) => unknown} Activate
- * @typedef {{entry: Exclude<OwnedEntry, {behavior: "status"}>, activate: Activate}} UnscopedAction
- * @typedef {ContributionModel & {source: () => ContributionSource}} ContributionOffer
- * @typedef {{key: string, target: () => Element | null, source: () => Element | null,
- * read: () => ReadingOptions, activate: Activate | undefined,
- * reading: ContributionReading, model: ContributionOffer, unscoped: UnscopedAction[],
- * readingActions: Map<string, (() => unknown) | undefined>,
- * registration: ContributionRegistration,
- * focusRequest: {key: string, surface: ContributionSurface | null} | null}} ContributionSource
- * @typedef {{entry: (key: string) => OwnedEntry | null,
- * control: (key: string, surface?: ContributionSurface | null, visible?: boolean) => Element | null,
- * contains: (node: Node | null) => boolean,
- * hasCurrentLocation: () => boolean,
- * activate: (key: string, context?: ActivationRequest) => boolean,
- * activateReading: (id: string) => boolean,
- * focus: (key: string, cause: Parameters<typeof focusDestination>[1], surface?: ContributionSurface | null) => boolean,
- * update: (options?: {immediate?: boolean, focus?: string | null}) => void,
- * unregister: () => void}} ContributionRegistration
- */
-/** @param {unknown} value */
+
 const text = (value) => String(value ?? "").trim();
 let publishing = 0;
-/** @param {{key: string, read: () => ReadingOptions, activate: Activate | undefined}} offered
- * @param {ContributionReading | null} previous @param {() => ContributionSource} source */
 function readPublication(offered, previous, source) {
   // A command's control lookup cannot settle an older update during normalization.
   publishing++;
   try {
     const declared = offered.read();
     const reading = normalizeReading(declared, offered.key, previous);
-    /** @type {UnscopedAction[]} */
     const unscoped = [];
     for (const entry of reading.entries) {
       if (entry.behavior === "status" || contributionOwnsCommand(entry)) continue;
@@ -80,7 +51,6 @@ function readPublication(offered, previous, source) {
     publishing--;
   }
 }
-/** @param {ContributionSource} offered */
 function publishReading(offered) {
   Object.assign(
     offered,
@@ -88,9 +58,7 @@ function publishReading(offered) {
   );
 }
 
-/** @type {Set<ContributionSource>} */
 const contributions = new Set();
-/** @type {Set<(options: {immediate: boolean}) => void>} */
 const listeners = new Set();
 let owed = false;
 const changed = () => {
@@ -121,15 +89,11 @@ watchCommandAvailability(() => {
 export function presentingContributions() {
   owed = false;
 }
-/** @param {(options: {immediate: boolean}) => void} listener */
 export function watchContributions(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-/** @typedef {Element | null | (() => Element | null)} ContributionTarget */
-/** @param {{key: string, target: ContributionTarget, source?: ContributionTarget,
- * read: () => ReadingOptions, activate?: Activate}} options @returns {ContributionRegistration} */
 export function registerContribution({ key, target, source = target, read, activate }) {
   const owner = text(key);
   if (!owner) throw new TypeError("A contribution needs a key");
@@ -145,15 +109,12 @@ export function registerContribution({ key, target, source = target, read, activ
     sourceCapability,
   );
 
-  /** @param {string} entryKey */
   const entry = (entryKey) =>
     offered.reading.entries.find((candidate) => candidate.key === entryKey) ?? null;
-  /** @param {string} entryKey @param {ContributionSurface | null} surface @param {boolean} visible */
   const control = (entryKey, surface = null, visible = false) => {
     settle();
     return contributionControl(offered, entryKey, surface, visible);
   };
-  /** @type {string | null} */
   let owedFocus = null;
   const landFocus = () => {
     const key = owedFocus;
@@ -173,8 +134,6 @@ export function registerContribution({ key, target, source = target, read, activ
   };
   // An explicit arrival materializes the current surface before its retained control
   // is read. The request is mechanical and never enters the immutable contribution.
-  /** @param {string} entryKey @param {ContributionSurface | null} surface
-   * @param {(destination: Element) => boolean} move */
   const arrive = (entryKey, surface, move) => {
     const request = { key: text(entryKey), surface };
     const previous = offered.focusRequest;
@@ -189,7 +148,6 @@ export function registerContribution({ key, target, source = target, read, activ
       if (offered.focusRequest === request) offered.focusRequest = previous;
     }
   };
-  /** @type {ContributionRegistration} */
   const registration = Object.freeze({
     entry(entryKey) {
       return entry(text(entryKey));
@@ -214,7 +172,6 @@ export function registerContribution({ key, target, source = target, read, activ
       )
         return false;
       const originOwnsFocus = context.origin == null || context.origin === focused();
-      /** @param {string} key */
       const focusCurrentSurface = (key) =>
         arrive(key, context.surface ?? null, (destination) => {
           if (context.focus) return context.focus(key);
@@ -270,7 +227,6 @@ export function registerContribution({ key, target, source = target, read, activ
       changed();
     },
   });
-  /** @type {ContributionSource} */
   const offered = {
     key: owner,
     target: targetOf,

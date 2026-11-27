@@ -1,64 +1,8 @@
-import { says } from "/runtime/widget-api.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
-import {
-  colourableAs,
-  colouredAs,
-  inPage,
-  quoteFrom,
-  textNodesUnder,
-  verbatimBoundaryIdentity,
-  verbatimOwnerIdentity,
-} from "/runtime/check-api.js";
+import { colourableAs, colouredAs, inPage } from "/runtime/check-api.js";
 import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at, place, unique } from "./locate.js";
 import { drawnPage, openRoots } from "./open-roots.js";
-
-/** @param {Element} owner @param {readonly string[]} modules the tags a module upgrades */
-const compositionalWords = (owner, modules) => {
-  /** @type {{at: number, child: Element}[]} */
-  const boundaries = [];
-  const segments = textNodesUnder(owner, undefined, (child, at) => {
-    if (!modules.includes(child.localName)) return false;
-    boundaries.push({ at, child });
-    return true;
-  });
-  const reading = [];
-  let start = 0;
-  const flush = (/** @type {number} */ end) => {
-    const text = quoteFrom(segments.slice(start, end));
-    if (text) reading.push({ text });
-    start = end;
-  };
-  for (const { at, child } of boundaries) {
-    flush(at);
-    const identity = verbatimBoundaryIdentity.get(child);
-    reading.push({
-      boundary: [
-        identity?.owner ?? null,
-        identity?.index ?? null,
-        child.localName,
-        child.id || null,
-      ],
-    });
-  }
-  flush(segments.length);
-  return reading;
-};
-
-/** @param {Readonly<Record<string, import("../../../../browser/types/contract.js").WidgetDeclaration>>} declarations
- * @param {readonly string[]} modules the tags a module upgrades */
-export const shownVerbatim = (declarations, modules) =>
-  Object.entries(declarations)
-    .filter(([, entry]) => entry.verbatim)
-    .flatMap(([tag]) =>
-      [...document.querySelectorAll(tag)].map((el) => ({
-        tag,
-        id: el.id,
-        provenance: verbatimOwnerIdentity.get(el) ?? null,
-        says: says(el),
-        compositional: compositionalWords(el, modules),
-      })),
-    );
 
 // Words the page draws in the same place as other words, such as a settled group's
 // cards laid across the heading above them, which the user sees in the first second

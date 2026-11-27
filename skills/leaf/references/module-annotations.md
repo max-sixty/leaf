@@ -52,7 +52,9 @@ thing.
 `on-me`, `activity` and the margin's other kinds. `read()` may also return `readings`,
 items each with an `id` unique within the contribution, the `text` the margin shows
 for it, an optional `kind` from the same list, and an optional `activate`, which the
-registration's `activateReading(id)` calls.
+registration's `activateReading(id)` calls. A reading sets `represents: true` when the
+widget's own entries answer its question, as a pending suggestion's Accept and Reject
+do. Leaf then leaves out the "Waiting on me" it would draw at the same target.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with
@@ -340,9 +342,8 @@ until the widget returns.
 The comment box standing in an outlet the widget returns for itself can offer a second
 send. Set the outlet's `lfHold` to its words, such as `"Send & pause"`, and the box
 shows a button under those words beside Send, which Tab reaches after Send. Its comment
-carries `holds`, naming the widget, so the widget is held while that thread is open:
-its reading's `thread.heldBy` names the thread (`module-state.md`), and resolving the
-thread releases it.
+carries `holds`, naming the widget, so the widget is held while that thread is open,
+and resolving the thread releases it.
 
 `threadSurface` also loads through `portable-api.js`. Without a registered Leaf
 surface, there is nothing to release, and `open` is `null`.

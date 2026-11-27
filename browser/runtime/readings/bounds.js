@@ -1,3 +1,4 @@
+// Compiled from bounds.ts by build/typescript.mjs; edit that file.
 /* A block Leaf bounds (`bound`, or data-bound on an occurrence, painted as
    data-lf-bound) holds its own height and scrolls inside it. The theme bounds the box;
    this module makes the box a reading region and keeps an `end` bound's place.
@@ -62,16 +63,12 @@ import { marks } from "../state/kernel-facts.js";
 const BOUND = marks.bound.attribute;
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
+
 // Each block's hold, for the element's life, and the holds registered now.
-/** @typedef {{bounded: Element, id: string, bound: string | null, box: Element | null, follow: import("../dom/scrolling.js").EndKeeper | null, sync: () => void}} BoundHold */
-/** @type {WeakMap<Element, BoundHold>} */
 const holds = new WeakMap();
-/** @type {Set<BoundHold>} */
 const registered = new Set();
-/** @type {WeakMap<Element, BoundHold>} */
 const byBox = new WeakMap();
 
-/** @param {Element} bounded */
 function scrollerOf(bounded) {
   const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
   if (!selector) return bounded;
@@ -81,23 +78,18 @@ function scrollerOf(bounded) {
   return bounded;
 }
 
-/** @param {Element} box */
 const heldBy = (box) => {
   const hold = byBox.get(box);
   return hold?.box === box && registered.has(hold) ? hold : null;
 };
 
 // Whether the box's bounded block follows its end and the user is there.
-/** @param {Element} box */
 export const followingItsEnd = (box) => Boolean(heldBy(box)?.follow?.standsAtEnd());
 
 // The bounded block a registered region body scrolls, or null for any other box.
-/** @param {Element} box */
 export const boundedBlockOf = (box) => heldBy(box)?.bounded ?? null;
 
-/** @param {Element} bounded */
 function holdBlock(bounded) {
-  /** @type {BoundHold} */
   const hold = {
     bounded,
     id: regionId(bounded, "bound", bounded),
@@ -106,7 +98,6 @@ function holdBlock(bounded) {
     follow: null,
     sync: () => sync(false),
   };
-  /** @type {(() => void) | null} */
   let stopRegion = null;
   const stopFollowing = () => {
     hold.follow?.stop();
@@ -120,7 +111,6 @@ function holdBlock(bounded) {
     hold.box = null;
     registered.delete(hold);
   };
-  /** @param {Element} box */
   const adopt = (box) => {
     if (box === hold.box) return;
     letGo();
@@ -132,7 +122,6 @@ function holdBlock(bounded) {
   };
   // `observed` when the block's own size observer asks, which cannot take a fresh
   // observation of the block: the same delivery would never reach it (dom/reach.js).
-  /** @param {boolean} observed */
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();

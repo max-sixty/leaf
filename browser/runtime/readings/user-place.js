@@ -1,3 +1,4 @@
+// Compiled from user-place.ts by build/typescript.mjs; edit that file.
 /* Where the user is in what scrolls, and the one hold that keeps them there across a
    change.
 
@@ -117,13 +118,10 @@ import { repaint } from "../dom/repaint.js";
 // waits, a hidden stand-in where what it stands for is (features/details-shelf.js), or the On Me
 // card the `m` walk rings for the stop it reached (panel/floating-panel.js). The first rule
 // matching the node that names a box decides.
-/** @type {[string, (node: Element) => Element | null][]} */
 const standing = [];
-/** @param {string} selector @param {(node: Element) => Element | null} at */
 export function standsAt(selector, at) {
   standing.push([selector, at]);
 }
-/** @param {Element} node */
 const boxStoodAt = (node) => {
   for (const [selector, at] of standing) {
     const box = node.matches(selector) ? at(node) : null;
@@ -197,10 +195,9 @@ whenChanges(focusPlace, () => repaint());
 // passage a walk left to the one it reached, drawn below the window meanwhile. The
 // sheen's endless one, a fade, a cut, one held paused and one on a box's pseudo-element
 // bring the user nowhere.
-/** @param {Element} node */
 const slides = (node) =>
   document.getAnimations().some((animation) => {
-    const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
+    const effect = animation.effect;
     return (
       animation.playState === "running" &&
       effect?.target != null &&
@@ -228,7 +225,6 @@ export const readingLine = () => {
 // the block's top moves by what grew. Leaf's chrome over the line names nothing, and
 // neither does a box stuck over the page, which rides along with every scroll
 // (dom/geometry.js, `stuckBox`).
-/** @param {Element} column @returns {Range | Element | null} */
 export function readingAt(column) {
   const window = shownWindow();
   const box = column.getBoundingClientRect();
@@ -240,9 +236,7 @@ export function readingAt(column) {
   // The document answers for words in a shadow tree with their host, which can be a
   // tall block whose top moves by what grows above them, so each open tree under the
   // line is asked for its own, as anchoring reaches into them.
-  /** @type {ShadowRoot[]} */
   const shadowRoots = [];
-  /** @type {Range | Element | null} */
   let reading = document.elementFromPoint(x, line);
   while (reading?.shadowRoot) {
     shadowRoots.push(reading.shadowRoot);
@@ -264,7 +258,6 @@ export function readingAt(column) {
 
 // Put `held`'s top at `top` (scroll-containers.js, `returnTo`), and say whether that
 // moved anything.
-/** @param {Element | Range} held @param {number} top */
 function returnPlace(held, top) {
   const boxes = [...scrollersOf(placeHolder(held))].map((box) => ({
     box,
@@ -279,7 +272,6 @@ function returnPlace(held, top) {
 // Whether a change left `box` in the page and drawn with what it holds. A node folded
 // until found holds nothing, whether it is the folded block or a box inside it
 // (dom/geometry.js, `showsContents`).
-/** @param {Element | null | undefined} box */
 const stillDrawn = (box) => Boolean(box?.isConnected && showsContents(box));
 
 // Whether the words a range was made over are still the ones it holds, and drawn:
@@ -287,7 +279,6 @@ const stillDrawn = (box) => Boolean(box?.isConnected && showsContents(box));
 // words it hid have no box, though every box around them may still draw, as when the
 // change hides an element that has no box of its own. An element holds no words to
 // lose.
-/** @param {Element | Range} node */
 const keepsWords = (node) => {
   if (!(node instanceof Range)) return () => true;
   const words = node.startContainer;
@@ -298,7 +289,6 @@ const keepsWords = (node) => {
 // return the step that, once a change has drawn, scrolls it back there. A node the
 // change hid, removed or rewrote holds nothing. The step says whether it moved
 // anything.
-/** @param {Element | Range | null | undefined} node */
 export function holdPlaceOf(node) {
   const holder = node && placeHolder(node);
   if (!node || !holder) return () => false;
@@ -321,8 +311,6 @@ export function holdPlaceOf(node) {
 // began above the window: the change may have taken what lay between its top and the
 // reader. `standIn` is asked of the element that held the words, or, for words a
 // widget drew in its own tree, of what stands for them in `column`'s tree, the widget.
-/** @param {Element} column
- * @param {(node: Element) => Element | null | undefined} [standIn] */
 export function holdPlace(column, standIn) {
   const reading = readingAt(column);
   const holder = reading && placeHolder(reading);
@@ -332,9 +320,8 @@ export function holdPlace(column, standIn) {
   const shown = shownWindow().top;
   const asked = hostIn(holder, column.getRootNode()) ?? holder;
   // A box with no box of its own, as one that is `display: contents`, began nowhere.
-  /** @type {{box: Element, top: number}[]} */
   const around = [];
-  for (let box = /** @type {Element | null} */ (holder); box; box = upFrom(box))
+  for (let box = holder; box; box = upFrom(box))
     if (stillDrawn(box)) around.push({ box, top: edgeAt(box, "top") });
   return () => {
     const left = around.findIndex(({ box }) => stillDrawn(box));
@@ -401,7 +388,6 @@ export function holdPlace(column, standIn) {
 // ends the keep.
 // The box a named control stands for, where it names a place: shown, riding in a
 // scroller and not stuck there. Null where it names none.
-/** @param {Element | null | undefined} node @returns {Element | null} */
 const placeOf = (node) => {
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
@@ -416,7 +402,6 @@ const placeOf = (node) => {
 // box, and so is an age or a formula in the message, whose words a shadow root draws. A
 // caret in the box, or in a field the user types in, is the box's or field's, since
 // typing and a send rewrite the words there.
-/** @param {Element} node */
 const caretWords = (node) => {
   const at = userCaret();
   const box = boxStoodAt(node);
@@ -431,14 +416,12 @@ const caretWords = (node) => {
 // Where the user on `node` stands: on the words a click there left the caret in, else at
 // the box `node` stands at, as a user on a thread, where a send leaves them, waits at its
 // reply box, else on `node` itself.
-/** @param {Element} node @returns {Element} */
 export const standingAt = (node) =>
   caretWords(node)?.element ?? boxStoodAt(node) ?? node;
 // The caret a click on a focused container's words leaves (`caretWords`), where it lies
 // in what the container shows: the letter after it, which the keep holds as it holds
 // words at the reading line, so the message stays as a message above it grows or an
 // answer joins below it, and the box moves.
-/** @param {Element} node @returns {Range | null} */
 const caretPlace = (node) => {
   const caret = caretWords(node)?.letter;
   if (!caret) return null;
@@ -461,7 +444,6 @@ export function holdUserPlace() {
   const first = recentPlaceInput() === "pointer" && !typesText(node);
   const named = first ? [pointer, node] : [node, pointer];
   const field = typesText(node) ? node : null;
-  /** @type {{place: Element | Range, focus: boolean}[]} */
   const places = [];
   for (const candidate of named) {
     const place =

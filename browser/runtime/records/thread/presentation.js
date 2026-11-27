@@ -1,3 +1,4 @@
+// Compiled from presentation.ts by build/typescript.mjs; edit that file.
 /* Thread presentation across widget outlets, the primary reader and the margin.
 
    This owner receives records and narrow view capabilities. It never reads delivery,
@@ -27,28 +28,6 @@ import { applicationPresenter, PRESENTATION_DOM } from "../../state/semantic-sta
 import { runtime } from "../../state/context.js";
 import { draftAnchor, draftsReading } from "../drafts.js";
 
-/** @typedef {ReturnType<typeof import("./primary-reader.js").createPrimaryReader>} PrimaryReader */
-/** @typedef {import("../../state/semantic-state.js").Resume} Resume */
-/** @import { PlacementReading, Thread, ThreadDraft, ThreadPlacements } from "./placement.js" */
-/** @import { Anchor } from "../../../types/domain.js" */
-/** @param {{surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
- * finishPlacement: () => unknown}},
- * anchorPlacement: Pick<ThreadPlacements, "placedAt" | "pendingAt"> & {read: (options: {threads: readonly Thread[],
- * draft: ThreadDraft, actionAnchor: Anchor | null, saved: readonly {context: string, anchor: Anchor}[]}) => PlacementReading | null},
- * anchorPaint: {paint: (reading: PlacementReading) => unknown},
- * anchorControls: {render: (reading: PlacementReading) => unknown, withholdVisualActions: () => unknown},
- * drawingPaint: {paint: () => unknown},
- * pageGeometry: {pageShifted: () => unknown},
- * readDraft: () => ThreadDraft,
- * activeActionAnchor: () => import("../../../types/domain.js").Anchor | null,
- * renderSurfaces: typeof import("./surfaces.js").renderSurfaces,
- * openThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
- * continueThread: Parameters<typeof holdReplyCompositions>[1],
- * returnToPage: ReturnType<typeof import("./destination.js").createThreadDestinations>["returnToPage"],
- * threadAt: ReturnType<typeof import("./destination.js").createThreadDestinations>["threadAtCurrentLocation"],
- * travellingTo: (id: string) => boolean,
- * marginCommitted: () => unknown,
- * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "begin" | "present" | "abort">}} dependencies */
 export function createThreadPresentation({
   surfaceView,
   anchorPlacement,
@@ -67,7 +46,6 @@ export function createThreadPresentation({
   marginCommitted,
   read,
 }) {
-  /** @type {PrimaryReader | null} */
   let primary = null;
 
   // The paint follows what it reads, before it waits for preparation and in the
@@ -97,17 +75,14 @@ export function createThreadPresentation({
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
-  /** @param {() => boolean} presenting @param {Resume} [resume] */
   const startRender = (presenting, resume = (run) => run) => {
     cancelCurrentRender();
-    /** @type {PromiseWithResolvers<void>} */
     const { promise: cancelled, resolve } = Promise.withResolvers();
     cancelCurrentRender = resolve;
     return renderReading(cancelled, presenting, resume);
   };
 
   // A continuation the pass resumes joins its reads, of the publication and the clock.
-  /** @param {Promise<void>} cancelled @param {() => boolean} presenting @param {Resume} resume */
   async function renderReading(cancelled, presenting, resume) {
     const generation = ++surfaceGeneration;
     read.begin();
@@ -120,7 +95,6 @@ export function createThreadPresentation({
       seated: (id) => Boolean(surfaceFocusTarget(id, { part: "thread" })),
       travellingTo,
     });
-    /** @type {ReturnType<typeof renderSurfaces> | null} */
     let surfaces = null;
     try {
       const collection = readThreads();
@@ -149,7 +123,6 @@ export function createThreadPresentation({
       const primaryPreparation = primary?.owner.isConnected
         ? primary.prepare(collection, cancelled)
         : null;
-      /** @param {Awaited<ReturnType<PrimaryReader["prepare"]>>} primaryCandidate */
       const paintPrepared = (primaryCandidate) => {
         if (!current()) return;
         // Capture every core message age before yielding to a package.
@@ -215,7 +188,6 @@ export function createThreadPresentation({
     }
   }
 
-  /** @param {PrimaryReader} reader */
   function registerPrimary(reader) {
     if (primary) throw new Error("The page already has a primary Thread presentation");
     primary = reader;

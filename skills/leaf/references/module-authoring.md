@@ -15,8 +15,10 @@ back, and others say that it is drawing, holding something for the user or faili
 [module-plain-elements.md](module-plain-elements.md) gives each property, event and
 mark of that protocol. A widget that only records state and reads bound data imports
 nothing. One that draws with Lit usually extends `LeafElement`, the Lit element on that
-protocol, and one that draws from a page reading must (`module-plain-elements.md`,
-"`LeafElement`").
+protocol, and one that draws from a page reading either does (`module-plain-elements.md`,
+"`LeafElement`") or is an Effect UI component that `defineWidget` defines
+(`/runtime/effect-widget.js`, whose header gives its contract): Leaf's reading and
+what its `inputs` read arrive as props, and its events record.
 
 Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
 form. Find a need's kind, then read the section that describes its form:
@@ -72,8 +74,6 @@ In this file:
 
 In [module-state.md](module-state.md):
 
-- "The widget controller": `widgetController` reads what Leaf holds for a widget, the
-  module's own or another's.
 - "State only this tab keeps": `tabStore` keeps a string for this tab, and
   `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
   which Leaf remembers, names in the address and returns the user to their place in.
@@ -87,7 +87,6 @@ In [module-reading.md](module-reading.md):
 - "Reading the page": `says`, `named` and `phrasing` read an element's words, and
   `elementById` finds the element an address names.
 - "Naming": `nameOf`, `titledElement` and `anchorLabel`.
-- "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
@@ -145,7 +144,8 @@ library module keeps none of the page's state and calls nothing of Leaf's. A wid
 imports a module by its path, as it imports Lit, and the module works off Leaf too.
 Like `widget-api.js`, the library can change in any update.
 [The directory](../../../browser/runtime/lib/) lists the modules, and each module's
-header and comments say what it exports.
+header and comments say what it exports. A module Leaf writes in TypeScript keeps its
+types in the `.ts` beside the `.js` a widget imports.
 
 ### A widget that also runs off Leaf
 

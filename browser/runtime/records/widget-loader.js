@@ -1,3 +1,4 @@
+// Compiled from widget-loader.ts by build/typescript.mjs; edit that file.
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
 import { isElement } from "../lib/shadow-tree.js";
@@ -23,11 +24,7 @@ import {
 } from "../state/semantic-state.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
 import { bindWidgetDescriptors, stageWidgetDescriptors } from "./widget-descriptors.js";
-import {
-  fencePassageParts,
-  verbatimBoundaryIdentity,
-  verbatimOwnerIdentity,
-} from "../readings/passages.js";
+import { fencePassageParts } from "../readings/passages.js";
 import {
   offlineInteractive,
   runtimeModule,
@@ -58,28 +55,18 @@ import { widgetImports } from "../state/widget-imports.js";
 
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */
-// An opaque widget and its original direct children fence passage capture. A
-// preserving widget owns prose around ordered upgraded-child boundaries instead. Its
-// pre-upgrade source and occurrence pair the rendered owner with the file even when it
-// has no authored id. Record these readings before upgrades move or replace nodes.
+// An opaque widget and its original direct children fence passage capture. Record them
+// before upgrades move or replace nodes.
 const rememberedPassageRoots = new WeakSet();
 
 // Root-inclusive, like every reading of arriving markup: when a live revision brings a
 // single widget, the scope is that widget.
-/** @typedef {Document | DocumentFragment | Element} Scope */
-/** @param {Scope} scope @param {string} selector */
 const within = (scope, selector) => [
   ...(isElement(scope) && scope.matches(selector) ? [scope] : []),
   ...scope.querySelectorAll(selector),
 ];
 
-/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source]
- * @param {(node: Element) => Element} [original] */
-export function rememberPassageParts(
-  scope = document,
-  source = ["page", null],
-  original = (node) => node,
-) {
+export function rememberPassageParts(scope = document, original = (node) => node) {
   for (const tag of tagsDeclaring((entry, tag) => upgrades(tag) && !entry.verbatim))
     for (const root of within(scope, tag)) {
       const live = original(root);
@@ -87,46 +74,6 @@ export function rememberPassageParts(
       rememberedPassageRoots.add(live);
       fencePassageParts(live, [...root.children].map(original));
     }
-  for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
-    const live = original(root);
-    if (rememberedPassageRoots.has(live)) continue;
-    rememberedPassageRoots.add(live);
-    identifyPreserving(root, [...source, ownerIndex], original);
-  }
-}
-
-/** @param {Scope} scope */
-const preservingOwners = (scope) =>
-  within(scope, "*").filter((root) => registry[root.localName]?.verbatim);
-
-/** @param {Element} root @param {[string, string | null, number]} owner @param {(node: Element) => Element} original */
-function identifyPreserving(root, owner, original = (node) => node) {
-  verbatimOwnerIdentity.set(original(root), owner);
-  let boundaryIndex = 0;
-  /** @param {Element} parent */
-  const visit = (parent) => {
-    for (const child of parent.children) {
-      if (upgrades(child.localName))
-        verbatimBoundaryIdentity.set(original(child), {
-          owner,
-          index: boundaryIndex++,
-        });
-      else visit(child);
-    }
-  };
-  visit(root);
-}
-
-// A preserving owner with no id is identified by where it stands among the document's
-// other preserving owners, which is a fact about all of them rather than about any one.
-// A live revision that inserts or drops one therefore renumbers the rest, and leaving
-// the existing owners on the numbers they arrived with would have two of them answering
-// to the same name. Read from the document rather than from what the patch brought in,
-// for the same reason: the order is the whole document's.
-/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source] */
-export function reindexPassageOwners(scope = document, source = ["page", null]) {
-  for (const [ownerIndex, root] of preservingOwners(scope).entries())
-    identifyPreserving(root, [...source, ownerIndex]);
 }
 
 // The one import-on-demand door: a page loads the modules its own markup uses and no
@@ -143,13 +90,11 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 // Rejections reach startup and activation, which must not present markup whose
 // required module is absent.
 const registryUrl = () => runtimeResource("/registry.json");
-/** @param {string} tag */
 const widgetUrl = (tag) =>
   offlineInteractive
     ? runtimeModule(`/widgets/${tag}.js`)
     : runtimeResource(`/widgets/${tag}.js`);
 
-/** @param {Scope} scope */
 async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every `shadow` widget's look a fetch behind its own
@@ -162,7 +107,6 @@ async function loadWidgetDependencies(scope) {
   ]);
 }
 
-/** @param {Scope} scope */
 async function importWidgetModules(scope) {
   const required = widgetImports(scope, registry);
   await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
@@ -170,7 +114,6 @@ async function importWidgetModules(scope) {
 
 // Source-only preparation must not consume authored body records. Live revisions
 // import ahead of activation, then format their copied arrivals after typed capture.
-/** @param {Scope} scope */
 export async function preloadWidgets(scope) {
   await loadWidgetDependencies(scope);
   await importWidgetModules(scope);
@@ -178,7 +121,6 @@ export async function preloadWidgets(scope) {
 
 // Startup and thread-message presentation may consume their captured markup. Format
 // before module imports can synchronously connect an already-present custom element.
-/** @param {Scope} scope */
 export async function importWidgets(scope) {
   await loadWidgetDependencies(scope);
   formatDeclaredMarkdown(scope);
@@ -187,7 +129,6 @@ export async function importWidgets(scope) {
 
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
 // still what its author wrote, import what its tags declare, and paint its declared words.
-/** @param {Element} scope */
 async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation");
   try {
@@ -218,7 +159,6 @@ async function installDocument(scope) {
 // waits for the widgets it brought and for its own dressing, never for the whole
 // application — that wait would be on a renderer whose turn cannot come until this one
 // returns, and a page that stops there has stopped answering with nothing said.
-/** @template {{roots: Element[], widgets: string[]}} T @param {Element} scope @param {() => T} patch */
 export async function patchDocument(scope, patch) {
   const presentation = attachApplicationPresentation("document:patch");
   try {
@@ -235,8 +175,6 @@ export async function patchDocument(scope, patch) {
 // the keyboard can reach. Authored state was already captured from source markup
 // before any module could turn that input into presentation. `presented` is the wait
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
-/** @param {ReturnType<typeof attachApplicationPresentation>} presentation @param {Element} scope
- * @param {Element[]} arrived @param {() => Promise<unknown>} presented */
 async function settle(presentation, scope, arrived, presented) {
   const painted = Promise.all(arrived.map(paintDeclaredWords));
   const presenting = presentation.present();
@@ -247,8 +185,7 @@ async function settle(presentation, scope, arrived, presented) {
 }
 
 /** The authored document as the page first stood, and the live node each of its
- * nodes became (features/version.js, `InitialDocument`).
- * @param {{source: Element | null, pairs: {require: (node: Element) => Element}}} captured */
+ * nodes became (features/version.js, `InitialDocument`). */
 export async function prepareDocument(captured) {
   // A revision asset, whose headers may be cached from an earlier release
   // (`admitResponse`). The initial state read answers for the server, and the
@@ -260,9 +197,8 @@ export async function prepareDocument(captured) {
   if (!sameLayer(registry.$layer.generation)) return false;
   const scope = captured.source;
   if (!scope) throw new Error("The initial document has no authored root");
-  /** @param {Element} node */
   const original = (node) => captured.pairs.require(node);
-  rememberPassageParts(scope, ["page", null], original);
+  rememberPassageParts(scope, original);
   rememberAuthoredParents(scope, null, original);
   const descriptors = stageWidgetDescriptors(scope);
   const authored = stageAuthoredStates(scope);
@@ -282,7 +218,6 @@ export async function prepareDocument(captured) {
   return true;
 }
 
-/** @param {{buildReactionBar: () => void}} options */
 export async function upgradeWidgets({ buildReactionBar }) {
   revealLayer();
   buildReactionBar();

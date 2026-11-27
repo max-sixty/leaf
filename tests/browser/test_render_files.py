@@ -161,19 +161,18 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     loaded.wait_for_function(centred)
 
 
-def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside_it(
+def test_a_markdown_preview_draws_the_files_html_and_the_pictures_beside_it(
     browser, serve, tmp_path
 ):
-    """A file's preview, bound to its editor or to the file itself, draws its HTML as
-    GitHub does: a fold folds and stays open as the reader types inside it, a centred
+    """A file's preview, bound to its editor or to the file itself, draws the HTML the
+    file writes: a fold folds and stays open as the reader types inside it, a centred
     picture beside the file loads at the height the file gives it, bare of the reading
     face's frame, a link to a file beside it opens that file in a new tab as text, a
-    link to an anchor the file names lands there, a table keeps its alignment and a
-    task list its checkbox. Nothing outside
-    GitHub's list survives: no script runs, a `javascript:` link leads nowhere, a link
-    keeps no opener, a style, a class or a `data-` attribute of Leaf's goes, the file's
-    `id` names no element of the page, and a field the file writes stands as a
-    disabled checkbox."""
+    link to an anchor the file names lands there, a table keeps its alignment, a task
+    list its checkbox, and an element its style, class and fields. What would run
+    script or speak for Leaf goes: no script runs, a `javascript:` link leads nowhere,
+    a Leaf widget and a `data-` attribute go, and the file's `id` names no element of
+    the page."""
     (tmp_path / "assets").mkdir()
     (tmp_path / "assets" / "logo.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
@@ -191,8 +190,9 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
         '<a href="javascript:window.ran = `link`">Bad</a> '
         '<a href="https://example.com/" rel="opener">Out</a> '
         "[Guide](docs/guide.md) [Back to top](#top)\n\n"
-        '<div id="preview" class="lf-panel" style="position: fixed" data-lf-said>'
+        '<div id="preview" class="note" style="color: teal" data-lf-said>'
         "Styled</div>\n\n"
+        '<lf-options id="pick"><lf-option id="yes">Yes</lf-option></lf-options>\n\n'
         '<input type="text" value="typed">\n\n'
         "| Name | Size |\n| :-: | --: |\n| logo | 40 |\n\n"
         '<table><tr><td align="right">Sponsor</td></tr></table>\n\n'
@@ -233,7 +233,6 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
     expect(preview).not_to_contain_text("hidden note")
     out = preview.get_by_role("link", name="Out")
     expect(out).to_have_attribute("target", "_blank")
-    expect(out).not_to_have_attribute("rel", "opener")
     guide = preview.get_by_role("link", name="Guide")
     expect(guide).to_have_attribute("target", "_blank")
     href = guide.evaluate("link => link.href")
@@ -248,8 +247,10 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
     styled = preview.get_by_text("Styled")
     assert styled.evaluate(
         "div => [...div.attributes].map(({name, value}) => `${name}=${value}`)"
-    ) == ["data-lf-place=preview"]
+    ) == ["class=note", "style=color: teal", "data-lf-place=preview"]
+    expect(styled).to_have_css("color", "rgb(0, 128, 128)")
     expect(page.locator("#preview")).to_have_count(1)
+    expect(preview.locator("lf-options, lf-option")).to_have_count(0)
     preview.get_by_role("link", name="Back to top").click()
     assert (
         page.locator("#preview").evaluate(
@@ -262,9 +263,8 @@ def test_a_markdown_preview_draws_the_html_github_allows_and_the_pictures_beside
     ) == ["center", "right", "right"]
     fields = preview.locator("input")
     expect(fields).to_have_count(2)
-    for at in range(2):
-        expect(fields.nth(at)).to_have_attribute("type", "checkbox")
-        expect(fields.nth(at)).to_be_disabled()
+    expect(fields.nth(0)).to_have_value("typed")
+    expect(fields.nth(1)).to_be_disabled()
     expect(fields.nth(1)).to_be_checked()
     assert page.evaluate("window.ran") is None
 
@@ -883,6 +883,61 @@ def test_a_retry_after_a_save_with_no_answer_keeps_the_typing_after_it(
     )
 
 
+def test_a_retry_while_saves_lose_their_answers_keeps_the_typing_after_them(
+    browser, serve, tmp_path
+):
+    """Every save reaches the file and loses its answer, as when the host's store
+    refuses each commit after the write. The reader types an edit and then types it
+    away, adds a line, and retries; then retries again once answers come back. Each
+    Retry settles the earlier save against the file before sending, so the edit the
+    reader typed away never comes back, and the file holds what they last typed."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n\nEnd.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    landed = []
+
+    def lose(route):
+        if route.request.method != "POST":
+            route.continue_()
+            return
+        route.fetch()
+        landed.append(route)
+        route.abort()
+
+    page.route("**/api/files/notes", lose)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    expect(retry).to_be_visible()
+    assert file.read_text() == "Notes.\n\nEnd.\nDraft."
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.insert_text("Added.")
+    page.keyboard.press("Enter")
+    last = "Added.\nNotes.\n\nEnd.\n"
+    retry.click()
+    holding(page, landed, 2, "the save the retry sends")
+    expect(retry).not_to_have_attribute("aria-disabled", "true")
+    page.unroute("**/api/files/notes", lose)
+    retry.click()
+    expect(retry).to_be_hidden()
+    expect(editor).to_have_text(last.replace("\n", ""))
+    assert file.read_text() == last
+    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
+
+
 def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
     browser, serve, tmp_path
 ):
@@ -1269,13 +1324,18 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     browser, serve, tmp_path
 ):
     """A double-click on a word in the rendered copy of the editor's file puts the
-    editor's caret at the start of the word's line, whichever block holds it, and leaves
-    no word selected in the copy. A double-click on a link in the copy only follows the
-    link, though the link scrolls other words under the second press, and one on a copy
-    that names no editor selects its word as the browser does."""
+    editor's caret at the start of the word's line, whichever block holds it, the file's
+    own HTML and the Markdown a fold of it wraps included, and leaves no word selected
+    in the copy. A double-click on a link in the copy only follows the link, though the
+    link scrolls other words under the second press, and one on a copy that names no
+    editor selects its word as the browser does."""
     file = tmp_path / "README.md"
     file.write_text(
+        '<p align="center" title="Gizmo">\n  <!-- Gizmo\'s logo -->\n'
+        "  <style>.Gizmo { color: red }</style>\n  <strong>Gizmo</strong>\n  <br>\n"
+        "  A tool that <em>does</em> things.\n</p>\n\n"
         "[To the end](#the-end)\n\nA paragraph's first line\nwraps onto a second line."
+        "\n\n<details>\n<summary>From source</summary>\n\nRun the build.\n\n</details>"
         "\n\n- one\n- two\n\n```sh\nsh run.sh\n```\n\n"
         "| a | b |\n| --- | --- |\n| x | gamma |\n\n"
         + "\n\n".join(f"Paragraph {number}." for number in range(1, 41))
@@ -1302,12 +1362,15 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     expect(preview.get_by_role("cell", name="gamma")).to_be_visible()
 
     def double_click(locator, word):
+        locator.get_by_text(word).first.scroll_into_view_if_needed()
         point = word_point(locator, word)
         page.mouse.dblclick(point["x"], point["y"])
 
     double_click(page.locator("#written .lf-text-document-preview"), "written")
     assert page.evaluate("() => getSelection().toString()") == "written"
 
+    preview.locator("details > summary").click()
+    expect(preview.get_by_text("Run the build.")).to_be_visible()
     # The first double-click lands on selected words, and a fenced command's first word
     # is also the fence's language.
     preview.locator("p", has_text="wraps").evaluate(
@@ -1315,6 +1378,9 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     )
     for word, line in [
         ("wraps", "wraps onto a second line."),
+        ("Gizmo", "<strong>Gizmo</strong>"),
+        ("tool", "A tool that <em>does</em> things."),
+        ("build", "Run the build."),
         ("two", "- two"),
         ("sh", "sh run.sh"),
         ("gamma", "| x | gamma |"),
@@ -1327,6 +1393,7 @@ def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
     expect(editor.locator(".cm-activeLine")).to_have_text("Z| x | gamma |")
 
     # The link's scroll lands before the double-click's second press.
+    preview.get_by_text("To the end").scroll_into_view_if_needed()
     point = word_point(preview, "To the end")
     page.mouse.click(point["x"], point["y"])
     expect(preview.get_by_role("heading", name="The end")).to_be_in_viewport()

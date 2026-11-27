@@ -130,16 +130,20 @@ changes, rather than asking about the case in front of you.
 ## Responsiveness
 
 When the user acts, the page draws each result that follows from the act alone, such
-as the user's message in its thread, a widget's new state or a thread they resolved.
-It draws them in the task that handles the act, before the browser's next frame.
-Facts that depend on the rest of the log, such as whose turn a thread is and which
-obligations the user owes, arrive with the server's reading of the gesture: the
-page's state as the server computes it from the whole log after admitting the
-gesture. That reading should be on screen within 100 ms, since the server usually
-runs on the user's machine. The browser doesn't predict that reading: a prediction
-is a second copy of the server's rules, and each case it misses shows the wrong
-state until the reading arrives. Where the reading takes longer than 100 ms, make
-that path faster.
+as the user's message in its thread, a widget's new state, whether that widget's own
+question is now answered, or a thread they resolved. It draws them in the task that
+handles the act, before the browser's next frame. The widget decides whether its
+question is answered and its gesture carries that word to the log, where the server
+reads it rather than deciding again (`awaits`), so a press that answers a question
+moves it off On Me, and a deck to its next card, at once. Facts that depend on the
+rest of the log, such as whose turn a thread is and whom an open obligation waits on,
+arrive with the server's reading of the gesture: the page's state as the server
+computes it from the whole log after admitting the gesture. A question a gesture
+reopens stands as the user's until that reading says otherwise. That reading should be on
+screen within 100 ms, since the server usually runs on the user's machine. The
+browser doesn't predict that reading: a prediction is a second copy of the server's
+rules, and each case it misses shows the wrong state until the reading arrives. Where
+the reading takes longer than 100 ms, make that path faster.
 
 These times hold on a large page too. A page's size is how much it holds: elements,
 widgets, headings, obligations, threads, events and revisions. An input's work
@@ -280,8 +284,8 @@ and the page's packages into the page's layer.
   describes.
 - `notes/`: research, and plans for large work in progress or for a design not yet
   built. Work being built on a branch keeps its contract in its own code, not in a
-  note; to show that work to the user, preview a Leaf page whose source is a file in
-  `.tmp/`. When a design lands, its contract moves beside the code or into a
+  note; to show that work to the user, serve them a Leaf page whose source is a file
+  in `.tmp/` (`/developing-leaf`, "Run `leaf`"). When a design lands, its contract moves beside the code or into a
   reference, and its note is deleted. `notes/TODO.md` lists the biggest current
   challenges and says how to query the backlog, which is the GitHub issues labelled
   `backlog`.
@@ -369,12 +373,12 @@ local-directory marketplace also copies a checkout's `.venv`. Nothing is built a
 install time: installing, authoring pages, writing custom packages and exporting
 need no browser build or npm.
 
-Pages run the browser runtime's source modules from the install that serves them, so
-a runtime change needs no build. The exception is the floating panel's row: the
-build writes a static copy of the row, which a page shows at first paint, so a
-change to the row needs `pnpm run build:browser` (`build/AGENTS.md`). Only a
-prepared installation, such as the website's container, compiles the source modules
-into one bundle, the kernel (`build/runtime-bundle.mjs`,
+Pages run the browser runtime's modules from the install that serves them, as the
+tree holds them. Two kinds of file there are built and committed, so an edit reaches
+pages only once a build writes them (`build/AGENTS.md`): the JavaScript compiled from
+a TypeScript module, and the static copy of the floating panel's row a page shows at
+first paint. Only a prepared installation, such as the website's container, compiles
+the modules into one bundle, the kernel (`build/runtime-bundle.mjs`,
 `leaf.source.runtime_selection.read_runtime`).
 
 `bin/leaf` runs `uv run --no-dev` on the tree, which writes the tree's `.venv`, so the
@@ -433,8 +437,9 @@ whole thread, since its markup lives in the log rather than in a version.
 A gesture's own result shows in the task that sends it, before the server answers
 ("Responsiveness"); a disabled control, a spinner or a delivery status is not that
 result. To the server's reading, the browser adds only what a gesture decides by
-itself: a thread the user opens, the user's own reply and its wait for an answer, and
-the words of a refused send, kept for the user to send again. When the server refuses
+itself: a thread the user opens, the user's own reply and its wait for an answer,
+whether the question of the widget it acts on is answered, as that widget says
+(`awaits`), and the words of a refused send, kept for the user to send again. When the server refuses
 a gesture, the browser returns to the server's state.
 
 Focus, scroll position, selection, open disclosures, a drag and layout belong to the
@@ -452,7 +457,9 @@ page, which the Leaf panel shows, and for each obligation record and each update
 user handed over (`workflows.py`), which messages, thread attention, the On lists,
 margin entries and the Stop hook read. A busy page doesn't mean every message is being
 worked on. The browser adds its own unsent gestures to what the server sends, but
-never changes where a workflow stands, not even as time passes. Another page
+never changes where a workflow stands, not even as time passes, apart from a widget's
+own word on its question: an obligation a gesture answers or reopens stands so until
+the server's reading of the gesture arrives. Another page
 learns a page's activity only from the row `server_rows.py` writes and from whether
 the page's server is alive. It shows that activity only in its list of other pages
 (`/api/pages`), and that list feeds no page's own state and no server's reading of a
@@ -471,12 +478,11 @@ on the event, so later readers use those fields directly instead of looking up t
 widget. An event names what it depends on by declared ids, never by words in its
 detail.
 
-A passage, the text a comment points at, is a list of `{node, start, end}` segments,
-which Python and the browser collapse and resolve by the same rules. `says` is
-visible text; `wrote` is authored text. Python never accepts an anchor the rendered
-page can't resolve. When the passage a comment quotes appears more than once and no
-surrounding context picks one copy, the comment detaches rather than taking a copy
-by its order or offset.
+A passage, the text a comment points at, is a list of `{node, start, end}` segments.
+`says` is visible text; `wrote` is authored text. Every anchor an agent gives a section
+resolves, to its words or to its element. When the passage a comment quotes appears
+more than once and no surrounding context picks one copy, the comment stands on its
+section or in Threads rather than taking a copy by its order or offset.
 
 Leaf derives each fact about the page once, and each place that reports on the page
 picks the facts it needs. `leaf page state` tells a later session the facts a
@@ -529,13 +535,14 @@ advice rather than Leaf's, so it may name any widget.
 ### Keep the package interface small
 
 A package leans on Leaf only through the package interface: the keys of an element
-declaration, the widget protocol, Leaf's own elements, the functions `widget-api.js`
-exports and the styling names the references declare. Another author's package has
-nothing else, so Leaf's bundled widgets use nothing else. The interface sprawls
-through names that each look reasonable alone, and every later change keeps each
-name working, so Leaf keeps it small and coherent. A change meets a widget's need
-without a new name where it can, and `packages/AGENTS.md`, "A widget's need of
-Leaf", says how to choose where it can't.
+declaration, the widget protocol, Leaf's own elements, the data contracts Leaf's
+packages declare, the functions `widget-api.js` exports and the styling names the
+references declare. Another author's package has nothing else, so Leaf's bundled
+widgets use nothing else. The interface sprawls through names that each look
+reasonable alone, and every later change keeps each name working, so Leaf keeps it
+small and coherent. A change meets a widget's need without a new name where it can,
+and `packages/AGENTS.md`, "A widget's need of Leaf", says how to choose where it
+can't.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the

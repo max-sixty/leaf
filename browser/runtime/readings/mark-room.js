@@ -1,3 +1,4 @@
+// Compiled from mark-room.ts by build/typescript.mjs; edit that file.
 /* The room the marks round a subject take beside it, which every surface that stands
  * beside the subject keeps clear of: a thread's card, the comment box and a preview.
  *
@@ -9,7 +10,7 @@
  * frame. A box whose every edge stands further out holds the surface inside it, as a
  * section holds the card beside one of its paragraphs, so the surface stands over that
  * box's ring; the walk ends there, since the boxes round it stand further out still.
- * Every box states the room its marks take (base.css, `:where(*)`) whether or not
+ * Every box states the room its marks take (element-marks.css, `:where(*)`) whether or not
  * Leaf ever marks it, so the walk skips a box nothing can name, such as a padded
  * wrapper, which never wears a mark and would otherwise push the surface out.
  * A margin seat stands for the element it marks (`[data-lf-margin-for]`, whose
@@ -24,14 +25,9 @@ import { markedBox } from "../dom/geometry.js";
 import { closestAcross, renderedParent } from "../lib/shadow-tree.js";
 import { isAddressable } from "./anchor-resolution.js";
 
-/** @typedef {import("../base/box.js").Box} Box */
-/** @typedef {{left: number, top: number, right: number, bottom: number}} MarkRoom */
-
-/** @type {readonly ["left", "top", "right", "bottom"]} */
 const EDGES = ["left", "top", "right", "bottom"];
 
 // How far `outer` reaches past `box` on each side.
-/** @param {Box} outer @param {Box} box @returns {MarkRoom} */
 const reachPast = (outer, box) => ({
   left: box.left - outer.left,
   top: box.top - outer.top,
@@ -41,7 +37,6 @@ const reachPast = (outer, box) => ({
 
 // The room the marks round `subject` take past `box`, its box, on each side, for a
 // surface that stands `gap` past them; none where no part of the subject shows.
-/** @param {Element} subject @param {Box} box @param {number} gap @returns {MarkRoom} */
 export function markRoom(subject, box, gap) {
   const own = markedBox(subject);
   if (!own) return { left: 0, top: 0, right: 0, bottom: 0 };

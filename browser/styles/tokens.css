@@ -72,7 +72,7 @@
      the chrome draws nothing, and the room is the window's safe area, which the body
      keeps (base.css). At the foot the floating panel's row rests (floating-panel.css),
      with a gap below and above it. The page keeps no room for that band: the row stands
-     over the page, and Leaf's landings stop above it (`--lf-foot-band`, base.css). A page
+     over the page, and Leaf's landings stop above it (`--lf-landing-foot`, base.css). A page
      that is not live draws no chrome (below).
 
      The row is its one line (`--lf-line`) and the panel's padding around it
@@ -122,7 +122,7 @@
   --lf-z-page-paint: 8890; /* paint on a page element */
   --lf-z-margin-raised: 8895; /* the margin item under pointer or focus, or at the user's location */
   --lf-z-page-hints: 8898; /* page-target key chips, under the chrome */
-  --lf-z-margin-preview: 8920; /* the thread card, under the panel it scrolls beneath */
+  --lf-z-margin-preview: 8920; /* the thread card, and the comment box just under it */
   --lf-z-region-capture: 8930; /* viewport crop selection, over the thread card */
   --lf-z-panel: 9000; /* the floating panel */
   --lf-z-chrome-paint: 9060; /* paint whose target is inside the chrome */
@@ -629,12 +629,20 @@
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, one whose clip leaves no room outside it, or
        one of Leaf's word and symbol presses, which Leaf seats on frames' edges and in
-       their corners (controls.css, `.lf-btn` and `.lf-icon-action`): one band inside
-       its edge, at --lf-focus-ring-inset. A box that clips a mark standing
+       their corners (controls.css, `.lf-btn` and `.lf-icon-action`), or the frame of a
+       field Leaf's controls are built from, which fills the row it is seated in
+       (webawesome.css): one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing
        outside its target cuts it, as it cuts the target. A box the page's layout leaves
        less room round than a region's gap, as a full-height workspace's body
        (layouts.css), stands its marks at a control's gap: inside, they would run over
        its words and under what it holds.
+
+     The runtime stands the marks it draws one band inside a box whatever the box's kind
+     where a box clipping it would cut them outside, as round a table filling a scroll
+     area (`[data-lf-flush]`, element-marks.css), since that turns on what holds the box.
+     Those are the aim, the trace, a comment's mark, the location and proxy rings, and
+     focus on the page's own content; a ring a widget draws on its own control stands
+     where the control's kind says.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be

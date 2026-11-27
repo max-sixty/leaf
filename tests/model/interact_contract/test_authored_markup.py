@@ -969,3 +969,38 @@ def test_sample_fixture_message_markup_uses_the_message_gate(page_dir, markup, c
     assert found(
         [Finding.loads(nested) for nested in refused.values["findings"]], code
     ), refused
+
+
+def test_a_fixture_anchor_keeps_the_context_it_gives(page_dir):
+    """A side a fixture gives picks its own copy of the words, here the first, which
+    the files read with a space inside it, so the anchor keeps only the sides the
+    fixture gave, with no note, rather than borrowing the other side from the one copy
+    the files hold."""
+    from leaf.records.authored_checks.documents import initial_sample_events
+    from leaf.source.vocabulary import read_page_registry
+
+    anchor = {"section": "child-p", "quote": "preflight", "prefix": "First"}
+    history = json.dumps(
+        [{"kind": "comment", "author": "user", "text": "x", "anchor": anchor}]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<div id="child-p">First <b>pre</b><em>flight</em> alpha. Later preflight beta.'
+        "</div></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    published(page_dir)
+    holder = structure_model.SourceDocument((page_dir / "index.html").read_text())
+    [template] = holder.samples
+    events, notes = initial_sample_events(
+        page_dir,
+        holder,
+        [],
+        holder,
+        template,
+        read_page_registry(page_dir).registry,
+        {},
+    )
+    [comment] = [event for event in events if event["kind"] == "comment"]
+    assert (comment["anchor"], notes) == (anchor, [])

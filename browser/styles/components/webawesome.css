@@ -92,12 +92,15 @@ wa-radio[appearance="button"][data-lf-focus-visible] {
 }
 
 /* Text and select frames cover their editor and auxiliary controls, including Clear.
-   Their native input/button outlines stay off so a group has one focus carrier. */
-wa-input::part(base lf-focus-visible-within) {
-  outline: var(--lf-focus-ring);
-}
+   Their native input/button outlines stay off so a group has one focus carrier. The
+   ring stands one band inside the frame, over its border, as on Leaf's own presses
+   (tokens.css, "Where it stands"): a frame fills the row it is seated in, so a clip at
+   the row's side would cut a ring standing outside, and the runtime's clip read
+   (`clipsMarks`) never reaches a box in the field's own tree. */
+wa-input::part(base lf-focus-visible-within),
 wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--lf-focus-ring);
+  outline-offset: var(--lf-focus-ring-inset);
 }
 /* An open select's options fill its listbox, which clips what it holds, so the ring on
    the option the user is on, the layer's focus floor (surfaces.css), is inset: outside

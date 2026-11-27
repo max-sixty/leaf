@@ -804,3 +804,30 @@ def test_a_package_reads_another_packages_output_by_the_contracts_name(
     assert audiences(page_dir) == {"author", "producer"}
     alone = initialized_page(tmp_path / "alone", (package_path(FINALISTS),))
     assert audiences(alone) == {"author"}
+
+
+def test_a_board_card_shows_only_a_widget_holding_a_choice(initialized_page, tmp_path):
+    """A card's `shows` binds the `choice` of the widget it names, so `page check`
+    refuses one naming a widget that holds none, such as the question's section, before
+    the board draws it."""
+    page_dir = initialized_page(tmp_path / "page", ())
+
+    def checked(target):
+        (page_dir / "index.html").write_text(
+            '<!doctype html><html lang="en"><head><title>Plan</title></head><body>'
+            '<main><lf-group id="rail-section" label="Keep the rail?">'
+            '<lf-options id="rail"><lf-option id="rail-next" value="next">Next'
+            '</lf-option></lf-options></lf-group><lf-board id="plan">'
+            '<lf-column id="plan-open" label="Undecided"><lf-card id="plan-rail"'
+            f' label="Keep the rail" shows="{target}">Keep the rail</lf-card>'
+            '</lf-column><lf-column id="plan-next" label="Next" value="next">'
+            "</lf-column></lf-board></main></body></html>"
+        )
+        status, findings = check_findings(page_dir)
+        return status, [
+            (finding.at, finding.values["target"])
+            for finding in found(findings, "output-contract")
+        ]
+
+    assert checked("rail") == (0, [])
+    assert checked("rail-section") == (1, [("<lf-card>", "rail-section")])

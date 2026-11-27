@@ -152,7 +152,6 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/panel/page-keys/go-to-sequence.js";
-import { coverBoxes } from "./runtime/dom/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareCurrentLocation } from "./runtime/panel/page-keys/page.js";
@@ -280,9 +279,6 @@ async function boot() {
     },
   });
 
-  // The fixed furniture every generated-hint map is spread around: the boxes the chrome
-  // covers (dom/geometry.js, `coverBoxes`). Both maps read the same boxes.
-  const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
   // Every page marks its commented words, previews their threads under the pointer
   // and opens one on a press, whoever draws its margin.
@@ -611,7 +607,6 @@ async function boot() {
   });
   targets = createTargetPicker({
     scrollToPassage: anchorTravel.scrollToPassage,
-    hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,
     pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
@@ -698,7 +693,7 @@ async function boot() {
   });
   const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
-    hintChrome,
+    heldByStance: floatingPanel.heldByStance,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
       writingResume.command,

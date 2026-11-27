@@ -1,3 +1,4 @@
+// Compiled from threads-in-panel.ts by build/typescript.mjs; edit that file.
 /* Whether the user has chosen the floating panel for threads about a passage.
 
    A thread about a passage opens beside its words, as a card, until the user chooses the
@@ -29,7 +30,6 @@ const inPanel = signal(false);
 
 export const threadsInPanel = () => inPanel.value;
 // Whether a press choosing `on` would change the choice now, as its preview says.
-/** @param {boolean} on */
 export const wouldChoose = (on) => on !== inPanel.value && windowHoldsRail();
 
 // What each choice leaves holding, as its notice says it. The press that makes the
@@ -37,7 +37,6 @@ export const wouldChoose = (on) => on !== inPanel.value && windowHoldsRail();
 export const IN_PANEL = "Threads open in the panel";
 export const BESIDE_PASSAGES = "Threads open beside their passages";
 
-/** @param {boolean} on */
 function keep(on) {
   inPanel.value = on;
   tabStore.set(THREADS_IN_PANEL_KEY, on ? "panel" : null);
@@ -51,7 +50,6 @@ function keep(on) {
 // press it. The field shows the press while its key would make it (`thread.move`,
 // landing.js), as it shows every press, so never to a finger, which reaches the same
 // result by the thread's own control.
-/** @param {boolean} on @param {() => unknown} back */
 export function chooseThreadsInPanel(on, back) {
   if (!wouldChoose(on)) return;
   keep(on);

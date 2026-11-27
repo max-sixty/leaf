@@ -87,6 +87,7 @@ import {
   clippedContents,
   clippedRect,
   inWindow,
+  scrolledBox,
   scrollsContent,
   shellRight,
   shownBand,
@@ -1284,21 +1285,6 @@ function coverIn(root, band, target, bands, stop, standing, children, subject) {
   return { cover, controls, beside, neighbours };
 }
 
-// The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
-// seated inside it, so its seat is the same at every scroll.
-/** @param {Element} scroller */
-function contentBox(scroller) {
-  const box = scroller.getBoundingClientRect();
-  const left = box.left + scroller.clientLeft - scroller.scrollLeft;
-  const top = box.top + scroller.clientTop - scroller.scrollTop;
-  return {
-    left,
-    top,
-    right: left + Math.max(scroller.scrollWidth, scroller.clientWidth),
-    bottom: top + Math.max(scroller.scrollHeight, scroller.clientHeight),
-  };
-}
-
 // The rows the last pass stood folded (`seatRow`). This is the one reading of it: the
 // projection presents a row folded by asking `standsFolded`, and a row's `fold.changed`
 // tells it to ask again.
@@ -1517,7 +1503,9 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
       ? shown
       : stop === pageScroller
         ? rootBounds
-        : contentBox(stop);
+        : // A pin in a pane is seated inside all it scrolls through, so its seat is
+          // the same at every scroll.
+          scrolledBox(/** @type {HTMLElement} */ (stop));
     // A board or table can clip the target across without owning its reading region.
     // Seat only in the room it shows; otherwise the seat can leave the scroller and
     // targetShown withholds an otherwise reachable action.

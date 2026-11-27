@@ -131,6 +131,13 @@ leaf-text.lf-fab-input,
 .lf-msg-body li {
   margin: 2px 0;
 }
+/* A list item's bullet takes no height in its line. It can come from another font than
+   the words, whose box at the line's height stands off theirs, and Firefox then grows
+   the line by a fraction of a pixel, which the rewrite's editor, typing the item's `-`
+   as a word, doesn't: each item below would move as the rewrite opened. */
+.lf-msg-body li::marker {
+  line-height: 0;
+}
 /* A rule takes a line, its stroke through the middle, and a code block a code line
    above and below its code, so each stands where its draft drew its source: the
    rule's on its line, a fence's on the line above or below the code

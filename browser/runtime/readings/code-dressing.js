@@ -1,3 +1,4 @@
+// Compiled from code-dressing.ts by build/typescript.mjs; edit that file.
 /* The page's own code, drawn by the language each `<code>` names
    (syntax-tokens.js, `codeLanguage`): a block coloured by its grammar (syntax.js), a
    formula typeset (formulas.js), and every block's lines boxed so their wrapped rows
@@ -9,7 +10,6 @@ import { boxLines } from "./code-lines.js";
 import { highlightBlocks } from "./syntax.js";
 import { typesetFormulas } from "./formulas.js";
 
-/** @param {Document | DocumentFragment | Element} root */
 export const dressCode = (root) => {
   boxLines(root);
   return Promise.all([highlightBlocks(root), typesetFormulas(root)]).then(() => {});

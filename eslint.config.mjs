@@ -53,6 +53,7 @@ const browserGlobals = Object.fromEntries(
     "CSSStyleSheet",
     "CSSTransition",
     "CharacterData",
+    "CommandEvent",
     "CustomEvent",
     "DOMException",
     "DOMParser",
@@ -362,6 +363,8 @@ const runtimeLayers = [
       "check-api.js",
       "validation.js",
       "widget-api.js",
+      "effect-widget.js",
+      "widget-services.js",
       "portable-api.js",
       "stage-integration.js",
       "age.js",
@@ -1694,7 +1697,12 @@ export default [
   {
     // Python executes these test expressions and modules inside the browser. Their
     // source is linted here rather than hidden inside Python string literals.
-    files: ["tests/page_scripts/**/*.js"],
+    files: [
+      "tests/page_scripts/**/*.js",
+      "dev/leaf_dev/geometry.js",
+      "dev/leaf_dev/focus_rings.js",
+      "dev/leaf_dev/control_name.js",
+    ],
     languageOptions: { globals: browserGlobals },
   },
   {

@@ -841,11 +841,11 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
       })]))"""
     held = shots.evaluate_all(boxes)
     assert held["shot-nav"][0][3] > 100, held
-    # The 600 × 300 captures at 2×: each frame takes the focus's 80 px inside its
-    # border, not the captures' 150, and Slider lays the pair's frames over each other.
+    # The 600 × 300 captures at 2×: each frame takes the focus's 80 px, not the
+    # captures' 150, and Slider lays the pair's frames over each other.
     for shot in focused:
         _, before, after = held[shot]
-        assert before[3] == pytest.approx(80 + 2, abs=1), (shot, held)
+        assert before[3] == pytest.approx(80, abs=1), (shot, held)
         assert after == pytest.approx(before, abs=1), (shot, held)
     assert shots.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
@@ -928,12 +928,12 @@ def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
         "shots => shots.map(shot => shot.dataset.lfShotLayout)"
     )
     assert layouts == ["stack", "stack", "side"]
-    # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, each
-    # inside the frame's border.
+    # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, which the
+    # slider's frames fill.
     frames = page.locator("#focused, #dense").evaluate_all(
         "shots => shots.map(shot => shot.querySelector('.lf-shotframe').offsetHeight)"
     )
-    assert frames == pytest.approx([80 + 2, 150 + 2], abs=1)
+    assert frames == pytest.approx([80, 150], abs=1)
 
 
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
@@ -1195,12 +1195,13 @@ def test_a_shot_opens_on_its_focus_and_preserves_choices_when_it_changes(
                 100,
                 50,
             ]
+            # The capture starts at its window's edge, with no strip between them.
             source_box = viewport.locator(".lf-shotplane").bounding_box()
             assert source_box["x"] == pytest.approx(
-                viewport.bounding_box()["x"] - 5, abs=1
+                viewport.bounding_box()["x"] - 5, abs=0.5
             ), (direction, view)
             assert source_box["y"] == pytest.approx(
-                viewport.bounding_box()["y"] - 25, abs=1
+                viewport.bounding_box()["y"] - 25, abs=0.5
             ), (direction, view)
     shot.get_by_role("button", name="Image options").click()
     full.check()
@@ -1265,7 +1266,9 @@ def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
     tools = shot.locator(".lf-shot-actions")
     captions = shot.locator(".lf-shot-toolbar .lf-shotcap")
     held = None
-    for view, width in (("Slider", 602), ("Pair", 2 * 602 + 8), ("Slider", 602)):
+    # A Pair frame keeps room round its capture for the ring the capture wears; the
+    # slider's frames fill it, and it stands in that room itself.
+    for view, width in (("Slider", 600), ("Pair", 2 * 602 + 8), ("Slider", 600)):
         shot.get_by_role("radio", name=view, exact=True).click()
         frames = [
             frame.bounding_box()

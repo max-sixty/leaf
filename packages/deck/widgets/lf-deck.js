@@ -1,13 +1,15 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
  * through unread conversations. Each authored child is a card, the named group of a
  * question or a decision widget the user answers there with its own controls. A card waits while it
- * holds an obligation open on the user (`readObligations(card)`, read from the server's
- * inventory, the rule `lf-tally` counts by). When the server's reading says the open
+ * holds an obligation open on the user (`readObligations(card)`, read from the page's
+ * inventory, the rule `lf-tally` counts by). When the page's obligations say the open
  * card's questions are answered, the card flies right and the next waiting card after
  * it comes up; a draft editor open on the card saves as the press leaves it
- * (`lf-draft`), so moving on hides no unsaved words. Whether a card still waits is the
- * server's to say, so the deck moves on when that reading arrives, however late, as a
- * visitor's first answer on a hosted page can be, and wherever the user is by then. It
+ * (`lf-draft`), so moving on hides no unsaved words. Whether a card still waits is what
+ * the obligations say: a press here that answers the card's widget says so in the
+ * press's own task (`awaits`), so the card moves on at once, and an answer given
+ * elsewhere arrives with the server's reading, however late, wherever the user is by
+ * then. It
  * takes the page or focus with it only while the user's latest gesture toward the card
  * in this window still stands (`retainUserIntent`), so a user who has gone on to read
  * elsewhere stays there. An answer given in another window moves the card on here too.
@@ -28,8 +30,8 @@
  * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
  * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
  * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
- * for the end of the pass. Leaf's Undo travels to the answer it takes back before
- * taking it, which opens its card the same way, so the deck has no Undo of its own.
+ * for the end of the pass. Leaf's Undo opens the card holding the answer it takes back
+ * the same way, where the card stood, so the deck has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
@@ -579,7 +581,7 @@ customElements.define(
       if (event.pointerType !== "touch") return;
       if (
         event.target.closest(
-          "button, a, input, textarea, select, [contenteditable], [role=button], [role=radio], [role=checkbox], [data-lf-offer]",
+          "button, a, input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=button], [role=radio], [role=checkbox], [data-lf-offer]",
         )
       )
         return;

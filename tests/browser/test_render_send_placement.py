@@ -19,8 +19,8 @@ line:
   The touch passage verifies either clear placement or a window-constrained frame
   when the paragraph and frame cannot fit together; font metrics can choose either.
 - `moves`: how far the card stands from where the box stood, at the edge each holds
-  (the left edge across; the top down, or the foot where the card stands above),
-  bucketed `still` (the same place), `near` (a line or two) or `away`.
+  (across, the edge the box stood by; down, the top, or the foot where the card stands
+  above), bucketed `still` (the same place), `near` (a line or two) or `away`.
 
 Each case also writes the pair it read to its test's `tmp_path/<case>.png`: the box as
 the user typed in it on the left, the card on the right with the box's outline drawn
@@ -42,6 +42,7 @@ from interact_support import wait_for
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
+from render_cases_interaction import HELD_EDGE
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -268,9 +269,9 @@ def distance(pixels):
     return "still" if pixels <= STILL else "near" if pixels <= NEAR else "away"
 
 
-def movement(box, card, side):
+def movement(box, card, side, inline):
     held = "bottom" if side == "above" else "top"
-    across = card["left"] - box["left"]
+    across = card[inline] - box[inline]
     down = card[held] - box[held]
     return {
         "across": f"{distance(across)}{direction(across, 'right', 'left')}",
@@ -341,6 +342,7 @@ def sent(browser, serve, name, shots):
     # Both placement readings describe the complete frame, including the reserved
     # rows around the editor. The glyph test below measures the painted words.
     box = page.evaluate(RECT, ".lf-fab-bar")
+    inline = page.evaluate(HELD_EDGE)
     words, block = on.line(page), page.evaluate(RECT, on.block)
     touch_room = None
     if name == "touch-passage":
@@ -418,7 +420,7 @@ def sent(browser, serve, name, shots):
             "side": allowed(card_side),
             "stands": standing(card_side, placed),
         },
-        "moves": movement(box, placed, card_side),
+        "moves": movement(box, placed, card_side, inline),
     }
     # Read, the case is over. A page left open while the later cases run sees its
     # message's age turn from "just now" to "1m ago", which is not what this test reads.
@@ -754,61 +756,91 @@ MEASURE = (
 )
 
 
-@pytest.mark.parametrize("declared", ["dir", "style"])
-def test_a_right_to_left_box_keeps_the_start_of_its_words_as_it_fills(
-    browser, serve, declared
+# A paragraph at the window's right edge, with room for the box only left of it.
+EDGE_PAGE = leaf_page(
+    "At the edge",
+    '<p id="first" style="position: fixed; top: 160px; right: 24px; width: 360px">'
+    "A short paragraph at the window's edge, with room to comment only left of it.</p>",
+)
+
+
+@pytest.mark.parametrize("posture", ["left", "under"])
+def test_a_box_held_by_its_right_edge_opens_slim_and_widens_toward_its_start(
+    browser, serve, posture
 ):
-    """Right to left, a box's words start at its right edge, which stands away from its
-    text on the right of it, so the box takes its card's width at once rather than
-    widening and carrying those words with each key. The direction counts however the page
-    states it: a `dir` attribute, or the `direction` its stylesheet sets."""
-    page_html = leaf_page(
-        "Right to left",
-        '<p id="first">هذه فقرة قصيرة يمكن التعليق عليها حتى يقف التعليق بجانبها.</p>',
-    )
-    if declared == "dir":
-        page_html = page_html.replace('<html lang="en">', '<html lang="ar" dir="rtl">')
-    else:
-        page_html = page_html.replace(
-            "</head>", "<style>html { direction: rtl }</style>\n</head>"
+    """Left of its text, or under an element, whose place ends at the element's right
+    edge, the comment box stands by its right edge and opens at the card's least width,
+    as it does beside a paragraph. A first line widens it away from that edge, the card
+    Send opens stands between the same sides, and a long answer widens the card from
+    that edge too, carrying its words, which the shift watch credits to the card's
+    declaration (`permittedWidening`)."""
+    if posture == "left":
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
         )
-    context = browser.new_context(
-        viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
-    )
-    page = open_page(browser, serve(page_html), context=context)
-    page.locator("#first").click(modifiers=["Alt"])
+        page = open_page(browser, serve(EDGE_PAGE), context=context)
+        subject = page.locator("#first")
+        subject.click(modifiers=["Alt"])
+        placement = re.compile("^left")
+    else:
+        context = browser.new_context(
+            viewport={"width": 1024, "height": 600}, reduced_motion="reduce"
+        )
+        page = open_page(browser, serve(PAGE), context=context)
+        subject = page.locator("#step-workspace")
+        STEP.open(page, False)
+        placement = re.compile("^(top|bottom)-start")
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
-        "data-lf-placement", re.compile("^right")
+        "data-lf-placement", placement
     )
     expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
     rendered(page)
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
     empty = page.evaluate(RECT, ".lf-fab-bar")
-    page.keyboard.insert_text("تعليق أطول قليلا من السطر الأول حتى يتسع الصندوق أكثر")
+    assert empty["right"] - empty["left"] == pytest.approx(minimum, abs=0.5), empty
+    edge = subject.bounding_box()
+    if posture == "left":
+        assert empty["right"] < edge["x"], (empty, edge)
+    else:
+        assert empty["right"] == pytest.approx(edge["x"] + edge["width"], abs=0.5)
+    page.keyboard.insert_text("Pin the runner to one image so every step builds alike.")
     rendered(page)
-    full = page.evaluate(RECT, ".lf-fab-bar")
+    wider = page.evaluate(RECT, ".lf-fab-bar")
+    assert wider["right"] == pytest.approx(empty["right"], abs=0.5), (empty, wider)
+    assert wider["left"] < empty["left"] - 1, (empty, wider)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    rendered(page)
+    sent = page.evaluate(RECT, ".lf-margin-preview")
     sides = ("left", "right")
-    assert {side: full[side] for side in sides} == pytest.approx(
-        {side: empty[side] for side in sides}, abs=0.5
-    ), (empty, full)
+    assert {side: sent[side] for side in sides} == pytest.approx(
+        {side: wider[side] for side in sides}, abs=0.5
+    ), (wider, sent)
+    root = next(
+        event
+        for event in reversed(event_log.read_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )["id"]
+    # Taller than wide at the box's width, which its first line set past the least.
+    append_agent_reply(serve.page_dir, root, LONG_ANSWER * 2)
+    told(page)
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    wide = page.evaluate(RECT, ".lf-margin-preview")
+    assert wide["right"] == pytest.approx(sent["right"], abs=0.5), (sent, wide)
+    assert wide["left"] < sent["left"] - 1, (sent, wide)
 
 
-def test_a_right_to_left_box_carried_by_its_grip_keeps_the_start_of_its_words(
+def test_a_box_carried_by_its_grip_holds_its_left_edge_where_it_was_dropped(
     browser, serve
 ):
-    """Left of its text, a right-to-left box holds the edge beside the text, where its
-    words start, and widens away from it. Carried by its grip, it holds its left edge
-    where it was dropped, so it takes its card's width as it lands there rather than
-    carrying the start of its words with each key."""
-    page_html = leaf_page(
-        "Right to left",
-        # At the window's right edge, with room for the box only left of it.
-        '<p id="first" style="position: fixed; top: 160px; right: 24px; width: 360px">'
-        "هذه فقرة قصيرة يمكن التعليق عليها حتى يقف التعليق بجانبها.</p>",
-    ).replace('<html lang="en">', '<html lang="ar" dir="rtl">')
+    """Carried by its grip, a box holds its left edge where it was dropped, whichever
+    edge it stood by before, and widens away from it."""
     context = browser.new_context(
         viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
     )
-    page = open_page(browser, serve(page_html), context=context)
+    page = open_page(browser, serve(EDGE_PAGE), context=context)
     page.locator("#first").click(modifiers=["Alt"])
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", re.compile("^left"))
@@ -823,10 +855,11 @@ def test_a_right_to_left_box_carried_by_its_grip_keeps_the_start_of_its_words(
     expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
     rendered(page)
     dropped = page.evaluate(RECT, ".lf-fab-bar")
-    page.keyboard.insert_text("تعليق أطول قليلا من السطر الأول حتى يتسع الصندوق أكثر")
+    page.keyboard.insert_text("Pin the runner to one image so every step builds alike.")
     rendered(page)
     typed = page.evaluate(RECT, ".lf-fab-bar")
-    assert typed["right"] == pytest.approx(dropped["right"], abs=0.5), (dropped, typed)
+    assert typed["left"] == pytest.approx(dropped["left"], abs=0.5), (dropped, typed)
+    assert typed["right"] > dropped["right"] + 1, (dropped, typed)
 
 
 @pytest.mark.parametrize("opened", ["in-the-pane", "in-the-page"])
@@ -947,36 +980,6 @@ def test_short_lines_keep_the_box_slim_and_send_widens_a_tall_comment_s_card(
     sent = page.evaluate(RECT, ".lf-margin-preview")
     assert sent["left"] == pytest.approx(frame["left"], abs=0.5), (frame, sent)
     assert sent["right"] > frame["right"] + 1, (frame, sent)
-
-
-def test_a_box_whose_start_stands_away_from_its_text_takes_the_card_s_width(
-    browser, serve
-):
-    """Under or over an element the card ends at the element's right edge, so its start
-    stands away from the text. A box narrower than the card would stand apart from the
-    text there and widen by moving its words, so it takes the card's width whatever it
-    holds, and the card Send opens stands between the same sides."""
-    context = browser.new_context(
-        viewport={"width": 1024, "height": 600}, reduced_motion="reduce"
-    )
-    page = open_page(browser, serve(PAGE), context=context)
-    STEP.open(page, False)
-    expect(page.locator(".lf-fab-bar")).to_have_attribute(
-        "data-lf-placement", re.compile("(top|bottom)-start")
-    )
-    page.keyboard.insert_text("Which runner?")
-    rendered(page)
-    frame = page.evaluate(RECT, ".lf-fab-bar")
-    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
-    assert frame["right"] - frame["left"] > minimum + 1, frame
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
-    rendered(page)
-    sent = page.evaluate(RECT, ".lf-margin-preview")
-    sides = ("left", "right")
-    assert {side: sent[side] for side in sides} == pytest.approx(
-        {side: frame[side] for side in sides}, abs=0.5
-    ), (frame, sent)
 
 
 @pytest.mark.parametrize(
@@ -2615,6 +2618,105 @@ def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_an
     attached(".lf-margin-preview")
 
 
+def test_a_box_under_right_to_left_words_stands_at_their_first_word(browser, serve):
+    """Right-to-left words start at their first line's right edge, so a box under a
+    passage that wraps from mid-line stands its right edge there, as a box under
+    left-to-right words stands its left edge at their first word, rather than at the
+    far end of the passage's first line."""
+    prose = (
+        "يبدأ النص من اليمين ويمتد إلى اليسار، وتقرأ الكلمات بهذا الاتجاه في كل سطر من"
+        " أسطر الفقرة الطويلة التي تملأ عرض العمود بأكمله قبل أن تلتف إلى السطر التالي."
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("نص", f'<p id="prose">{prose}</p><p>فقرة بعد النص.</p>').replace(
+                '<html lang="en">', '<html lang="ar" dir="rtl">'
+            )
+        ),
+    )
+    resized(page, 900, 600)
+    fragments = page.evaluate(
+        """words => {
+          const text = document.querySelector('#prose').firstChild;
+          const start = text.data.indexOf(words);
+          const range = document.createRange();
+          range.setStart(text, start);
+          range.setEnd(text, text.data.length - 1);
+          return [...range.getClientRects()].filter(r => r.width && r.height)
+            .map(r => r.toJSON());
+        }""",
+        "من اليمين",
+    )
+    first, last = fragments[0], fragments[-1]
+    # The passage wraps, and its first line runs far past the box's width from its
+    # first word, which stands far enough from the room's left edge for the box's whole
+    # place, so the two ends of that line are told apart.
+    assert len(fragments) > 1 and first["right"] - first["left"] > 400, fragments
+    select(
+        page,
+        (first["right"] - 2, first["top"] + first["height"] / 2),
+        (last["left"] + 2, last["top"] + last["height"] / 2),
+    )
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    rendered(page)
+    selected = page.evaluate(
+        """() => [...getSelection().getRangeAt(0).getClientRects()]
+          .find(r => r.width && r.height).toJSON()"""
+    )
+    assert selected["right"] - selected["left"] > 400, selected
+    box = page.evaluate(RECT, ".lf-fab-bar")
+    prose_box = page.evaluate(RECT, "#prose")
+    assert box["top"] >= prose_box["bottom"], (box, prose_box)
+    assert box["right"] == pytest.approx(selected["right"], abs=1), (box, selected)
+
+
+def test_a_box_beside_words_that_start_in_a_padded_element_stands_at_their_line(
+    browser, serve
+):
+    """A selection that starts across a whole padded element attaches to its first
+    word's line, not to the element's padding above it, so a box beside it stands level
+    with the words."""
+    rest = "and the rest of the paragraph runs on past the chip. " * 6
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Chip",
+                '<p id="prose"><span style="display:inline-block;padding:36px 48px">'
+                f"First words</span> {rest}</p>",
+            )
+        ),
+    )
+    resized(page, 1700, 800)
+    words = page.evaluate(
+        """() => {
+          const prose = document.querySelector('#prose');
+          const chip = prose.firstElementChild.firstChild;
+          const range = document.createRange();
+          range.setStart(prose, 0);
+          range.setEnd(prose.lastChild, 30);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+          const first = document.createRange();
+          first.setStart(chip, 0);
+          first.setEnd(chip, 1);
+          return first.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    rendered(page)
+    box = page.locator(".lf-fab-bar")
+    rect = page.evaluate(RECT, ".lf-fab-bar")
+    side = SIDES[box.get_attribute("data-lf-placement")]
+    assert side == "right", side
+    assert (
+        stands(side, rect, words, page.evaluate(RECT, "#prose"))
+        == "level with the words"
+    ), (rect, words)
+
+
 def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serve):
     page = open_page(
         browser,
@@ -2650,6 +2752,43 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
     scroll_settled(page)
     expect(bar).to_have_attribute("data-lf-plane", "page")
     assert abs(bar.bounding_box()["width"] - width) <= 1
+
+
+@pytest.mark.parametrize("scaled_firefox", ["1.1"], indirect=True)
+def test_a_box_the_window_takes_in_keeps_its_far_edge_at_a_fractional_zoom(
+    scaled_firefox, serve
+):
+    """At a zoom that leaves the window a fraction of a pixel wide, as Firefox's 110%
+    does, a comment box that stands by its right edge left of its words keeps that edge
+    still as a scroll carries the words' first line past the window's top and the
+    window takes the box in. Firefox lays out in sixtieths of a pixel, so the edge may
+    land one of them off."""
+    page = open_page(
+        scaled_firefox,
+        serve(
+            leaf_page(
+                "Beside the words",
+                '<p id="subject" style="position: absolute; top: 400px;'
+                ' right: 24px; width: 360px">'
+                + "A paragraph at the window's edge, with room to comment"
+                " only left of it. " * 8 + '</p><div style="height: 3000px"></div>',
+            )
+        ),
+        context=scaled_firefox.new_context(viewport={"width": 1280, "height": 800}),
+    )
+    assert page.evaluate("visualViewport.width % 1") > 0.1
+    page.locator("#subject").click(modifiers=["Alt"])
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("^left"))
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    rendered(page)
+    beside = page.evaluate(RECT, ".lf-fab-bar")
+    page.mouse.wheel(0, 500)
+    scroll_settled(page)
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    rendered(page)
+    taken = page.evaluate(RECT, ".lf-fab-bar")
+    assert taken["right"] == pytest.approx(beside["right"], abs=1 / 60), (beside, taken)
 
 
 def test_a_send_in_the_task_that_scrolls_the_page_opens_the_card_where_the_box_stood(

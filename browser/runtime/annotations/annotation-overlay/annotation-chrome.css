@@ -99,11 +99,10 @@
      card Send opens grows out of the field from that start (dom/box-motion.js, `drawnAt`).
      The frame is as wide as its words' longest line, from the card's least width
      (`--lf-thread-card-min`) to the measure (`--lf-thread-card`) or its room where that
-     is narrower, and wraps them there, so a first line widens it away from its start,
-     and the card Send opens keeps that width (thread-preview.js, `size-width`). Where
-     its placement can't widen it from the edge its words start at, it takes its widest
-     at once (`data-lf-card-width`; comment-placement.js, `widens`). So does a
-     draft that scrolls in it (`:state(overflows)`, annotations/composing/text-field.js): its editor
+     is narrower, and wraps them there, so a first line widens it away from the edge its
+     placement holds (comment-placement.js, `holds`), and the card Send opens keeps
+     that width (thread-preview.js, `size-width`). A draft that scrolls in it
+     (`:state(overflows)`, annotations/composing/text-field.js) takes its widest: its editor
      draws only the lines near what the box shows, so the longest drawn would change as
      the reader scrolls, and so would the box's width. Only the
      field paints; the transparent rows neither take document flow nor intercept
@@ -129,10 +128,6 @@
     padding: var(--lf-comment-frame-top) 0 var(--lf-comment-frame-bottom);
     pointer-events: none;
   }
-  .lf-fab-bar[data-lf-card-width]:not(
-      [data-lf-target-only],
-      [data-lf-presentation="inline"]
-    ),
   .lf-fab-bar:has(.lf-compose-field > leaf-text:state(overflows)):not(
       [data-lf-target-only],
       [data-lf-presentation="inline"]
@@ -160,6 +155,13 @@
   }
   .lf-fab-bar[data-lf-margin-raised] {
     display: none;
+  }
+  /* The comment box stands just under the card Send turns it into, over the margin rows
+     it covers (comment-placement.js, `place-beside`), the one raised at the user's
+     location included. A box on a target inside the chrome stands above the chrome, as
+     that target's paint does (chrome.css). */
+  .lf-fab-bar:not([data-lf-paint-plane="chrome"]) {
+    z-index: calc(var(--lf-z-margin-preview) - 1);
   }
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */
@@ -692,8 +694,13 @@
        beside a sticky item in Firefox"). */
     --lf-top-start: var(--lf-transcript-edge-room);
     --lf-top: var(--lf-top-start);
-    padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
-      var(--lf-transcript-edge-room);
+    --lf-transcript-start: calc(
+      var(--lf-thread-text-inset) + var(--lf-transcript-edge-room)
+    );
+    --lf-transcript-end: var(--lf-transcript-edge-room);
+    --lf-transcript-top: var(--lf-transcript-edge-room);
+    --lf-transcript-foot: var(--lf-transcript-room);
+    padding-inline: var(--lf-transcript-start) var(--lf-transcript-end);
     margin-inline: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-start: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
@@ -728,16 +735,20 @@
   }
   .lf-margin-thread .lf-awaited {
     z-index: 1;
-    margin-inline: calc(
-        -1 * (var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
-      )
-      calc(-1 * var(--lf-transcript-edge-room));
+    margin-inline: calc(-1 * var(--lf-transcript-start))
+      calc(-1 * var(--lf-transcript-end));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
     padding-block-end: var(--lf-transcript-room);
   }
-  /* The row holds paper across the heads' line, from the card's edge to its other,
-     sticking there, so what passes beneath it shows only where a message's head row
-     paints over it (below). A summary has no head, and passes beneath it whole: paper
+  /* The row holds the line's ground across the heads' line, from the card's edge to its
+     other, sticking there, so what passes beneath it shows only where a message's head
+     row paints over it (below). The line's ground is paper, or the user's (surfaces.css)
+     while their own head holds the line: the first message's at the top, and later the
+     first of those beside the actions (`data-lf-beside-actions`, thread-preview.js),
+     since an earlier head still leaving the line is marked too. So their ground runs
+     from edge to edge there, as it does past their head, and stays theirs under the
+     fade (below) and in the room their head leaves as the next message pushes it away.
+     A summary has no head, and passes beneath it whole: paper
      in the actions' track alone cut its region's tint under them. The transcript's
      mask makes it a stacking context, so paper on the actions themselves would cover
      that row too. Its margin leaves the row the room's height, and once anything is
@@ -745,10 +756,8 @@
   .lf-margin-thread .lf-thread-transcript::before {
     content: "";
     grid-column: 1 / -1;
-    margin-inline: calc(
-        -1 * (var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
-      )
-      calc(-1 * var(--lf-transcript-edge-room));
+    margin-inline: calc(-1 * var(--lf-transcript-start))
+      calc(-1 * var(--lf-transcript-end));
     position: sticky;
     z-index: 1;
     inset-block-start: calc(var(--lf-top) - var(--lf-thread-room-cover, 0px));
@@ -757,7 +766,19 @@
       var(--lf-transcript-edge-room) - var(--lf-thread-room-cover, 0px) -
         var(--lf-msg-head-height)
     );
-    background: var(--lf-paper);
+    background: var(--lf-line-ground, var(--lf-paper));
+  }
+  .lf-margin-thread
+    .lf-page-thread:has(
+      > .lf-thread-transcript
+        > .lf-msg[data-lf-author="user"][data-lf-beside-actions]:not(
+          [data-lf-summarized],
+          [data-lf-beside-actions] ~ *
+        ),
+      > .lf-thread-transcript:not([data-lf-more-above])
+        > .lf-msg[data-lf-author="user"]:first-child
+    ) {
+    --lf-line-ground: var(--lf-msg-user-ground);
   }
   .lf-margin-thread .lf-thread-transcript::after {
     content: "";
@@ -839,7 +860,7 @@
     height: var(--lf-thread-fade-height, 0px);
     border-radius: 0;
     outline: none;
-    background: linear-gradient(var(--lf-paper), transparent);
+    background: linear-gradient(var(--lf-line-ground, var(--lf-paper)), transparent);
     pointer-events: none;
     /* Keep the action strip above the fade without putting its ground above
        a focused message control's ring. */
@@ -928,7 +949,12 @@
      track, which narrowed the head and cut a queued message's receipt in wider faces.
      A notice of held news stands first in the row (thread-preview.js); the card keeps
      its width while it holds news, so the notice takes its room from the heads'
-     track, and the actions after it keep their places. */
+     track, and the actions after it keep their places. It says one count of all that
+     waits (held-news.js, `newsNotice`), whole, so the head beside it gives up its
+     parts in their order (surfaces.css). Rejected: the notice cut to the room the head
+     left beside its words and controls, which at a card's least width beside Previous
+     and Next read "2 …" with blank room before it; and the notice wrapping beneath the
+     actions, which would stand over the first message's words in the actions' track. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
      Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
@@ -944,31 +970,11 @@
     min-height: var(--lf-msg-head-height);
     padding-inline-start: calc(var(--lf-sp-2) - var(--lf-margin-symbol-end));
   }
-  /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
-     surfaces.css), and no more than the heads leave beside each one's name and time
-     (`--lf-news-room`, thread-card.js, `#fitLineNews`), and it says one count of
-     all that waits (held-news.js, `newsNotice`).
-     A card's heads keep their names and times whole beside it under a fine pointer. A
-     touch screen's card near its least width, whose three controls, notice and Edit
-     each take a finger's width, can leave a head short of room for both, and it gives
-     up its parts in their order (surfaces.css). Drawn whole, the notice stood over the
-     head of the user's message on a phone's card, which read "M51d ago".
-     Rejected: the notice wrapping beneath the actions, which would stand over the
-     first message's words in the actions' track. */
-  .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {
-    max-inline-size: min(
-      var(--lf-news-width),
-      var(--lf-news-room, var(--lf-news-width))
-    );
-  }
-  /* A sticky head and its words paint the message's one animated ground, the card's
-     paper, or the tint of the summary region a message an open summary folds stands
-     in (surfaces.css). Shared message rules own wrapping, including progress
-     disclosures below the capped metadata when the card's actions leave too little
-     inline room. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg:not([data-lf-summarized]) {
-    --lf-msg-rest-ground: var(--lf-paper);
-  }
+  /* A sticky head and its words paint the message's one animated ground, the user's or
+     the agent's (surfaces.css), or the tint of the summary region a message an open
+     summary folds stands in (surfaces.css). Shared message rules own wrapping,
+     including progress disclosures below the capped metadata when the card's actions
+     leave too little inline room. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head {
     position: sticky;
     --lf-head-inset: 0px;

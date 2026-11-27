@@ -1,3 +1,4 @@
+// Compiled from anchor-controls.ts by build/typescript.mjs; edit that file.
 /* Retained controls derived from the canonical current anchor reading.
  *
  * This view owns visual comment proxies and message fragment state. The dedicated
@@ -50,21 +51,7 @@ import { inChrome } from "../base/ui-marks.js";
 const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 // Why a message's link to a section the shown version lacks goes nowhere.
-/** @param {string | null} id */
 const missingReference = (id) => `§ ${id} isn't in the version shown`;
-
-/** @typedef {import("../../types/domain.js").Anchor} Anchor */
-/** @typedef {{anchor: Anchor, label: string, key: string}} VisualAction */
-/** @typedef {HTMLButtonElement & {lfAnchor: Anchor}} VisualActionControl */
-/** @typedef {NonNullable<ReturnType<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["read"]>>} AnchorReading */
-/** @typedef {AnchorReading["readings"][number]} ThreadReading */
-/** @param {{
- * commentOnTarget: ReturnType<typeof import("./composing/surface.js").createResponseSurface>["commentOnTarget"],
- * openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"],
- * labelAnchor: typeof import("../records/thread/messages.js").anchorLabel,
- * invalidateThread: () => unknown, invalidatePageGeometry: () => unknown,
- * placement: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "hearPlaced" | "placedAt">,
- * messageReferenceRoot: Element, draftQuote: Element}} dependencies */
 
 export function createAnchorControls({
   commentOnTarget,
@@ -76,22 +63,16 @@ export function createAnchorControls({
   messageReferenceRoot,
   draftQuote,
 }) {
-  /** @type {Map<Element, HTMLDivElement>} */
   const visualActionHolders = new Map();
   const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
   let mounted = false;
-  /** @type {(() => void) | null} */
   let stopHearing = null;
   // Each thread the last render read, and the blocks it seated the thread's notes at.
-  /** @type {Map<string, {thread: ThreadReading["thread"], seats: Element[]}>} */
   let seated = new Map();
   let invalidationQueued = false;
-  /** @type {Map<Element, VisualAction[]>} */
   let pendingVisualActions = new Map();
 
-  /** @param {Anchor | null | undefined} anchor */
   const visualActionAnchor = (anchor) => {
-    /** @type {VisualActionControl[]} */
     const controls = pageQueryAll(".lf-visual-action");
     return controls.find((control) => sameAnchor(control.lfAnchor, anchor)) ?? null;
   };
@@ -99,10 +80,8 @@ export function createAnchorControls({
   // A proxy group is named by the outer disclosure that controls its drawing's
   // visibility, so a screen reader meets it while the drawing is folded away. Shadow
   // renderers share their host so sibling groups do not reorder on each paint.
-  /** @param {Element} candidate */
   function visualActionSeat(candidate) {
     let seat = shadowHost(candidate.getRootNode()) ?? candidate;
-    /** @type {Node | null} */
     let current = seat;
     for (; current; current = upFrom(current))
       if (isElement(current) && current.matches("details")) seat = current;
@@ -110,14 +89,12 @@ export function createAnchorControls({
   }
 
   function visualActionPlan() {
-    /** @type {Map<Element, VisualAction[]>} */
     const groups = new Map();
     const claimed = new Set();
     for (const candidate of readingElements(visualTags())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
       const parts = visualParts(candidate);
-      /** @type {Omit<VisualAction, "key">[]} */
       const targets = [
         {
           anchor: { section: found.id },
@@ -148,23 +125,18 @@ export function createAnchorControls({
   }
 
   // What a proxy stands for: the part it responds to, or the picture.
-  /** @param {Element} node */
   function visualActionTarget(node) {
-    const control = /** @type {VisualActionControl | null} */ (
-      node.closest(".lf-visual-action")
-    );
+    const control = node.closest(".lf-visual-action");
     if (!control) return null;
     const current = resolveAnchor(control.lfAnchor);
     return targetParts(current)[0] ?? targetElement(current);
   }
 
-  /** @param {MouseEvent & {currentTarget: VisualActionControl}} event */
   function activateVisualAction(event) {
     const control = event.currentTarget;
     commentOnTarget({ anchor: control.lfAnchor });
   }
 
-  /** @param {VisualAction} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
       ${offeredAction("proxy", "lf-visual-action")}
@@ -175,7 +147,6 @@ export function createAnchorControls({
     ></button>
   `;
 
-  /** @param {Map<Element, VisualAction[]>} groups */
   function reconcileVisualActions(groups) {
     const kept = new Set();
     for (const [seat, targets] of groups) {
@@ -221,7 +192,6 @@ export function createAnchorControls({
   // (readings/passages.js, `readingElements`), so planning again after one part of the page
   // changed searches that part alone.
   const plan = kept(visualActionPlan);
-  /** @type {Map<Element, VisualAction[]> | null} */
   let planned = null;
   function prepareVisualActions() {
     const next = plan();
@@ -251,7 +221,6 @@ export function createAnchorControls({
     }
   }
 
-  /** @param {AnchorReading["draft"]} draft */
   function paintDraft({ open, anchor, about, resolved }) {
     const label = open ? labelAnchor(anchor, about) : "";
     keepsText(draftQuote, label);
@@ -261,8 +230,6 @@ export function createAnchorControls({
 
   // Where a thread's notes stand, by its placement: at each block its passage spans. A
   // resolved thread, and one the shown version doesn't hold, stand nowhere.
-  /** @param {ThreadReading["thread"]} thread @param {ThreadReading["placement"] | undefined} found
-   * @returns {Element[]} */
   function seatsOf(thread, found) {
     if (!found || found.status === "outdated" || thread.resolved) return [];
     // A passage seats a note at each block it spans, by the rule its `place` follows:
@@ -277,17 +244,14 @@ export function createAnchorControls({
             ),
           ),
         ].filter(Boolean);
-    /** @type {Element[]} */
     const holders = [];
     for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
       if (holder && !inChrome(holder)) holders.push(holder);
     return holders;
   }
-  /** @param {Element[]} a @param {Element[]} b */
   const sameSeats = (a, b) =>
     a.length === b.length && a.every((holder, index) => holder === b[index]);
 
-  /** @param {AnchorReading} reading */
   function render({ readings, draft }) {
     // These controls stand on elements of the shown document: a note's block and the
     // section a message's link names. Reading the document here
@@ -295,7 +259,6 @@ export function createAnchorControls({
     // `aria-details` on a commented block it keeps, which the note's relation must then
     // follow (features/details-shelf.js).
     shownDocument();
-    /** @type {Map<Element, [string, ...string[]]>} */
     const notes = new Map();
     seated = new Map();
     for (const { thread, placement: found } of readings) {
@@ -322,7 +285,6 @@ export function createAnchorControls({
     });
   }
 
-  /** @param {Event} event */
   const onLayoutInvalidated = (event) => {
     const target = event.target;
     if (!(target instanceof Node)) return;
@@ -339,7 +301,6 @@ export function createAnchorControls({
 
   // A press on a link to a missing section is refused and says why, which its title
   // says only to a resting pointer.
-  /** @param {Event} event */
   const onMessageReference = (event) => {
     if (!isElement(event.target)) return;
     const href = event.target.closest(MSG_REF)?.getAttribute("href");

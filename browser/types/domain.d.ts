@@ -158,7 +158,7 @@ export interface Thread {
   unread: Readonly<Record<string, string>>;
   attention: Attention;
 }
-export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
+type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
   localParent?: string;
 };
 type WidgetEvent = EventMap[WidgetKind];
@@ -204,12 +204,12 @@ export interface ProjectionInput {
   coverage?: readonly Coverage[];
   pendingEntries?: readonly PendingProjection[];
 }
-export interface ActionValue {
+interface ActionValue {
   action: string | null;
   value: unknown;
   detail: Record<string, unknown>;
 }
-export interface UnitValue {
+interface UnitValue {
   detail?: never;
   value: Record<string, string[]>;
   units: Record<string, ActionValue>;

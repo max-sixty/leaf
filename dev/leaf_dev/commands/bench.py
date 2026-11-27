@@ -584,6 +584,8 @@ def pick(g: int, *options: int, revision: int = 1) -> dict:
         "widget": f"o{g}",
         "action": "choose",
         "detail": {"value": [f"o{g}-{i}" for i in options]},
+        # Each ask takes several options, so a pick leaves it open until Done.
+        "answered": False,
     }
 
 

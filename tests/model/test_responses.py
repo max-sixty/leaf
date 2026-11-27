@@ -25,6 +25,7 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     last_deliverable_seq,
+    owed,
     owed_answers,
     page_state,
     publish,
@@ -49,8 +50,7 @@ from leaf.commands import cli as cli_model
 from leaf.commands import delivery_ack as delivery_ack_model
 from leaf.commands import tasks as tasks_model
 from leaf.log import event_log as events_model
-from leaf.log.events import build_threads
-from leaf.log.thread_context import logged_fragment
+from leaf.log.events import build_threads, logged_fragment
 from leaf.records import revisioning as revisioning_model
 from leaf.records import todos as todos_model
 from leaf.records import transaction as transaction_model
@@ -327,22 +327,20 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
         retry = CliRunner().invoke(cli_model.cli, [*answer, "--title", "Why"])
         assert retry.exit_code == 0, retry.output
         assert json.loads(posted.output) == json.loads(retry.output)
-        # Reworded, it is another answer, to an update already answered.
-        [reworded] = command_findings(
-            "thread", "reply", "--done", reference, "--text", "Retried"
+        # Reworded, it is another reply at the thread's newest input, which goes in
+        # and answers nothing new.
+        reworded = CliRunner().invoke(
+            cli_model.cli, ["thread", "reply", "--done", reference, "--text", "Again"]
         )
-        assert reworded.code == "superseded-reply"
+        assert reworded.exit_code == 0, reworded.output
         replies = [
             event
             for event in events_model.read_events(page)
             if event["kind"] == "reply"
         ]
-        assert len(replies) == 1
-        assert (replies[0]["parent"], replies[0]["responds"], replies[0]["text"]) == (
-            "same-id",
-            "same-id",
-            str(page),
-        )
+        assert [
+            (reply["parent"], reply.get("responds"), reply["text"]) for reply in replies
+        ] == [("same-id", "same-id", str(page)), ("same-id", None, "Again")]
 
 
 def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_dir):
@@ -382,12 +380,11 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_d
 
     assert reply("--done", "--text", "Rebuilt it.") == delivered
     assert events_model.read_events(page_dir) == events
-    # With the to-do ended, another answer to the update is refused.
+    # With the to-do ended, another reply at the reference still goes in, since the
+    # comment is still the thread's newest input, and names no to-do.
     tasks_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
-    [refused] = command_findings(
-        "thread", "reply", reference, "--done", "--text", "Rebuilt it again."
-    )
-    assert refused.code == "superseded-reply"
+    again = reply("--done", "--text", "Rebuilt it again.")
+    assert "responds" not in again and "findings" not in again
 
 
 def test_response_author_api_covers_markup_question_title_progress_and_anchor(page_dir):
@@ -466,6 +463,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "widget": "response-options",
             "action": "choose",
             "detail": {"value": ["response-yes"]},
+            "answered": True,
         },
     )
     # A widget input is answered on the message holding it, not on its own event id.
@@ -717,6 +715,7 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         ],
     )
     assert progress.exit_code == 0, progress.output
+    saved = source.read_text()
     source.write_text("<lf-unknown>Unfinished draft</lf-unknown>")
     reply = thread_model.post_response(
         reference, "No answer is coming.", failure="unavailable"
@@ -730,14 +729,31 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         delivery_model.current_responses(page_dir, events_model.read_events(page_dir))
         == {}
     )
-    # An answer to the same reference is not a retry of the receipt: it is refused
-    # as an answer to a settled input rather than handed the receipt back.
-    [answered] = command_findings(
-        "thread", "reply", reference, "--done", "--text", "Here it is."
+    assert state_json(page_dir)["queues"]["on_user"][0]["id"] == f"update:{asked['id']}"
+    # A turn that recovers answers at the same reference, the thread's newest input,
+    # and the failure no longer waits on the user.
+    source.write_text(saved)
+    answered = CliRunner().invoke(
+        cli_model.cli, ["thread", "reply", reference, "--done", "--text", "Here it is."]
     )
-    assert answered.code == "superseded-reply"
-    assert [event["id"] for event in events_model.read_events(page_dir)][-1] == (
-        reply["id"]
+    assert answered.exit_code == 0, answered.output
+    assert events_model.read_events(page_dir)[-1]["responds"] == asked["id"]
+    assert state_json(page_dir)["queues"]["on_user"] == []
+    # That answer is the input's, so a second reply there answers nothing new, and a
+    # turn's final at the same reference yields to it.
+    again = CliRunner().invoke(
+        cli_model.cli, ["thread", "reply", reference, "--done", "--text", "Also this."]
+    )
+    assert again.exit_code == 0, again.output
+    assert "responds" not in events_model.read_events(page_dir)[-1]
+    assert (
+        thread_model.post_reply(
+            page_dir,
+            {"parent": asked["id"], "responds": asked["id"]},
+            "Here it is.",
+            settlement=thread_model.ProviderFinal("turn"),
+        )
+        is None
     )
 
 
@@ -786,10 +802,11 @@ def test_progress_draws_formatting_and_holds_no_widget(page_dir):
 def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
     """A provider turn's opening is the agent's progress line, as any harness's first
     line is: once complete it posts once, taking the update in hand, so a message the
-    user sends during the turn follows it, and the answer the turn commits is its
-    final message alone. An opening of several paragraphs posts as the one line
-    progress is, and one whose completion a reconnect missed posts as the next item
-    begins."""
+    user sends during the turn follows it. The turn's final message posts after that
+    message and answers the comment it was written for, a special case of Codex's,
+    and the message the turn never read stays owed. An
+    opening of several paragraphs posts as the one line progress is, and one whose
+    completion a reconnect missed posts as the next item begins."""
     comment, _target, _delivery_id, stream = _reserved_author_response(page_dir)
     fold = codex_model.AppServerEvents("codex-thread", "author-turn")
     opening = {
@@ -839,9 +856,11 @@ def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
         ("user", "And the cost?"),
         ("agent", "Option B, at half the cost."),
     ]
-    progress, _, answer = replies
+    progress, _, final = replies
     assert progress["ephemeral"] and progress["start"]["item"] == comment["id"]
-    assert answer["responds"] in {comment["id"], asked["id"]}
+    assert final["responds"] == comment["id"]
+    [owed_answer] = owed(state_json(page_dir))
+    assert owed_answer["input"] == asked["id"]
 
 
 @pytest.mark.parametrize("rich", ["question", "markup"])
@@ -1261,6 +1280,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     reference = response_reference(page_dir, action)

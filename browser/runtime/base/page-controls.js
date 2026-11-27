@@ -1,11 +1,14 @@
+// Compiled from page-controls.ts by build/typescript.mjs; edit that file.
 /* The page's controls as the lines of a menu, which the floating panel's menu draws
  * (panel/floating-panel.js) without naming any of them.
  *
  * A module registers each control it offers once, as one row: its `label` (for a row
  * that copies, the text it copies named as it reads mid-sentence, such as "link", which a
  * presentation puts after "Copy" and capitalizes to head a line), a terse `value` such as
- * a count, the `shortcut` that reaches it from the keyboard as its steps, each spelled as
- * a key chip spells it (dom/keyboard/control-keys.js, `commandSteps`), the `group` of
+ * a count, the `command` its press runs, whose Go-to key the row wears
+ * (panel/page-keys/go-to-sequence.js, `data-lf-command`), the `shortcut` that reaches it
+ * from the keyboard as its steps, each spelled as a key chip spells it, where it isn't
+ * that command's own (dom/keyboard/control-keys.js, `commandSteps`), the `group` of
  * controls it belongs with, what a row that copies grants that its text doesn't say,
  * which a pointer resting on the row reads and About shows under it (`title`), the text
  * it copies where it copies one (`copies`), whether
@@ -26,7 +29,6 @@
 import { signal } from "/vendor/signals-core.js";
 import { afterScript } from "./rendering.js";
 
-/** @type {readonly string[]} */
 const EMPTY = Object.freeze([]);
 
 // Where each contributor's rows stand, among the others'.
@@ -58,39 +60,13 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // preview or Leaf the page runs (`about`) stands in About this page alone, which lists
 // every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
-/** @typedef {"page" | "navigate" | "annotate" | "keys" | "about"} PageControlGroup */
-/** @import { WorkingPlace } from "./held-place.js" */
-
-/** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
 let sequence = 0;
 const revision = signal(0);
 
-/** @template {string | boolean | readonly string[] | null | undefined} T
- * @param {T | (() => T)} value @returns {T} */
 const read = (value) => (typeof value === "function" ? value() : value);
 
-/**
- * Register one row of the page's controls.
- *
- * @typedef {{
- *   key: string,
- *   rank: number,
- *   label: string | (() => string),
- *   group: PageControlGroup | (() => PageControlGroup),
- *   value?: string | (() => string),
- *   title?: string | (() => string),
- *   shortcut?: readonly string[] | (() => readonly string[]),
- *   copies?: string | (() => string),
- *   offered?: boolean | (() => boolean),
- *   urgent?: string | null | (() => string | null),
- *   disabled?: boolean | (() => boolean),
- *   exit?: boolean,
- *   action?: string | (() => string),
- *   press?: (held: WorkingPlace | null) => unknown,
- * }} PageControl
- */
-/** @param {PageControl} row */
+/** Register one row of the page's controls. */
 export function registerPageControl(row) {
   if (!row.key || !Number.isFinite(row.rank) || !row.label)
     throw new TypeError(
@@ -115,6 +91,7 @@ export function pageControls() {
         label: read(row.label),
         value: read(row.value) ?? "",
         title: read(row.title) ?? "",
+        command: row.command ?? null,
         shortcut: read(row.shortcut) ?? EMPTY,
         get group() {
           return read(row.group);

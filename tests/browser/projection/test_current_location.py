@@ -20,6 +20,7 @@ from render_cases_interaction import (
     RING,
     answered_comment,
     live_url,
+    serve_obligations,
 )
 from render_cases_layout import token_colour
 from render_cases_navigation import address_code, go_to_address
@@ -524,7 +525,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     the version lands is the press they would have made before it. The ring is not owed a
     record of its own: it is painted from the focus, and the activation hands the user
     back the control they were located on, so the obligation they were in wears it still."""
-    url = serve(OBLIGATIONS_PAGE)
+    url = serve_obligations(serve)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
     # Short enough that an obligation in the middle of the window has page text above it,
@@ -699,7 +700,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
     still meaning one thing. An arrival is the other side of that: it places the user on
     the decision rather than in the control, so there the decision's own ring is the one."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     question = page.locator("#live-question-decision")
     page.keyboard.press("m")
     expect(question).to_have_attribute("data-lf-obligation", "1")
@@ -943,7 +944,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     The next obligation walk reads the visible page place, returning to the first obligation before
     advancing. Letting go also works on a page with no scroll range and after a Page
     Map action leaves focus in a margin cluster."""
-    url = serve(OBLIGATIONS_PAGE)
+    url = serve_obligations(serve)
     # A third action puts the suggestion's cluster beyond its two resting controls.
     answered_comment(
         serve.page_dir,
@@ -1022,7 +1023,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
 def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     """Removing an open-request declaration removes that widget from every obligation
     surface without changing the runtime, panel, or keyboard walk."""
-    url = serve(OBLIGATIONS_PAGE)
+    url = serve_obligations(serve)
 
     def undeclare(registry):
         del registry["lf-suggestion"]["awaits"]

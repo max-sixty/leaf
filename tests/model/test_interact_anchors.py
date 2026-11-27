@@ -41,8 +41,7 @@ from leaf.base import files as files_model
 from leaf.commands import cli as cli_model
 from leaf.commands import hook_transport as hook_transport_model
 from leaf.log import event_log as events_model
-from leaf.log.events import build_threads
-from leaf.log.thread_context import logged_fragment
+from leaf.log.events import build_threads, logged_fragment
 from leaf.pages.render_gate import browser as browser_model
 from leaf.records import render_reading as render_reading_model
 from leaf.records.revisioning import activate_source
@@ -51,6 +50,18 @@ from leaf.source import structure as structure_model
 from leaf.source.anchor_capture import Drawing, drawn_part
 from leaf.source.data import read_data
 from leaf.source.revision_artifact import read_artifact, read_revision
+
+
+def unplaced(result) -> int | None:
+    """How many times Leaf's reading of the page's files found a posted thread's
+    quote, where it noted that it didn't find it once (`unplaced-quote`), else None."""
+    assert result.exit_code == 0, result.output
+    notes = [
+        finding["values"]["found"]
+        for finding in json.loads(result.output).get("findings", [])
+        if finding["code"] == "unplaced-quote"
+    ]
+    return notes[0] if notes else None
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -93,47 +104,6 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     )
 
 
-QUOTES = json.loads(Path(__file__).parents[1].joinpath("quote_cases.json").read_text())
-
-
-@pytest.mark.parametrize("case", QUOTES["cases"], ids=lambda case: case["id"])
-def test_a_quote_resolves_where_the_browser_resolves_it(case):
-    """A stored quote resolves to the passage the browser's `findQuote` resolves it to,
-    told by how many of its section's letters stand before it
-    (`tests/quote_cases.json`)."""
-    from leaf.source.anchor_capture import resolve_quote
-
-    passages = passages_model.page_passages(
-        structure_model.SourceDocument(f"<main>{case['markup']}</main>"),
-        case.get("registry"),
-    )
-    at = resolve_quote(passages, case["anchor"])
-    lo = passages.spans[case["anchor"]["section"]][0]
-    before = None if at is None else len("".join(passages.text[lo:at].split()))
-    assert before == case["before"]
-
-
-def test_an_empty_quote_neighbour_is_an_exact_boundary():
-    """The browser treats a missing side as the page edge, never a wildcard."""
-    from leaf.source.anchor_capture import resolve_quote
-
-    anchor = {"section": "labels", "quote": "Alpha", "suffix": "Beta Alpha Beta"}
-    previous = passages_model.page_passages(
-        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta</p>')
-    )
-    revised = passages_model.page_passages(
-        structure_model.SourceDocument('<p id="labels">Start Alpha Beta Alpha Beta</p>')
-    )
-    assert resolve_quote(previous, anchor) == 0
-    assert resolve_quote(revised, anchor) is None
-    anchor = {"section": "labels", "quote": "Beta", "prefix": "Alpha Beta Alpha"}
-    revised = passages_model.page_passages(
-        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta End</p>')
-    )
-    assert resolve_quote(previous, anchor) is not None
-    assert resolve_quote(revised, anchor) is None
-
-
 def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
     result = comment(
         published(page_dir), "--quote", " \t\n ", "--text", "Which passage?"
@@ -146,9 +116,10 @@ def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
 
 
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
-    """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
-    from leaf.source.anchor_capture import resolve_quote
-
+    """A revision moves no quote: a selection captured as detached stays detached
+    when a revision leaves one copy of its words, an agent's quote of words the files
+    hold several times is stored with a note on where the page shows it, and one they
+    hold once keeps the neighbours that tell it from copies a later version adds."""
     repeated = "<p>Repeated passed text.</p>"
     unique = "<p>Unique passed text.</p>"
     original = PAGE.replace(
@@ -157,10 +128,14 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
     )
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
-    refused = comment(
+    noted = comment(
         page_dir, "--section", "runs", "--quote", "passed", "--text", "Which?"
     )
-    assert refused.exit_code != 0 and "3 times" in refused.output
+    assert noted.exit_code == 0, noted.output
+    record = json.loads(noted.output)
+    assert record["anchor"] == {"section": "runs", "quote": "passed"}
+    [note] = record["findings"]
+    assert note["code"] == "unplaced-quote" and note["values"]["found"] == 3
     anchor = {
         "section": "runs",
         "quote": "passed",
@@ -189,15 +164,19 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
             "Unique.",
         ).output
     )
+    assert exact["anchor"] == {
+        "section": "runs",
+        "quote": "Unique passed text.",
+        "prefix": "t. Repeated passed text.",
+        "suffix": "The cutoff lives in jobs",
+    }
+    assert "findings" not in exact
     revised = original.replace(repeated * 2 + unique, repeated + unique)
     (page_dir / "index.html").write_text(revised)
     publish(page_dir)
     threads = build_threads(events_model.read_events(page_dir), {})
     assert threads[detached["id"]]["anchor"] == anchor
     assert threads[exact["id"]]["anchor"] == exact["anchor"]
-    passages = passages_model.page_passages(structure_model.SourceDocument(revised))
-    assert resolve_quote(passages, anchor) is None
-    assert resolve_quote(passages, exact["anchor"]) is not None
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
@@ -221,31 +200,12 @@ def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
     assert event["text"] == "dark for how long?"
 
 
-def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
-    """The context is the whole reason a later version can't hand the comment to another
-    copy of the same words, so a written anchor stores it exactly as a selection does."""
-    event = json.loads(
-        comment(
-            published(page_dir), "--quote", "Verify, then flip", "--text", "ok"
-        ).output
-    )
-    anchor = event["anchor"]
-    # Read out of the whole collapsed text and stopped by the fences around the option
-    # row — the runtime writes controls between options, words this reading doesn't
-    # hold. The runtime reads its side back the same way, and only a full match counts.
-    assert (
-        anchor["prefix"] == "risk: low Backfill first"
-    )  # the option's own chip band, then its title
-    assert anchor["suffix"] == ". My take: do this first"
-
-
 def test_a_written_comment_quotes_the_whole_passage(page_dir):
     """A quote is the passage the page marks, so the capture writes the whole of it
     however long, and the neighbour after it is the page's next words rather than the
     rest of the passage. Cut at four hundred characters, both were wrong together: the
     comment landed on the passage's opening, and the suffix that was meant to tell one
-    copy from another was text the quote itself already held. The runtime captures the
-    same anchor from the DOM, so a cap here would have been a cap there too."""
+    copy from another was text the quote itself already held."""
     passage = (
         "The cutoff moves whenever the backfill runs, and the guard reads a column "
         "the writer never fills, so the batch replays from the top on each release, "
@@ -268,11 +228,27 @@ def test_a_written_comment_quotes_the_whole_passage(page_dir):
     assert anchor["suffix"] == "Deploys pause overnight."
 
 
+def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
+    """The page reads a quote's neighbours to tell its copy from another the page draws
+    or a later version adds, so a written anchor stores the words beside the one copy
+    the files hold, as a selection stores its own."""
+    event = json.loads(
+        comment(
+            published(page_dir), "--quote", "Verify, then flip", "--text", "ok"
+        ).output
+    )
+    anchor = event["anchor"]
+    # Read out of the whole collapsed text and stopped by the fences around the option
+    # row, where the runtime writes controls between options.
+    assert anchor["prefix"] == "risk: low Backfill first"
+    assert anchor["suffix"] == ". My take: do this first"
+
+
 def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
-    """A suffix clipped at the section's edge could be one character, a bar an identical
-    copy elsewhere might clear; the whole reading gives a closing passage a full side.
-    The section the anchor names scopes where the search may land, never what surrounds
-    the passage."""
+    """A suffix clipped at the section's edge could be one character, which an identical
+    copy elsewhere might also show; the whole reading gives a closing passage a full
+    side. The section the anchor names scopes where the copy may stand, never what
+    surrounds it."""
     two = PAGE.replace(
         "</section>", "  <p>Deploys pause overnight.</p>\n</section>"
     ).replace(
@@ -289,27 +265,43 @@ def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
     assert event["anchor"]["suffix"] == "The rollout resumes."
 
 
-def test_a_comment_refuses_a_quote_the_version_does_not_hold(page_dir):
+def test_a_quote_the_files_do_not_hold_posts_with_a_note(page_dir):
+    """Only the drawn page says whether it shows the words, so the quote is stored
+    as given, on no section, and the note says where the page shows the thread if it
+    doesn't show them once either."""
     result = comment(published(page_dir), "--quote", "ship it on Friday", "--text", "x")
-    assert result.exit_code != 0
-    assert "doesn't say" in result.output
+    assert unplaced(result) == 0
+    assert json.loads(result.output)["anchor"] == {
+        "section": None,
+        "quote": "ship it on Friday",
+    }
+    assert "in Threads" in result.output
 
 
-def test_a_comment_refuses_a_quote_the_version_holds_twice(page_dir):
-    """Which copy was meant is a question with an answer, and there is someone to ask.
-    The browser has to guess because the user has already gone; this doesn't."""
+def test_a_quote_the_files_hold_twice_posts_with_a_note(page_dir):
+    """The words repeat and the anchor names no section, so the note says the thread
+    stands in Threads unless the drawn page shows them once; a section that holds one
+    copy places the thread on it with no note, beside the neighbours that tell that
+    copy from the other."""
     twice = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Ship dark.</p>")
     (page_dir / "index.html").write_text(twice)
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
-    assert result.exit_code != 0
-    assert "2 times" in result.output
-    assert "name the section" in result.output and "--section" not in result.output
-    # Naming a section is one of the two ways out it offers.
+    assert unplaced(result) == 2
+    assert json.loads(result.output)["anchor"] == {
+        "section": None,
+        "quote": "Ship dark",
+    }
+    assert "in Threads" in result.output and "--section" not in result.output
     scoped = comment(
         page_dir, "--quote", "Ship dark", "--section", "flag-first", "--text", "x"
     )
-    assert scoped.exit_code == 0, scoped.output
-    assert json.loads(scoped.output)["anchor"]["section"] == "flag-first"
+    assert unplaced(scoped) is None
+    assert json.loads(scoped.output)["anchor"] == {
+        "section": "flag-first",
+        "quote": "Ship dark",
+        "prefix": "low risk: med Flag first",
+        "suffix": ".",
+    }
 
 
 def test_a_section_the_version_has_no_id_for_is_refused(page_dir):
@@ -552,9 +544,13 @@ def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_di
     assert "responds" not in events_model.read_events(page_dir)[-1]
 
 
-def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_dir):
-    """The agent's own resolve answers for its thread, and an agent whose delivered
-    reply became unnecessary should know why."""
+def test_a_message_misplaced_after_the_agents_resolution_names_the_resolution(
+    page_dir,
+):
+    """The agent's own resolve answers for its thread, so a message the agent aims
+    at a section by a message's id should say why nothing is owed there. A reply at
+    the delivered reference still goes in, since the comment is still the thread's
+    newest input, and answers it."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -565,26 +561,26 @@ def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_d
         {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
 
-    refused = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "I checked it."],
-    )
-
-    assert refused.exit_code != 0
-    assert "the agent resolved the thread" in refused.output
-    assert resolution["ts"] in refused.output
-    assert "leaf thread reply" not in refused.output
     misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
     assert "the agent resolved the thread" in misplaced.output
+    assert resolution["ts"] in misplaced.output
     assert "leaf thread reply" not in misplaced.output
     # The user closing the thread after the agent leaves the agent's resolve
-    # answering for it, and the refusal still names that one.
+    # answering for it, and the note still names that one.
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
     again = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
     assert "the agent resolved the thread" in again.output
     assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", "--done", reference, "--title", "Check", "--text", "Done."],
+    )
+    assert replied.exit_code == 0, replied.output
+    [reply] = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
+    assert reply["responds"] == root["id"]
 
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
@@ -625,6 +621,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "widget": "thread-picks",
             "action": "choose",
             "detail": {"value": ["thread-option"]},
+            "answered": True,
         },
     )
     events = events_model.read_events(page_dir)
@@ -669,9 +666,9 @@ def test_a_section_scopes_where_a_quote_may_land(page_dir):
         "--text",
         "x",
     )
-    assert elsewhere.exit_code != 0
     # Named as the section's silence, not the page's: the page does say it, one option over.
-    assert "§ flag-first doesn't say 'Verify, then flip'" in elsewhere.output
+    assert unplaced(elsewhere) == 0
+    assert "in § flag-first" in elsewhere.output
     held = comment(
         page_dir,
         "--quote",
@@ -681,7 +678,7 @@ def test_a_section_scopes_where_a_quote_may_land(page_dir):
         "--text",
         "x",
     )
-    assert held.exit_code == 0, held.output
+    assert unplaced(held) is None
     assert json.loads(held.output)["anchor"]["section"] == "backfill-first"
 
 
@@ -691,8 +688,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     on that diagram does in the browser, and that is the anchor offered instead."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
-    assert body.exit_code != 0
-    assert "doesn't say 'graph LR'" in body.output and "name the section" in body.output
+    assert unplaced(body) == 0 and "in Threads" in body.output
     element = comment(
         page_dir, "--section", "flow", "--text", "the retry edge is missing"
     )
@@ -903,6 +899,35 @@ def test_a_revision_moves_a_comment_on_a_formatted_label_to_its_section(page_dir
     assert activate_source(page_dir).created
     threads = build_threads(events_model.read_events(page_dir), {})
     assert threads[root["id"]]["anchor"] == {"section": "labels"}
+
+
+def test_a_revision_leaves_a_thread_whose_section_a_decision_hides(page_dir):
+    """Accepting a suggestion hides the words it replaces until the user undoes the
+    decision, so a later revision that leaves them in the file moves no thread on
+    them, and the undo shows the thread on its words again."""
+    from leaf.records.revisioning import activate_source
+
+    (page_dir / "index.html").write_text(SUGGESTED)
+    publish(page_dir)
+    root = json.loads(
+        comment(
+            page_dir, "--quote", "every feeder each morning", "--text", "Why daily?"
+        ).output
+    )
+    assert root["anchor"]["section"] == "refill-rule"
+    decide(page_dir, "accept")
+    accepted = events_model.read_events(page_dir)[-1]
+    (page_dir / "index.html").write_text(
+        SUGGESTED.replace("<h2>Plan</h2>", "<h2>Plan</h2><p>Feeders run dry.</p>")
+    )
+    assert activate_source(page_dir).created
+    append_command(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"], "answered": False},
+    )
+    events = events_model.read_events(page_dir)
+    assert not any(event["kind"] == "reanchor" for event in events)
+    assert build_threads(events, {})[root["id"]]["anchor"] == root["anchor"]
 
 
 def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
@@ -1135,7 +1160,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace(
-        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="alpha">Alpha</p><p id="gamma">Gamma</p>'
     )
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
@@ -1143,7 +1168,8 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
         json.loads(comment(page_dir, "--quote", quote, "--text", "Keep this").output)
         for quote in ("Alpha", "Gamma")
     ]
-    revised = original.replace("Alpha Gamma", "Beta Delta")
+    both = '<p id="alpha">Alpha</p><p id="gamma">Gamma</p>'
+    revised = original.replace(both, "<p>Beta Delta</p>")
     (page_dir / "index.html").write_text(revised)
     append = revision_publication.append_admitted
 
@@ -1162,7 +1188,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     assert pending[-1]["kind"] == "note" and pending[-1]["revision"] == 2
     assert not any(e["kind"] == "reanchor" for e in pending)
     (page_dir / "index.html").write_text(
-        original.replace("Alpha Gamma", "Later unrelated edit")
+        original.replace(both, "<p>Later unrelated edit</p>")
     )
     with PageTransaction(page_dir) as page:
         assert files_model.latest_revision(page_dir) == 2
@@ -1471,9 +1497,9 @@ def test_detach_after_a_reader_already_activated_the_removal(page_dir):
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
     """A module can replace or insert words the file's reading cannot model. A quote
-    spanning one of those joins would resolve to nothing in the
-    user's browser, so it's refused here, where someone can still do something about
-    it. Either side of the join quotes fine."""
+    spanning one of those joins would resolve to nothing in the user's browser, so the
+    note says so, where someone can still do something about it. Either side of the
+    join quotes fine."""
     fenced = FLOW_PAGE.replace(
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>',
         "  <p>Before the diagram.</p>\n"
@@ -1489,10 +1515,10 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
         "--text",
         "x",
     )
-    assert across.exit_code != 0 and "doesn't say" in across.output
+    assert unplaced(across) == 0
     assert (
-        comment(page_dir, "--quote", "Before the diagram.", "--text", "x").exit_code
-        == 0
+        unplaced(comment(page_dir, "--quote", "Before the diagram.", "--text", "x"))
+        is None
     )
 
 
@@ -1533,12 +1559,13 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     publish(page_dir)
     identity = "routes-option-user"
     words = "Use <a literal> & keep the source unchanged."
+    # The single choice says each pick answers it, and the add alone doesn't.
     moves = [
-        ("add", {"option": identity, "text": words}),
-        ("choose", {"value": [identity]}),
-        ("choose", {"value": ["flag-first"]}),
+        ("add", {"option": identity, "text": words}, False),
+        ("choose", {"value": [identity]}, True),
+        ("choose", {"value": ["flag-first"]}, True),
     ]
-    for action, detail in moves:
+    for action, detail, answered in moves:
         append_command(
             page_dir,
             {
@@ -1548,6 +1575,7 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
                 "widget": "routes",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
 
@@ -1556,9 +1584,12 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": identity}
     quote = comment(page_dir, "--quote", words, "--text", "These exact words.")
     assert quote.exit_code == 0, quote.output
+    # The option's words fill its cell, so the neighbours on both sides are empty.
     assert json.loads(quote.output)["anchor"] == {
         "section": identity,
         "quote": words,
+        "prefix": "",
+        "suffix": "",
     }
 
     # A later source version still omits the generated option. The open anchored
@@ -1575,17 +1606,16 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     assert json.loads(later.output)["anchor"]["section"] == identity
 
 
-def test_a_quote_of_words_an_edit_replaced_is_refused(page_dir):
+def test_a_quote_of_words_an_edit_replaced_is_noted(page_dir):
     """The authored body is still in the file, but the user is no longer reading
-    it — posted, the comment would detach in front of them. Refused at write time,
-    the retired slot's own treatment; a quote merely reaching into the replaced body
-    from outside is the same detachment."""
+    it, so the note says the page doesn't show those words; a quote merely reaching
+    into the replaced body from outside is the same."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert result.exit_code != 0 and "doesn't say" in result.output
+    assert unplaced(result) == 0
     across = comment(page_dir, "--quote", "Plan Adds --dry-run to every", "--text", "x")
-    assert across.exit_code != 0 and "doesn't say" in across.output
+    assert unplaced(across) == 0
 
 
 # The draft rewritten under `restated`, taking back whatever the user wrote over it.
@@ -1598,20 +1628,19 @@ RESTATED = DRAFTED.replace(
 def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     """`restated` retracts the edit, so replay stops painting it and the reading
     returns to the version as authored: the new body quotable, the retracted edit's
-    text nowhere — not even a refusal names it, since nothing removed it from this
-    version's page. A fresh edit on the new version stands again."""
+    text nowhere. A fresh edit on the new version stands again."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     (page_dir / "index.html").write_text(RESTATED)
     noted = stamp(page_dir, "took the pen back")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "the rest apply live", "--text", "x")
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
     gone = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     edit(page_dir, "Fine, but default the flag on.", version=2)
     again = comment(page_dir, "--quote", "default the flag on", "--text", "x")
-    assert again.exit_code == 0, again.output
+    assert unplaced(again) is None
 
 
 def test_repeating_restatement_retracts_a_new_edit_without_blocking_revision(page_dir):
@@ -1622,8 +1651,8 @@ def test_repeating_restatement_retracts_a_new_edit_without_blocking_revision(pag
     assert stamp(page_dir, "took the pen back").exit_code == 0
     edit(page_dir, "Keep a fresh dry-run choice.", version=2)
     assert (
-        comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x").exit_code
-        == 0
+        unplaced(comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x"))
+        is None
     )
 
     (page_dir / "index.html").write_text(
@@ -1633,11 +1662,11 @@ def test_repeating_restatement_retracts_a_new_edit_without_blocking_revision(pag
     assert repeated.exit_code == 0, repeated.output
     assert files_model.latest_revision(page_dir) == 3
     assert (
-        comment(page_dir, "--quote", "the rest apply live", "--text", "x").exit_code
-        == 0
+        unplaced(comment(page_dir, "--quote", "the rest apply live", "--text", "x"))
+        is None
     )
     gone = comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
 
 
 def test_a_record_without_captured_state_does_not_block_or_rewrite_a_revision(page_dir):
@@ -1663,10 +1692,10 @@ def test_a_record_without_captured_state_does_not_block_or_rewrite_a_revision(pa
         DRAFTED.replace("<title>t</title>", "<title>t · revised</title>")
     )
     result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert result.exit_code == 0, result.output
+    assert unplaced(result) is None
     assert files_model.latest_revision(page_dir) == 2
     gone = comment(page_dir, "--quote", "Words no layer speaks", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     assert (
         next(
             event
@@ -1690,9 +1719,9 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     noted = stamp(page_dir, "changes elsewhere")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
     gone = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
 
 
 def test_words_a_widget_shows_apart_are_quotable_like_any_other_passage(page_dir):
@@ -1718,26 +1747,25 @@ def test_words_a_widget_shows_apart_are_quotable_like_any_other_passage(page_dir
 
 def test_a_decision_retires_its_losing_slot_from_comments_reach(page_dir):
     """The user's accept removes lf-old from the page (the browser's anchor pass
-    skips it), so a quote into it is refused naming the decision — posted, it would
-    detach in front of them. The surviving slot quotes as ever, and a re-decision
-    moves the line: the reading follows the log the way replay does, the last word
-    in force."""
+    skips it), so the note says the page doesn't show a quote into it. The surviving
+    slot quotes as ever, and a re-decision moves the line: the reading follows the log
+    the way replay does, the last word in force."""
     suggested(page_dir)
     decide(page_dir, "accept")
     gone = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     kept = comment(page_dir, "--quote", "camera shows it half-empty", "--text", "x")
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
 
     decide(page_dir, "reject")
     gone = comment(page_dir, "--quote", "camera shows it half-empty", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert unplaced(gone) == 0
     kept = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert kept.exit_code == 0, kept.output
+    assert unplaced(kept) is None
 
 
 def test_a_section_inside_a_retired_slot_is_refused(page_dir):
@@ -1789,10 +1817,9 @@ def test_a_settled_replacement_still_answers_an_element_anchor(page_dir):
 
 
 def test_a_decision_settles_which_copy_a_quote_names(page_dir):
-    """The browser counts occurrences on the page as decided, so the file has to
-    count the same way — otherwise a passage unique in front of the user reads
-    as ambiguous here, and an anchor allowed on the wrong count would carry context
-    from words they no longer see."""
+    """The browser counts occurrences on the page as decided, so the file counts the
+    same way: otherwise a passage unique in front of the user reads as ambiguous
+    here, and loses the section it stands in."""
     twice = SUGGESTED.replace(
         "<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Refill every feeder each morning.</p>"
     )
@@ -1801,12 +1828,12 @@ def test_a_decision_settles_which_copy_a_quote_names(page_dir):
     ambiguous = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert ambiguous.exit_code != 0 and "2 times" in ambiguous.output
+    assert unplaced(ambiguous) == 2
     decide(page_dir, "accept")
     result = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert result.exit_code == 0, result.output
+    assert unplaced(result) is None
     assert json.loads(result.output)["anchor"]["section"] == "plan"
 
 
@@ -1828,7 +1855,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
     result = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert result.exit_code == 0, result.output
+    assert unplaced(result) is None
 
 
 def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
@@ -1838,7 +1865,7 @@ def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     suggested(page_dir)
     decide(page_dir, "accept")
     retired = ["--quote", "Refill every feeder each morning.", "--text", "x"]
-    assert comment(page_dir, *retired).exit_code != 0
+    assert unplaced(comment(page_dir, *retired)) == 0
 
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
@@ -1846,8 +1873,7 @@ def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    result = comment(page_dir, *retired)
-    assert result.exit_code == 0, result.output
+    assert unplaced(comment(page_dir, *retired)) is None
 
 
 def test_what_the_user_never_sees_is_not_quotable(page_dir):
@@ -1859,8 +1885,7 @@ def test_what_the_user_never_sees_is_not_quotable(page_dir):
     result = comment(
         published(page_dir), "--quote", "Backfill cutover plan", "--text", "x"
     )
-    assert result.exit_code != 0
-    assert "doesn't say" in result.output
+    assert unplaced(result) == 0
 
 
 def test_a_comment_can_point_at_an_unstamped_live_revision(page_dir):
@@ -2054,6 +2079,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
             "widget": "group-a",
             "action": "choose",
             "detail": {"value": ["option-a"]},
+            "answered": True,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -2196,6 +2222,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "widget": "ps-q",
             "action": "choose",
             "detail": {"value": ["ps-cookie"]},
+            "answered": True,
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])

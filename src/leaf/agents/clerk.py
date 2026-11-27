@@ -116,9 +116,12 @@ or a choice they closed without picking, names it, and Leaf asks it in its threa
 (`thread.ask_again`), a question first asked in words under its own id, as the
 agent's `--obligation <id>` does (`obligations`), reopening the thread if the user
 closed it. Any other opens a thread of its own, on
-the passage the ask concerns where the fork names words the page shows once, and
-otherwise on the page as a whole, which is also where words the page doesn't show
-once leave it. Where the question's thread still owes the user a reply, the question
+the passage the ask concerns where the fork names its words, and otherwise on the
+page as a whole. The page places those words as it places any quote: where it doesn't
+show them once, the thread stands on the element around the one copy the page's files
+hold, or in Threads, and the line telling the agent of the ask says so where the files
+don't hold them once (`unplaced-quote`). Where the
+question's thread still owes the user a reply, the question
 waits on that reply and is On Me again once it is given, so Leaf asks nothing and
 tells the agent to reply there. An ask Leaf can't otherwise put in its question's
 thread, as where its id names no question, is taken as one naming none, since the
@@ -186,7 +189,7 @@ A line queued with `wake` tells the session of work it now owes, such as a findi
 Leaf changed nothing for. Until a hook has
 printed it, the watch between turns wakes the session for it once the turn has closed
 (`waking`, `session.watch_between_turns`), and a session no watch follows is nudged
-(`presence.nudge_unwatched`). The turn that ends a stretch of work is the one most
+(`delivery.nudge_unwatched`). The turn that ends a stretch of work is the one most
 likely to leave a page stale, and its next step is otherwise the user's return, by
 when they have read the page. A record Leaf wrote and a fix it made need nothing of
 the agent, so their lines wait for its next step.
@@ -757,7 +760,7 @@ def apply_answer(
     Returns what it wrote, changed and told, and why it wrote no records if it
     didn't. Each page's diagnostics note what the fork named there and what came of
     it, with `run`."""
-    from leaf.agents.presence import nudge_unwatched
+    from leaf.agents.delivery import nudge_unwatched
     from leaf.base.leases import page_locked
     from leaf.records.transaction import PageTransaction, owned_pages
 
@@ -875,34 +878,29 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
         ask = (page_dir, page, title, text, passage, again, identity, registry)
         try:
             checked_text(page_dir, text, html=True)
-            record = _ask_one(*ask)
+            record, found = _ask_one(*ask)
         except Rejected as error:
             yield None, _unasked(str(page_dir), title, text, error)
             continue
         except OwedAnswer as owed:
             yield None, _owed(str(page_dir), title, again, owed)
             continue
-        yield record, _told(str(page_dir), title, text, passage, record, again)
+        yield record, _told(str(page_dir), title, text, passage, record, again, found)
 
 
-def _ask_one(page_dir, page, title, text, passage, again, identity, registry) -> dict:
-    """The message putting one ask On Me: in the thread of the question it asks
-    `again` where Leaf can ask it there, and otherwise in a thread of its own, on
-    `passage` where the page shows it once. A refusal of its HTML reaches the caller
-    from either thread (`_ask`)."""
+def _ask_one(
+    page_dir, page, title, text, passage, again, identity, registry
+) -> tuple[dict, list]:
+    """The message putting one ask On Me, and what Leaf noted beside it: in the
+    thread of the question it asks `again` where Leaf can ask it there, and otherwise
+    in a thread of its own, on `passage` where it names one. A refusal of its HTML
+    reaches the caller from either thread (`_ask`)."""
     from leaf.agents.thread import ask_again, drawn_markup, markup_asks
-    from leaf.base.findings import Rejected
 
     if again and (record := ask_again(page, again, text, identity)):
-        return record
+        return record, []
     asks = markup_asks(drawn_markup(text), registry)
-    put = (page_dir, page, title, text, identity, not asks)
-    try:
-        return _put(*put, passage)
-    except Rejected:
-        if not passage:
-            raise
-        return _put(*put, "")
+    return _put(page_dir, page, title, text, identity, not asks, passage)
 
 
 def _found(
@@ -986,12 +984,7 @@ def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
 
     words, put = collapse(edit["words"]), collapse(edit["replacement"])
     passages = read(source)
-    # Spelled as the page spells them: the change is placed by its offsets in `words`.
-    found = [
-        at
-        for at, end in occurrences(passages, words, 0, len(passages.text))
-        if passages.text[at:end] == words
-    ]
+    found = [at for at, _ in occurrences(passages, words, 0, len(passages.text))]
     if words == put or len(found) != 1:
         return None
     start, end, new = _changed(words, put)
@@ -1157,12 +1150,12 @@ def _append(session_id: str, lines: list[str], *, wake: bool = False) -> None:
         QUEUED.write(path, {"lines": [*held["lines"], *added]})
 
 
-def _put(page_dir, page, title, text, identity, obligation, passage) -> dict:
+def _put(page_dir, page, title, text, identity, obligation, passage) -> tuple:
     """The thread putting one ask On Me as the agent's own in `page`, an open
     transaction, on `passage` where it names one, with an obligation where no widget
-    in it asks; refused, as `thread create --quote` is, where the page doesn't show
-    `passage` once, and as the agent's message is, where its HTML doesn't validate
-    (`check_markup`)."""
+    in it asks, and what Leaf noted beside it, as `thread create --quote` notes where
+    the page's files don't show `passage` once; refused as the agent's message is,
+    where its HTML doesn't validate (`check_markup`)."""
     from leaf.agents.thread import open_thread
 
     return open_thread(
@@ -1206,11 +1199,13 @@ def _told(
     text: str,
     passage: str,
     record: dict,
-    again: str = "",
+    again: str,
+    found: list,
 ) -> str:
     """The line telling the agent what Leaf put On Me as its own, where (a new
-    thread, or the thread of the question `again` it asks again), and whether a
-    widget in it asks or the user's reply answers it."""
+    thread, or the thread of the question `again` it asks again), what Leaf noted
+    beside it (`found`), and whether a widget in it asks or the user's reply answers
+    it."""
     from leaf.log.obligations import question_ids
 
     if record["kind"] == "reply":
@@ -1228,12 +1223,11 @@ def _told(
             )
         put += f" on {path}, which reopens the thread if it was closed"
     else:
-        where = (
-            f'the words "{passage}" in {path}'
-            if "anchor" in record
-            else f"{path} as a whole"
+        where = f'"{passage}" in {path}' if "anchor" in record else f"{path} as a whole"
+        put = (
+            f", in a new thread {'quoting' if 'anchor' in record else 'on'} {where}, "
+            f"opened by your message {record['id']}"
         )
-        put = f", in a new thread on {where}, opened by your message {record['id']}"
     quoted = "\n".join(f"> {line}" for line in text.splitlines())
     answer = (
         "the user's reply reaches you as any reply does"
@@ -1241,9 +1235,10 @@ def _told(
         else "the user's answer in its widget reaches you as any answer does"
     )
     withdraw = f"leaf thread resolve {path} {record['id']}"
+    noted = "".join(f"{finding}.\n" for finding in found)
     return (
         f'From your last reply, Leaf asked the user "{title}" On Me{put}:\n{quoted}\n'
-        f"It is yours like any message you write: {answer}, and if it isn't "
+        f"{noted}It is yours like any message you write: {answer}, and if it isn't "
         f"theirs to decide, resolve its thread with `{withdraw}`, and ask it another "
         "way if you'd rather."
     )

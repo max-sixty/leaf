@@ -75,6 +75,7 @@ from leaf.pages.render_gate import version as render_gate_model
 from leaf.records.transaction import acknowledged
 from leaf.serving.drafts import DRAFTS
 from leaf.source import data as data_model
+from leaf.source import file_bindings
 from leaf.source import layer as layer_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.layer import selected_layer
@@ -672,7 +673,11 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             assert acknowledged(events) == receipt["seq"] - 1
         else:
             assert acknowledged(events) == 0
-        assert set(contracts) == {operation["source"] for operation in operations}
+        # A bound file is a data source under its binding's id, beside the sources
+        # the example's data sets.
+        assert set(contracts) == {
+            operation["source"] for operation in operations
+        } | set(file_bindings.bound_paths(page_dir))
         for operation in operations:
             stored = data_model.PUBLICATION.file(
                 data_model.source_file(page_dir, operation["source"])

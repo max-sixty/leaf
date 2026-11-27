@@ -4,7 +4,9 @@
 # judge whether it still needs them. A pick's delivery carries the agent's questions
 # still waiting in a thread about the widget (`waiting`), with a clause to end the
 # ones the pick settles by resolving the question's thread. The envelopes are real
-# deliveries frozen from a page; the old arm drops `waiting` and its clause.
+# deliveries frozen from a page, with the handling the kernel registry gives at
+# 43fed2e7e172, where the default context passed 3 of 3 on Claude Code; the old arm
+# drops `waiting` and its clause.
 description: answer-settles-what-it-carried
 metadata:
   purpose:
@@ -40,7 +42,7 @@ vars:
         "h1": "The user already sees the action applied.",
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
         "h3": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one's `text` whether this action answers it. Resolve the thread of one it settles, unless something else in that thread still waits on them: `leaf thread resolve <page> <message>`, the message being its id after `message:`. Leave one that still needs the user.",
-        "h4": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+        "h4": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
        },
        "events": [
         {
@@ -165,7 +167,7 @@ variants:
             "h1": "The user already sees the action applied.",
             "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
             "h3": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one's `text` whether this action answers it. Resolve the thread of one it settles, unless something else in that thread still waits on them: `leaf thread resolve <page> <message>`, the message being its id after `message:`. Leave one that still needs the user.",
-            "h4": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+            "h4": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
            },
            "events": [
             {

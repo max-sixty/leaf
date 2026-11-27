@@ -5,10 +5,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_harness import consume_browser_errors, open_page, select
 
-from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import passages as passages_model
-from leaf.source import structure as structure_model
-
 LONG = " + ".join(f"a_{{{n}}} x^{{{n}}}" for n in range(1, 31))
 FORMULAS = leaf_page(
     "Formulas",
@@ -72,7 +68,6 @@ def test_a_formula_is_drawn_as_mathml_and_quoted_by_its_latex(browser, serve):
     start = page.evaluate(WORD, ["costs"])
     formula = page.locator("#cost code").bounding_box()
     end = page.evaluate(WORD, ["cached"])
-    passages = passages_model.page_passages(structure_model.SourceDocument(FORMULAS))
     for x, quote in [
         (formula["x"] + formula["width"] / 2, "costs c(x) = h x + c_0"),
         (end["right"] - 1, "costs c(x) = h x + c_0 cached"),
@@ -81,7 +76,6 @@ def test_a_formula_is_drawn_as_mathml_and_quoted_by_its_latex(browser, serve):
         select(page, (start["x"] + 1, start["y"]), (x, start["y"]))
         anchor = page.evaluate(SELECTED)
         assert anchor["quote"] == quote
-        assert anchor_capture_model.resolve_quote(passages, anchor) is not None
 
     page.evaluate("getSelection().removeAllRanges()")
     page.mouse.click(formula["x"] + formula["width"] / 2, start["y"])

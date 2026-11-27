@@ -1,3 +1,4 @@
+// Compiled from field-keys.ts by build/typescript.mjs; edit that file.
 /* Keys typed into a field Leaf builds stay with Leaf: the comment box and every other
  * `leaf-text` (annotations/composing/text-field.js), and the search boxes, `searchField`'s and the
  * panel's own (dom/control-labels.js, panel/floating-panel.js).
@@ -21,14 +22,11 @@
  * Dependency-free, since `searchField` builds fields in documents without Leaf too,
  * where nothing reads the keys and they stop at the field all the same. */
 
-/** @type {Set<(event: KeyboardEvent) => void>} */
 const readers = new Set();
-/** @param {(event: KeyboardEvent) => void} read */
 export const readLeavingKeys = (read) => void readers.add(read);
 
-/** @param {HTMLElement} host */
 export function keepFieldKeys(host) {
-  for (const type of /** @type {const} */ (["keydown", "keypress", "keyup"]))
+  for (const type of ["keydown", "keypress", "keyup"])
     host.addEventListener(type, (event) => {
       for (const read of readers) read(event);
       event.stopPropagation();

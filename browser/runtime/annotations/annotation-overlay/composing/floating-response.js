@@ -328,7 +328,6 @@ export function createFloatingResponsePlacement({
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
     fabBar.removeAttribute("data-lf-media-side");
-    fabBar.removeAttribute("data-lf-card-width");
     for (const property of ["--lf-float-w", "--lf-float-h"])
       fabBar.style.removeProperty(property);
   }
@@ -614,17 +613,16 @@ export function createFloatingResponsePlacement({
         watchFabPosition(owner ?? document.documentElement, ui);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
+          extent: place.extent,
           room: place.room,
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
+          direction: place.direction,
           margin: place.margin,
           boundary,
-          fit({ width, room, scale, widens }) {
+          fit({ width, room, scale }) {
             if (!stillCurrent()) return;
-            // A box its placement can't widen from the edge its words start at takes
-            // its widest at once (annotation-chrome.css).
-            keeps(fabBar, "data-lf-card-width", widens ? null : "");
             setWidth(width, scale.x);
             setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();

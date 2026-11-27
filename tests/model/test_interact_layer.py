@@ -76,6 +76,7 @@ from leaf.records.revisioning import activate_source
 from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import revision_artifact as artifact_model
+from leaf.source import runtime_selection
 from leaf.source import structure as structure_model
 from leaf.source import styles as styles_model
 from leaf.source import vocabulary as vocabulary_model
@@ -1424,6 +1425,29 @@ def _style_rules(sheet, *, whole=False):
     )
 
 
+def _scope_roots(sheet):
+    """The prelude of each `@scope` in the file, its root and any limit, which
+    `_style_rules` leaves out of a rule's selector and conditions."""
+
+    def visit(rules):
+        for rule in rules:
+            if rule.type not in ("at-rule", "qualified-rule") or rule.content is None:
+                continue
+            if rule.type == "at-rule" and rule.lower_at_keyword == "scope":
+                yield " ".join(tinycss2.serialize(rule.prelude).split())
+            yield from visit(
+                tinycss2.parse_blocks_contents(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+            )
+
+    yield from visit(
+        tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        )
+    )
+
+
 def _stated_faces(sheet, *, only_top_level):
     """{complex selector: {property}} for every rule stating a shared visual property."""
     stated = {}
@@ -1785,8 +1809,9 @@ def test_layout_style_and_widgets_never_read_each_other():
     """Layouts own placement, styles own type, and widgets consume their own box.
 
     Margin placement reads authored notes to keep annotations clear of them.
-    Packages do not depend on Layout containers, and no other sheet
-    restates a Layout's rules. Style classes remain private to the kernel theme.
+    Packages do not depend on Layout containers, in a rule's selector or the root of
+    the `@scope` it stands in, and no other sheet restates a Layout's rules. Style
+    classes remain private to the kernel theme.
     """
     layouts = schema_model.ASSETS / "layouts.css"
     theme = schema_model.ASSETS / "base.css"
@@ -1839,6 +1864,11 @@ def test_layout_style_and_widgets_never_read_each_other():
                     source
                 )
                 if named.search(selector)
+            ]
+            readers += [
+                f"{where}: @scope {root}"
+                for root in _scope_roots(source)
+                if named.search(root)
             ]
         elif source.suffix == ".js":
             # A module reads a class through a string; a comment may name one.
@@ -5318,7 +5348,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     page presents and hands them to the dispatcher's owner. The sample bootstrap's
     other listener enters its browsing context on trusted input without answering a
     key; the same listener handles pointer input. base/document-inputs.js records inputs
-    from the document's first script. dom/focus.js reads keys as the end of a label press
+    from the document's first script. base/field-keys.js stops a field's keys at the field
+    once its readers have seen them, and answers none. dom/focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. Any key but Escape puts away the
     preview a pointer reads and goes on to its command, and off a served page, where the
     register holds no page scopes, the listener takes the preview's Escape step
@@ -5352,6 +5383,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "block-controls.js": 1,
         "preview.js": 1,
         "role-button-press.js": 1,
+        "field-keys.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
@@ -5915,3 +5947,16 @@ def test_portable_css_carries_the_widgets_look_and_no_theme():
         layer.top_files["theme.css"].decode()
     )
     assert layer_model.stylesheet(reading / "theme.css", reading) not in sheet
+
+
+def test_a_typescript_source_reaches_no_page(tmp_path):
+    """A layer serves the JavaScript compiled beside a TypeScript module, and neither a
+    page's copy of a package nor the runtime a page loads carries the source."""
+    widgets = tmp_path / "demo" / "widgets"
+    widgets.mkdir(parents=True)
+    (widgets / "helper.ts").write_text("export const one: number = 1;\n")
+    (widgets / "helper.js").write_text("export const one = 1;\n")
+    assert sorted(layer_model.package_files(tmp_path / "demo")) == ["widgets/helper.js"]
+    assert not [
+        path for path in runtime_selection.read_runtime().source if path.endswith(".ts")
+    ]

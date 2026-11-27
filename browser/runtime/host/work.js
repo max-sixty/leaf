@@ -1,9 +1,10 @@
+// Compiled from work.ts by build/typescript.mjs; edit that file.
 /* Work projections read declared roles against one application publication.
  * Leaf owns the roles; a package maps its tags onto them in $work.widgets, which
  * composition holds to each tag's declaration (`registry.validation.validate_work_roles`),
  * so this reader takes the entries as given. It owns progress, assignments, report age
  * and stopped-work meaning independently of how a dashboard composes those facts. */
-import { declarationFor, layerFact, registry } from "../state/registry.js";
+import { declarationFor, registry } from "../state/registry.js";
 import { readPart } from "../state/semantic-state.js";
 import { hasObligationSource } from "../state/obligations/source.js";
 import { obligationsByRegion } from "../records/obligations/place.js";
@@ -11,47 +12,24 @@ import { authoredScope, elementById } from "../readings/passages.js";
 import { quietSince } from "../state/presence.js";
 import { quoted } from "../records/widget-descriptors.js";
 import { saidAt, reportSequence } from "./reports.js";
-import { widgetController } from "./widget-controller.js";
+import { controllerOf } from "./widget-controller.js";
 import { addressableName } from "../readings/addressable-names.js";
 
-/** @typedef {{role: "scope" | "evidence"}} ContainerRole
- * @typedef {{role: "goal", state: string, done: readonly string[], stopped: readonly string[], stoppedAt?: string}} GoalRole
- * @typedef {{role: "worker", state: string, running: readonly string[], retired: readonly string[], on?: string}} WorkerRole
- * @typedef {ContainerRole | GoalRole | WorkerRole} WorkRole
- * @typedef {WorkRole["role"]} Role
- * @typedef {ReturnType<ReturnType<typeof widgetController>["read"]>} WidgetReading
- * @typedef {(element: Element) => WidgetReading} ReadWidget
- * @typedef {Extract<import("../state/semantic-application.js").ObligationRecord, {source: {kind: "widget"}}>} WidgetObligation
- * @typedef {{tree: WorkTree, held: Map<Node, import("../state/semantic-application.js").ObligationRecord[]>, asking: Set<string>, stopped: Map<Element, boolean>}} Open
- *   One reading's scope (`workTree`) and its open widget obligations: those each goal holds, placed
- *   once for every goal of the scope (`obligationsByRegion`); the ids of the widgets that
- *   own one; and each goal's `stopped`, which a parent's reads again.
- */
-/** @returns {Record<string, WorkRole>} */
-const widgets = () => layerFact("$work")?.widgets ?? {};
+/** One reading's scope (`workTree`) and its open widget obligations: those each goal holds, placed
+ * once for every goal of the scope (`obligationsByRegion`); the ids of the widgets that
+ * own one; and each goal's `stopped`, which a parent's reads again. */
 
-/** @overload @param {Element | null | undefined} element @param {"goal"} role @returns {GoalRole | null} */
-/** @overload @param {Element | null | undefined} element @param {"worker"} role @returns {WorkerRole | null} */
-/** @overload @param {Element | null | undefined} element @param {Role | null} [role] @returns {WorkRole | null} */
-/** @param {Element | null | undefined} element @param {Role | null} [role] */
+const widgets = () => registry.$work?.widgets ?? {};
+
 function workRole(element, role = null) {
   const spec = element ? widgets()[element.localName] : undefined;
   return spec && (!role || spec.role === role) ? spec : null;
 }
 
-/** @template {Role} R @typedef {{element: Element, role: Extract<WorkRole, {role: R}>}} WorkEntry */
-/** @typedef {{
- *   goals: WorkEntry<"goal">[],
- *   workers: WorkEntry<"worker">[],
- *   childGoals: Map<Element, WorkEntry<"goal">[]>,
- *   childWorkers: Map<Element, Element[]>,
- *   leaves: (goal: Element) => WorkEntry<"goal">[],
- * }} WorkTree
- *   A scope's goals and workers in document order, read in one walk. A goal's or worker's
- *   children are those whose nearest work ancestor of any role is it; a goal's leaves are
- *   the goals inside it, through any role but a nested scope, that have no child goal.
- */
-/** @template K, V @param {Map<K, V[]>} map @param {K} key @param {V} item */
+/** A scope's goals and workers in document order, read in one walk. A goal's or worker's
+ * children are those whose nearest work ancestor of any role is it; a goal's leaves are
+ * the goals inside it, through any role but a nested scope, that have no child goal. */
+
 const append = (map, key, item) => {
   const list = map.get(key);
   if (list) list.push(item);
@@ -61,20 +39,14 @@ const append = (map, key, item) => {
 // each goal (root AGENTS.md, "Responsiveness"). A nested scope's work is its own, so the
 // walk doesn't enter it. `root` is the scope, or the page or message where `scope` is
 // null.
-/** @param {Element} root @param {Element | null} scope @returns {WorkTree} */
 function workTree(root, scope) {
   const roles = widgets();
-  /** @type {WorkTree["goals"]} */
   const goals = [];
-  /** @type {WorkTree["workers"]} */
   const workers = [];
-  /** @type {WorkTree["childGoals"]} */
   const childGoals = new Map();
-  /** @type {WorkTree["childWorkers"]} */
   const childWorkers = new Map();
-  /** @type {Map<Element | null, WorkEntry<"goal">[]>} goals by their nearest goal ancestor */
+  // Goals by their nearest goal ancestor.
   const innerGoals = new Map();
-  /** @param {Element} parent @param {Element | null} work @param {Element | null} goal */
   const visit = (parent, work, goal) => {
     for (const element of parent.children) {
       const role = roles[element.localName];
@@ -92,9 +64,7 @@ function workTree(root, scope) {
     }
   };
   visit(root, scope, null);
-  /** @type {Map<Element, WorkEntry<"goal">[]>} */
   const leafCache = new Map();
-  /** @param {Element} goal @returns {WorkEntry<"goal">[]} */
   const leaves = (goal) => {
     let found = leafCache.get(goal);
     if (!found) {
@@ -109,7 +79,6 @@ function workTree(root, scope) {
   return { goals, workers, childGoals, childWorkers, leaves };
 }
 
-/** @param {Element | null | undefined} element @param {Role | null} [role] */
 function workAncestor(element, role) {
   for (let at = element; at; at = at.parentElement) if (workRole(at, role)) return at;
   return null;
@@ -117,32 +86,25 @@ function workAncestor(element, role) {
 
 // The role's state verb: the one widget value record on its state attribute, which
 // composition requires. It is also the role's report verb when the agent writes it.
-/** @param {Element} element @param {GoalRole | WorkerRole} role */
 const stateVerb = (element, role) =>
-  /** @type {string} */ (
-    Object.entries(declarationFor(element)?.verbs ?? {}).find(
-      ([, spec]) =>
-        spec.unit === "widget" &&
-        spec.record?.kind === "value" &&
-        spec.record.attr === role.state,
-    )?.[0]
-  );
-/** @param {Element} element @param {GoalRole | WorkerRole} role */
+  Object.entries(declarationFor(element)?.verbs ?? {}).find(
+    ([, spec]) =>
+      spec.unit === "widget" &&
+      spec.record?.kind === "value" &&
+      spec.record.attr === role.state,
+  )?.[0];
 function stateReport(element, role) {
   const verb = stateVerb(element, role);
   return registry.$states[element.localName]?.[verb]?.writer === "agent" ? verb : null;
 }
-/** @param {Element} element @param {GoalRole | WorkerRole} role @param {ReadWidget} read */
 const roleState = (element, role, read) => {
   const state = read(element).state[stateVerb(element, role)];
   return state && "value" in state ? state.value : null;
 };
 
-/** @param {Element} element @param {string} action */
 const actionReports = (element, action) =>
   reportSequence(element).filter((report) => report.action === action);
 
-/** @param {WorkEntry<"worker">} entry @param {ReadWidget} read */
 function workerView({ element: worker, role }, read) {
   const state = roleState(worker, role, read);
   const focus = role.on && worker.getAttribute(role.on);
@@ -174,14 +136,12 @@ function workerView({ element: worker, role }, read) {
   };
 }
 
-/** @param {WorkEntry<"goal">} entry @param {ReadWidget} read */
 const done = ({ element: goal, role }, read) => {
   return role.done.some((value) => value === roleState(goal, role, read));
 };
 
 // The elements of the obligations waiting on the user that `goal` holds (`obligationsByRegion`)
 // and owns itself: in its scope, under no nearer goal, and not a goal.
-/** @param {Element} goal @param {Open} open */
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
   return (
@@ -202,7 +162,6 @@ function interventions(goal, open) {
   );
 }
 
-/** @param {WorkEntry<"goal">} entry @param {Open} open @param {ReadWidget} read @returns {boolean} */
 function stopped(entry, open, read) {
   const { element: goal } = entry;
   let result = open.stopped.get(goal);
@@ -212,7 +171,6 @@ function stopped(entry, open, read) {
   }
   return result;
 }
-/** @param {WorkEntry<"goal">} entry @param {Open} open @param {ReadWidget} read @returns {boolean} */
 function stoppedNow(entry, open, read) {
   const { element: goal, role } = entry;
   if (read(goal).thread.heldBy) return true;
@@ -224,13 +182,12 @@ function stoppedNow(entry, open, read) {
   return children.length ? children.some((child) => stopped(child, open, read)) : true;
 }
 
-/** @param {WorkEntry<"goal">} entry @param {Open} open @param {Map<Element, ReturnType<typeof workerView>>} workers @param {ReadWidget} read */
 function goalView(entry, open, workers, read) {
   const { element: goal, role } = entry;
   const leaves = open.tree.leaves(goal);
   const progressLeaves = leaves.length ? leaves : [entry];
   const liveWorkers = (open.tree.childWorkers.get(goal) ?? [])
-    .map((worker) => /** @type {ReturnType<typeof workerView>} */ (workers.get(worker)))
+    .map((worker) => workers.get(worker))
     .filter((worker) => !worker.retired);
   const state = roleState(goal, role, read);
   const reportVerb = stateReport(goal, role);
@@ -269,23 +226,19 @@ const openWidgetObligations = readPart((root) =>
 // The work of the scope `element` is or stands in. Outside every scope it is the work
 // in no scope of the page or message holding it (`authoredScope`), and the reading's
 // `scope` is null, as a worker's `remit` outside any goal is.
-/** @param {Element} element */
 export function readWork(element) {
   const scope = workAncestor(element, "scope");
-  /** @type {Map<Element, WidgetReading>} */
   const readings = new Map();
-  /** @param {Element} element */
   const read = (element) => {
     let reading = readings.get(element);
     if (!reading) {
-      reading = widgetController(element).read();
+      reading = controllerOf(element).read();
       readings.set(element, reading);
     }
     return reading;
   };
   const obligations = openWidgetObligations();
   const tree = workTree(scope ?? authoredScope(element), scope);
-  /** @type {Open} */
   const open = {
     tree,
     held: obligationsByRegion(

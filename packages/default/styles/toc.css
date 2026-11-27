@@ -264,8 +264,9 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
  * pointer and draws its spine, markers and marks; its labels keep their own measure
  * past it, toward the body, faded out and taking no pointer until it reveals them.
  * Pointing at the map, focus inside it or the go-to sequence reveals them over the
- * page. The track sticks, so the map stands still beside the reading from the
- * page's top to its end (layouts.css, `--lf-track-end-room`). The map fills
+ * page. The track stands fixed in the window where the sidebar spans the page, and
+ * sticks elsewhere, so the map stands still beside the reading from the page's top to
+ * its end (layouts.css, `--lf-sidebar-spans-page`). The map fills
  * the stuck track (`--lf-track-room`, layouts.css), less the track's focus room, and
  * knows nothing of the floating panel: how far the track reaches is the Layout's to
  * settle, as the user decided. Rejected: the map running on past the track's end
@@ -397,7 +398,10 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
      * inherits it: switching it would restyle each label, those off the map too, and
      * the reveal would cost more on a route of five hundred sections than of ten
      * (`data-lf-toc-shown` marks the labels on the map, toc-view.js). Each label stands
-     * at its marker's place, hanging half a line above it. Rejected: a clip path holding
+     * at its marker's place, hanging half a line above it. Go-to shows the labels at once
+     * rather than fading them in: it reads which controls show once the frame arming paints
+     * is drawn, and a fade begun that frame still stands at opacity 0, so the labels would
+     * get no hint. They still fade out as Go-to ends. Rejected: a clip path holding
      * the resting map to its track. Returning at once, it cut every label at the track
      * while the part inside faded; held until the fade ended, it kept the page's words
      * from the pointer through the fade. */
@@ -425,6 +429,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     @scope (body[data-lf-go-to-active] lf-toc) {
       :scope:is(lf-toc) .lf-toc-labels {
         opacity: 1;
+        transition: none;
       }
       :scope:is(lf-toc) .lf-toc-labels::before,
       :scope:is(lf-toc) .lf-toc-labels a[data-lf-toc-shown] {

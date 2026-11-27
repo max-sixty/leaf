@@ -2,6 +2,7 @@
 switching a document between its rendered and source readings as its source changes."""
 
 import json
+import re
 
 import pytest
 from interact_support import append_carried_log_record
@@ -147,12 +148,12 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     assert document.locator(".lf-text-document-listing code").text_content() == text
 
 
-def test_a_written_markdown_source_keeps_its_box_until_shown_whole(browser, serve):
+def test_a_written_markdown_source_takes_its_preview_s_height(browser, serve):
     """A written Markdown preview's Source tab takes the preview's height, so switching
-    to it moves nothing that follows the document. Where that height cuts the source, a
-    press shows every line and puts focus on them. Reloaded on the Source tab, the
-    document first paints its source, and the module draws the tab where that paint
-    stood."""
+    to it moves nothing that follows the document, and a source longer than the preview
+    scrolls inside that box: the preview shows the whole document, so neither tab
+    offers to. Reloaded on the Source tab, the document first paints its source, and the
+    module draws the tab where that paint stood."""
     links = "".join(f"[#{n}]: https://example.com/pull/{n}\n" for n in range(800, 812))
     text = (
         "## 2.4.0\n\n- Fixed a crash when `--config` is missing ([#800]).\n\n" + links
@@ -172,16 +173,11 @@ def test_a_written_markdown_source_keeps_its_box_until_shown_whole(browser, serv
     preview = page.evaluate(read)
     document.get_by_role("tab", name="Source", exact=True).click()
     assert page.evaluate(read) == preview
-    lines = len(text.split("\n"))
-    press = document.get_by_role("button", name=f"Show all {lines} lines")
-    expect(press).to_be_visible()
-    press.click()
-    expect(press).to_be_hidden()
-    expect(document.locator(".lf-text-document-listing > pre")).to_be_focused()
-    whole = document.locator("lf-tab:not([hidden])").evaluate(
-        "tab => [tab.clientHeight, tab.scrollHeight]"
+    source = document.locator("lf-tab:not([hidden])").evaluate(
+        "tab => [tab.clientHeight, tab.scrollHeight, getComputedStyle(tab).overflowY]"
     )
-    assert whole[0] == whole[1] and whole[0] > preview[0] - 80, (whole, preview)
+    assert source[0] < source[1] and source[2] == "auto", source
+    expect(document.get_by_role("button", name=re.compile("^Show all"))).to_be_hidden()
     held = []
     page.route("**/leaf.js", lambda route: held.append(route))
     page.reload(wait_until="commit")
@@ -196,6 +192,155 @@ def test_a_written_markdown_source_keeps_its_box_until_shown_whole(browser, serv
         "aria-selected", "true"
     )
     assert page.evaluate(read) == first
+
+
+# Forty paragraphs, eighty lines: longer than a document's default bound in either
+# reading.
+LONG_RULES = "\n\n".join(f"Paragraph {n} of the quoted rules." for n in range(1, 41))
+
+
+@pytest.mark.parametrize("preview", ["markdown", None], ids=["preview", "listing"])
+def test_a_document_longer_than_its_bound_scrolls_and_shows_whole_on_a_press(
+    browser, serve, preview
+):
+    """A document longer than its bound scrolls inside it, with a press under the box.
+    Focusing the press changes nothing; pressing it shows the whole document, in every
+    reading, and puts focus on the text it showed."""
+    attribute = f' preview="{preview}"' if preview else ""
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md"'
+            f"{attribute}><pre>\n{LONG_RULES}\n</pre></lf-text-document>"
+            '<p id="after">After the rules.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    shown = document.locator(
+        "lf-tab:not([hidden])" if preview else ".lf-text-document-listing > pre"
+    )
+    bound = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).fontSize) * 28"
+    )
+    box = shown.evaluate("box => [box.clientHeight, box.scrollHeight]")
+    assert box[0] <= bound + 1 < box[1], (box, bound)
+    assert shown.evaluate("box => getComputedStyle(box).overflowY") == "auto"
+    press = document.get_by_role("button", name="Show all 80 lines")
+    below = press.evaluate(
+        "(press, box) => press.getBoundingClientRect().top"
+        " >= box.getBoundingClientRect().bottom",
+        shown.element_handle(),
+    )
+    assert below, "the press stands under the box"
+    press.focus()
+    expect(press).to_be_focused()
+    expect(press).to_be_visible()
+    page.keyboard.press("Enter")
+    expect(press).to_be_hidden()
+    expect(shown).to_be_focused()
+    whole = shown.evaluate("box => [box.clientHeight, box.scrollHeight]")
+    assert whole[0] == whole[1] > 2 * bound, (whole, bound)
+    if not preview:
+        return
+    document.get_by_role("tab", name="Source", exact=True).click()
+    expect(press).to_be_hidden()
+    source = document.locator("lf-tab:not([hidden])")
+    held = source.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
+    assert held[0] == held[1] > bound, held
+
+
+def test_a_long_document_reloaded_on_its_source_offers_the_press(browser, serve):
+    """A long document reloaded on its Source tab, whose preview hasn't shown, offers
+    the press under that tab, and switching to the preview moves nothing below it."""
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md" '
+            f'preview="markdown"><pre>\n{LONG_RULES}\n</pre></lf-text-document>'
+            '<p id="after">After the rules.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    document.get_by_role("tab", name="Source", exact=True).click()
+    page.reload()
+    wait_until_ready(page)
+    press = document.get_by_role("button", name="Show all 80 lines")
+    expect(press).to_be_visible()
+    after = "() => document.getElementById('after').getBoundingClientRect().top"
+    before = page.evaluate(after)
+    document.get_by_role("tab", name="Preview", exact=True).click()
+    rendered(page)
+    expect(press).to_be_visible()
+    assert page.evaluate(after) == before
+
+
+def test_a_short_document_takes_its_text_s_height(browser, serve):
+    """A document shorter than its bound takes its text's height, with no press: under
+    its last line stands only the room every code block keeps for a scrollbar."""
+    url = serve(
+        leaf_page(
+            "Short file",
+            '<h1>Short file</h1><lf-text-document id="config" label="config.toml">'
+            '<pre><code class="language-toml">a = 1\nb = 2\n</code></pre>'
+            "</lf-text-document>",
+        )
+    )
+    page = open_page(browser, url)
+    listing = page.locator("#config .lf-text-document-listing > pre")
+    rows = listing.evaluate(
+        "pre => [pre.getBoundingClientRect().height, "
+        "pre.querySelector('code').getBoundingClientRect().height, "
+        "parseFloat(getComputedStyle(pre).getPropertyValue('--lf-text-scroll-clearance'))]"
+    )
+    assert rows[0] == pytest.approx(rows[1] + rows[2], abs=1), rows
+    expect(page.get_by_role("button", name=re.compile("^Show all"))).to_have_count(0)
+
+
+def test_travel_to_a_comment_past_a_document_s_bound_scrolls_to_it(browser, serve):
+    """A comment on words past a document's bound stays reachable: opening its thread
+    scrolls the document's box to the words, which the reader can scroll back from."""
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md" '
+            f'preview="markdown"><pre>\n{LONG_RULES}\n</pre></lf-text-document>'
+            '<p id="after">After the rules.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    words = document.locator("p", has_text="Paragraph 38 of")
+    words.scroll_into_view_if_needed()
+    select_words(page, "#rules p:nth-of-type(38)")
+    write(page.locator(".lf-composer leaf-text"), "Does this one still hold?")
+    with sending(page, "the comment on a late paragraph"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    told(page)
+    root = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    page.close()
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    shown = document.locator("lf-tab:not([hidden])")
+    assert shown.evaluate("tab => tab.scrollTop") == 0
+    joined = "&" if "?" in page.url else "?"
+    page.goto(f"{page.url}{joined}thread={root['id']}")
+    wait_until_ready(page)
+    scroll_settled(page)
+    scroll_settled(page, "#rules lf-tab:not([hidden])")
+    words = document.locator("p", has_text="Paragraph 38 of")
+    assert words.evaluate(
+        """p => {
+          const r = p.getBoundingClientRect();
+          const box = p.closest('lf-tab').getBoundingClientRect();
+          return r.top >= Math.max(0, box.top) && r.bottom <= Math.min(innerHeight, box.bottom);
+        }"""
+    )
+    assert shown.evaluate("tab => tab.scrollTop") > 0
+    expect(document.get_by_role("button", name="Show all 80 lines")).to_be_visible()
 
 
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
@@ -251,10 +396,13 @@ def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
     [("markdown", None), ("html", 240)],
     ids=["markdown-default-height", "html-authored-height"],
 )
-def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
+def test_document_readings_share_one_height_keep_their_scroll_and_fit_their_text(
     browser, serve, preview, height
 ):
-    """Changing readings or evidence length leaves the surrounding page in place."""
+    """Both readings of a document take the preview's height, up to the bound, and
+    keep their own scroll, so switching between them leaves the page in place. A
+    shorter text gives a Markdown preview a shorter box; an HTML preview's frame keeps
+    the bound's."""
     paragraphs = [f"Evidence paragraph {i}: a passage to inspect." for i in range(70)]
     if preview == "markdown":
         long = "# Document title\n\n" + "\n\n".join(paragraphs)
@@ -296,8 +444,10 @@ def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
     }"""
     before = page.evaluate(geometry)
     preview_height = preview_panel.bounding_box()["height"]
-    if height:
-        assert preview_height == pytest.approx(height, abs=1)
+    bound = height or page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).fontSize) * 28"
+    )
+    assert preview_height == pytest.approx(bound, abs=1)
 
     if preview == "markdown":
         preview_tab.click()
@@ -359,17 +509,20 @@ def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
     told(page)
     rendered(page)
     assert document.locator("code").text_content() == short
-    assert page.evaluate(geometry) == before
     source_tab.press("Home")
     expect(preview_tab).to_have_attribute("aria-selected", "true")
-    assert page.evaluate(geometry) == before
     if preview == "markdown":
         expect(document.get_by_role("heading", name="Short document")).to_be_visible()
+        assert preview_panel.bounding_box()["height"] < preview_height / 2
     else:
         expect(frame.get_by_role("heading", name="Short document")).to_be_visible()
-    assert preview_panel.bounding_box()["height"] == pytest.approx(
-        preview_height, abs=1
-    )
+        assert page.evaluate(geometry) == before
+    # The press goes once the preview it measures has drawn at its new height.
+    rendered(page)
+    after = page.evaluate(geometry)
+    source_tab.click()
+    expect(source_panel).to_be_visible()
+    assert page.evaluate(geometry) == after
 
 
 def test_a_document_source_follows_appends_only_while_its_reader_is_at_the_end(

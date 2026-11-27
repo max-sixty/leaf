@@ -1,3 +1,4 @@
+// Compiled from check-api.ts by build/typescript.mjs; edit that file.
 /* Core observations and native-browser arrangements share the running kernel.
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
@@ -24,7 +25,6 @@ export {
 export { restoreThreadsInPanel } from "./records/thread/threads-in-panel.js";
 export {
   ADDRESSABLE,
-  anchorForPassage,
   anchorForRange,
   resolveAnchor,
   aimTargets,
@@ -68,10 +68,6 @@ export {
   layoutBox,
   pageDocument,
   inPage,
-  pageMatches,
-  quoteFrom,
-  verbatimBoundaryIdentity,
-  verbatimOwnerIdentity,
   pageText,
   fencePassageParts,
   findQuote,
@@ -165,6 +161,7 @@ export { reveal, dragHeld } from "./dom/widget-elements.js";
 export { replyIsEditing } from "./records/thread/replies.js";
 export { THREAD, SAY_BOX } from "./records/thread/selectors.js";
 export { registerSampleCommand } from "./host/sample-child.js";
+export { controllerOf } from "./host/widget-controller.js";
 export { recordInteraction } from "./transport/interaction-log.js";
 export { bringBackSurfaceOf } from "./readings/off-flow.js";
 export { TEXT_BOX, WORKS } from "./dom/control-selectors.js";

@@ -155,6 +155,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     append_command(
@@ -166,6 +167,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "widget": "startup-note",
             "action": "edit",
             "detail": {"value": "Ship on Friday from the green room."},
+            "answered": True,
         },
     )
     held = []
@@ -335,6 +337,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     held = []
@@ -437,6 +440,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -520,6 +524,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -734,6 +739,33 @@ def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
     expect(page.locator("#slow")).to_be_checked()
 
 
+def test_the_options_chosen_in_a_select_ride_a_reload(browser, serve):
+    """The option the user chose in the page's own select, and the several they chose
+    in a select that takes many, come back after a reload Leaf asks for, as the words
+    they typed beside them do. The form asks the browser to keep no value of its own,
+    so only Leaf's carry can."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><form autocomplete="off">'
+            '<p><label>Name <input id="who"></label></p>'
+            '<p><label>Plan <select id="plan"><option>Starter</option>'
+            "<option>Team</option><option>Scale</option></select></label></p>"
+            '<p><label>Days <select id="days" multiple><option>Mon</option>'
+            "<option selected>Tue</option><option>Wed</option></select></label></p>"
+            "</form>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.locator("#plan").select_option("Team")
+    page.locator("#days").select_option(["Mon", "Wed"])
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+    expect(page.locator("#plan")).to_have_value("Team")
+    expect(page.locator("#days")).to_have_values(["Mon", "Wed"])
+
+
 def test_a_value_a_page_script_writes_yields_to_the_one_the_reload_carries(
     browser, serve
 ):
@@ -882,7 +914,10 @@ SHOW_AS = """(state) => {
 def carried_values(page):
     """The values the tab's stored handoff carries, by control id."""
     stored = page.evaluate(STORED_HANDOFF) or {}
-    return {record["id"]: record.get("value") for record in stored.get("carry", [])}
+    return {
+        record["id"]: record.get("state", {}).get("value")
+        for record in stored.get("carry", [])
+    }
 
 
 def reload_before_leaf_starts(page, serve, meanwhile, by_leaf=True):

@@ -1,3 +1,4 @@
+// Compiled from annotation-layer.ts by build/typescript.mjs; edit that file.
 /* Whether the annotation layer shows.
 
    The annotation layer is everything Leaf draws over the page's content: the margin rows
@@ -38,19 +39,16 @@ import { notice } from "../transport/notifications.js";
 import { ANNOTATIONS_KEY } from "../state/restore-state.js";
 
 const hidden = signal(false);
-/** @type {Set<(hidden: boolean) => void>} */
 const watchers = new Set();
 
 export const annotationsHidden = () => hidden.value;
 
-/** @param {(hidden: boolean) => void} watcher */
 export function watchAnnotations(watcher) {
   watchers.add(watcher);
 }
 
 // Go-to's row for the layer, which Go-to also declares to the page (leaf.js,
 // `directDestinations`), so the leaf's menu and a finger reach it as `g H` does.
-/** @type {import("../dom/keyboard/bindings.js").Command} */
 export const ANNOTATIONS_TOGGLE = {
   id: "annotations.toggle",
   keys: ["Shift+h"],
@@ -77,7 +75,6 @@ export const ANNOTATIONS_TOGGLE = {
   },
 };
 
-/** @param {boolean} on */
 function setAnnotationsHidden(on) {
   if (on === hidden.value) return;
   hidden.value = on;

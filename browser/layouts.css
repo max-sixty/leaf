@@ -113,7 +113,15 @@
    * fixed in the window, the list anchored below the title; the grid keeps their
    * column's width. A title too tall to leave the list 8rem, a few names' room,
    * scrolls on its own, so neither stands
-   * out of reach in a short window. So the column stands still whichever part is open
+   * out of reach in a short window. The list reaches the window's foot, as the open
+   * part does, where a narrow window puts the floating panel's row over the column, and
+   * scrolls on its own where it holds more names than that leaves it, a height it holds
+   * on purpose (`--lf-holds-height`), as a sticking block does. The package that draws
+   * the parts sets only how the list looks (the default package's tabs.css, "A page's
+   * parts"), where the parts' `main` carries no Layout (`--lf-layout-box`). In a `main`
+   * that carries one, which `page check` advises against (`parts-in-layout`), the parts
+   * draw as a strip of tabs inside that Layout.
+   * So the column stands still whichever part is open
    * and wherever it is read, the rubber band at the page's end included: every engine
    * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck
    * sticky one with the page (notes/browser-support.md). The runtime reads a box fixed
@@ -122,7 +130,9 @@
    * the list is drawn, so a short part leaves nothing to scroll and a full-height
    * workspace takes the whole window. The holder itself draws nothing. The
    * part is the shell its Layout's box stands in. On a phone the title, the list and the
-   * part stack. Before the module upgrades the holder, the column holds only the title.
+   * part stack: the title scrolls away, and the list sticks over the part as page tabs'
+   * strip does, at the height its package gives it. Before the module upgrades the
+   * holder, the column holds only the title.
    *
    * What the page writes before the parts is whatever `main` holds besides the parts'
    * holder, which the authoring contract keeps to the page's header (page-layout.md,
@@ -169,8 +179,10 @@
         --lf-holds-height: 1;
         margin: 0;
         /* Room for a focus ring at its foot, where it scrolls, taken from the list's
-         * top (the package theme). */
+         * top padding, which the list's package sets. */
         padding: var(--lf-sp-4) 20px var(--lf-focus-ring-room);
+        /* It heads the column, and what it holds is set as the column's text
+         * (reading.css). The property inherits, so everything in it can ask. */
         --lf-parts-title: 1;
       }
     }
@@ -187,6 +199,17 @@
       > [role="tablist"] {
       grid-column: 1;
       grid-row: 2;
+      position: fixed;
+      position-anchor: --lf-parts-title;
+      top: anchor(bottom, var(--lf-top));
+      inline-size: var(--lf-parts-list);
+      box-sizing: border-box;
+      align-self: start;
+      block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
+      min-block-size: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      --lf-holds-height: 1;
     }
     html[data-lf-interactive]
       body
@@ -251,7 +274,21 @@
         grid-column: 1;
         grid-row: auto;
       }
-      /* The title scrolls away; the list sticks over the part (the package theme). */
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views="parts"]
+        > [role="tablist"] {
+        position-anchor: normal;
+        position: sticky;
+        --lf-head-inset: 0px;
+        top: var(--lf-top);
+        inline-size: auto;
+        z-index: 2;
+        block-size: revert-layer;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
       @container style(--lf-holds-parts: 1) {
         :where(main > *):not([data-lf-views="parts"]) {
           position: static;
@@ -819,12 +856,15 @@
    * does the element take its resting form (toc.css). The track doesn't clip, the aside
    * paints over the body, and the body is one stacking context, so nothing it holds
    * paints over what the element reveals, whatever its z-index. The spine is a scale
-   * of the whole document, so its track hangs through the sidebar's start padding
-   * (`--lf-track-start-room`, below) and stands at its sticking line from the page's
-   * top, unless a header stands above the aside. Every other sidebar
-   * keeps a column's room: a track holding anything else, an aside after the body,
-   * every track under touch, where nothing reaches in by pointing, and paper, where
-   * nothing reaches in at all.
+   * of the whole document, so where the sidebar spans the page
+   * (`--lf-sidebar-spans-page`, below), its track stands fixed in the window at its
+   * sticking line, from the page's top to its end and through the rubber band past
+   * either, which moves a stuck sticky box with the page in Firefox and Chrome
+   * (notes/browser-support.md). Elsewhere it sticks, below a header above the aside and
+   * clear of a footer after it, and wrapped above the body it keeps its place in flow.
+   * Every other sidebar keeps a column's room: a track holding anything else, an aside
+   * after the body, every track under touch, where nothing reaches in by pointing, and
+   * paper, where nothing reaches in at all.
    * Rejected: narrowing every document sidebar. It broke a
    * paragraph in one into a few letters a line, and the render check passed it.
    * TODO: `spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
@@ -845,9 +885,15 @@
       & > aside > .layout-track {
         overflow: visible;
         --lf-track-spine: 1;
-      }
-      &:not(:has(> header)) > aside > .layout-track {
-        --lf-track-start-room: var(--lf-page-pad-start);
+        /* Beside the body, where the map takes its spine form (toc.css), and where the
+         * window scrolls the page rather than a scroller round the sidebar. */
+        @media (min-height: 480px) {
+          @container (width < 8rem) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
+            position: fixed;
+            inline-size: 100cqi;
+            margin-block: 0;
+          }
+        }
       }
       & > .layout-column {
         isolation: isolate;
@@ -935,10 +981,15 @@
      * site footer (page-layout.md), leaves only the sidebar's padding. Only a footer
      * counts, since browser extensions append elements of their own to `body`; other
      * content after `main`, which page-layout.md keeps inside it, would stand under the
-     * track at the page's end. The first rule has no specificity, so each condition
-     * overrides it. */
+     * track at the page's end. A sidebar that is the page's `main`, with no header in
+     * it or before it and no footer in it or after it, spans the page
+     * (`--lf-sidebar-spans-page: 1`), where the contents map's track stands fixed
+     * (above). A sidebar inside `main` or a part may have blocks beside it, which a
+     * fixed track would stand over. The first rule has no specificity, so each
+     * condition overrides it. */
     :where(.layout-sidebar) {
       --lf-track-end-room: var(--lf-page-pad-end);
+      --lf-sidebar-spans-page: 0;
     }
     :where(
       body > main,
@@ -947,12 +998,21 @@
     ).layout-sidebar {
       --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-end-room, 0px));
     }
+    :where(body > main).layout-sidebar {
+      --lf-sidebar-spans-page: 1;
+    }
     .layout-sidebar:has(~ footer),
     :where(main:where(body > *):has(~ footer)) > .layout-sidebar {
       --lf-track-end-room: var(--lf-page-pad-end);
+      --lf-sidebar-spans-page: 0;
     }
     .layout-sidebar:has(> footer) {
       --lf-track-end-room: 0px;
+      --lf-sidebar-spans-page: 0;
+    }
+    .layout-sidebar:has(> header),
+    :where(body > header ~ main).layout-sidebar {
+      --lf-sidebar-spans-page: 0;
     }
     @container not style(--lf-track-scroll-behavior: flow) {
       .layout-track,
@@ -978,21 +1038,14 @@
         box-sizing: border-box;
         padding: var(--lf-focus-region-room);
         /* Sticking keeps the track's margin box inside its aside, and the track's
-         * focus room hangs past the aside's edges. Beside the body, each end hangs as
-         * far as the room past the aside there (`--lf-track-start-room`, the contents
-         * map's alone, and `--lf-track-end-room`) where that is more, so the track
-         * stands where it sticks rather than the padding or the end room carrying it.
-         * Each hang comes off the height the aside asks of the row, so a track taller
-         * than the body stretches the row less, and hangs into that same room. Stacked
-         * above the body, the track keeps its whole box in the aside, which the body
-         * follows. */
-        margin-block: calc(
-            -1 *
-              max(
-                var(--lf-focus-region-room),
-                var(--lf-track-start-room, 0px) * var(--lf-track-beside)
-              )
-          )
+         * focus room hangs past the aside's edges. Beside the body, its end hangs as
+         * far as the room past the aside there (`--lf-track-end-room`) where that is
+         * more, so the track stands where it sticks rather than the padding or the end
+         * room carrying it. The hang comes off the height the aside asks of the row, so
+         * a track taller than the body stretches the row less, and hangs into that same
+         * room. Stacked above the body, the track keeps its whole box in the aside,
+         * which the body follows. */
+        margin-block: calc(-1 * var(--lf-focus-region-room))
           calc(
             -1 *
               max(

@@ -488,6 +488,27 @@ drawing all 32 runs of its document in the first frame after the press. Recheck 
 deleting the rule's `content-visibility: visible` and running that test: once its
 Firefox arm passes, the rule can go.
 
+### Asking another widget to act before Safari 26.2
+
+Safari ships invoker commands and `CommandEvent` from 26.2, by caniuse's
+`wf-invoker-commands` data; current Chrome and Edge, and Firefox from 144, have both.
+In an earlier
+Safari, a drop, an arrow move or a destination tap on a board card that shows a
+question's pick asks the question nothing: `lf-board.js` (`#ask`) throws
+`CommandEvent is not defined`, the board lets go of the gesture, the card goes back to
+the column its question's pick names, and the page reports the error. An authored
+`<button commandfor command="--…">` does nothing there either. Everything else works:
+the card stands where the pick puts it and follows a pick made in the question, every
+other card moves as before, and the question takes picks from its own options.
+
+Leaf accepts the gap rather than shimming the command: a shim would be a second
+implementation of the platform's request, kept until Safari before 26.2 leaves use.
+On 2026-11-26 Playwright Chromium reproduced the failure with `CommandEvent` deleted,
+and the board took a later grab. The iOS simulator's Safari couldn't confirm it that
+day, since a board page never finished upgrading there on main either. Recheck with
+`uv run leaf-dev probe PAGE --browser ios` on a page with a shown card, reading
+`typeof CommandEvent`: once the simulator's Safari is 26.2 or later, the entry can go.
+
 ### A root's touch-action in Firefox
 
 Draw mode states `touch-action: pinch-zoom` on `html` and Capture area
@@ -880,11 +901,12 @@ radio checked there.
 ### A stuck sticky box bounces with the page
 
 Firefox on macOS bounced a sticky column with trackpad overscroll on
-2026-10-20. The page-of-parts column in `browser/layouts.css` uses fixed
-positioning to stay still; other root-sticky boxes can still bounce.
-Recheck with a native trackpad fling at the document's end; headless Playwright
-supplies no overscroll. If engines hold sticky boxes still, the column can
-return to sticky positioning.
+2026-10-20, and the contents map's stuck track on 2026-11-26. The page-of-parts
+column and the contents map's narrowed track, where its sidebar spans the page,
+use fixed positioning in `browser/layouts.css` to stay still; other root-sticky
+boxes can still bounce. Recheck with a native trackpad fling at the document's
+top and end; headless Playwright supplies no overscroll. If engines hold sticky
+boxes still, both can return to sticky positioning.
 
 ### An anchor inside an SVG foreignObject in Chromium
 

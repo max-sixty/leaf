@@ -4,13 +4,9 @@ from pathlib import Path
 
 from leaf.base.files import latest_revision
 from leaf.base.findings import Finding
+from leaf.log.events import thread_structure
 from leaf.log.projection import PageReading
-from leaf.log.thread_context import (
-    id_subject,
-    thread_names,
-    thread_structure,
-    thread_widgets,
-)
+from leaf.log.thread_context import id_subject, thread_names, thread_widgets
 from leaf.source.revision_artifact import read_revision
 
 

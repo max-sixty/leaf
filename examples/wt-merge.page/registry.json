@@ -4,6 +4,9 @@
     "contracts": {
       "merge-frame": {
         "description": "The step a merge film is showing, its caption and the caption's tone, and how the run treats each step.",
+        "instructions": {
+          "producer": "Take the invoker command `--seek`, whose button's `value` names a step: show the result of that step, and hold it as the `frame` the film shows."
+        },
         "schema": {
           "type": "object",
           "properties": {
@@ -31,7 +34,7 @@
     }
   },
   "lf-merge-film": {
-    "description": "An animated, scrubbable film of worktrunk's wt merge, drawn as one SVG in the page's colours, with flags that re-plot the run. Its commits, refs, worktrees and hook chips are commentable visual parts while they are on screen. It holds the moment it shows as its `frame` output, and a `--seek` command holds the result of the step its button's value names.",
+    "description": "An animated, scrubbable film of worktrunk's wt merge, drawn as one SVG in the page's colours, with flags that re-plot the run. Its commits, refs, worktrees and hook chips are commentable visual parts while they are on screen. It holds the moment it shows as its `frame` output.",
     "attributes": { "required": ["id"] },
     "content": "empty",
     "outputs": {

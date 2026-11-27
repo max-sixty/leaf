@@ -1,3 +1,4 @@
+// Compiled from place.ts by build/typescript.mjs; edit that file.
 /* The obligations the page holds or a region of it holds, the mechanical placement of an
    obligation in the current document, and the one rule for which obligations a region
    holds.
@@ -59,17 +60,11 @@ import { readPart } from "../../state/semantic-state.js";
 import { composedParentNode, under } from "../../lib/shadow-tree.js";
 import { kept, keptEach } from "../../state/kept.js";
 
-/** @typedef {import("../../state/semantic-application.js").ObligationRecord} ObligationRecord */
-
 const pageObligations = readPart((root) => root.effective.obligations);
 /** The page's reading less its index, holding what one region holds, and whether the
- * region's markup asks the user something.
- * @typedef {Omit<ReturnType<typeof pageObligations>, "byId"> & {asks: boolean}} RegionObligations */
+ * region's markup asks the user something. */
 
-/** @overload @returns {ReturnType<typeof pageObligations>} */
-/** @overload @param {Node} region @returns {RegionObligations} */
-/** The page's obligations, or those `region` holds.
- * @param {Node} [region] @returns {ReturnType<typeof pageObligations> | RegionObligations} */
+/** The page's obligations, or those `region` holds. */
 export function readObligations(region) {
   const page = pageObligations();
   if (region === undefined) return page;
@@ -90,12 +85,9 @@ export function readObligations(region) {
 const NOWHERE = Object.freeze({ source: null, context: null, node: null });
 
 // The element a widget's obligation answers at, and nothing for any other kind's.
-/** @param {ObligationRecord} item */
 const sourceOf = (item) =>
   item.source.kind === "widget" ? elementById(item.source.id) : null;
 
-/** @param {ObligationRecord | null | undefined} item
- * @param {readonly ObligationRecord[]} items */
 export function obligationPlace(item, items = readObligations().all) {
   if (item?.source.kind !== "widget") return NOWHERE;
   const source = sourceOf(item);
@@ -110,34 +102,27 @@ export function obligationPlace(item, items = readObligations().all) {
 // The ids of the widget obligations each context holds, read once per inventory
 // (state/kept.js), so placing every obligation of an inventory costs one pass over it rather
 // than one per obligation.
-const contextsOf = keptEach(
-  /** @param {readonly ObligationRecord[]} items */
-  (items) => {
-    /** @type {Map<string | null, Set<string>>} */
-    const held = new Map();
-    for (const { id, source, prompt } of items) {
-      if (source.kind !== "widget") continue;
-      const ids = held.get(prompt.target);
-      if (ids) ids.add(id);
-      else held.set(prompt.target, new Set([id]));
-    }
-    return held;
-  },
-);
+const contextsOf = keptEach((items) => {
+  const held = new Map();
+  for (const { id, source, prompt } of items) {
+    if (source.kind !== "widget") continue;
+    const ids = held.get(prompt.target);
+    if (ids) ids.add(id);
+    else held.set(prompt.target, new Set([id]));
+  }
+  return held;
+});
 
 // Where a to-do's or an update's subject stands on the page: the element or widget it
 // names, and nowhere for the page as a whole or a thread.
-/** @param {import("../../../types/contract.js").ServedSubject} subject */
 export const subjectPlace = (subject) =>
   subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 
 // Whether an obligation still asks anything: a withdrawn one stands in no region.
-/** @param {ObligationRecord} item */
 const live = (item) => item.outcome !== "dropped";
 
 // The obligations each of `regions` holds, in the order `items` lists them, filed in
 // one pass over the list rather than one per region.
-/** @param {readonly Node[]} regions @param {readonly ObligationRecord[]} items */
 export function obligationsByRegion(regions, items) {
   const filed = filedAbove(items.filter(live), sourceOf);
   return new Map(regions.map((region) => [region, filed.get(region) ?? []]));
@@ -145,9 +130,7 @@ export function obligationsByRegion(regions, items) {
 
 // `items` filed under each node above where each stands (`at`), in their order: each
 // climbs once to the top of the page, shadow trees included.
-/** @template T @param {readonly T[]} items @param {(item: T) => Node | null} at */
 function filedAbove(items, at) {
-  /** @type {Map<Node, T[]>} */
   const filed = new Map();
   for (const item of items)
     for (let node = at(item); node; node = composedParentNode(node)) {
@@ -160,31 +143,23 @@ function filedAbove(items, at) {
 
 // The inventory's live widget obligations, those of the page's markup and those of a
 // message's, read once per inventory.
-const placed = keptEach(
-  /** @param {readonly ObligationRecord[]} all */
-  (all) => {
-    const widgets = all.filter((item) => item.source.kind === "widget" && live(item));
-    return {
-      onPage: widgets.filter((item) => item.thread === null),
-      inMessages: widgets.filter((item) => item.thread !== null),
-    };
-  },
-);
+const placed = keptEach((all) => {
+  const widgets = all.filter((item) => item.source.kind === "widget" && live(item));
+  return {
+    onPage: widgets.filter((item) => item.thread === null),
+    inMessages: widgets.filter((item) => item.thread !== null),
+  };
+});
 // Each region's list is handed to every reader of the region, so it is frozen, as the
 // page's reading is.
-const filedOnPage = keptEach(
-  /** @param {readonly ObligationRecord[]} all */
-  (all) => {
-    const filed = filedAbove(placed(all).onPage, sourceOf);
-    for (const held of filed.values()) Object.freeze(held);
-    return filed;
-  },
-);
-/** @type {readonly ObligationRecord[]} */
+const filedOnPage = keptEach((all) => {
+  const filed = filedAbove(placed(all).onPage, sourceOf);
+  for (const held of filed.values()) Object.freeze(held);
+  return filed;
+});
 const NONE = [];
 
 // The obligations of `all` that `region` holds, in its order.
-/** @param {Node} region @param {readonly ObligationRecord[]} all */
 function heldBy(region, all) {
   const onPage = filedOnPage(all).get(region) ?? NONE;
   const inMessages = placed(all).inMessages.filter((item) =>
@@ -199,26 +174,22 @@ function heldBy(region, all) {
 // messages' (records/widget-descriptors.js), which change with each revision and each message
 // whose markup is captured.
 const captured = readPart((root) => root.document.descriptors);
-const asking = keptEach(
-  /** @param {ReadonlyMap<string, import("../../state/semantic-application.js").WidgetDescriptor>} widgets */
-  (widgets) => {
-    const declaring = [...widgets.values()].filter(
-      ({ declaration }) => declaration.awaits !== undefined,
-    );
-    return {
-      onPage: declaring
-        .filter(({ document }) => document.kind === "page")
-        .map(({ id }) => id),
-      inMessages: declaring
-        .filter(({ document }) => document.kind !== "page")
-        .map(({ id }) => id),
-    };
-  },
-);
+const asking = keptEach((widgets) => {
+  const declaring = [...widgets.values()].filter(
+    ({ declaration }) => declaration.awaits !== undefined,
+  );
+  return {
+    onPage: declaring
+      .filter(({ document }) => document.kind === "page")
+      .map(({ id }) => id),
+    inMessages: declaring
+      .filter(({ document }) => document.kind !== "page")
+      .map(({ id }) => id),
+  };
+});
 const askingOnPage = kept(() => filedAbove(asking(captured()).onPage, elementById));
 
 // Whether `region`'s markup holds a widget that asks the user something.
-/** @param {Node} region */
 const asks = (region) =>
   askingOnPage().has(region) ||
   asking(captured()).inMessages.some((id) => under(elementById(id), region));

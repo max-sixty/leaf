@@ -1,3 +1,4 @@
+// Compiled from application.ts by build/typescript.mjs; edit that file.
 /* Fixed composition root for browser state, optimistic work, and presentation.
 
    Importing this module is inert. leaf.js supplies the concrete feature views once and
@@ -21,6 +22,8 @@ import { answeredInWords } from "../records/obligations/model.js";
 import { readObligations } from "../records/obligations/place.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
 import { createCommandDispatch } from "../records/pending/dispatch.js";
+import { widgetAnswered } from "./widget-state.js";
+import { setMounted } from "./mounted.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { keepRefusedWords } from "../records/drafts.js";
 import { createProjectionPresentation } from "../records/projection/presentation.js";
@@ -57,80 +60,28 @@ import { createStateFeed } from "./state-feed.js";
 import { reportCarried, reportPageError } from "../transport/layer-client.js";
 import { raiseError } from "../transport/errors.js";
 
-/** @typedef {Parameters<typeof createThreadPresentation>[0]} ThreadPresentationOptions
- * @typedef {ReturnType<typeof createThreadDestinations>} ThreadDestinations
- * @typedef {{render: import("../records/thread/primary-reader.js").PrimaryRender, reveal: import("../records/thread/destination.js").OpenPrimary, answersAtOnce?: boolean}} PresentationSpec
- * @typedef {PresentationSpec & {yielded: () => (() => void) | null, messagesAside?: boolean}} YieldingSpec
- */
-/** @template {PresentationSpec} [T=PresentationSpec]
- * @typedef {{owner: Element, spec: T, attached: {reader: ReturnType<typeof createPrimaryReader>, detach: () => void} | null}} PresentationEntry */
 /** What host hands the factory of the margin overlay
- * (annotations/annotation-overlay/margin-projection.js, `createMarginProjection`).
- * @typedef {Pick<import("../features/annotation-inventory.js").PageMapCommands, "leavePageMap" | "openPageMap" | "pageMapDialogContains"> & {
- * inventory: ReturnType<typeof createAnnotationInventory>,
- * refreshInventory: ReturnType<typeof createAnnotationInventory>["collect"],
- * renderAnnotations: (() => void) & {refresh: () => void},
- * openPageThread: ThreadDestinations["openPageThread"], returnToPage: ThreadDestinations["returnToPage"],
- * designModeActive: () => boolean, pointerModeActive: () => boolean,
- * scrollThreadIntoView: typeof import("../records/thread/reply-landing.js").scrollThreadIntoView,
- * renderMarginThread: (host: HTMLElement, thread: import("../records/thread/workflow.js").ThreadRecord,
- * outlets: import("../records/thread/thread-card.js").ViewOutlets) => {drawn: ReturnType<typeof import("../records/thread/inline.js").renderMarginThread>, stop: () => void},
- * placedAt: import("../records/thread/placement.js").ThreadPlacements["placedAt"],
- * marksFor: (id: string | null) => (Element | Range)[],
- * scrollToElement: ReturnType<typeof import("../features/anchor-travel.js").createAnchorTravel>["scrollToElement"],
- * openInPanel: (id: string) => unknown}} MarginProjectionOptions */
+ * (annotations/annotation-overlay/margin-projection.js, `createMarginProjection`). */
+
 /** What host calls of the overlay. The boot entry reads the rest of it, which host hands
- * back whole (`mounted.overlay`), so its type is a parameter of the application's.
- * @typedef {{paint: (entries: ReturnType<MarginProjectionOptions["refreshInventory"]>) => unknown, flushLayout: () => unknown,
- * threadPreview: NonNullable<Parameters<typeof createThreadDestinations>[0]["preview"]>,
- * entryThread: (node: Element | null) => string | null}} MarginOverlay
- */
-/** @template {MarginOverlay} [Overlay=MarginOverlay]
- * @typedef {{
- * createEngagement: (options: {hasPending: () => boolean, fabAnchorAt: () => import("../../types/domain.js").Anchor | null,
- * targetPickerOpen: () => boolean}) => {unaccountedGesture: () => boolean, midComposition: Parameters<typeof import("../features/version.js").createVersionController>[0]["midComposition"]},
- * activeActionAnchor: ThreadPresentationOptions["activeActionAnchor"],
- * targetPickerOpen: () => boolean,
- * anchorPlacement: ThreadPresentationOptions["anchorPlacement"] & Pick<import("../records/thread/placement.js").ThreadPlacements, "savedAt">,
- * anchorPaint: ThreadPresentationOptions["anchorPaint"] & Pick<MarginProjectionOptions, "marksFor">,
- * anchorControls: ThreadPresentationOptions["anchorControls"],
- * drawingPaint: ThreadPresentationOptions["drawingPaint"],
- * pageGeometry: ThreadPresentationOptions["pageGeometry"],
- * readThreadDraft: ThreadPresentationOptions["readDraft"],
- * anchorTravel: ReturnType<typeof import("../features/anchor-travel.js").createAnchorTravel>,
- * wireInput: import("../records/composition-input.js").WireInput,
- * landInThread: typeof import("../records/thread/landing.js").landInThread,
- * landSent: typeof import("../records/thread/landing.js").landSent,
- * sendReaction: Parameters<typeof createThreadActions>[0]["sendReaction"],
- * registerReactSurface: import("../records/thread/reaction-strips.js").ReactionCommands["registerSurface"],
- * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],
- * arriveAtQueueItem: Parameters<typeof createQueueActions>[0]["arrive"],
- * showTodo: import("../records/thread/messages.js").MessageCommands["showTodo"],
- * nextObligationWithin: (options: {within: Element, dir?: number}) => Promise<boolean>,
- * goToObligation: Parameters<typeof createAnnotationInventory>[0]["goToObligation"],
- * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: import("../features/annotation-inventory.js").PageMapCommands & Pick<MarginProjectionOptions, "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel"> & {resumeDraft: (context: string, route?: import("../records/drafts.js").DraftRoute) => Promise<void>},
- * createMarginProjection?: ((options: MarginProjectionOptions) => Overlay) | undefined,
- * }} ApplicationDependencies */
+ * back whole (`mounted.overlay`), so its type is a parameter of the application's. */
 
 const commandDispatch = createCommandDispatch();
 
-/** @type {ReturnType<typeof createApplication> | null} */
 let application = null;
 const app = () => {
   if (!application) throw new Error("Leaf application has not been mounted");
   return application;
 };
 
-/** @template {MarginOverlay} Overlay @param {ApplicationDependencies<Overlay>} dependencies */
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   const mounted = createApplication(dependencies);
   application = mounted;
+  setMounted({ navigateToDatum, obligationActions, threadActions });
   return mounted;
 }
 
-/** @template {MarginOverlay} Overlay @param {ApplicationDependencies<Overlay>} dependencies */
 function createApplication(dependencies) {
   // A renderer's rejection reaches the coordinator after a paint may have reported it.
   setPresentationFailureReporter(reportCarried);
@@ -142,9 +93,7 @@ function createApplication(dependencies) {
     fabAnchorAt: dependencies.activeActionAnchor,
     targetPickerOpen: dependencies.targetPickerOpen,
   });
-  /** @type {ReturnType<typeof createThreadPresentation>} */
   let threadPresenter;
-  /** @type {ReturnType<typeof createStateApplication> | undefined} */
   let stateApplication;
   let queuedInvalidation = false;
 
@@ -152,7 +101,6 @@ function createApplication(dependencies) {
 
   // The destinations are built after the overlay, whose thread preview they take, and
   // the views built below before them hold this forwarder to open a thread.
-  /** @type {ThreadDestinations["openPageThread"]} */
   const openPageThread = (...args) => threadDestinations.openPageThread(...args);
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
@@ -189,7 +137,6 @@ function createApplication(dependencies) {
     return true;
   };
 
-  /** @param {string} context */
   const releasePendingSafely = (context) => {
     void releasePending().catch((error) => reportCarried(error, context));
   };
@@ -215,7 +162,6 @@ function createApplication(dependencies) {
   // A widget's drawn marks reach it through `projectMarked` (element-data.js).
   createDataProjection({ invalidateDom });
 
-  /** @type {ReturnType<typeof createDelivery>} */
   let delivery;
   const presentThread = () => threadPresenter.present();
   // A mechanical repaint — a draft, a hover, a narrowing — owes only the threads.
@@ -224,7 +170,6 @@ function createApplication(dependencies) {
   // same fault a second time.
   const refreshThread = () => presentThread().catch(() => undefined);
 
-  /** @param {import("../records/pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
@@ -256,6 +201,7 @@ function createApplication(dependencies) {
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       raiseError(`Couldn't send — attempt ${attempt} is already in use`),
+    answered: widgetAnswered,
   });
 
   const { post } = commandDispatch;
@@ -266,13 +212,13 @@ function createApplication(dependencies) {
     unaccountedGesture: engagement.unaccountedGesture,
     openThread: openPageThread,
     threadPlace: (id) => dependencies.anchorTravel.threadDestination(id),
+    arrive: dependencies.anchorTravel.arrive,
     resumeDraft: (context, route) =>
       dependencies.annotationCommands.resumeDraft(context, route),
   });
 
   // The one bookkeeping door (delivery.js): the page draws the versions read as it
   // sends them, and they stand read or unread again by whatever the answer says.
-  /** @param {import("../../types/domain.js").ContentVersion[]} messages */
   const markRead = async (messages) => {
     applicationState.markRead(messages);
     try {
@@ -373,15 +319,12 @@ function createApplication(dependencies) {
   // age of a message in a card a gesture just opened, so it follows its own reads until
   // the presenter's next paint reads them all again, or until its caller stops it, and
   // a change to one, such as the clock, repaints through the presenter.
-  /** @type {Set<() => void>} */
   const following = new Set();
   const forget = () => {
     for (const stop of following) stop();
   };
-  /** @template T @param {() => T} draw @returns {{drawn: T, stop: () => void}} */
   const follow = (draw) => {
     let first = true;
-    /** @type {T | undefined} */
     let drawn;
     const stopEffect = effect(() => {
       if (first) {
@@ -396,7 +339,7 @@ function createApplication(dependencies) {
       stopEffect();
     };
     following.add(stop);
-    return { drawn: /** @type {T} */ (drawn), stop };
+    return { drawn: drawn, stop };
   };
   const renderAnnotations = () => {
     forget();
@@ -412,7 +355,6 @@ function createApplication(dependencies) {
   // ages the margin shows are followed with the rest of what this paint reads, so a
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
-  /** @type {ReturnType<typeof applicationPresenter> | null} */
   let marginPresentation = null;
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
@@ -501,7 +443,6 @@ function createApplication(dependencies) {
     marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
-  /** @param {Parameters<typeof ledger.present>[0]} events */
   const accountPending = (events) => {
     ledger.present(events);
     releasePendingSafely("receipt presentation");
@@ -521,7 +462,6 @@ function createApplication(dependencies) {
     queuedInvalidation = false;
     return invalidateDom();
   };
-  /** @param {Parameters<typeof installedState.receiveState>[0]} state */
   const receiveState = (state) =>
     installedState
       .receiveState(state)
@@ -538,7 +478,6 @@ function createApplication(dependencies) {
         await receiveState(state).catch((error) =>
           reportCarried(error, "state in refused event response"),
         );
-      /** @type {ReturnType<typeof ledger.refuse>} */
       let dependents = [];
       await installedState.runSerialized(async () => {
         dependents = ledger.refuse(entry);
@@ -584,7 +523,6 @@ function createApplication(dependencies) {
   // The widgets whose element has `threadOutlets` (records/thread/surfaces.js), registered
   // for as long as they stand.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
-  /** @type {(...args: [Parameters<typeof registerPageConsumer>[0], Parameters<typeof registerPageConsumer>[1]]) => ReturnType<typeof registerPageConsumer>} */
   const placePageThreads = (owner, render) => {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
@@ -600,7 +538,6 @@ function createApplication(dependencies) {
   // registration, as that reader may ask it to present.
   // A presentation that makes room for the agent's answer to the user's last turn
   // itself says so (`answersAtOnce`), and its reader draws that answer at once.
-  /** @param {Element} owner @param {PresentationSpec & {messagesAside?: boolean}} spec @param {(() => void) | undefined} [onFailure] */
   const attachPresentation = (
     owner,
     { render, reveal, answersAtOnce = false, messagesAside = false },
@@ -630,16 +567,13 @@ function createApplication(dependencies) {
       },
     };
   };
-  /** @type {(Omit<PresentationEntry, "spec"> & {spec: YieldingSpec}) | null} */
   let yielding = null;
-  /** @type {PresentationEntry | null} */
   let authored = null;
   const restoreYielding = () => {
     if (yielding && !yielding.attached)
       yielding.attached = attachPresentation(yielding.owner, yielding.spec);
   };
   // A package's reader takes the place from the chrome's.
-  /** @param {PresentationEntry} entry */
   const takePlace = (entry) => {
     const previous = yielding;
     const displaced = previous?.attached;
@@ -669,16 +603,13 @@ function createApplication(dependencies) {
   // the place, and the thread open in the panel, back. It gives way on the next frame,
   // once the failed pass has rejected the `update` that asked for it, unless a later
   // pass of its own has painted by then.
-  /** @param {PresentationEntry} entry */
   const fallBack = (entry) => {
     if (authored !== entry || !entry.attached?.reader.failed) return;
     entry.attached.detach();
     entry.attached = null;
     restoreYielding();
   };
-  /** @template {PresentationSpec} T @param {Element} owner @param {T} spec @param {(entry: PresentationEntry<T>) => void} install */
   const presentThreads = (owner, spec, install) => {
-    /** @type {PresentationEntry<T>} */
     const entry = { owner, spec, attached: null };
     install(entry);
     let active = true;
@@ -696,7 +627,6 @@ function createApplication(dependencies) {
         active = false;
         entry.attached?.detach();
         entry.attached = null;
-        /** @type {PresentationEntry | null} */
         const yieldingEntry = yielding;
         if (yieldingEntry === entry) yielding = null;
         if (authored === entry) {
@@ -720,17 +650,14 @@ function createApplication(dependencies) {
     threadDestinations,
     read,
     mountRead: read.mount,
-    registerThreadPresentation:
-      /** @param {Element} owner @param {PresentationSpec} spec */ (owner, spec) =>
-        presentThreads(owner, spec, takePlace),
-    registerChromeThreadPresentation:
-      /** @param {Element} owner @param {YieldingSpec} spec */ (owner, spec) =>
-        presentThreads(owner, spec, (entry) => {
-          if (yielding)
-            throw new Error("The page already has a yielding Thread presentation");
-          yielding = entry;
-          if (!authored) entry.attached = attachPresentation(owner, spec);
-        }),
+    registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, takePlace),
+    registerChromeThreadPresentation: (owner, spec) =>
+      presentThreads(owner, spec, (entry) => {
+        if (yielding)
+          throw new Error("The page already has a yielding Thread presentation");
+        yielding = entry;
+        if (!authored) entry.attached = attachPresentation(owner, spec);
+      }),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
     readAndApply: feed.readAndApply,
@@ -744,7 +671,6 @@ function createApplication(dependencies) {
     // Goes to an obligation by its id, which is also its row's on an On list: an
     // update's or a to-do's at its row's arrival, a question asked in words at its
     // message, and any other where the walk would.
-    /** @param {string} id */
     openObligation(id) {
       const item = readObligations().byId.get(id);
       if (!item) return Promise.resolve(false);
@@ -759,64 +685,35 @@ function createApplication(dependencies) {
       return dependencies.goToObligation(item);
     },
     // The On Me walk within one region (panel/queue-walk.js), the walk an `lf-tally` steps.
-    nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
-      options,
-    ) => dependencies.nextObligationWithin(options),
+    nextObligation: (options) => dependencies.nextObligationWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
   return mounted;
 }
 
-/** @type {ReturnType<typeof import("../records/pending/dispatch.js").createCommandDispatch>["dispatchWidget"]} */
 export const dispatchWidget = commandDispatch.dispatchWidget;
 // A widget can draw before the application mounts, as one a page's own script defines
 // does. No document-wide presenter exists yet then, and each presents the document as
 // it stands when the mount registers it, so the request has nothing to reach.
-/** @type {ReturnType<typeof createApplication>["invalidateDom"]} */
 export const invalidateDom = () =>
   application ? application.invalidateDom() : Promise.resolve();
-/** @type {ReturnType<typeof createApplication>["landInThread"]} */
 export const landInThread = (...args) => app().landInThread(...args);
-/** @type {ReturnType<typeof createApplication>["navigateToDatum"]} */
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
-/** @type {ReturnType<typeof createApplication>["placePageThreads"]} */
 export const placePageThreads = (...args) => app().placePageThreads(...args);
-/** @type {ReturnType<typeof createApplication>["registerThreadPresentation"]} */
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
 export const threadActions = Object.freeze({
-  open: /** @type {ReturnType<typeof createApplication>["threadActions"]["open"]} */ (
-    ...args
-  ) => app().threadActions.open(...args),
-  create:
-    /** @type {ReturnType<typeof createApplication>["threadActions"]["create"]} */ (
-      ...args
-    ) => app().threadActions.create(...args),
-  reply: /** @type {ReturnType<typeof createApplication>["threadActions"]["reply"]} */ (
-    ...args
-  ) => app().threadActions.reply(...args),
-  resolve:
-    /** @type {ReturnType<typeof createApplication>["threadActions"]["resolve"]} */ (
-      ...args
-    ) => app().threadActions.resolve(...args),
-  reopen:
-    /** @type {ReturnType<typeof createApplication>["threadActions"]["reopen"]} */ (
-      ...args
-    ) => app().threadActions.reopen(...args),
-  setReaction:
-    /** @type {ReturnType<typeof createApplication>["threadActions"]["setReaction"]} */ (
-      ...args
-    ) => app().threadActions.setReaction(...args),
+  open: (...args) => app().threadActions.open(...args),
+  create: (...args) => app().threadActions.create(...args),
+  reply: (...args) => app().threadActions.reply(...args),
+  resolve: (...args) => app().threadActions.resolve(...args),
+  reopen: (...args) => app().threadActions.reopen(...args),
+  setReaction: (...args) => app().threadActions.setReaction(...args),
 });
 export const obligationActions = Object.freeze({
-  open: /** @type {ReturnType<typeof createApplication>["openObligation"]} */ (
-    ...args
-  ) => app().openObligation(...args),
-  next: /** @type {ReturnType<typeof createApplication>["nextObligation"]} */ (
-    ...args
-  ) => app().nextObligation(...args),
+  open: (...args) => app().openObligation(...args),
+  next: (...args) => app().nextObligation(...args),
 });
-/** @type {import("../records/composition-input.js").WireInput} */
 export const wireInput = (...args) => app().wireInput(...args);

@@ -1,3 +1,4 @@
+// Compiled from visual-mark-paint.ts by build/typescript.mjs; edit that file.
 /* Optional persistent element-target marks.
  *
  * The selected annotation renderer constructs this painter and supplies resolved
@@ -7,25 +8,22 @@
  * floor leaves the mark to say where focus is. Importing this module writes nothing. */
 
 import { keepsOnEach } from "../lib/keeps.js";
-import { readMarkerSides, shownParts } from "../dom/geometry.js";
+import { readMarkRoom, shownParts } from "../dom/geometry.js";
 
-/** @typedef {{element: Element, surface: Element, states: ReadonlySet<string>}} VisualTarget */
 export function createVisualMarkPaint() {
   const paintMarks = keepsOnEach("data-lf-mark");
   const paintProjected = keepsOnEach("data-lf-projected-mark");
 
-  /** @param {Iterable<VisualTarget>} next */
   function setTargets(next) {
     const targets = [...next].filter((target) => target.states.size);
-    /** @type {Map<Element, string>} */
     const marks = new Map();
     for (const { surface, states } of targets)
       for (const box of shownParts(surface))
         marks.set(box, [...states].sort().join(" "));
-    const sideMarkers = readMarkerSides([...marks.keys()]);
+    const room = readMarkRoom([...marks.keys()]);
     paintProjected(new Map(targets.map(({ element }) => [element, ""])));
     paintMarks(marks);
-    sideMarkers();
+    room();
   }
 
   return { setTargets };

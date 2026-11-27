@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from base-layer.ts by build/typescript.mjs; edit that file.
 /* A widget module's own rules join the tier of Leaf's faces for what it draws, `lf-base`
    (layer.py, PART_LAYERS), so specificity, then order, rank their rules with every
    package's defaults, above the page's `base` layer and below Layouts, package
@@ -8,5 +8,4 @@
    and widget alike (stylesheets.js). Any document can load this module, so a widget's
    rules take the same tier off Leaf, where a page's own unlayered rules still outrank
    them. */
-/** @param {string} text */
 export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;

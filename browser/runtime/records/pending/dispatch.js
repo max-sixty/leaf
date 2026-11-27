@@ -1,7 +1,13 @@
-// @ts-check
+// Compiled from dispatch.ts by build/typescript.mjs; edit that file.
 /* Widget command construction and the checked submission boundary. Presentation
    and collision notices belong to the composition root; its callbacks run after
-   the ledger publishes the command synchronously. */
+   the ledger publishes the command synchronously.
+
+   A widget's action, and an undo of one, carries what the widget says of its
+   obligation as the gesture leaves its state (`awaits`). The ledger publishes the
+   gesture first, so the widget's reading holds it, then asks the widget
+   (`answered`, the composition root's), and the word joins the event before transport
+   sends it. */
 import { actionForWidget, isThreadEvent } from "../../state/pending/model.js";
 import { createPendingLedger } from "./state.js";
 import { applicationState, readApplication } from "../../state/semantic-state.js";
@@ -11,23 +17,12 @@ import { writeLaunchesAgent } from "../../transport/layer-client.js";
 import { recordInteraction } from "../../transport/interaction-log.js";
 import { messageText } from "../thread/messages.js";
 
-/** @typedef {import("../../../types/domain.js").PendingCommand} PendingCommand */
-/** @typedef {import("../../../types/domain.js").Event} Event */
-/** @typedef {import("../../state/semantic-application.js").WidgetDescriptor} WidgetDescriptor */
-/** @typedef {ReturnType<typeof import("../../state/semantic-application.js").createSemanticApplication>} Application */
-/** @typedef {ReturnType<ReturnType<Application["selectWidget"]>["read"]>["actions"][string]["undo"][number]} UndoCandidate */
-/** A package's command, as `widgetController(owner).dispatch` takes it. Admission
+/** A widget's command, as its controller's `dispatch` takes it from the `lf-action` or
+ * `lf-undo` the widget records with (`hearRecords`, host/widget-controller.js). Admission
  * judges each registry-declared detail schema. An action's `says` names the gesture in
  * the widget's words: the one name Leaf acknowledges it by once the log admits it, and
- * names it by when the user undoes it.
- * @typedef {{kind: "undo", target: string} | {kind: "action", verb: string, detail?: Record<string, unknown>, attempt?: string, says?: string}} WidgetCommand */
+ * names it by when the user undoes it. */
 
-/** @typedef {{
- * afterEnqueue: (entry: import("./state.js").DeliveryHandle) => void,
- * named: (entry: import("./state.js").DeliveryHandle, says: string) => void,
- * withdraw: (event: UndoCandidate) => Promise<Event | null> | null,
- * onCollision: (attempt: string | undefined) => void,
- * }} DispatchDependencies */
 export function createCommandDispatch() {
   const submitted = new Set();
   const ledger = createPendingLedger({
@@ -47,26 +42,23 @@ export function createCommandDispatch() {
       );
     },
   });
-  /** @type {DispatchDependencies | null} */
   let dependencies = null;
   const current = () => {
     if (!dependencies) throw new Error("Leaf application has not been mounted");
     return dependencies;
   };
-  /** @param {PendingCommand} event */
   const startPost = (event) => {
-    const { onCollision, afterEnqueue } = current();
+    const { onCollision, afterEnqueue, answered } = current();
     const entry = ledger.enqueue(event);
     if (!entry) {
       onCollision(event.attempt);
       return null;
     }
+    applicationState.answer(entry.event.attempt, answered);
     afterEnqueue(entry);
     return entry;
   };
-  /** @param {PendingCommand} event */
   const post = (event) => startPost(event)?.answer ?? Promise.resolve(null);
-  /** @param {WidgetDescriptor} descriptor @param {WidgetCommand} command */
   const dispatchWidget = (descriptor, command) => {
     const { withdraw } = current();
     const reading = applicationState.selectWidget(descriptor).read();
@@ -97,7 +89,6 @@ export function createCommandDispatch() {
   };
   return Object.freeze({
     ledger,
-    /** @param {DispatchDependencies} installed */
     mount(installed) {
       dependencies = installed;
     },

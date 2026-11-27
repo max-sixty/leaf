@@ -1,3 +1,4 @@
+// Compiled from drawing-ink.ts by build/typescript.mjs; edit that file.
 /* Native drawing ink, independent of saved annotation presentation.
  *
  * The supplied reading names current drawings and their targets. This owner alone
@@ -25,7 +26,6 @@ import { drawingGeometry } from "./drawing-geometry.js";
 const SVG_NS = "http://www.w3.org/2000/svg";
 const FRAME_MIN = 1;
 
-/** @param {import("./drawing-record.js").Drawing["strokes"]} strokes */
 function drawingFrame(strokes) {
   const points = strokes.flat();
   const xs = points.map(([x]) => x);
@@ -45,7 +45,6 @@ function drawingFrame(strokes) {
 }
 
 // One path, one subpath per stroke: each stroke lifts the pen with its own move.
-/** @param {import("./drawing-record.js").Drawing["strokes"]} strokes */
 const pathData = (strokes) =>
   strokes
     .flatMap((stroke) =>
@@ -55,7 +54,6 @@ const pathData = (strokes) =>
     )
     .join(" ");
 
-/** @param {string} data */
 function pathFor(data) {
   const path = document.createElementNS(SVG_NS, "path");
   path.setAttribute("d", data);
@@ -64,24 +62,19 @@ function pathFor(data) {
   return path;
 }
 
-/** @param {{drawings: () => Iterable<{drawing: import("./drawing-record.js").DrawingInk | null, target: Element, className: string, id?: string}>}} options */
 export function createDrawingInk({ drawings }) {
   // The draft or ordinary Thread is the accessible representation of its ink.
   const layer = el("div", "lf-ui lf-drawings");
   layer.setAttribute("aria-hidden", "true");
   const ink = paintSet(layer);
   let paintFrame = 0;
-  /** @type {Map<string, SVGSVGElement[]>} */
   let mounted = new Map();
-  /** @type {Map<string, SVGSVGElement[]>} */
   let mounting = new Map();
-  /** @type {Set<Element>} */
   const observed = new Set();
   const sizes = sizeObserver(() => shifted());
 
   // The complete description is the retained-node key. Two equal marks in one pass
   // still consume distinct prior nodes in order.
-  /** @param {import("./drawing-record.js").DrawingInk | null} drawing @param {Element} target @param {string} className @param {string} [id] */
   function mark(drawing, target, className, id = "") {
     if (!drawing) return null;
     const geometry = drawingGeometry(drawing, target);
@@ -119,7 +112,6 @@ export function createDrawingInk({ drawings }) {
   }
 
   function paint() {
-    /** @type {Set<Element>} */
     const nextObserved = new Set();
     const marks = [];
     mounting = new Map();

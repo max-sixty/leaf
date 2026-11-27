@@ -1,3 +1,4 @@
+// Compiled from surfaces.ts by build/typescript.mjs; edit that file.
 /* Canonical Thread placement into exact widget seats and one page presentation.
 
    A widget whose element has a `threadOutlets` method is a seat for as long as it
@@ -50,44 +51,17 @@ import { signal } from "/vendor/signals-core.js";
 import { tick } from "../../state/version-signal.js";
 
 import { registrations, setRegistration, updateSurface } from "./surface-handles.js";
-/** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
-/** @typedef {import("./placement.js").ResolvedTarget} ThreadPlacement */
-/** @typedef {Pick<import("./placement.js").ThreadPlacements, "placedAt" | "pendingAt">} SurfacePlacements */
-/** @typedef {{anchor: NonNullable<import("../../../types/domain.js").Anchor>,
- * placement: ThreadPlacement & {status: "exact"},
- * thread: ThreadRecord | null}} OutletTarget
- * A widget receives only itself and the exact datums in it: `anchor.datum` and
+
+/** A widget receives only itself and the exact datums in it: `anchor.datum` and
  * `placement.datumElement` name a datum, and are absent where the target is the widget.
  * A null thread identifies composition. */
-/** @typedef {{signal: AbortSignal,
- * collection: ReturnType<typeof import("./state.js").readThreads>,
- * onCommit: (run: () => void) => void}} OutletContext */
-/** @typedef {(targets: readonly OutletTarget[], context: OutletContext) =>
- * readonly (Element | null)[] | PromiseLike<readonly (Element | null)[]>} ThreadOutletSelector */
 
-/** @typedef {{anchor: import("../../../types/domain.js").Anchor | null | undefined,
- * placement: ThreadPlacement, thread: ThreadRecord | null}} PageOutletTarget */
-/** @typedef {(targets: readonly PageOutletTarget[], context: OutletContext) => unknown} OutletRender */
-/** @typedef {{active: () => {anchor: import("../../../types/domain.js").Anchor, about: string | null} | null,
- * outlet: () => Element | null, node: () => HTMLElement,
- * open: (target: {anchor: import("../../../types/domain.js").Anchor, element?: Element | null, point?: Element | null}) => unknown,
- * seat: (outlet: Element) => boolean, restore: () => unknown}} CompositionSurface */
-/** @typedef {{invalidate: () => unknown, composition: CompositionSurface,
- * reveal: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} SurfaceServices */
-/** @typedef {Omit<SurfaceServices, "reveal"> & {owner: Element, render: OutletRender, kind: "widget" | "page",
- * outlets: Set<Element>, placements: SurfacePlacements | null,
- * reconcileQueued: boolean, cancelRender: () => void, stopSide: () => void,
- * handle: {read: typeof readThreads, reveal: (key: string) => unknown,
- * open: (node: Element) => boolean, update: () => void, unregister: () => void}}} Registration */
-/** @type {Set<string>} */
 let claimedIds = new Set();
 let renderGeneration = 0;
 // Moves when the answer `claimed` gives changes, so a paint reading it follows it.
 const ownership = signal(0);
-/** @template T @param {ReadonlySet<T>} a @param {ReadonlySet<T>} b */
 const sameSet = (a, b) => a.size === b.size && [...a].every((item) => b.has(item));
 
-/** @param {SurfaceServices} commands */
 export function watchThreadSurfaces(commands) {
   // An export holds no thread and has nowhere to send a message (`exporting.py`), so a
   // widget there has nothing to seat and no comment box to open.
@@ -121,7 +95,6 @@ export function watchThreadSurfaces(commands) {
       register(
         owner,
         (targets, context) => {
-          /** @type {unknown} */
           const result = Reflect.apply(outlets, owner, [targets, context]);
           return result;
         },
@@ -138,15 +111,12 @@ export function watchThreadSurfaces(commands) {
 // The selected page presentation joins the same outlet and generation lifetime.
 // This owner nominates fallback candidates. Only the final cohort move knows which
 // widget nominations survived, and gives those seats priority over page nominations.
-/** @param {Element} owner @param {OutletRender} render @param {SurfaceServices} options */
 export function placePageThreads(owner, render, options) {
   if ([...registrations.values()].some((item) => item.kind === "page"))
     throw new Error("The document already has a page Thread presentation");
   return register(owner, render, options, "page");
 }
 
-/** @param {Element} owner @param {OutletRender} render @param {SurfaceServices} services
- * @param {"widget" | "page"} kind */
 function register(owner, render, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
     throw new TypeError("A Thread presentation needs an Element owner");
@@ -165,7 +135,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       ? (registration.placements?.pendingAt()?.place ?? null)
       : null;
   });
-  /** @type {Registration["handle"]} */
   const handle = {
     read: readThreads,
     reveal(key) {
@@ -198,7 +167,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       updateSurface(registration);
     },
   };
-  /** @type {Registration} */
   const registration = {
     render,
     stopSide,
@@ -217,7 +185,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   return registration.handle;
 }
 
-/** @param {ReadonlySet<Element>} outlets */
 function clearOutlets(outlets) {
   for (const outlet of outlets) {
     clearThreadSurface(outlet);
@@ -225,12 +192,10 @@ function clearOutlets(outlets) {
   }
 }
 
-/** @param {Pick<Registration, "owner">} registration @param {unknown} error */
 function reportFailure({ owner }, error) {
   reportPageError(error, `thread surface ${owner.localName}#${owner.id} failed`);
 }
 
-/** @param {Registration} registration */
 function clearRegistration(registration) {
   registration.cancelRender();
   registration.stopSide();
@@ -246,7 +211,6 @@ function clearRegistration(registration) {
 
 // A nomination remains a capability only while its output is connected inside its
 // presentation owner. Preparation and final cohort admission share this one reading.
-/** @param {Pick<Registration, "owner">} registration @param {Map<Element, ThreadRecord[]>} byOutlet */
 function validateOutlets({ owner }, byOutlet) {
   for (const outlet of byOutlet.keys()) {
     if (!outlet.isConnected) byOutlet.delete(outlet);
@@ -261,12 +225,6 @@ function validateOutlets({ owner }, byOutlet) {
 // A widget owns its exact datum and itself; the page can present any complete
 // attachment place. The composer's `about` stands in for the root's where no thread
 // exists yet, so a box and the thread it starts are admitted alike.
-/** @template {ThreadRecord | null} T
- * @typedef {{anchor: import("../../../types/domain.js").Anchor | null | undefined,
- * placement: ThreadPlacement | null | undefined, thread: T, about?: string | null | undefined}} TargetCandidate */
-/** @template {ThreadRecord | null} T
- * @param {Pick<Registration, "owner">} registration @param {TargetCandidate<T>} target
- * @returns {target is TargetCandidate<T> & OutletTarget} */
 function widgetTarget({ owner }, target) {
   const { anchor, placement, thread, about = null } = target;
   if (placement?.status !== "exact" || anchor?.section !== owner.id) return false;
@@ -280,16 +238,11 @@ function widgetTarget({ owner }, target) {
     placement.element === owner
   );
 }
-/** @template {ThreadRecord | null} T
- * @param {TargetCandidate<T>} target @returns {target is TargetCandidate<T> & PageOutletTarget} */
 function pageTarget(target) {
   return (
     target.placement?.status === "exact" && target.placement.place instanceof Element
   );
 }
-/** @template {ThreadRecord | null} T
- * @param {Pick<Registration, "owner" | "kind">} registration @param {TargetCandidate<T>} target
- * @returns {{kind: "widget", target: OutletTarget & {thread: T}} | {kind: "page", target: PageOutletTarget & {thread: T}} | null} */
 function admitTarget(registration, target) {
   return registration.kind === "page"
     ? pageTarget(target)
@@ -300,11 +253,6 @@ function admitTarget(registration, target) {
       : null;
 }
 
-/** @typedef {{registration: Registration, byOutlet: Map<Element, ThreadRecord[]>,
- * compositionOutlet: Element | null, committed: (() => void)[]}} SurfacePlan */
-/** @param {ReturnType<typeof readThreads>} collection
- * @param {SurfacePlacements} placements
- * @param {import("./thread-card.js").ThreadCommands & {composition: CompositionSurface}} commands */
 export function renderSurfaces(collection, placements, commands) {
   const generation = ++renderGeneration;
   const current = () => generation === renderGeneration;
@@ -315,7 +263,6 @@ export function renderSurfaces(collection, placements, commands) {
     for (const registration of registrations.values()) registration.cancelRender();
   };
   const activeComposition = commands.composition.active();
-  /** @type {SurfacePlan[] | null} */
   let prepared = null;
   const completion = prepare().then((plans) => {
     prepared = plans;
@@ -325,7 +272,6 @@ export function renderSurfaces(collection, placements, commands) {
   // Callbacks nominate current contained outlets. They do not publish membership or
   // move the canonical editor before the required Thread cohort is ready to commit.
   async function prepare() {
-    /** @type {SurfacePlan[]} */
     const plans = [];
     // Registration order cannot confer source ownership: the selected page owner
     // runs after the widgets in this pass.
@@ -334,7 +280,6 @@ export function renderSurfaces(collection, placements, commands) {
     );
     // Whether a registration still stands for its owner in the document, asked again
     // after a render's wait, during which either can change.
-    /** @param {Registration} registration */
     const stands = (registration) =>
       registrations.get(registration.owner) === registration &&
       registration.owner.isConnected;
@@ -347,17 +292,13 @@ export function renderSurfaces(collection, placements, commands) {
         continue;
       }
       registration.placements = placements;
-      /** @type {Map<Element, ThreadRecord[]>} */
       const byOutlet = new Map();
       const abort = new AbortController();
       const cancelled = aborted(abort.signal);
       registration.cancelRender = () => abort.abort();
-      /** @type {Element | null} */
       let compositionOutlet = null;
-      /** @type {(() => void)[]} */
       const committed = [];
       try {
-        /** @type {Map<string, NonNullable<ReturnType<typeof admitTarget<ThreadRecord>>>>} */
         const targets = new Map();
         for (const thread of collection.threads) {
           if (registration.kind !== "page" && thread.anchor?.section !== owner.id)
@@ -377,7 +318,6 @@ export function renderSurfaces(collection, placements, commands) {
             : null;
         // The core supplies the complete admitted batch. Each position keeps its
         // canonical Thread or composer identity here; consumers only return seats.
-        /** @type {(PageOutletTarget | OutletTarget)[]} */
         const batch = [...targets.values()].map(({ target }) => Object.freeze(target));
         const compositionTarget = admitTarget(registration, {
           anchor,
@@ -409,7 +349,6 @@ export function renderSurfaces(collection, placements, commands) {
           throw new TypeError(
             "A Thread placement callback must return one outlet or null per target",
           );
-        /** @type {readonly unknown[]} */
         const nominated = outlets;
         for (const [index, { thread }] of batch.entries()) {
           const outlet = nominated[index];
@@ -572,7 +511,6 @@ export function renderSurfaces(collection, placements, commands) {
 
 // Whether a widget seat drew the thread `id` at the last commit. A paint reading it is
 // repainted when a commit changes the answer.
-/** @param {string} id */
 export const claimed = (id) => {
   ownership.value;
   return claimedIds.has(id);
@@ -581,7 +519,6 @@ export const claimed = (id) => {
 // The node a widget's outlet draws for a thread's part.
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.
-/** @param {string} name @param {{part?: import("./destination.js").ThreadPart}} [options] */
 export function surfaceFocusTarget(name, { part = "reply" } = {}) {
   const id = threadIdNamed(name);
   const thread = [...registrations.values()]

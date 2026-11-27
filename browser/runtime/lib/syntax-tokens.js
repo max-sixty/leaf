@@ -1,3 +1,4 @@
+// Compiled from syntax-tokens.ts by build/typescript.mjs; edit that file.
 /* Code as tokens: the one tokenizing engine, its grammars, the language a block names,
    and the nodes and lines a caller builds from what it returns. It reads nothing Leaf
    composes into a page, and a failure is the caller's to report, as a widget reports
@@ -19,13 +20,12 @@ import { syntaxLanguageNames, syntaxLanguages } from "./syntax-languages.js";
 // `language_advice`), unless it is `math`, a formula's LaTeX, which readings/formulas.js
 // typesets.
 const LANGUAGE_CLASS = /(?:^|\s)language-(\S+)/;
-/** @param {Element | null} element @returns {string | null | undefined} */
 const classLanguage = (element) => {
   const name = element?.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
   if (!name) return undefined;
   return Object.hasOwn(syntaxLanguageNames, name) ? syntaxLanguageNames[name] : null;
 };
-/** @param {Element} block a `<code>`, or a widget whose body is a `<pre>` */
+/** @param block a `<code>`, or a widget whose body is a `<pre>` */
 export const codeLanguage = (block) => {
   const named = classLanguage(block.querySelector(":scope > pre > code"));
   return named === undefined ? classLanguage(block) : named;
@@ -34,10 +34,8 @@ export const codeLanguage = (block) => {
 // Ordinary code and Pierre's diffs share one Shiki engine and theme. Colors
 // follow the page's scheme; generated spans never enter the authored source.
 // The engine loads only for code, and each grammar only when it is requested.
-/** @type {Promise<typeof import("/vendor/syntax.esm.js")> | undefined} */
 let tokenizerReady;
 const tokenizer = () => (tokenizerReady ??= import("/vendor/syntax.esm.js"));
-/** @type {Map<string, ReturnType<typeof tokenizer>>} */
 const languagesReady = new Map();
 
 // Loads the engine and `lang`'s grammar, once, so a caller can load one ahead of the
@@ -45,7 +43,6 @@ const languagesReady = new Map();
 // language is a bundle mismatch, not a reason to silently color a declared language as
 // plain text. An absent language prepares only the theme, for a diff of an unknown file
 // type.
-/** @param {string | null | undefined} lang */
 export function ensureSyntaxLanguage(lang) {
   if (!lang) return tokenizer();
   let ready = languagesReady.get(lang);
@@ -72,7 +69,6 @@ export function ensureSyntaxLanguage(lang) {
 // `state` it continues another source from there, so a long text coloured a part at a
 // time, each part from the state the part before it ended in, is coloured as the whole
 // text would be. Begun afresh, a part starting inside a docstring read its rest as code.
-/** @param {string} source @param {string} lang @param {SyntaxState} [state] */
 export async function syntax(source, lang, state) {
   return (await syntaxNow(lang)).tokenize(source, state);
 }
@@ -81,13 +77,11 @@ export async function syntax(source, lang, state) {
 // declaration a token's style can hold (`declarations`, `[property, value]` pairs), for
 // a caller that colours text as it lays it out and names each declaration once, as the
 // file editor's highlighter does a line at a time.
-/** @param {string} lang */
 export async function syntaxNow(lang) {
   const shared = await ensureSyntaxLanguage(lang);
   const tokenize = await shared.tokenizer(lang);
   return {
     declarations: shared.tokenDeclarations(),
-    /** @param {string} source @param {SyntaxState} [state] @returns {Tokenized} */
     tokenize(source, state) {
       const tokenized = tokenize(source, state);
       // The vendored tokenizer's output is data entering, so it is checked once, here,
@@ -105,15 +99,10 @@ export async function syntaxNow(lang) {
   };
 }
 
-/** @typedef {Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>>} Tokenized */
-/** @typedef {NonNullable<Tokenized["state"]>} SyntaxState */
-/** @typedef {Tokenized["tokens"][number]} SyntaxToken */
-
 // Tokens as nodes: one span per style, and the bare text where none applies, so nothing
 // lands in the DOM that says nothing. Callers build from here — plain code replacing its
 // own children, lf-code appending into the line it is numbering — because a second place
 // writing the same span is a second place to forget the attribute.
-/** @param {readonly SyntaxToken[]} tokens */
 export const synNodes = (tokens) =>
   tokens.map(({ text, style }) => {
     if (!Object.keys(style).length) return document.createTextNode(text);
@@ -132,11 +121,8 @@ export const synNodes = (tokens) =>
 // because a token can span a newline:
 // a docstring coloured line by line restarts the tokenizer inside itself and reads its
 // second line as code.
-/** @param {readonly SyntaxToken[]} tokens @returns {[SyntaxToken[], ...SyntaxToken[][]]} */
 export function tokenLines(tokens) {
-  /** @type {SyntaxToken[]} */
   let line = [];
-  /** @type {[SyntaxToken[], ...SyntaxToken[][]]} */
   const lines = [line];
   for (const { text, style } of tokens) {
     const parts = text.split("\n");

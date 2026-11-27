@@ -23,12 +23,7 @@ from render_cases_interaction import (
     live_url,
     open_seat_box,
 )
-from render_cases_layout import (
-    MARK,
-    SHOT_SRC,
-    SHOTS,
-    current_location_ring,
-)
+from render_cases_layout import MARK, SHOT_SRC, SHOTS
 from render_cases_navigation import (
     composer_quote,
 )
@@ -93,6 +88,7 @@ from leaf.pages.render_gate.scheme import console_finding
 from leaf.source.render_checks import asked_again, rendered, wait_until_ready
 from leaf.source.vocabulary import load_registry
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import current_location_ring
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -437,6 +433,9 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
             str(d),
             "--title",
             "Version stamp",
+            # Both copies stand in this section, so only the neighbours tell them apart.
+            "--section",
+            "twin",
             "--quote",
             "The version stamp never lands",
             "--text",

@@ -264,6 +264,7 @@ lf-event::before {
   color: var(--lf-muted);
 }
 
-lf-timeline > :is(lf-lane, lf-run)[hidden] {
+/* The drawing shows the authored lanes in their place. */
+lf-timeline:has(.lf-timeline-view) > :is(lf-lane, lf-run) {
   display: none;
 }

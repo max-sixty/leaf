@@ -1,3 +1,5 @@
+// Compiled from bootstrap.ts by build/typescript.mjs; edit that file.
+
 // The server places this script before any loadable page resource.
 // It must run even when the entry module or one of its dependencies cannot load.
 (() => {
@@ -5,7 +7,6 @@
   // entry's own state, the record of where the user was on it, which a reload returns
   // them to (records/history.js) and `replaceState` alone drops. A sandboxed sample's document
   // keeps no entries.
-  /** @param {URL} url */
   const rename = (url) => {
     const state = window.navigation.currentEntry?.getState();
     history.replaceState(history.state, "", url);
@@ -44,7 +45,7 @@
   // layout, so a trusted input enters the browsing context before those handlers run.
   if (window !== window.top) {
     const nativeWindowFocus = window.focus;
-    const enterFrame = /** @param {Event} event */ (event) => {
+    const enterFrame = (event) => {
       if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
     };
     for (const type of ["pointerdown", "keydown"])
@@ -58,18 +59,12 @@
       root.lfSample = window.lfSampleBridge;
       root.lfSample.install();
     } else {
-      /** @type {{port: MessagePort, settings: import("./base/sample-protocol.js").SampleSettings} | null} */
       let connection = null;
-      /** @type {PromiseWithResolvers<void>} */
       const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
-      /** @type {import("./base/sample-protocol.js").ChildMessage[]} */
       const queued = [];
-      /** @type {Set<(message: import("./base/sample-protocol.js").ParentMessage) => void>} */
       const listeners = new Set();
-      /** @param {import("./base/sample-protocol.js").ChildMessage} value */
       const send = (value) =>
         connection ? connection.port.postMessage(value) : queued.push(value);
-      /** @type {LeafSampleBridge} */
       const bridge = {
         ready,
         get settings() {
@@ -97,9 +92,7 @@
       };
       root.lfSample = bridge;
       window.lfSampleBridge = bridge;
-      /** @type {LeafDress} */
       let worn = { attributes: {}, properties: {} };
-      /** @param {LeafDress} [next] */
       const dress = (next = { attributes: {}, properties: {} }) => {
         const root = document.documentElement;
         window.lfRootState.wear(root, next);
@@ -107,7 +100,6 @@
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
       const nonce = randomId();
-      /** @param {MessageEvent<import("./base/sample-protocol.js").SampleOffer | undefined>} event */
       const connect = (event) => {
         const port = event.ports[0];
         if (
@@ -122,13 +114,10 @@
         connection = { port, settings };
         // The bootstrap element owns diagnostic readings before the entry starts.
         script.lfDocumentPort = port;
-        port.onmessage =
-          /** @param {MessageEvent<import("./base/sample-protocol.js").ParentMessage>} event */ ({
-            data,
-          }) => {
-            if (data.type === "dress") dress(data.detail);
-            else for (const callback of listeners) callback(data);
-          };
+        port.onmessage = ({ data }) => {
+          if (data.type === "dress") dress(data.detail);
+          else for (const callback of listeners) callback(data);
+        };
         port.postMessage({ type: "connected", nonce });
         bridge.install();
         dress(settings.dress);
@@ -185,11 +174,9 @@
   // reading nobody here can reproduce, so the record has to name the thing that did not
   // load. A fault the page recovers from is worth the name too, so the outcome that
   // eventually wins carries it rather than a separate record standing for it.
-  /** @type {(reason: string) => void} */
   let recordStartupFault = () => {};
   let stopHoldingKeys = () => {};
   // The words the held keys show, or null while none do (`holdEarlyKeys`).
-  /** @type {() => HeldWords | null} */
   let shownKeys = () => null;
 
   // The floating panel's row stands from the first paint, so the panel never arrives
@@ -236,7 +223,6 @@
   // goes as the hold on keys ends (`stopHoldingKeys`), and its sheet with it, which
   // nothing then draws with, unless its field holds words: they stay where the user
   // wrote them until recovery reloads the page.
-  /** @type {{say(words: HeldWords | null): void, end(): void} | null} */
   let row = null;
   let rowEnded = false;
   // No panel is coming to take the row over.
@@ -295,7 +281,7 @@
       document.body.after(chrome);
       let offered = false;
       let gone = false;
-      /** @param {boolean} taken whether the panel took the row over */
+      /** @param taken whether the panel took the row over */
       const go = (taken) => {
         if (gone) return;
         gone = true;
@@ -307,7 +293,6 @@
             (adopted) => adopted !== sheet,
           );
       };
-      /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
       const takeOver = ({ detail }) => {
         offered = true;
         const hand = () => {
@@ -382,9 +367,7 @@
   // on the reading that a page not upgraded by then had faulted, which drops the keys
   // of a page that upgrades later than that on a loaded machine. A page that hangs with no
   // report keeps showing that it is still loading, which is then the truth.
-  const { takesLetters, holdKeys } = /** @type {DocumentInputs} */ (
-    Reflect.get(window, Symbol.for("leaf.inputs"))
-  );
+  const { takesLetters, holdKeys } = Reflect.get(window, Symbol.for("leaf.inputs"));
   // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words typed
   // through Leaf's reload for a draft (`typeBack`). The event of the same name tells
   // the runtime that words wait there.
@@ -417,7 +400,6 @@
     // takes it as it takes any key once the reload puts the user back (`queue`).
     const draft = handoff?.draftEditing?.context ?? null;
     const field = draft || !handedFocus?.caret ? null : handedFocus;
-    /** @param {string} key */
     const read = (key) => {
       try {
         return JSON.parse(tabStore.get(key) || "null");
@@ -427,7 +409,6 @@
     };
     // The words the tab keeps for their drafts until the runtime types them in
     // (`typeBack`), in the order they were typed.
-    /** @returns {{context: string, words: string}[]} */
     const keptWords = () => {
       const kept = read(HELD_WORDS);
       return Array.isArray(kept) ? kept : [];
@@ -439,7 +420,6 @@
     // place back and was pressing them as it went; any other load starts a run of its
     // own.
     const stored = read(HELD_KEYS);
-    /** @type {KeyboardEvent[]} */
     const held =
       placesUser() && Array.isArray(stored)
         ? stored.map((init) => new KeyboardEvent("keydown", init))
@@ -464,20 +444,16 @@
           : null,
       );
     save();
-    /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
-    /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
     // The words shown, as text, or "" while none are.
     let shown = "";
-    /** @type {((words: HeldWords | null) => void) | null} */
     let seat = null;
     // What the held keys say, wherever they show: each key as its badge, then Leaf's
     // words. The keys lead, so a narrow field that cuts the line short keeps them. Words
     // typed for a draft are in it already, which is what Leaf says of them, until the
     // user moves on.
-    /** @param {string[]} keys @param {string} saying @returns {HeldWords} */
     const said = (keys, saying) =>
       keys.length
         ? [
@@ -488,7 +464,6 @@
             saying,
           ]
         : [];
-    /** @returns {HeldWords} */
     const words = () => {
       const kept = said(moved ? [] : [...typed], " kept in the draft");
       const waiting = said(
@@ -534,7 +509,6 @@
     // back holding it. Until the hand-back ends the hold shows the draft's words as it
     // shows held keys (`typed`), and then asks the runtime whether they are on screen.
     let typed = "";
-    /** @param {string} key */
     const typeBack = (key) => {
       if (!draft) return typeIntoField(key);
       typed += key;
@@ -551,9 +525,7 @@
     // field itself, which may already hold that value; the page hears them there as the
     // field's input, which is the user's typing replayed rather than a new input of
     // theirs (`echo`, `holdKeys`). Neither leaves the document.
-    /** @type {InputEvent | null} */
     let echo = null;
-    /** @param {string} key */
     const typeIntoField = (key) => {
       if (!field) return;
       const element = document.getElementById(field.id);
@@ -561,13 +533,14 @@
         element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
           ? element
           : null;
-      const value = field.value ?? control?.defaultValue ?? "";
-      const [start, end] = /** @type {[number, number]} */ (field.caret);
+      const value = field.state?.value ?? control?.defaultValue ?? "";
+      const [start, end] = field.caret;
       const at = start + key.length;
-      field.value = value.slice(0, start) + key + value.slice(end);
+      const words = value.slice(0, start) + key + value.slice(end);
+      field.state = { value: words };
       field.caret = [at, at];
       if (!control) return;
-      control.value = field.value;
+      control.value = words;
       control.setSelectionRange(at, at);
       echo = new InputEvent("input", {
         bubbles: true,
@@ -577,7 +550,6 @@
       control.dispatchEvent(echo);
       echo = null;
     };
-    /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
@@ -590,7 +562,6 @@
     // (`typeBack`) or waits in the run until it is replayed (`queue`). Where a place is
     // handed back, the input clock asks this first and leaves such a key uncounted
     // (base/document-inputs.js, `holdKeys`).
-    /** @param {KeyboardEvent} event */
     const holds = (event) => {
       if (!window.lfKeyboard.quick && !typingBack()) return false;
       if (event.isComposing || HALF_PRESSES.has(event.key)) return false;
@@ -617,7 +588,6 @@
       // whose input is still loading starts another ordered run.
       return !ready?.(event);
     };
-    /** @param {KeyboardEvent} event */
     const hold = (event) => {
       if (!window.lfKeyboard.quick && !typingBack()) return letGo();
       if (holds(event)) {
@@ -639,7 +609,6 @@
     // controller presses it (`pressed`), and a release lets go of any it leaves. Words
     // already shown stand until the run is pressed or pauses on a key that must still
     // wait, which they then name.
-    /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
       keep = event.detail.keep;
@@ -672,7 +641,6 @@
         if (!keep?.()) stopHoldingKeys();
       };
     };
-    /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
     const seated = (event) => {
       seat = event.detail.show;
       if (shown) seat(words());
@@ -730,22 +698,16 @@
   function observePublicStartup() {
     if (!release) return;
     let sent = false;
-    /** @type {number | null} */
     let upgradedMs = null;
-    /** @type {number | null} */
     let firstStateResponseMs = null;
-    /** @type {number | null} */
     let presentedMs = null;
-    /** @type {string | null} */
     let fault = null;
-    /** @param {number | undefined} value */
     const rounded = (value) =>
       value !== undefined && Number.isFinite(value) && value >= 0
         ? Math.round(value)
         : null;
     const pageRoot = new URL(`${script.dataset.lfPageRoot}/`, location.origin);
     const stateUrl = new URL("api/state", pageRoot);
-    /** @param {readonly PerformanceEntry[]} entries */
     const readStateResponses = (entries) => {
       for (const entry of entries) {
         if (!(entry instanceof PerformanceResourceTiming)) continue;
@@ -774,7 +736,6 @@
       if (presentedMs === null && document.body?.hasAttribute("data-lf-presented"))
         presentedMs = rounded(performance.now());
     };
-    /** @param {"presented" | "failed" | "abandoned" | "timeout"} outcome */
     const report = (outcome) => {
       if (sent) return;
       sent = true;
@@ -856,7 +817,6 @@
   // started with everything it is going to get. A fault that is the page's own
   // (`page`) is answered by no server: the page holds what its author wrote, so the
   // notice says the page has a problem and waits for nothing.
-  /** @param {string} reason @param {boolean} page */
   function recover(reason, page) {
     recordStartupFault(reason);
     stopHoldingKeys();

@@ -1,3 +1,4 @@
+// Compiled from code-copy.ts by build/typescript.mjs; edit that file.
 /* Blocks of source text own a copy control at their top right: every document code
    block, and every block a widget declares, such as a code listing or a draft's
    Markdown.
@@ -54,14 +55,11 @@ import { claimReachStop, releaseReachStop } from "../dom/reach.js";
 import { commandScope, projectCommandScope } from "../dom/keyboard/scopes.js";
 import { DATA_BODY } from "../readings/syntax.js";
 
-/** @type {WeakMap<Element, ReturnType<typeof copyControl>>} */
 const controls = new WeakMap();
-/** @type {WeakMap<Element, AbortController>} */
 const wired = new WeakMap();
 // Observe only deferred document blocks. Opening a disclosure or a hidden panel gives
 // its blocks boxes again; prepare that batch without polling hidden DOM.
 const deferred = new WeakSet();
-/** @type {(blocks: Element[]) => void} */
 let prepareDocumentBlocks;
 const revealed = sizeObserver((entries) => {
   // Preparing controls changes scroll reach and can resize other observed boxes.
@@ -86,7 +84,6 @@ onCurrentLocation((node) => {
 });
 
 // `noun` names what the block holds, in the control's label and its result.
-/** @param {Element} pre @param {() => string} source @param {string} noun */
 function prepareCodeBlock(pre, source, noun) {
   let copy = controls.get(pre);
   if (!copy) {
@@ -127,7 +124,6 @@ function prepareCodeBlock(pre, source, noun) {
 
 // Declared on each arrival, since leaving withdraws it. A widget renders a new block
 // each time, and the register forgets one that leaves the document.
-/** @param {Element} pre @param {ReturnType<typeof copyControl>} copy @param {string} noun */
 function declareCopy(pre, copy, noun) {
   projectCommandScope(
     pre,
@@ -149,7 +145,6 @@ function declareCopy(pre, copy, noun) {
 // whose widget draws a toolbar of its own marks over it (`lfBar`, a `.lf-mark-bar`
 // the widget places and shows) takes Copy as that toolbar's last mark instead.
 const DECLARED = "[data-lf-copy]";
-/** @param {Element} block @param {Element | undefined} copy */
 const standing = (block, copy) =>
   block instanceof HTMLElement && block.lfBar
     ? copy?.parentNode === block.lfBar
@@ -157,7 +152,6 @@ const standing = (block, copy) =>
 // A tap that stands the user on the block shows its toolbar under the finger; only a
 // press that began on the toolbar presses one of its marks, as with a lone Copy.
 const guardedBars = new WeakSet();
-/** @param {HTMLElement} bar */
 function guardBar(bar) {
   if (guardedBars.has(bar)) return;
   guardedBars.add(bar);
@@ -172,7 +166,6 @@ function guardBar(bar) {
     { capture: true },
   );
 }
-/** @param {Element[]} blocks */
 function prepareDeclaredBlocks(blocks) {
   const prepared = blocks
     .filter((block) => !standing(block, controls.get(block)))

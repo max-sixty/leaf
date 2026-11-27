@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from leaf.agents.clerk import QUEUED, waking
-from leaf.agents.presence import nudge_unwatched, read_work, turn_ending
+from leaf.agents.delivery import nudge_unwatched, quoted_input
+from leaf.agents.presence import read_work, turn_ending
 from leaf.base.detached import StartRefused
 from leaf.base.files import file_stamp
 from leaf.base.findings import Finding, note, with_held
@@ -631,14 +632,16 @@ def _ended_watch(
 Wake = Literal["input", "owed", "told"]
 
 
-def wake_line(page_dir: Path, wake: Wake) -> str:
+def wake_line(page_dir: Path, wake: Wake, quoted: str) -> str:
     """What a watch says as it wakes the session for `wake` on `page_dir`, where the
-    harness's prompt hook carries what woke it into the turn."""
+    harness's prompt hook carries what woke it into the turn. New input ends with
+    what the user said or chose in it (`delivery.quoted_input`), `quoted`."""
     if wake == "input":
-        return (
+        line = (
             f"{page_dir} has new input; Leaf's prompt hook puts it in your context "
             "with this notification"
         )
+        return f"{line}. {quoted}" if quoted else line
     if wake == "owed":
         return (
             f"{page_dir} has an update still owed an answer; Leaf's prompt hook "
@@ -838,15 +841,25 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             return "told", []
         return None
 
-    # What `ready` last found on each page, which the wake line names: a hook can take
-    # a line off the queue between the two, which no page's lock orders.
-    found_on: dict[Path, Wake] = {}
+    # What `ready` last found on each page, with the events behind it, which the
+    # wake line names: a hook can take a line off the queue between the two, which
+    # no page's lock orders.
+    found_on: dict[Path, tuple[Wake, list[dict]]] = {}
+
+    def woken_by(tick: PageTick) -> str:
+        wake, events = found_on[tick.page_dir]
+        quoted = (
+            quoted_input(tick.page_dir, tick.transaction.events, events)
+            if wake == "input"
+            else ""
+        )
+        return wake_line(tick.page_dir, wake, quoted)
 
     def ready(reading: PageTick) -> bool:
         found = wakes_for(reading)
         if found is None:
             return False
-        found_on[reading.page_dir] = found[0]
+        found_on[reading.page_dir] = found
         if interrupted:
             return True
         claim = reading.transaction.active_claim
@@ -872,7 +885,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             reading = read_watch_pass(
                 watch,
                 None,
-                lambda tick: wake_line(tick.page_dir, found_on[tick.page_dir]),
+                woken_by,
                 ready,
             )
             # Superseded during the pass, it leaves what it found to its successor.
@@ -907,7 +920,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
 def woke_after(session: str) -> None:
     """Mark each page the session holds as messaged for the ending of its turn, as a
     watch exits to wake the session, so admission does not nudge it too in the
-    moment before the woken turn starts (`presence.nudge_unwatched`)."""
+    moment before the woken turn starts (`delivery.nudge_unwatched`)."""
     for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if claim := page.active_claim:

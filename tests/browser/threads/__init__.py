@@ -410,7 +410,7 @@ def reply_by_keyboard(page, root):
 # Where a node stands against the open panel view's landing band: its scrollport less
 # the scroll padding the focus ring takes.
 IN_LANDING_BAND = """node => {
-  const list = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
+  const list = document.querySelector('.lf-fp-view');
   const shown = list.getBoundingClientRect();
   const style = getComputedStyle(list);
   const band = [shown.top + (parseFloat(style.scrollPaddingTop) || 0),

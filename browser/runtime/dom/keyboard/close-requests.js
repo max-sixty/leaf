@@ -1,3 +1,4 @@
+// Compiled from close-requests.ts by build/typescript.mjs; edit that file.
 /* The platform's close request, answered as Escape. Android's back gesture asks the
  * page to close something, as does an Escape keydown no listener canceled (HTML,
  * "Close requests and close watchers"). While Escape has a step to take, the page
@@ -39,11 +40,9 @@ import { answerCloseRequest, escapeTakesAStep } from "./dispatch.js";
 import { nativeLayers, watchLayerChanges } from "./layer-stack.js";
 import { repaint } from "../repaint.js";
 
-/** @type {CloseWatcher | null} */
 let watcher = null;
 // The native layers standing when the watcher was made. One opened since stands above
 // it, its own watcher closing first.
-/** @type {ReturnType<typeof nativeLayers>} */
 let under = [];
 watchLayerChanges(() => repaint());
 

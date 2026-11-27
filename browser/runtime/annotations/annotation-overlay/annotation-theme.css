@@ -81,13 +81,9 @@
   .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) {
   visibility: hidden;
 }
-/* A pin is smaller than a rail entry, its glyph 2px nearer each corner, so its badges
- * (`.lf-badges`, controls.css) stand 2px further out and leave the glyph whole. Its
- * count stands on its left, over the block it is about: at the window's edge one on
+/* A pin's badges (`.lf-badges`, controls.css) stand on its corners as a rail entry's
+ * do, its count on its left, over the block it is about: at the window's edge one on
  * the right would stand past the window. Its dot keeps the right corner. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-badges {
-  margin: -2px -2px 0;
-}
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-badges::after,
 .lf-margin-cluster[data-lf-place="pin"] .lf-badges > .lf-badge-count {
   order: -1;

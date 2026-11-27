@@ -1,3 +1,4 @@
+// Compiled from declared-words.ts by build/typescript.mjs; edit that file.
 /* The runtime paint projected onto page-owned elements and words: the layer-owned
    defaults that declarations make possible, the words the runtime clips for a user,
    and the mark an external link wears.
@@ -44,14 +45,11 @@ import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { marks } from "../state/kernel-facts.js";
 import { generatedElement } from "../dom/widget-elements.js";
 
-/** @typedef {Document | DocumentFragment | Element} Scope */
-/** @type {Set<string>} */
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
 // runtime's, or a declared mark, which delivery paints into the served document and
 // `markDeclared` into a message. A reading of the author's attributes on the live DOM
 // (`shallowSigs`) looks past it, since paint is no change the author made.
-/** @param {string} name */
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
   Object.values(marks).some((mark) => mark.attribute === name);
@@ -69,7 +67,6 @@ export const isPagePaint = (name) =>
 // has only the parts it builds — a suggestion's two slots, a code line. Two writers on
 // one element would each remove the other's word on every state application, which the
 // user would hear as the element re-reading itself.
-/** @param {Element} el @param {string | null} word */
 function quietWord(el, word) {
   const seat = el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
@@ -109,7 +106,6 @@ export function watchQuietWords() {
 // The mark after a link that leaves the page (prepaint.js, `markExternalLink`).
 // Prepaint seats it before authored prose first paints; this watch carries it through
 // revisions, generated content and declared shadow stages.
-/** @param {string | null} href */
 export const opensElsewhere = (href) => window.lfLinks.opensElsewhere(href);
 
 export function watchNativeContent() {
@@ -132,7 +128,6 @@ export function watchNativeContent() {
 // into it, and a near-copy of it would go stale the day the vocabulary grows a third
 // pass. A link's mark is not among them: it
 // is the link's for as long as it stands, whoever rendered it (`watchNativeContent`).
-/** @param {Scope} root */
 export function paintDeclaredWords(root) {
   renderQuiet(root);
   return dressCode(root);
@@ -186,7 +181,6 @@ export function paintDeclaredWords(root) {
 // `marks` as it renders, with the marks that hold there: every one but the room, which
 // is the document's to hand out, while a message renders in the panel's.
 
-/** @param {Scope} root @param {string} selector */
 function* elementsIn(root, selector) {
   if (isElement(root) && root.matches(selector)) yield root;
   yield* root.querySelectorAll(selector);
@@ -195,14 +189,12 @@ function* elementsIn(root, selector) {
 // Paint a message's declared marks, the root alongside its descendants: each tag's
 // declaration as it holds for the occurrence, and an occurrence's authored override
 // over it.
-/** @param {Scope} root */
 export function markDeclared(root) {
   for (const [key, mark] of Object.entries(marks)) {
     const { attribute, authored, message } = mark;
     if (!message) continue;
     // `$marks` keys each mark by the name of the fact it paints.
-    const fact =
-      /** @type {keyof import("../../types/contract.js").WidgetDeclaration} */ (key);
+    const fact = key;
     const tags = tagsDeclaring((entry) => entry[fact]);
     for (const tag of tags) {
       const declared = registry[tag]?.[fact];
@@ -234,7 +226,6 @@ export function markDeclared(root) {
 // technology.
 // They compose into the element's one quiet span, so independent verbs can name user,
 // report, and restatement origins without three writers fighting over the same seat.
-/** @param {Element} el */
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since the decision"]
@@ -245,18 +236,15 @@ function quietFacts(el) {
 }
 
 // Say each element's provenance quietly, or take the word away where it has none.
-/** @param {Iterable<Element>} elements */
 export function sayQuietFacts(elements) {
   for (const el of elements) quietWord(el, quietFacts(el));
 }
 
 // Say the provenance of every element under `root` that wears a mark, as markup arrives:
 // the page at upgrade, a revision's roots, a message.
-/** @param {Scope} root */
 export function renderQuiet(root) {
   // One query a mark: a single attribute's query is answered far faster than one for the
   // three as a selector list, which tests every element against each.
-  /** @type {Set<Element>} */
   const targets = new Set();
   for (const mark of [
     PAGE_PAINT_ATTRIBUTE.restated,

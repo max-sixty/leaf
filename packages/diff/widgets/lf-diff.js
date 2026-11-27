@@ -224,6 +224,14 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
+// A line number's name holds the numbers its gutter shows in the order it shows them,
+// so a user who speaks what they see reaches it (WCAG 2.5.3, Label in Name).
+/** @param {import("./diff-coordinates.js").DiffCoordinate} coordinate */
+const gutterLabel = (coordinate) =>
+  coordinate.side === "both"
+    ? `${coordinate.path || UNNAMED} · old and new line ${coordinate.oldLine} ${coordinate.newLine}`
+    : lineLabel(coordinate);
+
 /** @param {{path: string}} record */
 const fileLabel = ({ path }) => `${path || UNNAMED} · file`;
 // Only the header represents the file datum. The body contains independently
@@ -264,22 +272,24 @@ function lineNumber(line, canComment) {
   if (number instanceof HTMLButtonElement) {
     number.type = "button";
     number.tabIndex = -1;
-    number.setAttribute("aria-label", `Comment on ${lineLabel(line)}`);
+    number.setAttribute("aria-label", `Comment on ${gutterLabel(line)}`);
     number.setAttribute(LINE_KEY, diffDatumKey(line));
   }
   // Two cells, the old file's number and the new file's, as a unified diff reads: one
   // column holding whichever number a row has would mix the two files' counts, which
-  // drift apart once a hunk adds or removes lines.
+  // drift apart once a hunk adds or removes lines. A space stands between the cells,
+  // where the gutter's grid draws nothing, so the numbers read as two words.
   number.toggleAttribute("data-lf-echo", true);
+  /** @param {number | string} value */
+  const cell = (value) => {
+    const span = document.createElement("span");
+    span.textContent = String(value);
+    return span;
+  };
   number.replaceChildren(
-    ...[
-      line.side === "new" ? "" : line.oldLine,
-      line.side === "old" ? "" : line.newLine,
-    ].map((value) => {
-      const cell = document.createElement("span");
-      cell.textContent = String(value);
-      return cell;
-    }),
+    cell(line.side === "new" ? "" : line.oldLine),
+    " ",
+    cell(line.side === "old" ? "" : line.newLine),
   );
   return number;
 }
@@ -769,7 +779,7 @@ function fileRecord(file, section, parsePatchFiles) {
       0,
       section.search(/^--- /m) < 0 ? section.length : section.search(/^--- /m),
     );
-    const metadata = parsePatchFiles(header, undefined, true).flatMap(
+    const metadata = parsePatchFiles(header, { throwOnError: true }).flatMap(
       (patch) => patch.files,
     )[0];
     if (metadata?.prevName !== file.prevName || metadata?.name !== file.name)
@@ -825,7 +835,11 @@ async function renderFile(file, overflow) {
   });
   const highlighted = await renderer.asyncRender({ ...file, lang: lang ?? "text" });
   const template = document.createElement("template");
-  template.innerHTML = renderHTML(highlighted.unifiedContentAST);
+  template.innerHTML = renderHTML(
+    (highlighted.columns.unified ?? []).map(
+      (/** @type {import("@pierre/diffs").RowSpec} */ row) => row.content,
+    ),
+  );
   const content = template.content;
   content.querySelector("svg[data-icon-sprite]")?.remove();
   for (const separator of content.querySelectorAll(
@@ -877,7 +891,10 @@ function replacementFile(files, parseDiffFromFile) {
     throw new Error(`unified diff repeats file path ${files[0].name}`);
   const hunkCount = Number(files.some((file) => file.record.hunkCount > 0));
   // A different file type consumes the old object and produces the new one, even
-  // when both carry identical text. The maintained comparator keeps that meaning.
+  // when both carry identical text. jsdiff's comparator keeps that meaning. Pierre
+  // passes it on to jsdiff, though its options type lists only @pierre/patches' keys.
+  /** @type {import("@pierre/diffs").ParseDiffOptions & import("diff").CreatePatchOptionsNonabortable} */
+  const everyLineChanges = { preferredDiffLib: "jsdiff", comparator: () => false };
   /** @param {ParsedFile} file @param {readonly string[]} lines */
   const side = (file, lines) =>
     file.record.binary
@@ -890,7 +907,7 @@ function replacementFile(files, parseDiffFromFile) {
     ? parseDiffFromFile(
         side(deleted, deleted.deletionLines),
         side(added, added.additionLines),
-        { comparator: () => false },
+        everyLineChanges,
         true,
       )
     : { ...added, hunks: [] };
@@ -915,7 +932,7 @@ function replacementFile(files, parseDiffFromFile) {
 /** @param {string} source @returns {Promise<ParsedFile[]>} */
 async function parsedFiles(source) {
   const { parsePatchFiles, parseDiffFromFile } = await parse();
-  const files = parsePatchFiles(source, undefined, true).flatMap(
+  const files = parsePatchFiles(source, { throwOnError: true }).flatMap(
     (patch) => patch.files,
   );
   const sections = source

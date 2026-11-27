@@ -1,3 +1,4 @@
+// Compiled from placement.ts by build/typescript.mjs; edit that file.
 /* Placement for threads: the page's order, which the walks and the marks share, and
    the part of the page a thing stands in (`partOver`).
 
@@ -31,6 +32,7 @@ import { overIn, upFrom } from "../../lib/shadow-tree.js";
 import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 import { kept } from "../../state/kept.js";
+
 // ---------- where a thread stands in the page's order ----------
 // The `t` walk steps through threads in the page's order, not the log's. A page is a
 // document with a beginning and an end, and the user walks the threads the way they
@@ -65,22 +67,10 @@ import { kept } from "../../state/kept.js";
 // inside one widget keep their order among themselves. A place in no tree at all — an
 // element a version activation has replaced — is no place, which is the same answer an
 // anchor that resolves nowhere gets.
-/** @typedef {(id: string) => {place: Element | null} | null | undefined} PlacedAt */
+
 /** Where anchor placement puts a thread, a saved draft or the comment being composed
- * (annotations/anchor-placement.js), as the readers it is handed to read it.
- * @typedef {ReturnType<typeof import("./state.js").threadList>[number]} Thread
- * @typedef {import("../../../types/contract.js").CompleteUnion<import("../../readings/resolved-target.js").ResolvedTarget & {message?: string}>} ResolvedTarget
- * @typedef {ResolvedTarget & {messageTarget: ReturnType<typeof import("./messages.js").messageHolding>,
- * point: Element | null, pointRow: string | null, pointWords: string | null}} Placement
- * @typedef {ReturnType<typeof import("../../readings/anchor-resolution.js").resolveAnchor>} PendingPlacement
- * @typedef {{open: boolean, anchor: import("../../../types/domain.js").Anchor | null, about: string | null,
- * drawing: import("../../../types/domain.js").DraftDrawing | null}} ThreadDraft
- * @typedef {{readings: {thread: Thread, placement: Placement}[],
- * draft: ThreadDraft & {resolved: PendingPlacement}, action: PendingPlacement}} PlacementReading
- * @typedef {{placedAt: (id: string | null | undefined) => Placement | undefined,
- * savedAt: (context: string) => Placement | undefined, pendingAt: () => PendingPlacement}} ThreadPlacements
- */
-/** @param {Pick<import("../../../types/domain.js").Thread, "id" | "anchor">} t @param {PlacedAt} placedAt */
+ * (annotations/anchor-placement.js), as the readers it is handed to read it. */
+
 export const threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
   return place?.isConnected && !leafSurface(place) ? place : null;
@@ -95,10 +85,8 @@ export const threadPlace = (t, placedAt) => {
 // declared shadow trees as they draw, a slot's assignment and not its fallback, and none
 // of Leaf's chrome. Each stands as long as its document's reading does
 // (`documentOutline`).
-/** @param {Node} node */
 const outlineOf = (node) => documentOutline(authoredScope(node));
-/** The heading after `heading` in its document's outline, or null.
- * @param {Element} heading */
+/** The heading after `heading` in its document's outline, or null. */
 export function headingAfter(heading) {
   const { outline, at } = outlineOf(heading);
   const index = at.get(heading);
@@ -143,7 +131,6 @@ export function headingAfter(heading) {
 // The reading records what stood over each element as its walk reached it, so a call
 // costs the node's depth: On Me asks it of every item it lists. A node the reading never
 // reached, as one the page does not draw, stands as the nearest element it reached does.
-/** @param {Element} node */
 export function partOver(node) {
   const { over } = outlineOf(node);
   let state = over.get(node);
@@ -168,7 +155,6 @@ export function partOver(node) {
 }
 // Whether the contract's name for `container` names what it holds: short of the document
 // it stands in and the page's column, never a slot, and never what Leaf generated there.
-/** @param {Element} container @param {Element} scope */
 const namesWhatItHolds = (container, scope) =>
   container !== scope &&
   container.localName !== "slot" &&
@@ -180,16 +166,13 @@ const namesWhatItHolds = (container, scope) =>
 // `above`), else the part over its container, as a reader of the page passes through
 // them to reach the node. A heading's own trail leaves it out. Each step costs what
 // `partOver` does, so a trail costs its length times that.
-/** @param {Element} node @returns {Element[]} */
 export function partTrail(node) {
-  /** @param {Element} at @returns {Element | null} */
   const over = (at) => {
     const { above } = outlineOf(at);
     if (!above.has(at)) return partOver(at);
     const container = headed(at);
     return above.get(at) ?? (container ? partOver(container) : null);
   };
-  /** @type {Element[]} */
   const trail = [];
   for (let part = over(node); part; part = over(part)) trail.unshift(part);
   return trail;
@@ -213,17 +196,12 @@ export function partTrail(node) {
 // whenever any thread's contents change, its turns included; the agent's name the
 // turns are said in; and the page's reading, since an anchor names an element of the
 // page.
-/** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations */
 const gatherConversations = kept(() => {
   const { collection, bySection } = threadState();
   const agent = agentName();
-  /** @type {Map<Element, Conversations>} */
   const inside = new Map();
-  /** @type {Map<Element, Conversations>} */
   const headed = new Map();
-  /** @type {Map<Element, Element | null>} */
   const parents = new Map();
-  /** @param {Map<Element, Conversations>} map @param {Element} at @param {Conversations} these */
   const add = (map, at, these) => {
     const held = map.get(at);
     map.set(
@@ -244,16 +222,14 @@ const gatherConversations = kept(() => {
           .map((thread) => threadAttention(thread, agent))
           .find((attention) => attention?.turn === "user") ?? null,
     };
-    for (let at = /** @type {Element | null} */ (element); at; at = upFrom(at))
-      add(inside, at, these);
+    for (let at = element; at; at = upFrom(at)) add(inside, at, these);
     for (let at = headingOf(element); at; at = parentHeading(at, parents))
       add(headed, at, these);
   }
   return { inside, headed };
 });
 /** The open conversations about `place`: for a heading, about the part it heads; for
- * any other element, about it or anything it holds. Null where there are none.
- * @param {Element} place */
+ * any other element, about it or anything it holds. Null where there are none. */
 export function conversationsAbout(place) {
   const { inside, headed } = gatherConversations();
   return (place.matches(HEADING) ? headed : inside).get(place) ?? null;
@@ -263,13 +239,11 @@ export function conversationsAbout(place) {
 // around it that a heading titles (`titlingHeading`). So a thread about a question is
 // its heading's, though `partOver` puts the question in the part around it, and a
 // sub-heading inside a titled section still heads what follows it there.
-/** @param {Element} element @returns {Element | null} */
 function headingOf(element) {
   let over = element.matches(HEADING) ? element : partOver(element);
   while (over && !over.matches(HEADING)) over = partOver(over);
-  /** @type {Element | null} */
   let titled = null;
-  for (let at = /** @type {Element | null} */ (element); at && !titled; at = upFrom(at))
+  for (let at = element; at && !titled; at = upFrom(at))
     titled = at.matches(HEADING) ? at : titlingHeading(at);
   if (!over || !titled) return over ?? titled;
   return over.compareDocumentPosition(titled) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -277,7 +251,6 @@ function headingOf(element) {
     : over;
 }
 // The heading whose part holds `heading`'s: the first heading over it at a higher level.
-/** @param {Element} heading @param {Map<Element, Element | null>} parents @returns {Element | null} */
 function parentHeading(heading, parents) {
   const known = parents.get(heading);
   if (known !== undefined) return known;
@@ -287,10 +260,8 @@ function parentHeading(heading, parents) {
   parents.set(heading, at);
   return at;
 }
-/** @param {Element} heading */
 const level = (heading) => Number(heading.localName.slice(1));
 
-/** @param {Element} target */
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 
 // A repeated outline subject needs the nearest named reading region to remain
@@ -300,12 +271,9 @@ const subjectLabel = (target) => addressableLabel(target) || addressableWord(tar
 // is repeated where another of `peers` in the page's outline has its label; the peers
 // are counted by label once, so each target's context costs one lookup rather than a
 // walk of the others, and a target outside the outline reads no label at all.
-/** @param {readonly Element[]} peers @returns {(target: Element) => string} */
 export function outlineContexts(peers) {
   const { at } = documentOutline(pageDocument());
-  /** @type {Map<Element, string>} */
   const labels = new Map();
-  /** @param {Element} target */
   const labelOf = (target) => {
     const kept = labels.get(target);
     if (kept !== undefined) return kept;
@@ -314,7 +282,6 @@ export function outlineContexts(peers) {
     return label;
   };
   const named = new Set(peers.filter((peer) => at.has(peer)));
-  /** @type {Map<string, number>} */
   const counted = new Map();
   for (const peer of named)
     counted.set(labelOf(peer), (counted.get(labelOf(peer)) ?? 0) + 1);
@@ -327,7 +294,6 @@ export function outlineContexts(peers) {
 
 // The name of the nearest region around a node that has one: a bounded block inside a
 // labelled pane is read as part of that pane.
-/** @param {Element} node */
 function regionLabel(node) {
   for (
     let region = readingRegionFor(node);

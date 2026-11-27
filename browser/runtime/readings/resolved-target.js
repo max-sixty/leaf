@@ -1,3 +1,4 @@
+// Compiled from resolved-target.ts by build/typescript.mjs; edit that file.
 /* The canonical result of resolving a durable anchor into the current document.
  *
  * An element is the semantic hit and travel target; its optional visual `surface` changes
@@ -13,15 +14,8 @@
 
 import { shownParts } from "../dom/geometry.js";
 import { renderedOrder } from "../lib/shadow-tree.js";
-import { rangeOf, segmentLines, segmentsBox } from "./passages.js";
+import { rangeOf, segmentLines, segmentsBox, segmentsIn } from "./passages.js";
 
-/** @typedef {{exact: boolean, status: "exact" | "fallback" | "outdated", datumElement: Element | null}} Resolution
- * @typedef {Resolution & {kind: "element", element: Element, place: Element, surface: Element | null, label: string | null}} ElementTarget
- * @typedef {Resolution & {kind: "passage", place: Element | null, segments: import("./passages.js").Segment[], ranges?: readonly Range[]}} PassageTarget
- * @typedef {Resolution & {kind: "message", message: string, place: null}} MessageTarget
- * @typedef {ElementTarget | PassageTarget | MessageTarget} ResolvedTarget */
-
-/** @param {{element: Element, place?: Element, surface?: Element | null, label?: string | null}} target @returns {ElementTarget} */
 export const resolvedElement = ({
   element,
   place = element,
@@ -38,7 +32,6 @@ export const resolvedElement = ({
   label,
 });
 
-/** @param {{place: Element | null, segments: import("./passages.js").Segment[]}} target @returns {PassageTarget} */
 export const resolvedPassage = ({ place, segments }) => ({
   exact: true,
   status: "exact",
@@ -48,7 +41,6 @@ export const resolvedPassage = ({ place, segments }) => ({
   segments,
 });
 
-/** @param {{message: string}} target @returns {MessageTarget} */
 export const resolvedInMessage = ({ message }) => ({
   exact: true,
   status: "exact",
@@ -58,7 +50,6 @@ export const resolvedInMessage = ({ message }) => ({
   place: null,
 });
 
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetElement = (resolved) =>
   resolved?.kind === "element" ? resolved.element : null;
 
@@ -68,7 +59,6 @@ export const targetElement = (resolved) =>
 // page's rendered order (lib/shadow-tree.js, `renderedOrder`, or the `renderedOrdering` a sort
 // of many passes), then, in one text node, by where each starts. Every list of the page's targets is in this order: the margin's entries
 // (features/annotation-inventory.js) and the threads a passage's mark names (annotations/anchor-paint.js).
-/** @param {ResolvedTarget | null | undefined} resolved @param {Element | null} [point] */
 export const readingPlace = (resolved, point = null) => {
   const [first] = targetSegments(resolved);
   return {
@@ -76,11 +66,6 @@ export const readingPlace = (resolved, point = null) => {
     start: first?.start ?? -1,
   };
 };
-/**
- * @param {ReturnType<typeof readingPlace>} left
- * @param {ReturnType<typeof readingPlace>} right
- * @param {(a: Node, b: Node) => number} [nodeOrder]
- */
 export function readingOrder(left, right, nodeOrder = renderedOrder) {
   if (left.node !== right.node) {
     if (!left.node) return 1;
@@ -91,21 +76,17 @@ export function readingOrder(left, right, nodeOrder = renderedOrder) {
   return left.start - right.start;
 }
 
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetSegments = (resolved) =>
   resolved?.kind === "passage" ? resolved.segments : [];
 
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetPlace = (resolved) => resolved?.place ?? null;
 
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const exactTarget = (resolved) =>
   resolved?.exact ? (targetElement(resolved) ?? targetPlace(resolved)) : null;
 
 // A passage's whole box decides visibility; its first nonempty fragment attaches
 // chrome. A later line can begin further left without changing that attachment.
 // Native selections and durable passages read the same Range geometry.
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetRange = (resolved) => {
   const segments = targetSegments(resolved);
   // A document revision can shorten a live text node before the next anchor reading.
@@ -122,7 +103,9 @@ export const targetRange = (resolved) => {
   return rangeOf(segments);
 };
 
-/** @param {Range} range */
+// A selection's geometry. It attaches to the first line its words are drawn in, as a
+// passage does (`passageGeometry`), never to the box of an element it starts across,
+// whose padding stands above and before that line.
 export function rangeGeometry(range) {
   return {
     range,
@@ -132,15 +115,15 @@ export function rangeGeometry(range) {
         : (range.startContainer.childNodes[range.startOffset] ?? range.startContainer),
     box: range.getBoundingClientRect(),
     attachment:
-      [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ??
-      null,
+      segmentLines(segmentsIn(range)).find(
+        (rect) => rect.width > 0 && rect.height > 0,
+      ) ?? null,
   };
 }
 
 // The boxes a passage's words are drawn in: each segment's own lines, never the box of
 // an element the passage runs across. None where a revision has changed its text since
 // it resolved (`targetRange`).
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const passageBoxes = (resolved) =>
   targetRange(resolved)
     ? segmentLines(targetSegments(resolved)).filter((box) => box.width && box.height)
@@ -149,7 +132,6 @@ export const passageBoxes = (resolved) =>
 // A passage's geometry as `rangeGeometry` gives a selection's, read from its segments'
 // own lines, which hold where one range across a shadow root collapses (passages.js,
 // `rangeOf`).
-/** @param {ResolvedTarget | null | undefined} resolved */
 export function passageGeometry(resolved) {
   const range = targetRange(resolved);
   const segments = targetSegments(resolved);
@@ -164,11 +146,9 @@ export function passageGeometry(resolved) {
   };
 }
 
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetSurface = (resolved) =>
   resolved?.kind === "element" ? resolved.surface : null;
 
-/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetParts = (resolved) => {
   const element = targetElement(resolved);
   if (!element) return [];

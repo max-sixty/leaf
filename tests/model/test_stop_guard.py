@@ -342,6 +342,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     note = {
@@ -886,11 +887,13 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     leases_model.release_lease(lease)
 
 
-def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
-    """A thread's messages share one reply, but a move on an obligation in one of its
-    messages owes an answer of its own, so each is started on its own id. Once their
-    replies settle them, a later move in the thread is offered no start in place of
-    its answer."""
+def test_a_threads_messages_and_moves_share_one_start_and_one_reply(
+    claimed, printing, capsys
+):
+    """A move on an obligation in a thread's message and the user's message after it
+    share the thread's one reply, addressed to the newer, so a start on that one
+    holds both. Once the reply settles them, a later message in the thread is
+    offered no start in place of its answer."""
     assert revisioning_model.activate_source(claimed).error is None
     lease = _watched(claimed)
     asked = append_carried_log_record(
@@ -914,6 +917,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
                 "widget": "thread-region",
                 "action": action,
                 "detail": detail,
+                "answered": True,
             },
         )
     follow = append_carried_log_record(
@@ -922,17 +926,13 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     reason = _stop(capsys)
-    assert done["id"] in reason and follow["id"] in reason
+    assert follow["id"] in reason and done["id"] not in reason
     assert _start(claimed, follow["id"], "checking West").exit_code == 0
-    reason = _stop(capsys)
-    assert done["id"] in reason and follow["id"] not in reason
-    assert _start(claimed, done["id"], "checking East").exit_code == 0
     assert _stop(capsys) is None
 
-    for move in (done, follow):
-        thread_model.post_reply(
-            claimed, {"parent": move["id"], "responds": move["id"]}, "East it is."
-        )
+    thread_model.post_reply(
+        claimed, {"parent": follow["id"], "responds": follow["id"]}, "East, and West."
+    )
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
@@ -1145,6 +1145,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
             "widget": "note",
             "action": "edit",
             "detail": {"value": "Green room."},
+            # A draft says words stand in it, whether or not it asks the user.
+            "answered": True,
         },
     )
     edited = state_json(claimed)
@@ -1171,6 +1173,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
+            "answered": True,
         },
     )
     state = state_json(claimed)
@@ -1228,9 +1231,9 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
     )
     (claimed / "index.html").write_text(source)
     publish(claimed)
-    for action, detail in [
-        ("add", {"option": "choice-option-mine", "text": "Neither yet."}),
-        ("choose", {"value": ["choice-option-mine"]}),
+    for action, detail, answered in [
+        ("add", {"option": "choice-option-mine", "text": "Neither yet."}, False),
+        ("choose", {"value": ["choice-option-mine"]}, True),
     ]:
         picked = append_command(
             claimed,
@@ -1241,6 +1244,7 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
                 "widget": "choice",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
     assert {"kind": "markup", "action": picked["id"]} in [
@@ -1270,10 +1274,10 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
-    for action, detail in [
-        ("add", {"option": "choice-option-mine", "text": "Both, staged."}),
-        ("choose", {"value": ["flag-first", "choice-option-mine"]}),
-        ("answer", {}),
+    for action, detail, answered in [
+        ("add", {"option": "choice-option-mine", "text": "Both, staged."}, False),
+        ("choose", {"value": ["flag-first", "choice-option-mine"]}, False),
+        ("answer", {}, True),
     ]:
         done = append_command(
             claimed,
@@ -1284,6 +1288,7 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
                 "widget": "choice",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
     [workflow] = owed(state_json(claimed))
@@ -1303,23 +1308,12 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     assert state_json(claimed)["workflows"] == []
 
 
-@pytest.mark.parametrize("declared", ["shipped", "done-only"])
-def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
+def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
     """A multiple-choice obligation finishes with Done. Until then a tick is the user's
     own unfinished answer: it is not agent work, the panel does not count it as an
     update waiting, no delivery is prepared, and Stop does not
     hold the turn. Done hands the obligation over, and the answer it owes is a version.
-
-    The tick is held because it is a move on a widget whose obligation stands open, not
-    because `choose` happens to answer some other group: a layer answering the
-    group only by its Done holds the tick the same way."""
-    if declared == "done-only":
-        declare_on_page(
-            claimed,
-            lambda registry: registry["lf-options"]["awaits"].update(
-                answered={"answer": {}}
-            ),
-        )
+    The tick is held because the group says its question stands open."""
     source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -1333,6 +1327,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": False,
         },
     )
     ticked = state_json(claimed)
@@ -1357,6 +1352,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
             "widget": "choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     finished = state_json(claimed)
@@ -1374,7 +1370,7 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     page_dir, where
 ):
     """A move leaving cards queued keeps the obligation on the user, and completing the
-    queue owes every moved card, not just the final one."""
+    queue hands over every moved card, not just the final one."""
     declare_on_page(
         page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
@@ -1411,7 +1407,7 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
             },
         )
 
-    def sort(card, rank):
+    def sort(card, rank, emptied=False):
         return append_command(
             page_dir,
             {
@@ -1421,6 +1417,8 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
                 "widget": "triage",
                 "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
+                # The queue says it is answered once its Queued column is empty.
+                "answered": emptied,
             },
         )
 
@@ -1430,11 +1428,13 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     assert sorting["workflows"] == []
     assert [item["widget"] for item in obligations_on_user(sorting)] == ["triage"]
 
-    sort("card-c", "w")
+    sort("card-c", "w", emptied=True)
     finished = state_json(page_dir)
     assert obligations_on_user(finished) == []
-    assert sorted(item["coordinate"][1] for item in owed(finished)) == [
-        "card-a",
-        "card-b",
-        "card-c",
-    ]
+    moved = ["card-a", "card-b", "card-c"]
+    assert sorted(item["coordinate"][1] for item in finished["workflows"]) == moved
+    # On the page the version that writes each move in answers it; in a thread, the
+    # reply to the newest answers them all.
+    assert sorted(item["coordinate"][1] for item in owed(finished)) == (
+        moved if where == "page" else ["card-c"]
+    )

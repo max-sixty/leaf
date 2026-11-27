@@ -1,3 +1,4 @@
+// Compiled from primary-reader.ts by build/typescript.mjs; edit that file.
 /* The page's primary reader of Thread conversations: the one presentation, a
    package's or the floating panel's, that draws each thread in outlets it names
    (host/application.js, `attachPresentation`). */
@@ -53,31 +54,14 @@ import { turns } from "../../state/thread/model.js";
    thread part as a card's does, or where its nomination stands it; among message parts
    it stands at the end of the first part's head, in room every such head keeps for it,
    so news arriving moves none of the head's words. */
-/** @typedef {Pick<ReturnType<typeof import("./state.js").readThreads>, "phase" | "threads">} PrimaryCollection */
-/** @typedef {import("./thread-card.js").ThreadOutlets & {drawn?: () => unknown}} ThreadOptions */
-/** @typedef {{signal: AbortSignal,
- * thread: (key: string, outlet: Element, options?: ThreadOptions) => void,
- * message: (key: string, message: string, outlet: Element) => void,
- * reply: (key: string, outlet: Element, options?: import("./replies.js").ReplyOptions) => void}} NominationParts */
-/** @typedef {(collection: PrimaryCollection, parts: NominationParts) => unknown} PrimaryRender */
-/** @typedef {ReturnType<typeof newsNotice>} PartNotice */
-/** @typedef {{node: HTMLDivElement, notice: PartNotice, dispose: () => void}} PartBase */
-/** @typedef {PartBase & {kind: "message", message: MessageView, messageKey: string, reading: ReturnType<typeof messageReading>, draw: () => void}} MessagePart */
-/** @typedef {PartBase & {kind: "reply", reply: ReturnType<typeof createReplyView>}} ReplyPart */
-/** @typedef {ThreadView & {kind: "thread"}} WholePart */
-/** @typedef {WholePart | MessagePart | ReplyPart} RetainedPart */
-/** @typedef {{key: string, outlet: Element} & ({kind: "thread", message: null, options: ThreadOptions} | {kind: "reply", message: null, options: import("./replies.js").ReplyOptions} | {kind: "message", message: string, options: {}})} PartRequest */
-/** @typedef {PartRequest & {identity: string, thread: import("./thread-card.js").ThreadRecord}} Nomination */
+
 // The places a nomination names, with what stands in each: the part in its outlet, and
 // a whole thread's parts it draws apart in the places its options name
 // (thread-card.js, `ThreadOutlets`). Every place is held to what an outlet is: inside the
 // owner, connected, and reached through slots where it stands in a shadow tree.
-/** @param {PartRequest} item @returns {[Element, (view: RetainedPart) => Element][]} */
 const placesOf = (item) => {
-  /** @type {[Element, (view: RetainedPart) => Element][]} */
   const places = [[item.outlet, (view) => view.node]];
   if (item.kind !== "thread") return places;
-  /** @param {keyof ThreadView["apart"]} part @returns {(view: RetainedPart) => Element} */
   const apart = (part) => (view) =>
     view.kind === "thread" ? view.apart[part] : view.node;
   const { head, reply } = item.options;
@@ -87,12 +71,8 @@ const placesOf = (item) => {
   return places;
 };
 // What a part stands in its places: its own box, and a whole thread's boxes apart.
-/** @param {RetainedPart} view @returns {Element[]} */
 const boxesOf = (view) =>
   view.kind === "thread" ? [view.node, ...Object.values(view.apart)] : [view.node];
-/** @param {Element} owner @param {PrimaryRender} render
- * @param {import("./thread-card.js").ThreadCommands} commands @param {() => Promise<unknown>} update
- * @param {{answersAtOnce?: boolean, messagesAside?: boolean, onFailure?: () => void}} [options] */
 export function createPrimaryReader(
   owner,
   render,
@@ -107,15 +87,10 @@ export function createPrimaryReader(
   let failing = false;
   let failed = false;
   let generation = 0;
-  /** @type {AbortController | null} */
   let pending = null;
-  /** @type {Nomination[]} */
   let selected = [];
-  /** @type {Map<string, RetainedPart>} */
   const views = new Map();
-  /** @type {Map<string, RetainedPart[]>} */
   const destinations = new Map();
-  /** @type {Set<string>} */
   const nativeMessages = new Set();
   const held = new HeldNews(
     owner,
@@ -147,12 +122,10 @@ export function createPrimaryReader(
     },
     () => void update().catch(() => {}),
   );
-  /** @type {Map<string, import("./held-news.js").HeldThread>} */
   let shown = new Map();
   // The thread as a whole where the presentation draws one around its parts, as the
   // floating panel's view is a drawing of the thread its messages are drawn in
   // (selectors.js, `wholeThread`): what a keyboard landing on the thread stands on.
-  /** @param {readonly RetainedPart[]} parts */
   const drawingOf = (parts) => {
     const first = parts[0];
     if (!first) return null;
@@ -162,12 +135,8 @@ export function createPrimaryReader(
   // Each thread's rewrites over the message parts of it this reader draws
   // (`threadRewrites`): its messages in the thread's order, and its reply box. A whole
   // thread keeps its own.
-  /** @type {Map<string, ReturnType<typeof threadRewrites>>} */
   const rewrites = new Map();
-  /** @template {RetainedPart["kind"]} K @param {string} key @param {K} kind
-   * @returns {Extract<RetainedPart, {kind: K}>[]} */
   const partsOf = (key, kind) => {
-    /** @type {Extract<RetainedPart, {kind: K}>[]} */
     const parts = [];
     for (const item of selected) {
       const view = views.get(item.identity);
@@ -175,13 +144,10 @@ export function createPrimaryReader(
     }
     return parts;
   };
-  /** @template {RetainedPart["kind"]} K @param {RetainedPart} view @param {K} kind
-   * @returns {view is Extract<RetainedPart, {kind: K}>} */
   const isKind = (view, kind) => view.kind === kind;
   // The thread's reply box as the parts drawn stand, in a reply part or where the
   // presentation around them declares it. A message part holds none of its own and
   // declares this one as its reply.
-  /** @param {string} key */
   const replyOf = (key) => {
     for (const view of destinations.get(key) ?? []) {
       if (view.kind === "message") continue;
@@ -190,7 +156,6 @@ export function createPrimaryReader(
     }
     return null;
   };
-  /** @param {string} key */
   const rewritesOf = (key) => {
     let rewrite = rewrites.get(key);
     if (!rewrite) {
@@ -227,17 +192,14 @@ export function createPrimaryReader(
     return rewrite;
   };
   // The slots each box a part stands reaches its place through, by the box.
-  /** @type {Map<Element, HTMLSlotElement[]>} */
   const slotsOf = new Map();
   // Takes a box out of its place, with the slots it stood in.
-  /** @param {Element} box */
   const unplace = (box) => {
     box.remove();
     for (const slot of slotsOf.get(box) ?? []) slot.remove();
     slotsOf.delete(box);
   };
   // Every place the nominations name stands inside the connected owner.
-  /** @param {readonly PartRequest[]} items */
   const checkPlaces = (items) => {
     for (const item of items)
       for (const [place] of placesOf(item))
@@ -256,7 +218,6 @@ export function createPrimaryReader(
     nativeMessages.clear();
     rewrites.clear();
   };
-  /** @param {PrimaryCollection} collection @param {Promise<unknown>} cancelled */
   function prepare(collection, cancelled) {
     const current = ++generation;
     failing = false;
@@ -276,10 +237,8 @@ export function createPrimaryReader(
       phase: collection.phase,
       threads: Object.freeze([...byKey.values()]),
     });
-    /** @type {Nomination[]} */
     const nominations = [];
     let accepting = true;
-    /** @param {PartRequest} request */
     const nominate = (request) => {
       const { kind, key, message } = request;
       if (!accepting || abort.signal.aborted)
@@ -290,7 +249,6 @@ export function createPrimaryReader(
         throw new Error(`Thread ${key} has no turn ${message}`);
       const identity = JSON.stringify([kind, key, message]);
       // A whole thread draws every part of it.
-      /** @param {PartRequest["kind"]} a */
       const covers = (a) => a === "thread";
       if (
         nominations.some(
@@ -382,13 +340,11 @@ export function createPrimaryReader(
       throw error;
     }
   }
-  /** @param {import("./thread-card.js").ThreadRecord} thread @param {string} key */
   const messageSource = (thread, key) => {
     const message = thread.msgs.find((entry) => entry.key === key);
     if (!message) throw new Error(`Thread ${thread.key} has no message ${key}`);
     return message;
   };
-  /** @param {import("./thread-card.js").ThreadRecord} thread @param {string} key */
   const messageModel = (thread, key) => {
     const message = messageSource(thread, key);
     return messageReading(message, {
@@ -396,7 +352,6 @@ export function createPrimaryReader(
       workflows: message.workflows,
     });
   };
-  /** @param {number} current @param {() => void} drawn */
   async function paint(current, drawn) {
     if (!active || generation !== current) return;
     checkPlaces(selected);
@@ -410,18 +365,14 @@ export function createPrimaryReader(
         views.delete(key);
       }
     destinations.clear();
-    /** @type {Map<Element, Element[]>} */
     const children = new Map();
-    /** @param {Element} parent @param {Element} node */
     const place = (parent, node) => {
       const nodes = children.get(parent) ?? [];
       nodes.push(node);
       children.set(parent, nodes);
     };
-    /** @type {{item: Nomination, view: RetainedPart, reading: import("./held-news.js").HeldThread}[]} */
     const drawing = [];
     // The boxes this pass places.
-    /** @type {Set<Element>} */
     const placed = new Set();
     for (const item of selected) {
       const reading = shown.get(item.key);
@@ -429,11 +380,9 @@ export function createPrimaryReader(
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread") {
-          /** @type {WholePart} */
-          const whole = Object.assign(
-            new ThreadView(commands, reading),
-            /** @satisfies {{kind: "thread"}} */ ({ kind: "thread" }),
-          );
+          const whole = Object.assign(new ThreadView(commands, reading), {
+            kind: "thread",
+          });
           view = whole;
         } else {
           const node = document.createElement("div");
@@ -464,7 +413,6 @@ export function createPrimaryReader(
               whole: (part) => part,
               controls: () => null,
             });
-            /** @type {MessagePart} */
             const part = {
               kind: "message",
               node,
@@ -619,8 +567,6 @@ export function createPrimaryReader(
       .map((descriptor) => descriptor.id);
     await whenWidgetsPresented(widgets);
   }
-  /** @param {string} key
-   * @param {{message?: string | null, part?: import("./destination.js").ThreadPart}} [options] */
   // A message drawn as no row of its own, as a later reaction or a step of the agent's
   // work, is reached at its thread (focus.js, `threadFocusDestination`).
   const destination = (key, { message = null, part = null } = {}) => {
@@ -646,9 +592,8 @@ export function createPrimaryReader(
     release: () => held.release(),
     prepare,
     destination,
-    ownsMessage: /** @param {{id: string}} message */ (message) =>
-      owner.isConnected && nativeMessages.has(message.id),
-    ownsDestination: /** @param {Element} node */ (node) =>
+    ownsMessage: (message) => owner.isConnected && nativeMessages.has(message.id),
+    ownsDestination: (node) =>
       [...views.values()].some((view) =>
         boxesOf(view).some((box) => under(node, box)),
       ) ||

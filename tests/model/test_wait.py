@@ -802,7 +802,12 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     watch.join(timeout=STATED_TIMEOUT)
     assert not watch.is_alive(), "the watch never woke on the comment"
     [woke] = outcome
-    assert woke.startswith(f"{claimed} has new input")
+    # The wake quotes the user, since auto mode's classifier reads this line and
+    # not the delivery the prompt hook carries.
+    assert woke == (
+        f"{claimed} has new input; Leaf's prompt hook puts it in your context with "
+        "this notification. The user wrote “after”"
+    )
 
     # A watch whose harness process has gone, as a retired background job's worker
     # leaves it, ends silently and lets the lease go. Input admitted while it held
@@ -815,7 +820,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "nudge",
-        lambda harness, page: nudged.append(page) or True,
+        lambda harness, page, quoted: nudged.append(page) or True,
     )
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     assert hooks_model.cmd_watch("claude-code", stop) is None

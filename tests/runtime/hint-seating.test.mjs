@@ -160,9 +160,7 @@ test("a chip with no seat beside its own target is withheld", () => {
   // Three pixels of a row show at the window's foot, under the panel's band.
   const panel = box(50, 760, 900, 40);
   const target = box(100, 797, 300, 3);
-  assert.deepEqual(seat([{ start: chip(90, 789), target }], { barriers: [panel] }), [
-    null,
-  ]);
+  assert.deepEqual(seat([{ start: chip(90, 789), target, barriers: [panel] }]), [null]);
 });
 
 test("a run of targets narrower than a key gets no chips, and a walk onto one shows its own", () => {

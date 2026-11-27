@@ -5,7 +5,7 @@ import math
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -13,7 +13,6 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
-from render_cases_layout import ring_faults, rings_drawn
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
@@ -51,6 +50,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
+from leaf_dev.rings import ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -664,10 +664,12 @@ AN_ASK_THEN_READING = leaf_page(
 
 def test_where_c_goes_shows_before_the_press(browser, serve):
     """On a target, the box stands beside it wearing `c`, in the field's own place, so
-    the press moves nothing. Before that, with the ask waiting, the panel's row offers
-    Next On Me and its `m` rather than Comment and `c`. The box at rest goes with the
-    focus that raised it and takes no Escape step: the field's Escape returns to the
-    target, and the target's lets go of everything."""
+    the press moves nothing. It stands over the margin entry it covers, the target's own
+    On Me entry included, though that entry rises at the user's location. Before that,
+    with the ask waiting, the panel's row offers Next On Me and its `m` rather than
+    Comment and `c`. The box at rest goes with the focus that raised it and takes no
+    Escape step: the field's Escape returns to the target, and the target's lets go of
+    everything."""
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, *ROOM_IN_THE_MARGIN)
     rest = page.locator(".lf-fab-rest")
@@ -682,6 +684,13 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     expect(rest.locator("kbd")).to_have_text("c")
     expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
     resting = rest.bounding_box()
+    entry = page.locator('.lf-margin-entry[data-lf-kinds~="on-me"]').bounding_box()
+    met = resting["y"], entry["y"] + entry["height"]
+    assert met[0] < met[1], f"the box {resting} stands clear of the entry {entry}"
+    assert page.evaluate(
+        "([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('.lf-fab-rest'))",
+        [entry["x"] + entry["width"] / 2, sum(met) / 2],
+    ), "the On Me entry stands over the box"
 
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
@@ -978,7 +987,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 <lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-group>
 <lf-group id="picked-decision" label="Should we keep it?"><h2 id="picked-decision-h">Should we keep it?</h2>
 <lf-options id="picked">
-  <lf-option id="pk-keep" label="Keep it" selected><strong>Keep it</strong> Settled by a pick.</lf-option>
+  <lf-option id="pk-keep" label="Keep it"><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop" label="Drop it"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-group>
 <p id="p2">A passage carrying
@@ -992,6 +1001,18 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     d = serve.page_dir
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picked",
+            "action": "choose",
+            "detail": {"value": ["pk-keep"]},
+            "answered": True,
+        },
+    )
     append_carried_log_record(
         d,
         {
@@ -1005,7 +1026,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     page = open_page(browser, url)
 
-    # The completion count includes every active obligation: the authored pick is complete;
+    # The completion count includes every active obligation: the logged pick is complete;
     # the seated obligation and suggestion are not.
     expect_obligations_answered(page, "1/3")
     # In On Me the seated obligation is the agent's: the comment in its seat is owed a reply,
@@ -1022,9 +1043,11 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     show_done(page)
     expect(card("picked")).to_have_attribute("data-lf-list", "done")
     page.locator(".lf-fp-filters button").nth(2).click()
+    # The agent owes the comment a reply, beside the update the logged pick hands it.
     agent_rows = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
-    expect(agent_rows).to_have_count(1)
-    expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
+    expect(
+        agent_rows.filter(has_text="Steel, unless the sealing is quick?")
+    ).to_have_count(1)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 

@@ -1430,7 +1430,7 @@
             "agent": { "type": "string" },
             "key": { "type": "string" },
             "html": {
-              "description": "An agent's message whose current Markdown holds HTML (`thread_context.thread_structure`), which the browser draws as markup.",
+              "description": "An agent's message whose current Markdown holds HTML (`events.thread_structure`), which the browser draws as markup.",
               "const": true
             },
             "content_version": { "type": "string" },

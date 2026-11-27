@@ -2154,8 +2154,14 @@ def panel_settled(page, open=True, view=None):
     `leaves`). The panel stands over the page, so opening or closing a view moves
     nothing else; its own clip and fade are the one motion, finished rather than waited
     out, for the reason `scroll_settled` gives a scroll: a test holding the clock still
-    would otherwise wait forever. An occluded child gets no animation frames, so a
-    native timer polls the same reading there."""
+    would otherwise wait forever. The box's motion starts only in the rendering update
+    after its layout changes, when its size delivery reads the change
+    (dom/box-motion.js), and until that update a motion not yet started looks the same
+    as a finished one. So the wait also holds until the runtime reads the rendering the
+    change started as settled (`updatesSettled`, runtime/base/rendering.js), which
+    takes that update and a quiet one after it. An occluded child gets no animation
+    frames and reads as settled at once, so a native timer polls the same reading
+    there."""
     page.wait_for_function(
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
@@ -2169,8 +2175,9 @@ def panel_settled(page, open=True, view=None):
           for (const move of moving) move.finish();
           const shown = host.dataset.lfOpen ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
-            && !host.querySelector('.lf-fp-view[data-lf-leaving]')
-            && [host, ground].every((n) => !finite(n).length);
+            && [host, ground].every((n) => !finite(n).length)
+            && document.querySelector('script[data-lf-entry]')
+              .lfRenderingState().updatesSettled;
         }""",
         arg=[open, view],
         polling=render_checks_model.PROBE_POLL_MS,
@@ -3588,15 +3595,20 @@ window.SpeechRecognition = class {
 
 def word_point(locator, word):
     """The middle of `word` where the browser drew it, first inside `locator`, so a
-    gesture lands on letters rather than on blank space in a block's box."""
+    gesture lands on letters rather than on blank space in a block's box. Text that
+    draws no box, such as a `<style>`'s, holds no such word."""
     return locator.evaluate(
         """(node, sought) => {
       const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
-      const range = document.createRange(), start = word.data.indexOf(sought);
-      range.setStart(word, start); range.setEnd(word, start + sought.length);
-      const box = range.getBoundingClientRect();
-      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+      const range = document.createRange();
+      for (let word; (word = walker.nextNode()); ) {
+        const start = word.data.indexOf(sought);
+        if (start < 0) continue;
+        range.setStart(word, start); range.setEnd(word, start + sought.length);
+        const box = range.getBoundingClientRect();
+        if (box.width) return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+      }
+      throw new Error(`no drawn ${sought}`);
     }""",
         word,
     )

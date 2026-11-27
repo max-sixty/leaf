@@ -269,10 +269,11 @@ test("placement keeps a range over a passage's words, a thread's and the draft's
   read();
   assert.equal(placement.placedAt("t").ranges[0], placed);
   assert.equal(placement.pendingAt().ranges[0], drafted);
-  // Words taken out of the passage itself leave nothing to place.
+  // Words taken out of the passage itself leave the draft on what held them.
   const words = /** @type {Text} */ (document.getElementById("b")?.firstChild);
   words.data = "Both exports run.";
-  assert.equal(placement.pendingAt(), null);
+  assert.equal(placement.pendingAt()?.status, "fallback");
+  assert.equal(placement.pendingAt()?.place, document.getElementById("b"));
   document.body.replaceChildren();
 });
 
@@ -338,7 +339,7 @@ test("placement's hearers never hear a saved draft as a thread", async () => {
     read([{ context: "kept", anchor: { section: "a", quote: "one file per tenant" } }]);
     const words = /** @type {Text} */ (document.getElementById("a")?.firstChild);
     words.data = "The nightly export keeps nothing.";
-    assert.equal(placement.savedAt("kept"), undefined);
+    assert.equal(placement.savedAt("kept")?.status, "fallback");
     read([]);
     await new Promise((done) => setTimeout(done, 0));
     assert.deepEqual(heard, []);

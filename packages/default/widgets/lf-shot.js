@@ -382,14 +382,17 @@ export class Shot extends HTMLElement {
         comparison.append(frame);
       }
       let dragged = false;
-      /** @param {Event} event */
-      const handleOf = (event) =>
+      /**
+       * @param {Event} event
+       * @param {string} part
+       */
+      const partOf = (event, part) =>
         event
           .composedPath()
           .find(
             (node) =>
               node instanceof Element &&
-              node.getAttribute("part")?.split(/\s+/).includes("handle"),
+              node.getAttribute("part")?.split(/\s+/).includes(part),
           );
       comparison.addEventListener("change", () => {
         dragged = true;
@@ -399,13 +402,15 @@ export class Shot extends HTMLElement {
       comparison.addEventListener("pointerdown", (event) => {
         if (!event.isPrimary || event.button !== 0) return;
         dragged = false;
-        const handle = handleOf(event);
+        const handle = partOf(event, "handle");
         if (handle instanceof HTMLElement || handle instanceof SVGElement)
           focusDestination(handle, "press");
       });
       comparison.addEventListener("click", (event) => {
-        // A modified click keeps its usual meaning.
-        if (dragged || handleOf(event) || !plainPress(event)) return;
+        // A modified click keeps its usual meaning. A press on the divider drags it,
+        // and Web Awesome captures that pointer on the divider, so the click that
+        // ends a press on the handle targets the divider rather than the handle.
+        if (dragged || partOf(event, "divider") || !plainPress(event)) return;
         event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });

@@ -31,10 +31,10 @@
 }
 /* The hand over a mark stands on the element under the pointer, painted from the hit
    test a press uses (annotations/anchor-paint.js, `paintHand`), so it shows only where a press
-   opens a thread: not over a control or field inside a marked element, which keeps its
-   own press; not on a mark in the chrome, which a press never opens; not while the
-   annotations are hidden. Armed, a press is the aim's, and where it takes an item the
-   aim's hand stands there too (chrome.css). */
+   opens a thread: on a passage's marked words, but not where they stand in a control or
+   field, which keeps its own press; not on a mark in the chrome, which a press never
+   opens; not while the annotations are hidden. Armed, a press is the aim's, and where
+   it takes an item the aim's hand stands there too (chrome.css). */
 [data-lf-over-mark] {
   cursor: pointer;
 }

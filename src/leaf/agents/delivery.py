@@ -56,6 +56,16 @@ writes as the same author. Once another session claims the page, the ref stops
 working, even after that session releases or ends; a restart of the owning
 session's process keeps it working. An update still owed then reaches the new
 owner in its next delivery, with a ref of its own (`deliverable`).
+
+Admission messages a session no watch follows for input nothing else will carry,
+once per ending of its turn (`nudge_unwatched`). That message, and the line a watch
+wakes its session with, quote what the user said or chose in the input
+(`quoted_input`). Claude Code's auto mode judges each gated tool call from the
+session's user turns and tool calls, which hold those lines but not the delivery a
+prompt hook adds, so without the quote it found no request of the user's behind an
+action they had picked on the page, and denied it. The quote carries the input
+whole, put on one line: a cut quote would hide from the classifier a condition or
+withdrawal the user's last words make.
 """
 
 import re
@@ -68,7 +78,9 @@ from typing import TYPE_CHECKING, Literal
 from xml.etree import ElementTree
 
 from leaf.base.findings import Finding
+from leaf.base.harness import claim_harness
 from leaf.base.json_block import json_block, read_json_block
+from leaf.base.leases import wait_is_live
 from leaf.base.refusals import Refused
 from leaf.base.service import may_receive
 from leaf.base.state import (
@@ -595,12 +607,13 @@ def batch_data(
     words and so can't tell which input ends one."""
     from leaf.agents.presence import read_work
     from leaf.base.leases import lane_up
+    from leaf.log.events import thread_structure
     from leaf.log.obligations import (
         settled_by_message,
         waiting_about,
         waiting_in_thread,
     )
-    from leaf.log.thread_context import batch_threads, thread_names, thread_structure
+    from leaf.log.thread_context import batch_threads, thread_names
     from leaf.records.event_facts import EventFacts
 
     events = transaction.events
@@ -1234,6 +1247,107 @@ def deliverable(
         and event["id"] not in held
     ]
     return sorted([*owed, *pending, *advice], key=lambda event: event["seq"])
+
+
+def nudge_unwatched(page: PageTransaction) -> None:
+    """Message the claimant of a page holding input nothing will carry, once per
+    ending of its turn.
+
+    Nothing carries it when no wait lease is held and the activity fold reads a
+    nudge as due (`activity.nudge_due`): the claimant takes no input, because its
+    turn was seen to end, closed by the Stop hook or interrupted as its harness's
+    record says. Each ending gets one nudge per page, named by the claim's turn
+    and the stamp that ended or last renewed it, so a user ticking three boxes queues
+    one turn or one approval rather than three, while a turn interrupted again after
+    a new prompt is messaged again. The claimant's harness decides whether its
+    session can be reached at all and what to say; a harness whose watcher is a
+    process of its own has nowhere to put this and answers no.
+
+    Admission calls it, and so does a watch giving up its lease, and the page's
+    server once it reads a turn interrupted (`server_rows.nudge_interrupted`). It
+    runs under the page's lock, so the mark it leaves is exact: a local socket
+    accepts or refuses at once, and input after a refusal tries again."""
+    from leaf.agents.presence import claimant_reading, turn_ending
+    from leaf.records.activity import nudge_due
+
+    claim, page_dir = page.active_claim, page.page_dir
+    if not claim or wait_is_live(page_dir, claim["id"]):
+        return
+    present, turn = claimant_reading(page_dir, page.events)
+    mark = turn_ending(claim)
+    if (
+        nudge_due(present, turn)
+        and claim.get("messaged_ending") != mark
+        and (harness := claim_harness(claim)) is not None
+        and harness.nudge(page_dir, lambda: unwatched_input(page))
+    ):
+        page.note_messaged(mark)
+
+
+def unwatched_input(page: PageTransaction) -> str:
+    """What the user said or chose in the input a nudge carries, the input a watch
+    would wake the session for (`wake_inputs`), quoted
+    (`quoted_input`)."""
+    from leaf.agents.presence import read_work
+
+    work = read_work(page.page_dir, page.events)
+    inputs = wake_inputs(deliverable(page, work), work)
+    return quoted_input(page.page_dir, page.events, inputs)
+
+
+def quoted_input(page_dir: Path, events: list[dict], inputs: list[dict]) -> str:
+    """The user's own words and picks among `inputs`, quoted for the line that wakes
+    their session, or "" where they hold none. Each quote is the delivery's own fact
+    (`event_facts`): the text of the user's message or rewrite, or what the elements
+    a gesture names say (`says`).
+
+    A gesture is quoted only where it answers its widget's question
+    (`meaning.answer`), as a pick does, and so is its undo: the words of the
+    elements another gesture names, such as a card moved between columns, would
+    read as a pick of that card's words."""
+    from leaf.records.event_facts import EventFacts
+
+    by_id = {event["id"]: event for event in events}
+
+    def answers(event: dict) -> bool:
+        if event["kind"] == "undo":
+            event = by_id.get(event["undoes"], {})
+        return "answer" in (event.get("meaning") or {})
+
+    user = [
+        event
+        for event in inputs
+        if event.get("author") == "user" and (event.get("text") or answers(event))
+    ]
+    if not user:
+        return ""
+    facts = EventFacts(page_dir, events, _registry(page_dir))(user)
+    # In log order, so a pick, its undo and a second pick read in the order the
+    # user made them; consecutive inputs of one verb share a clause.
+    clauses: list[tuple[str, list[str]]] = []
+    for event in user:
+        if text := event.get("text"):
+            verb, words = "wrote", [text]
+        elif says := facts[event["id"]].get("says"):
+            verb = "took back" if event["kind"] == "undo" else "chose"
+            words = list(says.values())
+        else:
+            continue
+        if not clauses or clauses[-1][0] != verb:
+            clauses.append((verb, []))
+        clauses[-1][1].extend(f"“{_one_line(said)}”" for said in words)
+    quoted = "; ".join(f"the user {verb} {_listed(said)}" for verb, said in clauses)
+    return quoted[:1].upper() + quoted[1:]
+
+
+def _listed(items: list[str]) -> str:
+    """`items` as a list in a sentence: "a", "a and b", "a, b and c"."""
+    return " and ".join(filter(None, [", ".join(items[:-1]), items[-1]]))
+
+
+def _one_line(words: str) -> str:
+    """`words` on one line, whole."""
+    return " ".join(words.split())
 
 
 def wake_inputs(batch: list[dict], work: "WorkState") -> list[dict]:

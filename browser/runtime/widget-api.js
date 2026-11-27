@@ -1,3 +1,4 @@
+// Compiled from widget-api.ts by build/typescript.mjs; edit that file.
 /* The one helper surface behavior modules import. Capabilities come from their
    domain owners; optional hosts load when requested. Owners import one another,
    and leaf.js only boots.
@@ -24,7 +25,6 @@ import { deferredArrival } from "./readings/presentation.js";
 import { growthIsSeen } from "./dom/geometry.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
 export * from "./portable-api.js";
-export { widgetController } from "./host/widget-controller.js";
 
 // `elementById(address, from)`: the element an id, a widget's `id:key` or a fragment
 // names, in the message `from` was written in first, then on the page.
@@ -85,7 +85,6 @@ export { boundFile } from "./host/file-api.js";
 export { generate } from "./host/llm-api.js";
 export { connection } from "./host/http-api.js";
 export { draft } from "./records/drafts.js";
-export { layerFact } from "./state/registry.js";
 export { backgroundFlash, motion } from "./dom/motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
@@ -117,11 +116,7 @@ export { leafEditorView } from "./annotations/editor-view.js";
 // (lib/pending-task.js), read here in the caller's stack: the page's presentation
 // waits for it, or the gesture whose rendering showed the frame owns its fit. The host
 // says when that drawing is in (host/sample.js, `landed`).
-/** @param {Parameters<typeof import("./host/sample.js").mountSample>[0]} frame
- * @param {Parameters<typeof import("./host/sample.js").mountSample>[1]} options
- * @returns {Promise<ReturnType<typeof import("./host/sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
-  /** @type {PromiseWithResolvers<void> | null} */
   const landing =
     !options.window && growthIsSeen(frame) ? Promise.withResolvers() : null;
   if (landing) frame.dispatchEvent(new PendingTaskEvent(landing.promise));

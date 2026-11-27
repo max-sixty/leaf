@@ -47,28 +47,48 @@ const titlesName = () => !document.documentElement.hasAttribute("data-lf-interac
 // the pressability marker cannot disagree. Custom controls opt in (`pressable`) when
 // their host exposes the complete activation method that the go-to sequence can call,
 // `focus()` and `click()`.
+// The marks a press or box of controls wears, as attributes: what `offerElement` writes
+// on a node and what a view that builds its own elements, such as an Effect UI
+// component's, sets (`pressAttributes` for a worded press). `type` is a button's or
+// input's own type, where it has one; a button without one becomes `type="button"`.
+/** @param {string} localName @param {string} [cls]
+ *  @param {{type?: string | undefined, pressable?: boolean}} [options]
+ *  @returns {Record<string, string>} */
+export function offerAttributes(localName, cls, { type, pressable = false } = {}) {
+  const face = localName.includes("-") ? "" : " lf-ui-face";
+  const buttonType = localName === "button" ? (type ?? "button") : undefined;
+  return {
+    ...(localName === "button" && type === undefined && { type: "button" }),
+    class: `${cls ? `${cls} ` : ""}lf-ui${face}`,
+    "data-lf-gen": "1",
+    // Native summary is the browser's disclosure press, without a type property
+    // or a specialized HTML element class. Its offer must name that same control.
+    "data-lf-offer": pressable
+      ? localName
+      : (buttonType ??
+        (localName === "summary"
+          ? "summary"
+          : localName === "input" && (type === "checkbox" || type === "radio")
+            ? type
+            : "")),
+  };
+}
+// A button's or input's own type, which its marks follow.
+/** @param {Element} node */
+const ownType = (node) =>
+  node instanceof HTMLInputElement ||
+  (node instanceof HTMLButtonElement && node.hasAttribute("type"))
+    ? /** @type {HTMLInputElement | HTMLButtonElement} */ (node).type
+    : undefined;
+/** @param {Element} node @param {Record<string, string>} attributes */
+const writeAttributes = (node, attributes) => {
+  for (const [name, value] of Object.entries(attributes)) keeps(node, name, value);
+};
 /** @template {Element} T @param {T} node @param {string} [cls] @param {boolean} [pressable] @returns {T} */
 const offerElement = (node, cls, pressable = false) => {
-  if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
-    keeps(node, "type", "button");
-  const face = node.localName.includes("-") ? "" : " lf-ui-face";
-  keeps(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
-  keeps(node, "data-lf-gen", "1");
-  // Native summary is the browser's disclosure press, without a type property
-  // or a specialized HTML element class. Its offer must name that same control.
-  keeps(
+  writeAttributes(
     node,
-    "data-lf-offer",
-    pressable
-      ? node.localName
-      : node instanceof HTMLButtonElement ||
-          node.localName === "summary" ||
-          (node instanceof HTMLInputElement &&
-            ["checkbox", "radio"].includes(node.type))
-        ? node instanceof HTMLInputElement || node instanceof HTMLButtonElement
-          ? node.type
-          : node.localName
-        : "",
+    offerAttributes(node.localName, cls, { type: ownType(node), pressable }),
   );
   return node;
 };
@@ -98,16 +118,42 @@ export function offer(tag, cls, label, inputType, pressable = false) {
 // such as a template. A symbol or mark says it as the accessible name, which the preview
 // shows with the keys that press it on Leaf (annotations/preview.js), and off Leaf as the `title`
 // the browser's tooltip shows (`titlesName`).
-/** @template {Element} T @param {T} node @param {LeafActionRole} role
- * @param {string} [cls] @param {string} [label] @returns {T} */
-const roleElement = (node, role, cls, label) => {
-  offerElement(node, actionClass(role, cls));
+/** @param {string} localName @param {LeafActionRole} role @param {string} [cls]
+ *  @param {string} [label] @param {{type?: string | undefined, pressable?: boolean}} [options]
+ *  @returns {Record<string, string>} */
+const roleAttributes = (localName, role, cls, label, options) => {
+  const attributes = offerAttributes(localName, actionClass(role, cls), options);
   if (label !== undefined && (role === "symbol" || role === "mark")) {
-    keeps(node, "aria-label", label);
-    keeps(node, "title", titlesName() ? label : null);
+    attributes["aria-label"] = label;
+    if (titlesName()) attributes.title = label;
   }
+  return attributes;
+};
+/** @template {Element} T @param {T} node @param {LeafActionRole} role
+ * @param {string} [cls] @param {string} [label] @param {boolean} [pressable] @returns {T} */
+const roleElement = (node, role, cls, label, pressable = false) => {
+  writeAttributes(
+    node,
+    roleAttributes(node.localName, role, cls, label, {
+      type: ownType(node),
+      pressable,
+    }),
+  );
+  // On Leaf a symbol's name is no title, so one a writer left goes.
+  if (label !== undefined && (role === "symbol" || role === "mark") && !titlesName())
+    keeps(node, "title", null);
   return node;
 };
+// A worded press's marks as attributes, for a button a view builds itself, such as an
+// Effect UI component's (runtime/effect-widget.js): the template's `offeredAction` with the
+// words left to the view. A symbol or a mark draws its symbol into the node, so it
+// takes `offerActionElement` in a mount instead.
+/** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] */
+export function pressAttributes(role, cls, label) {
+  if (role === "symbol" || role === "mark")
+    throw new TypeError(`A ${role} draws its symbol: use offerActionElement`);
+  return roleAttributes("button", role, cls, label);
+}
 /** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] */
 const buildAction = (role, cls, label) => {
   const node = roleElement(document.createElement("button"), role, cls, label);
@@ -115,17 +161,20 @@ const buildAction = (role, cls, label) => {
     node.textContent = label;
   return node;
 };
+// A selectable offer's marks as attributes, for a span a view builds itself, such as an
+// Effect UI component's: what `selectableOffered` writes, with the label and the tab
+// stop left to the view.
+/** @param {string} role @param {string} [cls] @param {LeafActionRole} [face]
+ *  @returns {Record<string, string>} */
+export const selectableAttributes = (role, cls, face) => ({
+  role,
+  class: [face && actionClass(face), cls, "lf-ui lf-ui-face"].filter(Boolean).join(" "),
+  "data-lf-gen": "1",
+  "data-lf-offer": role,
+});
 /** @param {Element} node @param {string} role @param {string} [cls] @param {LeafActionRole} [face] */
-const selectableOfferElement = (node, role, cls, face) => {
-  keeps(node, "role", role);
-  keeps(
-    node,
-    "class",
-    [face && actionClass(face), cls, "lf-ui lf-ui-face"].filter(Boolean).join(" "),
-  );
-  keeps(node, "data-lf-gen", "1");
-  keeps(node, "data-lf-offer", role);
-};
+const selectableOfferElement = (node, role, cls, face) =>
+  writeAttributes(node, selectableAttributes(role, cls, face));
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium and Firefox begin a selection inside a button styled
@@ -215,15 +264,22 @@ export function offerAction(role, className, label, { action } = {}) {
   if (face.action !== undefined) drawAction(node, role, face.action);
   return node;
 }
-// The same face, symbol and name written onto an element the caller made.
+// The same face, symbol and name written onto an element the caller made, a custom
+// host among them, which opts into the press contract as `offer`'s does (`pressable`).
 /**
  * @template {Element} T
  * @param {T} node @param {LeafActionRole} role @param {string} [className]
- * @param {string} [label] @param {{action?: string}} [options]
+ * @param {string} [label] @param {{action?: string, pressable?: boolean}} [options]
  */
-export function offerActionElement(node, role, className, label, { action } = {}) {
+export function offerActionElement(
+  node,
+  role,
+  className,
+  label,
+  { action, pressable } = {},
+) {
   const face = actionFace(role, label, action);
-  roleElement(node, role, className, face.label);
+  roleElement(node, role, className, face.label, pressable);
   if (face.action !== undefined) drawAction(node, role, face.action);
   return node;
 }

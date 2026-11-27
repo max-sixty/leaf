@@ -1,3 +1,4 @@
+// Compiled from root-headers.ts by build/typescript.mjs; edit that file.
 /* The headers packages place over the document, each marked `data-lf-root-header`,
  * whose heights the root landing inset clears. CSS cannot sum heights across
  * independent header owners. Read the actual border boxes so typography and theme
@@ -21,7 +22,6 @@ import { removeRuntimeRootStyle, setRuntimeRootStyle } from "../state/root-state
 
 const ROOT_HEADER = "data-lf-root-header";
 
-/** @type {Set<Element>} */
 const rootHeaders = new Set();
 const paintRootHeaders = () => {
   const height = [...rootHeaders]

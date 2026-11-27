@@ -334,7 +334,7 @@ def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
     (`take_wait_lease`). One an older Leaf runs, such as a session's plugin
     loaded before an update, can neither read nor write a page this Leaf
     initialized, so it carries no input, and admission nudges the session past it
-    as though no watch ran (`presence.nudge_unwatched`)."""
+    as though no watch ran (`delivery.nudge_unwatched`)."""
     return lease_speaks_here(waiter_lease_path(page_dir, session_id))
 
 

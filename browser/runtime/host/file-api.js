@@ -1,3 +1,4 @@
+// Compiled from file-api.ts by build/typescript.mjs; edit that file.
 /* Explicitly bound files belong to the host filesystem, outside page event state.
    This transport keeps their addresses within the current page, including samples,
    and applies the same delivery-generation gate as Leaf's other HTTP consumers.
@@ -12,11 +13,9 @@ import { applicationState, readPart } from "../state/semantic-state.js";
 
 const live = readPart((root) => root.document.live);
 
-/** @param {string} binding */
 export function boundFile(binding) {
   const writable = () => !offlineInteractive && Boolean(live());
   const label = readPart((root) => root.authoritative?.files[binding]?.label ?? null);
-  /** @template T @param {RequestInit} [options] @returns {Promise<T>} */
   async function request(options = {}) {
     if (!writable()) throw new Error("File editing is available in live pages.");
     try {
@@ -57,7 +56,6 @@ export function boundFile(binding) {
     // The address the page's own server answers a file at by its path from the bound
     // file's folder, such as a picture a README names, `../` included, or null where
     // the page can't reach its server's files, as in an export.
-    /** @param {string} path */
     beside: (path) =>
       writable()
         ? pageUrl(
@@ -67,7 +65,6 @@ export function boundFile(binding) {
     // The server answers a binding the page lacks as no file, keeping the console
     // clean for a designed state; the editor still shows it as unavailable.
     read: async () => {
-      /** @type {import("../../types/contract.js").ServedFileSnapshot | null} */
       const file = await request();
       if (file === null) throw new Error(`No file is bound as '${binding}'.`);
       return file;
@@ -75,9 +72,9 @@ export function boundFile(binding) {
     // Resolves the saved file, or a refusal in the server's own words, which wrote
     // nothing, with the newer file where the file had moved on from `revision`. It
     // rejects where the page can't write, and where no such answer came, when the save
-    // may have reached the file.
-    /** @param {Pick<import("../../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
-     * @returns {Promise<import("../../types/contract.js").ServedFileSnapshot | {refused: string, current: import("../../types/contract.js").ServedFileSnapshot | null}>} */
+    // may have reached the file. A server fault (5xx) is no such answer: the server
+    // may have written the file and then failed, as a host that keeps the page
+    // elsewhere does when its store refuses the commit.
     save: async (snapshot) => {
       try {
         return await request({
@@ -87,7 +84,7 @@ export function boundFile(binding) {
         });
       } catch (error) {
         // `request` passes on a `RequestError` only where the server said why.
-        if (!(error instanceof RequestError)) throw error;
+        if (!(error instanceof RequestError) || error.status >= 500) throw error;
         return { refused: error.message, current: error.current ?? null };
       }
     },
@@ -95,7 +92,6 @@ export function boundFile(binding) {
     // binding, or a different run of its source, the tab's first answer included,
     // until the returned function stops it. A run says only that the file was
     // written; `read()`'s revision says whether its text moved.
-    /** @param {() => void} callback */
     watch(callback) {
       let subscribing = true;
       const stop = applicationState

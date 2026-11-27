@@ -1,0 +1,320 @@
+/**
+ * One immutable snapshot publication primitive, independent of Leaf's folds.
+ *
+ * The application owner prepares complete, validated serializable candidates and
+ * assigns their semantic epochs. Publication takes ownership of those values,
+ * shares every subtree equal to the current reading's, freezes them, and replaces one
+ * private signal synchronously. Producers leave Map/Set values extensible so this
+ * owner can secure their mutation methods in place. This module does not derive
+ * activity, reconcile receipts, or perform transport and rendering.
+ *
+ * Sharing is what makes identity mean "unchanged": a subtree whose contents did not
+ * move comes back as the object the last reading held. A fold hands back what it made
+ * last time for a step whose inputs held still (state/kept.js), and sharing a fold's result
+ * (`shareFold`) answers such a subtree from the last time it shared it, so a
+ * publication costs what it changed rather than what the page holds. So a selection is a `computed` compared by
+ * identity, and a reader subscribed to one part of the reading hears only that part
+ * change. A selection shares its own derived value against its previous one by the
+ * same rule, and one derived from another selection (`select`'s `from`) is derived
+ * again only when that one moves. Native Preact computed values and effects own
+ * dependency tracking. Derivations read their supplied immutable root, and subscriber
+ * callbacks run untracked so notifying a consumer cannot make its reads dependencies
+ * of the publisher.
+ *
+ * A reader of a collection still learns which of its members changed by walking the
+ * whole collection and comparing each member by identity, as the annotation inventory
+ * (`keptEntry`) and the margin's render (`drawnFrom`) do on every pass. Not yet built:
+ * sharing already decides member by member which ones it kept, and handing readers
+ * the members it didn't keep would let each reader work in proportion to the change.
+ */
+import { computed, signal, untracked } from "/vendor/signals-core.js";
+
+export type Immutable<T> =
+  T extends ReadonlyMap<infer K, infer V>
+    ? ReadonlyMap<Immutable<K>, Immutable<V>>
+    : T extends ReadonlySet<infer V>
+      ? ReadonlySet<Immutable<V>>
+      : T extends object
+        ? { readonly [K in keyof T]: Immutable<T[K]> }
+        : T;
+
+type ApplicationSnapshot = {
+  readonly document: unknown;
+  readonly authoritative: unknown;
+  readonly unresolved: readonly unknown[];
+  readonly effective: unknown;
+  readonly semanticEpoch: number;
+};
+
+type SnapshotReading<T> = {
+  read(): T;
+  subscribe(listener: (value: T, round?: object) => unknown): () => void;
+};
+
+// Publications take ownership of mutable producer values; previously secured
+// subtrees retain identity and need no further traversal.
+const secured: WeakSet<object> = new WeakSet();
+function immutable<T>(value: T): Immutable<T> {
+  if (value !== null && typeof value === "object" && !secured.has(value)) {
+    if (value instanceof Map) {
+      for (const [key, child] of value) {
+        immutable(key);
+        immutable(child);
+      }
+    } else if (value instanceof Set) {
+      for (const child of value) immutable(child);
+    } else {
+      for (const child of Object.values(value)) immutable(child);
+    }
+    if (value instanceof Map || value instanceof Set) {
+      const refuse = () => {
+        throw new TypeError("Application snapshots are read-only");
+      };
+      for (const name of value instanceof Map
+        ? ["set", "delete", "clear"]
+        : ["add", "delete", "clear"])
+        Object.defineProperty(value, name, { value: refuse });
+    }
+    Object.freeze(value);
+    secured.add(value);
+  }
+  return value as Immutable<T>;
+}
+
+const plain = (value: object) => {
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+};
+
+// Give `object` its own data property `key`, defined rather than assigned: a JSON field
+// named `__proto__` is an own property, and assigning it would set the object's
+// prototype instead.
+export const defineOwn = (
+  object: Record<string, unknown>,
+  key: string,
+  value: unknown,
+) =>
+  Object.defineProperty(object, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+
+/** `next`, with every subtree deep-equal to the matching one in `prior` replaced by
+ * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
+ * its entries in order, an object by its keys in any order); anything else by identity.
+ * An array's item that `prior`'s array holds at any index stays as it is, and a record
+ * of a list whose records are named is compared with `prior`'s record of its name
+ * rather than the one at its index (`pairedByName`). Returns `prior` itself when the
+ * two are equal, and `next` itself when nothing in it could be shared, so neither
+ * input is copied or mutated needlessly. */
+export const share = <T>(prior: unknown, next: T): T => shared(prior, next, null);
+
+// What each subtree of a fold's result was last shared as, where that was another
+// value: a subtree shared as itself was published as itself, so meeting it again it is
+// that value.
+const foldShared: WeakMap<object, unknown> = new WeakMap();
+
+/** `share` for a fold's result, which hands back unchanged the subtrees it made before
+ * from inputs that held still (state/kept.js). A subtree met again against the value it was
+ * shared as is answered at once, without its contents being read: the fold owns the
+ * subtree and never changes it, and the value it was shared as is frozen once
+ * published. Only the application's fold may pass a value here. */
+export const shareFold = <T>(prior: unknown, next: T): T =>
+  shared(prior, next, foldShared);
+
+/** @param kept what each subtree was last shared as */
+function shared<T>(prior: unknown, next: T, kept: WeakMap<object, unknown> | null): T {
+  if (Object.is(prior, next)) return next;
+  if (
+    prior === null ||
+    next === null ||
+    typeof prior !== "object" ||
+    typeof next !== "object"
+  )
+    return next;
+  if (kept?.get(next) === prior) return prior as T;
+  const result = compared(prior, next, kept);
+  if (kept && result !== next) kept.set(next, result);
+  return result;
+}
+
+// The names a list's records go by, by the rule the server's patch protocol names a
+// list's items by (src/leaf/serving/served_state/tail.py, `_named`): each record's `id` where
+// every record has a string one, else its event's `id` where every record holds an
+// event with one, and only where no two records share a name.
+const NAMINGS: readonly ((item: any) => unknown)[] = [
+  (item) => item?.id,
+  (item) => item?.event?.id,
+];
+// The records of `list` by the name each goes by under `name`, or null where one goes
+// by none or two by one.
+function byName(list: readonly unknown[], name: (item: unknown) => unknown) {
+  const named: Map<unknown, unknown> = new Map();
+  for (const item of list) {
+    const each = name(item);
+    if (typeof each !== "string" || named.has(each)) return null;
+    named.set(each, item);
+  }
+  return named;
+}
+// Whether two records go by one name.
+const sameName = (one: unknown, other: unknown) =>
+  NAMINGS.some((name) => {
+    const each = name(one);
+    return typeof each === "string" && each === name(other);
+  });
+// The record of `prior` a record of `next` goes by the same name as, where both lists
+// name their records by one rule, or null where they don't.
+function pairedByName(
+  prior: readonly unknown[],
+  next: readonly unknown[],
+): ((child: unknown) => unknown) | null {
+  const name = NAMINGS.find((each) => byName(next, each));
+  const before = name && byName(prior, name);
+  return name && before ? (child) => before.get(name(child)) : null;
+}
+
+/** `shared` for two objects not shared before. */
+function compared<T extends object>(
+  prior: object,
+  next: T,
+  kept: WeakMap<object, unknown> | null,
+): T {
+  if (Array.isArray(next)) {
+    if (!Array.isArray(prior)) return next;
+    // An item the prior list holds anywhere is already shared, so a list that gained,
+    // lost or reordered items compares each item that moved by identity, not contents.
+    // A record is compared with the prior list's record of its name where both lists
+    // name their records (`pairedByName`), else with the one at its index: the records
+    // after one a list gained or lost, such as an obligation leaving the user's, keep
+    // their identity rather than each being compared with its neighbour's and made
+    // anew. While every item stands for the prior one at its index, by identity or by
+    // name, an item past the prior list's end is one the list gained, with no record to
+    // compare it with, so sharing a log grown by an event builds no index of the log.
+    let held: Set<unknown> | undefined;
+    let pairs: ((child: unknown) => unknown) | null | undefined;
+    let moved = false;
+    const children = next.map((child, index) => {
+      const at = prior[index];
+      if (child === at || child === null || typeof child !== "object")
+        return shared(at, child, kept);
+      if (!moved && index >= prior.length) return child;
+      if ((held ??= new Set(prior)).has(child)) {
+        moved = true;
+        return child;
+      }
+      if (sameName(child, at)) return shared(at, child, kept);
+      moved = true;
+      if (pairs === undefined) pairs = pairedByName(prior, next);
+      return shared(pairs ? pairs(child) : at, child, kept);
+    });
+    if (
+      prior.length === next.length &&
+      children.every((child, index) => child === prior[index])
+    )
+      return prior as T;
+    return (
+      children.every((child, index) => child === next[index]) ? next : children
+    ) as T;
+  }
+  if (next instanceof Map) {
+    if (!(prior instanceof Map)) return next;
+    const priorKeys = [...prior.keys()];
+    const entries = [...next].map(
+      ([key, child]) =>
+        [key, prior.has(key) ? shared(prior.get(key), child, kept) : child] as const,
+    );
+    if (
+      priorKeys.length === entries.length &&
+      entries.every(
+        ([key, child], index) => key === priorKeys[index] && child === prior.get(key),
+      )
+    )
+      return prior as T;
+    return (
+      entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries)
+    ) as T;
+  }
+  if (next instanceof Set) {
+    if (!(prior instanceof Set)) return next;
+    const priorMembers = [...prior];
+    const members = [...next].map((child, index) =>
+      shared(priorMembers[index], child, kept),
+    );
+    if (
+      priorMembers.length === members.length &&
+      members.every((child, index) => child === priorMembers[index])
+    )
+      return prior as T;
+    return (members.every((child) => next.has(child)) ? next : new Set(members)) as T;
+  }
+  if (
+    !plain(next) ||
+    !plain(prior) ||
+    Array.isArray(prior) ||
+    prior instanceof Map ||
+    prior instanceof Set
+  )
+    return next;
+  const before = prior as Record<string, unknown>;
+  const after = next as Record<string, unknown>;
+  const keys = Object.keys(after);
+  const children = keys.map((key) =>
+    Object.hasOwn(before, key) ? shared(before[key], after[key], kept) : after[key],
+  );
+  if (
+    keys.length === Object.keys(before).length &&
+    keys.every(
+      (key, index) => Object.hasOwn(before, key) && children[index] === before[key],
+    )
+  )
+    return prior as T;
+  if (keys.every((key, index) => children[index] === after[key])) return next;
+  const copy: Record<string, unknown> =
+    Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
+  keys.forEach((key, index) => defineOwn(copy, key, children[index]));
+  return copy as T;
+}
+
+export function createApplicationPublisher<S extends ApplicationSnapshot>(initial: S) {
+  const root = signal(immutable(initial));
+  return Object.freeze({
+    read: (): Immutable<S> => root.value,
+    // The root without subscribing or collecting, for the owner computing what it
+    // publishes next.
+    peek: (): Immutable<S> => root.peek(),
+    publish(candidate: S): Immutable<S> {
+      root.value = immutable(share(root.peek(), candidate));
+      return root.peek();
+    },
+    /** A selection of the root, or of `from`, another selection, which it then reads in
+     * the root's place, so it is derived again only when that one moves rather than on
+     * every publication. */
+    select<T, F = Immutable<S>>(
+      derive: (snapshot: F) => T,
+      from?: SnapshotReading<F>,
+    ): SnapshotReading<Immutable<T>> {
+      let prior: Immutable<T>;
+      // What `derive` answered last, which `prior` holds shared. A derivation that
+      // answers it again, as one keeping its reading while its inputs hold still does,
+      // has changed nothing, so its contents are not compared again.
+      let derived: T | undefined;
+      const selected = computed(() => {
+        const value = from ? from.read() : (root.value as F);
+        return untracked(() => {
+          const next = derive(value);
+          if (next !== derived) prior = immutable(share(prior, (derived = next)));
+          return prior;
+        });
+      });
+      const reading: SnapshotReading<Immutable<T>> = Object.freeze({
+        read: (): Immutable<T> => selected.value,
+        subscribe: (listener: (value: Immutable<T>) => void) =>
+          selected.subscribe((value) => untracked(() => listener(value))),
+      });
+      return reading;
+    },
+  });
+}

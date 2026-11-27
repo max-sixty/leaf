@@ -1,3 +1,4 @@
+// Compiled from history.ts by build/typescript.mjs; edit that file.
 /* The entries this document adds to session history, and the traversals among them.
  *
  * Every same-document entry is a place the user can come Back to. `pushEntry` adds one;
@@ -7,7 +8,7 @@
  * commits it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
  * Only a route the user's gesture began on the entry being left adds an entry: a
- * followed link, a walk's step, a list's row, Undo's trip (features/anchor-travel.js,
+ * followed link, a walk's step, a list's row (features/anchor-travel.js,
  * `prepareNavigationStep`). A return, an arrival, a revision or news never adds one,
  * nor does a view opened, put away or handed to another reader where the user stands,
  * which renames the entry at most (thread views, thread/address.js): each opens its
@@ -202,25 +203,6 @@ import { pagePresented } from "../base/page-paint.js";
 import { aborted } from "../base/abort.js";
 import { reloadDocument } from "../transport/layer-client.js";
 
-/** @import { WorkingPlace } from "../base/held-place.js" */
-/** @typedef {NonNullable<WorkingPlace["ends"]>[number]} HeldSelectionEnd
- * @typedef {NonNullable<WorkingPlace["thread"]>} ThreadPlace
- * @typedef {import("../base/held-place.js").ThreadReading & {reader: "primary" | "card"}} ViewReading
- * @typedef {(Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null})
- * | NonNullable<ReturnType<typeof draftFocus>>} RecordFocus
- * @typedef {{anchor: import("../readings/anchor-resolution.js").CapturedAnchor, ends: [number, number]}
- * | {thread: string | null, message: string, quote: string, prefix?: string,
- * suffix?: string, ends: [number, number]}} RecordSelection
- * @typedef {{view: string, tab: "you" | "agent" | null, row: string | null,
- * scroll: number}} RecordList
- * @typedef {{page: import("../readings/reading-place.js").ReadingPlace | null,
- * focus: RecordFocus | null, selection: RecordSelection | null,
- * thread: ViewReading | null, list: RecordList | null}} EntryRecord
- * @typedef {import("./thread/address.js").OpenThread} OpenThread
- * @typedef {() => void | boolean | Promise<void | boolean>} TraversalHandler
- * @typedef {(url: URL, record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null | undefined} ThreadClaim
- */
-
 // The user's working place, read once as they step into the floating panel, whose
 // place-keeping commands hand it back. `focus` is the node they had focused, when the
 // reading comes after focus has left it. `thread` is the thread view that node stood
@@ -228,12 +210,10 @@ import { reloadDocument } from "../transport/layer-client.js";
 // passage from being silently retargeted by a live Range. pageRange shares the
 // declared-shadow reading used for commenting; the selection's direction also keeps its
 // working end.
-/** @param {Element | null} focus @returns {WorkingPlace} */
 export function readPlace(focus = deepFocus()) {
   const place = placeOf(focus);
   const selection = getSelection();
   const range = selection?.rangeCount ? pageRange(selection) : null;
-  /** @type {[HeldSelectionEnd, HeldSelectionEnd] | null} */
   let ends = null;
   if (range) {
     ends = [
@@ -253,7 +233,6 @@ export function readPlace(focus = deepFocus()) {
 
 // The thread view `focus` stands in: the whole of the thread drawn there, a margin
 // card's or the floating panel's, and where it was read to (thread/reply-landing.js).
-/** @param {Element | null} focus @returns {ThreadPlace | null} */
 function threadPlaceOf(focus) {
   const drawn = focus && closestAcross(focus, THREAD);
   if (!drawn || !inChrome(drawn)) return null;
@@ -271,7 +250,6 @@ function threadPlaceOf(focus) {
 // user returns to the node's page target, the same working place seen from the page.
 // The return settles once they are there, so a command acting on the returned place
 // awaits it.
-/** @param {WorkingPlace} checkpoint @returns {Promise<void>} */
 export async function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
   const thread = checkpoint.thread;
@@ -295,7 +273,6 @@ export async function returnPlace(checkpoint) {
 
 // Select between two ends, or none where either is gone. Editing the passage can remove
 // a saved end; the place returned to then supplies the next walk's origin.
-/** @param {[import("../dom/native-selection.js").SelectionEnd | null, import("../dom/native-selection.js").SelectionEnd | null] | null} ends */
 function returnSelection(ends) {
   const selection = getSelection();
   if (!selection) return;
@@ -303,7 +280,6 @@ function returnSelection(ends) {
   if (ends?.[0] && ends[1]) selectEnds(ends[0], ends[1]);
 }
 
-/** @param {HeldSelectionEnd} end @returns {import("../dom/native-selection.js").SelectionEnd | null} */
 function returnEnd([ref, offset]) {
   const node = ref.deref();
   if (!node || !drawn(node instanceof Element ? node : upFrom(node))) return null;
@@ -321,9 +297,8 @@ function returnEnd([ref, offset]) {
 // on from. Before the page's words can be anchored, the page has no place to read, and
 // its entry comes back where the browser restores it. While a restoration still owes the
 // user its record, that record is where they are (`beginRestoration`).
-/** @returns {EntryRecord} */
 function readRecord() {
-  if (restoring?.owes()) return /** @type {EntryRecord} */ (restoring.record);
+  if (restoring?.owes()) return restoring.record;
   const goal = scrollGoal(pageScroller);
   const top = pageScroller.scrollTop;
   const gliding = Math.abs(goal - top) >= 1;
@@ -349,7 +324,6 @@ function readRecord() {
 
 // `part`, with the open view's thread, which the entry's URL names, named as `null`
 // (the header).
-/** @template {object | null} T @param {T} part @param {OpenThread | null} open @returns {T} */
 const unnamed = (part, open) =>
   part && "thread" in part && part.thread === open?.id
     ? { ...part, thread: null }
@@ -362,12 +336,10 @@ const unnamed = (part, open) =>
 // that holds it (readings/passages.js, `spanIn`, `pointAt`). The quote alone can't hold the ends:
 // it trims the spaces at its edges and holds no caret, so a caret before a space came
 // back after it. Words selected in Leaf's own interface are no passage of the page.
-/** @returns {EntryRecord["selection"]} */
 function readSelection() {
   const selection = getSelection();
   const range = selection?.rangeCount ? pageRange(selection) : null;
   if (!selection || !range) return null;
-  /** @param {[number, number]} ends @returns {[number, number]} */
   const directed = (ends) =>
     selectionBackward(selection, range) ? [ends[1], ends[0]] : ends;
   const turn = closestAcross(range.startContainer, "[data-lf-message]");
@@ -392,8 +364,6 @@ function readSelection() {
 // ends. The message's head, whose age changes as time passes, is no part of that
 // reading, and a rewrite of the message finds the words again by the quote rules,
 // never by an offset among copies (`messageEnds`).
-/** @param {Element} turn @param {AbstractRange} range @param {(ends: [number, number]) => [number, number]} directed
- * @returns {RecordSelection | null} */
 function inMessage(turn, range, directed) {
   const drawing = closestAcross(turn, THREAD);
   const thread = drawing && drawnThreadId(wholeThread(drawing));
@@ -412,7 +382,6 @@ function inMessage(turn, range, directed) {
   return { thread, message, ...quoted, ends: directed([start - at, end - at]) };
 }
 // The words of the block holding `node`, as a range.
-/** @param {Node} node */
 function blockWords(node) {
   const block = blockAt(node);
   if (!block) return null;
@@ -423,9 +392,7 @@ function blockWords(node) {
 // Where a point stands in `reading`: its text's place there and its offset, or, for a
 // point between elements, the first character after it in its block, else the end of
 // the last before it; null for a point the reading doesn't hold.
-/** @param {import("../readings/passages.js").PageReading} reading @param {Node} node @param {number} offset */
 function readingIndex(reading, node, offset) {
-  /** @type {Node} */
   let text = node;
   let at = offset;
   if (!(node instanceof Text)) {
@@ -457,13 +424,11 @@ function readingIndex(reading, node, offset) {
 // false), focus and its caret are the handoff's, so the return leaves focus where the
 // handoff put it and returns the selection only where no caret is the selection
 // (features/version.js, `installArrival`).
-/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
 async function returnTo(record, intent, returnsFocus = true) {
   const open = threadParts?.open() ?? null;
   const drawing = open && threadParts?.focusTarget(open.id, "thread");
   if (record.thread && drawing) showReading(drawing, record.thread);
   const key = record.focus;
-  /** @param {string} id */
   const drawingOf = (id) => threadParts?.focusTarget(id, "thread") ?? null;
   // A draft's box opens again where the user stands, by its owner's Resume writing
   // route, with the user on the box or in its words at their caret.
@@ -475,7 +440,6 @@ async function returnTo(record, intent, returnsFocus = true) {
   // Focus that puts the user somewhere: on a drawn element, not the page's body, whether
   // the record returns it or the handoff did, which finds nothing where the revision
   // dropped the control.
-  /** @param {Element | null} target */
   const lands = (target) =>
     target !== null && target !== document.body && presented(target);
   const handed = deepFocus();
@@ -484,11 +448,7 @@ async function returnTo(record, intent, returnsFocus = true) {
       ? handed
       : null
     : key && thread !== null
-      ? focusByKey(
-          /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
-          drawingOf,
-          lands,
-        )
+      ? focusByKey({ ...key, thread }, drawingOf, lands)
       : null;
   // A field's caret is its whole selection, and clearing the document's would
   // collapse it.
@@ -506,8 +466,6 @@ async function returnTo(record, intent, returnsFocus = true) {
 // The ends a record's selection names now, or none where its words are gone. An end
 // standing on an edge between elements, which holds no character, comes back just after
 // the character before it.
-/** @param {Extract<RecordSelection, {anchor: unknown}>} selection
- * @returns {[import("../dom/native-selection.js").SelectionEnd, import("../dom/native-selection.js").SelectionEnd] | null} */
 function passageEnds({ anchor, ends }) {
   const segments = targetSegments(resolveAnchor(anchor));
   // Words the page draws, since a passage resolves through what a reader has shut too.
@@ -516,12 +474,8 @@ function passageEnds({ anchor, ends }) {
 }
 
 // The ends `ends` name from the start of the passage `segments` in `reading`.
-/** @param {import("../readings/passages.js").PageReading} reading
- * @param {readonly import("../readings/passages.js").Segment[]} segments @param {[number, number]} ends
- * @returns {[import("../dom/native-selection.js").SelectionEnd, import("../dom/native-selection.js").SelectionEnd] | null} */
 function endsFrom(reading, segments, ends) {
   const [base] = spanIn(reading, segments);
-  /** @param {number} i @returns {import("../dom/native-selection.js").SelectionEnd | null} */
   const point = (i) => {
     const at = pointAt(reading, base + i);
     if (at) return [at.node, at.offset];
@@ -537,8 +491,6 @@ function endsFrom(reading, segments, ends) {
 // its passage, found in the message's body by the quote rules a comment is found by, a
 // unique match in its context or its sole copy (readings/passages.js, `findQuote`); none where
 // the message is gone or shut, or a rewrite took the words out or leaves no one copy.
-/** @param {Extract<RecordSelection, {message: string}>} selection @param {string | null} thread
- * @returns {[import("../dom/native-selection.js").SelectionEnd, import("../dom/native-selection.js").SelectionEnd] | null} */
 function messageEnds({ message, quote, ends, ...context }, thread) {
   const drawing = thread ? threadParts?.focusTarget(thread, "thread") : null;
   const turn = drawing?.querySelector(`[data-lf-message="${CSS.escape(message)}"]`);
@@ -552,7 +504,6 @@ function messageEnds({ message, quote, ends, ...context }, thread) {
 // The reading a passage of the page is read in, the one its anchor is captured and
 // found again in: its part's, or the run of words from the datum it starts in to the one
 // it ends in, for a passage across data (readings/passages.js, `runReading`).
-/** @param {readonly import("../readings/passages.js").Segment[]} segments */
 function passageReading([head, ...rest]) {
   const first = head && closestAcross(head.node, DATUM);
   const last = closestAcross((rest.at(-1) ?? head)?.node ?? null, DATUM);
@@ -563,7 +514,6 @@ function passageReading([head, ...rest]) {
 
 // Whether a record can place the page itself: a landmark it can find again, its start,
 // or a raw offset read in this scroller at this width and revision (readings/reading-place.js).
-/** @param {import("../readings/reading-place.js").ReadingPlace} page */
 const placesPage = (page) =>
   Boolean(page.start) || hasLandmark(page) || rawOffsetFits(page, pageScroller);
 
@@ -572,8 +522,6 @@ const placesPage = (page) =>
 // press on a link to the fragment the page already shows: both are a same-document
 // `replace` or `push` with no hash change. Only the writer can tell them apart.
 let writing = false;
-/** @param {"pushState" | "replaceState"} method @param {unknown} state
- * @param {string | URL | null | undefined} url */
 function write(method, state, url) {
   writing = true;
   try {
@@ -586,12 +534,9 @@ function write(method, state, url) {
 // Each entry this document writes names the thread view standing open as it is
 // written (thread/address.js, `name`), so no URL a route, a widget or a waiting rename
 // captured earlier carries a thread name the page no longer shows.
-/** @type {(url: URL) => URL} */
 let nameThread = (url) => url;
-/** @param {string | URL | null | undefined} url */
 const named = (url) => nameThread(new URL(url ?? location.href, location.href));
 
-/** @param {string | URL | null | undefined} url @param {unknown} state */
 export function pushEntry(url, state = null) {
   write("pushState", state, named(url));
 }
@@ -606,7 +551,6 @@ export function pushEntry(url, state = null) {
 // is written. A rename that would change nothing writes nothing, and one the browser
 // refuses over its rate limit, as Safari does by throwing past 100 in 30 seconds, is
 // dropped, since the next write names the entry again.
-/** @param {string | URL | null | undefined} [url] @param {unknown} [state] */
 export function replaceEntry(url, state) {
   const transition = window.navigation.transition;
   if (transition) {
@@ -628,8 +572,7 @@ export function replaceEntry(url, state) {
 }
 
 /** Rename the entry the user is on to `url` and reload it as Leaf's own reload
- * (transport/layer-client.js, `reloadDocument`), without waiting for a navigation under way.
- * @param {URL} url */
+ * (transport/layer-client.js, `reloadDocument`), without waiting for a navigation under way. */
 export function reloadAt(url) {
   write("replaceState", history.state, named(url));
   reloadDocument();
@@ -638,13 +581,12 @@ export function reloadAt(url) {
 // A route can reveal or hydrate before it knows whether arrival will succeed. Read
 // where the user is now, before anything moves, and write it to the entry they leave
 // only as the step is pushed, on success (`leaving`).
-/** @type {EntryRecord | null} */
 let leaving = null;
 export function prepareEntry() {
   const record = readRecord();
   const sourceUrl = location.href;
   const sourceState = history.state;
-  return /** @param {string | URL} url */ (url) => {
+  return (url) => {
     // Exposing another view renames this entry. Its original URL and state belong to
     // the entry left; the exposed destination belongs to the new entry.
     if (location.href !== sourceUrl || history.state !== sourceState)
@@ -664,7 +606,6 @@ export function prepareEntry() {
 // back to the entry's record (or the browser for an entry without one), as this one
 // does. Travel follows it where the entry's fragment names a place the view doesn't
 // show.
-/** @type {((url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null) | null} */
 let entryView = null;
 
 // The thread view an entry names (thread/address.js): `claim` opens it or puts it away
@@ -674,13 +615,9 @@ let entryView = null;
 // reply, wherever the thread's route drew it (thread/destination.js); and `name` names
 // the open thread in a URL this document writes. `listShown` is the list the floating
 // panel shows, which a thread opened from it stands over.
-/** @type {{open: () => OpenThread | null, focusTarget: (id: string, part: "thread" | "reply") => Element | null} | null} */
 let threadParts = null;
-/** @type {(() => RecordList | null) | null} */
 let listShown = null;
-/** @type {ThreadClaim | null} */
 let threadClaim = null;
-/** @type {((key: NonNullable<ReturnType<typeof draftFocus>>, intent: ReturnType<typeof retainUserIntent>) => unknown) | null} */
 let draftReturn = null;
 
 // ---------- returning to an entry ----------
@@ -704,13 +641,7 @@ let draftReturn = null;
 // (`run`), its fresh thread arrival and last fragment landing among them (leaf.js), so
 // a navigation finds it to abort until the last has run, and keys held for it wait
 // until then (`settled`, features/version.js `installArrival`).
-/** @typedef {{record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>,
- * abort: () => void, run: (work: () => PromiseLike<unknown>) => Promise<void>,
- * owes: () => boolean, settled: Promise<void>}} Restoration */
-/** @type {Restoration | null} */
 let restoring = null;
-/** @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent
- * @param {AbortSignal | null} [ended] @param {number} [since] @returns {Restoration} */
 function beginRestoration(record, intent, ended = null, since = entryInputCount()) {
   restoring?.abort();
   const controller = new AbortController();
@@ -719,9 +650,7 @@ function beginRestoration(record, intent, ended = null, since = entryInputCount(
     : controller.signal;
   const moved = () => entryInputCount() !== since;
   const stands = () => !signal.aborted && !moved();
-  /** @type {PromiseWithResolvers<void>} */
   const settled = Promise.withResolvers();
-  /** @type {Restoration} */
   const restoration = {
     record,
     intent: restrictUserIntent(intent, stands),
@@ -761,9 +690,7 @@ export function beginArrival() {
   const entry = window.navigation.currentEntry;
   const type = window.navigation.activation?.navigationType;
   const record =
-    type === "reload" || type === "traverse"
-      ? (/** @type {EntryRecord | undefined} */ (entry?.getState()) ?? null)
-      : null;
+    type === "reload" || type === "traverse" ? (entry?.getState() ?? null) : null;
   const since = enteredInputCount();
   const intent = retainUserIntent({ count: entryInputCount, since });
   return beginRestoration(record, intent, null, since);
@@ -774,8 +701,6 @@ export const pendingRestoration = () => restoring;
 // The document's arrival run as one operation: `land`, the handoff's own landing
 // (features/version.js, `installArrival`), returning to the record where it calls for it
 // (`returnToRecord`), then settled.
-/** @param {Restoration} restoration
- * @param {(returnToRecord: (returnsFocus?: boolean) => Promise<void>) => Promise<void>} land */
 export const arrive = (restoration, land) =>
   restoration.run(() =>
     land((returnsFocus) => returnToRecord(restoration, returnsFocus)),
@@ -785,7 +710,6 @@ export const arrive = (restoration, land) =>
 // document returns to its destination's: the page placed by its record, the thread or
 // list the entry shows opened by the URL's claim (thread/address.js), then where the user
 // was in it (`returnTo`).
-/** @param {Restoration} restoration @param {boolean} [returnsFocus] */
 async function returnToRecord({ record, intent }, returnsFocus) {
   await afterPresentation(() => undefined);
   if (!record || !intent()) return;
@@ -794,9 +718,7 @@ async function returnToRecord({ record, intent }, returnsFocus) {
 }
 // The thread view `url` names opened or put away by its claim (thread/address.js), then
 // the user put back where `record` says they were (`returnTo`), under `intent`.
-/** @param {URL} url @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
 async function claimAndReturn(url, record, intent, returnsFocus) {
-  /** @type {unknown} */
   let work;
   intent.handoff(() => {
     work = threadClaim?.(url, record, intent)?.();
@@ -809,13 +731,6 @@ async function claimAndReturn(url, record, intent, returnsFocus) {
   await work;
 }
 let mounted = false;
-/** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
- * returnToFragment: (url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null | undefined,
- * view: (url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null,
- * thread: {claim: ThreadClaim, open: () => OpenThread | null,
- * focusTarget: (id: string, part: "thread" | "reply") => Element | null,
- * name: (url: URL) => URL}, list: () => RecordList | null,
- * draft: (key: NonNullable<ReturnType<typeof draftFocus>>, intent: ReturnType<typeof retainUserIntent>) => unknown}} options */
 export function mountHistory({
   followFragment,
   returnToFragment,
@@ -853,9 +768,7 @@ export function mountHistory({
     // Any navigation but this document's own rename ends the restoration under way.
     if (!writing || event.navigationType !== "replace") restoring?.abort();
     if (event.navigationType === "traverse") {
-      const record = /** @type {EntryRecord | undefined} */ (
-        event.destination.getState()
-      );
+      const record = event.destination.getState();
       const restoration = beginRestoration(
         record ?? null,
         retainUserIntent({ count: entryInputCount }),
@@ -882,7 +795,6 @@ export function mountHistory({
         // The view the entry names is revealed first, so travel reads the place the
         // fragment names in the page that view leaves. Either one places the viewport
         // unless it resolves to false.
-        /** @type {unknown} */
         let work;
         mayReturn.handoff(() => {
           work = claim?.();
@@ -961,9 +873,7 @@ export function mountHistory({
 // aborted. Firefox restores the entry's saved offset just after that `popstate`, in
 // the same task, so the rendering update is the first point past it that comes
 // before the next paint.
-/** @param {AbortSignal} signal @returns {Promise<void>} */
 function traversalApplied(signal) {
-  /** @type {Promise<void>} */
   const applied = new Promise((resolve) =>
     addEventListener("popstate", () => nextRender(() => resolve()), {
       once: true,

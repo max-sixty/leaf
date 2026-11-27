@@ -1,3 +1,4 @@
+// Compiled from formulas.ts by build/typescript.mjs; edit that file.
 /* The page's own formulas: LaTeX in a `<code class="language-math">`, typeset by Temml
    as the MathML the browser draws itself. A `<code>` among words is an inline formula,
    which wraps where TeX would break it, and the `<code>` alone in a `<pre>` a display
@@ -60,7 +61,6 @@ code[${PAINT}="display"] > * {
   display: block;
 }`;
 
-/** @type {Promise<{renderer: typeof import("/vendor/temml.esm.js").default, sheet: CSSStyleSheet}> | undefined} */
 let temmlReady;
 const temml = () =>
   (temmlReady ??= import("/vendor/temml.esm.js").then(
@@ -81,16 +81,13 @@ const temml = () =>
 // it holds, holds that source still, and was set in the mode its place asks for: a live
 // revision that rewrites the source replaces the host or its words, one that adds words
 // beside a display formula makes it inline, and the pass typesets it again.
-/** @type {WeakMap<Node, string>} */
 const typeset = new WeakMap();
-/** @param {Element} code */
 const current = (code) =>
   code.childNodes.length === 1 &&
-  typeset.get(/** @type {Node} */ (code.firstChild)) === code.textContent &&
+  typeset.get(code.firstChild) === code.textContent &&
   code.getAttribute(PAINT) === (displayed(code) ? "display" : "inline");
 
 // A formula's words, out of the host an earlier pass typeset them into.
-/** @param {Element} code */
 const words = (code) =>
   [...code.childNodes].flatMap((node) =>
     typeset.has(node) ? [...node.childNodes] : [node],
@@ -98,14 +95,12 @@ const words = (code) =>
 
 // A display formula is the whole of its `<pre>`; a `<code>` among other words in one
 // is a formula in a line of them.
-/** @param {Element} code */
 const displayed = (code) =>
   code.parentElement?.localName === "pre" &&
   [...code.parentElement.childNodes].every(
     (node) => node === code || (node instanceof Text && !node.data.trim()),
   );
 
-/** @param {Document | DocumentFragment | Element} root */
 export async function typesetFormulas(root) {
   // The root counts, as in every dressing pass: a revision that rewrote one formula
   // brings the `<code>` itself.

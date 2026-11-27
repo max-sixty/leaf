@@ -77,6 +77,7 @@ from leaf.agents import thread_titles as thread_titles_model
 from leaf.base import detached as detached_model
 from leaf.base import files as files_model
 from leaf.base import leases as leases_model
+from leaf.base import machine as machine_model
 from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
 from leaf.base import server as server_model
@@ -1473,6 +1474,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
             "widget": "decision",
             "action": "edit",
             "detail": {"value": "Backfill first."},
+            "answered": True,
         },
     )
 
@@ -1873,6 +1875,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
         "widget": "delivery",
         "action": "add",
         "detail": {"option": "delivery-user", "text": "After the health check"},
+        "answered": False,
     }
 
     command = {**base, "attempt": "attempt-generated-good"}
@@ -1928,6 +1931,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "action": "choose",
         "detail": {"value": ["delivery-now"]},
         "attempt": "attempt-browser-view-1",
+        "answered": True,
     }
 
     held = json.loads(fetch(f"{server}/api/state")[1])["browser"]["basis"]
@@ -1991,6 +1995,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
                     "action": "choose",
                     "detail": {"value": [option]},
                     "attempt": attempt,
+                    "answered": True,
                 }
             ).encode(),
         )
@@ -2143,6 +2148,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
                 "widget": widget,
                 "action": "choose",
                 "detail": {"value": [option]},
+                "answered": True,
             },
         )
 
@@ -2269,6 +2275,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
                     "action": "choose",
                     "detail": {"value": [option]},
                     "attempt": attempt,
+                    "answered": True,
                 }
             ).encode(),
         )
@@ -2593,6 +2600,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         "revision": 1,
         "action": "choose",
         "detail": {"value": ["thread-a"]},
+        "answered": True,
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -2657,6 +2665,7 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
                 "widget": "worker",
                 "action": "choose",
                 "detail": {"value": ["worker-restart"]},
+                "answered": True,
             }
         ).encode(),
     )
@@ -3835,6 +3844,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     (page_dir / "index.html").write_text(
@@ -4176,6 +4186,40 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
+
+
+def test_a_default_host_serves_a_new_page_as_a_stated_one(page_dir, monkeypatch):
+    """The `host` setting names the host a user reaches every page by, so a page
+    with no record takes it as `--host` would give it, over what SSH_CONNECTION
+    derives. A record keeps its own address, since an open tab polls it. A
+    setting that is no hostname, or a key Leaf doesn't read, refuses naming the
+    file, rather than leaving pages on the address it was meant to replace."""
+    monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
+    config = machine_model.settings_path()
+    config.parent.mkdir(parents=True)
+    config.write_text('hots = "box.tailnet.example"\n')
+    with pytest.raises(Refused, match=r"config\.toml: Leaf reads no 'hots'"):
+        server_model.page_access(page_dir)
+    config.write_text('host = "box:8443"\n')
+    with pytest.raises(Refused, match=r"config\.toml: host box:8443: not a hostname"):
+        server_model.page_access(page_dir)
+
+    config.write_text('host = "box.tailnet.example"\n')
+    access = server_model.page_access(page_dir)
+    assert (access["host"], access["bind"]) == ("box.tailnet.example", "::")
+
+    recorded = {
+        "host": "127.0.0.1",
+        "bind": "127.0.0.1",
+        "port": 41234,
+        "enabled": False,
+        "lifetime": "session",
+    }
+    write_record(page_dir / "service.json", recorded)
+    assert server_model.page_access(page_dir).items() >= recorded.items()
+    stated = server_model.page_access(page_dir, host="devbox.corp.example")
+    restated = {**recorded, "host": "devbox.corp.example", "bind": "::"}
+    assert stated.items() >= restated.items()
 
 
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
@@ -4968,6 +5012,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "action": "choose",
             "detail": {"value": ["fast"]},
             "revision": 27,
+            "answered": True,
         },
     ]
     child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-group id="route-ask" label="Route"><h2 id="route-ask-h">Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-group>'

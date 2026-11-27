@@ -317,8 +317,15 @@ customElements.define(
         const of = file;
         if (of.busy) return;
         const operation = of.failure;
-        // A failed save with nothing left to write is settled by reading the file.
-        if (operation?.kind === "save" && unsaved(of, operation.replace))
+        // A failed save is settled by reading the file where nothing is left to write,
+        // and where the save may have reached the file, since a second send would
+        // forget the first one's words (`sent`) and take them, found on disk, for a
+        // write from elsewhere.
+        if (
+          operation?.kind === "save" &&
+          of.sent === null &&
+          unsaved(of, operation.replace)
+        )
           void flush(of, operation.replace, returnFrom);
         else void refresh(of, returnFrom);
       };

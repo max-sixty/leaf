@@ -48,7 +48,8 @@ from leaf.base.findings import Finding, Rejected
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.log import events as event_folds_model
-from leaf.log.thread_context import logged_fragment, thread_digest
+from leaf.log.events import logged_fragment
+from leaf.log.thread_context import thread_digest
 from leaf.records import revisioning as revisioning_model
 from leaf.records import todos as todos_model
 from leaf.records import transaction as transaction_model
@@ -1449,7 +1450,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     widget's ids, so the edit goes in and Leaf tells the agent where that answer now
     shows. An id any wording held stays the message's own, so no other message
     takes it and inherits the user's answer."""
-    from leaf.log.thread_context import thread_structure
+    from leaf.log.events import thread_structure
 
     published(page_dir)
 
@@ -1479,6 +1480,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
             "widget": "ship",
             "action": "choose",
             "detail": {"value": ["ship-now"]},
+            "answered": True,
         },
     )
 
@@ -1512,9 +1514,9 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     # wording that keeps the widget.
     route = comment(page_dir, "--text", "Which route?\n\n" + options("route", "a"))
     route = json.loads(route.stdout)
-    for action, detail in [
-        ("add", {"option": "route-mine", "text": "Mine"}),
-        ("choose", {"value": ["route-mine"]}),
+    for action, detail, answered in [
+        ("add", {"option": "route-mine", "text": "Mine"}, False),
+        ("choose", {"value": ["route-mine"]}, True),
     ]:
         append_command(
             page_dir,
@@ -1525,6 +1527,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
                 "widget": "route",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
     reworded = edit(route["id"], "Which route, then?\n\n" + options("route", "a"))

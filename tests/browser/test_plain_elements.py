@@ -29,6 +29,7 @@ from render_harness import (
     leaf_page,
     navigate,
     open_page,
+    panel_control,
     round_trip,
     said,
     sending,
@@ -753,7 +754,7 @@ def test_a_recorded_set_shows_what_the_page_holds(browser, serve):
     writes, and an event the form hears while they read that set records nothing. A
     change made where the user may not act returns to the recorded set. The server
     refuses a pick of an input the form lacks, and the inputs return to the set the
-    page holds."""
+    page holds. Undo names another tab's pick by the inputs' labels."""
     url = live_url(
         serve(leaf_page("Release 4.2", PICKS + QUOTED_PICKS), packages=(CONTROLS,))
     )
@@ -779,6 +780,10 @@ def test_a_recorded_set_shows_what_the_page_holds(browser, serve):
         ("platforms", [LINUX]),
         ("platforms", [MAC, WINDOWS]),
     ]
+    # Undo names the pick by the inputs' labels, as it names an option by its label.
+    expect(
+        panel_control(page, "command:history.undo").locator(".lf-fp-label")
+    ).to_have_text("Undo: chose “macOS”, “Windows” in “Which platforms?”")
 
 
 WORKER = {

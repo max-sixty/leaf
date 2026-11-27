@@ -25,7 +25,9 @@ Two readings of an element come out of that document. `says` is its whole words.
 (`passages.element_name`): a widget's `label` attribute (the registry's
 `$attributes`), else plain markup's caption (`passages.caption_node`). It is the
 rule the browser's `addressableName` reads off the live page, read here off the
-document the gesture was made in.
+document the gesture was made in. A form control, as a checkbox, has no words of its
+own, so both readings take the words of the `<label>` HTML names it with
+(`passages.control_labels`), as the browser's chrome names a control by its `labels`.
 """
 
 from collections.abc import Callable
@@ -43,8 +45,10 @@ from leaf.log.events import (
 from leaf.log.projection import attribute_marks, markup_value, state_projection
 from leaf.source.passages import (
     collapse,
+    control_labels,
     created_words,
     element_name,
+    elements,
     enclosing_of,
 )
 from leaf.source.reading import SourceReading
@@ -57,13 +61,6 @@ RevisionReader = Callable[[int], SourceReading]
 
 def revisions_on_disk(page_dir: Path) -> RevisionReader:
     return lambda revision: read_revision(page_dir, revision)
-
-
-def _nodes(content: list):
-    for node in content:
-        if not isinstance(node, str):
-            yield node
-            yield from _nodes(node["content"])
 
 
 class _Document:
@@ -86,8 +83,14 @@ class _Document:
         self.nodes = {
             node["attrs"]["id"]: node
             for content in contents
-            for node in _nodes(content)
+            for node in elements(content)
             if node["attrs"].get("id")
+        }
+        # Control id → the words of the label naming it.
+        self.labels = {
+            control: words
+            for content in contents
+            for control, words in control_labels(content).items()
         }
 
     def name(self, node: dict) -> str:
@@ -304,6 +307,11 @@ class GestureWords:
             enclosing.add(event["widget"])
         return {
             **{
+                identity: document.labels[identity]
+                for identity in depends
+                if identity in document.labels
+            },
+            **{
                 identity: element.words
                 for identity, element in named.items()
                 if element.words and identity not in enclosing
@@ -354,7 +362,8 @@ class GestureWords:
 
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else
-        its words, else the words a user wrote it with, else the id itself."""
+        its label, else its words, else the words a user wrote it with, else the id
+        itself."""
         event, _ = self._voice(event)
         document = self._document(event)
         if document is None:
@@ -362,6 +371,7 @@ class GestureWords:
         node = document.nodes.get(identity)
         return (
             (document.name(node) if node else "")
+            or document.labels.get(identity)
             or (said.words if (said := document.spoken.get(identity)) else "")
             or self._created(event, identity)
             or identity

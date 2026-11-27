@@ -34,11 +34,13 @@ from leaf.base import schema as schema_model
 from leaf.base.findings import Finding
 from leaf.log import event_log as events_model
 from leaf.log import events as event_folds_model
+from leaf.log.gesture_words import GestureWords
 from leaf.log.projection import attribute_marks, page_reading, retirement_outcomes
 from leaf.records import event_contracts as event_contracts_model
 from leaf.records.markup_checks.instances import widget_errors
 from leaf.source import passages as passages_model
 from leaf.source import structure as structure_model
+from leaf.source.reading import SourceReading
 from leaf.source.registry import contract as registry_contract
 from leaf.source.registry.layer import stamp_composition
 from leaf.source.registry.validation import validate_registry
@@ -603,6 +605,44 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
         ("e2", {"form": "choice", "chosen": ["Ship half"]}),
         ("e1", {"form": "add", "words": "Ship half"}),
     ]
+
+
+def test_a_pick_of_native_inputs_reads_by_the_labels_html_names_them_with():
+    """A checkbox has no words of its own, so a pick of it reads by the `<label>`
+    that names it, whether the label holds the input or names it with `for`, as a
+    pick of an option reads by its `label`. The served history and the undo offer
+    word the pick so (`GestureWords.gesture`), and a delivery and `leaf page state`
+    quote each picked input by its label (`GestureWords.says`)."""
+    registry = model_layer("./tests/fixtures/packages/controls")
+    page = model.leaf_page(
+        "Platforms",
+        """<lf-pick-form id="platforms"><form>
+  <label><input type="checkbox" id="platforms-mac" /> macOS</label>
+  <label for="platforms-linux">Linux</label> <input type="checkbox" id="platforms-linux" />
+</form></lf-pick-form>
+<lf-activity id="feed"></lf-activity>""",
+    )
+    pick = {
+        "kind": "action",
+        "widget": "platforms",
+        "action": "choose",
+        "detail": {"value": ["platforms-mac", "platforms-linux"]},
+        "facts": {"answered": True},
+    }
+    [row] = model.reading(page, [pick], registry=registry)["history"]
+    assert row["gesture"] == {"form": "choice", "chosen": ["macOS", "Linux"]}
+
+    admitted = event_contracts_model.admitted_event(
+        ModelPage(page, registry=registry),
+        [],
+        {**STATED_PICK, **pick, "id": "e1", "seq": 1},
+    )
+    reading = SourceReading(structure_model.SourceDocument(page), registry)
+    words = GestureWords([admitted], registry, {1: reading}.__getitem__)
+    assert words.says(admitted) == {
+        "platforms-mac": "macOS",
+        "platforms-linux": "Linux",
+    }
 
 
 def test_a_widget_that_asks_says_on_each_gesture_whether_it_is_answered():

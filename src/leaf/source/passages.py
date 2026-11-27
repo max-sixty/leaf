@@ -706,6 +706,42 @@ def element_name(node: dict, registry: dict) -> str:
     return collapse(_text(caption)) if caption else ""
 
 
+def elements(content: list):
+    """Every element node under `content`, in document order."""
+    for node in content:
+        if not isinstance(node, str):
+            yield node
+            yield from elements(node["content"])
+
+
+# The form controls a `<label>` can name (HTML's labelable elements).
+LABELABLE_TAGS = frozenset(
+    {"button", "input", "meter", "output", "progress", "select", "textarea"}
+)
+
+
+def control_labels(content: list) -> dict[str, str]:
+    """id → the words of the first `<label>` that names each control in `content`, by
+    HTML's rule: a label names the control its `for` gives, else the first labelable
+    element inside it. The browser reads the same relation off a control's `labels`
+    (readings/addressable-names.js, `accessibleName`)."""
+    labels: dict[str, str] = {}
+    for label in elements(content):
+        if label["tag"] != "label":
+            continue
+        control = label["attrs"].get("for") or next(
+            (
+                inner["attrs"].get("id")
+                for inner in elements(label["content"])
+                if inner["tag"] in LABELABLE_TAGS
+            ),
+            None,
+        )
+        if control and (words := collapse(_text(label))):
+            labels.setdefault(control, words)
+    return labels
+
+
 def enclosing_of(spk: dict) -> dict:
     """The containment half of a `spoken` reading, keyed the same.
 

@@ -6,9 +6,10 @@
 
    This module and the adapter load in any document (portable-api.js), so a portable
    widget draws on a page without Leaf. So the module imports statically only what
-   portable-api.js re-exports and the library (`lib/`); a service that needs Leaf's
-   host, records or another module that reads what Leaf composes into a page imports
-   it dynamically as it runs, and is called only on a Leaf page.
+   portable-api.js re-exports, the library (`lib/`) and `host/mounted.js`, which
+   imports nothing. A service that needs Leaf's application reaches it there, as
+   `mountApplication` sets it, so it calls the application in the task of the input
+   that asked, and does nothing on a page without Leaf.
 
    Each service is one of the widget protocol's calls (module-plain-elements.md) or a
    function `widget-api.js` exports, under one name:
@@ -21,6 +22,9 @@
      `state` maps the delivery to nothing.
    - `NextOnMe` steps to the next obligation waiting on the user within `within`, as
      `obligationActions.next` does.
+   - `NavigateToDatum` reveals the datum `key` names through the element's reference
+     attribute `reference`, as `navigateToDatum` does, announcing `success` or
+     `missing`. Focus stays where the user is.
    - `Announce` is `lf-announce`: words a listener should hear now.
    - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
      tab, which the widget's inputs read back with `tabStore.get`.
@@ -31,6 +35,7 @@
      asked to see it (held-news.js, `showHeldReadings`). Its module stays at hand
      after the first call, so a later reveal draws in the microtasks after its press. */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
+import { mounted } from "./host/mounted.js";
 import { tabStore } from "./state/tab-store.js";
 import { ANNOUNCE, sendGesture } from "./lib/widget-events.js";
 
@@ -49,6 +54,15 @@ export class RecordAction extends Command.Service()("leaf/RecordAction", {
 
 export class NextOnMe extends Command.Service()("leaf/NextOnMe", {
   args: { within: Schema.Unknown },
+}) {}
+
+export class NavigateToDatum extends Command.Service()("leaf/NavigateToDatum", {
+  args: {
+    reference: Schema.String,
+    key: Schema.String,
+    success: Schema.String,
+    missing: Schema.String,
+  },
 }) {}
 
 export class Announce extends Command.Service()("leaf/Announce", {
@@ -85,9 +99,17 @@ export const leafServices = (element) =>
       send(element, stripUndefined(args)),
     ),
     NextOnMe.toLayer((/** @type {any} */ { within }) =>
-      Effect.promise(async () => {
-        const { obligationActions } = await import("./host/application.js");
-        obligationActions.next({ within });
+      Effect.sync(() => {
+        mounted()?.obligationActions.next({ within });
+      }),
+    ),
+    NavigateToDatum.toLayer((/** @type {any} */ { reference, key, success, missing }) =>
+      Effect.sync(() => {
+        mounted()?.navigateToDatum(element, reference, key, {
+          focus: false,
+          success,
+          missing,
+        });
       }),
     ),
     Announce.toLayer((/** @type {any} */ { words }) =>
@@ -100,10 +122,11 @@ export const leafServices = (element) =>
     ),
     OpenThread.toLayer((/** @type {any} */ { id }) =>
       Effect.promise(async () => {
-        const { threadActions } = await import("./host/application.js");
+        const application = mounted();
+        if (!application) return;
         const { readThreads } = await import("./records/thread/state.js");
         const thread = readThreads().threads.find((thread) => thread.id === id);
-        if (thread) void threadActions.open(thread.key, { part: "thread" });
+        if (thread) void application.threadActions.open(thread.key, { part: "thread" });
       }),
     ),
     ShowHeld.toLayer(() => {

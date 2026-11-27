@@ -288,9 +288,9 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
         # out of its one line, and keeps its day whole while it has the day's room.
         days = squeeze["days"]
         day = days[0]["day"]
-        assert any(day - 0.5 <= step["time"] < days[0]["time"] - 1 for step in days)
+        assert any(day - 0.05 <= step["time"] < days[0]["time"] - 1 for step in days)
         for step in days:
-            if step["time"] >= day - 0.5:
+            if step["time"] >= day - 0.05:
                 assert step["whole"], (day, step)
 
 

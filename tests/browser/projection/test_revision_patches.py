@@ -1074,13 +1074,13 @@ def test_a_replaced_widget_gives_focus_back_to_the_grip_its_module_drew(browser,
     assert page.evaluate("window.__held !== document.getElementById('held')")
     expect(page.locator("#held button")).to_be_focused()
 
-    page.locator("#card-b > .lf-grip").focus()
+    page.locator("#card-b .lf-grip").focus()
     page.evaluate("() => { window.__card = document.getElementById('card-b'); }")
     stamp_page(serve.page_dir, source("Two.", "First, reworded."), "reword a card")
     wait_for_revision(page, 3)
     expect(page.locator("#card-a")).to_contain_text("First, reworded.")
     assert page.evaluate("window.__card !== document.getElementById('card-b')")
-    expect(page.locator("#card-b > .lf-grip")).to_be_focused()
+    expect(page.locator("#card-b .lf-grip")).to_be_focused()
 
 
 @pytest.mark.parametrize("departure", ["focused", "link", "selection"])

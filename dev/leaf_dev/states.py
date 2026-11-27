@@ -2479,7 +2479,7 @@ def tally_after_an_answer(page: Page) -> None:
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
     keyboard_modality(page)
-    page.locator("#card-tz > .lf-grip").focus()
+    page.locator("#card-tz .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
 

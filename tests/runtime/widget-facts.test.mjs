@@ -152,7 +152,7 @@ test("an unsaid word reads as the question asked, so a widget that asks says not
   assert.deepEqual(sent.splice(0), []);
 });
 
-test("a gesture still on its way speaks for its widget, and an older version speaks for none", () => {
+test("a gesture still on its way speaks for its widget until it leaves the ledger, and an older version speaks for none", () => {
   const page = shown('<lf-test-tally id="tally" ready count="1"></lf-test-tally>');
   applicationState.enqueue(
     {
@@ -167,14 +167,11 @@ test("a gesture still on its way speaks for its widget, and an older version spe
   );
   reading({ tally: { count: 1 } }, page);
   assert.deepEqual(sent.splice(0), []);
+  // The gesture leaves the ledger with no reading after it, and the tab says the word
+  // the page still lacks.
   applicationState.refuse("a1");
-  // A tab showing a version older than the newest speaks for none of its widgets.
-  reading({ tally: { count: 1 } }, page, /** @type {number} */ (page.revision) + 1);
-  assert.deepEqual(sent.splice(0), []);
-  // The same reading, with that version the newest, has the tab say the word.
-  reading(
-    { tally: { count: 1 } },
-    shown('<lf-test-tally id="tally" ready count="1"></lf-test-tally>'),
-  );
   assert.deepEqual(sent.splice(0), [tally({ answered: true })]);
+  // A tab showing a version older than the newest speaks for none of its widgets.
+  reading({ tally: { count: 2 } }, page, /** @type {number} */ (page.revision) + 1);
+  assert.deepEqual(sent.splice(0), []);
 });

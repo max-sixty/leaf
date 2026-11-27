@@ -23,7 +23,7 @@ export interface EventMap {
 "action": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "action"; "seq": number; "widget": string; "action": string; "detail": { [key: string]: unknown; }; "meaning": { "scope": "page" | "thread"; "unit": string; "depends": ReadonlyArray<string>; "answer"?: string | null; "creates"?: string; "state"?: { "origin": string; "unit": string; "record": { [key: string]: unknown; } | null; "creates": { [key: string]: unknown; } | null; "decides": boolean; "detail": { [key: string]: unknown; } | boolean; }; }; "revision": number; "facts"?: { [key: string]: unknown; }; "attempt"?: string; };
 "pickup": { "attention": boolean; "id": string; "ts": string; "author": "page"; "kind": "pickup"; "seq": number; "events": ReadonlyArray<string>; "phase": "queued" | "opened" | "failed"; "session": string | null; "turn": string | null; "failure"?: string; "refs"?: { [key: string]: { "ref": string; "claim": string | null; }; }; };
 "receipt": { "attention": boolean; "id": string; "ts": string; "author": "page"; "kind": "receipt"; "seq": number; "through": number; };
-"undo": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "undo"; "seq": number; "undoes": string; "facts"?: { [key: string]: unknown; }; "attempt"?: string; };
+"undo": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "undo"; "seq": number; "undoes": string; "revision"?: number; "facts"?: { [key: string]: unknown; }; "attempt"?: string; };
 "report": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "report"; "seq": number; "widget": string; "action": string; "detail": { [key: string]: unknown; }; "meaning": { "scope": "page" | "thread"; "unit": string; "depends": ReadonlyArray<string>; "state"?: { "origin": string; "unit": string; "record": { [key: string]: unknown; } | null; "creates": { [key: string]: unknown; } | null; "decides": boolean; "detail": { [key: string]: unknown; } | boolean; }; }; "revision": number; "agent"?: string; "session"?: string; };
 "note": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "note"; "seq": number; "version": number; "revision": number; "publication"?: string; "text": string; "restated"?: ReadonlyArray<string>; "settles"?: ReadonlyArray<{ "kind": "report" | "todo"; "id": string; }>; "agent"?: string; "session"?: string; };
 "error": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "error"; "seq": number; "revision"?: number; "text": string; };
@@ -42,7 +42,7 @@ export interface BrowserCommandMap {
 "resolve": { "kind": "resolve"; "parent": string; "attempt"?: string; };
 "unresolve": { "kind": "unresolve"; "parent": string; "attempt"?: string; };
 "action": { "kind": "action"; "widget": string; "action": string; "detail": { [key: string]: unknown; }; "revision": number; "facts"?: { [key: string]: unknown; }; "attempt"?: string; };
-"undo": { "kind": "undo"; "undoes": string; "facts"?: { [key: string]: unknown; }; "attempt"?: string; };
+"undo": { "kind": "undo"; "undoes": string; "revision"?: number; "facts"?: { [key: string]: unknown; }; "attempt"?: string; };
 "error": { "kind": "error"; "revision"?: number; "text": string; };
 }
 export type BrowserCommand = CompleteUnion<BrowserCommandMap[keyof BrowserCommandMap]>;

@@ -1617,6 +1617,47 @@ def test_a_gesture_on_an_older_version_leaves_the_newer_versions_word_standing()
     assert state["views"]["2"]["facts"]["choice"] == {"answered": False}
 
 
+def test_an_undo_says_its_word_on_the_version_it_was_made_on():
+    """An undo's word was worked out on the version the user took the gesture back
+    on, which may be newer than the one the gesture was made on, so it stands over a
+    word said on an older one. The user picked a and b on version 1, then pressed Done
+    on both on version 2, and took the pick of b back there: the question asks again.
+    And where a tab still on version 1 picked b after Done on version 2 covered a
+    alone, and a version-2 tab reopened the question, the user's undo of that pick on
+    version 2 answers it again."""
+    documents = {1: checklist("a", "b"), 2: checklist("a", "b")}
+    back = {"kind": "undo", "undoes": "e2", "revision": 2}
+    state = model.reading(
+        documents,
+        [
+            chose("a"),
+            chose("a", "b"),
+            {**done(["a", "b"], ["a", "b"]), "revision": 2},
+            {**back, "facts": {"answered": False}},
+        ],
+    )
+    [item] = page_obligations(state, 2)["all"]
+    assert (item["state"], item["next_actor"]) == ("waiting", "user")
+    documents = {1: checklist("a", "b"), 2: checklist("a", "b", "c")}
+    state = model.reading(
+        documents,
+        [
+            chose("a"),
+            {**done(["a", "b", "c"], ["a"]), "revision": 2},
+            chose("a", "b"),
+            told(False, through=3),
+            {
+                "kind": "undo",
+                "undoes": "e3",
+                "revision": 2,
+                "facts": {"answered": True},
+            },
+        ],
+    )
+    [item] = page_obligations(state, 2)["all"]
+    assert standing_model.answered(item)
+
+
 def test_an_undo_on_an_older_version_leaves_the_newer_versions_word_standing():
     """A tab still showing the version before one that added a step picks and takes
     the pick back there. The undo's word was worked out on that older version, the one
@@ -1630,7 +1671,12 @@ def test_an_undo_on_an_older_version_leaves_the_newer_versions_word_standing():
             done(["a", "b"], ["a"]),
             told(False, through=2),
             chose("a", "b"),
-            {"kind": "undo", "undoes": "e4", "facts": {"answered": True}},
+            {
+                "kind": "undo",
+                "undoes": "e4",
+                "revision": 1,
+                "facts": {"answered": True},
+            },
         ],
     )
     [item] = page_obligations(state, 2)["all"]

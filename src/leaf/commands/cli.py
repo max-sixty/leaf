@@ -1237,7 +1237,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
     Browser harnesses use `--lifetime temporary`; a user page in an agent session
     uses `server start`. A page already served prints that server's URL and exits.
     """
-    from leaf.base.harness import session_harness
+    from leaf.base.harness import session_harness, unserved_session
     from leaf.base.leases import release_on_termination
     from leaf.pages.hosting import cmd_serve, cmd_serve_temporary
 
@@ -1253,6 +1253,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
         lifetime == "persistent",
         harness=session_harness(),
         acquire=True,
+        started_in=unserved_session(),
     )
 
 
@@ -1264,6 +1265,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
 @click.option("--acquire", is_flag=True, hidden=True)
 @click.option("--claim", hidden=True)
 @click.option("--harness", required=True, hidden=True)
+@click.option("--started-in", hidden=True)
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _serve(
     page_dir: Path,
@@ -1273,6 +1275,7 @@ def _serve(
     acquire: bool,
     claim: str | None,
     harness: str,
+    started_in: str | None,
     handshake: int,
 ) -> None:
     """Private child process spawned by server start and Watch revival."""
@@ -1295,6 +1298,7 @@ def _serve(
             handshake=answer,
             acquire=acquire,
             prepared_claim=json.loads(claim) if claim is not None else None,
+            started_in=started_in,
         )
 
 

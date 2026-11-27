@@ -55,6 +55,7 @@ from leaf.agents import presence as presence_model
 from leaf.agents import thread as thread_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
+from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
 from leaf.base import service as service_model
 from leaf.base import state as cleanup_model
@@ -115,6 +116,32 @@ def test_pages_follower_reads_its_pages_on_its_timer(claimed, monkeypatch, capsy
     first, last = map(json.loads, capsys.readouterr().out.splitlines())
     assert len(first["pages"]) == 1
     assert first["pages"][0]["page_key"] == cleanup_model.page_key(claimed)
+    assert last == {"pages": [], "do": []}
+
+
+def test_pages_follower_lists_a_page_served_for_no_session_from_its_shell(
+    page_dir, monkeypatch, capsys
+):
+    """A checkout's `bin/leaf` serves a page for no session, which the session holds
+    no claim on, and the page is still the one its agent talks to the user on, so the
+    session's band lists it until its server's row goes. Another session's band
+    doesn't."""
+    serving(page_dir, 1)
+    server_rows_model.RowPublisher(page_dir, "fixture-server", "s1").refresh()
+    assert transaction_model.owned_pages("s1") == []
+
+    hooks_model.cmd_pages({"session_id": "s2"})
+    assert json.loads(capsys.readouterr().out) == {"pages": [], "do": []}
+
+    def stop(_marks, _timeout):
+        rows_model.ROW.remove(rows_model.row_path(page_dir))
+
+    monkeypatch.setattr(file_changes_model, "wait", stop)
+    hooks_model.cmd_pages({"session_id": "s1"})
+    first, last = map(json.loads, capsys.readouterr().out.splitlines())
+    assert [page["page_key"] for page in first["pages"]] == [
+        cleanup_model.page_key(page_dir)
+    ]
     assert last == {"pages": [], "do": []}
 
 

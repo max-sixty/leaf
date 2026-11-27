@@ -8,6 +8,7 @@ from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
     expect_preview_words,
+    holding,
     http_error_console,
     leaf_page,
     open_page,
@@ -335,34 +336,21 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.clock.run_for(600)
     expect(retry).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)
-    retry_reads = []
-
-    def hold_retry_read(route):
-        if route.request.method == "POST":
-            route.continue_()
-        else:
-            retry_reads.append(route)
-            page.evaluate("count => window.heldFileReads = count", len(retry_reads))
-
-    page.route("**/api/files/notes", hold_retry_read)
-    with page.expect_request(
-        lambda request: (
-            request.method == "GET" and request.url.endswith("/api/files/notes")
-        )
-    ):
-        retry.click()
-    page.wait_for_function("window.heldFileReads === 1")
+    held_reads.clear()
+    page.route("**/api/files/notes", hold_reads)
+    retry.click()
+    holding(page, held_reads, 1, "the retry read")
     expect(retry).to_be_focused()
     file.write_text("# Compared\n")
-    retry_reads[0].continue_()
+    held_reads[0].continue_()
     page.clock.run_for(100)
     expect(retry).to_be_hidden()
     expect(conflict).to_be_visible()
     expect(editor).to_be_focused()
     caret_visible()
     assert file.read_text() == "# Compared\n"
-    page.unroute("**/api/files/notes", hold_retry_read)
-    for route in retry_reads[1:]:
+    page.unroute("**/api/files/notes", hold_reads)
+    for route in held_reads[1:]:
         route.continue_()
     with page.expect_response(lambda response: response.url.endswith("/api/state")):
         file.write_text("# Newest\n")

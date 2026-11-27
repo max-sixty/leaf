@@ -446,9 +446,7 @@ def test_a_thread_in_view_opens_and_leaves_the_tab_strip(browser, serve):
     left = strip.evaluate("s => (s.scrollLeft = s.scrollWidth, s.scrollLeft)")
     assert left > 0, "the strip fits, so it proves nothing"
     assert open_where_the_user_stands(page, "open-words") is True
-    expect(
-        page.locator(".lf-fp-view:not([data-lf-leaving]) .lf-page-thread")
-    ).to_be_visible()
+    expect(page.locator(".lf-fp-view .lf-page-thread")).to_be_visible()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     assert strip.evaluate("s => s.scrollLeft") == left
 
@@ -464,7 +462,7 @@ def test_show_on_page_on_a_phone_lands_on_the_thread_s_marker(browser, serve):
     resized(page, 390, 844)
     marker = page.locator('[data-lf-margin-for="open-words"] .lf-margin-marker')
     marker.click()
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     expect(view.locator(".lf-page-thread")).to_be_visible()
     page.locator(".lf-fp-on-page").click()
     expect(view).to_have_count(0)

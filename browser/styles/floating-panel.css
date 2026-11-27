@@ -65,8 +65,8 @@
      user opened, or put away, is what they asked to see, so it arrives almost at once:
      its outline in a disclosure's time (`--lf-motion-disclosure`,
      base.css), since the user found the full tween slow there, and its
-     words faded in at once after the leaving view's, which is gone before the arriving
-     one shows, so the two never read through each other. The row gathers into its
+     words faded in at once, the view it replaces gone in the same paint, so the two
+     never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout
      is already final, so the two visual phases never delay input. The corner mark
      and the peek fade in and out in a disclosure's time. The leaf's gestures
@@ -79,7 +79,6 @@
     --lf-motion-panel-fold-ease: cubic-bezier(0.77, 0, 0.175, 1);
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
-    --lf-motion-view-out: 60ms;
     --lf-motion-leaf-nod: 320ms;
     --lf-motion-leaf-shake: 360ms;
     --lf-motion-leaf-perk: 320ms;
@@ -1274,12 +1273,7 @@
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage
-    > .lf-fp-view:not(
-      [data-lf-leaving],
-      [data-lf-route="thread"],
-      :has(.lf-rows-group)
-    ) {
+  .lf-fp-stage > .lf-fp-view:not([data-lf-route="thread"], :has(.lf-rows-group)) {
     --lf-focus-box: .lf-fp-stage;
   }
   .lf-fp-stage[data-lf-control-focus-visible]::after {
@@ -1290,15 +1284,6 @@
     border-radius: var(--lf-r);
     outline: var(--lf-focus-ring);
     outline-offset: var(--lf-focus-ring-inset);
-  }
-  /* A view fading out keeps the height it stood at (panel/floating-panel.js,
-     `leaving`), uncut by the stage the view arriving sizes. */
-  .lf-fp-view[data-lf-leaving] {
-    pointer-events: none;
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    max-height: none;
   }
   /* A thread that continues past either edge of its view fades out there rather than
      cutting a line in half. Each fade lies over the view's padding where the thread

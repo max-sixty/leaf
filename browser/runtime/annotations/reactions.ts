@@ -51,7 +51,13 @@ import { keeps } from "../lib/keeps.js";
 
 import { elementById } from "../readings/passages.js";
 import { addressableWord } from "../lib/element-word.js";
-import { anchoringIsReady, visualPartLabel } from "../readings/anchor-resolution.js";
+import {
+  anchoringIsReady,
+  resolveAnchor,
+  visualPartLabel,
+} from "../readings/anchor-resolution.js";
+import { sameSegments, targetSegments } from "../readings/resolved-target.js";
+import { sameAnchor } from "../base/anchor-coordinate.js";
 import { announce } from "../transport/notifications.js";
 import { claimsEsc, keys } from "../dom/keyboard/scopes.js";
 import { saying } from "../dom/keyboard/control-keys.js";
@@ -91,9 +97,11 @@ import type { createCommandDispatch } from "../records/pending/dispatch.js";
 import type { createUndo } from "../records/undo.js";
 import type { createCurrentTarget } from "./composing/current-target.js";
 import type { Scope } from "../dom/keyboard/bindings.js";
+import type { Thread, ThreadPlacements } from "../records/thread/placement.js";
 
 type ResponseSurface = ReturnType<typeof createResponseSurface>;
 type Margin = ReturnType<typeof createMarginProjection>;
+type PlacedAt = ThreadPlacements["placedAt"];
 type Post = ReturnType<typeof createCommandDispatch>["post"];
 type ReactionCommands = {
   withdrawReaction: ReturnType<typeof createUndo>["withdraw"];
@@ -108,10 +116,25 @@ type ReactionCommands = {
 export const reactionEmoji = (): readonly string[] => registry.$reactions?.emoji ?? [];
 // A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
+// Whether a thread stands on the bar's target. Words stand where placement finds them,
+// so an edit beside them, which changes the context the reaction's anchor recorded,
+// leaves its emoji pressed there; any other target stands by its anchor's record.
+const standsOn = (anchor: Anchor, placedAt: PlacedAt) => {
+  const words = targetSegments(resolveAnchor(anchor));
+  return (thread: Thread) => {
+    const placed = targetSegments(placedAt(thread.id));
+    return words.length && placed.length
+      ? sameSegments(words, placed)
+      : sameAnchor(thread.anchor, anchor);
+  };
+};
 // The choices on one anchor, from the threads' current reading.
-const anchorChoices = (anchor: Anchor | null) =>
+const anchorChoices = (anchor: Anchor | null, placedAt: PlacedAt) =>
   reactionAvailable()
-    ? emojiChoices(reactionEmoji(), anchor ? reactionsAt(threadList(), anchor) : [])
+    ? emojiChoices(
+        reactionEmoji(),
+        anchor ? reactionsAt(threadList(), standsOn(anchor, placedAt)) : [],
+      )
     : [];
 
 // One reaction as a press in the response bar; a reply's strip builds its own
@@ -146,8 +169,10 @@ function reactionChip(
 // The bar's chips wear the reactions in force on its anchor, as a reply's strip does:
 // pressed where one stands, from the press on. A press on a pressed chip
 // takes that reaction back (reactHere).
-export function paintBarReactions(anchor: Anchor | null) {
-  const by = new Map(anchorChoices(anchor).map((choice) => [choice.emoji, choice]));
+export function paintBarReactions(anchor: Anchor | null, placedAt: PlacedAt) {
+  const by = new Map(
+    anchorChoices(anchor, placedAt).map((choice) => [choice.emoji, choice]),
+  );
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
     const inForce = by.get(chip.getAttribute("data-lf-emoji") ?? "")?.inForce;
     keeps(chip, "aria-pressed", String(Boolean(inForce)));
@@ -170,6 +195,7 @@ export function createReactionController({
   updateFab,
   currentLocationThread,
   currentTarget,
+  placedAt,
 }: {
   marginEntryChoices: Margin["marginEntryChoices"] | undefined;
   marginEntryContextContains: Margin["marginEntryContextContains"] | undefined;
@@ -177,6 +203,7 @@ export function createReactionController({
   designModeActive: () => boolean;
   currentLocationThread: typeof import("../records/thread/landing.js").currentLocationThread;
   currentTarget: ReturnType<typeof createCurrentTarget>;
+  placedAt: PlacedAt;
 } & Pick<
   ResponseSurface,
   | "hideComposer"
@@ -236,7 +263,9 @@ export function createReactionController({
     commands: ReactionCommands,
     anchor: Anchor | null = fabAnchorAt(),
   ) {
-    const choice = anchorChoices(anchor).find((choice) => choice.emoji === emoji);
+    const choice = anchorChoices(anchor, placedAt).find(
+      (choice) => choice.emoji === emoji,
+    );
     if (!choice) return;
     const { inForce } = choice;
     // Read before the bar goes, because the reading is about the bar that is open.
@@ -323,7 +352,7 @@ export function createReactionController({
       target,
       read: () => ({
         side: "after",
-        entries: anchorChoices(marginAnchor).map((choice, ordinal) => ({
+        entries: anchorChoices(marginAnchor, placedAt).map((choice, ordinal) => ({
           key: marginReactionKey(choice.emoji, ordinal),
           activation: choice.emoji,
           glyph: choice.emoji,

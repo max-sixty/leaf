@@ -181,6 +181,7 @@ import type { CapturedAnchor } from "../../readings/anchor-resolution.js";
 import type { PressRecords } from "../../dom/focus.js";
 import type { SelectionEnd } from "../../dom/native-selection.js";
 import type { landIn } from "../../records/thread/landing.js";
+import type { ThreadPlacements } from "../../records/thread/placement.js";
 
 export type FabFocusHandoff = { intent: ReturnType<typeof retainUserIntent> };
 
@@ -214,7 +215,7 @@ type ResponseOptions = Pick<
   landIn: typeof landIn;
   threadHere: ThreadDestinations["threadHere"];
   threadAtCurrentLocation: ThreadDestinations["threadAtCurrentLocation"];
-  threadTarget: ThreadDestinations["threadTarget"];
+  placedAt: ThreadPlacements["placedAt"];
   currentTarget: ReturnType<typeof createCurrentTarget>;
   markAt?: ((x: number, y: number) => string | null) | undefined;
   scrollToElement: ReturnType<typeof createAnchorTravel>["scrollToElement"];
@@ -242,7 +243,7 @@ export function createResponseSurface({
   landIn,
   threadHere,
   threadAtCurrentLocation,
-  threadTarget,
+  placedAt,
   currentTarget,
   markAt,
   scrollToElement,
@@ -568,7 +569,7 @@ export function createResponseSurface({
     const label = anchorLabel(fabAnchor.value, pendingAbout).replace(/^§\s*/, "");
     keeps(fabBar, "aria-label", label ? `Respond to ${label}` : "Respond");
     keeps(fabInput, "aria-label", label ? `Comment on ${label}` : "Comment");
-    paintBarReactions(fabAnchor.value);
+    paintBarReactions(fabAnchor.value, placedAt);
   }
   // The bar taken down: no anchor, no placement, no open responses or composer. Both
   // ways it goes, put away and refused room on opening, end here.
@@ -1531,7 +1532,7 @@ export function createResponseSurface({
     // So with no card shown, an element inside a commented block takes a thread of its
     // own, and a selection still starts one on its words.
 
-    const target = threadId && threadTarget(threadId);
+    const target = threadId && placedAt(threadId)?.place;
     const subject =
       threadId &&
       (!here ||

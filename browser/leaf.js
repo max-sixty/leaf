@@ -560,7 +560,7 @@ async function boot() {
     landIn,
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-    threadTarget: (id) => app.threadDestinations.threadTarget(id),
+    placedAt: anchorPlacement.placedAt,
     currentTarget,
     markAt: anchorPaint.markAt,
     scrollToElement: anchorTravel.scrollToElement,
@@ -604,6 +604,7 @@ async function boot() {
     updateFab: responseSurface.updateFab,
     currentLocationThread,
     currentTarget,
+    placedAt: anchorPlacement.placedAt,
   });
   targets = createTargetPicker({
     scrollToPassage: anchorTravel.scrollToPassage,

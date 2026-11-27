@@ -313,11 +313,11 @@ customElements.define(
           ? [
               {
                 id: `suggestion:${this.id}`,
-                // Before settlement this reading is the suggestion's question, so it is
-                // `on-me` and Leaf leaves out its own "Waiting on me" here
-                // (features/margin-model.js). Afterwards Undo remains without inventing a
+                // Before settlement this contribution is the obligation, so suppress the shared
+                // ask at the same target. Afterwards Undo remains without inventing a
                 // second page-map reading.
                 kind: outcome ? "action" : "on-me",
+                ...(outcome ? {} : { represents: true }),
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
                   : "Accept or reject suggested change",

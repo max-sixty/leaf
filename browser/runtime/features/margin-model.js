@@ -15,12 +15,12 @@
    the icon of its primary contribution's declared `kind`; unfolded, it is More.
    Placement decides whether a pin folds, and the user's gesture opens it.
 
-   A widget's own reading of kind `on-me` is the ask for its question, as a pending
-   suggestion's "Accept or reject" is, so Leaf leaves out its generated "Waiting on
-   me" at the same target. A target's workflow receipt goes on its primary control,
-   and every other control carries its own (`controlReceipt`). Whether a cluster is
-   expanded and whether a thread is open arrive as arguments. This module reads no DOM
-   and no registrations; layout and the retained controls read its values.
+   A widget's reading that sets `represents` says the widget's own entries answer its
+   question, so Leaf leaves out the "Waiting on me" it generates at the same target. A
+   target's workflow receipt goes on its primary control, and every other control
+   carries its own (`controlReceipt`). Whether a cluster is expanded and whether a
+   thread is open arrive as arguments. This module reads no DOM and no
+   registrations; layout and the retained controls read its values.
  */
 import {
   KINDS,
@@ -42,7 +42,7 @@ import { leafSays, wordsText } from "../base/voice.js";
  * @typedef {import("../../types/domain.js").Workflow} Workflow
  * @typedef {{word: import("../base/voice.js").Words, reason: string}} UserAttention
  * @typedef {{id: string, text: string, owner?: string, marker?: boolean,
- * workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
+ * represents?: boolean, workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
  * carriesWorkflow?: boolean, state?: State, label?: string | null, subject?: string,
  * userAttention?: UserAttention | null, unread?: number, context?: import("../base/voice.js").Words | null,
  * mapContext?: import("../base/voice.js").Words | null, words?: import("../base/voice.js").Words, atWork?: boolean,
@@ -519,11 +519,11 @@ export function clusterProjection(
 // callbacks stay there; an entry owns only values.
 /** @template {Offer} O @param {MarginGroup<O>} group @returns {Readonly<MarginEntry<O>>} */
 export function marginEntry(group) {
-  const asked = group.items.some(
-    (item) => item.marker === false && item.kind === "on-me",
+  const represented = group.items.some(
+    (item) => item.marker === false && item.represents,
   );
   let items = group.items
-    .filter((item) => !asked || item.marker === false || item.kind !== "on-me")
+    .filter((item) => !represented || item.marker === false || item.kind !== "on-me")
     .sort(
       (left, right) =>
         KINDS[left.kind].priority - KINDS[right.kind].priority ||

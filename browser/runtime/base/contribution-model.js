@@ -34,7 +34,7 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
  * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
  * @typedef {ContributionEntry & {owner: string}} OwnedEntry
- * @typedef {{id: string, text: string, kind?: ContributionKind, activate?: () => unknown}} ReadingInput
+ * @typedef {{id: string, text: string, kind?: ContributionKind, represents?: boolean, activate?: () => unknown}} ReadingInput
  * @typedef {{kind?: ContributionKind | null, subject?: string | null,
  * state?: ContributionState, side?: "before" | "after", notice?: {text: string, tone?: string | null} | null,
  * entries?: readonly EntryInput[], readings?: readonly ReadingInput[]}} ReadingOptions
@@ -330,8 +330,13 @@ export function normalizeContributionReading(reading, owner) {
     // say, such as a thread's `unread` and `userAttention`, so a package's field of
     // that name would paint Leaf's marks.
     readings: Object.freeze(
-      readings.map(({ id, text, kind }) =>
-        Object.freeze({ id, text, ...(kind !== undefined && { kind }) }),
+      readings.map(({ id, text, kind, represents }) =>
+        Object.freeze({
+          id,
+          text,
+          ...(kind !== undefined && { kind }),
+          ...(represents && { represents }),
+        }),
       ),
     ),
   });

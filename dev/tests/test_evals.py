@@ -466,6 +466,16 @@ def test_children_inherit_nothing_that_names_the_checkout(monkeypatch):
     assert env["PATH"] == "/usr/bin"
 
 
+def test_children_keep_a_login_the_environment_holds(monkeypatch):
+    """CI's Claude Code login is a token in the environment, which a child harness
+    needs as much as it needs to lose the parent session's own variables."""
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "token")
+    monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "cli")
+    env = arms.environment()
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "token"
+    assert "CLAUDE_CODE_ENTRYPOINT" not in env
+
+
 def test_model_option_sets_the_author_of_every_condition(tmp_path):
     config = module.prepare(
         ["configuration"],

@@ -118,6 +118,8 @@ pnpm run test:evals
 - `leaf-dev eval run` keeps each run in `$XDG_STATE_HOME/leaf-dev/eval/`, linked from
   `.tmp/eval/`, and deletes a stored run once its link is gone.
 - `leaf-dev journey run` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
-  a harness target it uses the host's authenticated accounts, as `leaf-dev eval run` does,
-  so CI runs neither; `publish-site` runs the journey against each deployed release
-  (`/developing-leaf`, "Run the agent journey" and "Score an instruction change").
+  a harness target it uses the host's authenticated accounts, as `leaf-dev eval run` does.
+  CI runs no eval and only the `claude-code` journey, daily, on the `tend` environment's
+  login (`ci.yaml`, `journey-claude-code`); `publish-site` runs the journey against each
+  deployed release (`/developing-leaf`, "Run the agent journey" and "Score an instruction
+  change").

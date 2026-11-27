@@ -116,7 +116,8 @@ among them, and, with an Escape, whether it left the turn open; `woken`'s also s
 whether a watch was running and what the page's status read. The sample keeps the
 rows as each step's `shown`. The session's screen at the end of each step and Claude Code's
 debug log join the run's evidence. It needs tmux, and spends a few model turns on
-the host's Claude Code login, so CI does not run it.
+the host's Claude Code login, or on the one `CLAUDE_CODE_OAUTH_TOKEN` holds, as in
+CI's daily run (`ci.yaml`, `journey-claude-code`).
 """
 
 import json

@@ -1,7 +1,7 @@
 /* Native selection endpoints and the provenance of programmatic writes. Passage
  * capture, view restoration and control activation share the same composed range;
  * none reads Chromium's retargeted light-DOM endpoints as the selected words. */
-import { pageShadowRoots } from "./shadow.js";
+import { declaredRoot } from "./shadow.js";
 import { holdingElement, isElement, isText } from "../lib/shadow-tree.js";
 
 // The range the user actually drew. Chrome keeps the legacy Range in the light DOM: a
@@ -24,10 +24,25 @@ import { holdingElement, isElement, isText } from "../lib/shadow-tree.js";
 // light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote
 // running from the page's prose into a widget's shadow is exactly what the fences
 // already refuse.
+//
+// The roots handed over are the declared ones whose hosts stand in the document's tree,
+// and of those only the roots the selection's ends stand in, which the platform names
+// by the hosts it moves the ends out to when handed none (`declaredRootAt`). So the
+// capture, which runs on every key, wheel step and press, costs two answers from the
+// platform however many stages the page holds.
 export function pageRange(sel: Selection) {
   const plain = sel.getRangeAt(0);
-  const shadowRoots = pageShadowRoots();
-  const [composed] = sel.getComposedRanges({ shadowRoots });
+  const [outer] = sel.getComposedRanges({ shadowRoots: [] });
+  if (!outer) return plain;
+  const shadowRoots = [
+    ...new Set([
+      declaredRootAt(outer.startContainer, outer.startOffset, false),
+      declaredRootAt(outer.endContainer, outer.endOffset, true),
+    ]),
+  ].filter((root) => root !== null);
+  const [composed] = shadowRoots.length
+    ? sel.getComposedRanges({ shadowRoots })
+    : [outer];
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
   if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
@@ -37,6 +52,19 @@ export function pageRange(sel: Selection) {
   if (sel.type === "Caret") range.collapse(true);
   return range;
 }
+
+// The element a boundary point stands against, which is where the platform leaves a
+// selection's end in a root it was not handed: a start just before the root's host, and
+// an end just after it.
+const edgeAt = (node: Node, offset: number, end: boolean) => {
+  const edge = isText(node) ? null : node.childNodes[end ? offset - 1 : offset];
+  return isElement(edge) ? edge : null;
+};
+// The declared root the platform moved such a point out of, or null.
+const declaredRootAt = (node: Node, offset: number, end: boolean) => {
+  const host = edgeAt(node, offset, end);
+  return host && declaredRoot(host);
+};
 
 // Where the user's caret stands, or null with no selection. The caret is the
 // selection's moving end, wherever a click, caret browsing or Shift and an arrow put it
@@ -76,8 +104,7 @@ export function userCaret(): {
     if (!range) return null;
     const node = forward ? range.endContainer : range.startContainer;
     const offset = forward ? range.endOffset : range.startOffset;
-    const edge = isText(node) ? null : node.childNodes[forward ? offset - 1 : offset];
-    const root = isElement(edge) ? edge.shadowRoot : null;
+    const root = edgeAt(node, offset, forward)?.shadowRoot ?? null;
     if (!root || shadowRoots.includes(root))
       return {
         node,

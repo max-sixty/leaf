@@ -46,7 +46,7 @@ from leaf.log import event_log as events_model
 from leaf.pages.render_gate.readings import DevtoolsIssues
 from leaf.records import page_data as page_data_model
 from leaf.source import render_checks as render_checks_model
-from leaf.source.render_checks import wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -124,7 +124,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     # data-lf-gen is what keeps them out of the version diff, which parses the base.
     expect(widget.locator(".lf-call-summary")).to_have_attribute("data-lf-gen", "1")
     expect(widget.locator(".lf-call-group-count")).to_have_attribute("data-lf-gen", "1")
-    groups = widget.locator(":scope > .lf-call-group")
+    groups = widget.locator(".lf-call-group")
     expect(groups).to_have_count(1)
     group = groups.first
     summary = group.locator(":scope > summary")
@@ -315,8 +315,12 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(context).to_be_in_viewport()
     summary.click()
     expect(group).to_have_attribute("open", "")
+    # The widget's Model follows each fold at the next frame (Effect UI's controlled
+    # `open`), so a press within the same frame would meet the fold before it.
+    rendered(page)
     page.keyboard.press("Space")
     expect(group).not_to_have_attribute("open", "")
+    rendered(page)
     page.keyboard.press("Enter")
     expect(group).to_have_attribute("open", "")
 

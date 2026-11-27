@@ -1238,6 +1238,26 @@ def worker_tool_batch(harness: str, payload: dict) -> bool:
     )
 
 
+# The shape of the row a serving page publishes (`rows.ROW`), declared here so that
+# the hook gate, which runs without the package, reads rows at this Leaf's shape.
+ROW_SINCE = 62
+
+
+def named_by_row(session_id: str) -> bool:
+    """Whether a row at this Leaf's shape names the session as the one whose shell
+    started its server for no session (`server_rows`), live or not, for the hook
+    gate: the pages follower then lists the page (`presence.started_in`). A row no
+    Leaf could have written counts as none, as it does there."""
+    for path in (state_home() / "rows").glob(f"*@{ROW_SINCE}.json"):
+        try:
+            stored = stored_record(path)
+        except (OSError, ValueError):
+            continue
+        if stored and stored.get("started_in") == session_id:
+            return True
+    return False
+
+
 def main() -> None:
     payload = json.load(sys.stdin)
     if payload.get("hook_event_name") == "SessionEnd":
@@ -1248,10 +1268,15 @@ if __name__ == "__main__":
     # `bin/leaf` asks this before starting uv for a hook registered `--if-claimed`,
     # with -S, so no site packages load. A hook it skips takes about 25 ms in
     # place of about 70 for starting the package (measured on macOS). Only status
-    # 3 skips the hook; any failure runs it whole.
+    # 3 skips the hook; any failure runs it whole. The pages follower also follows
+    # the pages a server for no session names the session in (`named_by_row`).
     if len(sys.argv) == 3 and sys.argv[1] == "hook-gate":
         payload = json.load(sys.stdin)
         if worker_tool_batch(sys.argv[2], payload):
             sys.exit(3)
-        sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
+        session = payload.get("session_id") or ""
+        followed = held_claims(session) or (
+            payload.get("hook_event_name") == "Pages" and named_by_row(session)
+        )
+        sys.exit(0 if followed else 3)
     main()

@@ -308,7 +308,7 @@ def test_a_pinned_version_shows_only_the_edits_logged_up_to_it(browser, serve):
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"value": text},
-                "answered": True,
+                "facts": {"answered": True},
             },
         )
 
@@ -357,7 +357,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": DRAFT_EDITED},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     # The highest user event reached context, so everything so far is ours to answer.
@@ -396,7 +396,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": DRAFT_EDITED},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     refused = CliRunner().invoke(

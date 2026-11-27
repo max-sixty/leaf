@@ -141,9 +141,10 @@ test("words sent to a question leave it on the user until the log answers", () =
   assert.ok(!published(app).on_agent.some((item) => item.id === "update:pending:a4"));
 });
 
-// The widget's word on its obligation, as `widgetAnswered` reads it, for one widget.
+// What one widget works out of its state, as `widgetFacts` reads it: its word on its
+// obligation.
 const says = (widget, answered) => (/** @type {string} */ asked) =>
-  asked === widget ? answered : undefined;
+  asked === widget ? { answered } : undefined;
 const record = (app, id) => app.read().effective.obligations.byId.get(id);
 
 test("a widget's gesture answers its question in the task that draws it", () => {
@@ -165,10 +166,10 @@ test("a widget's gesture answers its question in the task that draws it", () => 
   // Until the widget says, a gesture moves nothing on either list.
   assert.deepEqual(kinds(published(app).on_user), kinds(before.on_user));
   assert.deepEqual(kinds(published(app).on_agent), kinds(before.on_agent));
-  app.answer("a2", says("pick", true));
+  app.sayFacts("a2", says("pick", true));
   // The event carries the word to the log, and the question leaves On Me for Done
   // before the server has read the pick.
-  assert.equal(app.entry("a2")?.event.answered, true);
+  assert.equal(app.entry("a2")?.event.facts?.answered, true);
   assert.ok(!onUser());
   assert.ok(published(app).done.some(({ id }) => id === "widget:pick"));
   const answered = record(app, "widget:pick");
@@ -196,8 +197,8 @@ test("a gesture that leaves its widget open says nothing new", () => {
     },
     "now",
   );
-  app.answer("a2", says("pick", false));
-  assert.equal(app.entry("a2")?.event.answered, false);
+  app.sayFacts("a2", says("pick", false));
+  assert.equal(app.entry("a2")?.event.facts?.answered, false);
   assert.deepEqual(kinds(published(app).on_user), kinds(before.on_user));
   assert.equal(record(app, "widget:pick").state, "waiting");
 });
@@ -208,8 +209,8 @@ test("undoing the act that answered a question asks it again at once", () => {
   assert.equal(answered.state, "done");
   const id = /** @type {string} */ (answered.answer?.event?.id);
   app.enqueue({ kind: "undo", undoes: id, attempt: "a9" }, "now");
-  app.answer("a9", says("ship", false));
-  assert.equal(app.entry("a9")?.event.answered, false);
+  app.sayFacts("a9", says("ship", false));
+  assert.equal(app.entry("a9")?.event.facts?.answered, false);
   const reopened = record(app, "widget:ship");
   assert.deepEqual(
     [reopened.state, reopened.answered, reopened.next_actor],
@@ -221,8 +222,8 @@ test("undoing the act that answered a question asks it again at once", () => {
 test("a gesture on nothing that asks carries no word", () => {
   const { app } = adopted("queues on both sides");
   app.enqueue({ kind: "comment", text: "Hm.", revision: 1, attempt: "a3" }, "now");
-  app.answer("a3", () => true);
-  assert.equal("answered" in (app.entry("a3")?.event ?? {}), false);
+  app.sayFacts("a3", () => ({ answered: true }));
+  assert.equal("facts" in (app.entry("a3")?.event ?? {}), false);
 });
 
 test("Done lists completed obligations and to-dos through their own records", () => {

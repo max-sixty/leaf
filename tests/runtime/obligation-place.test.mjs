@@ -330,6 +330,7 @@ test("whether a region asks the user is read from the captured widgets, not its 
       declaration: awaits
         ? {
             awaits: { value: "choose" },
+            facts: { answered: { type: "boolean" } },
           }
         : {},
       parent: null,

@@ -1228,7 +1228,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
                 "widget": widget,
                 "action": action,
                 "detail": detail,
-                **({} if word is None else {"answered": word}),
+                **({} if word is None else {"facts": {"answered": word}}),
             },
         )
     state = state_json(page_dir)
@@ -1266,6 +1266,48 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     rejected = state_json(page_dir)
     assert not rejected["source"]["live"] and rejected["source"]["error"]
     assert rejected["active"] == revised["active"]
+
+
+def test_page_state_shows_each_widgets_facts_on_its_element(page_dir):
+    """`page state` shows on each widget's element what the widget worked out of its
+    state, as the page keeps it (`facts`): the latest value its gestures and its tabs'
+    `facts` events said, and nothing for a widget that has said none."""
+    markup = PAGE.replace(
+        "</main>",
+        OPTIONS.format(a="", b="", shim="Keep the shim.", stage="Stage it.")
+        + _board([X, Y], [])
+        + "</main>",
+    )
+    (page_dir / "index.html").write_text(markup)
+    publish(page_dir)
+    user = {"author": "user", "revision": 1, "widget": "g1"}
+    picked = append_command(
+        page_dir,
+        user
+        | {
+            "kind": "action",
+            "action": "choose",
+            "detail": {"value": ["o-stage"]},
+            "facts": {"answered": True},
+        },
+    )
+
+    def facts():
+        return {
+            element["id"]: element.get("facts")
+            for element in state_json(page_dir)["elements"]
+        }
+
+    assert (facts()["g1"], facts()["b1"]) == ({"answered": True}, None)
+    append_command(
+        page_dir,
+        user
+        | {"kind": "facts", "through": picked["seq"], "facts": {"answered": False}},
+    )
+    assert facts()["g1"] == {"answered": False}
+    narrowed = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir), "g1"])
+    assert narrowed.exit_code == 0, narrowed.output
+    assert json.loads(narrowed.output)["widget"]["facts"] == {"answered": False}
 
 
 def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
@@ -1396,7 +1438,7 @@ def test_thread_read_reads_message_construction(page_dir):
             "widget": "route",
             "action": "choose",
             "detail": {"value": ["second"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     runner = CliRunner()
@@ -2384,7 +2426,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     runner = CliRunner()
@@ -2434,12 +2476,17 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "widget": "t-store",
             "action": "choose",
             "detail": {"value": ["t-sqlite"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     undone = append_carried_log_record(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": picked["id"], "answered": False},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": picked["id"],
+            "facts": {"answered": False},
+        },
     )
     for name in ("t-store", opened["id"], renamed["id"], picked["id"], undone["id"]):
         read = run("page", "state", name)
@@ -2636,7 +2683,7 @@ def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
         "widget": "choice",
         "action": "choose",
         "detail": {"value": ["flag-first"]},
-        "answered": True,
+        "facts": {"answered": True},
     }
 
     def tab():
@@ -2728,7 +2775,7 @@ def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page
                         "widget": "choice",
                         "action": "choose",
                         "detail": {"value": ["flag-first"]},
-                        "answered": True,
+                        "facts": {"answered": True},
                     },
                 )
             )
@@ -2787,7 +2834,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     state = state_json(page_dir)
@@ -2823,8 +2870,8 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     assert [item["action"] for item in state_json(page_dir)["state"]] == [
@@ -3286,7 +3333,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     state = state_json(page_dir)
@@ -3587,7 +3634,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -3607,8 +3654,8 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "revision": 1,
             "widget": "gm",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     assert obligations_on_user(state_json(page_dir)) == []
@@ -3853,7 +3900,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
             "widget": "practice-policy",
             "action": "choose",
             "detail": {"value": ["practice-a"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     assert not pick["attention"]
@@ -3897,7 +3944,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "widget": "cargo",
             "action": "edit",
             "detail": {"value": "ledger_id,amount\n7,42"},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     assert obligations_on_user(state_json(page_dir)) == []
@@ -4615,7 +4662,7 @@ def test_exact_markdown_body_retains_saved_whitespace_across_revision(page_dir, 
             "widget": "exact",
             "action": "edit",
             "detail": {"value": source},
-            "answered": bool(source),
+            "facts": {"answered": bool(source)},
         },
     )
     write(source)
@@ -4645,7 +4692,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     edited = live.replace(
@@ -4689,7 +4736,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     log = page_dir / "events.jsonl"
@@ -4742,7 +4789,7 @@ def test_revisions_can_move_rewrite_or_remove_authored_generated_children(page_d
             "widget": "g1",
             "action": "add",
             "detail": {"option": added, "text": "My route."},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     for authored in (

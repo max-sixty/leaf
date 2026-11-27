@@ -124,34 +124,55 @@ test("an asked pick takes the options answering with its value, in the asker's w
   );
 });
 
+/** @param {string[]} options @param {string[]} picked */
+const done = (options, picked) =>
+  RecordAction.make({
+    verb: "answer",
+    detail: { options, picked },
+    says: "Marked answered",
+  });
+
+// Done in force, pressed on `options` with none of them picked.
+/** @param {string[]} options @param {object} [more] */
+const pressed = (options, more = {}) => ({
+  answer: {
+    available: true,
+    action: "a1",
+    detail: { options, picked: [] },
+    undoable: true,
+    ...more,
+  },
+});
+
 test("Done marks the set answered, and a second press takes that answer back", () => {
   tell({ multiple: true }, (s) =>
     s
       .send({ _tag: "PressedDone" })
-      .expectExact(
-        RecordAction.make({ verb: "answer", detail: {}, says: "Marked answered" }),
-      )
+      .expectExact(done(["hold", "ship"], []))
       .resolve(RecordAction, Component.noop),
   );
-  tell(
-    {
-      multiple: true,
-      state: reading([], { answer: { action: "a1", undoable: true } }),
-    },
-    (s) =>
-      s
-        .send({ _tag: "PressedDone" })
-        .expectExact(TakeBack.make({ verb: "answer" }))
-        .resolve(TakeBack, Component.noop),
+  tell({ multiple: true, state: reading([], pressed(["hold", "ship"])) }, (s) =>
+    s
+      .send({ _tag: "PressedDone" })
+      .expectExact(TakeBack.make({ verb: "answer" }))
+      .resolve(TakeBack, Component.noop),
   );
   tell(
     {
       multiple: true,
-      state: reading([], { answer: { action: "a1", undoable: false } }),
+      state: reading([], pressed(["hold", "ship"], { undoable: false })),
     },
     (s) => s.send({ _tag: "PressedDone" }).expectNone(),
   );
 });
+
+test("Done pressed on a set the group has since grown answers the set it shows now", () =>
+  tell({ multiple: true, state: reading([], pressed(["ship"])) }, (s) =>
+    s
+      .send({ _tag: "PressedDone" })
+      .expectExact(done(["hold", "ship"], []))
+      .resolve(RecordAction, Component.noop),
+  ));
 
 test("the settled disclosure opens from where this tab left it, and remembers", () => {
   tell({ settled: true, remembered: true }, (s) => {

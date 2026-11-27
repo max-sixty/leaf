@@ -187,7 +187,7 @@ def test_a_message_waited_where_its_thread_still_owed_it_at_any_of_the_versions_
         ASKED,
         PICKED,
         CLOSED,
-        {"kind": "undo", "undoes": "e2", "answered": False},
+        {"kind": "undo", "undoes": "e2", "facts": {"answered": False}},
         live(2),
     ]
     assert saved_after(overlapping, 1, 2, pages) == [waited("e1")]
@@ -258,7 +258,7 @@ def test_a_version_is_read_under_its_own_document():
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["option-a"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
         {
             "kind": "note",

@@ -1010,7 +1010,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             "widget": "picked",
             "action": "choose",
             "detail": {"value": ["pk-keep"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     append_carried_log_record(

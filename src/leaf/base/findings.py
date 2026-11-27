@@ -1650,6 +1650,12 @@ _TEXT = {
     "awaits-value": _declared(
         lambda v: "`awaits` value must name a user-written verb (`verbs`)"
     ),
+    "awaits-answered": _declared(
+        lambda v: (
+            "declares `awaits`, so it says whether its question is answered: list"
+            ' `"answered": {"type": "boolean"}` under `facts`'
+        )
+    ),
     "awaits-retired": _declared(
         lambda v: (
             f"`awaits` retires with `{v['flag']}`, but its `when` does not"
@@ -1665,6 +1671,11 @@ _TEXT = {
     "verb-detail-schema": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) has an invalid detail schema: {v['reason']}"
+        )
+    ),
+    "fact-schema": _declared(
+        lambda v: (
+            f"fact `{v['fact']}` (`facts`) has an invalid value schema: {v['reason']}"
         )
     ),
     "creates-unit": _declared(
@@ -1953,8 +1964,8 @@ _TEXT = {
             f"unknown report widget {v['widget']!r} in revision r{v['revision']};"
             " reports name page widgets only"
             if v["kind"] == "report"
-            else f"unknown action widget {v['widget']!r} in revision r{v['revision']} or"
-            " agent-authored thread markup"
+            else f"unknown {v['kind']} widget {v['widget']!r} in revision"
+            f" r{v['revision']} or agent-authored thread markup"
         ),
     ),
     "undeclared-tag": _refuses(
@@ -1998,14 +2009,32 @@ _TEXT = {
         _DECIDES,
         lambda at, v: (
             f"<{v['tag']}> declares `awaits`, so each act and undo of it says whether"
-            " its question is answered; send `answered`"
+            " its question is answered; send `facts.answered`"
         ),
     ),
-    "answered-unasked": _refuses(
+    "undeclared-fact": _refuses(
         _ADMITS,
         lambda at, v: (
-            f"<{v['tag']}> declares no `awaits`, so its gestures say nothing of an"
-            " answer; send no `answered`"
+            f"<{v['tag']}> declares no fact {v['fact']!r} (`facts`)"
+            + (f"; it declares {json_value(v['declared'])}" if v["declared"] else "")
+        ),
+    ),
+    "invalid-fact": _refuses(
+        _ADMITS,
+        lambda at, v: f"<{v['tag']}> fact {v['fact']!r} is invalid: {v['error']}",
+    ),
+    "stale-facts": _refuses(
+        _AS_SEEN,
+        lambda at, v: (
+            f"{v['widget']!r} moved after the reading this `facts` event was worked out"
+            " from; work its facts out again from the newest version and reading"
+        ),
+    ),
+    "unchanged-facts": _refuses(
+        _ADMITS,
+        lambda at, v: (
+            f"the page already keeps these facts of {v['widget']!r}; a `facts` event"
+            " changes one"
         ),
     ),
     "created-exists": _refuses(

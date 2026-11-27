@@ -60,11 +60,20 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
- * whole, posted as an `answer` action, and the group says its question is answered
- * while that answer stands (`static answered`). Answered is paint on the press, never a
- * wider word. A second press withdraws that answer through the widget's exact undo,
- * reopening the obligation; the set can still change after either press, and each
- * toggle reaches the agent.
+ * whole, posted as an `answer` action naming the options it covers and the picks among
+ * them, and the group says its question is answered while that answer stands on the set
+ * the group shows (`static answered`). Answered is paint on the press, never a wider
+ * word. A second press withdraws that answer through the widget's exact undo, reopening
+ * the obligation. The set can still change after either press, and each toggle reaches
+ * the agent. A set that changed after Done waits on Done again, since Done said the set
+ * it was pressed on was whole and no other: an option a version added asks again with
+ * the picks kept, a pick the user changed asks again with the new picks, and a version
+ * that rewrites a picked option (`$restated`) takes back the pick, so the question asks
+ * again with the picks before it. Only the user's press answers again: a version that
+ * removes the one option Done didn't cover leaves the question asking until Done is
+ * pressed, though the set Done covered stands again (`obligations.told_facts`). The
+ * alternative, Done answering whatever set follows it, could not ask again about an
+ * option a version added without taking back every pick (`$restated` on the group).
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
@@ -220,18 +229,64 @@ function additions(state) {
   });
 }
 
-/** @param {any} state */
-function isAnswered(state) {
-  const answer = state?.answer;
-  return answer && "action" in answer ? Boolean(answer.action) : false;
+// The set a press of Done answers, which the `answer` action records: the ids of the
+// options the group shows (`shown`), its authored ones and the user's, and of those
+// picked.
+/** @param {any} state @param {readonly string[]} shown */
+function doneSet(state, shown) {
+  const options = new Set(shown);
+  const choose = state?.choose;
+  const picked = choose && "value" in choose ? choiceIds(choose.value) : [];
+  return {
+    options: [...options].sort(),
+    picked: picked.filter((id) => options.has(id)).toSorted(),
+  };
 }
+
+// Whether Done answers the set the group shows now: pressed on every option it shows,
+// with the same of them picked. An option a version adds, a pick a version takes back,
+// or a pick the user changes after Done leaves it waiting on Done again; an option a
+// version removes changes nothing here.
+/** @param {any} state @param {readonly string[]} shown */
+function isAnswered(state, shown) {
+  const answer = state?.answer;
+  if (!answer || !("action" in answer) || !answer.action) return false;
+  const now = doneSet(state, shown);
+  const covered = new Set(choiceIds(answer.detail.options));
+  const options = new Set(now.options);
+  const then = choiceIds(answer.detail.picked).filter((id) => options.has(id));
+  return (
+    now.options.every((id) => covered.has(id)) &&
+    JSON.stringify(then.toSorted()) === JSON.stringify(now.picked)
+  );
+}
+
+// The options the author wrote. An option the user added is drawn as an `lf-option`
+// too (`data-lf-added`), and stays drawn until the next redraw after its `add` is
+// undone, so the user's options are read from the state alone (`additions`).
+/** @param {Element} group */
+const authoredOptions = (group) =>
+  optionsOf(group).filter((option) => !option.hasAttribute("data-lf-added"));
+
+// The ids of the options a group element shows, its authored ones and the user's, for
+// the code that holds the element rather than the view's props, as `allOptions` reads
+// them from `inputs`.
+/** @param {Element} group @param {any} state @returns {string[]} */
+const shownOptions = (group, state) => [
+  ...new Set([
+    ...authoredOptions(group).map((option) => option.id),
+    ...additions(state).map(({ id }) => id),
+  ]),
+];
 
 /** @param {any} state @param {string} verb */
 const available = (state, verb) => Boolean(state?.[verb]?.available);
 
-/** @param {any} state */
-const doneAvailable = (state) =>
-  isAnswered(state) ? Boolean(state.answer.undoable) : available(state, "answer");
+/** @param {any} state @param {readonly string[]} shown */
+const doneAvailable = (state, shown) =>
+  isAnswered(state, shown)
+    ? Boolean(state.answer.undoable)
+    : available(state, "answer");
 
 /** The options the author wrote, as the group's `inputs` reads them. */
 const Authored = Schema.Struct({
@@ -371,15 +426,18 @@ export const Options = Html.component({
         .map((option) => option.id);
       return $.run(choose(ids, words));
     },
+    // A Done that no longer stands on the set shown answers it again with a Done of its
+    // own.
     PressedDone: ($) => {
       const state = $.props.state;
-      if (!doneAvailable(state)) return $.model;
-      return isAnswered(state)
+      const shown = allOptions($.props).map(({ id }) => id);
+      if (!doneAvailable(state, shown)) return $.model;
+      return isAnswered(state, shown)
         ? $.run(TakeBack.make({ verb: "answer" }).pipe(Command.asNoop))
         : $.run(
             RecordAction.make({
               verb: "answer",
-              detail: {},
+              detail: doneSet(state, shown),
               says: "Marked answered",
             }).pipe(Command.asNoop),
           );
@@ -394,7 +452,10 @@ export const Options = Html.component({
     const picked = new Set(pickedIds(props));
     const open = settledOpen(model, props);
     const collapsed = settled && !open;
-    const answered = isAnswered(state);
+    const answered = isAnswered(
+      state,
+      options.map(({ id }) => id),
+    );
     const form = card ? "card" : "row";
     const faces = options.map((option, index) => {
       const checked = picked.has(option.id);
@@ -610,6 +671,7 @@ class GroupLight {
       );
     this.#scopeKey = key;
     const state = () => /** @type {any} */ (host).state;
+    const shown = () => shownOptions(host, state());
     const titles = new Map(
       args.faces.map((/** @type {any} */ { id, title, recommended }) => [
         id,
@@ -658,10 +720,10 @@ class GroupLight {
         bindingBadge: done.querySelector(".lf-key-badge"),
         title: "Done",
         description: () =>
-          isAnswered(state())
+          isAnswered(state(), shown())
             ? "Take back Done and keep choosing"
             : "Finish choosing options",
-        when: () => doneAvailable(state()),
+        when: () => doneAvailable(state(), shown()),
         run: () => this.send(OptionsMessage.PressedDone()),
       });
     /** @type {any} */ (host).lfCommands = { title: SECTION, rows };
@@ -790,14 +852,16 @@ defineWidget("lf-options", Options, {
         ].join(", ") || "No options selected"
       );
     },
-    // Whether the group's question is answered, which Leaf asks after each of its
-    // gestures (`module-state.md`, "Declared widget state"): Done pressed where the
-    // group takes several options, otherwise a pick the user made. Each reads only the
-    // user's acts in force, never a selection only the markup holds, so a pick the
-    // version writes in answers nothing, as the server reads it.
+    // Whether the group's question is answered, its `answered` fact, which Leaf asks
+    // after each of its gestures and as a version or another tab's act moves it
+    // (`module-state.md`, "Declared widget state"): Done standing on the set the group
+    // shows where it takes several options (`isAnswered`), otherwise a pick the user
+    // made. Each reads only the user's acts in force, never a selection only the markup
+    // holds, so a pick the version writes in answers nothing, as the server reads it.
     /** @param {any} state @param {Element} group */
     answered(state, group) {
-      if (group.hasAttribute("multiple")) return isAnswered(state);
+      if (group.hasAttribute("multiple"))
+        return isAnswered(state, shownOptions(group, state));
       const choose = state.choose;
       return Boolean(
         choose && "action" in choose && choose.action && choiceIds(choose.value).length,
@@ -808,9 +872,7 @@ defineWidget("lf-options", Options, {
     // Quoted material is exhibited, not offered: a sample shows what a decision looks
     // like without taking one. Every other group takes the user's pick.
     const choosable = !host.matches("[data-lf-exhibit] *");
-    const authored = optionsOf(host).filter(
-      (option) => !option.hasAttribute("data-lf-added"),
-    );
+    const authored = authoredOptions(host);
     const named = new Set(authored.map((option) => option.getAttribute("for")));
     const settled = host.hasAttribute("settled");
     return {

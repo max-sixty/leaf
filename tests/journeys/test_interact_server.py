@@ -658,7 +658,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
                 "widget": "local-draft",
                 "action": "edit",
                 "detail": {"value": "New words."},
-                "answered": True,
+                "facts": {"answered": True},
             }
         ).encode(),
     )

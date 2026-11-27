@@ -128,29 +128,36 @@ lists, which otherwise show none. `value` is the obligation's `answer.value`, an
 `element` gives the authored markup, such as option labels; read only that, not what
 the module draws.
 
-Such a widget says whether its question is answered with
-`static answered(state, element)`, returning `true` or `false`. Leaf calls it after
-each of the widget's actions and each undo of one, with the `state` it then sets on the
-element and the authored markup, wherever the widget stands, and sends the answer with
-the gesture: the obligation leaves On Me, or returns to it, as the user acts, and the
-log keeps the widget's word. `lf-options` answers once a pick is made, or Done is
-pressed where it takes several:
+A widget works out what the agent or the server needs of its state in static
+functions of its class, each listed under `facts` in its declaration with the JSON
+Schema of its value. Leaf calls each as `name(state, element)`, with the `state` it
+sets on the element and the authored markup, wherever the widget stands, after each of
+the widget's actions and each undo of one, and sends the values with the gesture. Where
+the state or markup moves otherwise, as when a version or another tab's act reaches
+the widget, a tab showing the newest version calls them again and sends the values
+that changed. The page keeps each one's latest value, and `leaf page state` shows them
+on the widget's element. A function reads only `state` and that markup, never what the
+module draws, so it can say a value for a widget no tab draws, and a function that
+throws is the widget's failure, its value unsaid.
 
-```js
-static answered(state, group) {
-  return group.hasAttribute("multiple")
-    ? Boolean(state.answer?.action)
-    : Boolean(state.choose?.action) && state.choose.value.length > 0;
-}
-```
+Leaf gives one fact meaning: `answered`, which a widget that asks lists with the
+schema `{"type": "boolean"}`, says whether its question is answered. The obligation
+leaves On Me, or returns to it, in the task of the gesture that moves it, and when a
+version moves the answer, as one adding a step to a checklist does, the question asks
+again as soon as a tab shows that version. `lf-options` answers once a pick is made,
+or, where it takes several, while its Done stands on the options it shows and the picks
+among them, which its `answer` action records
+([`lf-options.js`](../../../packages/default/widgets/lf-options.js), `static answered`).
 
-A class without it is answered while the user's acts in force hold a state at the
-verb `awaits.value` names: an action there that records a non-empty value, or, for a
-verb with no record, any action there. Either way, `answered` reads only the user's
+A class without `answered` is answered while the user's acts in force hold a state at
+the verb `awaits.value` names: an action there that records a non-empty value, or, for
+a verb with no record, any action there. Either way, `answered` reads only the user's
 acts, never a value the markup holds, as lf-options' reads `action` beside its
-`value`. Only the user's gestures carry the word, so a version that writes an answer into the markup
-answers nothing: one that settles a question retires it (`awaits.retired`), and one
-that asks a decided question again marks it `restated` (`authoring-revisions.md`).
+`value`, so a version that writes an answer into the markup answers nothing: one that
+settles a question retires it (`awaits.retired`), and one that asks a decided question
+again marks it `restated` (`authoring-revisions.md`), which lapses the word the page
+kept. A tab's word on a version can reopen a question but never answer it, so only
+the user's next gesture answers it again.
 
 ## Bound data and projections
 

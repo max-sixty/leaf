@@ -449,7 +449,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     answered = append_command(
@@ -460,8 +460,8 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "revision": 1,
             "widget": "thread-region",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     # The move owes a reply in its thread, and the agent starts the move itself.
@@ -549,7 +549,7 @@ def test_an_owed_pick_in_a_thread_outlives_the_users_resolve(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     append_carried_log_record(
@@ -725,7 +725,7 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
         **action,
         "action": "tune",
         "detail": {"values": {"tone": "urgent"}},
-        "answered": False,
+        "facts": {"answered": False},
     }
     assert admit(tune)["attention"] is False
     chosen = admit(
@@ -733,7 +733,7 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
             **action,
             "action": "choose",
             "detail": {"values": {"tone": "urgent"}, "instruction": "Build it."},
-            "answered": True,
+            "facts": {"answered": True},
         }
     )
     assert chosen["attention"] is True
@@ -743,7 +743,11 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     assert working["work"] == [{"id": chosen["id"], "inputs": [chosen["id"]]}]
 
     # The submitted settings still stand, so a tune after them leaves it answered.
-    calmer = {**tune, "detail": {"values": {"tone": "calm"}}, "answered": True}
+    calmer = {
+        **tune,
+        "detail": {"values": {"tone": "calm"}},
+        "facts": {"answered": True},
+    }
     assert admit(calmer)["attention"] is False
     assert attention_reading(AdmissionReadings(page, log, page.registry(1))) == working
 
@@ -1036,7 +1040,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "widget": "region",
             "action": "choose",
             "detail": {"value": ["east"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     newer = append_carried_log_record(
@@ -1093,7 +1097,7 @@ def choose(page_dir, option: str) -> dict:
             "widget": "file-issue",
             "action": "choose",
             "detail": {"value": [option]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
 
@@ -1173,7 +1177,12 @@ def test_a_pick_an_undo_brings_back_is_the_threads_newest_input(page_dir, resolv
         assert owed(state_json(page_dir)) == []
     append_carried_log_record(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": changed["id"], "answered": True},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": changed["id"],
+            "facts": {"answered": True},
+        },
     )
     [answer] = owed(state_json(page_dir))
     assert answer["input"] == first["id"]
@@ -1200,7 +1209,12 @@ def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
 
     append_carried_log_record(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": second["id"], "answered": True},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": second["id"],
+            "facts": {"answered": True},
+        },
     )
     [answer] = owed(state_json(page_dir))
     assert answer["input"] == first["id"]
@@ -1221,7 +1235,12 @@ def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir, changed):
     assert answer["input"] == taken["id"]
     append_carried_log_record(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": taken["id"], "answered": changed},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": taken["id"],
+            "facts": {"answered": changed},
+        },
     )
     with pytest.raises(Rejected) as refused:
         thread_model.post_reply(page_dir, answer["answer"], "Leaving it.")
@@ -1316,7 +1335,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "choose",
             "detail": {"value": ["east"]},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     selecting = state_json(page_dir)
@@ -1335,8 +1354,8 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "revision": 1,
             "widget": "regions",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     completed = state_json(page_dir)
@@ -1365,8 +1384,8 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "revision": 1,
             "widget": "regions",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     assert [item["input"] for item in owed(state_json(page_dir))] == [answered["id"]]

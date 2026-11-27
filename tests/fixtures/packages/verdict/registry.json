@@ -25,6 +25,7 @@
       }
     },
     "awaits": { "value": "decide" },
+    "facts": { "answered": { "type": "boolean" } },
     "visual": { "prefixes": ["choice:"] },
     "inputs": {
       "notes": {

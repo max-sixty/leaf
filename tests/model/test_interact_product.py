@@ -1480,7 +1480,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
             "widget": "ship",
             "action": "choose",
             "detail": {"value": ["ship-now"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
 
@@ -1527,7 +1527,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
                 "widget": "route",
                 "action": action,
                 "detail": detail,
-                "answered": answered,
+                "facts": {"answered": answered},
             },
         )
     reworded = edit(route["id"], "Which route, then?\n\n" + options("route", "a"))

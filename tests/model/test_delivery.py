@@ -313,7 +313,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
 
-    def action(widget, verb, detail, **answered):
+    def action(widget, verb, detail, **facts):
         return append_command(
             page_dir,
             {
@@ -323,7 +323,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
                 "widget": widget,
                 "action": verb,
                 "detail": detail,
-                **answered,
+                "facts": facts,
             },
         )
 
@@ -331,7 +331,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     composing = action("choice", "choose", {"value": ["flag-first"]}, answered=False)
     assert not composing["attention"]
     assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
-    completed = action("choice", "answer", {}, answered=True)
+    completed = action("choice", "answer", {"options": [], "picked": []}, answered=True)
     assert completed["attention"]
     receive_through(page_dir, completed["seq"])
     # The agent takes the answered pick on as a task on its widget.
@@ -350,7 +350,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
             "kind": "undo",
             "author": "user",
             "undoes": completed["id"],
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     assert undone["attention"]
@@ -359,13 +359,23 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert changed["attention"]
     assert append_command(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": changed["id"], "answered": False},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": changed["id"],
+            "facts": {"answered": False},
+        },
     )["attention"]
     quiet = action("draft", "edit", {"value": "Green room."}, answered=True)
     assert not quiet["attention"]
     assert not append_command(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": quiet["id"], "answered": False},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": quiet["id"],
+            "facts": {"answered": False},
+        },
     )["attention"]
     quiet = action("draft", "edit", {"value": "Red room."}, answered=True)
     assert (
@@ -511,12 +521,17 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
             "widget": "permit",
             "action": "choose",
             "detail": {"value": ["publish"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     undo = append_command(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": done["id"], "answered": False},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": done["id"],
+            "facts": {"answered": False},
+        },
     )
     report = append_command(
         page_dir,
@@ -775,7 +790,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
 
@@ -842,7 +857,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     pick = "“Cap retries Bound retry load.”"
@@ -926,7 +941,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "widget": "plan-choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     answered = append_command(
@@ -937,8 +952,8 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "revision": 2,
             "widget": "plan-choice",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     assert transaction_model.claim_page(page_dir)
@@ -990,8 +1005,8 @@ def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
             "revision": 1,
             "widget": "plan-choice",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     assert transaction_model.claim_page(page_dir)
@@ -1050,7 +1065,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "widget": "thread-answer",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
 
@@ -1130,7 +1145,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "widget": "thread-commands",
             "action": "choose",
             "detail": {"value": ["restart"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
 
@@ -1191,7 +1206,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -1264,7 +1279,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.
@@ -1466,7 +1481,7 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
             "widget": "permit",
             "action": "choose",
             "detail": {"value": ["publish"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     [batch] = freeze_events(page_dir, [pick])["batches"]
@@ -1520,13 +1535,19 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
                 "widget": widget,
                 "action": "tune",
                 "detail": {"values": {"radius": radius}},
-                "answered": submitted.get(widget, False),
+                "facts": {"answered": submitted.get(widget, False)},
             }
         )
 
     submitted: dict[str, bool] = {}
     round_ = tune("notify", 12)
-    user({"kind": "undo", "undoes": tune("notify", 4)["id"], "answered": False})
+    user(
+        {
+            "kind": "undo",
+            "undoes": tune("notify", 4)["id"],
+            "facts": {"answered": False},
+        }
+    )
     # The submission the agent got already is sent work, so it isn't carried again.
     submit = {"values": {"radius": 12}, "instruction": "Build it."}
     user(
@@ -1535,7 +1556,7 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
             "widget": "notify",
             "action": "choose",
             "detail": submit,
-            "answered": True,
+            "facts": {"answered": True},
         }
     )
     submitted["notify"] = True
@@ -1543,7 +1564,7 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     opened = user({**comment, "anchor": {"section": "card"}})
     sharper = tune("notify", 6)
     reply = user({"kind": "reply", "parent": opened["id"], "text": "Now too sharp."})
-    user({"kind": "undo", "undoes": sharper["id"], "answered": True})
+    user({"kind": "undo", "undoes": sharper["id"], "facts": {"answered": True}})
     moved = tune("other", 3)
     agent = {"author": "agent", "agent": "Claude"}
     append_command(

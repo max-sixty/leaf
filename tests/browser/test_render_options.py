@@ -1193,7 +1193,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "widget": "quoted-suggestion",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
-                "answered": True,
+                "facts": {"answered": True},
             },
         )
     assert refused_on(refused.value).code == "quoted-widget"
@@ -1832,7 +1832,7 @@ def test_a_nested_obligations_pick_is_not_part_of_its_outers_record(browser, ser
             "widget": "outer",
             "action": "choose",
             "detail": {"value": ["out-drill"]},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
 
@@ -2340,7 +2340,11 @@ def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
     expect_obligations_answered(page, "0/3")
     events = events_model.read_events(serve.page_dir)
     answers = [event for event in events if event.get("action") == "answer"]
-    assert len(answers) == 1 and answers[0]["detail"] == {}
+    # Done names the set it answered: every option the group showed, none picked.
+    assert len(answers) == 1 and answers[0]["detail"] == {
+        "options": ["job-camera", "job-heater", "job-mounts"],
+        "picked": [],
+    }
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         answers[0]["id"]
     ]

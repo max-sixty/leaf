@@ -500,7 +500,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
             "widget": "route",
             "action": "choose",
             "detail": {"value": ["second"]},
-            "answered": True,
+            "facts": {"answered": True},
             "attempt": "restart-choice-0001",
         },
     ):

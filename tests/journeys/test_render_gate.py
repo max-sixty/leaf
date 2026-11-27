@@ -1069,13 +1069,21 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     choose = {
         "action": "choose",
         "detail": {"value": ["an-chase", "an-say"]},
-        "answered": False,
+        "facts": {"answered": False},
     }
     append_command(serve.page_dir, user | choose)
     # The Done press. Recordless, and the last word on the group.
     append_command(
         serve.page_dir,
-        user | {"action": "answer", "detail": {}, "answered": True},
+        user
+        | {
+            "action": "answer",
+            "detail": {
+                "options": ["an-chase", "an-clear", "an-say"],
+                "picked": ["an-chase", "an-say"],
+            },
+            "facts": {"answered": True},
+        },
     )
     # The population first: the probe returns clean for an empty list.
     page = open_page(browser, url)
@@ -1404,7 +1412,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "widget": "sug-rewrite",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
-                "answered": True,
+                "facts": {"answered": True},
                 "meaning": {
                     "scope": "page",
                     "unit": "sug-rewrite",

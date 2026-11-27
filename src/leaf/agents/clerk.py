@@ -118,8 +118,9 @@ agent's `--obligation <id>` does (`obligations`), reopening the thread if the us
 closed it. Any other opens a thread of its own, on
 the passage the ask concerns where the fork names its words, and otherwise on the
 page as a whole. The page places those words as it places any quote: where it doesn't
-show them once, the thread stands in Threads, and the line telling the agent of the
-ask says so where the page's files don't hold them once (`unplaced-quote`). Where the
+show them once, the thread stands on the element around the one copy the page's files
+hold, or in Threads, and the line telling the agent of the ask says so where the files
+don't hold them once (`unplaced-quote`). Where the
 question's thread still owes the user a reply, the question
 waits on that reply and is On Me again once it is given, so Leaf asks nothing and
 tells the agent to reply there. An ask Leaf can't otherwise put in its question's

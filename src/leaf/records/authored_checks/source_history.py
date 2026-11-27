@@ -2,15 +2,20 @@
 
 Revisions may change or remove any historical subject. A thread follows its
 surviving section when its passage or part disappears, and detaches when its
-section leaves the page. The original anchor remains in the append-only log.
+section leaves the authored page. A decision that hides a section, as an accepted
+suggestion hides the words it replaces, moves no thread, since undoing the decision
+shows the section again. The original anchor remains in the append-only log.
 
 A passage disappears where the file's reading of the predecessor finds the quote's
 words and the candidate's finds none (`anchor_capture.copies`). The reading only
-approximates the drawn page, and a miss costs little: words the reading still finds
-but the page no longer shows once stand on their section in the browser all the same
-(`resolveAnchor`). The move makes that fallback durable, so a later version that says
-the words again elsewhere doesn't take the thread there, and tells the agent
-(`relocated-anchor`, `rewritten_from`).
+approximates the drawn page. Words it still finds but the page no longer shows once
+stand on their section in the browser all the same (`resolveAnchor`), and words the
+page still shows where the reading finds none, as after an edit that splits a word
+across two inline elements, move with the rest. The move makes the fallback durable,
+so neither a later version that says the words again nor a copy the reading doesn't
+hold, such as a code block's, takes the thread, and it tells the agent
+(`relocated-anchor`, `rewritten_from`). A quote the reading never found gets no move,
+and follows its words to the one copy a later version shows.
 """
 
 from functools import cache
@@ -85,11 +90,7 @@ def revision_reanchors(
         # removals. Their own owners retain their coordinate and lifecycle.
         if section and section not in previous.document.ids:
             continue
-        surviving = (
-            section in current_passages().enclosing
-            and section not in current_passages().retired
-            and section not in current_passages().gone
-        )
+        surviving = section in current_passages().enclosing
         # A selection captured as detached names no copy to lose.
         quoted = anchor.get("quote") and not (
             anchor.get("source") or anchor.get("datum") or anchor.get("detached")

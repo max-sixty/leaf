@@ -3,25 +3,32 @@ part an agent names against what the page drew of its visual.
 
 The browser is the only reader of anchored words: it finds a stored quote in the page
 it draws (`readings/anchor-resolution.js`, `resolveAnchor`), and where it can't place
-the words once, it shows the thread on the quote's section, or detaches it where the
-anchor names none. So a capture here checks only what the files settle, the section
-an agent names, and stores the quote it was given. The file's reading of the page
-(`passages.page_passages`) stands in for the drawn page only as advice: it names the
-section that encloses words it finds once, says where it finds them zero or several
-times (`unplaced-quote`), and tells a revision which quotes it took out (`copies`,
-`source_history.revision_reanchors`). It finds a quote only as it spells the page's
-words, where the browser also finds one with or without a space where two elements'
-words meet, and it reads none of the words a module draws. Where the two disagree,
-the agent gets a note on a quote the page places, or none on one the page stands on
-its section; an anchor stores no section; or a revision moves a thread to its
-section while the page still shows its words."""
+the words once, it shows the thread on the quote's section, or in Threads where the
+anchor names none. So a capture here checks only what the files settle, the section an
+agent names, and stores the quote it was given. The file's reading of the page
+(`passages.page_passages`) stands in for the drawn page only as evidence. Where it finds
+the words once, the anchor stores the words around them there, as a selection stores
+its neighbours, so the page tells that copy from any other it draws or a later version
+adds, and the section around them where the agent named none, so the thread has an
+element to stand on. Where it finds them zero or several times, the agent gets a note
+(`unplaced-quote`) and the anchor stores no neighbours.
+
+The file's reading needn't match the browser's. A stored side the page doesn't show
+beside a copy rules that copy out, and a sole copy wins whatever its sides say
+(`findQuote`). So where the two readings differ, a thread on words the page shows
+several times stands on its section, and the agent may get a note about words the page
+places."""
 
 from typing import NamedTuple
 
 from leaf.base.findings import Finding
 from leaf.source.passages import collapse, page_passages
 from leaf.source.registry.contract import visual_parts
+from leaf.source.registry.kernel import kernel_passages
 from leaf.source.structure import SourceDocument
+
+# How many characters of each side a capture stores, as a selection's does.
+CONTEXT = kernel_passages()["context"]
 
 
 def enclosing_section(owner: list, lo: int, hi: int):
@@ -60,6 +67,18 @@ def copies(passages, quote: str, section: str | None) -> list[tuple[int, int]]:
     return occurrences(passages, quote, *span) if span else []
 
 
+def _context(passages, lo: int, hi: int) -> tuple[str, str]:
+    """The words before `lo` and after `hi` in the whole reading, each reaching only to
+    the nearest fence, trimmed and cut to `CONTEXT`: the file's side of the neighbours
+    `selectionAnchor` stores. The section the anchor names scopes where the copy may
+    stand, never what surrounds it, so a passage closing its section still stores the
+    next section's words."""
+    text, fences = passages.text, passages.fences
+    before = text[max([0, *[f for f in fences if f <= lo]]) : lo].strip(" ")
+    after = text[hi : min([len(text), *[f for f in fences if f >= hi]])].strip(" ")
+    return before[-CONTEXT:], after[:CONTEXT]
+
+
 def capture_anchor(
     document: SourceDocument,
     registry,
@@ -78,11 +97,11 @@ def capture_anchor(
     CLI-only input, such as `--part`, names its flag.
 
     A quote is never refused for its words, since only the drawn page says whether it
-    shows them (`resolveAnchor`). The anchor holds the quote and `section`, or, where
-    the agent named none, the innermost id enclosing the one place the file's reading
-    finds the words, else no section. Where that reading finds them zero or several
-    times, the note says where the page shows the thread if the drawn page doesn't show
-    them once either.
+    shows them (`resolveAnchor`). Where the file's reading finds the words once, the
+    anchor holds that copy's neighbours, and its section where the agent named none:
+    the innermost id enclosing it. Where the reading finds them zero or several times,
+    the anchor holds the quote and `section`, and the note says where the page shows
+    the thread if the drawn page doesn't show the words once either.
 
     A `part` passes here where its visual's declaration admits the id; whether the page
     draws it is `drawn_part`'s to say, since only a drawing of the page knows.
@@ -134,13 +153,17 @@ def capture_anchor(
     if not wanted:
         raise ValueError("the quote holds no words; quote the words the passage shows")
     hits = copies(passages, wanted, section)
-    if not section and len(hits) == 1:
-        section = enclosing_section(passages.owner, *hits[0])
-    # No context: the agent named words, not one copy of them, so the page takes the
-    # words where it shows them once (`findQuote`, an absent side).
-    anchor = {"section": section or None, "quote": wanted}
     if len(hits) == 1:
-        return anchor, None
+        prefix, suffix = _context(passages, *hits[0])
+        return {
+            "section": section or enclosing_section(passages.owner, *hits[0]),
+            "quote": wanted,
+            "prefix": prefix,
+            "suffix": suffix,
+        }, None
+    anchor = {"section": section or None, "quote": wanted}
+    # No neighbours: the agent named words, not one copy of them, so the page takes
+    # the words where it shows them once (`findQuote`, an absent side).
     return anchor, Finding(
         "unplaced-quote",
         values={"section": section, "quote": wanted, "found": len(hits)},

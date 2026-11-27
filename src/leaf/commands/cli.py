@@ -1433,10 +1433,11 @@ def thread_create(
     Use --obligation when the next move is the user's: the message waits on
     On Me until their next message in the thread. A question whose answers you
     can list takes a widget that asks in the text instead, such as an
-    `lf-options` choice, which waits on the user until they pick. A --quote is
-    found in the page as the browser draws it: where it doesn't stand there once,
-    the thread stands on --section, or in Threads without one, and the result
-    notes where Leaf's reading of the files doesn't find it once. Refuses a
+    `lf-options` choice, which waits on the user until they pick. The browser
+    marks a --quote's words where it can tell which copy is meant. Otherwise the
+    thread stands on its section: the --section named, or else the element around
+    the one copy Leaf's reading of the files finds. Without either, it stands in
+    Threads. The result notes where that reading doesn't find the words once. Refuses a
     --section the active revision doesn't hold, and a --part the page would show
     nowhere. The comment's id is the thread's.
     """

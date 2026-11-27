@@ -4,7 +4,8 @@
  * document. It owns no controls, travel, paint, thread state, or command path.
  * `resolveAnchor` is the only reader of a stored quote's words: selection capture
  * stores a quote with the context that tells its occurrence apart, and an agent's
- * capture stores the quote and its section alone (`anchor_capture.py`). Words it can't
+ * capture stores the context of the one copy the page's files hold, or none where they
+ * hold the words zero or several times (`anchor_capture.py`). Words it can't
  * place once, repeated text whose context identifies no one occurrence included, stand
  * on their section as a fallback, or nowhere without one.
  */
@@ -54,6 +55,7 @@ import {
   elementById,
   excerpt,
   findQuote,
+  quoteCopies,
   holdsEditedValue,
   leafSurface,
   pageDocument,
@@ -212,6 +214,17 @@ export const standsIn = (anchor, placement) =>
     placement.status !== "exact" &&
     !placement.datumElement,
   );
+
+// Whether the page shows a quote's words more than once where its anchor looks for
+// them, so where no context picks a copy, the words are on the page but no passage of
+// them is the thread's (`resolveAnchor`).
+/** @param {Anchor | null | undefined} anchor */
+export function quoteRepeats(anchor) {
+  if (!anchor?.quote || anchor.datum || anchor.visual) return false;
+  const section = sectionOf(anchor);
+  if (anchor.section && !section) return false;
+  return quoteCopies(pageText(), anchor.quote, section) > 1;
+}
 
 // Whether the part a thread stands in for is yet to be drawn, so drawing it moves the
 // thread there, or gives it a seat beside it. A thread on earlier data stays on the
@@ -665,7 +678,10 @@ function visiblePassage(segments) {
     const holder = segment.node.parentElement;
     if (
       !holder ||
-      !holder.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+      !holder.checkVisibility({
+        opacityProperty: true,
+        visibilityProperty: true,
+      })
     )
       return false;
     return [...rangeOf([segment]).getClientRects()].some(
@@ -938,7 +954,9 @@ export function resolveAnchor(anchor) {
         status: "fallback",
       };
     if (!basisMatches) {
-      const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
+      const contextual = source?.lfDataDatum?.(anchor.datum, {
+        outdated: true,
+      });
       const fallback =
         contextual instanceof Element && under(contextual, source)
           ? contextual
@@ -1060,12 +1078,15 @@ export function resolveAnchor(anchor) {
   }
 
   const section = sectionOf(anchor);
+  // A section the page doesn't hold, as one a revision dropped, leaves its words
+  // nowhere to be looked for.
+  if (anchor.section && !section) return null;
   const segments = findQuote(pageText(), anchor.quote, anchor, section);
   const [first] = segments;
-  // Words the page doesn't show once stand on their section, as a dropped part stands
-  // on its visual, until they stand there once again: a revision rewrote them, or the
-  // agent quoted words the page draws twice or not at all. A quote with no section
-  // has nowhere to stand.
+  // Words the page doesn't show once, and no context picks a copy of, stand on their
+  // section, as a dropped part stands on its visual, until they stand there once
+  // again: a revision rewrote them, or the agent quoted words the page draws twice or
+  // not at all. A quote with no section has nowhere to stand.
   if (!first)
     return section && !settledAway(section)
       ? {

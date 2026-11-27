@@ -41,9 +41,10 @@ An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 neighbouring words that tell identical passages apart. The browser writes it from the
 user's selection with both sides, an empty one where the passage meets a fence.
 `leaf thread create`, and a reply command that moves a thread, write the agent's
-`section` and `quote` and neither side, since the agent names words rather than one copy
-of them: an absent side constrains nothing, so only a sole copy answers it. The page
-shows an anchor whose words it doesn't find once on its section, or nowhere without one
+`section` and `quote`. Where Leaf's reading of the page's files finds the words once,
+they also write both sides from that copy. Elsewhere they write neither side, and an
+absent side constrains nothing, so only a sole copy answers the quote. The page shows an
+anchor whose words it doesn't find once on its section, or nowhere without one
 (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the

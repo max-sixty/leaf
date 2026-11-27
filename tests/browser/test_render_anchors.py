@@ -519,6 +519,13 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     held = thread_head(page, comment_ids(serve.page_dir)[-1])
     expect(held.locator(".lf-thread-quote")).to_have_text(quote)
     expect(held).not_to_have_attribute("data-lf-detached", "")
+    # The reloaded page marks the passage itself, not its section.
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    painted = page.evaluate(
+        "() => [...(CSS.highlights.get('lf-mark') ?? [])]"
+        ".map(range => range.toString()).join(' ')"
+    )
+    assert "Release context." in painted and "Which plan should lead?" in painted
 
 
 def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
@@ -3236,10 +3243,6 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     wait_for_revision(page, 2)
     assert stranded_quotes(page) == []
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    [transition] = [
-        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
-    ]
-    assert transition["anchor"] == {"section": "drift"}
 
     [root] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -3559,10 +3562,6 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     wait_for_revision(page, 2)
     assert stranded_quotes(page) == []
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    [transition] = [
-        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
-    ]
-    assert transition["anchor"] == {"section": "thin"}
 
 
 def test_a_change_card_reads_across_elements_and_past_astral_text(

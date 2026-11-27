@@ -29,9 +29,10 @@ widget's guidance says.
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
 words the user can see once, within one widget part, including words a page's script
 draws. The page finds them as it draws them: where it doesn't show them once, the
-thread stands on the `--section` you named, or in Threads without one. Where Leaf's
-reading of the page's files finds the words zero or several times, the record the
-command prints carries a note saying where the thread stands. The command refuses a
+thread stands on its section, or in Threads without one. Its section is the
+`--section` you named, or else the element around the one copy Leaf's reading of the
+page's files finds. Where that reading finds the words zero or several times, the
+record the command prints carries a note saying where the thread stands. The command refuses a
 `--section` the active revision doesn't hold or a decision took off the page. The
 thread's id is the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and

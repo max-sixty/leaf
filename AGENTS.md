@@ -482,8 +482,7 @@ A passage, the text a comment points at, is a list of `{node, start, end}` segme
 `says` is visible text; `wrote` is authored text. Every anchor an agent gives a section
 resolves, to its words or to its element. When the passage a comment quotes appears
 more than once and no surrounding context picks one copy, the comment stands on its
-section, or detaches where it names none or a user selected it, rather than taking a
-copy by its order or offset.
+section or in Threads rather than taking a copy by its order or offset.
 
 Leaf derives each fact about the page once, and each place that reports on the page
 picks the facts it needs. `leaf page state` tells a later session the facts a

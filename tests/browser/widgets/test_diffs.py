@@ -2165,7 +2165,12 @@ def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, 
         structure.SourceDocument(source), registry, "Explain the new line.", "new-note"
     )
     assert (anchor, noted) == (
-        {"section": "new-note", "quote": "Explain the new line."},
+        {
+            "section": "new-note",
+            "quote": "Explain the new line.",
+            "prefix": "",
+            "suffix": "",
+        },
         None,
     )
     page = open_page(browser, url)

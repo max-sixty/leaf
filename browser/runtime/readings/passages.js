@@ -347,8 +347,7 @@ export const leafSurface = (node) =>
 // drag across a question an agent asked in a reply would read as a passage of the page,
 // raising the page's 💬 and writing an anchor onto a thread's own id, into an
 // append-only log, naming a section no version holds. `leaf thread create --section`
-// refuses exactly that from the file side, and file capture is the reading that is
-// supposed to promise less.
+// refuses exactly that from the file side.
 /** @param {Node | null} node */
 export const pageWords = (node) => inPage(node) && !inUi(node);
 // The two readings, each one predicate over a text node and named for the question it
@@ -1609,7 +1608,8 @@ function spanOf(reading, lo, hi) {
 // rewrites the sentence beside the anchored copy can leave an untouched copy elsewhere
 // matching better, and the comment would follow it there. Demanding the whole stored
 // context prevents that: without one exact contextual match, only a quote with a sole
-// candidate resolves; repeated candidates detach rather than inheriting document order.
+// candidate resolves, and repeated candidates resolve to no passage rather than
+// inheriting document order (`resolveAnchor` stands them on their section).
 //
 // Rare, not impossible. The bar is however much was stored, and the capture reads the
 // neighbours out of the reading the search uses: the whole document, where a section is a
@@ -3488,6 +3488,35 @@ function copiesOf(text, quote) {
   asked.set(quote, entry);
   return entry;
 }
+// The copies of a quote the reading holds under `within`, or anywhere without one, that
+// a stored quote may name: each one past the last, and none a fence parts
+// (`findQuote`). Every copy in the words of an element under `within` stands under it,
+// unless a slot of the element's own tree shows it words from outside it.
+/** @param {PageReading} text @param {QuoteEntry} entry @param {Element | null | undefined} within */
+function candidatesOf(text, entry, within) {
+  const key = readingPieces.get(text);
+  const all = !within || (key !== undefined && under(key, within) && !holdsSlot(key));
+  /** @type {Copy[]} */
+  const candidates = [];
+  let end = -1;
+  for (const copy of entry.copies) {
+    const inside =
+      all ||
+      (under(pointAt(text, copy.from)?.node, within) &&
+        under(pointAt(text, copy.to - 1)?.node, within));
+    if (!inside || copy.from < end) continue;
+    end = copy.to;
+    if (!copy.fenced) candidates.push(copy);
+  }
+  return candidates;
+}
+// How many copies of a quote the reading shows under `within`, as `findQuote` counts
+// the ones it chooses among.
+/** @param {PageReading} text @param {string} quote @param {Element | null} [within] */
+export function quoteCopies(text, quote, within) {
+  const entry = copiesOf(text, quote);
+  return entry ? candidatesOf(text, entry, within).length : 0;
+}
 /** @type {WeakMap<PageReading, Map<string, Map<Element | null, Copy | null>>>} */
 const chosen = new WeakMap();
 /** @param {PageReading} text @param {string} quote @param {{prefix?: string, suffix?: string}} anchor @param {Element | null} [within] */
@@ -3520,24 +3549,10 @@ export function findQuote(text, quote, anchor, within) {
   // read only to tell copies apart: a sole candidate is the answer
   // whatever its neighbours say, and a second exact one settles that none is unique.
   // An empty side says the copy's cell holds nothing there, and an absent side says
-  // nothing at all, as an agent's quote leaves both (anchor_capture.py): it names words,
-  // not one copy of them, so only a sole copy answers it.
-  // Every copy in the words of an element under `within` stands under it, unless a slot
-  // of the element's own tree shows it words from outside it.
-  const key = readingPieces.get(text);
-  const all = !within || (key !== undefined && under(key, within) && !holdsSlot(key));
-  /** @type {Copy[]} */
-  const candidates = [];
-  let end = -1;
-  for (const copy of entry.copies) {
-    const inside =
-      all ||
-      (under(pointAt(text, copy.from)?.node, within) &&
-        under(pointAt(text, copy.to - 1)?.node, within));
-    if (!inside || copy.from < end) continue;
-    end = copy.to;
-    if (!copy.fenced) candidates.push(copy);
-  }
+  // nothing at all, as an agent's quote leaves both where the page's files don't hold
+  // its words once (anchor_capture.py): it names words, not one copy of them, so only a
+  // sole copy answers it.
+  const candidates = candidatesOf(text, entry, within);
   const exact = [];
   const [preLetters, postLetters] = [pre, post].map((side) =>
     side?.replace(COLLAPSE, ""),

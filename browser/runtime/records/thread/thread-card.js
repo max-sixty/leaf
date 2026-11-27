@@ -162,7 +162,7 @@ import { ReplyContinuity } from "./reply-continuity.js";
 import { Transcript } from "./transcript.js";
 import { partTrail } from "./placement.js";
 import { addressableLabel } from "../../readings/addressable-names.js";
-import { standsIn } from "../../readings/anchor-resolution.js";
+import { quoteRepeats, standsIn } from "../../readings/anchor-resolution.js";
 import { PRESS } from "../../lib/keys.js";
 import { excerptWords } from "../../lib/words.js";
 
@@ -186,11 +186,13 @@ import { excerptWords } from "../../lib/words.js";
 // reads as the quote does: a revision took the words out of the latest version, which
 // may not be the version shown, where they can still stand; they can't be found on the
 // page; they come from earlier data; or they have changed, so the thread stands on what
-// held them (`resolveAnchor`'s fallback for words it doesn't place once). A thread
-// draws it where its container asks (`ThreadOutlets`, `quote`), as the floating panel's
-// view does, and wherever the page leaves it unmarked (`unmarked`), since then no
-// container's place beside the words shows them. The status is a word over the quote
-// because a finger never reads a title.
+// held them (`resolveAnchor`'s fallback for words it doesn't place once). Words the page
+// shows more than once, with no context to pick a copy, have no status: they are on the
+// page, and the thread stands on their section, or in Threads where it names none. A
+// thread draws it where its container asks (`ThreadOutlets`, `quote`), as the floating
+// panel's view does, and wherever the page leaves it unmarked (`unmarked`), since then
+// no container's place beside the words shows them. The status is a word over the
+// quote because a finger never reads a title.
 // Where the words still stand, `trail` names the headings over them (`partTrail`), else
 // the page's title, where no heading stands over them: a label of quoted words with no
 // place of their own, and the head's title for any other.
@@ -205,17 +207,25 @@ function quoteReading(thread, anchors) {
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const detached = anchored && (Boolean(thread.detached_from) || placement == null);
   // A version that moved the thread off what it was about left it on its section
-  // (`rewritten_from`, events.md), and words the page no longer shows once stand on
-  // the element that held them, their section or datum, rather than as a passage; the
+  // (`rewritten_from`, events.md), and words the page no longer shows stand on the
+  // element that held them, their section or datum, rather than as a passage; the
   // head still names those words, marked as changed. Words standing in for a part their
   // widget hasn't drawn yet haven't.
+  const repeated = placement?.kind !== "passage" && quoteRepeats(thread.anchor);
   const changed =
     Boolean(thread.rewritten_from) ||
     Boolean(
-      words && placement?.kind === "element" && !standsIn(thread.anchor, placement),
+      words &&
+      !repeated &&
+      placement?.kind === "element" &&
+      !standsIn(thread.anchor, placement),
     );
   const status = detached
-    ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
+    ? thread.detached_from
+      ? leafSays("Not in the latest version")
+      : repeated
+        ? null
+        : leafSays("Not found")
     : anchored && placement?.status === "outdated"
       ? leafSays("Earlier data")
       : changed

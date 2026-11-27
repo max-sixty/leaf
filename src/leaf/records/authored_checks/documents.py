@@ -368,8 +368,9 @@ def _fixture_anchor(
 
     Browser admission receives targets already captured in a rendered document.
     A fixture has no such observation, so the file-side capture checks its section
-    against the same current projection instead (`anchor_capture.capture_anchor`),
-    and takes the section around its quote where it names none.
+    against the same current projection instead (`anchor_capture.capture_anchor`).
+    Context the fixture gives is its own choice of copy (`findQuote`), so it replaces
+    the capture's, and no note says the thread stands on its section.
     """
     page = readings.page(1)
     document, projection = page.document, page.projection
@@ -400,9 +401,12 @@ def _fixture_anchor(
         part=anchor.get("visual"),
         **logged_words(projection, document.ids),
     )
-    # The fixture's own context, where it gives one, is what tells the page which copy
-    # it means (`findQuote`), since the capture writes none.
-    return {**anchor, **captured}, found
+    if not ({"prefix", "suffix"} & anchor.keys()):
+        return {**anchor, **captured}, found
+    # The capture's sides are another copy's wherever the fixture means a copy the
+    # files don't hold once, so a side the fixture leaves out stays unknown.
+    sides = ("prefix", "suffix")
+    return {**anchor, **{k: v for k, v in captured.items() if k not in sides}}, None
 
 
 def initial_sample_events(

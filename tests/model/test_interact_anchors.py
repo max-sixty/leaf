@@ -118,8 +118,9 @@ def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
 
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
     """A revision moves no quote: a selection captured as detached stays detached
-    when a revision leaves one copy of its words, and an agent's quote of words the
-    files hold several times is stored with a note on where the page shows it."""
+    when a revision leaves one copy of its words, an agent's quote of words the files
+    hold several times is stored with a note on where the page shows it, and one they
+    hold once keeps the neighbours that tell it from copies a later version adds."""
     repeated = "<p>Repeated passed text.</p>"
     unique = "<p>Unique passed text.</p>"
     original = PAGE.replace(
@@ -164,7 +165,12 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
             "Unique.",
         ).output
     )
-    assert exact["anchor"] == {"section": "runs", "quote": "Unique passed text."}
+    assert exact["anchor"] == {
+        "section": "runs",
+        "quote": "Unique passed text.",
+        "prefix": "t. Repeated passed text.",
+        "suffix": "The cutoff lives in jobs",
+    }
     assert "findings" not in exact
     revised = original.replace(repeated * 2 + unique, repeated + unique)
     (page_dir / "index.html").write_text(revised)
@@ -197,8 +203,10 @@ def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
 
 def test_a_written_comment_quotes_the_whole_passage(page_dir):
     """A quote is the passage the page marks, so the capture writes the whole of it
-    however long. Cut at four hundred characters, the comment landed on the passage's
-    opening."""
+    however long, and the neighbour after it is the page's next words rather than the
+    rest of the passage. Cut at four hundred characters, both were wrong together: the
+    comment landed on the passage's opening, and the suffix that was meant to tell one
+    copy from another was text the quote itself already held."""
     passage = (
         "The cutoff moves whenever the backfill runs, and the guard reads a column "
         "the writer never fills, so the batch replays from the top on each release, "
@@ -216,7 +224,46 @@ def test_a_written_comment_quotes_the_whole_passage(page_dir):
     event = json.loads(
         comment(published(page_dir), "--quote", passage, "--text", "x").output
     )
-    assert event["anchor"] == {"section": "plan", "quote": passage}
+    anchor = event["anchor"]
+    assert anchor["quote"] == passage
+    assert anchor["suffix"] == "Deploys pause overnight."
+
+
+def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
+    """The page reads a quote's neighbours to tell its copy from another the page draws
+    or a later version adds, so a written anchor stores the words beside the one copy
+    the files hold, as a selection stores its own."""
+    event = json.loads(
+        comment(
+            published(page_dir), "--quote", "Verify, then flip", "--text", "ok"
+        ).output
+    )
+    anchor = event["anchor"]
+    # Read out of the whole collapsed text and stopped by the fences around the option
+    # row, where the runtime writes controls between options.
+    assert anchor["prefix"] == "risk: low Backfill first"
+    assert anchor["suffix"] == ". My take: do this first"
+
+
+def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
+    """A suffix clipped at the section's edge could be one character, which an identical
+    copy elsewhere might also show; the whole reading gives a closing passage a full
+    side. The section the anchor names scopes where the copy may stand, never what
+    surrounds it."""
+    two = PAGE.replace(
+        "</section>", "  <p>Deploys pause overnight.</p>\n</section>"
+    ).replace(
+        "</main>",
+        '<section id="rollout">\n  <p>The rollout resumes.</p>\n</section>\n</main>',
+    )
+    (page_dir / "index.html").write_text(two)
+    event = json.loads(
+        comment(
+            published(page_dir), "--quote", "Deploys pause overnight.", "--text", "x"
+        ).output
+    )
+    assert event["anchor"]["section"] == "plan"
+    assert event["anchor"]["suffix"] == "The rollout resumes."
 
 
 def test_a_quote_the_files_do_not_hold_posts_with_a_note(page_dir):
@@ -235,7 +282,8 @@ def test_a_quote_the_files_do_not_hold_posts_with_a_note(page_dir):
 def test_a_quote_the_files_hold_twice_posts_with_a_note(page_dir):
     """The words repeat and the anchor names no section, so the note says the thread
     stands in Threads unless the drawn page shows them once; a section that holds one
-    copy places the thread on it with no note."""
+    copy places the thread on it with no note, beside the neighbours that tell that
+    copy from the other."""
     twice = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Ship dark.</p>")
     (page_dir / "index.html").write_text(twice)
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
@@ -252,6 +300,8 @@ def test_a_quote_the_files_hold_twice_posts_with_a_note(page_dir):
     assert json.loads(scoped.output)["anchor"] == {
         "section": "flag-first",
         "quote": "Ship dark",
+        "prefix": "low risk: med Flag first",
+        "suffix": ".",
     }
 
 
@@ -848,6 +898,35 @@ def test_a_revision_moves_a_comment_on_a_formatted_label_to_its_section(page_dir
     assert threads[root["id"]]["anchor"] == {"section": "labels"}
 
 
+def test_a_revision_leaves_a_thread_whose_section_a_decision_hides(page_dir):
+    """Accepting a suggestion hides the words it replaces until the user undoes the
+    decision, so a later revision that leaves them in the file moves no thread on
+    them, and the undo shows the thread on its words again."""
+    from leaf.records.revisioning import activate_source
+
+    (page_dir / "index.html").write_text(SUGGESTED)
+    publish(page_dir)
+    root = json.loads(
+        comment(
+            page_dir, "--quote", "every feeder each morning", "--text", "Why daily?"
+        ).output
+    )
+    assert root["anchor"]["section"] == "refill-rule"
+    decide(page_dir, "accept")
+    accepted = events_model.read_events(page_dir)[-1]
+    (page_dir / "index.html").write_text(
+        SUGGESTED.replace("<h2>Plan</h2>", "<h2>Plan</h2><p>Feeders run dry.</p>")
+    )
+    assert activate_source(page_dir).created
+    append_command(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"], "answered": False},
+    )
+    events = events_model.read_events(page_dir)
+    assert not any(event["kind"] == "reanchor" for event in events)
+    assert build_threads(events, {})[root["id"]]["anchor"] == root["anchor"]
+
+
 def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     """The server activates a valid save before anyone checks it, so the moves are
     in the log by then. `page check` still names every thread the active revision
@@ -1078,7 +1157,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     from leaf.records.transaction import PageTransaction
 
     original = PAGE.replace(
-        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="alpha">Alpha</p><p id="gamma">Gamma</p>'
     )
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
@@ -1086,7 +1165,8 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
         json.loads(comment(page_dir, "--quote", quote, "--text", "Keep this").output)
         for quote in ("Alpha", "Gamma")
     ]
-    revised = original.replace("Alpha Gamma", "Beta Delta")
+    both = '<p id="alpha">Alpha</p><p id="gamma">Gamma</p>'
+    revised = original.replace(both, "<p>Beta Delta</p>")
     (page_dir / "index.html").write_text(revised)
     append = revision_publication.append_admitted
 
@@ -1105,7 +1185,7 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     assert pending[-1]["kind"] == "note" and pending[-1]["revision"] == 2
     assert not any(e["kind"] == "reanchor" for e in pending)
     (page_dir / "index.html").write_text(
-        original.replace("Alpha Gamma", "Later unrelated edit")
+        original.replace(both, "<p>Later unrelated edit</p>")
     )
     with PageTransaction(page_dir) as page:
         assert files_model.latest_revision(page_dir) == 2
@@ -1501,9 +1581,12 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": identity}
     quote = comment(page_dir, "--quote", words, "--text", "These exact words.")
     assert quote.exit_code == 0, quote.output
+    # The option's words fill its cell, so the neighbours on both sides are empty.
     assert json.loads(quote.output)["anchor"] == {
         "section": identity,
         "quote": words,
+        "prefix": "",
+        "suffix": "",
     }
 
     # A later source version still omits the generated option. The open anchored

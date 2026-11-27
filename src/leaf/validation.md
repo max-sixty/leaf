@@ -169,17 +169,18 @@ written for.
 The browser is the one reader of a stored quote's words: it finds them in the page it
 draws (`readings/anchor-resolution.js`, `resolveAnchor`), and stands a quote it can't
 place once on its section, or nowhere without one. A selection's anchor carries the
-context that tells its copy apart, and an agent's carries none, so only a sole copy
-answers it (`findQuote`).
+context that tells its copy apart, as an agent's does where Leaf's reading of the files
+finds the words once. Without context, only a sole copy answers a quote (`findQuote`).
 
 `leaf thread create` checks what the files settle, the `--section` it names, and
 stores the quote as given. It also reads the active revision's file the way the anchor
-pass reads the DOM, as advice: where that reading finds the words once, it names their
-enclosing section when the agent named none, and where it finds them zero or several
-times, the command notes where the page shows the thread if it doesn't show them once
-either (`anchor_capture.capture_anchor`, `unplaced-quote`). A revision moves an open
-thread to its section where that reading finds its quote in the predecessor and not in
-the candidate (`source_history.revision_reanchors`). `passages.py`'s header comment owns
+pass reads the DOM, as evidence: where that reading finds the words once, the anchor
+stores the words beside them and, when the agent named none, their enclosing section,
+and where it finds them zero or several times, the command notes where the page shows
+the thread if it doesn't show them once either (`anchor_capture.capture_anchor`,
+`unplaced-quote`). A revision moves an open thread to its section where that reading
+finds its quote in the predecessor and not in the candidate
+(`source_history.revision_reanchors`). `passages.py`'s header comment owns
 the reading: what the registry's `verbatim` and `retired-when` contribute, and where a
 fence stops a quote. Both runtimes take whitespace collapse from the kernel's
 `$passages`. Direct members declared by `owners` with `content: markup` retain their own

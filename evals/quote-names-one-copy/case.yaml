@@ -39,11 +39,13 @@ assert:
     value: |
       Find the `leaf thread create` command that asks about production's wait. Pass
       only if its `--quote` words appear exactly once in the page's text, or exactly
-      once inside the element its `--section` names: for example `--quote "If error
-      rates hold for a day"`, or `--section rollout-prod --quote "ship it"`. Fail if it
-      quotes words that appear twice in the place it names, such as `--quote "ship it"`
-      alone or with `--section rollout`, since both paragraphs say "ship it". Fail too
-      if it asks only in prose or on the page as a whole.
+      once inside the element its `--section` names, and that one copy is in the
+      production paragraph (`rollout-prod`): for example `--quote "If error rates hold
+      for a day"`, or `--section rollout-prod --quote "ship it"`. Fail if it quotes
+      words that appear twice in the place it names, such as `--quote "ship it"` alone
+      or with `--section rollout`, since both paragraphs say "ship it". Fail if the one
+      copy it names is in the staging paragraph, such as `--section rollout-staging
+      --quote "ship it"`. Fail too if it asks only in prose or on the page as a whole.
 variants:
   after-note:
     metadata:

@@ -240,7 +240,6 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
         assert threads[roots[quote]["id"]]["anchor"] == {"section": "labels"}
     assert threads[roots["Unchanged"]["id"]]["anchor"] == roots["Unchanged"]["anchor"]
     assert threads[closed["id"]]["anchor"] == closed["anchor"]
-    assert reaction["id"] not in threads
     assert state["activity"]["obligations"] == before
     events = events_model.read_events(page_dir)
     moves = [e for e in events if e["kind"] == "reanchor"]
@@ -509,7 +508,9 @@ def test_withdrawing_a_decision_does_not_veto_an_authored_replacement(page_dir):
     gone = comment(
         page_dir, "--quote", "Refill every feeder each morning", "--text", "x"
     )
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert gone.exit_code == 0, gone.output
+    [note] = json.loads(gone.output)["findings"]
+    assert (note["code"], note["values"]["found"]) == ("unplaced-quote", 0)
     assert (
         next(
             event

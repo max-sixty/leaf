@@ -426,8 +426,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
-    """The claim `leaf thread create` makes is that a quote read out of the mapped revision
-    names the same passage in the browser. Four unlike authored pages cover native
+    """A quote the file's reading of the mapped revision finds once gets no note from
+    `leaf thread create`, so the browser should place it on those words, which the
+    neighbours the capture stores pick out where the page draws another copy. Four
+    unlike authored pages cover native
     blocks, representative widgets, and projected text that can make the file and
     browser readings disagree. The generated corpus derives its tab bodies from these
     sources, and its generation check owns that composition. A page that authors only a
@@ -447,8 +449,8 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     registry = vocabulary_model.load_registry(d)
     authored = page_passages(document, registry).text
     assert authored.strip(), f"{source.stem} has no file passage for this sweep"
-    # Nine overlapping anchors exercise section resolution across a compact authored
-    # passage without forcing filler prose into the page.
+    # Nine overlapping anchors exercise section, prefix, and suffix resolution across
+    # a compact authored passage without forcing filler prose into the page.
     assert len(anchors) >= 9, (
         f"only {len(anchors)} anchors over {source.stem}; sweep too thin"
     )

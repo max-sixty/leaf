@@ -296,10 +296,9 @@ def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
 ):
     """A sidebar page's stuck track stays where it sticks to the document's end, even
     one reaching the window's foot, as the contents map does, so its start stays in
-    view through the last of the scroll. That holds for a
-    sidebar that is `main` and for one that is a part's. A footer, the sidebar's or one
-    the page writes after the sidebar, stops the track, so it never stands over the
-    footer."""
+    view through the last of the scroll. That holds for a sidebar that is `main` and
+    for one that is a part's. A footer, the sidebar's or one the page writes after the
+    sidebar, stops the track, so it never stands over the footer."""
     follow_ups = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
     body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
     regions = (
@@ -359,8 +358,8 @@ def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
 ):
     """A sidebar among a column page's blocks isn't the page's Layout box, so its stuck
     track ends with the sidebar rather than hanging over the column's blocks after
-    it. The contents map's track, which stands fixed in
-    the window where its sidebar spans the page, sticks here as any other does."""
+    it. The contents map's track, which stands fixed in the window where its sidebar
+    spans the page, sticks here as any other does."""
     if held == "contents map":
         track = '<lf-toc id="contents"></lf-toc>'
         body = (

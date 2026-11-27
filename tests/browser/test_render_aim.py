@@ -3664,7 +3664,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     semantic = page.locator("#html")
     surface = page.locator("#html-surface")
 
-    surface.click()
+    page.locator(".lf-margin-marker").first.click()
     expect(semantic).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("html-surface")
     marked = surface.evaluate(MARK)
@@ -3701,12 +3701,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     host = page.locator("#shadow-visual")
     surface = host.locator("#wide-surface")
 
-    surface.click(position={"x": 20, "y": 20})
+    page.locator(".lf-margin-marker").first.click()
     expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
     assert_drawn_in(surface, token_colour(page, "--lf-ok"), 2)
     assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
+    surface.hover(position={"x": 20, "y": 20})
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("wide-surface")
     assert_drawn_in(surface, token_colour(page, "--lf-ok"), 2)

@@ -871,7 +871,7 @@ def test_served_workflows_list_the_strongest_first():
             ["opened", "sent"],
         ),
     ]
-    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, {})
     thread_reading = projection_model.ThreadMarkupReading(
         ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {}, empty
     )

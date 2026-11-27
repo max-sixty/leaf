@@ -73,9 +73,7 @@ class WorkReading:
         return (
             self._thread
             if self._thread is not None
-            else thread_markup_reading(
-                self.events, self.registry, withdrawn=self.log.withdrawn
-            )
+            else thread_markup_reading(self.events, self.registry)
         )
 
     @cached_property

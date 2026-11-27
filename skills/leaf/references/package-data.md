@@ -246,9 +246,9 @@ question is answered once its marked column is empty says so from the positions 
 `state` holds, and a checklist decided step by step says so once its last step is.
 The widget says it on each gesture and as a version or another tab's act moves it,
 so a version adding a step to a checklist asks again, keeping the other steps'
-decisions, once a tab shows it. Marking an element `restated` asks again too: it
-withdraws every decision resting on that element, and the question stays open
-until the user's next gesture says otherwise. If the widget's `when` stops
+decisions, once a tab shows it. Marking an element `restated` asks again too: every
+decision resting on that element is read without it, as the registry's `$restated`
+says, and the question stays open until the widget says otherwise. If the widget's `when` stops
 holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
 `awaits.retired` names the attribute an author sets to close an obligation but

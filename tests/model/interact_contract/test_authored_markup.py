@@ -731,8 +731,8 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     """A child page sampling a thread holds one revision, its parent's document, so
     what a later version of the parent retracted stays behind rather than staying in force
     again on that one revision: an answer the parent no longer counts leaves the
-    child's copy of its thread open too, and the action it had superseded, which
-    answered nothing, decides the widget there as it does in the parent."""
+    child's copy of its thread open too, and so does the decision it had replaced,
+    which decides the widget in neither page."""
     from leaf.log.events import build_threads
     from leaf.log.thread_context import sample_events
     from leaf.source.passages import enclosing_ids
@@ -790,8 +790,13 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     ]
     assert build_threads(events, within)["c1"]["resolved"] is None
     copied = sample_events(document, events, {"c1"})
-    assert [event["id"] for event in copied] == ["c1", "first"]
+    assert [event["id"] for event in copied] == ["c1"]
     assert build_threads(copied, within)["c1"]["resolved"] is None
+    # A decision made since, which answers nothing and so changes no thread, still
+    # decides the widget the thread's answer did, and the child folds it there too.
+    later = {**events[1], "id": "later", "seq": 5, "revision": 2}
+    copied = sample_events(document, [*events, later], {"c1"})
+    assert [event["id"] for event in copied] == ["c1", "later"]
 
 
 SAMPLE_FIXTURE_REFUSALS = [

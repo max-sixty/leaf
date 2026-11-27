@@ -2504,14 +2504,15 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     assert len(sent_behind) == 1
     page.locator("#job-heater").click()
     round_trip(page)
+    # A pick records a set (an `attribute` record), whose order the page keeps none of.
     assert [
-        e["detail"]["value"]
+        set(e["detail"]["value"])
         for e in events_model.read_events(d)
         if e.get("widget") == "jobs"
     ] == [
-        ["job-mounts"],
-        ["job-mounts", "job-camera"],
-        ["job-mounts", "job-camera", "job-heater"],
+        {"job-mounts"},
+        {"job-mounts", "job-camera"},
+        {"job-mounts", "job-camera", "job-heater"},
     ]
 
 

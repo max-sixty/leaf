@@ -238,7 +238,7 @@ def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
     visit.reading["styles"] = {
         key: reading["faces"][face] for key, face in reading["elements"].items()
     }
-    visit.reading["geometry"] = geometry.read(page)
+    visit.reading["geometry"] = geometry.read(page, running=state.activated)
     (folder / f"{arm}.png").write_bytes(screenshot(page))
 
 

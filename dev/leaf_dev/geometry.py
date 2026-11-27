@@ -47,13 +47,15 @@ IDIOMS = sorted(
 )
 
 
-def read(page) -> list[dict]:
+def read(page, *, running: bool = True) -> list[dict]:
     """The edge and ring findings of the settled tab `page`. A tab that takes no script
-    with arguments, as the iOS simulator's Safari doesn't, has none."""
+    with arguments, as the iOS simulator's Safari doesn't, has none, and one whose
+    runtime isn't `running`, as a state holding its entry module shows the authored
+    layout (`State.activated`), draws no ring to read."""
     if not isinstance(page, Page):
         return []
     findings = page.evaluate(GEOMETRY, {"idioms": IDIOMS})
-    for seen in rings_drawn(page):
+    for seen in rings_drawn(page) if running else ():
         faults = seen["cuts"] + seen["covers"]
         if faults:
             findings.append(

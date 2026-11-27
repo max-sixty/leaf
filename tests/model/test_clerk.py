@@ -639,7 +639,7 @@ def test_a_finding_only_the_agent_can_act_on_wakes_the_idle_session(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "nudge",
-        lambda harness, page: nudged.append(clerk_model.waking("s1")) or True,
+        lambda harness, page, quoted: nudged.append(clerk_model.waking("s1")) or True,
     )
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")

@@ -189,7 +189,7 @@ A line queued with `wake` tells the session of work it now owes, such as a findi
 Leaf changed nothing for. Until a hook has
 printed it, the watch between turns wakes the session for it once the turn has closed
 (`waking`, `session.watch_between_turns`), and a session no watch follows is nudged
-(`presence.nudge_unwatched`). The turn that ends a stretch of work is the one most
+(`delivery.nudge_unwatched`). The turn that ends a stretch of work is the one most
 likely to leave a page stale, and its next step is otherwise the user's return, by
 when they have read the page. A record Leaf wrote and a fix it made need nothing of
 the agent, so their lines wait for its next step.
@@ -760,7 +760,7 @@ def apply_answer(
     Returns what it wrote, changed and told, and why it wrote no records if it
     didn't. Each page's diagnostics note what the fork named there and what came of
     it, with `run`."""
-    from leaf.agents.presence import nudge_unwatched
+    from leaf.agents.delivery import nudge_unwatched
     from leaf.base.leases import page_locked
     from leaf.records.transaction import PageTransaction, owned_pages
 

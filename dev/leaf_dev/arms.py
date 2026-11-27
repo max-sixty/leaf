@@ -306,16 +306,32 @@ class ServedPage(NamedTuple):
     state: Path
 
     def leaf(
-        self, *args: str, timeout: float | None = None, **extra: str
+        self, *args: str, timeout: float | None = None, session: str | None = None
     ) -> subprocess.CompletedProcess:
-        """Run the arm's launcher under the state home with `extra` in its
-        environment, such as a session for a command only an agent's voice may run,
-        refusing a failed command."""
+        """Run the arm's launcher under the state home, refusing a failed command.
+        With `session`, the command runs as that agent session, for an event that
+        must carry the agent's voice, as a summary or a thread's title does. The
+        session's hooks run the arm, as its first hook would record
+        (`leases.mark_root`), since a checkout's launcher acts for no other session
+        (`state.runs_session`)."""
+        voice = {}
+        if session is not None:
+            mark = (
+                "import sys; from leaf.base.leases import mark_root;"
+                " from leaf.base.state import PLUGIN_ROOT;"
+                " mark_root(sys.argv[1], PLUGIN_ROOT)"
+            )
+            subprocess.run(
+                [*arm_python(self.arm), "-c", mark, session],
+                env=environment(XDG_STATE_HOME=str(self.state)),
+                check=True,
+            )
+            voice["LEAF_SESSION_ID"] = session
         return run_leaf(
             self.arm,
             self.state,
             *args,
-            env=environment(**extra),
+            env=environment(**voice),
             check=True,
             timeout=timeout,
         )

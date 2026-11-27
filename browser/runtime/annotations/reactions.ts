@@ -49,7 +49,7 @@ import { el } from "../lib/elements.js";
 import { offerAction } from "../lib/controls.js";
 import { keeps } from "../lib/keeps.js";
 
-import { elementById } from "../readings/passages.js";
+import { elementById, spellingOf } from "../readings/passages.js";
 import { addressableWord } from "../lib/element-word.js";
 import {
   anchoringIsReady,
@@ -123,11 +123,12 @@ const wordsOf = (anchor: Anchor) => targetSegments(resolveAnchor(anchor));
 const standsOn = (anchor: Anchor) => {
   if (!anchor.quote) return ({ anchor: its }: Thread) => sameAnchor(its, anchor);
   const words = wordsOf(anchor);
-  // Only a reaction quoting the same words can stand on them, which spares resolving
-  // the rest.
+  const spelling = spellingOf(anchor.quote);
+  // Only a reaction whose quote is spelled alike can stand on the same words, which
+  // spares resolving the rest.
   return ({ anchor: its }: Thread) =>
-    its !== null &&
-    its.quote === anchor.quote &&
+    its?.quote !== undefined &&
+    spellingOf(its.quote) === spelling &&
     words.length > 0 &&
     sameSegments(words, wordsOf(its));
 };

@@ -59,6 +59,10 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(host).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+    # The undo reopens the question, since the markup's pick answers nothing, and the
+    # leaf opens On Me while it waits. Answering it again leaves the leaf its menu.
+    with sending(page, "the second pick"):
+        page.locator("#opt-a").tap()
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
     # each mode's way out is the ✕ before the leaf, its name beside it.

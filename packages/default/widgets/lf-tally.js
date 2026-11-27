@@ -42,10 +42,6 @@ const TallyProps = Schema.Struct({
 });
 const TallyMessage = UiSchema.TaggedEnum({ ClickedNext: {} });
 
-/** @param {any} builder @param {Record<string, string>} attributes */
-const withAttributes = (builder, attributes) =>
-  Object.entries(attributes).reduce((b, [name, value]) => b.attr(name, value), builder);
-
 export const Tally = Html.component({
   name: "Tally",
   props: TallyProps,
@@ -73,7 +69,8 @@ export const Tally = Html.component({
             h.span.class("lf-tally-words").children(words),
           ),
         next
-          ? withAttributes(h.button, pressAttributes("word", "lf-tally-next"))
+          ? h.button
+              .attrs(pressAttributes("word", "lf-tally-next"))
               .attr("disabled", !ready || !onUser ? "" : undefined)
               .on("mousedown", () => undefined, { preventDefault: "always" })
               .on("click", TallyMessage.ClickedNext())

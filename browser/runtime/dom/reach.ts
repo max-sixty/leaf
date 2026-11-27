@@ -140,10 +140,7 @@ watchScrolls((box) => {
   if (downwards.has(box)) paintReadingReach(box);
   if (sideways.has(box)) paintSidewaysReach(box, true);
 });
-export function reachReadingScroller(
-  el: Element,
-  onReach: (() => void) | undefined,
-) {
+export function reachReadingScroller(el: Element, onReach: (() => void) | undefined) {
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
   downwards.set(el, onReach);
   sweep(el);

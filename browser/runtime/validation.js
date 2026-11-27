@@ -5,8 +5,7 @@
    with a reader of the values its body records hold in the DOM. Package modules do
    not receive this validation-only reading. */
 import { selectWidgets } from "./state/semantic-state.js";
-import { domValue } from "./records/projection/authored.js";
-import { elementById } from "./readings/passages.js";
+import { elementById, elementReading } from "./readings/passages.js";
 
 export function validationWidgetStates() {
   return [...selectWidgets()].map(([id, { state, specs }]) => ({
@@ -17,7 +16,7 @@ export function validationWidgetStates() {
     state,
     read: (widget) =>
       [...specs].flatMap(([verb, spec]) =>
-        spec.record?.kind === "body" ? [[verb, domValue(widget, spec.record)]] : [],
+        spec.record?.kind === "body" ? [[verb, elementReading(widget)]] : [],
       ),
   }));
 }

@@ -505,8 +505,12 @@ def recorded_owner(
     A member's own records never claim its membership from its parent. Optional
     holder overrides read current membership after position records in force.
     """
-    holders = holders or {}
-    node = byid.get(unit)
+    return _owner_above(byid.get(unit), record, registry, holders or {})
+
+
+def _owner_above(node: dict | None, record: dict, registry: dict, holders: dict):
+    """`recorded_owner` of the element `node` records, a native member's included
+    (`member_records`)."""
     while node is not None:
         node = holders.get(node["attrs"].get("id"), node.get("holder"))
         if node is None:
@@ -519,6 +523,23 @@ def recorded_owner(
         ):
             return node["attrs"].get("id")
     return None
+
+
+def member_records(byid: dict):
+    """(id, record) of each element an attribute record can name as a member: the
+    Leaf elements `byid` holds, and the native elements under them that HTML marks
+    with such a record's attribute, as `checked` marks a checkbox
+    (`structure.SourceDocument`'s `native`). `takes_mark` says which attributes a
+    record is a member under. A native element never owns a set itself."""
+    for oid, rec in byid.items():
+        yield oid, rec
+        yield from rec["native"].items()
+
+
+def takes_mark(node: dict, attr: str) -> bool:
+    """Whether an attribute record of `attr` can name the element `node` records: any
+    Leaf element, and a native one HTML marks with `attr` (`member_records`)."""
+    return "marks" not in node or attr in node["marks"]
 
 
 def container_owner(
@@ -557,10 +578,12 @@ def attribute_marks(byid: dict, spk: dict, registry: dict) -> dict[str, dict]:
         and (attr := record.get("attr")) is not None
     }
     marks: dict[str, dict[str, list[str]]] = {}
-    for oid, orec in byid.items():
+    for oid, orec in member_records(byid):
         for attr in declared.intersection(orec["attrs"]):
-            owner = recorded_owner(
-                oid, {"kind": "attribute", "attr": attr}, byid, registry
+            if not takes_mark(orec, attr):
+                continue
+            owner = _owner_above(
+                orec, {"kind": "attribute", "attr": attr}, registry, {}
             )
             if owner is not None and owner in spk.get(oid, EMPTY).within[:-1]:
                 marks.setdefault(attr, {}).setdefault(owner, []).append(oid)
@@ -921,15 +944,19 @@ def record_members(
 ) -> dict[str, set]:
     """Owner id → the current members the attribute `record` lets it name,
     including created children, for every owner `byid` holds, read in one pass over
-    the document and its owners' coordinates.
+    the document and its owners' coordinates. A Leaf element with an id is a member,
+    and so is a native element HTML marks with the record's attribute
+    (`member_records`).
 
     Position records in force determine membership, so moving a member changes the
     container that can select it in the same authoritative reading.
     """
     holders = projected_action_holders(projection, byid, registry)
     members: dict[str, set] = {}
-    for oid in byid:
-        if owner := recorded_owner(oid, record, byid, registry, holders=holders):
+    for oid, node in member_records(byid):
+        if takes_mark(node, record["attr"]) and (
+            owner := _owner_above(node, record, registry, holders)
+        ):
             members.setdefault(owner, set()).add(oid)
     for owner in byid:
         created = {

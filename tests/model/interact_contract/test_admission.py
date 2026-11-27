@@ -34,7 +34,7 @@ from leaf.base import schema as schema_model
 from leaf.base.findings import Finding
 from leaf.log import event_log as events_model
 from leaf.log import events as event_folds_model
-from leaf.log.projection import page_reading, retirement_outcomes
+from leaf.log.projection import attribute_marks, page_reading, retirement_outcomes
 from leaf.records import event_contracts as event_contracts_model
 from leaf.records.markup_checks.instances import widget_errors
 from leaf.source import passages as passages_model
@@ -432,6 +432,81 @@ def test_a_pick_names_only_options_its_group_holds():
     assert add["meaning"]["unit"] == "live-mine"
     added = {**add, "id": "a1", "ts": "2026-09-19T12:01:00+00:00", "seq": 2}
     assert admit([*STATED_LOG, added], pick)["detail"] == {"value": ["live-mine"]}
+
+
+# A form of native inputs whose widget records the set of them that are `checked`
+# (`tests/fixtures/packages/controls`), holding a form that records its own, and an
+# option group whose card holds the author's own controls.
+STATED_FORMS = model.leaf_page(
+    "Platforms",
+    """<lf-pick-form id="platforms">
+  <form>
+    <label id="platforms-label"><input type="checkbox" id="platforms-mac" checked /> macOS</label>
+    <label><input type="CHECKBOX" id="platforms-linux" /> Linux</label>
+    <label><input type="radio" name="tier" id="platforms-free" /> Free tier</label>
+    <label><input type="text" id="platforms-other" /></label>
+    <lf-pick-form id="arch">
+      <label><input type="checkbox" id="arch-arm" checked /> ARM</label>
+    </lf-pick-form>
+  </form>
+</lf-pick-form>
+<lf-options id="size">
+  <lf-option id="small" label="Small" selected>Small
+    <select id="unit"><option id="unit-m" selected>m</option></select>
+    <input type="checkbox" id="small-gift" checked />
+  </lf-option>
+</lf-options>""",
+)
+
+
+def test_a_set_names_the_native_inputs_html_marks_with_its_attribute():
+    """An attribute record's members are the Leaf elements inside its widget and the
+    native elements HTML marks with the record's attribute: a checkbox or a radio,
+    for `checked`. So a form of native inputs is held to its own inputs: a pick names
+    any of them, and is refused an id that is none, whether the form lacks it or it
+    names a text input, a label, or the checkbox of a form inside this one that
+    records its own set. The inputs written `checked` are the set the markup shows. A
+    native control in an option's card stays its author's: neither its `selected` nor
+    its `checked` makes it a pick of the group round it."""
+    registry = model_layer("./tests/fixtures/packages/controls")
+    page = ModelPage(STATED_FORMS, registry=registry)
+
+    def pick(widget, *ids):
+        return event_contracts_model.admitted_event(
+            page,
+            [],
+            {
+                **STATED_PICK,
+                "widget": widget,
+                "detail": {"value": [*ids]},
+                "facts": {"answered": True},
+            },
+        )
+
+    members = ["platforms-mac", "platforms-linux", "platforms-free"]
+    assert pick("platforms", *members)["detail"] == {"value": members}
+    assert pick("arch", "arch-arm")["detail"] == {"value": ["arch-arm"]}
+    for widget, stranger in (
+        ("platforms", "platforms-bsd"),
+        ("platforms", "platforms-other"),
+        ("platforms", "platforms-label"),
+        ("platforms", "arch-arm"),
+        ("size", "unit-m"),
+        ("size", "small-gift"),
+    ):
+        with pytest.raises(events_model.EventRefused) as refused:
+            pick(widget, stranger)
+        strangers = refused_on(refused.value)
+        assert (strangers.code, strangers.values["strangers"]) == (
+            "unknown-members",
+            [stranger],
+        ), (widget, stranger)
+
+    reading = page.reading(1, registry)
+    assert attribute_marks(reading.document.by_id, reading.spoken, registry) == {
+        "checked": {"platforms": ["platforms-mac"], "arch": ["arch-arm"]},
+        "selected": {"size": ["small"]},
+    }
 
 
 def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():

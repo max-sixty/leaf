@@ -46,13 +46,24 @@ WIDGET_NAME_RULE = (
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
-# An element property Leaf sets on a widget it drives: a recorded value's (`property`)
-# and a bound input's. It is never `state`, the widget's reading, which Leaf also sets
-# on the element (host/element-integration.js), so the two would overwrite each other.
+# An element property Leaf sets on an element it drives: a record's (`property`) and a
+# bound input's. It is never `state`, the widget's reading, which Leaf also sets on a
+# widget's element (host/element-integration.js), so the two would overwrite each
+# other.
 _SET_PROPERTY = {
     "type": "string",
     "pattern": "^[a-z][A-Za-z0-9]*$",
     "not": {"const": "state"},
+}
+# The members of a value or attribute record that bind it to the page's elements: the
+# `property` that holds the state in the browser, and the `event` that says the user
+# changed it, `change` unless named (host/element-integration.js "Recorded
+# properties"). A value record names the widget's own property, which holds the
+# value; an attribute record names each member's, which reads true while the member is
+# in the set.
+_RECORD_BINDING = {
+    "property": _SET_PROPERTY,
+    "event": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9:._-]*$"},
 }
 # The record forms one vocabulary of declared state draws on ($verbs in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
@@ -62,8 +73,10 @@ _RECORD_ATTRIBUTE = {
     "properties": {
         "kind": {"const": "attribute"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        **_RECORD_BINDING,
     },
     "required": ["kind", "attr"],
+    "dependentRequired": {"event": ["property"]},
     "additionalProperties": False,
 }
 _RECORD_POSITION = {
@@ -81,25 +94,20 @@ _RECORD_BODY = {
     "required": ["kind"],
     "additionalProperties": False,
 }
-# A value record may also name the element's `property` that holds the value in the
-# browser, and the `event` the element says a change of it with, `change` unless
-# named (`RECORD_BINDING`, host/element-integration.js "Recorded properties").
 _RECORD_VALUE = {
     "type": "object",
     "properties": {
         "kind": {"const": "value"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "property": _SET_PROPERTY,
-        "event": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9:._-]*$"},
+        **_RECORD_BINDING,
     },
     "required": ["kind", "attr"],
     "dependentRequired": {"event": ["property"]},
     "additionalProperties": False,
 }
-# The members of a record that bind it to the element in the browser. They say how
-# the page's element holds the state, not what the state is or where it reads in
-# markup, so no fold reads them (`registry.contract.recorded`).
-RECORD_BINDING = frozenset({"property", "event"})
+# The binding's members say how the page's elements hold the state, not what the state
+# is or where it reads in markup, so no fold reads them (`registry.contract.recorded`).
+RECORD_BINDING = frozenset(_RECORD_BINDING)
 
 # A `when` predicate selects instances by string attribute values or, with a
 # boolean, by an attribute's presence or absence. One condition shape serves

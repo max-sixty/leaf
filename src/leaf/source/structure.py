@@ -14,7 +14,7 @@ import turbohtml
 from leaf.base.findings import Finding
 from leaf.base.schema import ASSETS, MEDIA_DIR
 from leaf.source.registry.contract import exhibits
-from leaf.source.registry.kernel import kernel_authored
+from leaf.source.registry.kernel import kernel_authored, native_marks
 from leaf.source.resource_urls import ReferenceError, resource_reference
 
 UTF8_BOM = "\ufeff"
@@ -378,7 +378,11 @@ class SourceDocument:
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
         self.all_ids = []
-        # {tag, line, attrs, parent, direct, children, text, body, holder}
+        # {tag, line, attrs, parent, direct, children, text, body, holder, native}.
+        # `native` holds, by id, each native element an attribute record takes as a
+        # member (`kernel.native_marks`) for which this is the nearest lf-* element
+        # with an id: {tag, attrs, marks, holder}, `marks` the attributes HTML marks
+        # it with and `holder` its own nearest lf-* element.
         self.lf_elements = []
         self.samples = []
         # id → the record of the innermost lf-* element standing around it, an
@@ -465,11 +469,25 @@ class SourceDocument:
                     "text": False,
                     "body": "",
                     "holder": holder,
+                    "native": {},
                 }
                 self.lf_elements.append(record)
                 self._records[_start(element)] = record
                 if identity:
                     self.holders[identity] = record
+            elif identity and (marks := native_marks(tag, attrs)):
+                # Kept by the nearest lf-* element that has an id, which `by_id`
+                # reaches; the member's own holder is the nearest of any.
+                keeper = holder
+                while keeper and not keeper["attrs"].get("id"):
+                    keeper = keeper["holder"]
+                if keeper:
+                    keeper["native"][identity] = {
+                        "tag": tag,
+                        "attrs": attrs,
+                        "marks": marks,
+                        "holder": holder,
+                    }
 
         if in_svg or (located and tag == "svg"):
             for child in element.children:

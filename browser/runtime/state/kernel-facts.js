@@ -39,6 +39,11 @@ export const OPENING = new Set(opening);
 // A widget's tag, which tells a widget declaration from an idiom selector.
 export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
 
+// The native elements an attribute record takes as members (`$native-members`):
+// each attribute HTML marks them with, and the tag and `type`s it marks.
+const { description: _members, ...nativeMembers } = kernel["$native-members"];
+export const NATIVE_MEMBERS = nativeMembers;
+
 // The declared marks and the attribute each is painted as, which the runtime paints on
 // a message it renders and reads by name.
 const { description: _description, ...declaredMarks } = kernel.$marks;

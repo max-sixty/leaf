@@ -156,7 +156,7 @@ The record kind fixes the event's payload, a closed object with every field requ
 
 - `body` sends `{value}`, a string that replaces the widget's body.
 - `attribute` sends `{value}`, an array of distinct member ids, marked by the boolean
-  attribute `record.attr` names.
+  attribute `record.attr` names (`module-plain-elements.md`, "Members").
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`. That schema is a string or a string enum, since an
   attribute holds no other JSON type, so a number is recorded as its digits. It is

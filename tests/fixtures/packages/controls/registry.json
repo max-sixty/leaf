@@ -58,5 +58,20 @@
       }
     },
     "example": "<lf-level id=\"detail\" label=\"Detail\" min=\"0\" max=\"10\" value=\"3\"></lf-level>"
+  },
+  "lf-pick-form": {
+    "description": "A pick from a form of radios or checkboxes the page writes inside it: one of its radios, or any of its checkboxes. Give each input an `id`, and put the element in an `lf-group` whose label asks the question. Write a starting pick as the input's `checked`. A second press on the picked radio clears it, and the arrow keys move focus without picking.",
+    "attributes": {
+      "required": ["id"]
+    },
+    "verbatim": true,
+    "verbs": {
+      "choose": {
+        "record": { "kind": "attribute", "attr": "checked", "property": "checked" }
+      }
+    },
+    "awaits": { "value": "choose" },
+    "facts": { "answered": { "type": "boolean" } },
+    "example": "<lf-group id=\"release-q\" label=\"Ship 4.2 today?\">\n  <h2>Ship 4.2 today?</h2>\n  <lf-pick-form id=\"release\">\n    <form>\n      <label><input type=\"radio\" name=\"release\" id=\"release-ship\" /> Ship</label>\n      <label><input type=\"radio\" name=\"release\" id=\"release-hold\" /> Hold</label>\n    </form>\n  </lf-pick-form>\n</lf-group>"
   }
 }

@@ -24,6 +24,7 @@ from leaf.source.registry.contract import (
     body_is_data,
     is_element_name,
     matches_when,
+    recorded,
     retirement_slots,
     state_specs,
 )
@@ -194,7 +195,7 @@ def attribute_slot_errors(
             owner_verb = next(
                 verb
                 for verb, spec in state_specs(registry[byid[owner]["tag"]])
-                if spec.get("record") == attribute
+                if recorded(spec) == attribute
             )
             errors.append(
                 found_at(

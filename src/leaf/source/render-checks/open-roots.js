@@ -14,17 +14,11 @@
  * reading of the page as the user sees it walks `drawnPage` instead, which passes over
  * what the browser skips. */
 import { pageDocument } from "/runtime/check-api.js";
-import { drawnElements } from "/runtime/lib/shadow-tree.js";
+import { drawnElements, treesUnder } from "/runtime/lib/shadow-tree.js";
 
 /** @template {Document | ShadowRoot | Element} Root
  * @param {Root} root @returns {(Root | ShadowRoot)[]} */
-export const openRoots = (root) => [
-  root,
-  ...(root instanceof Element && root.shadowRoot ? openRoots(root.shadowRoot) : []),
-  ...[...root.querySelectorAll("*")].flatMap((el) =>
-    el.shadowRoot ? openRoots(el.shadowRoot) : [],
-  ),
-];
+export const openRoots = (root) => treesUnder(root);
 
 // What the browser draws of the page (`drawnElements` in runtime/lib/shadow-tree.js). Two
 // readings can share one walk, as each reading of the view and each geometry sample do.

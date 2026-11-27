@@ -5,10 +5,10 @@ import re
 import pytest
 from interact_support import element_declaration
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring, ring_faults, rings_drawn
 from render_harness import leaf_page, open_page
 
 from leaf.source.render_checks import rendered
+from leaf_dev.rings import current_location_ring, ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

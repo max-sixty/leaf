@@ -29,9 +29,6 @@ from render_cases_layout import (
     displaced,
     overlapped_words,
     page_at_rest,
-    ring_faults,
-    ring_rules,
-    rings_drawn,
     serious_axe_violations,
 )
 from render_cases_navigation import (
@@ -84,6 +81,7 @@ from leaf.pages import hosting as hosting_model
 from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import ring_faults, ring_rules, ring_script, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -604,7 +602,7 @@ def open_panel_thread_holding(page, selector):
 RING_FOCUS_START = RELEASE_FOCUS
 
 
-SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
+SEEN_STOP = ring_script("seenStop")
 
 
 # Both readings of a Tab's landing in one round trip: whether the stop is new, and for a

@@ -455,7 +455,7 @@ def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serv
     doesn't show names the door that opens its list. `g A` opens the agent's list as
     `g M` opens the user's, and closes it again."""
     page = open_page(browser, serve(QUEUE_PAGE))
-    shown = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    shown = page.locator(".lf-fp-view")
     tab = page.locator('.lf-fp-tab[aria-pressed="true"]')
     agent = re.compile(r"On (?!Me\b)\w")
     on_page = "() => document.activeElement?.closest('main') !== null"
@@ -959,9 +959,9 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     expect(note).to_have_text("Nothing waiting on me.")
     # The agent's tab says the same of its list.
     page.locator(".lf-fp-filters button").nth(2).click()
-    expect(
-        page.locator(".lf-fp-view:not([data-lf-leaving]) .lf-rows-empty")
-    ).to_have_text(re.compile(r"Nothing waiting on \S+\."))
+    expect(page.locator(".lf-fp-view .lf-rows-empty")).to_have_text(
+        re.compile(r"Nothing waiting on \S+\.")
+    )
 
 
 # The motion the panel's leaf plays, named by the turn it reaches first

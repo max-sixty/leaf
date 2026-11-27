@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Story } from "@effect/ui/testing";
 import { Component, Effect } from "/vendor/effect-ui.js";
-import { RecordAction, RememberForTab, TakeBack } from "/runtime/widget-services.js";
+import { RecordAction, KeepInTab, TakeBack } from "/runtime/widget-services.js";
 import { Options } from "../../packages/default/widgets/lf-options.js";
 
 /** @param {string} id @param {string} label */
@@ -156,14 +156,14 @@ test("Done marks the set answered, and a second press takes that answer back", (
 test("the settled disclosure opens from where this tab left it, and remembers", () => {
   tell({ settled: true, remembered: true }, (s) => {
     s.send({ _tag: "ToggledSettled" })
-      .expectExact(RememberForTab.make({ key: "lf-settled:choice", value: "0" }))
-      .resolve(RememberForTab, Component.noop);
+      .expectExact(KeepInTab.make({ key: "lf-settled:choice", value: "0" }))
+      .resolve(KeepInTab, Component.noop);
     assert.deepEqual(s.model, { open: false, chose: null });
   });
   tell({ settled: true }, (s) => {
     s.send({ _tag: "Revealed" })
-      .expectExact(RememberForTab.make({ key: "lf-settled:choice", value: "1" }))
-      .resolve(RememberForTab, Component.noop);
+      .expectExact(KeepInTab.make({ key: "lf-settled:choice", value: "1" }))
+      .resolve(KeepInTab, Component.noop);
     assert.deepEqual(s.model, { open: true, chose: null });
     // A reveal inside an open group leaves it as it stands.
     s.send({ _tag: "Revealed" }).expectNone();

@@ -5,6 +5,7 @@ A check on a page of millions of elements finds its controls as
 notes/browser-support.md, "Walking every element of a page of millions in Chromium",
 says."""
 
+import json
 import re
 import subprocess
 import sys
@@ -561,11 +562,9 @@ PANEL_SAYS = """() => {
 
 
 def panel_view(name: str) -> str:
-    """The selector of the panel's `name` view (`data-lf-open`'s values, above) that
-    stands open. A view put away keeps its node, marked `data-lf-leaving`, until its
-    exit motion ends, so this never matches one: a selector that did would find two
-    views mid-switch, or a view already on its way out."""
-    return f'.lf-fp-view[data-lf-route="{name}"]:not([data-lf-leaving])'
+    """The selector of the panel's `name` view (`data-lf-open`'s values, above) while
+    it stands open."""
+    return f'.lf-fp-view[data-lf-route="{name}"]'
 
 
 # A view of one thread, which names the thread it shows by id in `data-lf-thread`.
@@ -584,6 +583,25 @@ def text_field(
     text fields alone, since other groups can carry the same words."""
     return scope.get_by_role("group", name=name, exact=exact).and_(
         scope.locator("leaf-text")
+    )
+
+
+def page_function(source: str, function: str, *, helpers: str | None = None) -> str:
+    """A function for `page.evaluate` that calls `function` of the callbacks `source`
+    returns, in the same call, so nothing is installed as a page global. `source` is a
+    JavaScript expression returning named callbacks or, with `helpers`, a factory that
+    takes the callbacks `helpers` returns. Playwright passes the arguments as usual."""
+    if helpers is None:
+        declaration = f"const callbacks = {source}\n"
+    else:
+        declaration = (
+            f"const factory = {source}\n"
+            f"const helpers = {helpers}\n"
+            "const callbacks = factory(helpers);\n"
+        )
+    return (
+        f"(...args) => {{ {declaration}"
+        f"return callbacks[{json.dumps(function)}](...args); }}"
     )
 
 
@@ -731,7 +749,7 @@ def show_done(page: Page | FrameLocator):
     """Unfold what left the open On list, On Me's or the agent's, which stands folded
     under its Done band (`.lf-fp-settled`) until the user presses it, and return its
     items."""
-    view = page.locator('.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving])')
+    view = page.locator('.lf-fp-view[data-lf-route="queue"]')
     heading = view.locator(".lf-fp-settled")
     if heading.get_attribute("aria-expanded") != "true":
         heading.click()

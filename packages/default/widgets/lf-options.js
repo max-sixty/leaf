@@ -93,7 +93,7 @@
  * collapses to one line naming the chosen option, with every option — the chosen one
  * included — behind a disclosure. Nothing is deleted, so the ids, the anchors on them,
  * and check's id-survival rule are all untouched; what's reclaimed is the height. Open
- * or closed is view state for this user, remembered per browser tab (`RememberForTab`)
+ * or closed is view state for this user, remembered per browser tab (`KeepInTab`)
  * like a lf-tabs tab: opening a settled group is reading, not editing, so it sends no
  * action and no version carries it. Collapsed options wear hidden="until-found", so
  * find-in-page and the runtime's reveal() (a click on a comment's quote) both open the
@@ -166,7 +166,7 @@ import {
   tabStore,
 } from "/runtime/widget-api.js";
 import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
-import { RecordAction, RememberForTab, TakeBack } from "/runtime/widget-services.js";
+import { RecordAction, KeepInTab, TakeBack } from "/runtime/widget-services.js";
 import { offerAttributes, pressAttributes } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -324,7 +324,7 @@ const choose = (next, says) =>
 /** @param {any} $ @param {boolean} open */
 const openSettled = ($, open) =>
   $.evolve({ open }).run(
-    RememberForTab.make({ key: settledKey($.props.id), value: open ? "1" : "0" }).pipe(
+    KeepInTab.make({ key: settledKey($.props.id), value: open ? "1" : "0" }).pipe(
       Command.asNoop,
     ),
   );

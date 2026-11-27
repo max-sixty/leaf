@@ -48,8 +48,13 @@ function it imports from `/runtime/widget-api.js`, as a page script does; "Funct
 lists them all. Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its names
 come from, such as `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`, `live`,
 `ref`, `createRef`, `classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`. Of
-the runtime's other modules, import only the library's ("Shared web code"). Don't query
-Leaf's own chrome or copy a runtime helper.
+the runtime's other modules, import only those `$public-modules` in the kernel registry
+(`browser/runtime/kernel-registry.json`) lists: `portable-api.js` ("A widget that also
+runs off Leaf"), the library's ("Shared web code"), and, for an Effect UI component,
+`effect-widget.js`, which defines the widget, and `widget-services.js`, whose Command
+services the component issues in place of some of the protocol's events and
+`widget-api.js`'s functions. Each module's header gives its contract. Don't query Leaf's own
+chrome or copy a runtime helper.
 
 ### Functions
 

@@ -4,19 +4,21 @@
  * may name its file beside the text, which the caption shows and the readings' identity
  * carries (`mark`). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
- * memory have the same owner as authored views. Each reading has its own bounded
- * viewport, which keeps its scroll place independent, and switching keeps the page
- * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
- * tall. A Markdown preview of written text instead takes its rendered height, up to
- * that bound, and its Source tab takes the same height (`holdSource`). A document
- * drawn on its Source tab, as after a reload, has not drawn its preview, so its Source
- * tab keeps the box the page first painted, the written source's, and switching to
- * the preview then takes the preview's height. Where the bound cuts the preview, or the
- * Source tab's height cuts the source, a press shows the whole document in both tabs
- * (`cuts`), as a quote's label opens a thread's whole quote: a reflow the reader asks
- * for. A cut box doesn't scroll, so the press is the one way to the rest, and stays at
- * the box's foot rather than scrolling off with the text. An author sets where the cut
- * falls with `--lf-bound`.
+ * memory have the same owner as authored views. A document takes its text's height,
+ * up to `--lf-bound`, and a preview's Source tab takes the preview's height
+ * (`holdSource`), so switching tabs keeps the page still. A document drawn on its
+ * Source tab, as after a reload, has not drawn its preview, so its Source tab keeps
+ * the box the page first painted, and switching to the preview then takes the
+ * preview's height. Where that height cuts the text, a press shows the whole document
+ * in every reading (`cuts`), as a quote's label opens a thread's whole quote: a reflow
+ * the reader asks for. A cut box doesn't scroll for the reader, so the press is the
+ * one way to the rest, and stays at the box's foot. What scrolls the box itself, as
+ * travel to a comment on a cut-off line or find-in-page does, shows the whole document
+ * with what it scrolled to where it stood (`cut`). An author sets where the cut falls
+ * with `--lf-bound`, in lines with `lh`, or shows the whole document with `none`.
+ * Filling a workspace pane, a document scrolls inside the pane instead
+ * (text-document.css). Bound text arrives after first paint, so its box changes
+ * height as the text arrives and as later writes change its length.
  * The source reading is a numbered listing of plain rows, one a line (`listing`), so
  * every document's whole text stands in the page for find-in-page, selection, copy
  * and comments, in a tab nobody has opened too; held back until its tab opened, a
@@ -52,6 +54,7 @@ import {
   aimedAt,
   navigateToDatum,
   boundFile,
+  scrollersOf,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -75,10 +78,6 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 /** @typedef {import("../../../browser/types/contract.js").DataTextDocument} DocumentValue */
 
-// A Markdown preview of text written in the page, whose rendering sets the box both
-// tabs share (text-document.css).
-const WRITTEN = '[preview="markdown"]:not([source], [for])';
-
 // A fragment's words, as a heading's address spells them (`headingSlugs`).
 /** @param {string} fragment */
 const slugWords = (fragment) => {
@@ -96,6 +95,10 @@ const drawnMarkup = (node) =>
 
 // The key a place of the Markdown preview takes before its name (`lfElementsFor`).
 const PLACE = "preview:";
+// Whether a reading's box cuts its text rather than scrolling it, as it does filling a
+// pane (text-document.css).
+/** @param {Element} box */
+const cutting = (box) => /^(hidden|clip)$/.test(getComputedStyle(box).overflowY);
 
 // Each reading shows the same document whatever text its source holds, so its key is
 // also its identity (records/projection/data.js), with the file's where the value names
@@ -964,12 +967,46 @@ class TextDocument extends LeafElement {
       this.measureCut();
     });
   });
-  // A written preview's two tabs, each with the press that shows the whole document
-  // where its height cuts its text: the bound for the preview, and the preview's
-  // height for the source.
+  // Each reading, with the press that shows the whole document where its height cuts
+  // its text: the bound for the preview and for a document without one, and the
+  // preview's height for the Source tab.
   /** @typedef {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement}} Cut */
-  /** @type {{preview: Cut, source: Cut} | null} */
+  /** @type {{preview?: Cut, source: Cut} | null} */
   cuts = null;
+  // A cut on `panel`, its press at the foot of `holder`, the box that stays put. Only
+  // what reaches past the press scrolls a cut box, as travel to a comment on a line it
+  // cuts off and find-in-page do, so where a scroll ends there, the document shows
+  // whole and its holder's scroller takes the offset, leaving what the scroll brought
+  // into view where it stood.
+  /** @param {HTMLElement} panel @param {HTMLElement} holder @param {() => HTMLElement | undefined} shown
+   * @returns {Cut} */
+  cut(panel, holder, shown) {
+    const box = offer("div", "lf-text-document-cut");
+    box.hidden = true;
+    const press = offerAction("inline", "lf-text-document-more", "");
+    box.append(press);
+    holder.append(box);
+    press.addEventListener("click", () => {
+      this.showWhole();
+      const text = shown();
+      if (text) focusDestination(text, "return");
+    });
+    panel.addEventListener("scrollend", () => {
+      const past = panel.scrollTop;
+      if (past <= 0 || panel.hasAttribute("data-lf-all") || !cutting(panel)) return;
+      this.showWhole();
+      const outer = [...scrollersOf(holder)].find((box) => box !== panel);
+      outer?.scrollTo({ top: outer.scrollTop + past, behavior: "instant" });
+    });
+    return { panel, box, press };
+  }
+  // A press shows the whole document in every reading and goes.
+  showWhole() {
+    for (const { panel, box } of Object.values(this.cuts ?? {})) {
+      panel.toggleAttribute("data-lf-all", true);
+      box.toggleAttribute("hidden", true);
+    }
+  }
   // The Source tab takes the preview's height once the preview has shown, so switching
   // to it moves nothing below the document. A closed tab skips its contents' layout
   // (`hidden="until-found"`), so the height is read while the preview shows, after
@@ -981,7 +1018,7 @@ class TextDocument extends LeafElement {
   holdSource(firstBox = null) {
     const preview = this.view?.preview;
     const tab = preview?.parentElement;
-    if (!this.cuts || !preview || !tab) return;
+    if (!this.cuts?.preview || !preview || !tab) return;
     const { panel } = this.cuts.source;
     let measured;
     if (!tab.hidden) measured = preview.getBoundingClientRect().height;
@@ -1004,7 +1041,7 @@ class TextDocument extends LeafElement {
         panel.hasAttribute("hidden") ||
           panel.hasAttribute("data-lf-all") ||
           panel.scrollHeight <= panel.clientHeight + 1 ||
-          !/^(hidden|clip)$/.test(getComputedStyle(panel).overflowY),
+          !cutting(panel),
       );
   }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
@@ -1390,10 +1427,6 @@ class TextDocument extends LeafElement {
         keeps(view.preview, "title", `${label} preview`);
       const previous = this.lines;
       this.lines = next;
-      // Both presses show the same document, so they say the same: how long it is.
-      if (this.cuts)
-        for (const { press } of Object.values(this.cuts))
-          keepsText(press, `Show all ${text.length} lines`);
       // The first line the new text changes, past the end where it changes none.
       let from = 0;
       if (!this.sourceView) {
@@ -1411,11 +1444,11 @@ class TextDocument extends LeafElement {
         ).observe(code);
         this.sizes.observe(view.listing);
         this.sizes.observe(code);
-        if (this.cuts && view.preview) {
+        if (this.cuts?.preview && view.preview) {
           this.sizes.observe(this.cuts.preview.panel);
           this.sizes.observe(this.cuts.source.panel);
           this.sizes.observe(view.preview);
-        }
+        } else this.cuts = { source: this.cut(pre, view.listing, () => pre) };
       } else {
         // The pre owns provenance and scroll; the code owns its native reach stop.
         // Rewrite only their source rows, leaving those independent owners in place
@@ -1446,6 +1479,9 @@ class TextDocument extends LeafElement {
         this.colours.changed(text, code, from, this.starts);
         this.colourShown();
       }
+      // Every press shows the same document, so they say the same: how long it is.
+      for (const { press } of Object.values(this.cuts ?? {}))
+        keepsText(press, `Show all ${text.length} lines`);
       let loaded = this.frameLoaded;
       const previewNode = view.preview;
       if (previewNode instanceof HTMLDivElement && blocks) {
@@ -1563,37 +1599,11 @@ class TextDocument extends LeafElement {
     }
     rendered.append(drawn);
     literal.append(listing);
-    if (this.matches(WRITTEN)) {
-      /** @param {HTMLElement} panel @returns {Cut} */
-      const cut = (panel) => {
-        const box = offer("div", "lf-text-document-cut");
-        box.hidden = true;
-        const press = offerAction("inline", "lf-text-document-more", "");
-        box.append(press);
-        panel.append(box);
-        return { panel, box, press };
-      };
-      const cuts = (this.cuts = { preview: cut(rendered), source: cut(literal) });
-      // Either press shows the whole document in both tabs and goes, so focus moves to
-      // the text it showed.
-      /** @param {() => HTMLElement | undefined} shown */
-      const whole = (shown) => () => {
-        for (const { panel, box } of Object.values(cuts)) {
-          panel.toggleAttribute("data-lf-all", true);
-          box.toggleAttribute("hidden", true);
-        }
-        const text = shown();
-        if (text) focusDestination(text, "return");
-      };
-      cuts.preview.press.addEventListener(
-        "click",
-        whole(() => rendered),
-      );
-      cuts.source.press.addEventListener(
-        "click",
-        whole(() => this.sourceView?.pre),
-      );
-    }
+    // A press moves focus to the text it showed.
+    this.cuts = {
+      preview: this.cut(rendered, rendered, () => rendered),
+      source: this.cut(literal, literal, () => this.sourceView?.pre),
+    };
     tabs.append(rendered, literal);
     figure.append(tabs);
     return { figure, caption, listing, preview: drawn };

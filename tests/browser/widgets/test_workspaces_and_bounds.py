@@ -106,7 +106,7 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
     continue down the document once its last line is reached."""
     content = (
         '<lf-text-document id="reader" source="capture" label="Run log" '
-        'data-bound="start"></lf-text-document>'
+        'data-bound="end"></lf-text-document>'
         if captured
         else '<div id="reader" data-bound="start">'
         + "<p>Run log line</p>" * 100

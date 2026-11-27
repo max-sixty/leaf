@@ -161,24 +161,19 @@ lf-text-document .lf-text-document-run:only-child {
     content: none;
   }
 }
-/* A document scrolls its listing in a box `--lf-bound` tall under a caption that
-   stays put: the Source tab's box with a preview, the listing's own without one. The
-   box's height is the bound, not the text's, so the page keeps the document's final
-   size from its first paint. Bound text arrives with the state answer after that
-   paint, and a listing as tall as its text pushed what followed it down by that
-   height. A short document leaves room under its last line, and a long one reads by
-   scrolling inside the box rather than at full length in the page.
-
-   A Markdown preview of written text is the exception: the module draws it at its
-   rendering's own height up to the bound, which the Source tab takes too, since a
-   one-paragraph quote in a 28rem box drew a 530px frame around 156px of text.
+/* A document takes its text's height up to `--lf-bound` under a caption that stays
+   put, and where that height cuts the text, ends in a fade and a press that shows the
+   whole document (lf-text-document.js, `cuts`): the tab shown with a preview, the
+   listing's `pre` without one. A preview's Source tab takes the preview's height
+   (`holdSource`), so switching tabs keeps the page still.
 
    The module draws the figure once it loads, after first paint, so until then the
    host wears the figure's frame in place of its written `<pre>`, draws its label as the
-   caption, wrapping as the caption will, and keeps the room the tab strip and the box
-   will take, or, for a written Markdown preview, shows its source in that room (below).
-   Without the runtime, as in a page read with scripts off, the `<pre>` shows its
-   text. */
+   caption, wrapping as the caption will, and shows the written source in the room the
+   tab strip and the text will take (below). Bound text arrives with the state answer
+   after that paint, so a bound document keeps the bound's room until it draws, and
+   then takes its text's height. Without the runtime, as in a page read with scripts
+   off, the `<pre>` shows its text. */
 @media screen {
   lf-text-document[data-lf-bound] {
     max-block-size: none;
@@ -191,7 +186,6 @@ lf-text-document .lf-text-document-run:only-child {
      skips too (notes/browser-support.md, "Styling content Firefox skips"), so a mark
      that changed the values would restyle every row of a long listing. */
   lf-text-document:not([preview])[data-lf-bound] pre {
-    block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;
     --lf-top: var(--lf-top-start);
@@ -224,22 +218,25 @@ lf-text-document .lf-text-document-run:only-child {
     &[preview]::after {
       block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
     }
-    /* A written Markdown preview shows its source where its rendering will stand,
-       under the strip's room and to the bound, so its words read before the module
-       draws, and its box then changes only by how far the rendering's height differs
-       from the source's. */
-    &[preview="markdown"]:not([source], [for]) {
+    /* A written document shows its source where its reading will stand, under the
+       strip's room where it has tabs and to the bound, so its words read before the
+       module draws, and its box then changes only by how far the drawn reading's
+       height differs from the source's. */
+    &:has(> pre) {
       &::after {
         content: none;
       }
       & > pre {
         display: block;
         box-sizing: border-box;
-        max-block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
-        padding: calc(var(--lf-tabstrip-h) + var(--lf-sp-4)) var(--lf-sp-4)
-          var(--lf-sp-4);
+        max-block-size: var(--lf-bound, 28rem);
+        padding: var(--lf-sp-4);
         overflow: hidden;
       }
+    }
+    &[preview]:has(> pre) > pre {
+      max-block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
+      padding-block-start: calc(var(--lf-tabstrip-h) + var(--lf-sp-4));
     }
   }
 }
@@ -259,10 +256,9 @@ lf-text-document .lf-text-document-listing::after {
   z-index: 1;
 }
 
-/* Source and preview share one inspection viewport. Its height doesn't follow the tab
-   shown, so switching keeps the strip and following page still, except on a written
-   Markdown preview drawn on its Source tab, whose height the preview sets once shown
-   (lf-text-document.js, `holdSource`). */
+/* Source and preview share one inspection viewport, whose height the preview sets
+   (lf-text-document.js, `holdSource`), so switching keeps the strip and following page
+   still. */
 lf-text-document[preview] > .lf-text-document-view {
   background: var(--lf-paper);
 }
@@ -310,34 +306,42 @@ lf-text-document iframe.lf-text-document-preview {
 }
 @media screen {
   lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
-    block-size: var(--lf-bound, 28rem);
     overscroll-behavior: auto;
   }
-  /* A written Markdown preview sets the height both tabs take, its rendering's up to
-     the bound, which the module gives the Source tab (lf-text-document.js,
-     `holdSource`). A tab that height cuts ends in a fade and a press showing the whole
-     document (`cuts`), after which each tab takes its own height in the page. Told it
-     has a definite height to fill (below), it fills that height instead. */
+  /* The preview sets the height both tabs take, its own up to the bound, which the
+     module gives the Source tab (lf-text-document.js, `holdSource`). A reading that
+     height cuts ends in a fade and a press showing the whole document (`cuts`), after
+     which each reading takes its own height in the page. Told it has a definite height
+     to fill (below), a document fills that height instead and scrolls inside it. */
   @container not style(--lf-full-height: 1) {
-    lf-text-document[preview="markdown"]:not([source], [for])
-      .lf-text-document-view
-      > lf-tabs {
-      & > lf-tab:not([hidden]) {
-        block-size: auto;
+    lf-text-document:not([data-lf-bound="end"]) {
+      & .lf-text-document-view > lf-tabs > lf-tab:not([hidden], [data-lf-all]),
+      &:not([preview]) .lf-text-document-listing > pre:not([data-lf-all]) {
         max-block-size: var(--lf-bound, 28rem);
       }
-      & > lf-tab:not([data-lf-all]) {
+      & .lf-text-document-view > lf-tabs > lf-tab:not([data-lf-all]),
+      &:not([preview]) .lf-text-document-listing > pre:not([data-lf-all]) {
         overflow: hidden;
       }
-      & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
+      &
+        .lf-text-document-view
+        > lf-tabs
+        > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
         block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
       }
     }
+    /* A document that follows its newest line, as a log does (`data-bound="end"`),
+       scrolls in a box the bound's height instead, which keeps that line in view as
+       lines arrive while the reader is at the end (bounds.js). */
+    lf-text-document[data-lf-bound="end"] {
+      & .lf-text-document-view > lf-tabs > lf-tab:not([hidden]),
+      &:not([preview]) .lf-text-document-listing > pre {
+        block-size: var(--lf-bound, 28rem);
+      }
+    }
   }
-  lf-text-document[preview="markdown"]:not([source], [for])
-    .lf-text-document-view
-    > lf-tabs
-    > lf-tab[data-lf-all] {
+  lf-text-document .lf-text-document-view > lf-tabs > lf-tab[data-lf-all],
+  lf-text-document .lf-text-document-listing > pre[data-lf-all] {
     max-block-size: none;
     overflow: visible;
   }
@@ -350,9 +354,6 @@ lf-text-document iframe.lf-text-document-preview {
   }
   lf-text-document lf-tab:has(> .lf-text-document-preview) > .lf-text-document-cut {
     background: linear-gradient(transparent, var(--lf-paper) 70%);
-  }
-  lf-text-document iframe.lf-text-document-preview {
-    block-size: 100%;
   }
 }
 /* As a pane's body, the document wears the pane's frame rather than a second one inside
@@ -401,11 +402,9 @@ lf-text-document iframe.lf-text-document-preview {
       block-size: 100%;
       max-block-size: none;
     }
-    /* A Source tab shown whole scrolls inside the pane it fills. */
-    lf-text-document[preview="markdown"]:not([source], [for])
-      .lf-text-document-view
-      > lf-tabs
-      > lf-tab[data-lf-all] {
+    /* A reading shown whole scrolls inside the pane it fills. */
+    lf-text-document .lf-text-document-view > lf-tabs > lf-tab[data-lf-all],
+    lf-text-document .lf-text-document-listing > pre[data-lf-all] {
       overflow: auto;
     }
   }

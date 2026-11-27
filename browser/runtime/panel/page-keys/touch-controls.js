@@ -45,6 +45,7 @@ function place(press) {
   registerPageControl({
     key: `command:${press.id}`,
     rank: PAGE_CONTROL_RANK.commands,
+    command: press.id,
     label: () => face()?.label ?? "",
     // The row's value is read where the menu paints, so one that says how long ago, as
     // Undo's does, follows the page's clock (state/presence.js, `clockValue`) rather than

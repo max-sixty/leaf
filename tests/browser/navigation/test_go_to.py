@@ -736,12 +736,13 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
 
 def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve):
     """Go-to's map holds the controls Leaf draws over the page as it holds the page's
-    own: with Threads open, the floating panel's tabs and the leaf wear chips, and a
-    tab's code presses that tab, though Go-to arms as the Threads view fades in. Each
-    tab's chip stands on the tab's words rather than on its box's corner, in the
-    padding it shares with the tab before it. The ✕ and the field's Close that end
-    Go-to wear none, since each would only do what Escape does
-    (panel/floating-panel.js, `heldByStance`)."""
+    own: with Threads open, the floating panel's tabs and the leaf wear chips, though
+    Go-to arms as the Threads view fades in. A tab a Go-to key already opens wears that
+    key, as On Me wears M, and the tab no key opens, as Threads' own tab while Threads
+    shows, wears a code that presses it. Each tab's chip
+    stands on the tab's words rather than on its box's corner, in the padding it shares
+    with the tab before it. The ✕ and the field's Close that end Go-to wear none, since
+    each would only do what Escape does (panel/floating-panel.js, `heldByStance`)."""
     page = open_page(
         browser,
         serve(
@@ -776,12 +777,48 @@ def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve)
         middle = (chip["x"] + chip["width"] / 2, chip["y"] + chip["height"] / 2)
         assert middle[0] > tab["x"] + 2 and middle[1] > tab["y"] + 2, (name, chip, tab)
 
+    assert routes["Control, On Me"] == "M", routes
+
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     page.keyboard.press("g")
-    page.keyboard.type(routes["Control, On Me"])
+    page.keyboard.type(routes["Control, Threads"])
+    expect(page.locator(".lf-fp-tab", has_text="Threads")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     expect(panel).to_have_attribute("data-lf-open", "queue")
-    expect(page.locator(".lf-fp-tab", has_text="On Me")).to_be_focused()
+
+
+def test_a_menu_row_a_go_to_key_runs_wears_that_key(browser, serve):
+    """A row of the leaf's menu whose command a Go-to key already runs, as `g H` hides
+    the annotations, says that key at its end and wears it as its Go-to chip, and the
+    key does what the row does."""
+    page = open_page(
+        browser,
+        serve(leaf_page("Menu keys", '<h1 id="top">Menu keys</h1><p>Words.</p>')),
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    page.locator(".lf-fp-tab", has_text="Menu").click()
+    page.locator(".lf-fp-item", has_text="Annotations").click()
+    row = page.locator(".lf-fp-item", has_text="Hide annotations")
+    expect(row.locator(".lf-fp-end")).to_have_text(re.compile(r"^\s*g\s*H\s*$"))
+    page.keyboard.press("g")
+    chip = page.locator(f'{CHIPS}[data-lf-hint-code="H"]')
+    expect(chip).to_be_visible()
+    box, at = row.bounding_box(), chip.bounding_box()
+    assert (
+        box
+        and at
+        and box["y"] <= at["y"] + at["height"] / 2 <= box["y"] + box["height"]
+    )
+    page.keyboard.press("Shift+h")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    page.locator(".lf-fp-tab", has_text="Menu").click()
+    page.locator(".lf-fp-item", has_text="Annotations").click()
+    expect(page.locator(".lf-fp-item", has_text="Show annotations")).to_be_visible()
 
 
 def test_go_to_armed_as_a_panel_view_replaces_another_names_the_arriving_view(

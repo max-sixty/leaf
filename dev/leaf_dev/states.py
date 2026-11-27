@@ -3286,6 +3286,15 @@ def panel_go_to(page: Page) -> None:
     go_to(page)
 
 
+def menu_go_to(page: Page) -> None:
+    """The Go-to sequence armed over the leaf's menu, whose tabs and rows that a Go-to
+    key opens wear that key, as Versions wears V and On Me M."""
+    go_to_threads(page)
+    page.locator(".lf-fp-tab", has_text="Menu").click()
+    rendered(page)
+    go_to(page)
+
+
 def card_go_to(page: Page) -> None:
     """The Go-to sequence armed from a thread card the pointer opened, whose head's
     presses and microphone wear chips, while each message's own controls, unseen until
@@ -4271,6 +4280,7 @@ STATES = (
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
     State("plan-go-to", "review-a-plan", go_to, window=Window((1024, 768))),
     State("plan-panel-go-to", "review-a-plan", panel_go_to),
+    State("plan-menu-go-to", "review-a-plan", menu_go_to),
     State("plan-card-go-to", "review-a-plan", card_go_to),
     State(
         "plan-thread-in-panel",

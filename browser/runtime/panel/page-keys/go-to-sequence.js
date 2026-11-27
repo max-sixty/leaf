@@ -4,7 +4,11 @@
    drew them: the page, a widget, or Leaf over the page, as the floating panel's tabs
    and a thread card's Resolve are. Links, tabs, folds, the presses a widget or Leaf
    built, visible margin entries and the ages an author wrote in the page (`pageAges`)
-   are read together in screen order and receive short prefix-free labels.
+   are read together in screen order and receive short prefix-free labels. A target
+   whose press runs one of the named destinations below, as the floating panel's On Me
+   tab runs `g M`'s, says so (`data-lf-command`, which the command reference's rows
+   also carry) and wears that destination's key instead, so the chip on On Me says M,
+   the key the user learns once and presses from anywhere.
    `readings/key-badges/hints.js` owns that map — the codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
@@ -69,6 +73,7 @@ import {
   labelOf,
   live,
   nativePress,
+  spell,
 } from "../../dom/keyboard/bindings.js";
 import { keyBadgePlacement } from "../../readings/key-badges/key-badge-placement.js";
 import { drawnBox } from "../../dom/geometry.js";
@@ -402,15 +407,37 @@ export function createGoToSequence({
           addressableSays(member) ||
           visibleWords(member) ||
           candidate.kind;
-        found.push({ ...candidate, order, rect, at: { left, top }, says });
+        const named = namedKey(member);
+        found.push({ ...candidate, order, rect, at: { left, top }, says, named });
       }
-    found.sort(
-      (left, right) =>
-        left.rect.top - right.rect.top ||
-        left.rect.left - right.rect.left ||
-        left.order - right.order,
-    );
-    return codedHints(found, GO_TO_HINT_KEYS.join(""));
+    /** @typedef {{rect: {top: number, left: number}, order: number}} Placed
+     * @param {Placed} left @param {Placed} right */
+    const screenOrder = (left, right) =>
+      left.rect.top - right.rect.top ||
+      left.rect.left - right.rect.left ||
+      left.order - right.order;
+    found.sort(screenOrder);
+    return [
+      ...codedHints(
+        found.filter(({ named }) => named === null),
+        GO_TO_HINT_KEYS.join(""),
+      ),
+      ...found.flatMap((candidate) =>
+        candidate.named === null ? [] : [{ ...candidate, code: candidate.named }],
+      ),
+    ].sort(screenOrder);
+  }
+  // The key of the named destination a target's press runs, or null. It is read from the
+  // destination's declaration rather than from the keys reachable now, which a typed
+  // letter or a filter stands down, so reading the map again mid-route recodes nothing.
+  // A destination's key is a capital or one the generated alphabet leaves out, so no
+  // generated code begins with it.
+  /** @param {Element} member */
+  function namedKey(member) {
+    const id = member.getAttribute("data-lf-command");
+    const destination = id && destinations.find((row) => row.id === id);
+    const [binding] = destination && live(destination) ? bindings(destination) : [];
+    return binding === undefined ? null : spell(binding);
   }
 
   // Every complete route starts with the same stable prefix. A partial generated hint is

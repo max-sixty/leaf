@@ -2768,7 +2768,8 @@ export function createFloatingPanel({
   // knows before pressing that it leads further rather than acting.
   /** @param {unknown} label @param {unknown} end @param {(event: MouseEvent) => unknown} press
    * @param {{urgent?: boolean, disabled?: boolean, role?: string | null, row?: string | null,
-   * key?: string | null, opens?: boolean, title?: string | null, current?: boolean}} [options] */
+   * key?: string | null, command?: string | null, opens?: boolean, title?: string | null,
+   * current?: boolean}} [options] */
   const menuItem = (
     label,
     end,
@@ -2778,6 +2779,7 @@ export function createFloatingPanel({
       disabled = false,
       row = null,
       key = null,
+      command = null,
       opens = false,
       title = null,
       current = false,
@@ -2787,6 +2789,7 @@ export function createFloatingPanel({
       type="button"
       data-lf-row=${row ?? nothing}
       data-lf-key=${key ?? nothing}
+      data-lf-command=${command ?? nothing}
       .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "location" : nothing}
@@ -2820,16 +2823,22 @@ export function createFloatingPanel({
     );
   // A row's end says its value in words, then its shortcut where a keyboard is there to
   // press it, each press a key as the command reference draws it, so the two never read
-  // as one run of text.
+  // as one run of text. A row that names no shortcut of its own shows the keys of the
+  // command it runs.
   /** @param {ReturnType<typeof pageControls>[number]} entry */
-  const rowEnd = (entry) =>
-    html`${
+  const rowEnd = (entry) => {
+    const shortcut =
+      entry.shortcut.length || !entry.command
+        ? entry.shortcut
+        : commandSteps(entry.command);
+    return html`${
       entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing
     }${
-      entry.shortcut.length && advertisesKeys()
-        ? keySequenceTemplate(keySequenceModel(neutralSteps(entry.shortcut)))
+      shortcut.length && advertisesKeys()
+        ? keySequenceTemplate(keySequenceModel(neutralSteps(shortcut)))
         : nothing
     }`;
+  };
   // Copy shortcuts close on success; a refusal opens About's selectable text.
   /** @type {Map<string, ReturnType<typeof copyControl>>} */
   const copyItems = new Map();
@@ -2889,6 +2898,7 @@ export function createFloatingPanel({
         urgent: Boolean(entry.urgent),
         disabled: entry.disabled,
         row: entry.key,
+        command: entry.command,
         opens: Boolean(route && viewOf(route).over?.includes("menu")),
       },
     );
@@ -4976,8 +4986,9 @@ export function createFloatingPanel({
   // centred in a room wider on both sides, which stood it off centre once it had a
   // count, as On Me nearly always does. An empty gap stands between two tabs, for the
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
-  // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
-  // On <agent>'s, where they would press it from where the user is, so the user meets
+  // show names the Go-to door that opens it (`door`), so it previews the door's keys,
+  // such as `g A` on On <agent>'s, where they would press it from where the user is,
+  // and wears the door's key as its Go-to chip (`data-lf-command`), so the user meets
   // the key where they reach for the list. A tab is named for its list alone and
   // described by its count, so a screen reader hears "Threads", then "2", and its
   // preview's keys follow "Threads", not "Threads 2".
@@ -4989,15 +5000,16 @@ export function createFloatingPanel({
       ${names.map((name, at) => {
         const counted = count(name);
         const gap = at ? html`<span class="lf-fp-tab-gap"></span>` : nothing;
-        const opens = door(name);
+        const opens = current === name ? null : door(name);
         return html`${gap}<button
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
             aria-label=${label(name)}
             aria-description=${counted === null ? nothing : String(counted)}
+            data-lf-command=${opens ?? nothing}
             .lfPreview=${() => {
-              const steps = opens && current !== name ? commandBindingsNow(opens) : [];
+              const steps = opens ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
             }}
             @click=${() => {

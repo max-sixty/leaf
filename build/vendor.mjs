@@ -132,28 +132,9 @@ const bindTo = (filter, target) => ({
  */
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
-  //
-  // SnapDOM sends a resource's cookies when its origin is `location.origin`, which is
-  // the URL's origin rather than the document's. In a live sample's sandboxed child the
-  // document's origin is opaque, so every request is cross-origin and Leaf's server
-  // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
-  // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead.
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entryPoints: [input("entries/snapdom/entry.mjs")],
-    adapt: [
-      {
-        file: /@zumer\/snapdom\/dist\/snapdom\.mjs$/,
-        edit: (source) =>
-          seam(
-            source,
-            '.origin===location.origin?"include":"omit"',
-            '.origin===self.origin?"include":"omit"',
-            "SnapDOM credentials origin",
-          ),
-      },
-    ],
   }),
 
   // Framework-free image inspection, loaded only by the Playwright widget. Scoped CSS

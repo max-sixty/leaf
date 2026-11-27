@@ -294,33 +294,6 @@ def test_the_band_opens_a_page_from_the_keyboard(
     driven.quit()
 
 
-def test_the_band_lists_a_page_served_for_no_session_from_the_sessions_shell(
-    page_dir, spawn, sessionless
-):
-    """A session developing Leaf talks to the user on a page its checkout's
-    `bin/leaf` serves for no session, which the session holds no claim on. The
-    server's row names the session whose shell started it, so the band lists the
-    page there as it lists one the session holds."""
-    driven = ClaudeCode(spawn, "cc-dev", {})
-    serving(page_dir, 1)
-    server_id = read_record(page_dir / "service.json")["server_id"]
-    server_rows_model.RowPublisher(page_dir, server_id, driven.session).refresh()
-    read_row = rows_model.ROW.read(rows_model.row_path(page_dir))
-    assert read_row is not None
-    driven.emit("session.start", {"cwd": str(page_dir), "isInteractive": True})
-    band = wait_for(
-        lambda: driven.bands.get(timeout=STATED_TIMEOUT)["terminal"],
-        lambda drawn: band_lines(drawn, "terminal"),
-        failure="the module drew no band",
-    )
-    server = server_model.running_server(page_dir)
-    assert server is not None
-    [(text, href)] = band_lines(band, "terminal")
-    assert text.startswith(f"Leaf {read_row['row']['title']}")
-    assert href == server["url"]
-    driven.quit()
-
-
 @pytest.mark.parametrize("failure", ["exit", "startup", "spawn"])
 def test_a_failed_pages_follower_reports_its_diagnostics(
     spawn, sessionless, tmp_path, failure

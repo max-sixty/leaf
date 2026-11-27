@@ -1,7 +1,7 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
  * session's pages, the drawing of Leaf's own rows in the conversation, the limit
- * on how long a foreground command holds the turn while the session has a page
+ * on how long a foreground command holds the turn while the session holds a page
  * (`limitSteps`), and the carrier of the model calls Leaf asks of the session
  * (`carry`): forks of the
  * conversation, such as the turn-end check's and the one that writes the agent's
@@ -33,9 +33,7 @@
  * long foreground command waits for it to end. The maintainer chose that a session
  * holding a page keeps each step it waits on to about a minute, and that Leaf back
  * the instruction where agents still wait longer, as they do on foreground test
- * runs. So while the session has a page, one it holds or one a checkout serves for
- * no session from its shell, whose input that checkout's `leaf wait` also brings
- * only between steps, the module sets Claude Code's own limit,
+ * runs. So while the session holds a page the module sets Claude Code's own limit,
  * `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS`, to 90 s. Claude Code reads it at each of
  * the main agent's foreground commands, moves one still running then to the
  * background, says so in the result and wakes the session when it exits; it leaves
@@ -44,8 +42,7 @@
  * a long timeout instead fires mostly on commands that finish in time, and one that
  * rewrites the timeout kills the commands Claude Code can't move. The limit holds
  * from the return of any `leaf` command, since the session takes a page only through
- * one, or from a listing that shows a page, until a listing the follower takes after
- * it shows none; a value the user set
+ * one, until a listing the follower takes after it shows none; a value the user set
  * stays. Every process the session starts meanwhile inherits the variable, so a
  * nested Claude Code session limits its own commands the same way; Leaf's eval and
  * journey runners give their sessions no Claude Code variable (`arms.environment`).
@@ -64,14 +61,13 @@
  * module starts (measured at Claude Code 2.1.291). A follower that fails reports
  * its diagnostics through Claude Code's UI log.
  *
- * The band has a line for each of the session's live pages, those it holds and those
- * a checkout's `bin/leaf` serves for no session from its shell (`hooks.cmd_pages`):
- * the word Leaf in the tone the page's Leaf panel gives its leaf, a link to the
- * page, what is On the user, and its open threads with how many hold words the user
- * hasn't read, the counts the panel marks, then the agent's status. It goes above
- * whatever other plugins draw there. Claude Code keeps an empty row between the
- * band and the prompt (measured at 2.1.306); a negative margin to close it hides
- * the band. `leaf-dev journey session` runs a session that draws it from this tree.
+ * The band has a line for each live page the session holds: the word Leaf in the
+ * tone the page's Leaf panel gives its leaf, a link to the page, what is On the
+ * user, and its open threads with how many hold words the user hasn't read, the
+ * counts the panel marks, then the agent's status. It goes above whatever other
+ * plugins draw there. Claude Code keeps an empty row between the band and the
+ * prompt (measured at 2.1.306); a negative margin to close it hides the band.
+ * `leaf-dev journey session` runs a session that draws it from this tree.
  *
  * In the terminal a click on the link opens the page wherever the terminal runs,
  * SSH included. No escape sequence makes a terminal open a URL without a click,
@@ -91,15 +87,16 @@
  * with its own cookie jar and drafts, and send the host key's cookie to whatever
  * else the user serves on localhost.
  *
- * A follower (`bin/leaf hook --harness claude-code --if-claimed --pages`) prints that
- * list, with the instructions Leaf has for the module, whenever either changes, and
- * exits once the session has no page; the launcher answers it without starting uv
- * in a session that has none. It is also the session's forks lane
- * (`src/leaf/agents/forks.py`), listing a line fork for each thread message as it
- * is admitted. The session gets a page only through a command it runs, so the
- * module starts the follower as the session starts, after each Bash call that runs
- * `leaf`, and as a turn starts or a main-loop turn ends, once none is running; a
- * request while one runs starts another once it exits.
+ * A follower (`bin/leaf hook --harness claude-code
+ * --if-claimed --pages`) prints that list, with the instructions Leaf has for the
+ * module, whenever either changes, and exits once the session holds no page; the
+ * launcher answers it without starting uv in a session holding none. It is also the
+ * session's forks lane (`src/leaf/agents/forks.py`), listing a line fork for each thread
+ * message as it is admitted. The session takes a page only through a `leaf`
+ * command, so the
+ * module starts the follower as the session starts, after each Bash call that
+ * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is
+ * running; a request while one runs starts another once it exits.
  *
  * Claude Code generates declarations under .claude-plugin/types/ and a root
  * tsconfig.json when it loads the plugin. Those declarations are absent from
@@ -134,7 +131,7 @@ let remote: boolean | undefined;
 const WAKE_SUMMARY = "Leaf: new input";
 const NUDGE_WORDS = "has new input, which arrives with this message.";
 
-// A live page of the session's, as the follower prints it (`hooks.cmd_pages`).
+// A live page the session holds, as the follower prints it (`hooks.cmd_pages`).
 type Leaf = {
   page_key: string;
   url: string;
@@ -269,18 +266,18 @@ function show($: EngineInterface, listed: Leaf[], since = leafCommands) {
 }
 
 // The limit Leaf gives Claude Code's auto-background timeout while the session
-// has a page, in ms: about the minute a step should take, with room for one that
+// holds a page, in ms: about the minute a step should take, with room for one that
 // runs a little over it.
 const STEP_LIMIT = "90000";
 
-// Whether the session has a page, as last heard; whether this load of the module
+// Whether the session holds a page, as last heard; whether this load of the module
 // set the variable; and the run that brings the variable in line, while one runs.
 let holding = false;
 let owned = false;
 let limiting: Promise<void> | undefined;
 
 /** Have `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` hold `STEP_LIMIT` while the session
- * has a page, and nothing once it has none, settled once the variable matches
+ * holds a page, and nothing once it holds none, settled once the variable matches
  * the latest `held` heard. One run at a time reads and writes the variable, and runs
  * again where `held` changed meanwhile. A value this load didn't set stays as it
  * is: the user's, or one an earlier load set, which then holds until the session
@@ -378,8 +375,8 @@ function follow($: EngineInterface, session: string) {
     } catch (error) {
       if (following === current) $.ui.log(`Leaf: the pages follower failed: ${error}`);
     } finally {
-      // It exits once the session has no page, and to be started again under a Leaf
-      // that moved on.
+      // It exits once the session holds no page, or never starts in one holding none,
+      // and to be started again under a Leaf that moved on.
       if (following === current) {
         following = undefined;
         if (followAgain || renewed) follow($, session);

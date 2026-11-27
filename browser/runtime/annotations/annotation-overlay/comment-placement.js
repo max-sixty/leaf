@@ -21,15 +21,14 @@
    place keeps room for the measure (`--lf-thread-card`), or the boundary's width where
    that is narrower, running from `column` the way the words read, so where it would
    carry the card past the boundary's edge it stands further in rather than narrowing
-   (`place-under-or-over`). A slim box or card
-   stands at the end of that place nearer the quoted words' first character, or nearer
-   the element's right edge on a whole element, and widens toward the other end, so the
-   comment box stands where its card will. `margin` is where
-   across the page the margin row for it stands,
-   or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
-   or nothing where no row stands and its rows would be pins. A caller requesting
-   window placement without a visible attachment supplies `clear: null` and stands
-   at its upper inline edge through the same sizing and placement machinery.
+   (`place-under-or-over`). A slim box or card stands at the end of that place nearer
+   the quoted words' first character, or nearer the element's right edge on a whole
+   element, and widens toward the other end, so the comment box stands where its card
+   will. `margin` is where across the page the margin row for it stands, or would stand
+   in the rail once its thread is sent (margin-layout.js, `marginSpot`), or nothing
+   where no row stands and its rows would be pins. A caller requesting window placement
+   without a visible attachment supplies `clear: null` and stands at its upper inline
+   edge through the same sizing and placement machinery.
    A target that is not drawn has no attachment: seated surfaces withhold their native
    editing state until it returns. An explicit open can request the unanchored window
    posture while retaining the hidden subject as its semantic anchor. A drawn target's
@@ -587,33 +586,33 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    width has changed, and says whether it chose afresh, and whether the surface is
    opening (`opening`). `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
-   `landed` takes where the answer stands the edge it holds and where the rule stood the surface's top
-   and foot before the boundary shifted it in, from the rule's line. `options` keeps
-   the requested line of that rectangle (`keeps`); `landed` returns the surface's `scale`. `plane` names
-   the constraint that bound the answer (floating.js): `"page"` where the rule's line
-   holds the surface, and where the boundary shifted it in, the edge it stands against
-   and that edge's client line.
+   `landed` takes where the answer stands the edge it holds, and where the rule stood
+   the surface's top and foot before the boundary shifted it in, from the rule's line.
+   `options` keeps the requested line of that rectangle (`keeps`); `landed` returns the
+   surface's `scale`. `plane` names the constraint that bound the answer (floating.js):
+   `"page"` where the rule's line holds the surface, and where the boundary shifted it
+   in, the edge it stands against and that edge's client line.
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
    across the scroll the surface itself asked for (`makeRoom`).
 
    `capture` is an opaque reading carried inside the editor's frame, whose `box` is a
    client rectangle. `adopt(frame)` queues that handoff for the next `choose`, which
-   reports `adopted` until `landed` confirms a position.
-   A superseded computation retains that hold. The placement owns its carried inline
-   offset, of the edge it holds from the passage's column, else `clear`'s left edge. That column moves with
-   quoted words even when their scrollport stays still. Every landing owns the same
-   offset, on every side, so renewing placement follows the attachment native motion
-   carries: a surface under words near a line's end, whose place the boundary held
-   short of them, crosses a log scrolled sideways with them as one beside them does.
-   `keeps` supplied to `options` names the line the surface keeps still, relative to
-   the passage's line when quoted, else the initial side's clearance edge. Without
-   one, the landed seat keeps its growing surface's foot above and top elsewhere, so
-   an editor needs no transcript reading to keep its attachment while typing; before
-   that landing, an adopted frame's offsets are the ones held. `under` reads, at each
-   placement and landing, how far above its foot the surface's own line stands, in
-   client pixels, whichever line it keeps, so the line it keeps next is known from
-   its last landing. `rises` offers a surface
-   keeping its top the boundary's whole height for `fit`, rather than the room below.
+   reports `adopted` until `landed` confirms a position. A superseded computation
+   retains that hold. The placement owns its carried inline offset, of the edge it holds
+   from the passage's column, else `clear`'s left edge. That column moves with quoted
+   words even when their scrollport stays still. Every landing owns the same offset, on
+   every side, so renewing placement follows the attachment native motion carries: a
+   surface under words near a line's end, whose place the boundary held short of them,
+   crosses a log scrolled sideways with them as one beside them does. `keeps` supplied
+   to `options` names the line the surface keeps still, relative to the passage's line
+   when quoted, else the initial side's clearance edge. Without one, the landed seat
+   keeps its growing surface's foot above and top elsewhere, so an editor needs no
+   transcript reading to keep its attachment while typing; before that landing, an
+   adopted frame's offsets are the ones held. `under` reads, at each placement and
+   landing, how far above its foot the surface's own line stands, in client pixels,
+   whichever line it keeps, so the line it keeps next is known from its last landing.
+   `rises` offers a surface keeping its top the boundary's whole height for `fit`,
+   rather than the room below.
 
    `fit({ side, width, height, room, stood, scale, stationary })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands

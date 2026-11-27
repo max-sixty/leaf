@@ -646,21 +646,32 @@ summary {
   &[data-lf-author="user"] {
     --lf-msg-rest-ground: var(--lf-msg-user-ground);
   }
-  &:dir(rtl) {
-    --lf-msg-left: var(--lf-transcript-end, 0px);
-    --lf-msg-right: var(--lf-transcript-start, 0px);
-  }
-  /* A first message stands flush on what precedes it, the view's room above it or, in
-     a thread a reaction started, the working step. */
-  &:nth-child(1 of .lf-msg, .lf-thread-checkpoint):not(:first-child) {
-    --lf-msg-above: 0px;
-  }
-  &:first-child {
-    --lf-msg-above: var(--lf-transcript-top, 0px);
-  }
-  &:nth-last-child(1 of .lf-msg, .lf-thread-checkpoint, .lf-thread-working) {
-    --lf-msg-below: var(--lf-transcript-foot, 0px);
-  }
+}
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):dir(rtl) {
+  --lf-msg-left: var(--lf-transcript-end, 0px);
+  --lf-msg-right: var(--lf-transcript-start, 0px);
+}
+/* A first message stands flush on what precedes it, the view's room above it or, in a
+   thread a reaction started, the working step. */
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):nth-child(
+    1 of .lf-msg,
+    .lf-thread-checkpoint
+  ):not(:first-child) {
+  --lf-msg-above: 0px;
+}
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):first-child {
+  --lf-msg-above: var(--lf-transcript-top, 0px);
+}
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):nth-last-child(
+    1 of .lf-msg,
+    .lf-thread-checkpoint,
+    .lf-thread-working
+  ) {
+  --lf-msg-below: var(--lf-transcript-foot, 0px);
 }
 /* A forced palette keeps a border image, which would paint the ground under the
    system's own colours, and every ground is the system's canvas there. */

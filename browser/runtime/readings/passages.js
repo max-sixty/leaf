@@ -182,8 +182,6 @@ import { union } from "../dom/rect.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
 const passageFences = new WeakSet();
-export const verbatimOwnerIdentity = new WeakMap();
-export const verbatimBoundaryIdentity = new WeakMap();
 
 // ---------- passages ----------
 // A passage is a list of {node, start, end} segments, and everything that reads the page's
@@ -546,15 +544,17 @@ const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 const SILENT_TAGS = new Set(["script", "style", "textarea", "noscript"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
-// Automatic control capture uses authored words, which the file reads too, never
-// generated words or the mutable value of a native editing host. A user's actual Range
+// Whether a passage holds words of a native editing host's value, which the user may
+// change, so automatic control capture never quotes them. A user's actual Range there
 // remains readable.
 /** @param {readonly Segment[]} segments */
-export const fileModelsPassage = (segments) =>
-  segments.every(({ node, gen }) => !isEditing(elementOver(node)) && !gen);
+export const holdsEditedValue = (segments) =>
+  segments.some(({ node }) => isEditing(elementOver(node)));
 // A cell candidate: an opaque widget or one of its original direct children, which
-// always fence, or a generated element, whose words the file cannot read, which fences
-// once a word of the page's reading is its own (`indexed`).
+// always fence, or a generated element, which fences once a word of the page's reading
+// is its own (`indexed`). A module may rearrange its children and rewrite the words it
+// generates, so a cell keeps a selection's quote and context off what the module
+// draws next to it.
 /** @param {Element} el */
 const opaque = (el) => passageFences.has(el);
 // Editing values and readonly islands inside them are separate passage cells.
@@ -813,9 +813,10 @@ const BREAKS_KEPT = ["preserve", "break-spaces", "preserve-breaks"];
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
 // `boundary(element, segmentsSoFar)` answering true leaves that element's words out of
-// the walk, for a reader that stands something else in their place (render-checks,
-// `shownVerbatim`). The lines format also carries computed block boundaries and
-// whitespace; ordinary passage readings never ask the browser for these styles.
+// the walk, for a reader that reads that element apart, as a version comparison leaves
+// an opaque child's rendered data to the child's own key (features/version.js). The
+// lines format also carries computed block boundaries and whitespace; ordinary passage
+// readings never ask the browser for these styles.
 // `drawn` keeps only the words the page draws now (`drawsWithin`), asked of each word and
 // break as the walk meets it, so a break before a word left out still stands before the
 // next; `until` ends the reading where that element starts. A reader that shows no more
@@ -1710,13 +1711,8 @@ function fenceEdge({ fences, raw }, at, before) {
 // indented line inside a <pre> — and the right occurrence then confirms none of its own
 // neighbours.
 //
-// Counted in code points, which is the unit both captures write in: `cut` slices the
-// window this returns by code point, and passages.py's reading of the same passage slices
-// a Python string, which has no other unit. Counting code units here stopped the growth
-// early on any neighbourhood holding an emoji — the window reached 24 of them while
-// holding 23 characters — so the browser stored a prefix a character short of the one the
-// file's reading stores for that same passage, and the two captures wrote different
-// anchors for one passage.
+// Counted in code points, the unit `cut` slices the window this returns by, so a
+// neighbourhood holding an emoji holds as many characters as it was asked for.
 /** @param {PageReading} reading @param {number} at @param {number} want @param {boolean} before */
 export function neighbourhood(reading, at, want, before) {
   const edge = fenceEdge(reading, at, before);
@@ -2334,10 +2330,10 @@ export const readingHolding = (node) =>
 // same value, read as one passage cell: a passage across a widget's data, as a drag
 // across lines of a diff holds, is captured and found again in these words
 // (anchor-resolution.js, `anchorForPassage`). The page's reading fences every datum as
-// a cell of its own, since the file can't read generated words beside its prose, and
-// fences fields and generated words inside a datum the same way. This reading has no
-// fence at all: no file reads a datum's words, and the passage found in it is one a
-// selection over the same words made. It reads the parts it covers and the frame's words
+// a cell of its own, since each is a fact its widget may redraw or reorder, and fences
+// fields and generated words inside a datum the same way. This reading has no fence at
+// all: the run is read only to find again a passage a selection over the same words
+// made. It reads the parts it covers and the frame's words
 // between them (`segmentsIn`), and is read afresh each time it is asked.
 /** @param {Element} first @param {Element} last @returns {PageReading} */
 export function runReading(first, last) {
@@ -2559,7 +2555,7 @@ const frameCollected = () => (framePiece().collected ??= collect(pageDocument(),
  * @param {readonly PartMark[]} [marks] @returns {PageReading} */
 function indexed(segments, chains, marks = []) {
   // Generated page-words are their own passage cells: the generated element a word of
-  // the reading stands in, since the file cannot read them.
+  // the reading stands in, since its module may rewrite them (`opaque`).
   const dynamicWords = new Set();
   for (const { gen } of segments) if (gen) dynamicWords.add(gen);
   // A segment's cell is the nearest candidate over it that fences. The chain crosses
@@ -2953,8 +2949,7 @@ const withinCell = (text, from, to) => fenceEdge(text, from + 1, false) >= to;
 // quote stands wherever the page spells it and parts its letters as the quote does: a
 // space or an edge where the quote has a space, and nothing or an edge where it has
 // none. An edge is where two inline elements meet, and only the page's CSS says whether
-// a word ends there, so it reads either way, as `occurrences` (anchor_capture.py)
-// reads one too. The places are found in the reading's own letters (`spell`), and each
+// a word ends there, so it reads either way. The places are found in the reading's own letters (`spell`), and each
 // is held to its quote's spaces there (`copyAt`).
 //
 // What a code unit is to a quote: 0 a letter, 1 an edge, 2 whitespace by the rule a

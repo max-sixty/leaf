@@ -90,7 +90,7 @@
     "awaits": { "attribute": "data-lf-awaits", "presence": true, "message": true }
   },
   "$passages": {
-    "description": "How Python (`leaf/source/passages.py`, `leaf/source/anchor_capture.py`) and the browser (`runtime/state/kernel-facts.js`) turn a page into text, so `leaf thread create` can confirm any quote the browser captures. Both read the serving Leaf's copy.",
+    "description": "How the browser (`runtime/state/kernel-facts.js`) turns a page into text, which Python (`leaf/source/passages.py`) reads the page's files by too, so the words Leaf tells the agent a page says read as the page shows them. Both read the serving Leaf's copy.",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
     "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
     "blocks": [

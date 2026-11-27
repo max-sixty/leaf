@@ -983,12 +983,7 @@ def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
 
     words, put = collapse(edit["words"]), collapse(edit["replacement"])
     passages = read(source)
-    # Spelled as the page spells them: the change is placed by its offsets in `words`.
-    found = [
-        at
-        for at, end in occurrences(passages, words, 0, len(passages.text))
-        if passages.text[at:end] == words
-    ]
+    found = [at for at, _ in occurrences(passages, words, 0, len(passages.text))]
     if words == put or len(found) != 1:
         return None
     start, end, new = _changed(words, put)

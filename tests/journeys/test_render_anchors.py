@@ -193,7 +193,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             const resolved = resolveAnchor(anchor);
             // A cross-cell selection remains a real native selection and a writable
             // comment. It must not acquire an exact semantic highlight by ignoring
-            // the same fences file capture respects. Generated wordless faces and
+            // the reading's fences. Generated wordless faces and
             // identified data can also retain an element fallback.
             if (!resolved?.exact || resolved.kind !== 'passage') {
                 nonexact.push(anchor);

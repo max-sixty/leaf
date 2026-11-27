@@ -54,7 +54,7 @@ import {
   elementById,
   excerpt,
   findQuote,
-  fileModelsPassage,
+  holdsEditedValue,
   leafSurface,
   pageDocument,
   pageQueryAll,
@@ -448,7 +448,7 @@ export function datumAimTarget(datum) {
 }
 
 // Capture enough context to identify the selected span, stopping at the reading’s
-// semantic fences. A short unique quote keeps the file capture’s initial context;
+// semantic fences. A short unique quote keeps the initial context (`$passages.context`);
 // repeated words grow their context until the shared resolver finds this exact span
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
 // `anchorForPassage` captures segments already taken from the page reading, under
@@ -482,10 +482,9 @@ export function anchorForPassage(selected, node) {
       ? node
       : upFrom(node);
   while (holder && lastText && !under(lastText, holder)) holder = upFrom(holder);
-  // The neighbours come from the same indexed reading the search uses and stop at
-  // the same opaque-widget fences as the file-side capture. The browser knows words
-  // a module generated and may quote them; it does not pretend the file can confirm
-  // context across their seam.
+  // The neighbours come from the same indexed reading the search uses and stop at its
+  // fences, so a selection's context holds none of the words a module draws beside it,
+  // which the module may rewrite or rearrange.
   const { text: quote, units } = readingFrom(segments);
   /** @param {import("./passages.js").Segment | undefined} seg */
   const datumOf = (seg) => (seg ? closestAcross(seg.node, DATUM) : null);
@@ -762,7 +761,7 @@ function designTargetAt(
       // visible words on each face without inventing quote text from an ARIA name.
       for (const face of faces) {
         for (const passage of controlPassages(face, partElement)) {
-          if (!passage.length || !fileModelsPassage(passage)) continue;
+          if (!passage.length || holdsEditedValue(passage)) continue;
           const captured = anchorForRange(rangeOf(passage));
           if (!captured) continue;
           const resolved = captured.quote

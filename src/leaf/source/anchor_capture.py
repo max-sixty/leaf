@@ -9,16 +9,17 @@ an agent names, and stores the quote it was given. The file's reading of the pag
 (`passages.page_passages`) stands in for the drawn page only as advice: it names the
 section that encloses words it finds once, says where it finds them zero or several
 times (`unplaced-quote`), and tells a revision which quotes it took out (`copies`,
-`source_history.revision_reanchors`). A miss costs a note or a move the browser's
-fallback makes anyway, so the reading is held to no exact parity with the browser's."""
+`source_history.revision_reanchors`). It finds a quote only as it spells the page's
+words, where the browser also finds one with or without a space where two elements'
+words meet, and it reads none of the words a module draws. Where the two disagree,
+the agent gets a note on a quote the page places, or none on one the page stands on
+its section; an anchor stores no section; or a revision moves a thread to its
+section while the page still shows its words."""
 
-import bisect
-import functools
-import itertools
 from typing import NamedTuple
 
 from leaf.base.findings import Finding
-from leaf.source.passages import COLLAPSE_CHARS, collapse, page_passages
+from leaf.source.passages import collapse, page_passages
 from leaf.source.registry.contract import visual_parts
 from leaf.source.structure import SourceDocument
 
@@ -34,65 +35,20 @@ def enclosing_section(owner: list, lo: int, hi: int):
     return first[shared - 1] if shared else None
 
 
-class _Letters(NamedTuple):
-    """A reading's text without its spaces: each letter, where it stands in the text,
-    and what parts it from the letter before (0 nothing, 1 an edge, 2 a space)."""
-
-    letters: str
-    places: list
-    parted: bytes
-
-
-@functools.lru_cache(maxsize=16)
-def _letters(text: str, edges: frozenset, soft: frozenset) -> _Letters:
-    letters, places, parted = [], [], bytearray()
-    for i, ch in enumerate(text):
-        if ch in COLLAPSE_CHARS:
-            continue
-        if not places:
-            kind = 0
-        elif i > places[-1] + 1:
-            # A space parts them, unless every space between is one an edge shows as.
-            between = range(places[-1] + 1, i)
-            kind = 1 if all(at in soft for at in between) else 2
-        else:
-            kind = 1 if i in edges else 0
-        parted.append(kind)
-        letters.append(ch)
-        places.append(i)
-    return _Letters("".join(letters), places, bytes(parted))
-
-
 def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]:
-    """Where `quote` stands in the reading's text[lo:hi], as absolute [start, end)
-    spans, in order: its letters, a space or an edge between two of them where the quote
-    has a space, and nothing or an edge where it has none. An edge is where two inline
-    elements meet, and only the page's CSS says whether a word ends there, so either
-    reading of it matches: the file side of `readings/passages.js.scan`. A copy past a fence is
-    no copy, since the page has words there this text doesn't, but it takes its place
-    in order: the next copy starts past it. An empty quote names no passage, as in the
-    browser's `findQuote`."""
-    words = [word for word in collapse(quote).split(" ") if word]
-    if not words:
-        return []
-    letters = "".join(words)
-    gaps = set(itertools.accumulate(len(word) for word in words[:-1]))
-    view = _letters(passages.text, passages.edges, passages.soft)
-    first = bisect.bisect_left(view.places, lo)
-    stop = bisect.bisect_left(view.places, hi)
-    found = []
-    at = view.letters.find(letters, first, stop)
+    """Where `quote`, collapsed, stands in the reading's text[lo:hi], as absolute
+    [start, end) spans in order, each past the last, so copies that overlap are one,
+    the first, as in the browser's `findQuote`. A copy across a fence is no copy, since
+    the page has words there this text doesn't, but it takes its place in order: the
+    next copy starts past it. An empty quote names no passage."""
+    wanted = collapse(quote)
+    found: list[tuple[int, int]] = []
+    at = passages.text.find(wanted, lo, hi) if wanted else -1
     while at != -1:
-        if all(
-            (view.parted[at + j] != 0) if j in gaps else (view.parted[at + j] != 2)
-            for j in range(1, len(letters))
-        ):
-            start, end = view.places[at], view.places[at + len(letters) - 1] + 1
-            if not any(start < f < end for f in passages.fences):
-                found.append((start, end))
-            at = view.letters.find(letters, at + len(letters), stop)
-        else:
-            at = view.letters.find(letters, at + 1, stop)
+        end = at + len(wanted)
+        if not any(at < fence < end for fence in passages.fences):
+            found.append((at, end))
+        at = passages.text.find(wanted, end, hi)
     return found
 
 
@@ -101,7 +57,7 @@ def copies(passages, quote: str, section: str | None) -> list[tuple[int, int]]:
     one is named, or nowhere where the section holds no words the file reads, as a
     widget's data body doesn't."""
     span = passages.spans.get(section) if section else (0, len(passages.text))
-    return occurrences(passages, collapse(quote), *span) if span else []
+    return occurrences(passages, quote, *span) if span else []
 
 
 def capture_anchor(

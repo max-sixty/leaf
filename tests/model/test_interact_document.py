@@ -73,7 +73,6 @@ from leaf.commands import agent_state as agent_state_model
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.log import projection as projection_model
-from leaf.pages.render_gate import readings as render_gate_readings
 from leaf.records import page_data as page_data_model
 from leaf.records import publishing as publishing_model
 from leaf.records import reports as reports_model
@@ -764,70 +763,6 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
 
-def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
-    registry = with_modules(
-        {
-            "lf-shell": {
-                "verbatim": True,
-            },
-            "lf-piece": {
-                "verbatim": True,
-            },
-        },
-        "lf-shell",
-        "lf-piece",
-    )
-    plain = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><p>set<em>up</em></p>'
-            "<lf-piece>child words</lf-piece><p>after</p></lf-shell>"
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    wrapped = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><p><span>set</span>up</p>'
-            "<lf-piece>different child rendering</lf-piece><p>after</p></lf-shell>"
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    separated = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><p>set up</p>'
-            "<lf-piece>child words</lf-piece><p>after</p></lf-shell>"
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    non_js_whitespace = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell">\u0085edge\u0085</lf-shell>'
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    # A label and the words after it, which the page shows apart outside a text block,
-    # read apart here as in the page's reading.
-    labelled = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><div><b>Status</b>Ready</div></lf-shell>'
-        ),
-        registry,
-    )
-
-    assert (
-        plain
-        == wrapped
-        == [
-            {"text": "setup"},
-            {"boundary": [["page", None, 0], 0, "lf-piece", None]},
-            {"text": "after"},
-        ]
-    )
-    assert separated[0] == {"text": "set up"}
-    assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
-    assert labelled.text == "Status Ready"
-    assert labelled.verbatim[("page", None, 0)] == [{"text": "Status Ready"}]
-
-
 def test_file_readings_follow_browser_tree_recovery():
     html = (
         '<main id="page"><table id="grid"><p id="lead">Lead'
@@ -923,7 +858,6 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
         doc, registry, rewrites={"note": ("edit", edited)}
     )
     assert projected.text == "Changed --dry-run. First Second"
-    assert projected.verbatim == {("page", None, 0): [{"text": projected.text}]}
 
 
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
@@ -4572,130 +4506,6 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     assert retired == passages_model.page_passages(document, registry, decided)
     assert retired.text == "New words. After."
     assert retired.gone == {"cut": "accepted"}
-
-
-def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
-    from leaf.source.registry.contract import state_definition
-
-    registry: dict[str, dict] = {
-        "lf-draft": {
-            "verbatim": True,
-            "verbs": {
-                "edit": {
-                    "unit": "widget",
-                    "record": {"kind": "body"},
-                }
-            },
-        }
-    }
-    with_modules(registry, "lf-draft")
-    page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    reply = '<lf-draft id="reply-draft">\n<pre>Reply authored.</pre></lf-draft>'
-
-    def action(identity, text, seq):
-        return {
-            "kind": "action",
-            "id": f"a-{identity}",
-            "author": "user",
-            "revision": 2,
-            "widget": identity,
-            "action": "edit",
-            "detail": {"value": text},
-            "meaning": {
-                "unit": identity,
-                "depends": [identity],
-                "answer": None,
-                "scope": "page",
-                "state": state_definition(
-                    "lf-draft",
-                    registry["lf-draft"],
-                    registry["lf-draft"]["verbs"]["edit"],
-                ),
-            },
-            "seq": seq,
-        }
-
-    events = [
-        {
-            "kind": "comment",
-            "id": "c-scope",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep the reply's answer current.",
-            "seq": 1,
-        },
-        {
-            "kind": "reply",
-            "id": "r-scope",
-            "author": "agent",
-            "parent": "c-scope",
-            "revision": 1,
-            "text": f"Here it is:\n\n{reply}",
-            "seq": 2,
-        },
-        action("page-draft", "Page future.", 3),
-        action("reply-draft", "Reply current.", 4),
-    ]
-
-    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
-
-    assert expected == {
-        ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Reply current."}],
-    }
-
-
-def test_projected_verbatim_includes_generated_children():
-    registry = {
-        "lf-list": {
-            "verbatim": True,
-            "verbs": {
-                "add": {
-                    "detail": {
-                        "type": "object",
-                        "properties": {
-                            "item": {"type": "string"},
-                            "text": {"type": "string", "minLength": 1},
-                        },
-                        "required": ["item", "text"],
-                        "additionalProperties": False,
-                    },
-                    "unit": "item",
-                    "creates": {"child": "lf-item", "words": "text"},
-                }
-            },
-        },
-        "lf-item": {},
-    }
-    with_modules(registry, "lf-list")
-    markup = '<lf-list id="list">Authored item.</lf-list>'
-    event: dict[str, dict | str | int] = {
-        "kind": "action",
-        "id": "a-add",
-        "author": "user",
-        "revision": 1,
-        "widget": "list",
-        "action": "add",
-        "detail": {"item": "new-item", "text": "Generated item."},
-        "meaning": {
-            "unit": "new-item",
-            "depends": ["list", "new-item"],
-            "creates": "lf-item",
-            "scope": "page",
-        },
-        "seq": 1,
-    }
-
-    from leaf.source.registry.contract import state_definition
-
-    event["meaning"]["state"] = state_definition(
-        "lf-list", registry["lf-list"], registry["lf-list"]["verbs"]["add"]
-    )
-    expected = render_gate_readings._expected_verbatim(
-        markup, [event], registry, here=1
-    )
-
-    assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
 
 
 def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):

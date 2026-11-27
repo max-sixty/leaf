@@ -195,14 +195,6 @@ data it shows (`render_reading.py`), or else a drawing the command makes itself
 (`pages/render_gate/drawn_anchor.py`). `anchor_capture.drawn_part` says which parts each
 drawing admits.
 
-The render gate holds each `verbatim` owner to the file reading
-(`readings._verbatim_findings`). It pairs each owner with its source by document-order
-occurrence, so no authored id is needed, and compares the rendered words with the
-passage a user can point at: user body rewrites in force replace authored words,
-retired slots contribute none, and declared generated children join their owner. Page
-markup is read at the rendered revision, and thread markup over its thread's
-whole action window.
-
 ## Parsed source
 
 TurboHTML's WHATWG tree drives the one `SourceDocument` reading of what markup declares

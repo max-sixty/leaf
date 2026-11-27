@@ -960,11 +960,12 @@ from `page check --render`, and in a thread message only after the user opens th
 thread. Keep a rule static where a breach would otherwise reach the log or a stored
 decision (root `AGENTS.md`, "Leaf's role").
 
-Python models only the text changes the registry declares. A module that changes text
-in a way the file can't reproduce is fenced, and words a module generates are a passage
-cell of their own, so browser capture stops at the fence and a selection across it
-never becomes a quote the file can't confirm. Words Python should model belong in the
-markup, where the file reads them (`content`).
+Python reads only the text changes the registry declares. A widget whose module may
+change its words is opaque unless it declares `verbatim`: it and each of its authored
+children are a passage cell, as words a module generates are (`data-lf-gen`). A
+selection's context stops at a cell's edge and no quote runs across one, so a module
+that rewrites or rearranges what it draws leaves the comments beside it on their words.
+Words Python should read belong in the markup, where the file reads them (`content`).
 
 ## Render gates
 

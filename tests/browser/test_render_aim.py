@@ -2675,8 +2675,9 @@ CONTROL_SHAPES = {
         "#spoken input, #spoken button",
         [("Search flags", None), ("Close dialog", "×")],
     ),
-    # The page's file doesn't hold a tab's generated summary, so the anchor names the tab
-    # and quotes nothing.
+    # A tab's face reads its name and its summary as one run across the two passage
+    # cells its module writes them in (`data-lf-gen`), which no quote spans, so the
+    # anchor names the tab and quotes nothing.
     "queue": (
         '<lf-tabs id="queue" list="side"><lf-tab id="first" label="Primary" summary="pages"><p>Primary evidence.</p></lf-tab><lf-tab id="second" label="Backup" summary="pages"><p>Backup evidence.</p></lf-tab></lf-tabs>',
         "#queue [role=tab] .lf-tab-summary",

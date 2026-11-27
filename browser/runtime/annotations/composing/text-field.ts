@@ -352,13 +352,18 @@ sheet.replaceSync(`
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
   /* A table is a grid around its rows (field-editor.js, \`decorate\`), each row a line
      taking the grid's columns and each cell one of its items, so a column is as wide as
-     its widest cell and the table only as wide as its columns, set as the sent table's
-     cells are (reading.css, \`th, td\`), each cell ruled below as a sent cell is. The
-     head's lower padding is the delimiter row's line, its rule that line's border, so
-     the two stand as high as the sent head; once shown, the delimiter's source stands
-     for the rule in the same room, so showing it moves nothing, and it asks for no
-     width, so it widens no column. A \`|\` takes no room: the one opening a cell hangs into the
-     padding before its words, the one closing the row after them. */
+     its widest cell and the table only as wide as its columns, set and ruled as the
+     sent table's cells are (reading.css, \`th, td\`), a name in one breaking where it
+     must as there. The head's lower padding is the delimiter row's line, its rule that
+     line's border, so the two stand as high as the sent head; once shown, the
+     delimiter's source stands for the rule in the same room, so showing it moves
+     nothing, and it asks for no width, so it widens no column, running on past the
+     table where it is longer. A \`|\` takes no room: the one opening a cell hangs into
+     the padding before its words, the one closing the row after them. A grid's columns
+     share out a width too narrow for them otherwise than a table's do, so a table that
+     must wrap its cells, as on a phone, wraps them at other words than the sent one.
+     Rejected: rows and cells displayed as a table's, which wrapped no closer to the
+     sent table and can't take the padding under its last row. */
   .lf-md-table { display: grid; grid-template-columns: repeat(var(--lf-table-columns), auto);
     justify-content: start; font-family: var(--lf-sans); font-style: normal;
     font-variant-numeric: tabular-nums;
@@ -369,7 +374,8 @@ sheet.replaceSync(`
     border-block-end: 1px solid var(--lf-rule); }
   .lf-md-cell:first-child { padding-inline-start: var(--lf-table-edge); }
   .lf-md-cell:last-child { padding-inline-end: var(--lf-table-edge); }
-  .lf-md-cell code { padding: 0; background: none; font-size: 0.9em; }
+  .lf-md-cell code { padding: 0; background: none; font-size: 0.9em;
+    overflow-wrap: anywhere; }
   .lf-md-align-right { text-align: end; }
   .lf-md-align-center { text-align: center; }
   .lf-md-pipe { display: inline-flex; inline-size: 0; white-space: pre; }
@@ -377,8 +383,8 @@ sheet.replaceSync(`
   .cm-line.lf-md-table-head { font-size: var(--lf-t-working-label); color: var(--lf-muted);
     font-weight: 600; }
   .lf-md-table-head .lf-md-cell { padding-block-end: 0; border: 0; }
-  .cm-line.lf-md-table-rule { display: block; contain: inline-size; overflow-x: clip;
-    white-space: pre; font-size: var(--lf-t-working-label); line-height: 8px;
+  .cm-line.lf-md-table-rule { display: block; contain: inline-size; white-space: pre;
+    font-size: var(--lf-t-working-label); line-height: 8px;
     padding-inline: var(--lf-table-edge); border-block-end: 1px solid var(--lf-border); }
   .cm-line.lf-md-table-rule.lf-md-shown { border-block-end-color: transparent; }
   /* A rule's line is the sent hr, a line tall with its stroke through the middle

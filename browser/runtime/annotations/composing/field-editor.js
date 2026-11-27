@@ -320,6 +320,7 @@ export const DRAWN = new Set([
   "image",
   "html_inline",
   "table_open",
+  "tr_open",
 ]);
 
 // The elements the renderer sends each block as, in an order that stands each one
@@ -360,7 +361,15 @@ export function readFaces(field, display) {
     "position: absolute; visibility: hidden; inline-size: 0; display: block";
   const preNode = FACE_ELEMENTS.pre();
   const quoteNode = FACE_ELEMENTS.blockquote();
+  // A table of a head row and a body row, three cells each, so the middle cells show
+  // the padding between columns and the outer ones that at the table's edges.
   const tableNode = FACE_ELEMENTS.table();
+  const headRow = tableNode.createTHead().insertRow();
+  const bodyRow = tableNode.createTBody().insertRow();
+  for (let i = 0; i < 3; i++) {
+    headRow.append(document.createElement("th"));
+    bodyRow.insertCell();
+  }
   const liNode = FACE_ELEMENTS.li();
   const ulNode = FACE_ELEMENTS.ul();
   ulNode.append(FACE_ELEMENTS.li(), liNode);
@@ -408,6 +417,16 @@ export function readFaces(field, display) {
     pre = readFace(preNode),
     quote = readFace(quoteNode),
     table = readFace(tableNode);
+  const cell = (row) => {
+    const [first, middle, last] = [...row.cells].map((c) => getComputedStyle(c));
+    return {
+      face: readFace(row.cells[1]),
+      inline: `${middle?.paddingInlineStart} ${middle?.paddingInlineEnd}`,
+      edges: [first?.paddingInlineStart, last?.paddingInlineEnd],
+    };
+  };
+  const th = cell(headRow),
+    td = cell(bodyRow);
   const faces = nodes.map(([tag, node]) => [
     tag,
     tag === "li"
@@ -439,6 +458,13 @@ export function readFaces(field, display) {
     `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`,
     `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`,
     `.lf-face-table-last { padding-block-end: ${table.padEnd}px }`,
+    // A table's rows (\`decorate\`): the head's lower padding is its delimiter row's line.
+    `.lf-face-table .lf-md-cell { padding-block: ${td.face.padStart}px ${td.face.padEnd}px; padding-inline: ${td.inline} }`,
+    `.lf-face-table .lf-md-cell:first-child { padding-inline-start: ${td.edges[0]} }`,
+    `.lf-face-table .lf-md-cell:last-child { padding-inline-end: ${td.edges[1]} }`,
+    `.lf-face-table.lf-md-table-head { ${th.face.type} }`,
+    `.lf-face-table.lf-md-table-head .lf-md-cell { padding-block: ${th.face.padStart}px 0 }`,
+    `.lf-face-table.lf-md-table-rule { line-height: ${th.face.padEnd}px }`,
     `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`,
     `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`,
     `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`,
@@ -462,44 +488,6 @@ function codeRows(state, c) {
     first: opening.number + (markers.length && !inline ? 1 : 0),
   };
 }
-
-// The cells of a table's row, `text` standing at `at` past the markers of its
-// containers on the line starting at `line`, as the renderer splits it: at each `|`
-// with no backslash just before it, a first and a last one opening and closing the row.
-// Each cell runs from the `|` before its words to the next cell's, the first from the
-// line's start and the last to its end, so the cells cover the line; `words` is what
-// the renderer keeps of a cell, past the spaces around it.
-
-function tableRow(text, at, line) {
-  const pipes = [];
-  for (let i = 0; i < text.length; i++)
-    if (text[i] === "|" && text[i - 1] !== "\\") pipes.push(i);
-  const lead = indentation(text);
-  const end = text.length - trailingIndentation(text);
-  const first = pipes[0] === lead ? lead : null;
-  const last = pipes.at(-1) === end - 1 && end - 1 !== first ? end - 1 : null;
-  const inner = pipes.filter((p) => p !== first && p !== last);
-  const opens = [first, ...inner];
-  return opens.map((open, i) => {
-    const next = inner[i] ?? last ?? end;
-    const body = open === null ? lead : open + 1;
-    const said = body + indentation(text.slice(body, next));
-    const final = i === opens.length - 1;
-    return {
-      from: i === 0 ? line : at + (open ?? 0),
-      to: final ? at + text.length : at + next,
-      open: open === null ? null : at + open,
-      close: final && last !== null ? at + last : null,
-      words: [
-        at + said,
-        at + Math.max(said, next - trailingIndentation(text.slice(body, next))),
-      ],
-    };
-  });
-}
-// A delimiter cell's alignment, as the renderer reads its colons.
-const alignment = (dashes) =>
-  dashes.endsWith(":") ? (dashes.startsWith(":") ? "center" : "right") : "start";
 
 // Calls `each` with every line of `doc` that holds a position from `from` up to `to`.
 function eachLine(doc, from, to, each) {
@@ -727,6 +715,10 @@ function fieldEditor(
     center: cellFace("center"),
     right: cellFace("right"),
   };
+  // A column's alignment, as the renderer reads its delimiter: a left one is the
+  // start's.
+  const alignment = (align) =>
+    align === "center" || align === "right" ? align : "start";
   // The room a container's marker takes in a run, for a container whose marker the line
   // doesn't hold, as a quote's lazy line and an item's later line don't, so the markers
   // before it stand in their own containers' insets.
@@ -871,11 +863,13 @@ function fieldEditor(
     const boxes = [];
     // The lines whose leading
     // spaces the message drops, by the level of the block they lead, the blocks whose
-    // lines draw their own leading spaces (code, by its reading, a rule and a table), the
+    // lines draw their own leading spaces (code, by its reading, and a rule), the
     // containers' markers, and the containers.
     const items = new Map(readLists(placed).items.map((item) => [item.source, item]));
     const leads = [];
     const whole = [];
+    // The table whose rows the placements after it read.
+    let table = null;
     const opening = [];
     const held = [];
     // Where the markers end that open the line starting at `line` for the containers
@@ -930,9 +924,13 @@ function fieldEditor(
         // picture away from the page.
         if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
         const widget = new Picture(String(token.attrGet("src")), token.content);
+        // In a table's cell it stands before the position after its source, so it
+        // stays in that cell when the next one starts there, since anything outside
+        // every cell stands in the grid as a cell of its own.
+        const celled = table !== null && from >= table.from && to <= table.to;
         out.push(
           touches(state, from, to)
-            ? Decoration.widget({ widget, side: 1 }).range(to)
+            ? Decoration.widget({ widget, side: celled ? -1 : 1 }).range(to)
             : Decoration.replace({ widget }).range(from, to),
         );
       } else if (token.type === "html_inline") {
@@ -1018,58 +1016,78 @@ function fieldEditor(
         // the message drops, stay hidden, so reaching the table moves no word. The
         // delimiter row is the rule under the head, its source unseen while the caret
         // is away and standing for the rule once shown.
-        const shown = touches(state, from, Math.max(from, to - 1));
-        const head = state.doc.lineAt(from);
-        const rule = state.doc.line(head.number + 1);
-        const ruleStart = after(rule.from, token.level);
-        const aligns = tableRow(
-          rule.text.slice(ruleStart - rule.from),
-          ruleStart,
-          rule.from,
-        ).map((c) => alignment(state.sliceDoc(c.words[0], c.words[1])));
+        const aligns = token.lfSource?.aligns ?? [];
+        const shown = touches(
+          state,
+          from,
+          state.doc.line(lastLine(state, placement)).to,
+        );
+        table = { from, to, level: token.level, aligns, shown };
         boxes.push(
           box(from, to, token.level, {
             class: "lf-md-table",
             style: `--lf-table-columns: ${aligns.length}`,
           }),
         );
-        whole.push([from, to]);
-        eachLine(state.doc, from, to, (each) => {
-          const kind =
-            each.number === head.number
-              ? " lf-md-table-head"
-              : each.number === rule.number
-                ? ` lf-md-table-rule${shown ? " lf-md-shown" : ""}`
-                : "";
-          out.push(line(`lf-md-table-row${kind}`).range(each.from));
-          const start = after(each.from, token.level);
-          if (each.number === rule.number) {
-            add(start, each.to, shown ? dim : unseen);
+        const rule = state.doc.line(state.doc.lineAt(from).number + 1);
+        out.push(
+          line(`lf-md-table-row lf-md-table-rule${shown ? " lf-md-shown" : ""}`).range(
+            rule.from,
+          ),
+        );
+        leads.push([rule.from, token.level]);
+        add(after(rule.from, token.level), rule.to, shown ? dim : unseen);
+      } else if (isBlockPlacement(placement, "tr_open") && table && from < table.to) {
+        // A row's cells are the source between its `|`s the renderer's split found
+        // (lib/markdown.js), each drawn from the `|` before it to the next cell's, the
+        // first from the line's start and the last to its end, so the cells cover the
+        // line. Cells past the head's count, which the message drops, stand dim in
+        // the last column.
+        const row = state.doc.lineAt(from);
+        const head = row.from === table.from;
+        out.push(
+          line(`lf-md-table-row${head ? " lf-md-table-head" : ""}`).range(row.from),
+        );
+        leads.push([row.from, table.level]);
+        // A row the field reads a bare last line as holding (`read`) stands past the
+        // draft's end.
+        const at = (n) => Math.min(n, row.to);
+        const spans = placement.markers.map(([a, b]) => [at(a), at(b)]);
+        const { aligns } = table;
+        const columns = Math.min(spans.length, aligns.length);
+        const face = table.shown ? "shown" : "hidden";
+        spans.forEach(([a, b], column) => {
+          const pipe = state.sliceDoc(a - 1, a) === "|" ? a - 1 : null;
+          const last = column === spans.length - 1;
+          const close = last && state.sliceDoc(b, b + 1) === "|" ? b : null;
+          const end = close === null ? row.to : close + 1;
+          if (column >= columns) {
+            add(pipe ?? a, end, dim);
             return;
           }
-          tableRow(each.text.slice(start - each.from), start, each.from).forEach(
-            (cell, column) => {
-              runs.push(cellFaces[aligns[column] ?? "start"].range(cell.from, cell.to));
-              const face = shown ? "shown" : "hidden";
-              if (column === 0) add(start, cell.open ?? cell.words[0], hide);
-              if (cell.open !== null) {
-                add(cell.open, cell.open + 1, pipeFaces.open[face]);
-                add(cell.open + 1, cell.words[0], hide);
-              }
-              // A `\` before a `|` in the words keeps the `|` from parting cells, and
-              // shows as an escape does, hidden until the caret reaches it.
-              const words = state.sliceDoc(cell.words[0], cell.words[1]);
-              for (const { index } of words.matchAll(/\\\|/g)) {
-                const at = cell.words[0] + index;
-                add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-              }
-              add(cell.words[1], cell.close ?? cell.to, hide);
-              if (cell.close !== null) {
-                add(cell.close, cell.close + 1, pipeFaces.close[face]);
-                add(cell.close + 1, cell.to, hide);
-              }
-            },
-          );
+          const cellFrom = column === 0 ? row.from : (pipe ?? a);
+          const cellTo =
+            column === columns - 1 ? row.to : (spans[column + 1]?.[0] ?? b + 1) - 1;
+          if (cellFrom < cellTo)
+            runs.push(cellFaces[alignment(aligns[column])].range(cellFrom, cellTo));
+          const text = state.sliceDoc(a, b);
+          const words = [
+            a + text.length - text.trimStart().length,
+            a + text.trimEnd().length,
+          ];
+          if (pipe !== null) add(pipe, pipe + 1, pipeFaces.open[face]);
+          add(a, words[0], hide);
+          add(words[1], b, hide);
+          // A `\` before a `|` in the words keeps the `|` from parting cells, and
+          // shows as an escape does, hidden until the caret reaches it.
+          for (const { index } of text.matchAll(/\\\|/g)) {
+            const at = a + index;
+            add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
+          }
+          if (close !== null) {
+            add(close, close + 1, pipeFaces.close[face]);
+            add(close + 1, row.to, hide);
+          }
         });
       } else if (isBlockPlacement(placement, "blockquote_open")) {
         boxes.push(box(from, to, token.level, { class: "lf-md-quote lf-face-quote" }));

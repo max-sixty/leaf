@@ -34,7 +34,7 @@ const EMITS = {
   fence: ["fence"],
   blockquote: ["blockquote_open"],
   hr: ["hr"],
-  table: ["table_open"],
+  table: ["table_open", "tr_open"],
   list: ["bullet_list_open", "ordered_list_open", "list_item_open"],
   heading: ["heading_open"],
   lheading: ["heading_open"],

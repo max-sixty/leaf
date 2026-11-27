@@ -392,6 +392,32 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
     }, f"the revision's move took the user out of their box: {kept}"
 
 
+def test_a_revision_that_rewrites_a_selects_options_keeps_the_users_choice(
+    browser, serve
+):
+    """The option the user chose stays chosen though a revision moves it into a group
+    and marks another option as the author's choice. The patch keeps the select but
+    rebuilds options, and a select holds its choice in its options, so keeping the
+    control doesn't keep the choice; the user's choice wins over the author's, as
+    words typed in a field do."""
+    options = "<option>Starter</option><option>Team</option><option>Scale</option>"
+    first = leaf_page(
+        "Plan first",
+        f'<p><label>Plan <select id="plan">{options}</select></label></p>',
+    )
+    second = first.replace("Plan first", "Plan second").replace(
+        options,
+        '<optgroup label="Small"><option>Starter</option><option>Team</option>'
+        "</optgroup><option selected>Scale</option>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator("#plan").select_option("Team")
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Plan second")
+    expect(page.locator("#plan")).to_have_value("Team")
+
+
 def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
     browser, serve
 ):

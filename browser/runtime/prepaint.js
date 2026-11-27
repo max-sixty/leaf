@@ -380,13 +380,10 @@
     handoff?.carry?.find((record) => record.focus && record.part === undefined) ?? null;
   // A changed control's state as a carry record holds it (records/carry.js, `captureCarry`).
   /** @param {Element} node */
-  const changedState = (node) => ({
-    id: node.id,
-    name: node.localName,
-    ...(inputs.holdsOpen(node) && { open: node.open }),
-    ...(inputs.holdsValue(node) && { value: node.value }),
-    ...(inputs.holdsTick(node) && { checked: node.checked }),
-  });
+  const changedState = (node) => {
+    const state = inputs.controlState(node);
+    return { id: node.id, name: node.localName, ...(state && { state }) };
+  };
   /** @type {() => object | null} */
   let handingOn = () => {
     const changed = [...document.querySelectorAll("[id]")].filter((node) =>

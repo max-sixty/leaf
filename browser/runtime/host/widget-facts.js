@@ -8,8 +8,11 @@
    a widget works out (`widgetFacts`) with the one the page keeps (the shown view's
    `facts`), an unsaid `answered` reading as false, as the server reads it (`awaits`).
    It works a widget's facts out again only where the widget's folded state, its
-   descriptor or the version moved since it last did, so a reading costs each widget a
-   comparison. Where any value differs, it sends a `facts` event holding those that
+   descriptor or the version moved since it last did, and compares them again only
+   where those or the value the page keeps for it moved. The page's reading shares
+   every part a reading leaves alone (base/snapshot.js, `share`), so a reading costs
+   each widget that declares facts one identity check, as each widget's selection does
+   (`selectWidget`), and the work beyond it follows what moved. Where any value differs, it sends a `facts` event holding those that
    differ through the bookkeeping door (delivery.js), which never wakes the agent, and
    the page's next reading shows them. Every open tab does this after the same reading,
    and the server admits only an event that changes a value it keeps, so tabs that
@@ -22,10 +25,12 @@
    a gesture of this tab's still on its way is left to that gesture, which carries its
    facts, and a widget whose class isn't defined yet, or whose markup the tab doesn't
    hold, waits for it, since only its class can say, and from that markup. A tab sends
-   one word on each set of facts it works out, and says them again only once it works
-   out others, once a gesture of its own has spoken for the widget, or where the send
-   never reached the server. So two tabs that work out different values each say
-   theirs once, rather than overtaking each other without end. */
+   one word on each set of facts it works out on a version, and says them again only
+   once it works out others, on a newer version, once a gesture of its own has spoken
+   for the widget, or where the send never reached the server. So two tabs that work
+   out different values each say theirs once, rather than overtaking each other without
+   end, and a word refused because a newer version landed first is said again on that
+   version. */
 import { effect, untracked } from "/vendor/signals-core.js";
 import { readApplication, readPart } from "../state/semantic-state.js";
 import { gestureWidget } from "../state/pending/model.js";
@@ -47,9 +52,12 @@ const keptValue = (kept, name) =>
 export function reportFacts(send) {
   const reading = readPart((root) => root.authoritative);
   const shown = readPart((root) => root.document);
-  /** @type {Map<string, {folded: unknown, descriptor: unknown, revision: number | null, facts: Record<string, unknown>}>} */
+  // Each widget's facts as this tab last worked them out, with what they rest on and
+  // the value the page kept when it last compared them.
+  /** @type {Map<string, {folded: unknown, descriptor: unknown, revision: number | null, kept: unknown, facts: Record<string, unknown>}>} */
   const workedOut = new Map();
-  // The facts this tab worked out of each widget when it last sent a word on it.
+  // The version and facts this tab worked out of each widget when it last sent a word
+  // on it.
   /** @type {Map<string, string>} */
   const sent = new Map();
   /** @type {Set<string>} */
@@ -76,6 +84,12 @@ export function reportFacts(send) {
         sent.delete(id);
         continue;
       }
+      let worked = workedOut.get(id);
+      const moved =
+        worked?.folded !== folded ||
+        worked.descriptor !== descriptor ||
+        worked.revision !== revision;
+      if (!moved && worked?.kept === kept[id]) continue;
       // A widget with no markup to work from, as one whose message no reading holds,
       // waits until its markup arrives.
       if (!addressableAt(id)) continue;
@@ -89,25 +103,23 @@ export function reportFacts(send) {
         }
         continue;
       }
-      let worked = workedOut.get(id);
-      if (
-        worked?.folded !== folded ||
-        worked.descriptor !== descriptor ||
-        worked.revision !== revision
-      ) {
-        worked = { folded, descriptor, revision, facts: widgetFacts(id, tag) ?? {} };
-        workedOut.set(id, worked);
-      }
+      const facts = moved || !worked ? (widgetFacts(id, tag) ?? {}) : worked.facts;
+      worked = { folded, descriptor, revision, kept: kept[id], facts };
+      workedOut.set(id, worked);
       /** @type {Record<string, unknown>} */
       const changed = {};
       for (const [name, value] of Object.entries(worked.facts))
         if (JSON.stringify(value) !== keptValue(kept[id], name)) changed[name] = value;
-      const facts = JSON.stringify(worked.facts);
-      if (!Object.keys(changed).length || sent.get(id) === facts) continue;
-      sent.set(id, facts);
+      const said = JSON.stringify([revision, worked.facts]);
+      if (!Object.keys(changed).length || sent.get(id) === said) continue;
+      sent.set(id, said);
       void send({ kind: "facts", widget: id, revision, facts: changed }).then(
         (result) => {
-          if (result === "unreached" && sent.get(id) === facts) sent.delete(id);
+          // A word that never reached the page is compared and said again at the
+          // next reading, though nothing in it moved.
+          if (result !== "unreached" || sent.get(id) !== said) return;
+          sent.delete(id);
+          workedOut.delete(id);
         },
       );
     }

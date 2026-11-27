@@ -487,7 +487,14 @@ export function createUndo({
     }
     const taken = takes(event);
     const written = writtenIn(event);
-    return post({ kind: "undo", undoes: event.id }).then((accepted) => {
+    // The version the user took it back on, which its widget's word was worked out on
+    // (`events.md`, "Widget facts").
+    const { revision } = readApplication().document;
+    return post({
+      kind: "undo",
+      undoes: event.id,
+      ...(revision === null ? {} : { revision }),
+    }).then((accepted) => {
       if (accepted) {
         notice(`Undone: ${taken}`, { holds: true });
         // The answer brings the reading that holds the withdrawal, in which a

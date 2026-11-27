@@ -4,7 +4,8 @@
    server's reading. A gesture carries its widget's facts itself
    (records/pending/dispatch.js); this module speaks for every other move.
 
-   Each time this tab adopts a server reading or a document, it compares each value
+   Each time this tab adopts a server reading or a document, or a gesture of its own
+   leaves the ledger, it compares each value
    a widget works out (`widgetFacts`) with the one the page keeps (the shown view's
    `facts`), an unsaid `answered` reading as false, as the server reads it (`awaits`).
    It works a widget's facts out again only where the widget's folded state, its
@@ -56,6 +57,9 @@ const keptValue = (kept, name) =>
 export function reportFacts(send) {
   const reading = readPart((root) => root.authoritative);
   const shown = readPart((root) => root.document);
+  // A widget left to a gesture of this tab's is looked at again as the gesture leaves
+  // the ledger, which may follow the reading that logged it.
+  const gestures = readPart((root) => root.unresolved);
   // Each widget's facts as this tab last worked them out, with what they rest on and
   // the value the page kept when it last compared them.
   /** @type {Map<string, {folded: unknown, descriptor: unknown, revision: number | null, kept: unknown, facts: Record<string, unknown>}>} */
@@ -147,6 +151,7 @@ export function reportFacts(send) {
   effect(() => {
     reading();
     shown();
+    gestures();
     untracked(reconcile);
   });
 }

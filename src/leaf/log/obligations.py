@@ -277,20 +277,21 @@ def widget_facts(
     document's containment (`passages.enclosing_of`), so a `facts` event about a widget
     the document doesn't hold says nothing here."""
     walk = InForce(within)
-    # Each action of a widget this reading classified, with the version it was made on.
-    made: dict[str, tuple[str, int]] = {}
+    # The widget of each action this reading classified.
+    widget_of: dict[str, str] = {}
     kept: dict[str, dict] = {}
     # The newest version a gesture or tab said each widget's kept facts on.
     said_on: dict[str, int] = {}
 
-    def say(widget: str, facts: dict, on: int) -> None:
+    def say(widget: str, facts: dict, on: int | None) -> None:
         # A word worked out on an older version than one already said leaves the newer
-        # word standing, as admission refuses a tab's (`stale-facts`). An undo is read
-        # as said on the version of the action it takes back.
-        if on < said_on.get(widget, 0):
+        # word standing, as admission refuses a tab's (`stale-facts`). A word that names
+        # no version, as an undo another writer made may, stands.
+        if on is not None and on < said_on.get(widget, 0):
             return
         kept.setdefault(widget, {}).update(facts)
-        said_on[widget] = on
+        if on is not None:
+            said_on[widget] = on
 
     for event in events:
         kind = event["kind"]
@@ -301,17 +302,17 @@ def widget_facts(
             # Only the actions this reading's fold classified stand anywhere in it.
             if event["id"] not in projection.classified:
                 continue
-            made[event["id"]] = (event["widget"], event["revision"])
+            widget_of[event["id"]] = event["widget"]
             if (
                 walk.admit(event) is not None
                 and "facts" in event
                 and event["id"] in projection.in_force
             ):
                 say(event["widget"], event["facts"], event["revision"])
-        elif kind == "undo" and (taken := made.get(event["undoes"])):
+        elif kind == "undo" and (widget := widget_of.get(event["undoes"])):
             walk.withdraw(event["undoes"])
             if "facts" in event:
-                say(taken[0], event["facts"], taken[1])
+                say(widget, event["facts"], event.get("revision"))
         elif kind == "facts" and event["widget"] in within:
             say(event["widget"], told_facts(event), event["revision"])
         elif kind == "note":

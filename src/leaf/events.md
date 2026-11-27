@@ -279,8 +279,9 @@ Admission refuses a fact the widget's declaration doesn't list, and a value its
 schema refuses, on each of these. The page keeps each fact's latest value: the newest
 said by the widget's actions in force, the user's undos of them and its `facts`
 events, in log order through the revision a view reads. A word said on a version
-older than the newest one the kept values were said on leaves those standing, an
-undo's read as said on the version of the action it takes back. A version note that
+older than the newest one the kept values were said on leaves those standing; the
+browser's undo names the version it was made on (`revision`), as an action does. A
+version note that
 restates what any of the widget's actions rests on changes the widget's state with
 no word from it, so the values said before it lapse until the widget says them again
 (`obligations.widget_facts`). A value is therefore stale while no tab shows the

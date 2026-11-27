@@ -2,6 +2,7 @@
 // the tree's widgets and their adapter name. A widget that needs another adds it here.
 export * as Cause from "effect/Cause";
 export * as Effect from "effect/Effect";
+export * as Equal from "effect/Equal";
 export * as Exit from "effect/Exit";
 export * as Schema from "effect/Schema";
 export * as Scope from "effect/Scope";

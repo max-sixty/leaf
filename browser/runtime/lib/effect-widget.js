@@ -38,6 +38,7 @@ import {
   BrowserHost,
   Cause,
   Effect,
+  Equal,
   Exit,
   Schema,
   Scope,
@@ -140,10 +141,16 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
 
     // What `inputs` reads, or nothing where it throws: the failure stays on this
     // widget, as `LeafElement`'s does, rather than aborting the update that moved a
-    // signal it reads.
+    // signal it reads. A DOM node it returns is the same input only as itself:
+    // Effect UI compares props that differ by reference with `Equal.equals`, which
+    // would otherwise compare two nodes by every property they reach, a walk that
+    // covers the document and throws on a getter such as an SVG length's.
     #read() {
       try {
-        return inputs?.(this);
+        const next = inputs?.(this);
+        for (const value of Object.values(next ?? {}))
+          if (value instanceof Node) Equal.byReferenceUnsafe(value);
+        return next;
       } catch (error) {
         untracked(() => failSoft(this, error));
       }

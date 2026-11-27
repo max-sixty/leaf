@@ -663,9 +663,10 @@ test("a surface with no subject keeps the room's gap, not a mark's", async () =>
 test("a surface stands by the edge facing its subject, or the end of its place nearer it", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 120 }));
-  // The side a surface on `clear` takes, quoting words that start at `column`, the
-  // inline edge it is held by and widens away from, and where its left edge lands.
-  const stands = async (clear, column = null) => {
+  // The side a surface on `clear` takes, quoting words that start at `column` and read
+  // in `direction`, the inline edge it is held by and widens away from, and where its
+  // left edge lands.
+  const stands = async (clear, column = null, direction = "ltr") => {
     const surface = commentPlacement();
     const seat = surface.choose({
       clear,
@@ -681,6 +682,7 @@ test("a surface stands by the edge facing its subject, or the end of its place n
       room: paragraph,
       row: clear?.top ?? boundary.top,
       column,
+      direction,
       boundary,
       fit() {},
     });
@@ -709,6 +711,12 @@ test("a surface stands by the edge facing its subject, or the end of its place n
   assert.deepEqual(await stands(wide, 900), ["bottom", "left", 700]);
   // Words 400px in are nearer its end: it stands against the room's edge.
   assert.deepEqual(await stands(wide, 1100), ["bottom", "right", 972]);
+  // Right-to-left words starting at 900 read leftward, so the place ends there and
+  // the box stands at that end, its right edge at their first character.
+  assert.deepEqual(await stands(wide, 900, "rtl"), ["bottom", "right", 580]);
+  // Starting 200px from the room's left edge, they are nearer the start of a place
+  // the room holds there.
+  assert.deepEqual(await stands(wide, 208, "rtl"), ["bottom", "left", 8]);
   // On the whole paragraph it ends at the paragraph's right edge.
   assert.deepEqual(await stands(wide), ["bottom", "right", 960]);
   // With nothing to stand by, it starts at the room's edge.

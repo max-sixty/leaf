@@ -852,6 +852,7 @@ export function createThreadPreview({
           row: extent.top,
           lastRow: extent.top,
           column: null,
+          direction: /** @type {const} */ ("ltr"),
           margin: null,
           scroller: scrollerFor(cluster),
         },
@@ -971,6 +972,7 @@ export function createThreadPreview({
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
+          direction: place.direction,
           margin: place.margin,
           boundary,
           fit({ width, height, stood, scale, stationary }) {

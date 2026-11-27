@@ -15,11 +15,13 @@
    last: a passage's first line for both, else `extent`'s top and foot. Both come from
    the unclipped box: the top of a clipped box is the window's edge, and a card level
    with it in the page's plane would be carried by each scroll frame and placed back.
-   `column` is the passage's inline start when it quotes words;
+   `column` is where a passage's quoted words start: the left edge of their first line,
+   or its right edge where their text's `direction` is right-to-left (`direction`);
    without one, the card's width ends at `clear`'s right edge. Under or over, a card's
    place keeps room for the measure (`--lf-thread-card`), or the boundary's width where
-   that is narrower, so where it would carry the card past the boundary's right edge it
-   starts further left rather than narrowing (`place-under-or-over`). A slim box or card
+   that is narrower, running from `column` the way the words read, so where it would
+   carry the card past the boundary's edge it stands further in rather than narrowing
+   (`place-under-or-over`). A slim box or card
    stands at the end of that place nearer the quoted words' first character, or nearer
    the element's right edge on a whole element, and widens toward the other end, so the
    comment box stands where its card will. `margin` is where
@@ -202,8 +204,8 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{box: Extent, placement: CapturedPlacement}} AdoptedFrame */
 /** @typedef {{top: number, height: number, under: number}} HeldBox */
 /** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,
- * column?: number | null, margin?: Columns | null, boundary: Boundary,
- * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
+ * column?: number | null, direction?: Direction, margin?: Columns | null,
+ * boundary: Boundary, fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
  * stood: number, stationary: boolean,
  * scale: {x: number, y: number}}) => void,
  * keeps?: "top" | "foot" | "line", under?: (() => number) | null,
@@ -216,8 +218,9 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{element: Element, clear: Extent, extent: Extent, room: MarkRoom}} Clearance */
 /** @typedef {{element: Element, contextNode: Node,
  * geometry: ReturnType<typeof floatingGeometry>, clear: Extent | null, extent: Extent, room: MarkRoom,
- * row: number, lastRow: number, column: number | null,
+ * row: number, lastRow: number, column: number | null, direction: Direction,
  * margin: ReturnType<typeof marginSpot>, scroller: Element}} Attachment */
+/** @typedef {"ltr" | "rtl"} Direction */
 /** @typedef {{target: Element | null, point?: Element | null,
  * passage?: {range?: Range, contextNode?: Node | null, attachment?: Extent | null} | null,
  * boundary?: ReturnType<typeof commentBoundary> | null}} AttachmentRequest */
@@ -267,6 +270,7 @@ export function commentAttachment({
       row: extent.top,
       lastRow: extent.top,
       column: null,
+      direction: "ltr",
       margin: null,
       scroller: pageScroller,
     };
@@ -279,13 +283,24 @@ export function commentAttachment({
   if (!near) return null;
   const { element, extent } = near;
   const context = point ?? passage?.contextNode ?? target;
+  // Quoted words read the way their text's element declares, which sets the edge of
+  // their first line they start at.
+  const words = passage?.contextNode;
+  const holder = words?.nodeType === Node.TEXT_NODE ? words.parentElement : words;
+  /** @type {Direction} */
+  const direction =
+    holder instanceof Element && getComputedStyle(holder).direction === "rtl"
+      ? "rtl"
+      : "ltr";
+  const first = passage?.attachment;
   return {
     ...near,
     contextNode: context,
     geometry: floatingGeometry([element, context]),
-    row: (passage?.attachment ?? extent).top,
-    lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
-    column: passage?.attachment?.left ?? null,
+    row: (first ?? extent).top,
+    lastRow: first ? first.top : extent.bottom,
+    column: first ? (direction === "rtl" ? first.right : first.left) : null,
+    direction,
     margin: marginSpot(target, point, passage?.range),
     scroller: scrollerFor(element),
   };
@@ -614,9 +629,11 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that reserves the measure's width (`place-under-or-over`); carried, its left edge
    where the user dropped it; with nothing to stand by, the room's left edge. So a
    change of its room moves its far edge and never carries it across the words it
-   comments on. Held by the edge its words end at, its words move as it widens: its
-   right edge in a left-to-right page, as left of its subject, and its left edge in a
-   right-to-left one, as right of its subject, under quoted words or carried. A first
+   comments on. Held by the edge its words end at, its words move as it widens. In a
+   left-to-right page that is its right edge: left of its subject, on a whole element,
+   or under words whose place the room holds short of them. In a right-to-left page it
+   is its left edge: right of its subject, carried, or under words whose place the room
+   holds short of them. A first
    line typed into the box then slides the words before the caret toward its start,
    and a card's one widening moves its words where elsewhere it moves its far
    controls.
@@ -690,6 +707,7 @@ export function commentPlacement() {
       row,
       lastRow = row,
       column = null,
+      direction = "ltr",
       margin = null,
       boundary,
       fit,
@@ -734,7 +752,11 @@ export function commentPlacement() {
       unanchored
         ? boundary.left
         : clamp(
-            column ?? box.right - span(scale),
+            column === null
+              ? box.right - span(scale)
+              : direction === "rtl"
+                ? column - span(scale)
+                : column,
             boundary.left,
             boundary.right - span(scale),
           );

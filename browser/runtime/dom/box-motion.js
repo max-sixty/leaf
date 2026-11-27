@@ -562,13 +562,17 @@ export function boxMotion({
   };
   /** @type {Map<Element, {value: string, priority: string}>} */
   const translations = new Map();
+  /** @param {Element} element */
+  const restoreTranslation = (element) => {
+    const declared = translations.get(element);
+    if (!declared) return;
+    inlineStyle(element).setProperty("translate", declared.value, declared.priority);
+    translations.delete(element);
+  };
   /** @param {Set<Element>} [keep] */
   const restoreTranslations = (keep = new Set()) => {
-    for (const [element, { value, priority }] of translations) {
-      if (keep.has(element)) continue;
-      inlineStyle(element).setProperty("translate", value, priority);
-      translations.delete(element);
-    }
+    for (const element of translations.keys())
+      if (!keep.has(element)) restoreTranslation(element);
   };
   /** @type {Set<Element>} */
   let observed = new Set();
@@ -896,7 +900,20 @@ export function boxMotion({
         });
       translated.add(element);
       inlineStyle(element).setProperty("translate", `var(${CARRY})`);
-      start(element, [{ [CARRY]: `${dx}px ${dy}px` }, { [CARRY]: "0px 0px" }]);
+      // Each part keeps its declaration until its own motion ends: parts begun in one
+      // reading can finish a frame apart. A later reading that cancels the motion
+      // restores or keeps the declaration itself.
+      const tween = running;
+      const animation = start(element, [
+        { [CARRY]: `${dx}px ${dy}px` },
+        { [CARRY]: "0px 0px" },
+      ]);
+      animation?.finished.then(
+        () => {
+          if (running === tween) restoreTranslation(element);
+        },
+        () => {},
+      );
     };
     /** @param {Element} element @param {readonly number[]} cut @param {Radii} [radii] */
     const cutFrom = (element, cut, radii = SQUARE) =>
@@ -1293,7 +1310,6 @@ export function boxMotion({
     if (last)
       last.onfinish = () => {
         if (running !== animations) return;
-        restoreTranslations();
         for (const scroller of streams.keys()) contentRides(scroller, false);
       };
   }

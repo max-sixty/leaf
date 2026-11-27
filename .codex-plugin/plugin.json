@@ -26,6 +26,7 @@
         "CHROME_BIN",
         "PLAYWRIGHT_NODEJS_PATH",
         "SSH_CONNECTION",
+        "LEAF_HOST",
         "LEAF_HOST_LAUNCHER",
         "LEAF_PAGE_COMMIT"
       ],

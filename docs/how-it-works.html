@@ -5537,11 +5537,12 @@ flowchart LR
             <h2>Page addresses</h2>
             <p id="local-address">
               A page's server binds the address its session arrived through: the SSH
-              destination for an SSH session, otherwise loopback. The page keeps its
-              host and port in
-              <code>service.json</code>, so serving it again, changing its packages or
-              reviving it keeps the same URL, and a watcher restarts a server whose
-              process dies at that URL.
+              destination for an SSH session, otherwise loopback. Where the user sets
+              <code>LEAF_HOST</code> to a hostname, such as the machine's name on a
+              tailnet, a new page binds every interface and carries that name in its URL
+              instead. The page keeps its host and port in <code>service.json</code>, so
+              serving it again, changing its packages or reviving it keeps the same URL,
+              and a watcher restarts a server whose process dies at that URL.
             </p>
             <p id="local-recovery">
               Each harness's contract says how its agent serves a page and hands over

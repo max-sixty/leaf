@@ -86,6 +86,9 @@ ACCESS: Record[AccessRecord] = Record(
     ),
     since=13,
 )
+# The hostname the user reaches every page on this machine by, stated once in the
+# environment `leaf` runs in (`page_access`).
+HOST_VARIABLE = "LEAF_HOST"
 
 
 def read_service(page_dir: Path) -> ServiceRecord | None:
@@ -193,30 +196,39 @@ def page_access(page_dir: Path, host: str | None = None) -> ServiceRecord | Page
     interface. That widens exposure to the machine's other networks and no
     further — leaf never creates a route that didn't exist.
 
+    A user who reaches every page by one name, such as a phone on their tailnet,
+    states it once in `LEAF_HOST` (`HOST_VARIABLE`), which a page with no record
+    takes as if `--host` had named it. Like `--host`, it outranks SSH_CONNECTION:
+    the user named the route their browser takes, which the session's route may
+    not be.
+
     Recorded once and kept. `start_server` restarts a dead server by re-running
     `server run` bare, and a fresh address there would leave the user's open page
     polling a URL that no longer answers — which is why a stated host is recorded
-    here rather than passed per run."""
+    here rather than passed per run. For the same reason a record outranks
+    `LEAF_HOST`: a page first served elsewhere, or before the user set it, keeps
+    its address until a `--host` restates it."""
     access: ServiceRecord | PageAddress | None = read_service(page_dir)
-    if access and host is None:
+    if access and not host:
         return access
-    if host:
+    if stated := host or os.environ.get(HOST_VARIABLE):
         # The record's one door checks what it keeps: a scheme, a port, or a
         # path pasted into --host would mint a URL no browser resolves, handed
         # to the one user who can't report it.
         try:
-            ipaddress.ip_address(host)
+            ipaddress.ip_address(stated)
         except ValueError:
-            if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?", host):
+            if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?", stated):
+                source = f"--host {host}" if host else f"{HOST_VARIABLE}={stated}"
                 raise Refused(
-                    f"--host {host}: not a hostname or IP address "
+                    f"{source}: not a hostname or IP address "
                     "(no scheme, no port — leaf picks the port)"
                 ) from None
         # Over the record, not in place of it: a --host restates where the page
         # is reached, and the record's other facts — the exact port an open tab
         # polls, the persistent lifetime — restate nothing and must survive, or
         # the recovery this flag exists for demotes the dashboard it recovers.
-        access = {**(access or {}), "host": host, "bind": "::"}
+        access = {**(access or {}), "host": stated, "bind": "::"}
     else:
         ssh = os.environ.get("SSH_CONNECTION", "").split()
         addr = ssh[2] if len(ssh) == 4 else "127.0.0.1"

@@ -188,6 +188,16 @@ const bundles = {
     ],
   }),
 
+  // Effect and Effect UI, the component model widgets and Leaf's own chrome draw
+  // with (runtime/effect-widget.js). One module, so a page runs one Effect runtime.
+  "effect-ui": () => ({
+    out: `${assets}/vendor/effect-ui.js`,
+    entryPoints: [input("entries/effect-ui/entry.mjs")],
+    banner: {
+      js: `/*! effect ${version("effect")} and @effect/ui ${version("@effect/ui")} — MIT — https://github.com/Effect-TS/ui */`,
+    },
+  }),
+
   // One lazy Markdown parser bundle, including its task-list extension.
   markdown: () => ({
     out: `${assets}/vendor/markdown-it.esm.js`,

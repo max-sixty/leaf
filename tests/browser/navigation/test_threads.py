@@ -737,7 +737,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     )
     page = open_page(
         browser,
-        serve(source, anchored=[("far", "Far-side passage")]),
+        serve(source, anchored=[("local", "Far-side passage")]),
     )
     page.evaluate(
         """() => {

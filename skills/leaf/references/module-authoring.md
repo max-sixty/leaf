@@ -15,8 +15,10 @@ back, and others say that it is drawing, holding something for the user or faili
 [module-plain-elements.md](module-plain-elements.md) gives each property, event and
 mark of that protocol. A widget that only records state and reads bound data imports
 nothing. One that draws with Lit usually extends `LeafElement`, the Lit element on that
-protocol, and one that draws from a page reading must (`module-plain-elements.md`,
-"`LeafElement`").
+protocol, and one that draws from a page reading either does (`module-plain-elements.md`,
+"`LeafElement`") or is an Effect UI component that `defineWidget` defines
+(`/runtime/effect-widget.js`, whose header gives its contract): Leaf's reading and
+what its `inputs` read arrive as props, and its events record.
 
 Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
 form. Find a need's kind, then read the section that describes its form:

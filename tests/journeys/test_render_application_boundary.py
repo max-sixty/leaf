@@ -96,7 +96,9 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         told(page)
 
         assert page.evaluate("performance.timeOrigin") == first_document
-        expect(page).to_have_title("(1) Live first")
+        # The pick answered the page's one question in its own press, so nothing waits
+        # on the user, and the first document's title still stands.
+        expect(page).to_have_title("Live first")
         expect(focused_control).to_be_focused()
         assert len(held) == 1
 

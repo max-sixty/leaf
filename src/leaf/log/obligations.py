@@ -264,7 +264,8 @@ def widget_facts(
     lapse until the widget says them again. A gesture made on a version older than
     the newest one the widget's kept facts were said on leaves those standing: a tab
     still showing that older version worked its word out of markup the page has since
-    replaced. A widget whose `answered` is unsaid asks on (`awaits`).
+    replaced. A `facts` event's word is `told_facts`. A widget whose `answered` is
+    unsaid asks on (`awaits`).
 
     The widget works each fact out, in the browser, from its state and markup
     (`module-state.md`, "Declared widget state"), and the runtime sends the values on
@@ -276,24 +277,20 @@ def widget_facts(
     document's containment (`passages.enclosing_of`), so a `facts` event about a widget
     the document doesn't hold says nothing here."""
     walk = InForce(within)
-    widget_of: dict[str, str] = {}
+    # Each action of a widget this reading classified, with the version it was made on.
+    made: dict[str, tuple[str, int]] = {}
     kept: dict[str, dict] = {}
     # The newest version a gesture or tab said each widget's kept facts on.
     said_on: dict[str, int] = {}
 
-    def say(widget: str, facts: dict, on: int | None) -> None:
+    def say(widget: str, facts: dict, on: int) -> None:
         # A word worked out on an older version than one already said leaves the newer
-        # word standing, as admission refuses a tab's (`stale-facts`). An undo names no
-        # version, so its word stands.
-        if on is not None and on < said_on.get(widget, 0):
+        # word standing, as admission refuses a tab's (`stale-facts`). An undo is read
+        # as said on the version of the action it takes back.
+        if on < said_on.get(widget, 0):
             return
         kept.setdefault(widget, {}).update(facts)
-        if on is not None:
-            said_on[widget] = on
-
-    def lapse(widget: str) -> None:
-        kept.pop(widget, None)
-        said_on.pop(widget, None)
+        said_on[widget] = on
 
     for event in events:
         kind = event["kind"]
@@ -304,27 +301,40 @@ def widget_facts(
             # Only the actions this reading's fold classified stand anywhere in it.
             if event["id"] not in projection.classified:
                 continue
-            widget_of[event["id"]] = event["widget"]
-            change = walk.admit(event)
-            if change is not None and change.after is not event:
-                # A version retracted it on arrival, with the decisions it replaced.
-                lapse(event["widget"])
-            elif (
-                change is not None
+            made[event["id"]] = (event["widget"], event["revision"])
+            if (
+                walk.admit(event) is not None
                 and "facts" in event
                 and event["id"] in projection.in_force
             ):
                 say(event["widget"], event["facts"], event["revision"])
-        elif kind == "undo" and (widget := widget_of.get(event["undoes"])):
+        elif kind == "undo" and (taken := made.get(event["undoes"])):
             walk.withdraw(event["undoes"])
             if "facts" in event:
-                say(widget, event["facts"], None)
+                say(taken[0], event["facts"], taken[1])
         elif kind == "facts" and event["widget"] in within:
-            say(event["widget"], event["facts"], event["revision"])
+            say(event["widget"], told_facts(event), event["revision"])
         elif kind == "note":
             for change in walk.restate(event):
-                lapse(change.coordinate[0])
+                kept.pop(change.coordinate[0], None)
+                said_on.pop(change.coordinate[0], None)
     return kept
+
+
+def told_facts(event: dict) -> dict:
+    """The facts of a `facts` event the page keeps: all of them, apart from an
+    `answered` that says the question is answered. A tab's word can reopen a question,
+    as when a version adds a step to a checklist the user called done, but never
+    answer one: an answer is the user's act, and the widget's word on it travels on
+    that act ("Responsiveness" in root `AGENTS.md`). So a version that brings back
+    what an earlier answer covered, as one taking back a pick the user replaced or
+    removing the one step Done didn't cover, leaves the question asking until the
+    user acts on it again."""
+    return {
+        fact: value
+        for fact, value in event["facts"].items()
+        if not (fact == "answered" and value)
+    }
 
 
 def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:

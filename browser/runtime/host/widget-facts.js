@@ -27,12 +27,14 @@
    hold, waits for it, since only its class can say, and from that markup. A tab sends
    one word on each set of facts it works out on a version, with the reading it worked
    them out from (`through`), and says them again only once it works out others, on a
-   newer version, once a gesture of its own has spoken for the widget, or where the
-   page didn't take the word. The page refuses one worked out from a reading a gesture
-   or another word on the widget has since moved past, so the tab works the facts out
-   again from the reading the refusal brings, and says them where they still differ.
-   So two tabs that work out different values each say theirs once, rather than
-   overtaking each other without end. */
+   newer version, once a gesture of its own has spoken for the widget, where the
+   word never reached the page, or where the page refused it and the widget has since
+   moved. The page refuses one worked out from a reading a gesture or another word on
+   the widget has since moved past (`stale-facts`), so the tab works the facts out
+   again from the reading the refusal brings and says them where they still differ;
+   a word refused for good, as one naming an undeclared fact, isn't said again on the
+   same state. So two tabs that work out different values each say theirs once,
+   rather than overtaking each other without end. */
 import { effect, untracked } from "/vendor/signals-core.js";
 import { readApplication, readPart } from "../state/semantic-state.js";
 import { gestureWidget } from "../state/pending/model.js";
@@ -58,9 +60,9 @@ export function reportFacts(send) {
   // the value the page kept when it last compared them.
   /** @type {Map<string, {folded: unknown, descriptor: unknown, revision: number | null, kept: unknown, facts: Record<string, unknown>}>} */
   const workedOut = new Map();
-  // The version and facts this tab worked out of each widget when it last sent a word
-  // on it.
-  /** @type {Map<string, string>} */
+  // The word this tab last sent on each widget: the version and facts it worked out,
+  // the record of what the widget then rested on, and whether the page refused it.
+  /** @type {Map<string, {said: string, basis: object, refused: boolean}>} */
   const sent = new Map();
   /** @type {Set<string>} */
   const undefinedTags = new Set();
@@ -87,11 +89,16 @@ export function reportFacts(send) {
         continue;
       }
       let worked = workedOut.get(id);
+      const last = sent.get(id);
       const moved =
         worked?.folded !== folded ||
         worked.descriptor !== descriptor ||
         worked.revision !== revision;
-      if (!moved && worked?.kept === kept[id]) continue;
+      // A word the page refused is said again once the widget has moved past what it
+      // rested on, as it has where the page refused it as stale (`stale-facts`); one
+      // the page refused for good, on a widget that hasn't moved, isn't.
+      const retry = Boolean(last?.refused && last.basis !== worked);
+      if (!moved && worked?.kept === kept[id] && !retry) continue;
       // A widget with no markup to work from, as one whose message no reading holds,
       // waits until its markup arrives.
       if (!addressableAt(id)) continue;
@@ -105,24 +112,34 @@ export function reportFacts(send) {
         }
         continue;
       }
-      const facts = moved || !worked ? (widgetFacts(id, tag) ?? {}) : worked.facts;
-      worked = { folded, descriptor, revision, kept: kept[id], facts };
-      workedOut.set(id, worked);
+      if (moved || !worked || worked.kept !== kept[id]) {
+        const facts = moved || !worked ? (widgetFacts(id, tag) ?? {}) : worked.facts;
+        worked = { folded, descriptor, revision, kept: kept[id], facts };
+        workedOut.set(id, worked);
+      }
       /** @type {Record<string, unknown>} */
       const changed = {};
       for (const [name, value] of Object.entries(worked.facts))
         if (JSON.stringify(value) !== keptValue(kept[id], name)) changed[name] = value;
       const said = JSON.stringify([revision, worked.facts]);
-      if (!Object.keys(changed).length || sent.get(id) === said) continue;
-      sent.set(id, said);
+      if (!Object.keys(changed).length) continue;
+      if (last?.said === said && (!last.refused || last.basis === worked)) continue;
+      const entry = { said, basis: worked, refused: false };
+      sent.set(id, entry);
       const through = state.browser.basis.through_seq;
       void send({ kind: "facts", widget: id, revision, through, facts: changed }).then(
         (result) => {
-          // A word the page didn't take is compared and said again at the next
-          // reading, though nothing in the widget moved.
-          if (result === "accepted" || sent.get(id) !== said) return;
-          sent.delete(id);
-          workedOut.delete(id);
+          if (result === "accepted" || sent.get(id) !== entry) return;
+          if (result === "unreached") {
+            // A word that never reached the page is compared and said again at the
+            // next reading, though nothing in the widget moved.
+            sent.delete(id);
+            workedOut.delete(id);
+            return;
+          }
+          // The refusal's own reading may already have moved the widget.
+          entry.refused = true;
+          reconcile();
         },
       );
     }

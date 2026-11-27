@@ -991,13 +991,19 @@ def action_rests_on(event: dict, within: dict) -> list:
     )
 
 
-def retracting_floor(event: dict, floors: dict, within: dict) -> int:
-    """The newest version whose note retracted this action, or 0 where none did: the
-    greatest floor among the ids it rests on that is later than the version the
-    action was made on. `InForce` reads it, and every reader of liveness reads
-    `InForce`."""
-    floor = max((floors.get(i, 0) for i in action_rests_on(event, within)), default=0)
-    return floor if floor > event["revision"] else 0
+def action_retracted(event: dict, floors: dict, within: dict) -> bool:
+    """Whether a retraction has taken this action back: true when any id it rests
+    on carries a floor from a version later than the one the action was made on.
+
+    One predicate for every reader of liveness — the fold's survival test, the
+    words gate's, and the thread a decision settles — because a decision the log
+    has taken back has to be absent everywhere at once. A reader that goes without,
+    as `build_threads` settling a thread on a decision without asking would, brings
+    a suggestion the next version rewrote back pending with the thread it answered
+    still filed away, and the user is never asked the question again."""
+    return any(
+        floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
+    )
 
 
 class Change(NamedTuple):
@@ -1012,27 +1018,14 @@ class InForce:
     """The actions in force at each owner-unit-verb coordinate, in log order, the
     last of them its winner.
 
-    The one reading of which action decides a coordinate, and so of which actions
-    are live: the fold's survival test, the words gate's and the thread a decision
-    settles all read it, because a decision the log has taken back has to be absent
-    everywhere at once. A reader that went without, as `build_threads` settling a
-    thread on a decision without asking would, brought a suggestion the next version
-    rewrote back pending with the thread it answered still filed away, and the user
-    was never asked the question again.
-
-    An action stands from its admission until an undo withdraws it or a version note
-    retracts what it rests on (`retracting_floor`), and the latest action in force
-    wins, one answering nothing included. A version that retracts an action also
-    retracts the actions before it at its coordinate made on versions before that
-    one: the decisions it had replaced, which the user moved past, so none of them
-    comes back to decide the coordinate. A version that rewrites the option the user
-    picked leaves the question unpicked rather than answered with the pick that
-    option replaced. An undo is the user's own, so withdrawing the winner does bring
-    back the one before it. A reader of the final state admits the log's actions
-    with `withdrawn` and the log's whole `floors` given (the projection fold); a
-    reader of what each event changed walks the log in order instead, handing undos
-    to `withdraw` and notes to `restate` where they fall (`thread_memberships`,
-    `build_threads`). The two agree on where the walk ends.
+    The one reading of which action decides a coordinate. An action stands from its
+    admission until an undo withdraws it or a version note retracts what it rests on
+    (`action_retracted`), and the latest action in force wins, one answering nothing
+    included. A reader of the final state admits the log's actions with `withdrawn`
+    and the log's whole `floors` given (the projection fold); a reader of what each
+    event changed walks the log in order instead, handing undos to `withdraw` and
+    notes to `restate` where they fall (`thread_memberships`, `build_threads`). The
+    two agree on where the walk ends.
 
     A step reports a `Change` only where the winner moved: taking out an action
     that was not winning changes no coordinate's reading.
@@ -1040,8 +1033,8 @@ class InForce:
     Each step costs what it touches: a note reaches the actions resting on what it
     restates through an index of them, never every action in force, and a
     coordinate's winner is the tail of a linked order, which taking actions out
-    leaves constant to reach. A retraction also reads the actions before it at its
-    coordinate."""
+    leaves constant to reach. A walk is therefore linear in the log however many
+    actions one coordinate collects."""
 
     def __init__(self, within: dict, floors: dict | None = None, withdrawn=frozenset()):
         self.within = within
@@ -1070,14 +1063,12 @@ class InForce:
 
     def admit(self, action: dict) -> Change | None:
         """Stand `action` at its coordinate, unless it was withdrawn or a version had
-        already retracted it on arrival, as from a tab showing an older version: then
-        it takes back with it the actions before it there that that version retracts
-        too. The change's `after` is `action` where it stands."""
-        if action["id"] in self.withdrawn:
+        already retracted it on arrival, as from a tab showing an older version."""
+        if action["id"] in self.withdrawn or action_retracted(
+            action, self.floors, self.within
+        ):
             return None
         coordinate = event_coordinate(action)
-        if floor := retracting_floor(action, self.floors, self.within):
-            return self._retract(coordinate, {}, floor)
         before = self.winner(coordinate)
         self._at.setdefault(coordinate, OrderedDict())[action["id"]] = action
         self._coordinate[action["id"]] = coordinate
@@ -1109,34 +1100,12 @@ class InForce:
                     hit.setdefault(coordinate, {})[action_id] = None
         changes = []
         for coordinate, retracted in hit.items():
-            if change := self._retract(coordinate, retracted, note["revision"]):
-                changes.append(change)
+            before = self.winner(coordinate)
+            for action_id in retracted:
+                self._remove(action_id)
+            if (after := self.winner(coordinate)) is not before:
+                changes.append(Change(coordinate, before, after))
         return changes
-
-    def _retract(
-        self, coordinate: tuple, retracted: dict[str, None], revision: int
-    ) -> Change | None:
-        """Take `retracted` out of `coordinate`, with every action before the last of
-        them there made on a version before `revision`: the decisions they replaced.
-        Empty, it names an action retracted on arrival, which comes after all of
-        them."""
-        before = self.winner(coordinate)
-        held = list(self._at.get(coordinate, {}).items())
-        last = max(
-            (
-                index
-                for index, (identity, _) in enumerate(held)
-                if identity in retracted
-            ),
-            default=len(held),
-        )
-        for index, (identity, action) in enumerate(held):
-            if identity in retracted or (
-                index < last and action["revision"] < revision
-            ):
-                self._remove(identity)
-        after = self.winner(coordinate)
-        return Change(coordinate, before, after) if after is not before else None
 
     def _remove(self, identity: str) -> None:
         coordinate = self._coordinate.pop(identity)

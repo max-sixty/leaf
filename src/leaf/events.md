@@ -278,14 +278,18 @@ about them:
 Admission refuses a fact the widget's declaration doesn't list, and a value its
 schema refuses, on each of these. The page keeps each fact's latest value: the newest
 said by the widget's actions in force, the user's undos of them and its `facts`
-events, in log order through the revision a view reads. A version note that restates
-what any of the widget's actions rests on changes the widget's state with no word from
-it, so the values said before it lapse until the widget says them again
+events, in log order through the revision a view reads. A word said on a version
+older than the newest one the kept values were said on leaves those standing, an
+undo's read as said on the version of the action it takes back. A version note that
+restates what any of the widget's actions rests on changes the widget's state with
+no word from it, so the values said before it lapse until the widget says them again
 (`obligations.widget_facts`). A value is therefore stale while no tab shows the
 version that moved it. Leaf gives meaning only to `answered`: the widget's obligation
-is answered while it says so, and one with no `answered` kept stands asked. The
-served view (`facts`) and `leaf page state` (each element's `facts`) show the kept
-values.
+is answered while it says so, and one with no `answered` kept stands asked. A `facts`
+event may say the question is open again but never that it is answered, since an
+answer is the user's act and its word travels on that act (`obligations.told_facts`);
+admission counts such a word as changing nothing. The served view (`facts`) and
+`leaf page state` (each element's `facts`) show the kept values.
 
 ## Following the log
 

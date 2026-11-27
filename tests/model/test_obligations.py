@@ -1535,32 +1535,30 @@ def restating(step: str) -> dict:
     }
 
 
-def test_restating_a_picked_step_after_done_takes_back_the_whole_pick():
+def test_restating_a_picked_step_after_done_asks_again_with_the_earlier_picks():
     """A version that restates a step the user picked takes back the pick that named
-    it and the picks it replaced, since none of them stands once the step changed
-    under it, and changes the checklist's state with no word from it: the word its
-    Done said lapses and the question asks again with nothing picked. The checklist
-    says the same when a tab works it out (lf-options' `answered`), so no tab's word
-    answers it again."""
+    it, and the pick before it decides the checklist again. That changes the
+    checklist's state with no word from it, so the word its Done said lapses and the
+    question asks again. The checklist says the same when a tab works it out
+    (lf-options' `answered`: the picks moved since Done), so no tab's word answers it
+    again."""
     documents = {1: checklist("a", "b"), 2: checklist("a", "b", restated=("b",))}
     state = model.reading(
         documents,
         [chose("a"), chose("a", "b"), done(["a", "b"], ["a", "b"]), restating("b")],
     )
     [item] = page_obligations(state, 2)["all"]
-    assert (item["state"], item["next_actor"], item["answer"]) == (
-        "waiting",
-        "user",
-        None,
-    )
+    assert (item["state"], item["next_actor"]) == ("waiting", "user")
+    assert item["answer"]["value"] == ["a"]
     assert "choice" not in state["views"]["2"]["facts"]
 
 
-def test_restating_the_option_picked_brings_back_no_pick_the_user_replaced():
+def test_a_tabs_word_reopens_a_question_but_never_answers_it():
     """The user picked a, then b in its place, and a version rewrote b. The rewrite
-    takes back the pick of b and the pick of a it replaced, so the question asks
-    again with nothing picked rather than answered with the option the user moved
-    past. An option picked after the rewrite stands."""
+    takes back the pick of b, and the pick of a decides the widget again, so a tab
+    showing that version works out that the question is answered. Only the user's act
+    answers a question, so the page refuses that word and the question asks again,
+    where a tab's word that it is open stands."""
     documents = {
         1: page(),
         2: page().replace('<lf-option id="b">', '<lf-option id="b" restated>'),
@@ -1570,18 +1568,14 @@ def test_restating_the_option_picked_brings_back_no_pick_the_user_replaced():
         {**chose("b"), "facts": {"answered": True}},
         restating("b"),
     ]
-    state = model.reading(documents, picks)
-    [item] = page_obligations(state, 2)["all"]
-    assert (item["state"], item["next_actor"], item["answer"]) == (
-        "waiting",
-        "user",
-        None,
-    )
-    view = state["views"]["2"]["document"]["projection"]
-    assert view["actions"] == []
+    [item] = page_obligations(model.reading(documents, picks), 2)["all"]
+    assert (item["state"], item["next_actor"]) == ("waiting", "user")
+    with pytest.raises(EventRefused) as answering:
+        model.reading(documents, [*picks, told(True, through=3)])
+    assert refused_on(answering.value).code == "unchanged-facts"
     later = {**chose("a"), "revision": 2, "facts": {"answered": True}}
     [item] = page_obligations(model.reading(documents, [*picks, later]), 2)["all"]
-    assert item["answer"]["value"] == ["a"]
+    assert standing_model.answered(item)
 
 
 def test_a_word_worked_out_before_a_press_that_lands_after_it_is_refused():
@@ -1616,6 +1610,27 @@ def test_a_gesture_on_an_older_version_leaves_the_newer_versions_word_standing()
             told(False, through=2),
             chose("a", "b"),
             done(["a", "b"], ["a", "b"]),
+        ],
+    )
+    [item] = page_obligations(state, 2)["all"]
+    assert (item["state"], item["next_actor"]) == ("waiting", "user")
+    assert state["views"]["2"]["facts"]["choice"] == {"answered": False}
+
+
+def test_an_undo_on_an_older_version_leaves_the_newer_versions_word_standing():
+    """A tab still showing the version before one that added a step picks and takes
+    the pick back there. The undo's word was worked out on that older version, the one
+    the pick was made on, so the page keeps the newest version's word that the question
+    is open."""
+    documents = {1: checklist("a", "b"), 2: checklist("a", "b", "c")}
+    state = model.reading(
+        documents,
+        [
+            chose("a"),
+            done(["a", "b"], ["a"]),
+            told(False, through=2),
+            chose("a", "b"),
+            {"kind": "undo", "undoes": "e4", "facts": {"answered": True}},
         ],
     )
     [item] = page_obligations(state, 2)["all"]

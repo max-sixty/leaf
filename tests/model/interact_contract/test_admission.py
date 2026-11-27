@@ -1045,11 +1045,11 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     assert set(accepted["meaning"]["depends"]) == {"picks", "flag-first"}
     within = passages_model.enclosing_ids(structure_model.SourceDocument(source))
     assert revision is not None
-    assert event_folds_model.retracting_floor(
+    assert event_folds_model.action_retracted(
         accepted, {"flag-first": revision + 1}, within
     )
     moved = {**within, "flag-first": ("elsewhere", "flag-first")}
-    assert not event_folds_model.retracting_floor(
+    assert not event_folds_model.action_retracted(
         accepted, {"flag-first": revision + 1}, moved
     )
 

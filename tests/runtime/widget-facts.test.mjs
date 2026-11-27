@@ -130,15 +130,20 @@ test("a word that never reached the page is said again at the next reading", asy
   assert.deepEqual(sent.splice(0), []);
 });
 
-test("a word the page refused is said again at the next reading", async () => {
+test("a refused word is said again once the widget moved, and only then", async () => {
   delivered = "refused";
   reading({}, shown('<lf-test-tally id="tally" count="5"></lf-test-tally>'));
   assert.deepEqual(sent.splice(0), [tally({ count: 5 })]);
-  delivered = "accepted";
   await Promise.resolve();
-  // The page refused the word as worked out from a reading something has since
-  // moved past, and the reading the refusal brings still keeps none of it.
-  reading({ tally: {} });
+  // Refused for good, as for a fact the widget doesn't declare: readings that leave
+  // the widget as it was draw no second word.
+  reading({ other: { count: 1 } });
+  reading({ other: { count: 2 } });
+  assert.deepEqual(sent.splice(0), []);
+  // Refused as stale: another tab's word on the widget landed, and the widget's word
+  // still differs from it, so the tab says it again.
+  delivered = "accepted";
+  reading({ tally: { count: 4 } });
   assert.deepEqual(sent.splice(0), [tally({ count: 5 })]);
 });
 

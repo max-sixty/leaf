@@ -1,6 +1,6 @@
 """Document-scoped browser projection and undo readings."""
 
-from leaf.log.events import UndoReading
+from leaf.log.events import UndoReading, action_retracted
 from leaf.log.gesture_words import GestureWords
 from leaf.log.projection import PageReading, StateProjection
 from leaf.records.document_reading import DocumentReading
@@ -89,8 +89,7 @@ def browser_undo_candidates(
         item: dict = {"event": event}
         if event["kind"] == "action":
             if event["id"] in document.projection.classified:
-                # Taken back by a version, it is the user's to take back no more.
-                if event["id"] not in document.projection.in_force:
+                if action_retracted(event, document.floors, document.within):
                     continue
                 coordinate, _entry = document.projection.classified[event["id"]]
             elif event["id"] in thread_projection.classified:

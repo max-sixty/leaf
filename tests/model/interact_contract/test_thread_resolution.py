@@ -482,7 +482,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     # Literal text matching an id is not a dependency; ancestry remains live for
     # declared identities, tested in test_admission.py's named-dependency contrast.
     assert revision is not None
-    assert not event_folds_model.retracting_floor(
+    assert not event_folds_model.action_retracted(
         labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}
     )
     result = event_folds_model.build_threads(
@@ -624,10 +624,9 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
         {},
     )
     assert (late["stale"], late["again"]) == (["c1"], ["c2"])
-    # A version retracting the action that superseded an answer takes back the
-    # answer it replaced too, so no thread closes again: a decision the user moved
-    # past doesn't come back.
-    replaced = thread_memberships(
+    # A version retracting only the action that superseded an answer gives the
+    # coordinate back to that answer, which closes its thread again.
+    restored = thread_memberships(
         [
             *comments,
             decide("accept", "accept", "c1"),
@@ -638,7 +637,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
         {},
         {"sug-note": ["sug-a", "sug-note"]},
     )
-    assert (replaced["reject"], replaced["v2"]) == (["c1"], [])
+    assert (restored["reject"], restored["v2"]) == (["c1"], ["c1"])
     # Taking back an answer another has since superseded moves no winner, so the
     # undo concerns only the thread its own gesture did.
     behind = thread_memberships(

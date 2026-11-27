@@ -5,6 +5,7 @@ from collections.abc import Callable
 from leaf.log.events import (
     InForce,
     ThreadStructure,
+    action_retracted,
     active_summaries,
     build_threads,
     conversation_turns,
@@ -50,8 +51,7 @@ def sample_events(
     )
     # A coordinate a selected thread's action stands at is copied whole, so the
     # child folds the same winner there: an action that changed no thread, such as
-    # the pick an answer replaced, which an undo of the answer brings back, still
-    # decides the widget.
+    # the one a retracted answer had superseded, still decides the widget.
     coordinates = {
         event_coordinate(event)
         for event in events
@@ -61,17 +61,13 @@ def sample_events(
     # it. A version's retractions are applied here rather than copied: what a later
     # version retracted stays behind, with the notes that retracted it and anything
     # undoing it, and the rest stands in the child as it stands in the log.
-    withdrawn = taken_back(events)
-    live = InForce(within, retractions(events), withdrawn)
-    for event in events:
-        if event["kind"] == "action":
-            live.admit(event)
-    # What an undo took back is copied with the undo; what a version took back isn't.
-    standing = live.ids() | withdrawn
+    floors = retractions(events)
     copied = set()
     for event in events:
         kind = event["kind"]
-        if kind == "note" or (kind == "action" and event["id"] not in standing):
+        if kind == "note" or (
+            kind == "action" and action_retracted(event, floors, within)
+        ):
             continue
         if (
             event["undoes"] in copied
@@ -242,10 +238,9 @@ def thread_memberships(
     different way (`event_threads`), and some change a thread without naming it at
     all: an action, undo, or version note that changes which action wins a
     coordinate (`InForce`) changes the threads the winner before and after it
-    answer. A later action supersedes the answer there, and its undo restores it; a
-    note retracting the answer, or an action that superseded it, takes the answer
-    back with it (`InForce`). An undo also inherits the membership of the gesture it
-    takes back.
+    answer. A later action supersedes the answer there, its undo restores it, and a
+    note retracting an answer's superseder closes that answer's thread again. An
+    undo also inherits the membership of the gesture it takes back.
 
     This is the shared join for wait delivery, sampled thread closures, and the
     browser state, which serves it so the browser files an unsent undo or action

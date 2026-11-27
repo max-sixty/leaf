@@ -67,10 +67,12 @@
  * the agent. A set that changed after Done waits on Done again, since Done said the set
  * it was pressed on was whole and no other: an option a version added asks again with
  * the picks kept, a pick the user changed asks again with the new picks, and a version
- * that rewrites a picked option (`$restated`) takes back the pick, with the picks it
- * replaced, so the question asks again with none picked. The alternative, Done
- * answering whatever set follows it, could not ask again about an option a version
- * added without taking back every pick (`$restated` on the group).
+ * that rewrites a picked option (`$restated`) takes back the pick, so the question asks
+ * again with the picks before it. Only the user's press answers again: a version that
+ * removes the one option Done didn't cover leaves the question asking until Done is
+ * pressed, though the set Done covered stands again (`obligations.told_facts`). The
+ * alternative, Done answering whatever set follows it, could not ask again about an
+ * option a version added without taking back every pick (`$restated` on the group).
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
@@ -214,7 +216,7 @@ function doneSet(state, group) {
 // Whether Done answers the set the group shows now: pressed on every option it shows,
 // with the same of them picked. An option a version adds, a pick a version takes back,
 // or a pick the user changes after Done leaves it waiting on Done again; an option a
-// version removes changes nothing.
+// version removes changes nothing here.
 /** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state @param {Element} group */
 function isAnswered(state, group) {
   const answer = state?.answer;

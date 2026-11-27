@@ -41,7 +41,11 @@ import { panelRowOutputs } from "../panel-row.mjs";
 import { signalsPath } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
-import { staleCompiledModules, typescriptOutputs } from "../typescript.mjs";
+import {
+  compiledModule,
+  staleCompiledModules,
+  typescriptOutputs,
+} from "../typescript.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const assets = "browser";
@@ -354,6 +358,9 @@ export async function checkOutputs(outputs, directory = root) {
           .join("/");
         if (!outputs.has(name)) stale.push(name);
       }
+  // A compiled module that differs from what its TypeScript compiles to may hold a
+  // change made in the .js, by hand or by a merge, which a rebuild would drop.
+  const diverged = [];
   for (const [name, expected] of outputs) {
     let actual;
     try {
@@ -361,12 +368,20 @@ export async function checkOutputs(outputs, directory = root) {
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
-    if (!actual?.equals(expected)) stale.push(name);
+    if (actual?.equals(expected)) continue;
+    if (actual && compiledModule(name, expected)) diverged.push(name);
+    else stale.push(name);
   }
+  const problems = [];
+  if (diverged.length)
+    problems.push(
+      `A compiled module differs from what the TypeScript beside it compiles to. Move any change made in the .js, by hand or by a merge, into the .ts, then run \`node build/typescript.mjs\`:\n${diverged.join("\n")}`,
+    );
   if (stale.length)
-    throw new Error(
+    problems.push(
       `Stale browser output; rebuild it with \`pnpm install --frozen-lockfile && pnpm run build:browser\`:\n${stale.join("\n")}`,
     );
+  if (problems.length) throw new Error(problems.join("\n\n"));
 }
 
 async function main(args) {

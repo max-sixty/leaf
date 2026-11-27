@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from semantic-application.ts by build/typescript.mjs; edit that file.
 /** One semantic root for accepted state, authored values, and ordered local attempts.
  *
  * DOM capture transfers typed initial values; transport transfers complete admitted
@@ -41,15 +41,6 @@ import {
 import { PENDING } from "./thread/identity.js";
 import { kept, keptEach } from "./kept.js";
 
-/** @import {
- *   AuthoredMap, Thread, Event, Command, LocalMessage, LocalEdit, ThreadGesture,
- *   ActionSpec, PendingProjection, ProjectionEntry, ContentVersion, Workflow
- * } from "../../types/domain.js" */
-/** @import {
- *   ServedObligation, ServedQueueRow, ServedState, ServedSubject, ServedView
- * } from "../../types/contract.js" */
-/** @import { Immutable } from "../base/snapshot.js" */
-
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
  *
@@ -71,17 +62,7 @@ import { kept, keptEach } from "./kept.js";
  * `accepted:presented` and waits there for `release`, which its owner calls once
  * those regions have committed. A signal a state has no edge for leaves it where it
  * is, and `present` moves only actions. */
-/** @typedef {"sending"
- *   | "sending:logged"
- *   | "sending:presented"
- *   | "accepted"
- *   | "accepted:logged"
- *   | "accepted:presented"
- *   | "refused"} GestureState */
 
-/** @typedef {"accept" | "refuse" | "log" | "present"} Signal */
-
-/** @type {Record<GestureState, Partial<Record<Signal, GestureState>>>} */
 const LIFECYCLE = {
   sending: {
     accept: "accepted",
@@ -103,17 +84,13 @@ const LIFECYCLE = {
 
 // Still waiting for its POST's answer: the delivery queue's and the traffic ledger's
 // reading of the ledger.
-/** @type {Set<GestureState>} */
 const SENDING = new Set(["sending", "sending:logged", "sending:presented"]);
 // Drawn from the gesture, because no adopted reading holds its receipt.
-/** @type {Set<GestureState>} */
 const DRAWN_LOCALLY = new Set(["sending", "accepted"]);
 // The states `release` retires.
-/** @type {Set<GestureState>} */
 const RELEASABLE = new Set(["accepted:presented", "refused"]);
 // Gestures still waiting for a document pass: either locally drawn before their
 // receipt is logged, or logged in an adopted reading the page has not presented.
-/** @type {Set<GestureState>} */
 const UNPRESENTED = new Set([
   "sending",
   "accepted",
@@ -122,33 +99,10 @@ const UNPRESENTED = new Set([
 ]);
 
 /** One unresolved gesture. `admitted` is the log's event for it, known from the
- * POST's answer or from a reading, whichever came first.
- *
- * @typedef {object} LedgerEntry
- * @property {Command} event
- * @property {string} localId
- * @property {string} timestamp
- * @property {number} order
- * @property {PendingProjection | null} projection
- * @property {LocalMessage | LocalEdit | null} thread
- *   What the gesture draws in a thread, as foldThreads reads it: its message,
- *   or the user's rewrite of one of theirs.
- * @property {string | null} undoTarget
- * @property {string} [namedParent]
- * @property {GestureState} state
- * @property {Event | null} admitted
- * @property {boolean} launching
- *   Whether the server had to launch the page's agent before it could take the
- *   gesture, as the tab read the server when it sent it.
- */
+ * POST's answer or from a reading, whichever came first. */
 
 // The log's id for a gesture this tab sent: its ledger entry's while it stands, its
 // receipt's, the logged event carrying its attempt, once released.
-/**
- * @param {string | null | undefined} attempt
- * @param {readonly Immutable<LedgerEntry>[]} unresolved
- * @param {readonly Immutable<Event>[]} events
- */
 function admittedId(attempt, unresolved, events) {
   if (!attempt) return null;
   return (
@@ -159,12 +113,6 @@ function admittedId(attempt, unresolved, events) {
 }
 
 // `entry` after `signal`, or null once it leaves the ledger.
-/**
- * @param {LedgerEntry} entry
- * @param {Signal} signal
- * @param {Event | null} [admitted]
- * @returns {LedgerEntry | null}
- */
 function advance(entry, signal, admitted = null) {
   const action = entry.event.kind === "action";
   if (signal === "present" && !action) return entry;
@@ -174,117 +122,38 @@ function advance(entry, signal, admitted = null) {
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 
-/** @typedef {{reach: "waiting", fault?: never}
- * | {reach: "reached" | "unreachable" | "refused" | "broken", fault?: never}
- * | {reach: "faulted", fault: string}} Reach */
 /** The state the server serves (`served_state/state.schema.json`), whose type the
  * build generates. The server answers `active` and `browser` null only before a page's
  * first revision, when it serves no document a runtime could run in
  * (`http._serve_root`), so every answer this runtime reads has both. The names below
- * select from it.
- *
- * @typedef {ServedState & {
- *   active: NonNullable<ServedState["active"]>;
- *   browser: NonNullable<ServedState["browser"]>;
- *   data: {version: string, sources: Record<string, import("../../types/domain.js").SourceReading>};
- * }} AuthoritativeState
- */
-/** A server view with its basis, the transport identity, left off.
- * @typedef {Omit<ServedView, "basis">} PageView */
-/** @typedef {ServedObligation} ObligationRecord */
+ * select from it. */
+
+/** A server view with its basis, the transport identity, left off. */
+
 /** The selections `readObligations` publishes from a view's one list of obligation
- * records.
- *
- * @typedef {{
- *   all: readonly ObligationRecord[];
- *   user: readonly ObligationRecord[];
- *   unanswered: readonly ObligationRecord[];
- * }} ObligationLists
- */
+ * records. */
 
 /** One row of On Me, On <agent> or Done, as `served_state.queues` serves it or this
  * tab places it: `owner` names the list. A row names its record by `id`, and `also`
  * the other records the user answers at its place. `localQueues` joins the current
  * obligation record before publication (`CurrentQueueItem`), which says where the item
- * stands: whether the agent has it in hand, and how a done one ended.
- *
- * @typedef {import("../../types/contract.js").CompleteUnion<ServedQueueRow>} QueueItem
- * @typedef {QueueItem & {obligation: ObligationRecord}} CurrentQueueItem
- */
-
-/**
- * @typedef {{
- *   on_user: readonly QueueItem[];
- *   on_agent: readonly QueueItem[];
- *   done: readonly QueueItem[];
- * }} WireQueues
- */
-
-/**
- * @typedef {{
- *   revision: number | null;
- *   stamp?: number | null;
- *   live?: boolean;
- *   registry: Record<
- *     string,
- *     {
- *       verbs?: Record<string, ActionSpec>;
- *       awaits?: { value?: string };
- *       [name: string]: unknown;
- *     }
- *   > & {
- *     $reactions?: { emoji: readonly string[] };
- *     $states: import("./registry-contract.js").StampedRegistry["$states"];
- *   };
- *   authored: AuthoredMap;
- *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
- *   messageBodies?: ReadonlyMap<
- *     string,
- *     ReadonlyMap<
- *       string,
- *       {
- *         text: string;
- *         heldElsewhere?: string;
- *         document?: { thread: string; message: string };
- *       }
- *     >
- *   >;
- * }} SemanticDocument
- */
-
-/**
- * @typedef {{
- *   id: string;
- *   tag: string;
- *   document:
- *     | { kind: "page"; revision: number | null }
- *     | { kind: "thread"; thread?: string; message?: string };
- *   declaration: SemanticDocument["registry"][string];
- *   parent: { id: string; tag: string } | null;
- *   ancestors: readonly { id: string; tag: string }[];
- *   quoted: boolean;
- * }} WidgetDescriptor
- */
+ * stands: whether the agent has it in hand, and how a done one ended. */
 
 // An admitted entry as the folds read it, kept by the served entry (`state/kept.js`), so a
 // widget's fold can tell the entries in force on it unchanged by identity.
-const admittedEntry = keptEach(
-  /** @param {PageView["document"]["projection"]["entries"][number]} wire */
-  (wire) => ({
-    coordinate: stateCoordinate(...wire.coordinate),
-    e: wire.event,
-    restated: wire.restated,
-    absorbed: wire.absorbed,
-    stands: wire.stands,
-    scope: wire.scope,
-    spec: wire.spec,
-    unit: wire.coordinate[1],
-    value: wire.value,
-  }),
-);
+const admittedEntry = keptEach((wire) => ({
+  coordinate: stateCoordinate(...wire.coordinate),
+  e: wire.event,
+  restated: wire.restated,
+  absorbed: wire.absorbed,
+  stands: wire.stands,
+  scope: wire.scope,
+  spec: wire.spec,
+  unit: wire.coordinate[1],
+  value: wire.value,
+}));
 // The server classifies a view's page and thread entries alike under that revision's
 // registry, so every entry is one the view's widgets can draw.
-/** @param {readonly (PageView["document"]["projection"] | undefined)[]} projections */
 function normalizedProjection(projections) {
   const entries = [];
   const actionIds = [];
@@ -304,15 +173,8 @@ function normalizedProjection(projections) {
 // classify it at, an undo at its target's, or null where they classify none: what the
 // page's applied stamp counts (`records/projection/presentation.js`), and what `foldProjection`
 // keeps classified as terminal where the view draws nothing for it.
-/**
- * @param {PageView["document"]["projection"] | undefined} pageProjection
- * @param {PageView["thread"]["projection"] | undefined} threadProjection
- * @param {readonly Event[]} events
- * @returns {import("../../types/domain.js").Coverage[]}
- */
 function logCoverage(pageProjection, threadProjection, events) {
   if (!pageProjection || !threadProjection) return [];
-  /** @type {Map<string, readonly string[]>} */
   const coordinates = new Map();
   for (const projection of [pageProjection, threadProjection])
     for (const entry of projection.entries)
@@ -331,32 +193,27 @@ function logCoverage(pageProjection, threadProjection, events) {
 }
 
 const NO_OBLIGATIONS = {
-  all: /** @type {ObligationRecord[]} */ ([]),
-  user: /** @type {ObligationRecord[]} */ ([]),
-  unanswered: /** @type {ObligationRecord[]} */ ([]),
+  all: [],
+  user: [],
+  unanswered: [],
 };
-/** @type {import("../../types/domain.js").ClassifiedEntry[]} */
 const NO_WITHDRAWALS = [];
 
 // What this tab's gestures the log has yet to read say of each widget's obligation: the
 // word the newest of them carries, by widget. Kept by the gestures, so a publication
 // that moves none makes no new map.
-const gestureAnswers = kept(
-  /** @param {readonly LedgerEntry[]} local @returns {ReadonlyMap<string, boolean>} */
-  (local) => {
-    /** @type {Map<string, boolean>} */
-    const said = new Map();
-    for (const entry of local) {
-      const widget = gestureWidget(entry);
-      const answered =
-        entry.event.kind === "action" || entry.event.kind === "undo"
-          ? entry.event.facts?.answered
-          : undefined;
-      if (widget !== null && typeof answered === "boolean") said.set(widget, answered);
-    }
-    return said;
-  },
-);
+const gestureAnswers = kept((local) => {
+  const said = new Map();
+  for (const entry of local) {
+    const widget = gestureWidget(entry);
+    const answered =
+      entry.event.kind === "action" || entry.event.kind === "undo"
+        ? entry.event.facts?.answered
+        : undefined;
+    if (widget !== null && typeof answered === "boolean") said.set(widget, answered);
+  }
+  return said;
+});
 
 /* The admitted inventory owns membership. Whether a widget's obligation is answered is
  * the widget's own word, which its gesture carries (`awaits`), so a gesture this tab
@@ -369,33 +226,23 @@ const gestureAnswers = kept(
 // record, its widget's state, the verb it awaits, that widget's withdrawals and its
 // gestures' word, so a publication that moves one widget makes that widget's record
 // again and no other.
-const widgetObligation = keptEach(
-  /** @param {Extract<ObligationRecord, {source: {kind: "widget"}}>} served
-   * @param {import("./projection/model.js").FoldedWidget} widget @param {string} verb
-   * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
-   * @param {boolean | undefined} said
-   * @returns {ObligationRecord} */
-  (served, widget, verb, withdrawals, said) => {
-    // An undo of the answer carries the widget's word for the state after it, so the
-    // word, not the served record, says whether the answer still stands.
-    const item = said === undefined ? served : saidAnswered(served, said);
-    const { value, present } = obligationValue(widget, verb, item.answered);
-    const pendingValue =
-      /** @type {{ e: Event }[]} */ (widget.entries).some(
-        ({ e }) => e.action === verb && !Number.isInteger(e.seq),
-      ) ||
-      withdrawals.some(({ e }) => e.action === verb || e.id === item.answer?.event?.id);
-    const answer = present
-      ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
-      : null;
-    return { ...item, answer };
-  },
-);
+const widgetObligation = keptEach((served, widget, verb, withdrawals, said) => {
+  // An undo of the answer carries the widget's word for the state after it, so the
+  // word, not the served record, says whether the answer still stands.
+  const item = said === undefined ? served : saidAnswered(served, said);
+  const { value, present } = obligationValue(widget, verb, item.answered);
+  const pendingValue =
+    widget.entries.some(({ e }) => e.action === verb && !Number.isInteger(e.seq)) ||
+    withdrawals.some(({ e }) => e.action === verb || e.id === item.answer?.event?.id);
+  const answer = present
+    ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
+    : null;
+  return { ...item, answer };
+});
 
 // A served widget record as the widget's gesture leaves it: answered, or open on the
 // user again where the server had it answered. One the server withdrew stays withdrawn,
 // and an open one keeps its next actor, which only the log decides.
-/** @template {ObligationRecord} R @param {R} item @param {boolean} said @returns {R} */
 const saidAnswered = (item, said) => {
   if (item.state === "done" && item.outcome !== "done") return item;
   if (said)
@@ -419,15 +266,8 @@ const saidAnswered = (item, said) => {
     : item;
 };
 
-/**
- * @param {PageView["obligations"] | undefined} obligations
- * @param {ReturnType<typeof import("./projection/model.js").foldWidgetStates>} widgets
- * @param {SemanticDocument["descriptors"]} descriptors
- * @param {ReturnType<typeof foldProjection>["pendingWithdrawals"]} pendingWithdrawals
- * @param {ReadonlyMap<string, boolean>} said what this tab's gestures say of each
- *   widget's obligation (`gestureAnswers`)
- * @returns {ObligationLists}
- */
+/** @param said what this tab's gestures say of each widget's obligation
+ *   (`gestureAnswers`) */
 function normalizedObligations(
   obligations,
   widgets,
@@ -439,19 +279,17 @@ function normalizedObligations(
     pendingWithdrawals.values(),
     (withdrawal) => withdrawal.e.widget,
   );
-  const all = (obligations ?? []).map(
-    /** @returns {ObligationRecord} */ (item) => {
-      if (!hasObligationSource(item, "widget")) return item;
-      const sourceId = item.source.id;
-      const widget = widgets.get(sourceId);
-      const declaration = descriptors.get(item.source.id)?.declaration.awaits;
-      const verb = declaration?.value;
-      const word = said.get(sourceId);
-      if (!verb || !widget) return word === undefined ? item : saidAnswered(item, word);
-      const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
-      return widgetObligation(item, widget, verb, withdrawals, word);
-    },
-  );
+  const all = (obligations ?? []).map((item) => {
+    if (!hasObligationSource(item, "widget")) return item;
+    const sourceId = item.source.id;
+    const widget = widgets.get(sourceId);
+    const declaration = descriptors.get(item.source.id)?.declaration.awaits;
+    const verb = declaration?.value;
+    const word = said.get(sourceId);
+    if (!verb || !widget) return word === undefined ? item : saidAnswered(item, word);
+    const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
+    return widgetObligation(item, widget, verb, withdrawals, word);
+  });
   // A widget's record keeps where the server says it stands and its next actor, which
   // only the log decides, apart from what its widget's own gestures say of its answer.
   return {
@@ -461,40 +299,29 @@ function normalizedObligations(
   };
 }
 
-/** @type {WireQueues} */
 const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
 
 // Each obligation by its id, indexed as the reading arrives, so a reader asking for one
 // does no walk of its own.
-const obligationIndex = kept(
-  (/** @type {readonly ObligationRecord[]} */ all) =>
-    new Map(all.map((item) => [item.id, item])),
-);
+const obligationIndex = kept((all) => new Map(all.map((item) => [item.id, item])));
 // The thread each name names, the threads about each element, and those discussed,
 // indexed as the threads arrive, so a reader asking any of them does no walk of its
 // own. The names index holds a thread's place in the list rather than the record, so
 // a record has one home and sharing the index against the last reading compares
 // numbers.
-const threadIndex = kept(
-  /** @param {readonly ReturnType<typeof readThreadRecords>[number][]} threads */
-  (threads) => {
-    const placeOf = new Map(threads.map((thread, index) => [thread, index]));
-    return {
-      named: new Map(
-        [...threadNames(threads)].map(([name, thread]) => [
-          name,
-          /** @type {number} */ (placeOf.get(thread)),
-        ]),
-      ),
-      bySection: threadsBySection(threads),
-      discussed: threads.filter(discussed),
-    };
-  },
-);
+const threadIndex = kept((threads) => {
+  const placeOf = new Map(threads.map((thread, index) => [thread, index]));
+  return {
+    named: new Map(
+      [...threadNames(threads)].map(([name, thread]) => [name, placeOf.get(thread)]),
+    ),
+    bySection: threadsBySection(threads),
+    discussed: threads.filter(discussed),
+  };
+});
 // The strongest workflow serving each record, the first in the published order, which
 // a record's row reads.
-const servingIndex = kept((/** @type {readonly Workflow[]} */ workflows) => {
-  /** @type {Map<string, Workflow>} */
+const servingIndex = kept((workflows) => {
   const serving = new Map();
   for (const workflow of workflows)
     if (workflow.obligation !== null && !serving.has(workflow.obligation))
@@ -504,62 +331,36 @@ const servingIndex = kept((/** @type {readonly Workflow[]} */ workflows) => {
 
 // A pending undo with the id the log gave its target, kept by both, so the folds can
 // tell it unchanged by identity.
-const pendingUndo = keptEach(
-  /** @param {Extract<PendingProjection, {kind: "undo"}>} projection @param {string | null} targetId */
-  (projection, targetId) => ({ ...projection, targetId }),
-);
+const pendingUndo = keptEach((projection, targetId) => ({ ...projection, targetId }));
 
 // The steps of `derive` that read the whole page, each a function of the arguments it
 // is kept by and nothing else (`createSemanticApplication`).
-/** @param {ServedView | undefined} served @returns {PageView | null} */
 const shownView = (served) =>
   served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
-/**
- * @param {PageView["document"]["projection"] | undefined} pageProjection
- * @param {PageView["thread"]["projection"] | undefined} threadProjection
- */
 const admittedProjection = (pageProjection, threadProjection) =>
   normalizedProjection([pageProjection, threadProjection]);
-/** @param {ReturnType<typeof normalizedProjection>} admitted */
 const classifiedIdsOf = (admitted) => new Set(admitted.entries.map(({ e }) => e.id));
-/**
- * @param {ReturnType<typeof normalizedProjection>} admitted
- * @param {ReturnType<typeof logCoverage>} coverage
- * @param {PendingProjection[]} pendingEntries
- */
 const projectionOf = (admitted, coverage, ...pendingEntries) =>
   foldProjection({ ...admitted, coverage, pendingEntries });
-/** @param {readonly Thread[] | undefined} threads @param {ThreadGesture[]} gestures */
 const threadsOf = (threads, ...gestures) => foldThreads(threads ?? [], gestures);
 
 /** Attribute-set owners depend on the members their total render paints, as well
  * as on the selected ids. Capture supplies authored parentage; the complete
  * position fold supplies current parentage for declared descendants. Flat creates
  * supply additional members to their creator without becoming widget owners. */
-/**
- * @param {SemanticDocument["descriptors"]} descriptors
- * @param {ReturnType<typeof import("./projection/model.js").foldWidgetStates>} widgets
- * @param {ReturnType<typeof foldProjection>["desired"]} desired
- */
 function currentWidgetRelations(descriptors, widgets, desired) {
   const parents = new Map(
     [...descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id]),
   );
-  /** @type {Map<string, Set<string>>} */
   const owners = new Map();
-  /** @type {Map<string, Record<string, string[]>>} */
   const memberships = new Map();
   // An owner's members under one attribute, which the first pass gave every owner.
-  /** @param {string} owner @param {string} attr */
-  const members = (owner, attr) =>
-    /** @type {string[]} */ (
-      /** @type {Record<string, string[]>} */ (memberships.get(owner))[attr]
-    );
+  const members = (owner, attr) => memberships.get(owner)[attr];
   for (const [id, widget] of widgets) {
     for (const [verb, spec] of widget.specs) {
       const record = spec.record;
       if (record?.kind === "attribute") {
-        const named = owners.get(record.attr) ?? /** @type {Set<string>} */ (new Set());
+        const named = owners.get(record.attr) ?? new Set();
         named.add(id);
         owners.set(record.attr, named);
         const slots = memberships.get(id) ?? {};
@@ -602,24 +403,18 @@ function currentWidgetRelations(descriptors, widgets, desired) {
  * for every update the server listed open in its thread, and the resend a refused one
  * leaves. Nothing here selects a list again. */
 // Each served item's row, kept by the item and the record it carries (`state/kept.js`).
-const recordRow = keptEach(
-  /** @param {QueueItem} item @param {ObligationRecord} obligation */
-  (item, obligation) => ({ ...item, obligation }),
-);
+const recordRow = keptEach((item, obligation) => ({
+  ...item,
+  obligation,
+}));
 // A row with the strongest workflow serving its record, the first in the published
 // order.
-const servedRow = keptEach(
-  /** @template {object} T @param {T} item @param {Workflow | null} workflow */
-  (item, workflow) => ({ ...item, workflow }),
-);
+const servedRow = keptEach((item, workflow) => ({
+  ...item,
+  workflow,
+}));
 
-/**
- * @param {WireQueues} served
- * @param {readonly Workflow[]} workflows
- * @param {ObligationLists} items
- * @param {readonly ObligationRecord[]} local
- * @param {ReadonlyMap<string, ObligationRecord>} record each of `items` by its id
- */
+/** @param record each of `items` by its id */
 function localQueues(served, workflows, items, local, record) {
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   // The threads holding a send this tab has in flight.
@@ -632,7 +427,6 @@ function localQueues(served, workflows, items, local, record) {
         : [],
     ),
   );
-  /** @param {QueueItem} item */
   const obligationOf = (item) => {
     const current = record.get(item.id);
     if (!current) throw new Error(`Queue item ${item.id} names no obligation`);
@@ -641,7 +435,6 @@ function localQueues(served, workflows, items, local, record) {
   // Whether an item the server listed as open still stands open in this tab: a
   // record still on the list's side, unless it is an update in a thread this tab has
   // sent to since, whose own record stands for it.
-  /** @param {QueueItem} item */
   const standsOpen = (item) => {
     const current = obligationOf(item);
     return (
@@ -654,28 +447,21 @@ function localQueues(served, workflows, items, local, record) {
     );
   };
   // Whether an item the server listed as done stands open again in this tab.
-  /** @param {QueueItem} item */
   const reopened = (item) =>
     obligationOf(item).state !== "done" && obligationOf(item).next_actor === item.owner;
   // Whether an item the server listed as open has ended in this tab.
-  /** @param {QueueItem} item */
   const endedHere = (item) => obligationOf(item).state === "done";
   // A row carries this tab's record of its obligation.
-  /** @param {QueueItem} item @returns {CurrentQueueItem} */
   const current = (item) => recordRow(item, obligationOf(item));
-  /** @param {"user" | "agent"} owner */
   const reopenedFor = (owner) =>
     served.done.filter((item) => item.owner === owner && reopened(item));
   // A record this tab published, as the row the server would list it under.
-  /** @param {ObligationRecord} item @returns {CurrentQueueItem} */
   const localRow = (item) => {
-    const source = /** @type {{ kind: "update"; subject: ServedSubject }} */ (
-      item.source
-    );
+    const source = item.source;
     return current({
       kind: "update",
       id: item.id,
-      owner: /** @type {"user" | "agent"} */ (item.next_actor),
+      owner: item.next_actor,
       subject: source.subject,
       thread: item.thread,
       also: [],
@@ -688,9 +474,7 @@ function localQueues(served, workflows, items, local, record) {
       ...local.filter((item) => item.next_actor === "user").map(localRow),
     ].toSorted(
       (a, b) =>
-        onUserRank(a) - onUserRank(b) ||
-        /** @type {number} */ (inventoryAt.get(a.id)) -
-          /** @type {number} */ (inventoryAt.get(b.id)),
+        onUserRank(a) - onUserRank(b) || inventoryAt.get(a.id) - inventoryAt.get(b.id),
     ),
     on_agent: [
       ...served.on_agent
@@ -715,72 +499,45 @@ function localQueues(served, workflows, items, local, record) {
  * is owed, one per thread for the newest, as the server's reply to the newest answers
  * every message before it; and the resend each refused message or widget move leaves.
  * Each local workflow names the record it serves. */
-/** @param {readonly Workflow[]} workflows */
 function localUpdates(workflows) {
-  /** @type {Map<string | null, Workflow>} */
   const newest = new Map();
   for (const workflow of workflows)
     if (workflow.local && workflow.state !== "blocked")
       newest.set(workflow.thread, workflow);
-  /** @type {ObligationRecord[]} */
   const records = [];
-  const named = workflows.map(
-    /** @returns {Workflow} */ (workflow) => {
-      if (!workflow.local) return workflow;
-      const refused = workflow.state === "blocked";
-      const owner = refused
-        ? workflow
-        : /** @type {Workflow} */ (newest.get(workflow.thread));
-      const id = `update:${owner.id}`;
-      if (owner === workflow)
-        records.push({
-          id,
-          source: { kind: "update", id: workflow.input, subject: workflow.subject },
-          thread: workflow.thread,
-          message: workflow.message,
-          prompt: {
-            text: null,
-            target: "id" in workflow.subject ? workflow.subject.id : workflow.input,
-          },
-          answer: null,
-          end: null,
-          next_actor: refused ? "user" : "agent",
-          state: workflow.state,
-          reason: workflow.reason,
-          outcome: null,
-          answered: false,
-          seen: false,
-          workflow: workflow.id,
-        });
-      return { ...workflow, obligation: id };
-    },
-  );
+  const named = workflows.map((workflow) => {
+    if (!workflow.local) return workflow;
+    const refused = workflow.state === "blocked";
+    const owner = refused ? workflow : newest.get(workflow.thread);
+    const id = `update:${owner.id}`;
+    if (owner === workflow)
+      records.push({
+        id,
+        source: { kind: "update", id: workflow.input, subject: workflow.subject },
+        thread: workflow.thread,
+        message: workflow.message,
+        prompt: {
+          text: null,
+          target: "id" in workflow.subject ? workflow.subject.id : workflow.input,
+        },
+        answer: null,
+        end: null,
+        next_actor: refused ? "user" : "agent",
+        state: workflow.state,
+        reason: workflow.reason,
+        outcome: null,
+        answered: false,
+        seen: false,
+        workflow: workflow.id,
+      });
+    return { ...workflow, obligation: id };
+  });
   return { workflows: named, records };
 }
 
 // The order the server lists On Me in: obligations, then updates to send again;
 // records of a kind among themselves in the order the view's inventory holds them.
-/** @param {QueueItem} item */
 const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
-
-/** @typedef {ReturnType<ReturnType<typeof createSemanticApplication>["read"]>} SemanticRoot */
-/** @typedef {SemanticRoot["effective"]["projection"]} RootProjection */
-/** @template M @typedef {M extends ReadonlyMap<unknown, infer V> ? V : never} MapValue */
-/**
- * @typedef {{
- *   readonly desired: readonly MapValue<RootProjection["actions"]>[];
- *   readonly undo: readonly NonNullable<
- *     SemanticRoot["effective"]["view"]
- *   >["undo"][number]["event"][];
- * }} WidgetEntries
- */
-/**
- * @typedef {{
- *   readonly byWidget: ReadonlyMap<string, WidgetEntries>;
- *   readonly heldBy: ReadonlyMap<string, string>;
- * }} WidgetIndex
- */
-/** @typedef {{ -readonly [K in keyof WidgetEntries]: WidgetEntries[K][number][] }} WidgetGroup */
 
 // Every widget's share of the root's action entries and threads, grouped once per
 // publication rather than filtered from the whole projection by each widget. The
@@ -790,12 +547,9 @@ const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
 // history to its thread markup, and widget ids are unique across both, so filtering
 // again by the event's authored revision would discard carried decisions from an
 // earlier revision.
-/** @param {SemanticRoot} root @returns {WidgetIndex} */
 function widgetIndex(root) {
   const projection = root.effective.projection;
-  /** @type {Map<string, WidgetGroup>} */
   const byWidget = new Map();
-  /** @param {string} widget */
   const group = (widget) => {
     let entries = byWidget.get(widget);
     if (!entries) byWidget.set(widget, (entries = { desired: [], undo: [] }));
@@ -806,7 +560,6 @@ function widgetIndex(root) {
   for (const { event } of root.effective.view?.undo ?? [])
     if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
       group(event.widget).undo.push(event);
-  /** @type {Map<string, string>} */
   const heldBy = new Map();
   for (const thread of root.effective.thread.all)
     if (
@@ -819,11 +572,9 @@ function widgetIndex(root) {
   return { byWidget, heldBy };
 }
 
-/** @type {WidgetEntries} */
 const NO_ENTRIES = { desired: [], undo: [] };
 
 // The parts of the root any widget's reading draws from (`widgetInputs`).
-/** @param {SemanticRoot} root @param {WidgetIndex} index */
 const widgetParts = (root, index) => ({
   descriptors: root.document.descriptors,
   states: root.document.registry.$states,
@@ -835,10 +586,6 @@ const widgetParts = (root, index) => ({
 });
 
 // Everything one widget's reading draws from those parts, each by identity.
-/**
- * @param {ReturnType<typeof widgetParts>} parts
- * @param {WidgetDescriptor} descriptor
- */
 function widgetInputs(parts, { id, tag }) {
   return {
     registered: parts.descriptors.get(id),
@@ -852,10 +599,6 @@ function widgetInputs(parts, { id, tag }) {
   };
 }
 
-/**
- * @param {ReturnType<typeof widgetInputs>} inputs
- * @param {WidgetDescriptor} descriptor
- */
 function widgetReading(inputs, descriptor) {
   const currentDescriptor =
     JSON.stringify(inputs.registered) === JSON.stringify(descriptor);
@@ -901,16 +644,6 @@ function widgetReading(inputs, descriptor) {
   };
 }
 
-/** @typedef {object} SemanticPresentationPublication */
-
-/**
- * @typedef {{
- *   begin(): SemanticPresentationPublication;
- *   seal(publication: SemanticPresentationPublication): unknown;
- * }} PresentationLifecycle
- */
-
-/** @param {{ presentation?: PresentationLifecycle }} [options] */
 export function createSemanticApplication({ presentation } = {}) {
   // The fold, and each step of it that reads the whole page, run again only where an
   // argument it is given changed (`state/kept.js`). A step left alone hands back what it made
@@ -929,35 +662,33 @@ export function createSemanticApplication({ presentation } = {}) {
   const obligationsOf = kept(normalizedObligations);
   const derived = kept(derive);
   const initial = {
-    document: /** @type {SemanticDocument} */ ({
+    document: {
       revision: null,
       registry: { $states: {} },
       authored: new Map(),
       descriptors: new Map(),
-    }),
-    authoritative: /** @type {AuthoritativeState | null} */ (null),
-    unresolved: /** @type {LedgerEntry[]} */ ([]),
+    },
+    authoritative: null,
+    unresolved: [],
     // The entries that left the ledger once a reading logged them. Each stays until the
     // first reading adopted after a document pass drew its receipt (`drawn`), so its
     // thread stays gestured through that pass, a failed one and its retry included, as
     // it was while the ledger held it.
-    settled: /** @type {LedgerEntry[]} */ ([]),
+    settled: [],
     // Content versions this tab has marked read and the log has not yet answered for.
     // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
-    markingRead: /** @type {ContentVersion[]} */ ([]),
+    markingRead: [],
     phase: "waiting",
     // How the server answered the page's latest read: not yet (`waiting`), with a
     // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
     // where it refused this tab's key), with an error of its own (`faulted`, whose
     // words `fault` keeps), or with one the page could not apply (`broken`). It is
     // what the page's status says about the server, and no semantic epoch.
-    /** @type {Reach} */
     reach: { reach: "waiting" },
     hostAvailable: true,
     data: {
-      version: /** @type {string | null} */ (null),
-      /** @type {Record<string, import("../../types/domain.js").SourceReading>} */
+      version: null,
       sources: {},
     },
     effective: derive(
@@ -986,23 +717,12 @@ export function createSemanticApplication({ presentation } = {}) {
   // The attempts of `settled` and of the ledger whose receipts a document pass has drawn
   // (`present`). A settled entry among them leaves `settled` with the next adoption,
   // since a publication of its own would repaint the threads to show nothing new.
-  /** @type {Set<string>} */
   const drawn = new Set();
   let publicationDepth = 0;
-  /** @type {SemanticPresentationPublication | null} */
   let activePresentation = null;
 
   if (presentation) presentation.seal(presentation.begin());
 
-  /**
-   * @param {SemanticDocument} document
-   * @param {AuthoritativeState | null} state
-   * @param {LedgerEntry[]} unresolved
-   * @param {LedgerEntry[]} settled
-   * @param {ContentVersion[]} markingRead
-   * @param {string} phase
-   * @param {boolean} hostAvailable
-   */
   function derive(
     document,
     state,
@@ -1034,28 +754,25 @@ export function createSemanticApplication({ presentation } = {}) {
     // the id the log gave it, or as a pending action by the rule above, and withdraws
     // it under the id it draws under, so a target the log has answered but no reading
     // holds yet goes by its pending id.
-    /** @param {ProjectionEntry["e"]} e */
     const drawsAction = (e) => {
       const descriptor = document.descriptors.get(e.widget);
       const state = descriptor && stampedState(document.registry, descriptor.tag, e);
       return Boolean(state && sameStateDefinition(e.meaning.state, state.definition));
     };
-    const localProjections = local.flatMap(
-      /** @returns {PendingProjection[]} */ (entry) => {
-        const projection = entry.projection;
-        if (!projection) return [];
-        if (projection.kind !== "undo")
-          return drawsAction(projection.e) ? [projection] : [];
-        const { target } = projection;
-        const logged = admittedId(entry.undoTarget, unresolved, events);
-        const targetId = logged !== null && classifiedIds.has(logged) ? logged : null;
-        const pending = !Number.isInteger(target.e.seq);
-        const draws =
-          classifiedIds.has(targetId ?? target.e.id) ||
-          (pending && drawsAction(target.e));
-        return draws ? [pendingUndo(projection, targetId)] : [];
-      },
-    );
+    const localProjections = local.flatMap((entry) => {
+      const projection = entry.projection;
+      if (!projection) return [];
+      if (projection.kind !== "undo")
+        return drawsAction(projection.e) ? [projection] : [];
+      const { target } = projection;
+      const logged = admittedId(entry.undoTarget, unresolved, events);
+      const targetId = logged !== null && classifiedIds.has(logged) ? logged : null;
+      const pending = !Number.isInteger(target.e.seq);
+      const draws =
+        classifiedIds.has(targetId ?? target.e.id) ||
+        (pending && drawsAction(target.e));
+      return draws ? [pendingUndo(projection, targetId)] : [];
+    });
     const projection = projectionFrom(admitted, coverage, ...localProjections);
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
@@ -1063,15 +780,14 @@ export function createSemanticApplication({ presentation } = {}) {
     // of them the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
-    const gestures = local.flatMap(
-      /** @returns {ThreadGesture[]} */ ({ event, thread, namedParent }) =>
-        thread
-          ? [thread]
-          : event.kind === "resolve" || event.kind === "unresolve"
-            ? [{ ...event, ...(namedParent ? { localParent: namedParent } : {}) }]
-            : event.kind === "undo"
-              ? [event]
-              : [],
+    const gestures = local.flatMap(({ event, thread, namedParent }) =>
+      thread
+        ? [thread]
+        : event.kind === "resolve" || event.kind === "unresolve"
+          ? [{ ...event, ...(namedParent ? { localParent: namedParent } : {}) }]
+          : event.kind === "undo"
+            ? [event]
+            : [],
     );
     const folded = threadsFrom(view?.thread.threads, ...gestures);
     const widgets = widgetsOf(document.authored, projection);
@@ -1098,7 +814,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // action in the thread whose markup froze its widget; a page widget's action stands
     // in none.
     const named = threadNames(folded);
-    /** @param {LedgerEntry} entry */
     const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
       const drawnIn = drawn && named.get(drawn.id)?.id;
       if (drawnIn) return drawnIn;
@@ -1133,7 +848,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // closes changes in the reading that logs the answer, and the gesture concerns it
     // from that reading on.
     const logged = state?.browser.thread_memberships ?? {};
-    /** @param {LedgerEntry} entry @returns {readonly string[]} */
     const threadsOfEntry = (entry) => {
       const filed = entry.admitted ? logged[entry.admitted.id] : undefined;
       if (filed) return filed;
@@ -1148,7 +862,6 @@ export function createSemanticApplication({ presentation } = {}) {
       return thread ? [thread] : [];
     };
     // A refused send or move is the user's to retry from the thread it stood in.
-    /** @type {Map<string, string>} */
     const recovery = new Map();
     for (const entry of refused) {
       if (!isTurnEvent(entry.event) && entry.event.kind !== "action") continue;
@@ -1159,7 +872,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // record it serves once `localUpdates` publishes it. A widget move owes no answer
     // until the server has read it, so only a refused one publishes a record: the
     // resend it leaves.
-    /** @param {LedgerEntry} entry @param {boolean} rejected @returns {Workflow | null} */
     const localWorkflow = (entry, rejected) => {
       const turn = isTurnEvent(entry.event) ? entry.thread : null;
       const thread = threadOfEntry(entry);
@@ -1170,7 +882,6 @@ export function createSemanticApplication({ presentation } = {}) {
             ? { kind: "widget", id: entry.event.widget }
             : null;
       if (!subject) return null;
-      /** @type {Omit<Workflow, "subject" | "revision" | "detail" | "detail_seq"> & {detail: null, detail_seq: null}} */
       const common = {
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
         seq: entry.order,
@@ -1235,24 +946,21 @@ export function createSemanticApplication({ presentation } = {}) {
           : [],
       ),
     );
-    const obligated = folded.map(
-      /** @returns {Thread} */ (thread) => {
-        const retry = recovery.get(thread.id);
-        if (retry && !(thread.attention && servedUsers.has(thread.attention)))
-          return { ...thread, attention: `update:${retry}` };
-        const sent = sendingIn.get(thread.id);
-        return sent &&
-          thread.attention !== null &&
-          thread.attention !== sent &&
-          !servedIds.has(thread.attention)
-          ? { ...thread, attention: sent }
-          : thread;
-      },
-    );
+    const obligated = folded.map((thread) => {
+      const retry = recovery.get(thread.id);
+      if (retry && !(thread.attention && servedUsers.has(thread.attention)))
+        return { ...thread, attention: `update:${retry}` };
+      const sent = sendingIn.get(thread.id);
+      return sent &&
+        thread.attention !== null &&
+        thread.attention !== sent &&
+        !servedIds.has(thread.attention)
+        ? { ...thread, attention: sent }
+        : thread;
+    });
     // The records this tab's sends publish join the served inventory once it is read.
     const localRecords = ready ? sends.records : [];
     const all = [...servedItems.all, ...localRecords];
-    /** @type {ObligationLists} */
     const items = {
       all,
       user: [
@@ -1284,13 +992,10 @@ export function createSemanticApplication({ presentation } = {}) {
       obligationsById,
     );
     const serving = servingIndex(workflows);
-    /** @template {{ id: string; kind: QueueItem["kind"] }} T @param {T[]} items */
     const contextual = (items) =>
       items.map((item) => {
         const workflow = serving.get(item.id) ?? null;
-        return /** @type {T & {workflow: Workflow | null}} */ (
-          servedRow(item, workflow)
-        );
+        return servedRow(item, workflow);
       });
     const queues = {
       phase,
@@ -1335,10 +1040,9 @@ export function createSemanticApplication({ presentation } = {}) {
     };
   }
 
-  /** @param {Partial<typeof initial>} changes */
   function publish(changes) {
     const prior = publisher.peek();
-    const next = /** @type {typeof initial} */ ({ ...prior, ...changes });
+    const next = { ...prior, ...changes };
     // The folds read the server's reading as the root holds it, so each record the new
     // answer left alone is the very object they read last time, and the readings kept
     // by the records they read (`readThreadRecords`) keep it too.
@@ -1384,7 +1088,6 @@ export function createSemanticApplication({ presentation } = {}) {
   }
 
   // An answer taken, read through, or activated before the one already adopted.
-  /** @param {AuthoritativeState} state */
   const overtaken = (state) => {
     const prior = publisher.peek().authoritative;
     return Boolean(
@@ -1397,10 +1100,6 @@ export function createSemanticApplication({ presentation } = {}) {
 
   // An answer this document can take on with `revision` showing: not overtaken, and
   // holding a view of the revision that would be current.
-  /**
-   * @param {AuthoritativeState} state
-   * @param {SemanticDocument | number | null} candidate
-   */
   const adoptable = (state, candidate) => {
     const prior = publisher.peek();
     if (overtaken(state)) return false;
@@ -1422,12 +1121,9 @@ export function createSemanticApplication({ presentation } = {}) {
   const unresolvedPart = publisher.select((root) => root.unresolved);
   const eventsPart = publisher.select((root) => root.authoritative?.events ?? []);
   const widgetsPart = publisher.select((root) => root.effective.widgets);
-  /** @param {string} attempt */
   const entry = (attempt) =>
     unresolvedPart.read().find((item) => item.event.attempt === attempt);
-  const ledgerAndLog = () =>
-    /** @type {const} */ ([unresolvedPart.read(), eventsPart.read()]);
-  /** @param {string} attempt @param {(entry: LedgerEntry) => LedgerEntry} change */
+  const ledgerAndLog = () => [unresolvedPart.read(), eventsPart.read()];
   const update = (attempt, change) =>
     publish({
       unresolved: publisher
@@ -1439,9 +1135,7 @@ export function createSemanticApplication({ presentation } = {}) {
   // The ledger after `signal` reaches each attempt `admitted` names, with the log's
   // event for it (or null), the entries that left, with that event, and whether any
   // entry moved. The caller publishes it.
-  /** @param {Signal} signal @param {Map<string, Event | null>} admitted */
   const transition = (signal, admitted) => {
-    /** @type {LedgerEntry[]} */
     const left = [];
     let moved = false;
     const unresolved = publisher.peek().unresolved.flatMap((item) => {
@@ -1455,11 +1149,10 @@ export function createSemanticApplication({ presentation } = {}) {
     return { unresolved, left, moved };
   };
   // Each receipt among `events`, by the attempt it carries.
-  /** @param {readonly Event[]} events @returns {Map<string, Event | null>} */
   const byAttempt = (events) =>
     new Map(
       events.flatMap((receipt) =>
-        receipt.attempt ? [/** @type {const} */ ([receipt.attempt, receipt])] : [],
+        receipt.attempt ? [[receipt.attempt, receipt]] : [],
       ),
     );
 
@@ -1469,7 +1162,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    /** @param {ServedView["document"]["projection"]} projection */
     projectDocument(projection) {
       return foldProjection({
         ...normalizedProjection([projection]),
@@ -1483,15 +1175,12 @@ export function createSemanticApplication({ presentation } = {}) {
     // A widget's reading, recomputed only when one of the parts it draws moves. A
     // publication that moves none of the parts any widget draws reads no widget, and
     // one about another widget costs each widget a comparison.
-    /** @param {WidgetDescriptor} descriptor */
     selectWidget(descriptor) {
-      /** @type {ReturnType<typeof widgetInputs> | null} */
       let inputs = null;
-      /** @type {ReturnType<typeof widgetReading>} */
       let reading;
       return publisher.select((from) => {
         const next = widgetInputs(from, descriptor);
-        const keys = /** @type {(keyof typeof next)[]} */ (Object.keys(next));
+        const keys = Object.keys(next);
         const prior = inputs;
         if (prior && keys.every((key) => next[key] === prior[key])) return reading;
         inputs = next;
@@ -1499,23 +1188,19 @@ export function createSemanticApplication({ presentation } = {}) {
       }, parts);
     },
     entry,
-    /** @param {number | null} revision @param {number | null} [stamp] */
     identify(revision, stamp = null, live = false) {
       return publish({
         document: { ...publisher.peek().document, revision, stamp, live },
       });
     },
-    /** @param {boolean} hostAvailable */
     setHostAvailable(hostAvailable) {
       return publish({ hostAvailable });
     },
-    /** @param {ContentVersion[]} items */
     markRead(items) {
       return publish({
         markingRead: [...publisher.peek().markingRead, ...items],
       });
     },
-    /** @param {ContentVersion[]} items */
     settleMarkRead(items) {
       const remaining = publisher
         .peek()
@@ -1527,17 +1212,14 @@ export function createSemanticApplication({ presentation } = {}) {
         );
       return publish({ markingRead: remaining });
     },
-    /** @param {SemanticDocument} document */
     captureDocument(document) {
       if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
       return publish({ document });
     },
-    /** @param {string} phase */
     setPhase(phase) {
       return publish({ phase });
     },
-    /** @param {Reach} reach */
     setReach(reach) {
       const now = publisher.peek();
       if (now.reach.reach === reach.reach && now.reach.fault === reach.fault)
@@ -1547,7 +1229,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // Source revisions are digests with no order, so a reading's data is ordered by
     // the moment the server took it: an answer taken before the one already accepted
     // is older, whichever order the two arrive in.
-    /** @param {typeof initial.data} data @param {number} taken */
     acceptData(data, taken) {
       if (taken < dataTaken) return false;
       dataTaken = taken;
@@ -1561,10 +1242,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // touched. One definition read from two places, because two would be one edit away
     // from a document patched to a revision the answer it was patched for declines to
     // speak for.
-    /**
-     * @param {AuthoritativeState} state
-     * @param {SemanticDocument | number | null} [document]
-     */
     canAdopt(state, document = null) {
       return adoptable(state, document);
     },
@@ -1578,7 +1255,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // state holding no view of the revision the document now shows — an empty
     // projection, indistinguishable for many widgets from their authored condition,
     // so the second publication changes nothing and never reaches them.
-    /** @param {AuthoritativeState} state @param {SemanticDocument | null} [document] */
     adopt(state, document = null) {
       const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
@@ -1604,8 +1280,6 @@ export function createSemanticApplication({ presentation } = {}) {
       });
       return true;
     },
-    /** @param {Command} event @param {string} timestamp @param {string} [plainText]
-     * @param {boolean} [launching] */
     enqueue(
       event,
       timestamp,
@@ -1647,7 +1321,6 @@ export function createSemanticApplication({ presentation } = {}) {
             : event.detail[spec.unit]
           : null;
       const localOrder = ++order;
-      /** @type {PendingProjection | null} */
       const projection =
         event.kind === "undo" &&
         target &&
@@ -1702,13 +1375,11 @@ export function createSemanticApplication({ presentation } = {}) {
     // carries the facts to the log (`facts`, `awaits`). An undo speaks for the widget of
     // the action it takes back, found where this tab holds it: drawn, still sending, or
     // in the log. A gesture that concerns no widget declaring facts carries none.
-    /** @param {string} attempt @param {(widget: string, tag: string | null) => Record<string, unknown> | undefined} read */
     sayFacts(attempt, read) {
       const root = publisher.peek();
       const held = entry(attempt);
       if (!held) return;
       const { event } = held;
-      /** @returns {{widget: string, origin: string | null} | null} */
       const actedOn = () => {
         if (event.kind === "action") return { widget: event.widget, origin: null };
         if (event.kind !== "undo") return null;
@@ -1736,7 +1407,6 @@ export function createSemanticApplication({ presentation } = {}) {
       );
     },
     // The POST accepted `attempt` as the log's `accepted`.
-    /** @param {string} attempt @param {Event} accepted */
     accept(attempt, accepted) {
       if (!entry(attempt)) return;
       const { unresolved, left } = transition("accept", new Map([[attempt, accepted]]));
@@ -1751,13 +1421,11 @@ export function createSemanticApplication({ presentation } = {}) {
     // with it: every gesture naming it by its pending id (`namesEvent`), such as an undo
     // of it, a reply to its message or a rewrite written over it, and so on down, since
     // a rewrite over that rewrite names only the one between. Returns those attempts.
-    /** @param {string} attempt */
     refuse(attempt) {
       const refused = entry(attempt);
       if (!refused) return [];
       const ledger = publisher.peek().unresolved;
       const gone = [refused.localId];
-      /** @type {string[]} */
       const dependents = [];
       for (let grew = true; grew;) {
         grew = false;
@@ -1782,7 +1450,6 @@ export function createSemanticApplication({ presentation } = {}) {
     },
     // A document pass drawing these logged events has run, which moves only the actions
     // whose receipts are among them, and publishes only where one moved.
-    /** @param {readonly Event[]} events */
     present(events) {
       const { unresolved, settled } = publisher.peek();
       const attempts = byAttempt(events);
@@ -1798,7 +1465,6 @@ export function createSemanticApplication({ presentation } = {}) {
     releasable: () =>
       unresolvedPart.read().filter((item) => RELEASABLE.has(item.state)),
     // Retire those of `attempts` still in a releasable state.
-    /** @param {Set<string>} attempts */
     release(attempts) {
       return publish({
         unresolved: publisher
@@ -1815,7 +1481,6 @@ export function createSemanticApplication({ presentation } = {}) {
     // renamed `parent` is kept as `namedParent`, which still finds the thread the reply
     // was drawn in. Returns false for a gesture that cannot be sent: an undo still naming
     // a gesture the log never took, since it would take back nothing the log knows.
-    /** @param {string} attempt */
     nameEvents(attempt) {
       const item = entry(attempt);
       if (!item) return true;

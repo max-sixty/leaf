@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from kept.ts by build/typescript.mjs; edit that file.
 /* Readings kept by what each was read from.
 
    `kept` keeps a reading of the state or the page, and `keptEach` one for each key, as
@@ -43,28 +43,14 @@
    This module imports nothing but signals, so the pure folds can use it. */
 import { computed } from "/vendor/signals-core.js";
 
-/** @typedef {() => void} CatchUp
- * @typedef {{read(): number, move(): void, [AT]: () => number}} Version
- * @typedef {{
- *   args: readonly unknown[],
- *   value: import("@preact/signals-core").ReadonlySignal<unknown>,
- *   versions: Map<Version, number> | null,
- *   within: Set<Entry> | null,
- *   catchUps: Set<CatchUp> | null,
- *   fresh: boolean,
- *   checked: number,
- * }} Entry */
-
 // Every move of any version, so a reading checked since the last one stands.
 let moves = 0;
 // Where a version stands, asked without saying a reading read it.
 const AT = Symbol("at");
 // The reading being made, which records what it reads.
-/** @type {Entry | null} */
 let making = null;
 // The catch-ups run since a reading was read from outside every other, so a reading
 // read inside it runs only those it adds, and how many readings are being read.
-/** @type {CatchUp[]} */
 const caughtUp = [];
 let depth = 0;
 
@@ -73,11 +59,9 @@ let depth = 0;
  * whose version moves only when it catches up, as the page's watcher takes what the
  * browser reports late, passes `catchUp`, which a reading runs as it first reads the
  * version, so it records where the fact stands, and again before it is checked. A
- * catch-up that reads its own version, as the page's does, is asked once.
- * @param {CatchUp | null} [catchUp] @returns {Version} */
+ * catch-up that reads its own version, as the page's does, is asked once. */
 export function version(catchUp = null) {
   let at = 0;
-  /** @type {Version} */
   const counted = {
     read() {
       const versions = making && (making.versions ??= new Map());
@@ -100,19 +84,16 @@ export function version(catchUp = null) {
   return counted;
 }
 
-/** @param {unknown} a @param {unknown} b */
 const sameArgument = (a, b) =>
   Object.is(a, b) ||
   (Array.isArray(a) &&
     Array.isArray(b) &&
     a.length === b.length &&
     a.every((item, at) => Object.is(item, b[at])));
-/** @param {readonly unknown[]} held @param {readonly unknown[]} args */
 const sameArguments = (held, args) =>
   held.length === args.length && args.every((arg, at) => sameArgument(arg, held[at]));
 
-/** Whether every version an entry read, and every reading it read, stands.
- * @param {Entry} entry @returns {boolean} */
+/** Whether every version an entry read, and every reading it read, stands. */
 function stands(entry) {
   if (entry.fresh) return false;
   if (entry.checked === moves) return true;
@@ -123,10 +104,7 @@ function stands(entry) {
   return true;
 }
 
-/** @template {object} K @template {unknown[]} A @template V
- * @param {(key: K, ...args: A) => V} make @param {K} key @param {A} args @returns {Entry} */
 function entryOf(make, key, args) {
-  /** @type {Entry} */
   const entry = {
     args,
     value: computed(() => {
@@ -150,7 +128,6 @@ function entryOf(make, key, args) {
   return entry;
 }
 
-/** @param {Entry} entry */
 function catchUp(entry) {
   if (!entry.catchUps) return;
   for (const each of entry.catchUps)
@@ -163,11 +140,8 @@ function catchUp(entry) {
 /** A reader of what `make` makes of each key and the arguments it is read with, made
  * when the key is first asked for and kept while those arguments, every signal it read,
  * every version it read and every reading it read stand. A make that throws keeps
- * nothing, so it is made again, as is every reading made around it.
- * @template {object} K @template {unknown[]} A @template V
- * @param {(key: K, ...args: A) => V} make @returns {(key: K, ...args: A) => V} */
+ * nothing, so it is made again, as is every reading made around it. */
 export function keptEach(make) {
-  /** @type {WeakMap<K, Entry>} */
   const entries = new WeakMap();
   return (key, ...args) => {
     if (depth++ === 0) caughtUp.length = 0;
@@ -176,10 +150,9 @@ export function keptEach(make) {
       if (entry) catchUp(entry);
       if (!entry || !sameArguments(entry.args, args) || !stands(entry))
         entries.set(key, (entry = entryOf(make, key, args)));
-      /** @type {V} */
       let value;
       try {
-        value = /** @type {V} */ (entry.value.value);
+        value = entry.value.value;
       } catch (error) {
         // Made again when next asked for, as is a reading around it that caught the
         // throw.
@@ -213,13 +186,9 @@ export function unkept() {
 }
 
 /** A reader of what `make` makes of the arguments it is read with, kept as `keptEach`
- * keeps each key's.
- * @template {unknown[]} A @template T @param {(...args: A) => T} make
- * @returns {(...args: A) => T} */
+ * keeps each key's. */
 export function kept(make) {
   const one = {};
-  const each = keptEach((/** @type {object} */ _, /** @type {A} */ ...args) =>
-    make(...args),
-  );
+  const each = keptEach((_, ...args) => make(...args));
   return (...args) => each(one, ...args);
 }

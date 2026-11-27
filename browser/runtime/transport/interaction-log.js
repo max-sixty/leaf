@@ -1,3 +1,4 @@
+// Compiled from interaction-log.ts by build/typescript.mjs; edit that file.
 /* One diagnostic record of this tab's browser input. The page event log remains the
    authority for decisions; this stream explains the gestures that led to them.
    Every observation is bounded; oversized content records an omission. Rows carry
@@ -15,9 +16,7 @@ import { objectIds, randomId } from "../base/ids.js";
 const url = PAGE_ROOT !== null ? new URL("api/interaction", PAGE_ROOT).href : null;
 const root = PAGE_ROOT !== null ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
 const session = randomId();
-/** @typedef {{type: string, [field: string]: unknown}} Interaction
- * @typedef {{body: string, bytes: number, repetitive: boolean}} QueuedInteraction */
-/** @type {QueuedInteraction[]} */
+
 const queue = [];
 // Bound the tab's diagnostic backlog during an outage. Repeated observations
 // yield first; the remaining sequence gaps make any loss visible to a reader.
@@ -44,11 +43,9 @@ const nodeIdentity = objectIds();
 let nextSequence = 0;
 let sending = false;
 let inFlightCount = 0;
-/** @type {ReturnType<typeof setTimeout> | null} */
 let scheduled = null;
 
 const timestamp = () => new Date().toISOString();
-/** @param {string} pathname */
 const pagePath = (pathname) =>
   pathname === root || pathname === `${root}/`
     ? "/"
@@ -56,7 +53,6 @@ const pagePath = (pathname) =>
       ? pathname.slice(root.length)
       : pathname;
 
-/** @param {Element} node */
 function locator(node) {
   const id = node.id ? `#${node.id}` : "";
   const name = node.getAttribute("name");
@@ -64,7 +60,6 @@ function locator(node) {
   return `${node.localName}${id}${named}`;
 }
 
-/** @param {EventTarget | undefined} target */
 function targetValue(target) {
   if (target instanceof window.HTMLInputElement) {
     if (target.type === "checkbox" || target.type === "radio")
@@ -82,11 +77,9 @@ function targetValue(target) {
   return {};
 }
 
-/** @param {Event & Partial<Pick<TouchEvent, "changedTouches">>} event */
 function describe(event) {
   const path = event.composedPath();
   const elements = path.filter((node) => node instanceof Element).slice(0, 8);
-  /** @type {Interaction} */
   const entry = {
     type: event.type,
     target: elements.map(locator),
@@ -95,7 +88,7 @@ function describe(event) {
   };
   const target = path[0];
   const control = path.find(
-    /** @returns {node is Element} */ (node) =>
+    (node) =>
       node instanceof Element &&
       node.matches(`button, a, summary, input, select, ${TEXT_BOX}, [role=button]`),
   );
@@ -197,7 +190,6 @@ function describe(event) {
 /** Fields seen as password fields, whatever their type now. */
 const secretFields = new WeakSet();
 
-/** @param {number} delay */
 function schedule(delay = 250) {
   if (scheduled !== null || sending || !queue.length) return;
   scheduled = setTimeout(() => {
@@ -206,7 +198,6 @@ function schedule(delay = 250) {
   }, delay);
 }
 
-/** @param {QueuedInteraction} row */
 function append(row) {
   if (queue.length >= MAX_PENDING_ENTRIES) {
     let evict = queue.findIndex(
@@ -222,7 +213,6 @@ function append(row) {
   queue.push(row);
 }
 
-/** @param {Interaction} entry */
 function enqueue(entry) {
   if (url === null) return;
   const common = {
@@ -249,7 +239,6 @@ function enqueue(entry) {
   schedule();
 }
 
-/** @param {number} start @param {number} maxBytes */
 function batch(start, maxBytes) {
   const prefix = `{"session":${JSON.stringify(session)},"entries":[`;
   let bytes = encoder.encode(prefix).length + 2;
@@ -269,7 +258,6 @@ function batch(start, maxBytes) {
   };
 }
 
-/** @param {string} body @param {string} destination @param {boolean} keepalive */
 function post(body, destination, keepalive) {
   // Beacon always includes credentials; explicit fetch semantics also work from
   // an opaque sample, whose capability URL is its authority rather than cookies.
@@ -313,7 +301,6 @@ async function flush() {
   }
 }
 
-/** @param {string} type @param {Record<string, unknown>} detail */
 export function recordInteraction(type, detail = {}) {
   enqueue({ type, ...detail });
 }

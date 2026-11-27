@@ -1,3 +1,4 @@
+// Compiled from visual-parts.ts by build/typescript.mjs; edit that file.
 /* Package-owned semantic parts of a rendered visual.
  *
  * A visual states one ordered inventory: the parts its nodes mark, or what the
@@ -62,21 +63,9 @@ import { under, upFrom } from "../lib/shadow-tree.js";
 import { LAYOUT } from "../lib/widget-events.js";
 import { version } from "./kept.js";
 
-/** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
- * @typedef
- * {import("../../types/contract.js").WidgetDeclaration["visual"]}
- * VisualDeclaration
- * @typedef {{read?: () => Iterable<VisualPart>, reveal?: (id: string) => void,
- * label?: (id: string) => string | null | undefined,
- * find?: (id: string) => VisualPart | null | undefined,
- * at?: (node: Element) => VisualPart | null | undefined,
- * focus?: (id: string) => void}} Parts */
-
 // Whether an element is a visual of its own, as the page declares them
 // (readings/anchor-resolution.js). A document that says nothing has none.
-/** @type {(element: Element) => boolean} */
 let isVisual = () => false;
-/** @param {(element: Element) => boolean} declared */
 export const declaredVisuals = (declared) => {
   isVisual = declared;
 };
@@ -91,7 +80,6 @@ addEventListener(LAYOUT, () => layouts.move(), { capture: true });
 
 // How many times a layout change has been said on each visual a reading has asked
 // about, or inside it: the elements an `lf-layout` event passes on its way out.
-/** @type {WeakMap<Element, import("./kept.js").Version>} */
 const drawings = new WeakMap();
 document.addEventListener(LAYOUT, (event) => {
   for (const node of event.composedPath())
@@ -99,7 +87,6 @@ document.addEventListener(LAYOUT, (event) => {
 });
 
 // The parts a source's nodes mark, less those under a visual standing inside it.
-/** @param {Element} source @returns {VisualPart[]} */
 const markedParts = (source) =>
   [...source.querySelectorAll("[data-lf-part]")].flatMap((element) => {
     for (let at = element.parentElement; at && at !== source; at = at.parentElement)
@@ -121,7 +108,6 @@ const markedParts = (source) =>
  * `at(node)` returns the record for the part a node of the visual stands for where no
  * element `read()` gives holds it, or null. `focus(id)` settles the visual on part
  * `id` as Leaf places focus on the visual for it. */
-/** @param {Element} source @returns {Parts | undefined} */
 const partsOf = (source) => {
   let drawn = drawings.get(source);
   if (!drawn) drawings.set(source, (drawn = version()));
@@ -131,23 +117,20 @@ const partsOf = (source) => {
 
 /** The part ids a visual's declared prefixes admit. The inventory's order is also the
  * order of the visual's targets. */
-/** @param {VisualDeclaration | null} declaration */
 export function visualPartAdmission(declaration) {
   if (!declaration || typeof declaration !== "object") return null;
-  return (/** @type {string} */ id) =>
+  return (id) =>
     declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
 }
 
 /** Whether a part absent from the current state may still be drawn: on request, or
  * once the visual can. */
-/** @param {Element} source */
 export const drawsAbsentParts = (source) => {
   const parts = partsOf(source);
   return Boolean(parts?.reveal || parts?.find);
 };
 
 /** Settle the requested part, even while old pixels await a replacement. */
-/** @param {Element} source @param {string} id */
 export function revealRegisteredVisualPart(source, id) {
   partsOf(source)?.reveal?.(id);
   return registeredVisualPart(source, id);
@@ -156,7 +139,6 @@ export function revealRegisteredVisualPart(source, id) {
 /** Invalid records, or ids outside a provider's declared prefixes. A visual that
  * offers no part has none: with marks, an empty inventory is a state its drawing can
  * be in, and the picture is then one target. */
-/** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
   const admits = visualPartAdmission(declaration);
   if (!admits) return [];
@@ -168,7 +150,6 @@ export function visualPartProblems(source, declaration) {
 
 // One record as Leaf reads it, its label in the words a label reads and its surface
 // named, or a TypeError saying which rule it breaks.
-/** @param {Element} source @param {VisualPart} part @param {string | number} number */
 function checkedPart(source, part, number) {
   const id = part.id;
   const element = part.element;
@@ -186,7 +167,6 @@ function checkedPart(source, part, number) {
 
 /** The source's inventory, each record checked: what its `lfParts` reads, or the parts
  * it marks. */
-/** @param {Element} source */
 export function registeredVisualParts(source) {
   const read = partsOf(source)?.read ?? (() => markedParts(source));
   const seenIds = new Set();
@@ -207,7 +187,6 @@ export function registeredVisualParts(source) {
   });
 }
 
-/** @param {Element} source @param {string} id */
 export function registeredVisualPart(source, id) {
   const find = partsOf(source)?.find;
   if (!find)
@@ -219,7 +198,6 @@ export function registeredVisualPart(source, id) {
   return part;
 }
 
-/** @param {Element} source @param {string} id */
 export const registeredVisualPartLabel = (source, id) => {
   const current = registeredVisualPart(source, id)?.label;
   if (current) return current;
@@ -227,7 +205,6 @@ export const registeredVisualPartLabel = (source, id) => {
   return labelWords(label) || null;
 };
 
-/** @param {Element} source @param {Element | null} target @param {(part: VisualPart) => boolean} [admits] */
 export function registeredVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
     registeredVisualParts(source)
@@ -242,9 +219,7 @@ export function registeredVisualPartAt(source, target, admits = () => true) {
 }
 
 /** Where Leaf puts the user for part `id`: its element, or the visual itself, settled
- * on the part by its `focus(id)` as focus is placed there.
- * @param {Element} source @param {string} id
- * @returns {Element | {element: Element, settle: () => void} | null} */
+ * on the part by its `focus(id)` as focus is placed there. */
 export function visualPartFocus(source, id) {
   const part = registeredVisualPart(source, id);
   const focus = partsOf(source)?.focus;
@@ -254,12 +229,9 @@ export function visualPartFocus(source, id) {
 
 /** The part a visual holding focus stands on, as a chart's keys put the reader on a
  * point: what `at` names for the visual itself. */
-/** @param {Element} source @param {(part: VisualPart) => boolean} [admits] */
 export const focusedVisualPart = (source, admits = () => true) =>
   namedAt(source, source, admits);
 
-/** @param {Element} source @param {Element} node
- * @param {(part: VisualPart) => boolean} admits */
 function namedAt(source, node, admits) {
   const named = partsOf(source)?.at?.(node);
   if (!named) return null;

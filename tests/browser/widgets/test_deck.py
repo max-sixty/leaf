@@ -518,6 +518,30 @@ def test_a_swipe_stays_held_until_the_fingers_lift(browser, serve):
     )
 
 
+def test_a_swipe_begun_on_read_only_text_moves_the_card(browser, serve):
+    """Text a card's content marks `contenteditable="false"`, as a diff's rows are, is
+    no control, so a swipe begun on it holds the card as one begun on plain text does."""
+    context = browser.new_context(
+        has_touch=True, viewport={"width": 900, "height": 800}
+    )
+    page = open_page(browser, serve(DECK_PAGE), context=context)
+    open_card(page, "store-ask")
+    page.evaluate(
+        "() => document.querySelector('#store-ask-h')"
+        ".setAttribute('contenteditable', 'false')"
+    )
+    cdp = context.new_cdp_session(page)
+    box = page.locator("#store-ask-h").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    for kind, dx in [("touchStart", 0), ("touchMove", 15), ("touchMove", 30)]:
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [{"x": x + dx, "y": y, "id": 0}]},
+        )
+    wait_for_check_api(page, "(api) => api.dragHeld()")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+
 # The height each motion of the deck's own box ends at, recorded as it starts.
 RECORD_RESIZES = """() => {
   window.lfDeckResizes = [];

@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from snapshot.ts by build/typescript.mjs; edit that file.
 /**
  * One immutable snapshot publication primitive, independent of Leaf's folds.
  *
@@ -30,40 +30,9 @@
  */
 import { computed, signal, untracked } from "/vendor/signals-core.js";
 
-/**
- * @template T
- * @typedef {T extends ReadonlyMap<infer K, infer V>
- *   ? ReadonlyMap<Immutable<K>, Immutable<V>>
- *   : T extends ReadonlySet<infer V>
- *     ? ReadonlySet<Immutable<V>>
- *     : T extends object
- *       ? { readonly [K in keyof T]: Immutable<T[K]> }
- *       : T} Immutable
- */
-
-/**
- * @typedef {{
- *   readonly document: unknown;
- *   readonly authoritative: unknown;
- *   readonly unresolved: readonly unknown[];
- *   readonly effective: unknown;
- *   readonly semanticEpoch: number;
- * }} ApplicationSnapshot
- */
-
-/**
- * @template T
- * @typedef {{
- *   read(): T;
- *   subscribe(listener: (value: T, round?: object) => unknown): () => void;
- * }} SnapshotReading
- */
-
 // Publications take ownership of mutable producer values; previously secured
 // subtrees retain identity and need no further traversal.
-/** @type {WeakSet<object>} */
 const secured = new WeakSet();
-/** @template T @param {T} value @returns {Immutable<T>} */
 function immutable(value) {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
     if (value instanceof Map) {
@@ -88,10 +57,9 @@ function immutable(value) {
     Object.freeze(value);
     secured.add(value);
   }
-  return /** @type {Immutable<T>} */ (value);
+  return value;
 }
 
-/** @param {object} value */
 const plain = (value) => {
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
@@ -100,7 +68,6 @@ const plain = (value) => {
 // Give `object` its own data property `key`, defined rather than assigned: a JSON field
 // named `__proto__` is an own property, and assigning it would set the object's
 // prototype instead.
-/** @param {Record<string, unknown>} object @param {string} key @param {unknown} value */
 export const defineOwn = (object, key, value) =>
   Object.defineProperty(object, key, {
     value,
@@ -109,50 +76,29 @@ export const defineOwn = (object, key, value) =>
     configurable: true,
   });
 
-/**
- * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
+/** `next`, with every subtree deep-equal to the matching one in `prior` replaced by
  * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
  * its entries in order, an object by its keys in any order); anything else by identity.
  * An array's item that `prior`'s array holds at any index stays as it is, and a record
  * of a list whose records are named is compared with `prior`'s record of its name
  * rather than the one at its index (`pairedByName`). Returns `prior` itself when the
  * two are equal, and `next` itself when nothing in it could be shared, so neither
- * input is copied or mutated needlessly.
- *
- * @template T
- * @param {unknown} prior
- * @param {T} next
- * @returns {T}
- */
+ * input is copied or mutated needlessly. */
 export const share = (prior, next) => shared(prior, next, null);
 
 // What each subtree of a fold's result was last shared as, where that was another
 // value: a subtree shared as itself was published as itself, so meeting it again it is
 // that value.
-/** @type {WeakMap<object, unknown>} */
 const foldShared = new WeakMap();
 
-/**
- * `share` for a fold's result, which hands back unchanged the subtrees it made before
+/** `share` for a fold's result, which hands back unchanged the subtrees it made before
  * from inputs that held still (state/kept.js). A subtree met again against the value it was
  * shared as is answered at once, without its contents being read: the fold owns the
  * subtree and never changes it, and the value it was shared as is frozen once
- * published. Only the application's fold may pass a value here.
- *
- * @template T
- * @param {unknown} prior
- * @param {T} next
- * @returns {T}
- */
+ * published. Only the application's fold may pass a value here. */
 export const shareFold = (prior, next) => shared(prior, next, foldShared);
 
-/**
- * @template T
- * @param {unknown} prior
- * @param {T} next
- * @param {WeakMap<object, unknown> | null} kept what each subtree was last shared as
- * @returns {T}
- */
+/** @param kept what each subtree was last shared as */
 function shared(prior, next, kept) {
   if (Object.is(prior, next)) return next;
   if (
@@ -162,7 +108,7 @@ function shared(prior, next, kept) {
     typeof next !== "object"
   )
     return next;
-  if (kept?.get(next) === prior) return /** @type {T} */ (prior);
+  if (kept?.get(next) === prior) return prior;
   const result = compared(prior, next, kept);
   if (kept && result !== next) kept.set(next, result);
   return result;
@@ -172,13 +118,10 @@ function shared(prior, next, kept) {
 // list's items by (src/leaf/serving/served_state/tail.py, `_named`): each record's `id` where
 // every record has a string one, else its event's `id` where every record holds an
 // event with one, and only where no two records share a name.
-/** @type {readonly ((item: any) => unknown)[]} */
 const NAMINGS = [(item) => item?.id, (item) => item?.event?.id];
 // The records of `list` by the name each goes by under `name`, or null where one goes
 // by none or two by one.
-/** @param {readonly unknown[]} list @param {(item: unknown) => unknown} name */
 function byName(list, name) {
-  /** @type {Map<unknown, unknown>} */
   const named = new Map();
   for (const item of list) {
     const each = name(item);
@@ -188,7 +131,6 @@ function byName(list, name) {
   return named;
 }
 // Whether two records go by one name.
-/** @param {unknown} one @param {unknown} other */
 const sameName = (one, other) =>
   NAMINGS.some((name) => {
     const each = name(one);
@@ -196,23 +138,13 @@ const sameName = (one, other) =>
   });
 // The record of `prior` a record of `next` goes by the same name as, where both lists
 // name their records by one rule, or null where they don't.
-/** @param {readonly unknown[]} prior @param {readonly unknown[]} next
- * @returns {((child: unknown) => unknown) | null} */
 function pairedByName(prior, next) {
   const name = NAMINGS.find((each) => byName(next, each));
   const before = name && byName(prior, name);
   return name && before ? (child) => before.get(name(child)) : null;
 }
 
-/**
- * `shared` for two objects not shared before.
- *
- * @template {object} T
- * @param {object} prior
- * @param {T} next
- * @param {WeakMap<object, unknown> | null} kept
- * @returns {T}
- */
+/** `shared` for two objects not shared before. */
 function compared(prior, next, kept) {
   if (Array.isArray(next)) {
     if (!Array.isArray(prior)) return next;
@@ -225,9 +157,7 @@ function compared(prior, next, kept) {
     // anew. While every item stands for the prior one at its index, by identity or by
     // name, an item past the prior list's end is one the list gained, with no record to
     // compare it with, so sharing a log grown by an event builds no index of the log.
-    /** @type {Set<unknown> | undefined} */
     let held;
-    /** @type {((child: unknown) => unknown) | null | undefined} */
     let pairs;
     let moved = false;
     const children = next.map((child, index) => {
@@ -248,31 +178,26 @@ function compared(prior, next, kept) {
       prior.length === next.length &&
       children.every((child, index) => child === prior[index])
     )
-      return /** @type {T} */ (prior);
-    return /** @type {T} */ (
-      children.every((child, index) => child === next[index]) ? next : children
-    );
+      return prior;
+    return children.every((child, index) => child === next[index]) ? next : children;
   }
   if (next instanceof Map) {
     if (!(prior instanceof Map)) return next;
     const priorKeys = [...prior.keys()];
-    const entries = [...next].map(
-      ([key, child]) =>
-        /** @type {const} */ ([
-          key,
-          prior.has(key) ? shared(prior.get(key), child, kept) : child,
-        ]),
-    );
+    const entries = [...next].map(([key, child]) => [
+      key,
+      prior.has(key) ? shared(prior.get(key), child, kept) : child,
+    ]);
     if (
       priorKeys.length === entries.length &&
       entries.every(
         ([key, child], index) => key === priorKeys[index] && child === prior.get(key),
       )
     )
-      return /** @type {T} */ (prior);
-    return /** @type {T} */ (
-      entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries)
-    );
+      return prior;
+    return entries.every(([key, child]) => child === next.get(key))
+      ? next
+      : new Map(entries);
   }
   if (next instanceof Set) {
     if (!(prior instanceof Set)) return next;
@@ -284,10 +209,8 @@ function compared(prior, next, kept) {
       priorMembers.length === members.length &&
       members.every((child, index) => child === priorMembers[index])
     )
-      return /** @type {T} */ (prior);
-    return /** @type {T} */ (
-      members.every((child) => next.has(child)) ? next : new Set(members)
-    );
+      return prior;
+    return members.every((child) => next.has(child)) ? next : new Set(members);
   }
   if (
     !plain(next) ||
@@ -297,8 +220,8 @@ function compared(prior, next, kept) {
     prior instanceof Set
   )
     return next;
-  const before = /** @type {Record<string, unknown>} */ (prior);
-  const after = /** @type {Record<string, unknown>} */ (next);
+  const before = prior;
+  const after = next;
   const keys = Object.keys(after);
   const children = keys.map((key) =>
     Object.hasOwn(before, key) ? shared(before[key], after[key], kept) : after[key],
@@ -309,62 +232,44 @@ function compared(prior, next, kept) {
       (key, index) => Object.hasOwn(before, key) && children[index] === before[key],
     )
   )
-    return /** @type {T} */ (prior);
+    return prior;
   if (keys.every((key, index) => children[index] === after[key])) return next;
-  /** @type {Record<string, unknown>} */
   const copy =
     Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
   keys.forEach((key, index) => defineOwn(copy, key, children[index]));
-  return /** @type {T} */ (copy);
+  return copy;
 }
 
-/** @template {ApplicationSnapshot} S @param {S} initial */
 export function createApplicationPublisher(initial) {
   const root = signal(immutable(initial));
   return Object.freeze({
-    /** @returns {Immutable<S>} */
     read: () => root.value,
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
-    /** @returns {Immutable<S>} */
     peek: () => root.peek(),
-    /** @param {S} candidate @returns {Immutable<S>} */
     publish(candidate) {
       root.value = immutable(share(root.peek(), candidate));
       return root.peek();
     },
-    /**
-     * A selection of the root, or of `from`, another selection, which it then reads in
+    /** A selection of the root, or of `from`, another selection, which it then reads in
      * the root's place, so it is derived again only when that one moves rather than on
-     * every publication.
-     *
-     * @template T
-     * @template [F=Immutable<S>]
-     * @param {(snapshot: F) => T} derive
-     * @param {SnapshotReading<F>} [from]
-     * @returns {SnapshotReading<Immutable<T>>}
-     */
+     * every publication. */
     select(derive, from) {
-      /** @type {Immutable<T>} */
       let prior;
       // What `derive` answered last, which `prior` holds shared. A derivation that
       // answers it again, as one keeping its reading while its inputs hold still does,
       // has changed nothing, so its contents are not compared again.
-      /** @type {T | undefined} */
       let derived;
       const selected = computed(() => {
-        const value = from ? from.read() : /** @type {F} */ (root.value);
+        const value = from ? from.read() : root.value;
         return untracked(() => {
           const next = derive(value);
           if (next !== derived) prior = immutable(share(prior, (derived = next)));
           return prior;
         });
       });
-      /** @type {SnapshotReading<Immutable<T>>} */
       const reading = Object.freeze({
-        /** @returns {Immutable<T>} */
         read: () => selected.value,
-        /** @param {(value: Immutable<T>) => void} listener */
         subscribe: (listener) =>
           selected.subscribe((value) => untracked(() => listener(value))),
       });

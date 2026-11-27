@@ -1,3 +1,4 @@
+// Compiled from ui-marks.ts by build/typescript.mjs; edit that file.
 /* Which layer a node stands in: Leaf's chrome, a label a widget declared as the page
    speaking, or the document. Every reading that climbs out of a widget asks it, so it is
    answered here, from the marks Leaf's chrome wears, where dom/geometry.js and the passage
@@ -14,7 +15,6 @@ import { closestAcross, isElement, overIn } from "../lib/shadow-tree.js";
 // Across the boundary as closestAcross does: the marker lives out in
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.
-/** @param {Node | null} node */
 export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 
 // A label a widget declared as the page speaking, which the anchor pass reads over the
@@ -41,11 +41,9 @@ export const UI_MARKS = `.lf-ui, ${SAID}`;
 // it is stated once here so
 // that what a mark may hang on, what a settlement has emptied, and what a quote may
 // name cannot come apart.
-/** @param {Element | null | undefined} el @param {Element | null | undefined} within */
 export const uiInside = (el, within) => {
   const near = el && overIn(el, UI_MARKS, within);
   return !!near && !near.matches(SAID);
 };
-/** @param {Node | null | undefined} node */
 export const inUi = (node) =>
   uiInside(isElement(node) ? node : node?.parentElement, null);

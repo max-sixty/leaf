@@ -1,3 +1,4 @@
+// Compiled from presence.ts by build/typescript.mjs; edit that file.
 // Every timestamp the page renders was written by its server. Keep the browser's one
 // measured offset here, beside the two public readings that depend on it, so no seat can
 // accidentally render against a second clock.
@@ -9,7 +10,6 @@ let clockSkew = 0;
 const pulse = signal(0);
 // The moment a reading answers for while one made at a moment already past is read
 // again (`atClock`), else none.
-/** @type {number | null} */
 let pinned = null;
 const serverNow = () => pinned ?? Date.now() + clockSkew;
 // The calibrated server time now, as a reading made now answers for it.
@@ -17,7 +17,6 @@ export const clockNow = () => serverNow();
 // `read` again at the moment `at`, as a standing preview reads its target again with the
 // clock it first read (annotations/preview.js), so a presentation whose only change is the clock
 // changes nothing it says: every clock reading inside answers for `at`.
-/** @template T @param {number} at @param {() => T} read @returns {T} */
 export function atClock(at, read) {
   const was = pinned;
   pinned = at;
@@ -38,14 +37,12 @@ export const saidNow = () => new Date(serverNow()).toISOString();
 // time it shows by the rule it follows those by, and the shared tick wakes only the
 // paints whose answers changed. The callback receives the calibrated server-now
 // milliseconds used by the comparison.
-/** @template T @param {(now: number) => T} read */
 export const clockValue = (read) =>
   computed(() => {
     pulse.value;
     return read(serverNow());
   }).value;
 
-/** @param {(reason: unknown, context: string) => unknown} reportError */
 export async function tickClock(reportError) {
   try {
     tick(pulse);
@@ -54,7 +51,6 @@ export async function tickClock(reportError) {
   }
 }
 
-/** @param {string | null | undefined} now */
 export const observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();
 };
@@ -63,20 +59,15 @@ export const observeServerNow = (now) => {
 // `lf-age` draws (age.js), and `shortAgo` where a seat has room for the figure alone, so
 // two seats never give one moment two different ages. A timestamp that names no moment
 // has no age.
-/** @param {string | null | undefined} ts @param {boolean} compact */
 const age = (ts, compact) =>
   clockValue((now) => {
     const then = Date.parse(ts ?? "");
     return Number.isNaN(then) ? "" : ageWords(elapsed(then, now), compact);
   });
-/** @param {string | null | undefined} ts */
 export const ago = (ts) => age(ts, false);
-/** @param {string | null | undefined} ts */
 export const shortAgo = (ts) => age(ts, true);
 // The figure and unit of an age, none under 45 seconds. The rounded figure picks the
 // unit, so 59 minutes and 40 seconds reads "1h", never "60m".
-/** @param {number} then @param {number} now
- * @returns {[number, "m" | "h" | "d"] | null} */
 const elapsed = (then, now) => {
   const secs = Math.max(0, (now - then) / 1000);
   if (secs < 45) return null;
@@ -85,7 +76,6 @@ const elapsed = (then, now) => {
   const hours = Math.round(secs / 3600);
   return hours < 24 ? [hours, "h"] : [Math.round(secs / 86400), "d"];
 };
-/** @param {ReturnType<typeof elapsed>} span @param {boolean} compact */
 const ageWords = (span, compact) =>
   span ? `${span[0]}${span[1]}${compact ? "" : " ago"}` : compact ? "now" : "just now";
 
@@ -94,7 +84,6 @@ const ageWords = (span, compact) =>
 // the dates below. A reader checks a time against their own clock, calendar and logs,
 // which already read that way. The instant is the server's, as written, so no skew
 // applies.
-/** @param {Date | number} at */
 export const timeOfDay = (at) =>
   new Date(at).toLocaleTimeString(undefined, { timeStyle: "short" });
 
@@ -102,7 +91,6 @@ export const timeOfDay = (at) =>
 // briefly as the platform names it: "Sat, Aug 15, 2026, 2:02 PM PT". An age says how
 // long ago, and a reader checking a message against a commit, a meeting or a log line
 // needs when.
-/** @param {string | null | undefined} ts */
 export function clockTime(ts) {
   const at = new Date(ts ?? NaN);
   if (Number.isNaN(at.getTime())) return "";
@@ -118,7 +106,6 @@ export function clockTime(ts) {
 }
 // The reader's calendar day an instant falls on, counted in days, so consecutive days
 // differ by one.
-/** @param {Date} at */
 const dayOf = (at) =>
   Math.round(Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / 86400000);
 
@@ -130,8 +117,6 @@ const dayOf = (at) =>
 // now"), and an age past the hour rounds to hours or days, so replies hours apart
 // both read "1d ago" a day later. Each time names its own day, so one read alone, in
 // a sticky head or below the first message scrolled away, is never taken for today's.
-/** @param {string | null | undefined} ts
- * @returns {{day: string, time: string} | null} */
 export function saidAt(ts) {
   const at = new Date(ts ?? NaN);
   if (Number.isNaN(at.getTime())) return null;
@@ -157,7 +142,6 @@ export function saidAt(ts) {
 // instant its element holds, a `<time>` or an `lf-age`, so every one the page draws
 // declares one function and holds its instant once, in `datetime`, where the platform
 // keeps it.
-/** @this {Element} @returns {import("../base/preview-declaration.js").Preview | null} */
 export function agePreview() {
   const at = clockTime(this.getAttribute("datetime"));
   return at ? { name: at } : null;
@@ -166,13 +150,10 @@ export function agePreview() {
 // How long working may go unheard before it reads as quiet. The server's activity fold
 // owns the number and serves it beside `now`; until a state has arrived nothing is
 // quiet, since there is no served clock to measure the silence against either.
-/** @type {number | null} */
 let workingGrace = null;
-/** @param {number} ms */
 export const observeWorkingGrace = (ms) => {
   workingGrace = ms;
 };
-/** @param {string | null | undefined} ts */
 export const quietSince = (ts) =>
   clockValue(
     (now) =>
@@ -186,11 +167,9 @@ export const quietSince = (ts) =>
 // answer can next change without any file moving, or Infinity when none is timed. A
 // neighbour's needs no clock here: its own server republishes its row at its
 // transition, which moves the pages reading the news names (host/live-leaves.js).
-/** @param {import("../../types/contract.js").ServedState | null} state */
 export const activityTransitionAt = (state) => {
   const at = state?.activity.next_transition_at;
   return at ? Date.parse(at) : Infinity;
 };
-/** @param {import("../../types/contract.js").ServedState | null} state */
 export const activityTransitionDue = (state) =>
   serverNow() >= activityTransitionAt(state);

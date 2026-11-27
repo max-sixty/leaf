@@ -1,3 +1,4 @@
+// Compiled from page-identity.ts by build/typescript.mjs; edit that file.
 /* The document's rendering identity, captured as structured data before any diagnostic
  * presentation. About and browser observations read this owner; retained checks keep
  * their own snapshot rather than borrowing a newer server or layer identity. */

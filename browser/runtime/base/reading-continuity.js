@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from reading-continuity.ts by build/typescript.mjs; edit that file.
 /* Whether the reader has continuously seen this document's current layout.
 
    A hidden document breaks continuity; keyboard blur does not, since a reader can
@@ -23,8 +23,7 @@ const changed = () =>
     new CustomEvent(CONTINUITY, { detail: { continuous: readingIsContinuous() } }),
   );
 
-/** Call `interrupted` each time the reading breaks; returns the step that stops.
- * @param {() => void} interrupted */
+/** Call `interrupted` each time the reading breaks; returns the step that stops. */
 export function onReadingInterrupted(interrupted) {
   const listener = () => {
     if (!readingIsContinuous()) interrupted();
@@ -41,7 +40,6 @@ document.addEventListener("visibilitychange", () => {
   changed();
 });
 
-/** @param {number | null} returned */
 export function completeReadingReturn(returned) {
   if (
     returned === null ||

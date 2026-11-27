@@ -1,9 +1,9 @@
+// Compiled from language-paths.ts by build/typescript.mjs; edit that file.
 /* File-language declarations. A plain host uses the shipped vocabulary; a Leaf
    page installs its composed table, including extension overrides and removals. */
 import { syntaxLanguagePaths } from "../lib/syntax-languages.js";
 
 let paths = syntaxLanguagePaths;
-/** @param {Record<string, string>} declarations */
 export const installLanguagePaths = (declarations) => {
   paths = declarations;
 };
@@ -18,7 +18,6 @@ export const installLanguagePaths = (declarations) => {
 // the rule that nothing is inferred is about source *text*, which no path is. The table
 // is the registry's ($languages), beside the names it has to agree with, rather than a
 // second list here.
-/** @param {string} path */
 export const langForPath = (path) => {
   const filename = path.slice(path.lastIndexOf("/") + 1);
   const dot = filename.lastIndexOf(".");

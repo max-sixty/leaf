@@ -1,3 +1,4 @@
+// Compiled from shown-box.ts by build/typescript.mjs; edit that file.
 /* Whether and where an element shows a box, and `measure`, which waits for one. Any
    document can load it, so a widget on a plain HTML page waits for its room as it does
    on a Leaf page. Leaf's dom/geometry.js builds its readings of what the page shows on the
@@ -12,7 +13,6 @@ import { sizeObserver } from "./frame-pass.js";
 // half a millisecond each at 1,024 sections of the bench's asks page. The range lets go
 // of the node once read, so it holds nothing a page has removed.
 const contents = document.createRange();
-/** @template T @param {Node} node @param {(range: Range) => T} read @returns {T} */
 function readContents(node, read) {
   contents.selectNodeContents(node);
   try {
@@ -23,17 +23,14 @@ function readContents(node, read) {
   }
 }
 // The boxes of the lines `node`'s contents are drawn in, and the box around them all.
-/** @param {Node} node */
 export const contentsRects = (node) =>
   readContents(node, (range) => [...range.getClientRects()]);
-/** @param {Node} node */
 const contentsBox = (node) =>
   readContents(node, (range) => range.getBoundingClientRect());
 
 // What draws something to see without words: a replaced element, or a widget, which is
 // a custom element. Empty boxes and spacers draw nothing, so no place stands on them.
 export const DRAWING = "img, svg, canvas, video, picture, iframe, object, embed";
-/** @param {Element} element */
 export const draws = (element) =>
   element.matches(DRAWING) || element.localName.includes("-");
 
@@ -48,7 +45,6 @@ export const draws = (element) =>
 // this way in a line. So the answer is a fact about elements, kept here rather than in
 // one reader, and every reader asks this one function, or dom/geometry.js's `shownBox`
 // built on it, where an element is.
-/** @param {Element} el */
 export function elementBox(el) {
   const r = el.getBoundingClientRect();
   // A zero-sized box still belongs to its element. Only a boxless wrapper takes
@@ -93,17 +89,14 @@ export function elementBox(el) {
 // widget paper reached is observed afresh once the page is back on screen, since the
 // browser reports only a change from the size it last delivered and the screen may lay
 // the box out at the size paper did.
-/** @type {WeakMap<Element, () => void>} */
 const measurements = new WeakMap();
 const paper = matchMedia("print");
-/** @type {Set<Element>} */
 const onPaper = new Set();
 paper.addEventListener("change", () => {
   if (paper.matches) return;
   for (const el of onPaper) unmeasured.observe(el);
   onPaper.clear();
 });
-/** @param {Element} el */
 const drawn = (el) => {
   if (paper.matches || skipped(el)) return false;
   const box = elementBox(el);
@@ -129,8 +122,7 @@ const unmeasured = sizeObserver((entries) => {
   for (const take of taking) take();
 });
 /** Run `take` once `el` shows a box on screen: at once where it does, and otherwise the
- * first time it does. A later call for the same element replaces a `take` still waiting.
- * @param {Element} el @param {() => void} take */
+ * first time it does. A later call for the same element replaces a `take` still waiting. */
 export function measure(el, take) {
   // The box it shows as, not this element's own rect: a `display: contents` wrapper
   // draws no box of its own and never will, and its contents are what the measurement

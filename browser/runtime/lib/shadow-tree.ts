@@ -116,9 +116,12 @@ type RootOf = (host: Element) => ShadowRoot | null;
 //
 // A host's open root, read through the platform's own getter, which answers for an
 // element of any window: a `<form>` answers `shadowRoot` with its control of that name.
-const shadowRootOf = Object.getOwnPropertyDescriptor(Element.prototype, "shadowRoot")
-  ?.get as (this: Element) => ShadowRoot | null;
-export const openRoot = (host: Element): ShadowRoot | null => shadowRootOf.call(host);
+// It is looked up at the first call, since the Worker's tests import this module where
+// no `Element` is defined.
+let shadowRootOf: ((this: Element) => ShadowRoot | null) | undefined;
+export const openRoot = (host: Element): ShadowRoot | null =>
+  (shadowRootOf ??= Object.getOwnPropertyDescriptor(Element.prototype, "shadowRoot")
+    ?.get as (this: Element) => ShadowRoot | null).call(host);
 // What `node` draws its children from: the nodes a slot draws in their place, or the
 // node or root whose own children they are.
 function drawnFrom(node: Node, rootOf: RootOf): Node[] | Node {

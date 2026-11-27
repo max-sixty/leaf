@@ -45,13 +45,13 @@
    Present means in the document, the page's body and the chrome after it alike, or in
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. A
-   record names only the outermost node it moved, and what that node holds is found by
-   walking down from it, through open roots and stages; a closed root is entered only
-   once it is a stage, as `adoptShadowStage` makes one, which `widget-api.js` doesn't
-   export. So a stage inside a page script's or a package's own closed root is heard
-   only by records of its own, and moving that root's host neither arrives nor leaves
-   what the stage holds. No scroll or scroll end crosses a shadow boundary either, so this module hears the document's and
-   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). A
+   record names the node it moved, and what that node holds is found by walking down
+   from it, through open roots and stages; a closed root is entered only once it is a
+   stage, as `adoptShadowStage` makes one, which `widget-api.js` doesn't export. So a
+   stage inside a page script's or a package's own closed root is heard only by records
+   of its own, and moving that root's host neither arrives nor leaves what the stage
+   holds. No scroll or scroll end crosses a shadow boundary either, so this module hears
+   the document's and every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). A
    protocol event dispatched without the options that carry it to Leaf's listeners is
    lost the same way, in silence, so the document and each stage report one
    (`reportUnheardIn`). Its
@@ -83,7 +83,6 @@
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
 import {
-  composedParentNode,
   isElement,
   openRoot,
   renderedParent,
@@ -258,12 +257,6 @@ function* matching(node, kind) {
 }
 // The tree a host holds that this module can see: its open root, or its closed stage.
 const seenRoot = (host) => openRoot(host) ?? hostStages.get(host) ?? null;
-// Whether none of `node`'s composed ancestors is among `nodes`.
-const outermost = (node, nodes) => {
-  for (let at = composedParentNode(node); at; at = composedParentNode(at))
-    if (nodes.has(at)) return false;
-  return true;
-};
 
 /** @param watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`. */
 export const watchArrivals = (selector, attributes, watcher) =>
@@ -300,12 +293,8 @@ function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
   };
   const beside = (node) =>
     isElement(node) && (arrived.has(node) || kind.is(node)) ? [node] : [];
-  // A node a batch added inside another node it added is found by that node's walk, so
-  // a script that appends nested elements one by one walks each once; removals likewise.
   const read = (records) => {
     const offered = new Set();
-    const added = new Set(records.flatMap((record) => [...record.addedNodes]));
-    const removed = new Set(records.flatMap((record) => [...record.removedNodes]));
     for (const record of records) {
       if (record.type === "attributes") {
         if (isElement(record.target)) offered.add(record.target);
@@ -318,11 +307,9 @@ function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
       ])
         offered.add(el);
       for (const node of record.addedNodes)
-        if (outermost(node, added))
-          for (const el of matching(node, kind)) offered.add(el);
+        for (const el of matching(node, kind)) offered.add(el);
       for (const node of record.removedNodes)
-        if (outermost(node, removed))
-          for (const el of matching(node, kind)) if (arrived.has(el)) offered.add(el);
+        for (const el of matching(node, kind)) if (arrived.has(el)) offered.add(el);
     }
     offerMany(offered);
   };

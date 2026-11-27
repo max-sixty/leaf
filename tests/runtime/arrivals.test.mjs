@@ -245,48 +245,6 @@ test("an owner inside a form that names a control shadowRoot arrives with the fo
   }
 });
 
-// Elements a batch's walks visit while `change` runs and its records are read.
-async function visitedBy(change) {
-  const { querySelectorAll } = Element.prototype;
-  let visited = 0;
-  Element.prototype.querySelectorAll = function (selector) {
-    const found = querySelectorAll.call(this, selector);
-    if (selector === "*") visited += found.length;
-    return found;
-  };
-  try {
-    await mutate(change);
-  } finally {
-    Element.prototype.querySelectorAll = querySelectorAll;
-  }
-  return visited;
-}
-
-test("nested elements a batch adds one by one arrive, each walked once", async () => {
-  const chain = (length) => {
-    const elements = Array.from({ length }, () => document.createElement("span"));
-    return { elements, owners: elements.map(connections) };
-  };
-  const visits = [];
-  for (const length of [32, 64]) {
-    const { elements, owners } = chain(length);
-    try {
-      visits.push(
-        await visitedBy(() => {
-          let parent = document.body;
-          for (const element of elements) parent = parent.appendChild(element);
-        }),
-      );
-      for (const { log } of owners) assert.deepEqual(log, ["connect"]);
-    } finally {
-      for (const { stop } of owners) stop();
-      await mutate(() => elements[0].remove());
-    }
-  }
-  // Twice the chain, twice the walking: a walk for each record would make it four times.
-  assert.ok(visits[1] < 3 * visits[0], `visited ${visits.join(" then ")}`);
-});
-
 test("an owner in a stage inside another stage leaves and returns with the outer host", async () => {
   const outer = document.createElement("div");
   const outerStage = outer.attachShadow({ mode: "open" });

@@ -109,7 +109,6 @@ import {
 } from "/vendor/effect-ui.js";
 import { signal, effect as watch, untracked } from "/vendor/signals-core.js";
 import { failSoft, placesFailure } from "./lib/failure.js";
-import { inWindowDocument } from "./lib/once.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
 import { COMMANDS, CONNECT, layoutChanged } from "./lib/widget-events.js";
 import { leafServices } from "./widget-services.js";
@@ -258,7 +257,7 @@ export function defineWidget(
     }
 
     connectedCallback() {
-      if (!inWindowDocument(this) || this.#root) return;
+      if (this.#root) return;
       untracked(() => {
         this.#hosted ||= !this.dispatchEvent(
           new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),

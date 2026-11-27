@@ -665,7 +665,7 @@ to <code>CASES</code> in <code>dev/leaf_dev/commands/placement/marks.py</code>.<
 
 STYLE = """<style>
   .marks {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 40rem), 1fr));
   }
 </style>"""
 

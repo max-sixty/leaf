@@ -92,8 +92,8 @@
 
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
-   `pageShadowRoots` (dom/shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
+   `shadowRootsIn` (dom/shadow.js) finds the declared ones. `textNodesUnder` crosses those roots,
+   `pageRange` hands the ones a selection's ends stand in to `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -124,6 +124,7 @@ import { keptEach, unkept, version } from "../state/kept.js";
 import { liveStages } from "../dom/arrivals.js";
 import {
   declaredRoot,
+  declaredIn,
   refuseShadowRoot,
   queryAllUnder,
   shadowRootsIn,
@@ -963,7 +964,10 @@ export function textNodesUnder(
 // declared inside it. The first element with the id in `root`'s tree answers where it
 // stands under `root` and is accepted, so a lookup costs a walk of `root`'s elements
 // only where another element with the id stands before the answer, as a message's copy
-// of a page id can.
+// of a page id can. Past the document, each stage is asked for the id and kept only
+// where it is a root declared in `root`'s tree (`declaredIn`), so an id no tree holds,
+// as an obligation's widget in a thread no one has opened, costs the stages rather than
+// a walk of the page on each paint that places it.
 /** @param {string | null | undefined} id @param {Document | Element | null} [root] */
 export const elementById = (id, root = document) => {
   pageVersion.read();
@@ -983,9 +987,9 @@ export const elementById = (id, root = document) => {
       ? first
       : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
   if (found && accepts(found)) return found;
-  for (const shadow of shadowRootsIn(root)) {
-    const inside = shadow.getElementById(id);
-    if (accepts(inside)) return inside;
+  for (const stage of liveStages()) {
+    const inside = stage.getElementById(id);
+    if (inside && declaredIn(root, stage) && accepts(inside)) return inside;
   }
   return null;
 };

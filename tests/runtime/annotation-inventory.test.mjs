@@ -6,9 +6,13 @@ import { registerContribution } from "/runtime/features/contributions.js";
 import { resolvedElement, resolvedPassage } from "/runtime/readings/resolved-target.js";
 import { resolveAnchor } from "/runtime/readings/anchor-resolution.js";
 import { clearDraft, commentContext, saveDraft } from "/runtime/records/drafts.js";
-import { registry } from "/runtime/state/registry.js";
+import { adoptRegistry, registry } from "/runtime/state/registry.js";
 import { applicationState } from "/runtime/state/semantic-state.js";
 import { servedState, servedThread } from "../served.mjs";
+
+// A served vocabulary has a generation, and a reading of the page, which reads the
+// vocabulary, is kept only while one stands.
+adoptRegistry({ $layer: { generation: "annotation-inventory" } });
 
 const obligation = (id) => ({
   id,

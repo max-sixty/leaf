@@ -1,12 +1,12 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
-import { isStage, liveStages } from "./arrivals.js";
-import { registry } from "../state/registry.js";
+import { isStage } from "./arrivals.js";
+import { declaredElements, registry } from "../state/registry.js";
 
 // The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: a `shadow` widget is
 // making a promise about whose words those are, and a root some other library happened
-// to attach is not covered by it. `getComposedRanges` is told exactly these, so what the
+// to attach is not covered by it. `getComposedRanges` is told only these, so what the
 // capture can see and what the reading walks are one list.
 //
 // Which root to look under is the axis, because the whole document is not the only
@@ -15,12 +15,16 @@ import { registry } from "../state/registry.js";
 // to ask about. A root is found under `root` as a selector would find its host: `root`
 // itself or an element in `root`'s own tree, not one inside another root.
 //
-// A declared root is the stage a `shadow` widget built through `shadowStage`, so
-// the roots come from the stages' registry (`liveStages`, arrivals.js), not from a
-// query of `root`. Every id the document doesn't hold is looked for here
-// (`elementById`, readings/passages.js), as is an obligation's widget in a thread no one has
-// opened, on every paint that places it, so this answer costs the number of stages, not
-// the size of the page. A root attached any other way carries none of a stage's marks
+// A declared root is the stage a `shadow` widget built through `shadowStage`, so its
+// host is an element of `root`'s tree whose tag declares `shadow`, which the browser
+// finds (`declaredElements`). The answer costs what `root` holds rather than the stages
+// the page holds, since the page reading's watch asks it of each node a change names.
+// Two readers of the whole page ask otherwise. The selection's capture, which runs on
+// every key and wheel step, hands the platform only the roots its ends stand in
+// (`pageRange`, native-selection.js). A lookup of an id the document doesn't hold, which
+// the runtime makes hundreds of times for one comment, asks each stage for the id and
+// keeps what one of these roots holds (`declaredIn`, `elementById` in
+// readings/passages.js). A root attached any other way carries none of a stage's marks
 // or watches, and its host reads as one with no declared root: by its own children.
 //
 // A root refused for holding bare text (readings/passages.js, `refusesBareText`) leaves the list for
@@ -38,12 +42,15 @@ export const declaredRoot = (host) =>
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
-/** @param {Node} root */
+/** @param {Document | DocumentFragment | Element} root @returns {ShadowRoot[]} */
 export const shadowRootsIn = (root) =>
-  liveStages().filter(
-    (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
+  declaredElements(root, (entry) => entry.shadow).flatMap(
+    (host) => declaredRoot(host) ?? [],
   );
-export const pageShadowRoots = () => shadowRootsIn(document);
+// Whether `stage` is one of the roots `shadowRootsIn(root)` lists.
+/** @param {Document | DocumentFragment | Element} root @param {ShadowRoot} stage */
+export const declaredIn = (root, stage) =>
+  root.contains(stage.host) && declaredRoot(stage.host) === stage;
 // Every element under `root` that `selector` names, in `root`'s own tree and the
 // declared roots under it, so it costs what `root` holds rather than the page.
 /** @template {Element} [E=Element] @param {Element | Document} root @param {string} selector

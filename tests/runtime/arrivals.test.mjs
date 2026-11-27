@@ -176,6 +176,30 @@ test("an owner inside a shadow stage connects, leaves with its host and returns 
   }
 });
 
+test("an owner in a stage inside another stage leaves and returns with the outer host", async () => {
+  const outer = document.createElement("div");
+  const outerStage = outer.attachShadow({ mode: "open" });
+  watchArrivalsIn(outerStage);
+  const inner = document.createElement("div");
+  const innerStage = inner.attachShadow({ mode: "open" });
+  watchArrivalsIn(innerStage);
+  const owner = document.createElement("span");
+  innerStage.append(owner);
+  outerStage.append(inner);
+  const { log, stop } = connections(owner);
+  try {
+    await mutate(() => document.body.append(outer));
+    assert.deepEqual(log, ["connect"]);
+    await mutate(() => outer.remove());
+    assert.deepEqual(log, ["connect", "disconnect"]);
+    await mutate(() => document.body.append(outer));
+    assert.deepEqual(log, ["connect", "disconnect", "connect"]);
+  } finally {
+    stop();
+    outer.remove();
+  }
+});
+
 test("connected registration starts synchronously and may own only signal listeners", () => {
   const owner = document.createElement("section");
   document.body.append(owner);

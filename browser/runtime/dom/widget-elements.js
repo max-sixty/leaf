@@ -32,9 +32,13 @@ export { generatedElement } from "../base/element-markers.js";
    mark — so the caller names that apparatus, which is the container's to press. The
    answer otherwise fails closed: declining one ambiguous container gesture is safer
    than recording a choice while the user operates nested evidence. */
-import { pageRange, selectionBackward, selectionEnds } from "./native-selection.js";
+import {
+  pageCaretAt,
+  pageRange,
+  selectionBackward,
+  selectionEnds,
+} from "./native-selection.js";
 import { overCharacter } from "./geometry.js";
-import { pageShadowRoots } from "./shadow.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { bodyIsData, registry, tagsDeclaring } from "../state/registry.js";
@@ -355,9 +359,7 @@ addEventListener(
 // Whether a point lies over a character `range` holds.
 /** @param {Range} range @param {number} x @param {number} y */
 function onSelectedWords(range, x, y) {
-  const caret = document.caretPositionFromPoint(x, y, {
-    shadowRoots: pageShadowRoots(),
-  });
+  const caret = pageCaretAt(x, y);
   const node = caret?.offsetNode;
   if (!caret || !(node instanceof Text)) return false;
   return [caret.offset, caret.offset - 1].some(

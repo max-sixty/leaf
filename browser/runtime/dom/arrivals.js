@@ -76,7 +76,7 @@
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, renderedParent, shadowHost, under } from "../lib/shadow-tree.js";
+import { isElement, renderedParent, shadowHost } from "../lib/shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "../lib/frame-pass.js";
 import { scrollMoves } from "../lib/scroll-range.js";
 import {
@@ -251,9 +251,20 @@ const ownerKind = {
 function* matching(node, kind) {
   if (!isElement(node)) return;
   if (kind.is(node)) yield node;
-  yield* kind.within(node);
-  for (const stage of liveStages())
-    if (under(stage.host, node)) yield* kind.within(stage);
+  for (const tree of treesFrom(node)) yield* kind.within(tree);
+}
+// `root`'s tree, then the stage of each host there, `root` included, and the stages
+// inside each in turn, found from `root` down by its hosts, so a record costs what it
+// names rather than the stages the page holds.
+/** @param {Element | ShadowRoot} root @returns {Generator<Element | ShadowRoot>} */
+function* treesFrom(root) {
+  yield root;
+  const own = isElement(root) ? hostStages.get(root) : undefined;
+  if (own) yield* treesFrom(own);
+  for (const host of root.querySelectorAll("*")) {
+    const stage = hostStages.get(host);
+    if (stage) yield* treesFrom(stage);
+  }
 }
 
 /**

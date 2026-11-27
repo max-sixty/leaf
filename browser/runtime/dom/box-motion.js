@@ -114,7 +114,7 @@
  * taking the row's seat, is revealed there; a part news adds is revealed where it
  * stands.
  * The user asked for this: a
- * stream that slides up to take the new message, its header moving with it. A head
+ * stream that slides up to take the new message, its header moving with it. A box
  * stuck to the scroller's edge rides as a scroll that far back would stick it
  * (`streamContent`). While the
  * content rides, the scroller's end stays where its layout puts it
@@ -1149,8 +1149,7 @@ export function boxMotion({
     // layout where the scroll stands now, which the carry would move off that edge, so
     // its inset travels against the carry on the same clock: layout then sticks it
     // where it stuck with the content standing that far back, which is where a scroll
-    // that far back would stick it, and it changes over from one head to the next as
-    // the content rides past.
+    // that far back would stick it.
     /** @param {{element: Element}} part */
     function streamContent(part) {
       const scroller = part.element;

@@ -540,11 +540,12 @@ REWORDED_PAGE = leaf_page(
 )
 
 
-def test_a_card_quotes_the_words_a_revision_rewrote_at_its_top(browser, serve):
+def test_a_card_quotes_the_words_a_revision_rewrote_under_its_head_line(browser, serve):
     """A card's bracket marks the words its thread is about, so the card quotes none,
     until a revision rewrites them and leaves the thread on their section. The bracket
-    then marks the whole section, so the card quotes the words at its top, marked as
-    changed, over its actions and the opening message's head beside them."""
+    then marks the whole section, so the card quotes the words, marked as changed,
+    between its head line and its opening message, as the floating panel's view
+    does."""
     comment = _comment_on("plan", quote="Manual review first.")
     page = open_page(browser, live_url(serve(REWORDED_PAGE, events=[comment])))
     resized(page, 1440, 900)
@@ -570,8 +571,8 @@ def test_a_card_quotes_the_words_a_revision_rewrote_at_its_top(browser, serve):
     quote = head.bounding_box()
     opening = card.locator(".lf-msg").first.locator(".lf-msg-head").bounding_box()
     assert actions and quote and opening
-    assert quote["y"] + quote["height"] <= actions["y"]
-    assert opening["y"] == pytest.approx(actions["y"], abs=1)
+    assert actions["y"] + actions["height"] <= quote["y"]
+    assert quote["y"] + quote["height"] <= opening["y"]
 
 
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
@@ -664,7 +665,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-page-thread');
-          // The controls stand over the transcript's top, beside each message's head.
+          // The controls stand on the head line, above the transcript.
           const metaRow = thread.querySelector(':scope > .lf-margin-thread-controls');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
@@ -938,18 +939,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     edge_gap, name_gap = first.evaluate(gaps)
     assert edge_gap > 0 and abs(edge_gap - name_gap) <= 1, (edge_gap, name_gap)
 
-    # Partway down the long reply, its head has stuck with New in it, the dot where
-    # it stood.
     transcript.hover()
-    page.mouse.wheel(0, 240)
-    page.wait_for_function(
-        "list => list.scrollTop > 200", arg=transcript.element_handle()
-    )
-    tag = first.locator(".lf-msg-new").bounding_box()
-    top = transcript.evaluate("list => list.getBoundingClientRect().top")
-    assert top - 1 <= tag["y"] <= top + 30, (tag, top)
-    assert first.evaluate(gaps) == [edge_gap, name_gap]
-
     for _ in range(40):
         if transcript.evaluate(
             "list => list.scrollTop + list.clientHeight >= list.scrollHeight - 1"

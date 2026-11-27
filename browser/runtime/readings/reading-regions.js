@@ -54,10 +54,9 @@
    its summary shows: none of what it holds does, so there is no place in it to read.
    Cleanup removes live DOM bindings, so a replacement can reclaim an id.
 
-   The reach pass paints continuation at the body's scroll edges. An owner whose
-   chrome covers the upper edge can supply `paintContinuation(above)` to paint that
-   cue at its actual edge, on the same scroll and size observations. It receives
-   false when no words remain above or the region is released.
+   The reach pass paints continuation at the body's scroll edges. An owner can supply
+   `onReach()` to read the body on the same scroll and size observations, as a thread
+   card decides there whether its transcript shows its scrollbar (thread-preview.js).
 
    A region can show one subject of several in turn, as a trace's saved tree shows one
    checkpoint's elements at a time. Its owner replaces the body's contents through
@@ -184,14 +183,8 @@ export const regionId = (owner, name, box) =>
     ? `lf-region:${owner.id}:${name}`
     : `${THIS_DOCUMENT}:${(unnamed += 1)}`;
 
-/** @param {{id: string, host: Element, body: Element,
- * paintContinuation?: (above: boolean) => void}} options */
-export function registerReadingRegion({
-  id,
-  host,
-  body,
-  paintContinuation = undefined,
-}) {
+/** @param {{id: string, host: Element, body: Element, onReach?: () => void}} options */
+export function registerReadingRegion({ id, host, body, onReach = undefined }) {
   if (typeof id !== "string" || !id)
     throw new Error("leaf: a reading region needs an id");
   if (live(regions.get(id)))
@@ -206,7 +199,7 @@ export function registerReadingRegion({
     width: null,
     away: false,
   };
-  const stopReaching = reachReadingScroller(body, paintContinuation);
+  const stopReaching = reachReadingScroller(body, onReach);
   regions.set(id, region);
   byHost.set(host, [...(byHost.get(host) ?? []), region]);
   byBody.set(body, [...(byBody.get(body) ?? []), region]);

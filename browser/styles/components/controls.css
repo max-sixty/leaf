@@ -263,18 +263,13 @@ svg[data-lf-icon] {
 ) {
   --lf-msg-offered: 1;
 }
-/* Where a thread's own controls (Expand, Resolve, Close) follow its first message's
-   on that message's head line, a rule stands in the gap between them while the
-   message's show: the controls before it act on the message, those after it on the
-   whole thread. An open rewrite's Discard and Save take the thread's place past the
-   gap (response.css), so the rule leaves with it. It stands past the head's end rather
-   than its controls', since a card short of room for a held notice of news lets them
-   run past the head into that gap (thread-card.js, `#fitLineNews`). A margin card
-   ends both sets of controls its symbol end further in (`--lf-margin-symbol-end`,
-   annotation-chrome.css), so the rule moves in with them. */
-:is(.lf-thread-content, .lf-page-thread):has(
-    > :is(.lf-thread-controls, .lf-margin-thread-controls)
-  )
+/* Where a thread's own controls (Resolve or Reopen) follow its first message's on that
+   message's head line, a rule stands in the gap between them while the message's show:
+   the controls before it act on the message, those after it on the whole thread. An
+   open rewrite's Discard and Save take the thread's place past the gap (response.css),
+   so the rule leaves with it. It stands past the head's end, in the gap the head keeps
+   before the thread's controls (surfaces.css). */
+.lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
     > .lf-msg-head > .lf-msg-control-room
@@ -283,9 +278,7 @@ svg[data-lf-icon] {
   &::after {
     content: "";
     position: absolute;
-    inset-inline-start: calc(
-      100% + var(--lf-sp-2) / 2 - var(--lf-margin-symbol-end, 0px)
-    );
+    inset-inline-start: calc(100% + var(--lf-sp-2) / 2);
     inset-block-start: 50%;
     translate: -50% -50%;
     inline-size: 1px;
@@ -498,10 +491,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   height: var(--lf-badge-dot);
 }
 /* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
-   head. It stands with the time rather than among the head's annotations, so where a
-   sticky head carries a long reply it stays in view until the reply has shown whole
-   (records/thread/read.js); a margin card, whose gutter has room, hangs it before the name
-   (annotation-chrome.css). The user chose New in the head over a rail down the reply's
+   head. It stands with the time rather than among the head's annotations; a margin
+   card, whose gutter has room, hangs it before the name (annotation-chrome.css). The
+   user chose New in the head over a rail down the reply's
    edge, which broke where the words fade under a sticky head, a divider above the
    first unread reply, and a tinted ground; and the dot over a filled New pill, a face
    no other label wore, a tag chip and the word. */
@@ -2112,9 +2104,9 @@ wa-copy-button.lf-icon-action {
    starts on one edge in every group; a group that holds a list of its own has its rows'
    columns to itself.
 
-   The band sticks at its scroller's top while its group passes under it, as a message's
-   head sticks in a thread card (annotation-chrome.css), so the group being read is
-   always named; a stuck band needs its ground anyway, since rows pass beneath it. A
+   The band sticks at its scroller's top while its group passes under it, so the group
+   being read is always named; a stuck band needs its ground anyway, since rows pass
+   beneath it. A
    sticky box moves only inside its parent, so the next group's band pushes it off. A
    list that keeps every row under one parent, as the command reference does, leaves
    the box out of the layout, and there the next band slides over the stuck one. The
@@ -2129,8 +2121,8 @@ wa-copy-button.lf-icon-action {
    with its arrow hanging in the band's start padding, so its name starts where every
    other band's does.
 
-   The user chose the bands for On Me, asking for a group heading that sticks as a
-   thread's author line does, and for every list's groups to wear them. Rejected: a
+   The user chose the bands for On Me, asking for a group heading that sticks, and for
+   every list's groups to wear them. Rejected: a
    rule under each heading and faint rules between items, which tied the first item to
    the heading and not the rest; groups parted by space alone; each group in a
    bordered box, the

@@ -322,10 +322,17 @@ html[data-lf-draw-mode] {
   /* A comment box is the frame of the card it becomes, cut to a reply box around its
      words (response.css): it runs to the card's sides, and over the card's padding past
      the field the words stand in, which stands where the card's first message will. So
-     its frame (annotation-chrome.css) reserves above it the card's head row and the gap
-     under it, and below it the card's reply row less that padding. */
+     its frame (annotation-chrome.css) reserves above it the card's head line, the room
+     the card's transcript keeps above its turns, and the first message's head row and
+     the gap under it, and below it the card's reply row less that padding. The room is
+     what the card's padding and border leave inside the card's own ring
+     (annotation-chrome.css, at `--lf-transcript-room`). */
   :is(.lf-fab-bar, .lf-margin-preview) {
-    --lf-comment-frame-top: calc(var(--lf-msg-head-height) + var(--lf-msg-body-gap));
+    --lf-transcript-edge-room: calc(var(--lf-thread-frame) - var(--lf-focus-ring-w));
+    --lf-comment-frame-top: calc(
+      2 * var(--lf-msg-head-height) + var(--lf-transcript-edge-room) +
+        var(--lf-msg-body-gap)
+    );
     /* The card's reply row at rest: its field a message's gap under the words
        (surfaces.css), and its box's band past the field to the card's foot
        (response.css). The editor's frame reserves the row beneath them, so a box that

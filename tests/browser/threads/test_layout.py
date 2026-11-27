@@ -39,7 +39,6 @@ from browser.threads import (
     open_panel_thread,
     paste_image,
 )
-from leaf.agents import thread as thread_model
 from leaf.source.render_checks import one_frame, rendered
 from leaf_dev.browser import PANEL_THREAD
 
@@ -50,7 +49,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_thread_actions_share_consistently_sized_message_headers(
     browser, serve, touch, surface
 ):
-    """Independent thread actions take the first header's spare inline room.
+    """A thread's actions stand on its view's head line, off the messages' rows, in
+    the floating panel and on a margin card alike.
 
     Controls must not give the opening message a different metadata-to-body gap
     from later user and agent messages. Every header holds the input's target floor,
@@ -87,11 +87,11 @@ def test_thread_actions_share_consistently_sized_message_headers(
               const box = selector => card.querySelector(selector).getBoundingClientRect();
               const title = card.querySelector('.lf-thread-head')?.getBoundingClientRect();
               const head = box('.lf-msg-head');
-              // The panel's Resolve stands among its view's controls, off the messages' rows.
+              // The panel's Resolve stands among its view's controls, outside the thread,
+              // and a card's on its head line, over the first message.
               const action = card.querySelector('.lf-resolve')?.getBoundingClientRect()
                 ?? null;
               const body = box('.lf-msg-body');
-              const center = box => box.top + box.height / 2;
               return {
                 headerGap: title ? head.top - title.bottom : null,
                 messageGaps: [...card.querySelectorAll('.lf-msg')].map(message => {
@@ -99,17 +99,15 @@ def test_thread_actions_share_consistently_sized_message_headers(
                   const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
                   return body.top - name.bottom;
                 }),
-                centers: action && [center(head), center(action)],
-                headRight: head.right, actionLeft: action?.left,
+                actionBottom: action?.bottom, headTop: head.top,
                 bodyLeft: body.left, headLeft: head.left,
                 bodyRight: body.right, actionRight: action?.right,
               };
             }"""
         )
-        assert (geometry["centers"] is None) == (surface == "panel"), geometry
-        if geometry["centers"] is not None:
-            assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
-            assert geometry["headRight"] <= geometry["actionLeft"], geometry
+        assert (geometry["actionBottom"] is None) == (surface == "panel"), geometry
+        if geometry["actionBottom"] is not None:
+            assert geometry["actionBottom"] <= geometry["headTop"] + 0.5, geometry
             assert geometry["bodyRight"] >= geometry["actionRight"], geometry
         if geometry["headerGap"] is not None:
             assert 0 <= geometry["headerGap"] <= 12, geometry
@@ -121,11 +119,10 @@ def test_thread_actions_share_consistently_sized_message_headers(
 
 
 def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
-    """A margin card's heads end short of its edge, where the first message's head
-    leaves the thread's actions their room, so Copy at a later message's head end
-    would stand mid-card. It stands at the card's edge, in the actions' column, and copies
-    the message's Markdown source; with nothing selected, the copy key in the thread
-    presses the Copy of the message whose words the user clicked."""
+    """A margin card's message heads span the card under its head line, so Copy at a
+    message's head end stands at the card's edge, under Close, and copies the message's
+    Markdown source; with nothing selected, the copy key in the thread presses the Copy
+    of the message whose words the user clicked."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can it **wait**?", {"section": "lede"})
     source = "Not safely:\n\n- setup runs **untrusted** code\n- `v2` is weeks away"
@@ -136,19 +133,18 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     card = page.locator(".lf-margin-preview .lf-page-thread")
     reply = card.locator(".lf-msg[data-lf-author=agent]")
     # A press leaves focus on the first message's Copy, and its controls still leave
-    # with the pointer. While they show, a rule parts them from the thread's actions.
+    # with the pointer.
     first = card.locator(".lf-msg[data-lf-author=user]")
     first.hover()
     first.locator(".lf-msg-copy").click()
-    shown = """message => { const controls = message.querySelector('.lf-msg-controls');
-      return [getComputedStyle(controls.closest('.lf-msg-head'), '::after').opacity,
-        ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
+    shown = """message => [...message.querySelector('.lf-msg-controls').children]
+      .map((c) => getComputedStyle(c).opacity)"""
     assert set(first.evaluate(shown)) == {"1"}
     reply.locator(".lf-msg-text p").first.hover()
     rendered(page)
     assert first.evaluate("m => m.contains(document.activeElement)")
     assert set(first.evaluate(shown)) == {"0"}
-    # The hovered reply's Copy shows over its head row's cell in the actions' track.
+    # The hovered reply's Copy shows at its head's end.
     assert reply.locator(".lf-msg-copy").evaluate(
         """copy => { const box = copy.getBoundingClientRect();
           return getComputedStyle(copy).opacity === '1' && copy.contains(
@@ -221,10 +217,10 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     browser, serve, subtests
 ):
     """A message's Edit and Copy show only under the pointer or focus, and its head
-    lends their room to its words while they hide: a card's head that held it would read
-    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
-    queued message says its whole receipt; under the pointer the controls stand over
-    the receipt's end, which neither moves nor changes its size. A head too narrow for
+    lends their room to its words while they hide: a card's head that held it would cut
+    its receipt to "Still qu…" beside room for controls nobody could see. At rest the
+    user's queued message says its whole receipt; under the pointer the controls stand
+    over the receipt's end, which neither moves nor changes its size. A head too narrow for
     its words gives up its parts one at a time, in the order the user chose
     (surfaces.css): its controls' room, its receipt, its time and its name. No part is
     cut while one before it still has room to give, so a squeezed head never reads
@@ -233,17 +229,23 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     url = serve(PANEL_PAGE)
     # A comment that stands taller than it is wide widens the card from its least
     # width, and the margin at this width caps it short of the head's words and
-    # controls.
-    panel_comment(
+    # controls: written days ago, its head names its day and time.
+    append_carried_log_record(
         serve.page_dir,
-        "Can it wait until the ceiling is settled? " * 16,
-        {"section": "lede"},
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Can it wait until the ceiling is settled? " * 16,
+            "anchor": {"section": "lede"},
+            "ts": (datetime.now().astimezone() - timedelta(days=3)).isoformat(),
+        },
     )
     context = browser.new_context(viewport={"width": 1456, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
-    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
+    expect(message.locator(".lf-msg-sending")).to_contain_text("Still queued")
     with subtests.test("the controls hide"):
         page.mouse.move(0, 0)
         rendered(page)
@@ -996,43 +998,27 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert surface["bodySelection"] == surface["plainSelection"]
 
 
-# Whose name the card's top row shows, and who wrote the words just under it. The row
-# is the first name painted in the card: where the top falls in the gap before a
-# message, a pushed-off head leaves only its blank foot above that message's name.
-CARD_TOP_AUTHORS = """transcript => {
-  const box = transcript.getBoundingClientRect();
-  const x = box.left + 30;
-  const messages = [...transcript.querySelectorAll('.lf-msg')];
-  const shown = message => {
-    const name = message.querySelector(':scope > .lf-msg-head b').getBoundingClientRect();
-    const y = name.top + name.height / 2;
-    return y > box.top && y < box.bottom
-      && document.elementFromPoint(name.left + 1, y)?.closest('.lf-msg') === message;
-  };
-  const named = messages.find(shown);
-  const head = named?.querySelector(':scope > .lf-msg-head').getBoundingClientRect();
-  const sampleY = (head?.bottom ?? box.top) + 6;
-  const under = document.elementFromPoint(x, sampleY)
-    ?.closest('.lf-msg');
-  const next = messages[messages.indexOf(named) + 1];
-  const endGap = named && next &&
-    named.getBoundingClientRect().bottom <= head.bottom + 0.5 &&
-    next.getBoundingClientRect().top > sampleY && shown(next);
-  return {named: messages.indexOf(named), under: messages.indexOf(under),
-          endGap,
-          row: head ? head.top - box.top < head.height : false,
+# Whether the card's transcript fades its words at its top, which it does while they
+# run on past it (annotation-chrome.css), and where its head line stands.
+CARD_EDGES = """transcript => {
+  const mask = getComputedStyle(transcript).maskImage;
+  const line = transcript.parentElement
+    .querySelector(':scope > .lf-margin-thread-controls').getBoundingClientRect();
+  return {topFade: mask.startsWith('linear-gradient(rgba(0, 0, 0, 0)'), mask,
+          lineBottom: line.bottom, top: transcript.getBoundingClientRect().top,
           scrolled: transcript.scrollTop > 0};
 }"""
 
 
-def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser, serve):
+def test_a_thread_card_opens_on_its_latest_message_and_fades_where_words_run_on(
+    browser, serve
+):
     """A card opened on a long thread shows its latest message, as a walk to it in the
-    Threads list does, and its top row names whoever wrote the words under it. The
-    card pinned the root's name beside its actions, so it opened at the top to keep
-    that name true, leaving the newest turn out of view. A continuation fades the
-    words below the moving name without fading the next message's author. A jump
-    stands over the turns toward each edge they run on past, and a press on one glides
-    them to that edge."""
+    Threads list does, under the card's head line, which stays put while the messages
+    scroll beneath it, each with its own name. The words fade where they run on past
+    the transcript's top, and not while its first message stands there. A jump stands
+    over the turns toward each edge they run on past, and a press on one glides them
+    to that edge."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -1048,8 +1034,6 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             },
         )
     page = open_page(browser, url)
-    # A height whose scroll limit stands a head on the top row, rather than the gap
-    # between two turns there (the known edge below).
     resized(page, 1200, 880)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
@@ -1064,14 +1048,10 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     latest = transcript.locator(".lf-msg").last.bounding_box()
     shown = transcript.bounding_box()
     assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
-    landed = transcript.evaluate(CARD_TOP_AUTHORS)
-    assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
-    # At the scroll limit a sliver of the previous author can precede a clear gap,
-    # with the next turn's own visible name below it (a known edge).
-    assert landed["under"] == landed["named"] or (
-        landed["under"] == -1 and landed["endGap"]
-    ), landed
     assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
+    edges = transcript.evaluate(CARD_EDGES)
+    assert edges["scrolled"] and edges["topFade"], edges
+    assert edges["lineBottom"] <= edges["top"] + 0.5, edges
 
     def jump(to):
         return page.locator(
@@ -1088,214 +1068,17 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
                 expect(jump(to)).to_be_hidden()
 
     jumps(above=True, below=False)
-
-    def continuation():
-        """Read the fade's actual painted box, including its grid positioning."""
-        reading = transcript.evaluate(
-            """box => {
-              const style = getComputedStyle(box.parentElement, '::after');
-              return {height: parseFloat(style.height), display: style.display,
-                paint: style.backgroundImage,
-                heads: [...box.querySelectorAll('.lf-msg-head')]
-                  .map(head => head.getBoundingClientRect().toJSON()),
-                top: box.getBoundingClientRect().top + box.clientTop
-                  + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'))};
-            }"""
-        )
-        cdp = page.context.new_cdp_session(page)
-        try:
-            card = cdp.send(
-                "Runtime.evaluate",
-                {
-                    "expression": f"document.querySelector({json.dumps(selector)}).parentElement"
-                },
-            )["result"]["objectId"]
-            described = cdp.send("DOM.describeNode", {"objectId": card})["node"]
-            pseudo = next(
-                node
-                for node in described["pseudoElements"]
-                if node["pseudoType"] == "after"
-            )
-            border = cdp.send(
-                "DOM.getBoxModel", {"backendNodeId": pseudo["backendNodeId"]}
-            )["model"]["border"]
-            reading.update(fade_top=min(border[1::2]), fade_bottom=max(border[1::2]))
-        finally:
-            cdp.detach()
-        return reading
-
-    # Reading back up, the row names each message whose words stand under it.
-    for index in (3, 2, 1, 0):
-        transcript.evaluate(
-            """(box, index) => {
-              const message = box.querySelectorAll('.lf-msg')[index];
-              const offset = message.getBoundingClientRect().top
-                - box.getBoundingClientRect().top;
-              // The message's middle stands just under the row.
-              box.scrollTop += index
-                ? offset + message.offsetHeight / 2 - 30
-                : -box.scrollTop;
-            }""",
-            index,
-        )
-        rendered(page)
-        reading = transcript.evaluate(CARD_TOP_AUTHORS)
-        assert reading["named"] == reading["under"] == index and reading["row"], reading
-        cue = continuation()
-        if index:
-            assert cue["display"] != "none" and cue["height"] > 0, cue
-            assert "gradient" in cue["paint"], cue
-            assert cue["fade_top"] == pytest.approx(
-                cue["heads"][index]["bottom"], abs=1
-            ), cue
-        else:
-            assert cue["height"] == 0, cue
-        jumps(above=index > 0, below=True)
-
+    jump("start").click()
+    jumps(above=False, below=True)
+    assert transcript.evaluate("box => box.scrollTop") == 0
+    edges = transcript.evaluate(CARD_EDGES)
+    assert not edges["topFade"], edges
     jump("end").click()
     jumps(above=True, below=False)
     assert transcript.evaluate(
         "box => box.scrollHeight - box.clientHeight - box.scrollTop <= 2"
     )
-    jump("start").click()
-    jumps(above=False, below=True)
-    assert transcript.evaluate("box => box.scrollTop") == 0
-
-    # Follow the outgoing header as the next author pushes it off the top, then
-    # follow the transcript edge through the gap. Neither position fades a name. The
-    # edge is the slot where heads stick (`--lf-top`), past the room the transcript
-    # keeps above it.
-    for handoff in ("pushed", "gap"):
-        transcript.evaluate(
-            """(box, handoff) => {
-              const messages = [...box.querySelectorAll('.lf-msg')];
-              const first = messages[0].getBoundingClientRect();
-              const head = messages[0].querySelector('.lf-msg-head').getBoundingClientRect();
-              const next = messages[1].querySelector('.lf-msg-head').getBoundingClientRect();
-              const target = handoff === 'pushed'
-                ? first.bottom - head.height / 2
-                : (first.bottom + next.top) / 2;
-              const slot = box.getBoundingClientRect().top + box.clientTop
-                + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'));
-              box.scrollTop += target - slot;
-            }""",
-            handoff,
-        )
-        rendered(page)
-        cue = continuation()
-        assert cue["display"] != "none" and cue["height"] > 0, cue
-        if handoff == "pushed":
-            assert cue["heads"][0]["top"] < cue["top"] < cue["heads"][0]["bottom"], cue
-            assert cue["fade_top"] == pytest.approx(cue["heads"][0]["bottom"], abs=1), (
-                cue
-            )
-        else:
-            assert cue["heads"][0]["bottom"] <= cue["top"], cue
-            assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
-        assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
-
-
-@pytest.mark.parametrize(("width", "touch"), [(1200, False), (1400, True)])
-def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
-    browser, serve, width, touch
-):
-    """Reading down a long reply keeps its writer and time at the top while the
-    edited annotation leaves with the reply's first line."""
-    url = serve(PANEL_PAGE)
-    # Asked an hour before the answer, so the answer's head says an age of its own.
-    root = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Explain with examples?",
-            "anchor": {"section": "how-store"},
-            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
-        },
-    )["id"]
-    answer = thread_model.post_reply(
-        serve.page_dir, {"responds": root}, LANDING_WORDS * 8
-    )["id"]
-    thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
-    # Later turns leave room to scroll the answer past the top in either direction.
-    for turn, author in enumerate(("user", "agent")):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": author,
-                "parent": root,
-                "text": f"Turn {turn}. " + LANDING_WORDS * 6,
-            },
-        )
-    context = browser.new_context(
-        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
-    )
-    page = open_page(browser, url, context=context)
-    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
-    selector = (
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
-        " > .lf-thread-transcript"
-    )
-    transcript = page.locator(selector)
-    expect(transcript).to_be_visible()
-    rendered(page)
-    scroll_settled(page, selector)
-    message = transcript.locator(f'.lf-msg[data-lf-event="{answer}"]')
-    expect(message.locator(".lf-edited")).to_be_visible()
-
-    def scrolled_past(distance):
-        """Each part's top against the transcript's, once the answer's opening stands
-        `distance` pixels above it and a rendering update has moved what scroll moves,
-        and what the user sees at the name's middle."""
-        transcript.evaluate(
-            """(box, [selector, distance]) => {
-              const message = box.querySelector(selector);
-              box.scrollTop += message.getBoundingClientRect().top
-                - box.getBoundingClientRect().top + distance;
-            }""",
-            [f'.lf-msg[data-lf-event="{answer}"]', distance],
-        )
-        rendered(page)
-        return transcript.evaluate(
-            """(box, selector) => {
-              const message = box.querySelector(selector);
-              const head = message.querySelector(':scope > .lf-msg-head');
-              const name = head.querySelector('b');
-              const from = box.getBoundingClientRect().top;
-              const top = node => node.getBoundingClientRect().top - from;
-              const at = name.getBoundingClientRect();
-              const time = head.querySelector('time');
-              const middle = at.top + at.height / 2;
-              // The name itself, and the gap between it and the time.
-              const seen = [at.left + 4, time.getBoundingClientRect().left - 4]
-                .map(x => document.elementFromPoint(x, middle));
-              return {message: top(message), name: top(name),
-                      time: top(time),
-                      edited: top(head.querySelector('.lf-edited')),
-                      editedBottom: head.querySelector('.lf-edited').getBoundingClientRect().bottom - from,
-                      nameShown: seen.every(node => name.contains(node)),
-                      head: head.offsetHeight};
-            }""",
-            f'.lf-msg[data-lf-event="{answer}"]',
-        )
-
-    rest = scrolled_past(0)
-    assert abs(rest["message"]) <= 1, rest
-    for distance in (6, 12, 20, 30):
-        reading = scrolled_past(distance)
-        assert abs(reading["message"] + distance) <= 1, reading
-        # The name and time stay where they stood and stay on top; the annotations
-        # move with the words.
-        assert abs(reading["name"] - rest["name"]) <= 1, (rest, reading)
-        assert abs(reading["time"] - rest["time"]) <= 1, (rest, reading)
-        assert reading["nameShown"], reading
-        moved = reading["edited"] - (rest["edited"] - distance)
-        assert abs(moved) <= 1, (rest, reading)
-    gone = scrolled_past(2 * rest["head"])
-    assert abs(gone["name"] - rest["name"]) <= 1, (rest, gone)
-    assert gone["editedBottom"] <= 0, gone
+    assert transcript.evaluate(CARD_EDGES)["topFade"]
 
 
 @pytest.mark.parametrize("scaled", [False, True])

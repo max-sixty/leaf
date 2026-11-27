@@ -198,7 +198,7 @@ export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 // sends none. On a page nobody has claimed only an agent's reply names the thread, and
 // the page can't tell whether an agent hears it, so the thread reads its opening words.
 /** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly next_actor: string | null, readonly state: string, readonly source: {readonly kind: string}} | null}} thread */
-export const titlePending = (thread) =>
+const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.next_actor === "agent" &&
   thread.attention.source.kind === "update" &&
@@ -217,6 +217,14 @@ export const threadHeading = (thread) =>
     ? html`<span class="lf-thread-name-pending">Generating thread name…</span
         ><span class="lf-quiet"> ${threadName(thread)}</span>`
     : threadName(thread);
+
+// Whether the head line over a view of the thread, the floating panel's or a margin
+// card's, shows its heading: where it has a title, or one is on its way. An untitled
+// thread's name is its opening words, which its first message reads just below, so
+// there the panel's heading names it to assistive tech alone, and a card, which its
+// own label names, draws none.
+/** @param {Parameters<typeof titlePending>[0]} thread */
+export const titleShown = (thread) => thread.title != null || titlePending(thread);
 
 // A message's opening line, as a preview reads it: its first line of words, else
 // Drawing for one drawn without words.
@@ -736,7 +744,7 @@ export function messageReading(
  * showTodo: (todo: string) => unknown}} MessageCommands */
 
 // The tint a turn arrives in, a message or a step's face (transcript.js):
-// one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
+// one phase drives every paint of its ground (surfaces.css, `--lf-msg-arrival`).
 // CSS resolves the tint and resting colour at the node after insertion; Firefox's Web
 // Animations interpolates a var() colour keyframe discretely. The shared motion gate
 // answers for restoration and reduced motion.

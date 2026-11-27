@@ -5,8 +5,8 @@
    Containers own navigation and placement, including whether their transcript scrolls;
    shadow.css owns the conversation's appearance through widget shadow boundaries.
    Conversation flow stays inside a content region, separate from the outer body's
-   retained reply space, except where a container's head line shares the transcript's
-   tracks (`CardOutlets`, `line`). Thread controls stay outside message and
+   retained reply space, except where a container's head line stands in the thread
+   (`CardOutlets`, `line`). Thread controls stay outside message and
    summary folds. MessageView owns each complete message, so no container extracts or
    reparents its header.
    Where the container gives no head line, independent controls stand on the first
@@ -24,13 +24,17 @@
    settlement places on its view's head line, which stands outside the view that
    scrolls, and the reply box the row's field, and asks for the words the thread is
    about over its messages, since nothing beside it shows them; a margin card stands the
-   notice and the settlement on its row of presses, which stands in the thread over its
-   first message's head. The thread draws each of them there, so the panel's view and a
-   card share one notice, one settlement and one reply box. Rejected: a head line above
-   the card's messages, which makes the card taller for little more than its presses,
-   costing it too much density. A title could fill the line,
-   but the passage the card points at already says what the thread is about, so the card
-   draws no quote either.
+   notice and the settlement on its head line, which stands in the thread above its
+   messages. The thread draws each of them there, so the panel's view and a card share
+   one notice, one settlement and one reply box. Each head line holds the thread's
+   title, which its container draws (`titleShown`, messages.js), and in both each
+   message's head scrolls with its words. The user chose the card's title line over
+   the name of the message in view pinned on the line of the card's presses, so the
+   card and the panel draw a thread one way and the card keeps no code to pin names.
+   Partway through a long message its name is out of view, though its ground still
+   says whose words they are (surfaces.css), and the line costs every card 33px.
+   The passage the card points at already shows the words the thread is about, so the
+   card draws no quote.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    a container's places and presses, and widgets in messages keep their mechanical
@@ -512,9 +516,8 @@ const lastTurn = (model) =>
      `settleThread`).
    Only the margin card says the rest (`CardOutlets`): `line`, its head line, which it
    arranges around the boxes the thread draws its notice and settlement in, and which
-   the thread stands after its messages, where it shares their heads' track
-   (annotation-chrome.css) and the heads give the notice its whole count
-   (`#fitLineNews`); `endNewsMoves()`, whether news at the thread's end, which grows the
+   the thread stands first, above its messages (annotation-chrome.css);
+   `endNewsMoves()`, whether news at the thread's end, which grows the
    floating card away from the line it keeps, would move what the user is on
    (thread-preview.js, `keptLine`), and since the card stands itself, a landing in it
    scrolls nothing into view; and `standsAtEnd()`, whether the reader stands at the end
@@ -590,7 +593,6 @@ export class ThreadView {
   /** @type {Element | null} */
   #observedHeader = null;
   #sizes = sizeObserver(() => this.#retainHeaderSlot());
-  #lineNews = sizeObserver(() => nextRender(() => this.#fitLineNews()));
   /** @type {ViewOutlets} */
   #outlets = {};
   // The boxes of the parts it draws where its container stands them (`ThreadOutlets`).
@@ -872,10 +874,9 @@ export class ThreadView {
     // Whether the box holds New reply at its foot, which a fade there leaves whole.
     if (box) keeps(box, "data-lf-awaits", this.#waiting ? "" : null);
     // Where the notice and the settlement stand:
-    // - where the container gives the thread a head line, in their boxes on it: after
-    //   the floating panel's view's name, and before a margin card's Previous and Next,
-    //   with the thread's facts, rather than over the end of the message head beside it
-    //   (the user's choices, 16 October).
+    // - where the container gives the thread a head line, in their boxes on it, with
+    //   the thread's facts after its title: in the floating panel's view, and before a
+    //   margin card's Previous and Next (the user's choices, 16 October).
     // - elsewhere, the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
     //   controls, and the notice beside the first message's head. A foot row of its own
@@ -910,21 +911,19 @@ export class ThreadView {
     keeps(notice.node, "data-lf-reflow", lined ? null : "text");
     const [toStart, toEnd] = this.#jumps();
     const body = html`
-      ${toStart}${this.#drawQuote()}${this.#transcript.node}${toEnd}
+      ${inLine ?? nothing}${toStart}${this.#drawQuote()}${this.#transcript.node}${toEnd}
       ${
-        lined
-          ? (inLine ?? nothing)
-          : model.settlement || model.news
-            ? html`${news}
-                <div class="lf-thread-controls" data-lf-reflow="text">
-                  <span class="lf-thread-meta-actions">${settlement}</span>
-                </div>`
-            : nothing
+        !lined && (model.settlement || model.news)
+          ? html`${news}
+              <div class="lf-thread-controls" data-lf-reflow="text">
+                <span class="lf-thread-meta-actions">${settlement}</span>
+              </div>`
+          : nothing
       }
     `;
-    // A head line standing in the thread shares the transcript's grid, whose tracks the
-    // line's width sets (annotation-chrome.css), so the two stand as the thread's own
-    // children rather than in a content region.
+    // A head line standing in the thread stands over its messages in the card's grid
+    // (annotation-chrome.css), so the two stand as the thread's own children rather
+    // than in a content region.
     render(
       html`
         ${inLine ? body : html`<div class="lf-thread-content">${body}</div>`}
@@ -942,8 +941,6 @@ export class ThreadView {
     if (!this.#quoteHead.hidden) measure(this.#quoteHead, () => this.#fitQuote());
     if (!lined && model.news) measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
-    if (inLine && model.news) measure(this.node, () => this.#watchLineNews());
-    else this.#releaseLineNews();
     this.#continuity.after(bodyPlace);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
@@ -1021,9 +1018,9 @@ export class ThreadView {
   }
 
   // The jumps to the start and the end of the messages, where a box scrolls them (the
-  // header). The start's comes first in the thread's body and the end's after the
-  // transcript, so in a box that scrolls the whole thread, the start's sticks from the
-  // box's first scroll.
+  // header). The start's comes before the quote and the transcript in the thread's body
+  // and the end's after them, so in a box that scrolls the whole thread, the start's
+  // sticks from the box's first scroll.
   #jumps() {
     if (!this.#outlets.scroller) return [nothing, nothing];
     return /** @type {const} */ ([
@@ -1194,52 +1191,6 @@ export class ThreadView {
     this.#stopWaiting();
     this.repaint();
   };
-
-  // A notice on a head line standing in the thread, as a margin card's row of presses
-  // does, stands whole at its count in a track that takes its width from the heads'
-  // track (annotation-chrome.css), so a head beside it gives up its parts in their order
-  // (surfaces.css), its name last. Where the line leaves less than an em of a name,
-  // none of it shows (`data-lf-nameless`), so no sliver of a letter or an ellipsis
-  // stands in the head. The fit reads what of each name the line leaves as drawn, and a
-  // hidden name keeps its box, so the reading holds. No track hides a name its width
-  // cuts below an em.
-  #fitLineNews() {
-    const names = [
-      ...this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > b"),
-    ].filter((name) => name.checkVisibility());
-    const nameless = names.map(
-      (name) =>
-        name.scrollWidth > name.clientWidth &&
-        name.clientWidth < parseFloat(getComputedStyle(name).fontSize),
-    );
-    names.forEach((name, at) =>
-      keeps(name, "data-lf-nameless", nameless[at] ? "" : null),
-    );
-  }
-
-  // A render fits it again, and so does a head whose width changes while news waits, as
-  // a card's does when it resizes or a later head scrolls beside the line. Hiding a name
-  // changes no head's size, so the fit never delivers itself its own change.
-  #watchLineNews() {
-    this.#lineNews.disconnect();
-    for (const head of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head"))
-      this.#lineNews.observe(head);
-    this.#fitLineNews();
-  }
-
-  #releaseLineNews() {
-    this.#lineNews.disconnect();
-    this.#clearLineNews();
-  }
-
-  // A message's head outlives the notice (each MessageView keeps its own, messages.js),
-  // so each name the fit hid shows again with it.
-  #clearLineNews() {
-    for (const name of this.node.querySelectorAll(
-      ".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]",
-    ))
-      keeps(name, "data-lf-nameless", null);
-  }
 
   #releaseHeaderSlot() {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
@@ -1623,7 +1574,6 @@ export class ThreadView {
     this.#received = null;
     this.#sizes.disconnect();
     this.#releaseHeaderSlot();
-    this.#lineNews.disconnect();
     this.#quoteSize.disconnect();
     this.#quoteEffect?.();
     this.#quoteEffect = null;

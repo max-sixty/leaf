@@ -564,9 +564,8 @@ summary {
   --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--lf-aim-floor));
   --lf-msg-edit-gap: 4px;
-  /* The widest a news notice beside a message head's words stands: a primary
-     reader's, in a message head or a part, and a margin card's, in its controls row
-     (annotation-chrome.css), so the head keeps its author and time. */
+  /* The widest a news notice beside a message head's words stands, a primary
+     reader's, in a message head or a part, so the head keeps its author and time. */
   --lf-news-width: 5rem;
 }
 .lf-thread-transcript {
@@ -585,9 +584,10 @@ summary {
   --lf-thread-notice-room: var(--lf-msg-head-height);
 }
 
-/* One animated phase feeds every painted part of a message. Animating the
-   background itself lets Firefox's compositor leave an inheriting sticky head
-   behind; a typed inherited ground keeps both paints on the same frame. */
+/* One animated phase feeds every painted part of a message: its ground, and what it
+   holds that paints the ground, as the band behind its controls does (controls.css).
+   A typed inherited ground keeps those paints on the same frame, where animating the
+   background itself left a head painting the ground behind in Firefox's compositor. */
 @property --lf-msg-ground {
   syntax: "<color>";
   inherits: true;
@@ -683,13 +683,13 @@ summary {
     border-image: none;
   }
 }
-/* Every message header holds the same control-height row, including sticky margin
-   heads. Thread actions and reactions must not change its metadata-to-body gap. A
-   head too narrow for what it holds, as a first message's beside a narrow card's
-   actions can be, cuts it at its end, a gap past it, so it never runs under them; it
-   cuts nothing above or below, where its controls' rings and a finger's reach stand.
-   It holds what is placed against its own box, such as the rule past a first
-   message's controls (controls.css), unless it sticks. */
+/* Every message header holds the same control-height row. Thread actions and
+   reactions must not change its metadata-to-body gap. A head too narrow for what it
+   holds, as a first message's beside a page thread's controls can be, cuts it at its
+   end, a gap past it, so it never runs under them; it cuts nothing above or below,
+   where its controls' rings and a finger's reach stand. It holds what is placed
+   against its own box, such as the rule past a first message's controls
+   (controls.css). */
 :where(.lf-msg-head) {
   position: relative;
   clip-path: inset(-100vh calc(-1 * var(--lf-sp-2)) -100vh -100vw);
@@ -717,13 +717,11 @@ summary {
    million times the next one's, so a part gives up all its room before the next gives
    up any visible width. The metadata shrinks as one part at its time's weight, which
    keeps its annotations and time together in the order. A primary reader's notice of
-   news (below) gives way with the metadata, each in proportion to its width. A card's
-   notice, on the line of its actions beside the first head, keeps its whole count
-   (annotation-chrome.css), so that head gives up its parts beside it. A long name is
-   cut at its cap (below) however much room is left. Shown, the controls stand over the
-   words' end (controls.css), so they cover the parts in this order too, and where they
-   are wider than the room the head leaves beside its name, as a message's three are on
-   a card's least-width line beside Previous and Next, they cover the name as well. */
+   news (below) gives way with the metadata, each in proportion to its width. A long
+   name is cut at its cap (below) however much room is left. Shown, the controls stand
+   over the words' end (controls.css), so they cover the parts in this order too, and
+   where they are wider than the room the head leaves beside its name, they cover the
+   name as well. */
 .lf-msg-head,
 .lf-thread-working-head {
   & > .lf-msg-control-room {

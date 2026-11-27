@@ -962,29 +962,22 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         row = preview.evaluate(
             """preview => {
               const actions = preview.querySelector('.lf-margin-thread-controls');
-              const head = preview.querySelector('.lf-thread-transcript .lf-msg-head');
               const box = selector => preview.querySelector(selector)
                 .getBoundingClientRect();
               const middle = selector => box(selector).y + box(selector).height / 2;
               return {
                 nav: middle('.lf-margin-preview-nav'),
-                author: middle('.lf-thread-transcript .lf-msg-head > b'),
                 actions: middle('.lf-thread-meta-actions'),
-                authorRight: head.getBoundingClientRect().right
-                  - parseFloat(getComputedStyle(head).paddingInlineEnd),
-                navLeft: box('.lf-margin-preview-nav').left,
+                rowBottom: actions.getBoundingClientRect().bottom,
+                headTop: box('.lf-thread-transcript .lf-msg-head').top,
                 navRight: box('.lf-margin-preview-nav').right,
                 resolveLeft: box('.lf-resolve').left,
-                // The head's items, not its controls' reach past its edge.
-                overflow: actions.scrollWidth - actions.clientWidth
-                  + Math.max(0, ...[...head.children].map((item) =>
-                    item.getBoundingClientRect().right - head.getBoundingClientRect().right)),
+                overflow: actions.scrollWidth - actions.clientWidth,
               };
             }"""
         )
         assert row["nav"] == pytest.approx(row["actions"], abs=1), row
-        assert row["author"] == pytest.approx(row["actions"], abs=1), row
-        assert row["authorRight"] < row["navLeft"], row
+        assert row["headTop"] >= row["rowBottom"] - 0.5, row
         assert row["navRight"] < row["resolveLeft"], row
         assert row["overflow"] == 0, row
     dismiss.focus()

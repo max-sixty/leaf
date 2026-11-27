@@ -1,3 +1,4 @@
+// Compiled from anchor-note-view.ts by build/typescript.mjs; edit that file.
 /* The accessible comment note for each authored block carrying comments.
  *
  * A painted range builds no accessibility node, so a block cannot say by itself that it
@@ -21,15 +22,10 @@ import { spokenSubject } from "../base/contribution-model.js";
 import { offerAction } from "../lib/controls.js";
 import { keeps, keepsText } from "../lib/keeps.js";
 
-/** @typedef {readonly [string, ...string[]]} CommentThreads */
-/** @param {{openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"],
- * labelAnchor: typeof import("../records/thread/messages.js").anchorLabel}} options */
 export function createAnchorNoteProjection({ openThread, labelAnchor }) {
   // holder -> { note, firstThreadId }
-  /** @type {Map<Element, ReturnType<typeof claim>>} */
   const claims = new Map();
 
-  /** @param {string} firstThreadId */
   function claim(firstThreadId) {
     const note = offerAction("proxy", "lf-mark-note");
     note.tabIndex = -1;
@@ -41,19 +37,16 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
     return record;
   }
 
-  /** @param {Element} holder @param {ReturnType<typeof claim>} record */
   function release(holder, record) {
     unshelve(holder, record.note);
     claims.delete(holder);
   }
 
-  /** @param {ReadonlyMap<Element, CommentThreads>} notes */
   function present(notes) {
     // A block the page drew anew keeps its note, found by the thread it enters, so a
     // user on the note stays on it (features/details-shelf.js, `shelve`). One passage across
     // several blocks gives each a note entering the same thread, so the notes that
     // left wait in page order under that thread, and each new block takes the first.
-    /** @type {Map<string, [Element, ReturnType<typeof claim>][]>} */
     const left = new Map();
     for (const [holder, record] of claims)
       if (!notes.has(holder) || !holder.isConnected) {

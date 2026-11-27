@@ -1,3 +1,4 @@
+// Compiled from text-field.ts by build/typescript.mjs; edit that file.
 /* The runtime's text field: a Markdown editor that presents itself as a textarea.
  *
  * Every composer the runtime builds is a `leaf-text`. Inside a closed shadow root it
@@ -160,7 +161,10 @@
  * whether words in view, or its caret, reach that square (`:state(corner-taken)`), and
  * the box shows its action while the corner is free, and over the words only when
  * focus comes to it or the pointer rests on it. Wrapping still turns on nothing but the words; only the
- * action comes and goes. Under a mouse, Return sends when the action is hidden.
+ * action comes and goes. Under a mouse, Return sends when the action is hidden. A box
+ * that stands a key before its action sets `--lf-field-key-corner` to the corner's
+ * width with the key, read on the same row (`:state(key-corner-taken)`), so the key
+ * gives way to the words as the action does.
  *
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
@@ -369,8 +373,6 @@ sheet.replaceSync(`
 // user arrives in builds its editor in the turn that brings them, as it did when
 // CodeMirror loaded with the page; a field that must draw before then asks for it
 // sooner.
-/** @typedef {Awaited<ReturnType<typeof loadFieldEditor>>} FieldEditor */
-/** @type {FieldEditor | null} */
 let editor = null;
 const loadEditor = () => loadFieldEditor().then((loaded) => (editor = loaded));
 afterPresentation(loadEditor);
@@ -381,9 +383,7 @@ afterPresentation(loadEditor);
 // `base` is the words the history starts from, which a `value` write sets and the
 // user's typing doesn't.
 class Draft {
-  /** @type {[() => void, () => void][]} */
   steps = [];
-  /** @param {string} text */
   constructor(text) {
     this.text = this.base = text;
     this.anchor = this.head = text.length;
@@ -394,22 +394,23 @@ class Draft {
 // textarea's Return and Shift+Return are both a line break to `beforeinput`
 // (`#typeAtRest`). Seen from the window as it goes down, a key typed in a field is the
 // field's host's; once dispatched, an event from a shadow tree names no target.
-/** @type {{field: EventTarget | null, shifted: boolean} | null} */
 let lastReturn = null;
 inputs.observe((event) => {
   if (event instanceof KeyboardEvent && event.key === "Enter")
     lastReturn = { field: event.target, shifted: event.shiftKey };
 });
 
-/** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
+/** For its tag (`runtime-globals.d.ts`). */
+
 class LeafText extends HTMLElement {
   // The field's one model. Until the field has first built an editor it is a Draft;
   // building the editor hands it to the view that edits it from then on (`#build`),
   // and an editor destroyed as the field leaves the page hands back its state, undo
   // history included.
-  /** @typedef {InstanceType<FieldEditor["LeafEditorView"]>} FieldView */
-  /** @type {{kind: "draft", draft: Draft} | {kind: "state", state: import("@codemirror/state").EditorState, module: FieldEditor} | {kind: "view", view: FieldView, module: FieldEditor}} */
-  #content = { kind: "draft", draft: new Draft("") };
+  #content = {
+    kind: "draft",
+    draft: new Draft(""),
+  };
   get #view() {
     return this.#content.kind === "view" ? this.#content.view : null;
   }
@@ -421,7 +422,6 @@ class LeafText extends HTMLElement {
   // (notes/browser-support.md).
   #rest = document.createElement("textarea");
   // The rendering hold of a field waiting for its editor to load (`#build`).
-  /** @type {(() => void) | null} */
   #waiting = null;
   // Whether an input method is composing in the empty line's place. The words it
   // holds are unfinished until it ends, so they join the draft, and the editor builds,
@@ -434,8 +434,7 @@ class LeafText extends HTMLElement {
   // (notes/browser-support.md, "A custom state set's own contents in WebKit").
   #states = this.attachInternals().states;
   /** The element whose blocks a field editing words where they are shown shows them
-   * as, such as a draft's prose; unset, the field draws a sent message's faces.
-   * @type {HTMLElement | null} */
+   * as, such as a draft's prose; unset, the field draws a sent message's faces. */
   facesOf = null;
   // The rules that draw the words in its blocks' faces (`readFaces`), as last read.
   #faces = new CSSStyleSheet();
@@ -473,7 +472,6 @@ class LeafText extends HTMLElement {
   // How far the host scrolls to show the row holding `pos` whole, its leading as well
   // as the caret, inside the host's padding (see the header). The words wrap, so the
   // host scrolls only down and up.
-  /** @param {FieldEditor} module @param {import("@codemirror/view").EditorView} view @param {number} pos */
   #rowTravel(module, view, pos) {
     const { destination, rectangle: caret } = module.LeafEditorView.caretAt(view, pos);
     const node =
@@ -533,16 +531,16 @@ class LeafText extends HTMLElement {
           below:
             this.scrollTop + this.clientHeight <
             this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
-          corner: this.#cornerTaken(content.module, view, style),
+          ...this.#cornerTaken(content.module, view, style),
         };
       },
       write: (reading) => {
-        /** @type {readonly (readonly [string, boolean])[]} */
         const states = [
           ["overflows", reading.scrolls],
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below],
           ["corner-taken", reading.corner],
+          ["key-corner-taken", reading.keyCorner],
         ];
         for (const [state, on] of states) {
           // Adding a state already set restyles all the same, on every scrolled frame.
@@ -568,10 +566,16 @@ class LeafText extends HTMLElement {
   // the words as drawn, which nothing reads again when the tween ends: a line removed
   // left Send over the words the carry brought down to it, and a line added left the
   // corner free with Send hidden.
-  /** @param {FieldEditor} module @param {import("@codemirror/view").EditorView} view @param {CSSStyleDeclaration} style */
+  //
+  // The key a box stands before its action is read on the same row, across the wider
+  // `--lf-field-key-corner`, which holds the square.
   #cornerTaken(module, view, style) {
     const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
-    if (!(size > 0)) return false;
+    if (!(size > 0)) return { corner: false, keyCorner: false };
+    const wide = Math.max(
+      size,
+      Number.parseFloat(style.getPropertyValue("--lf-field-key-corner")) || 0,
+    );
     const { scaleX, scaleY } = view;
     const carry = style.getPropertyValue("--lf-field-carry").trim();
     const [dx = 0, dy = 0] =
@@ -583,16 +587,22 @@ class LeafText extends HTMLElement {
       bottom: at.bottom + dy * scaleY,
     };
     const rtl = style.direction === "rtl";
-    const left = rtl ? box.left : box.right - size * scaleX;
-    const right = rtl ? box.left + size * scaleX : box.right;
+    // The span `width` wide in from the field's trailing edge.
+    const span = (width) =>
+      rtl
+        ? { left: box.left, right: box.left + width * scaleX }
+        : { left: box.right - width * scaleX, right: box.right };
+    const square = span(size);
+    const withKey = span(wide);
     const top = box.bottom - size * scaleY;
     const middle = box.bottom - (size * scaleY) / 2;
-    /** @param {import("../../base/box.js").Box} rect @param {number} leading */
-    const reaches = (rect, leading) =>
-      rect.left < right &&
-      rect.right > left &&
-      rect.top - leading <= middle &&
-      rect.bottom + leading > middle;
+    const reading = { corner: false, keyCorner: false };
+    const reach = (rect, leading) => {
+      if (rect.top - leading > middle || rect.bottom + leading <= middle) return;
+      const across = (at) => rect.left < at.right && rect.right > at.left;
+      if (across(square)) reading.corner = true;
+      if (across(withKey)) reading.keyCorner = true;
+    };
     for (const line of view.contentDOM.children) {
       // A line after the change carries farther than the words' carry
       // (`--lf-field-after`), so it is read back by that much.
@@ -601,7 +611,6 @@ class LeafText extends HTMLElement {
         lineStyle.translate === "none"
           ? []
           : lineStyle.translate.split(/\s+/).map(Number.parseFloat);
-      /** @param {import("../../base/box.js").Box} rect */
       const back = (rect) => ({
         left: rect.left - ox * scaleX,
         right: rect.right - ox * scaleX,
@@ -611,17 +620,19 @@ class LeafText extends HTMLElement {
       const block = back(line.getBoundingClientRect());
       if (block.bottom <= top || block.top >= box.bottom) continue;
       const height = Number.parseFloat(lineStyle.lineHeight) * scaleY;
-      for (const rect of contentsRects(line))
-        if (reaches(back(rect), Math.max(0, (height - rect.height) / 2) || 0))
-          return true;
+      for (const rect of contentsRects(line)) {
+        reach(back(rect), Math.max(0, (height - rect.height) / 2) || 0);
+        if (reading.corner) return reading;
+      }
     }
-    if (!view.hasFocus) return false;
+    if (!view.hasFocus) return reading;
     const { rectangle: caret } = module.LeafEditorView.caretAt(
       view,
       view.state.selection.main.head,
     );
     const { left: x, top: y, bottom: foot } = caret;
-    return reaches({ left: x, right: x + 1, top: y, bottom: foot }, 0);
+    reach({ left: x, right: x + 1, top: y, bottom: foot }, 0);
+    return reading;
   }
 
   static observedAttributes = [
@@ -692,7 +703,6 @@ class LeafText extends HTMLElement {
   // input method finishes. Return asks its owner first, as in the editor, whether it
   // may make a new line; Shift+Return, a line break, does unless the field holds one
   // line (`#oneLine`).
-  /** @param {Event} event */
   #typeAtRest(event) {
     if (this.#content.kind !== "draft") return;
     if (event.type === "compositionstart") {
@@ -716,7 +726,6 @@ class LeafText extends HTMLElement {
 
   // Takes the words and caret of the empty line's place into the draft. A one-line
   // field takes a pasted line break as a space, as its editor does.
-  /** @param {Draft} draft */
   #readRest(draft) {
     const { value, selectionStart, selectionEnd, selectionDirection } = this.#rest;
     const text = this.#oneLine ? value.replaceAll("\n", " ") : value;
@@ -753,7 +762,6 @@ class LeafText extends HTMLElement {
   }
 
   // The hooks the editor's state calls (`fieldState`).
-  /** @param {FieldEditor} module @returns {import("./field-editor.js").FieldConfiguration} */
   #hooks(module) {
     return {
       readOnly: this.#readOnly,
@@ -801,9 +809,7 @@ class LeafText extends HTMLElement {
   }
 
   /** Applies a change to the editor, to the state a destroyed editor left, or, before
-   * the field has an editor, to its draft (`draft`). `spec` reads the editor module.
-   * @param {(module: FieldEditor) => import("@codemirror/state").TransactionSpec} spec
-   * @param {(draft: Draft) => unknown} [draft] */
+   * the field has an editor, to its draft (`draft`). `spec` reads the editor module. */
   #change(spec, draft = () => {}) {
     const content = this.#content;
     if (content.kind === "view") content.view.dispatch(spec(content.module));
@@ -815,7 +821,6 @@ class LeafText extends HTMLElement {
       };
   }
 
-  /** @param {string} name */
   attributeChangedCallback(name) {
     if (name === "placeholder") this.#placeholderText.data = this.placeholder;
     if (name === "aria-describedby") return this.#describe();
@@ -940,7 +945,6 @@ class LeafText extends HTMLElement {
     this.#measureOverflow();
   }
 
-  /** @param {string} type */
   #emit(type) {
     this.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
   }
@@ -955,6 +959,7 @@ class LeafText extends HTMLElement {
       if (this.isConnected) return;
       this.#states.delete("ready");
       this.#states.delete("corner-taken");
+      this.#states.delete("key-corner-taken");
       const content = this.#content;
       if (content.kind !== "view") return;
       this.#content = {
@@ -984,7 +989,6 @@ class LeafText extends HTMLElement {
   // The editor adapter places its recorded caret without native scrolling. The
   // field reveals itself separately when its caller requests ordinary focus. While
   // the editor loads, the user stands in the empty line's place.
-  /** @param {FocusOptions} [options] */
   focus(options) {
     if (!this.isConnected) return;
     this.#build();
@@ -1001,12 +1005,11 @@ class LeafText extends HTMLElement {
   // A press on the box outside the editor's own area — its padding — lands in the words
   // at the nearest character, the way a textarea's does. Presses inside the editor are
   // CodeMirror's to place.
-  /** @param {MouseEvent} event */
   #pressPadding(event) {
     // A press on the box's own press at the placeholder's end is that press's. The
     // slot is in a closed root, so the event's path seen from the host leaves it out;
     // the press itself is the host's child.
-    const target = /** @type {Node} */ (event.target);
+    const target = event.target;
     const onEnd = this.#end.assignedElements().some((press) => press.contains(target));
     if (event.button !== 0 || onEnd) return;
     if (!this.#view) {
@@ -1021,7 +1024,6 @@ class LeafText extends HTMLElement {
     const { clientX: x, clientY: y } = event;
     if (x >= area.left && x < area.right && y >= area.top && y < area.bottom) return;
     event.preventDefault();
-    /** @param {number} value @param {number} low @param {number} high */
     const clamp = (value, low, high) => Math.min(Math.max(value, low), high - 1);
     const at = this.#view.posAtCoords(
       {
@@ -1039,7 +1041,6 @@ class LeafText extends HTMLElement {
   }
 
   #contentAttributes() {
-    /** @type {Record<string, string>} */
     const attributes = {
       spellcheck: "true",
       autocorrect: "on",
@@ -1057,7 +1058,6 @@ class LeafText extends HTMLElement {
     else this.#states.add("placeholder-shown");
   }
 
-  /** @returns {string} */
   get value() {
     return this.#text;
   }
@@ -1074,7 +1074,6 @@ class LeafText extends HTMLElement {
     );
   }
 
-  /** @param {string} text */
   edit(text) {
     text = String(text).replace(/\r\n?/g, "\n");
     if (text === this.value) return;
@@ -1099,7 +1098,6 @@ class LeafText extends HTMLElement {
 
   // Records a change the owner has just made outside the words as a step of the words'
   // history, standing alone: taking the step back calls `undo`, redoing it calls `redo`.
-  /** @param {() => void} undo @param {() => void} redo */
   record(undo, redo) {
     this.#change(
       (module) => module.record(undo, redo),
@@ -1129,8 +1127,7 @@ class LeafText extends HTMLElement {
   }
 
   /** As a textarea's, a missing value writes no words: a widget may seed the box from
-   * a draft that doesn't exist yet (module-input.md, "Text entry and drafts").
-   * @param {string | null | undefined} text */
+   * a draft that doesn't exist yet (module-input.md, "Text entry and drafts"). */
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;
@@ -1178,7 +1175,6 @@ class LeafText extends HTMLElement {
   }
   // A textarea's clamping: each end within the words, and a start past the end moved to
   // the end.
-  /** @param {number} start @param {number} end @param {"none" | "forward" | "backward"} [direction] */
   setSelectionRange(start, end, direction = "none") {
     const length = this.#length;
     const to = Math.min(Math.max(Number(end) || 0, 0), length);

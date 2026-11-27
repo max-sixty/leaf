@@ -817,8 +817,10 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # column, so an 8px margin of the press's own draws a hairline with dead ground
     # under it, on every thread the agent asks a set question in.
     seam = page.locator("#tq-set").evaluate(
-        """el => { const done = el.querySelector('.lf-done');
-                   const last = done.parentElement.previousElementSibling;
+        """el => { const done = el.shadowRoot.querySelector('.lf-done');
+                   // A thread's group draws no add field, so the cell above Done is
+                   // its last option.
+                   const last = el.querySelector(':scope > lf-option:last-of-type');
                    const a = last.getBoundingClientRect();
                    const b = done.getBoundingClientRect();
                    return {gap: Math.round((b.top - a.bottom) * 10) / 10,

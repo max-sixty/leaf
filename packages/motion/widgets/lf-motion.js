@@ -460,7 +460,7 @@ export const Motion = Html.component({
 
 defineWidget("lf-motion", Motion, {
   shadow: true,
-  lfPatch: "members",
+  statics: { lfPatch: "members" },
   properties: ["renderFrame"],
   members: {
     currentTime: {

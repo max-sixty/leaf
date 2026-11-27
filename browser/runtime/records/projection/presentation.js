@@ -1,3 +1,4 @@
+// Compiled from presentation.ts by build/typescript.mjs; edit that file.
 /* The marks Leaf paints on every widget, whatever the widget's own module renders.
 
    Each widget's module renders its own state. This module's `projection:chrome` region
@@ -27,12 +28,8 @@ import { inChrome } from "../../base/ui-marks.js";
 // Paint each unit's origin mark, through each origin attribute's writer
 // (lib/keeps.js, `keepsOnEach`), and return every element that wears one or just lost
 // one.
-/** @param {import("../../../types/domain.js").Projection} projection
- * @param {{user: ReturnType<typeof keepsOnEach>, reported: ReturnType<typeof keepsOnEach>}} paint */
 function paintStateOrigins(projection, paint) {
-  /** @type {Map<Element, string>} */
   const user = new Map();
-  /** @type {Map<Element, string>} */
   const reported = new Map();
   for (const { origin, unit } of projectionOrigins(authoredStates(), projection)) {
     if (origin === "restated") continue;
@@ -49,7 +46,6 @@ function paintStateOrigins(projection, paint) {
 // as lf-suggestion does, has already run it in the publication before this writes the
 // same mark. A widget in a message's markup is marked before the thread mounts
 // it, so it joins the panel settled and the thread's passages skip what it retired.
-/** @param {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/projection/model.js").foldWidgetStates>>} widgets */
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
     const owner = addressableAt(widgetId);
@@ -89,7 +85,6 @@ export function createProjectionPresentation() {
   // The fold keeps the coverage records while no event joins the log (`state/kept.js`), so
   // once the stamp covers them a presentation that moves no widget event, such as a
   // thread's repaint, returns without walking the log again.
-  /** @type {unknown} */
   let stamped = null;
   const coverage = () => {
     const root = applicationState.read();
@@ -143,7 +138,6 @@ export function createProjectionPresentation() {
       return projection;
     }
     // Every element this paint marks, or takes a mark off, says its marks again quietly.
-    /** @type {Set<Element>} */
     const marked = new Set();
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? []) {
@@ -170,12 +164,9 @@ export function createProjectionPresentation() {
   // document-wide repaint.
 }
 
-/** @param {Element} root */
 export function shallowSigs(root) {
   const sigs = new Map();
-  /** @type {Map<Element | null, Map<Element, number>>} */
   const siblingPositions = new Map();
-  /** @param {Element} node */
   const isAuthored = (node) => Boolean(node.id) && authored(node)(node);
   for (const node of [root, ...root.querySelectorAll("[id]")]) {
     if (!isAuthored(node)) continue;

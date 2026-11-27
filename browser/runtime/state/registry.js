@@ -116,7 +116,6 @@ export const declarationFor = (el) =>
 // one: the attribute `source` names holds a page source's id, and the one `reference`
 // names the id of a widget whose output the input reads. Python's list of the two keys
 // is `schema.INPUT_BINDINGS`, and the declaration's type is generated from its schema.
-
 export const bindingAttributes = ({ source, reference }) =>
   [source, reference].flatMap((attribute) => attribute ?? []);
 

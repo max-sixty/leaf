@@ -1,3 +1,4 @@
+// Compiled from bindings.ts by build/typescript.mjs; edit that file.
 /* One reading of every binding and row in the register: how a binding is spelled and
    parsed, what a row's fields mean, and the checks a declaration passes on its way in.
 
@@ -139,14 +140,6 @@
 import { coarsePointer } from "../../base/pointer.js";
 import { runtime } from "../../state/context.js";
 
-/** @import { Cell, DeclaredCommand, DeclaredScope } from "../../base/command-declaration.js" */
-/** @typedef {DeclaredCommand & {routes?: Cell<readonly CommandRoute[]>, opens?: () => Scope | null}} Command
- * @typedef {Command & {binding?: string, [ROUTED_COMMAND]?: CommandReference}} CommandRoute
- * @typedef {Omit<DeclaredScope, "rows"> & {rows: readonly Command[]}} Scope
- * @typedef {{source: Element, scope: Scope, row: Command, id: string, binding: string | null}} CommandReference
- * @typedef {{id: string, binding: string | undefined, route: CommandRoute | null}} CommandEntry
- */
-
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
 export const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -154,7 +147,6 @@ export const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAg
 // How a key is spelled, in one column. The line said "esc" where the overlay said "Esc"
 // for the same binding, and lf-options declared one pair of arrows twice, as "↑ / ↓" and
 // "↑ ↓" — which is what a spelling kept per surface costs.
-/** @type {Readonly<Record<string, string>>} */
 const GLYPH = {
   Enter: "⏎",
   " ": "space",
@@ -182,7 +174,6 @@ const MODIFIERS = ["Mod", "Alt", "Shift"];
 // spelled, whether a press answers it, and whether a text box's letters cover it. Three
 // hand-agreed splits is one representation too few — the moment one of them had to state
 // the modifier set, the other two were free to disagree about what a modifier is.
-/** @param {string} binding */
 export const parsed = (binding) => {
   const separator = binding.lastIndexOf("+");
   return {
@@ -195,7 +186,6 @@ export const parsed = (binding) => {
 // Shift on a letter is the letter's own uppercase, which is how a keyboard draws it and
 // how this page's command reference always has: the binding says Shift+a because that is what the
 // dispatcher must ask for, and the chip says A because that is what the user presses.
-/** @param {string} binding */
 export const spell = (binding) => {
   const { key, mods } = parsed(binding);
   if (mods.length === 1 && mods[0] === "Shift" && /^[a-z]$/.test(key))
@@ -223,10 +213,8 @@ export const advertisesKeys = () => !coarsePointer.matches;
 // speech configurations do not distinguish letter case. The maintainer chose to keep that
 // face rather than draw Shift on the keycap (⇧T), which would let the keycap's own text
 // be its spoken name and remove this function.
-/** @param {string} binding */
 export const spokenBinding = (binding) => {
   const { key, mods } = parsed(binding);
-  /** @param {string} mod */
   const spokenModifier = (mod) => {
     if (mod === "Mod") return MAC ? "Command" : "Control";
     return mod;
@@ -237,14 +225,9 @@ export const spokenBinding = (binding) => {
 // A cell is read where it is painted, never where it is written, so it may be a function
 // of the page. That is what lets a key whose meaning moves say the meaning it has: the
 // surfaces render this press rather than the set of presses the key could be.
-/** @template {string | number | boolean | null | undefined | Element | readonly unknown[]} T
- * @param {Cell<T>} cell @returns {T} */
 export const word = (cell) => (typeof cell === "function" ? cell() : cell);
-/** @param {Command} row */
 export const declaredBindings = (row) => word(row.keys) ?? [];
-/** @param {Command} row */
 export const contextBindings = (row) => word(row.contextKeys) ?? [];
-/** @param {{title: Cell<string>, id?: string}} row */
 export const titleOf = (row) => {
   const title = word(row.title);
   if (typeof title !== "string" || !title.trim())
@@ -253,9 +236,7 @@ export const titleOf = (row) => {
     );
   return title;
 };
-/** @param {Pick<Command, "description">} row */
 export const descriptionOf = (row) => word(row.description) ?? "";
-/** @param {Command} row */
 export const allBindings = (row) => [
   ...new Set([
     ...declaredBindings(row),
@@ -263,9 +244,7 @@ export const allBindings = (row) => [
     ...commandRoutes(row).flatMap(contextBindings),
   ]),
 ];
-/** @param {Command} row */
 export const commandRoutes = (row) => word(row.routes) ?? [];
-/** @param {Command} row @param {CommandRoute | null} [route] */
 export const commandBinding = (row, route = null) =>
   route
     ? (route.binding ?? contextBindings(route)[0])
@@ -274,33 +253,26 @@ export const commandBinding = (row, route = null) =>
 // edge with a Symbol so an unrelated package route field cannot accidentally become an
 // executable cross-scope reference. The dispatcher still validates the reference at use.
 const ROUTED_COMMAND = Symbol("a routed command reference");
-/** @param {CommandRoute} route @param {CommandReference} command */
 export const contextualRoute = (route, command) => ({
   ...route,
   [ROUTED_COMMAND]: command,
 });
-/** @param {CommandRoute | null | undefined} route */
 export const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
 // A preference removes character-only routes, including Shift variants, without
 // withdrawing their commands or native activation. Declaration checks stay unfiltered.
 export const quickShortcuts = () => window.lfKeyboard.quick;
-/** @param {boolean} on */
 export const setQuickShortcuts = (on) => window.lfKeyboard.setQuick(on);
-/** @param {string} binding @param {boolean} quick */
 export const bindingEnabledFor = (binding, quick) => {
   const { key, mods } = parsed(binding);
   return (
     quick || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift")
   );
 };
-/** @param {string} binding */
 export const bindingEnabled = (binding) => bindingEnabledFor(binding, quickShortcuts());
-/** @param {Command} row */
 export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.
-/** @param {Command} row @param {readonly string[]} [active] @param {{includeUnavailable?: boolean}} [options] @returns {CommandEntry[]} */
 export const commandEntries = (
   row,
   active = bindings(row),
@@ -331,7 +303,6 @@ export const commandEntries = (
 // from the command reference keep their own identity. The command reference and hints
 // both consume this projection so route additions cannot reach one surface without the
 // other.
-/** @param {Command} row @param {readonly string[]} [active] @param {{includeUnavailable?: boolean}} [options] */
 export const commandPresentations = (row, active = bindings(row), options = {}) => {
   if (row.runFromCommandReference === false) return [{ id: row.id, route: null }];
   return commandEntries(row, active, options);
@@ -340,7 +311,6 @@ export const commandPresentations = (row, active = bindings(row), options = {}) 
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
 // invisible on both surfaces and reachable only through a sibling's hand-typed spelling —
 // and folded into the rows that name them when this replaced those labels.
-/** @param {Command} row */
 export const labelOf = (row) => {
   const label = word(row.label);
   if (label !== undefined && label !== null) return label;
@@ -354,9 +324,7 @@ export const labelOf = (row) => {
 // Native and contribution painters identify their derived fields here. Availability
 // never reads its own previous paint as an input; source ARIA and disabled fieldsets
 // remain platform constraints. Each owner removes its claim when handing a node back.
-/** @type {WeakMap<Element, Map<symbol, {disabled: boolean, ariaDisabled: boolean}>>} */
 const controlOutputs = new WeakMap();
-/** @param {Element} control @param {symbol} owner @param {{disabled: boolean, ariaDisabled: boolean} | null} [fields] */
 export function controlAvailabilityOutput(control, owner, fields = null) {
   let outputs = controlOutputs.get(control);
   if (!fields) {
@@ -366,7 +334,6 @@ export function controlAvailabilityOutput(control, owner, fields = null) {
   if (!outputs) controlOutputs.set(control, (outputs = new Map()));
   outputs.set(owner, fields);
 }
-/** @param {Element} control */
 function disabledByFieldset(control) {
   for (let parent = control.parentElement; parent; parent = parent.parentElement) {
     if (!(parent instanceof HTMLFieldSetElement) || !parent.disabled) continue;
@@ -375,7 +342,6 @@ function disabledByFieldset(control) {
   }
   return false;
 }
-/** @param {Element | null | undefined} control */
 function controlAvailable(control) {
   if (!control?.isConnected) return false;
   const outputs = [...(controlOutputs.get(control)?.values() ?? [])];
@@ -387,7 +353,6 @@ function controlAvailable(control) {
     control.getAttribute("aria-disabled") === "true";
   return !disabled && !ariaDisabled;
 }
-/** @param {Command} row @param {CommandRoute | null} [route] */
 export const declaredCommandAvailable = (row, route = null) =>
   commandReady(row, route) &&
   (!row.when || row.when()) &&
@@ -395,7 +360,6 @@ export const declaredCommandAvailable = (row, route = null) =>
 // Unlike `when`, readiness says a command's input has not arrived yet. A queued
 // startup key keeps its place until that input can be read rather than disappearing
 // as an ordinary unavailable command would.
-/** @type {WeakMap<object, () => boolean>} */
 const scopeReadiness = new WeakMap();
 // Terminal absence is known input too. Availability still comes from the owner's
 // `when` (widget actions require a complete reading); only unfinished input queues.
@@ -407,18 +371,15 @@ export const savedReadingSettled = () => runtime.statePhase !== "waiting";
 // of the page's commands.
 let handingBack = false;
 export const placeHandedBack = () => !handingBack;
-/** @param {boolean} pending */
 export const handingBackPlace = (pending) => {
   handingBack = pending;
 };
 // A scope supplies a shared input contract without replacing its rows or their identity.
-/** @param {readonly Command[]} rows @param {(() => boolean) | undefined} ready */
 export function declareCommandReadiness(rows, ready) {
   if (ready !== undefined && typeof ready !== "function")
     throw new TypeError("leaf: scope readiness must be a function");
   if (ready) for (const row of rows) scopeReadiness.set(row, ready);
 }
-/** @param {Pick<Command, "ready" | "when" | "decision">} row @param {CommandRoute | null} [route] @returns {boolean} */
 export const commandReady = (row, route = null) => {
   const saved = savedReadingSettled();
   if ((row.decision || route?.decision) && !saved) return false;
@@ -431,10 +392,8 @@ export const commandReady = (row, route = null) => {
   return ready ? ready() : true;
 };
 // A pending scope keeps its declarations until its capability input can be read.
-/** @param {Pick<Scope, "when" | "ready">} scope */
 export const scopeAvailable = (scope) =>
   !commandReady(scope) || !scope.when || scope.when();
-/** @param {Command} row @param {CommandRoute | null} [route] @returns {boolean} */
 export const commandAvailable = (row, route = null) => {
   const control = route?.control ?? row.control;
   const reference = routedCommand(route);
@@ -444,7 +403,6 @@ export const commandAvailable = (row, route = null) => {
     (!reference || referencedCommandEntry(reference) !== null)
   );
 };
-/** @param {CommandReference} reference @param {{includeUnavailable?: boolean}} [options] @returns {CommandEntry | null} */
 export function referencedCommandEntry(reference, options) {
   if (
     !reference.source.isConnected ||
@@ -459,20 +417,17 @@ export function referencedCommandEntry(reference, options) {
     ) ?? null
   );
 }
-/** @param {Command} row */
 export const live = (row) => {
   const routes = commandRoutes(row);
   return routes.length
     ? routes.some((route) => commandAvailable(row, route))
     : commandAvailable(row);
 };
-/** @param {Command} row @param {readonly string[]} declared */
 const availableBindings = (row, declared) =>
   declared.filter((binding) => commandEntries(row, [binding]).length > 0);
 
 // The press a finger needs a row of the menu for: a page command's, under its `touch`
 // words. `id` is the command the press invokes.
-/** @param {Command} row */
 export const touchPresses = (row) =>
   row.touch ? [{ id: row.id, row, binding: undefined, words: row.touch }] : [];
 
@@ -487,7 +442,6 @@ const COMMAND_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/;
 // enter the register twice under two Map keys. Declarations are required to use this form;
 // the identity remains here too so every defensive conflict check compares meanings rather
 // than source spelling.
-/** @param {string} binding */
 export const canonicalBinding = (binding) => {
   const { key: declaredKey, mods } = parsed(binding);
   // KeyboardEvent names Space with a literal blank. "Space" is ARIA's spelling and a
@@ -495,7 +449,6 @@ export const canonicalBinding = (binding) => {
   // the real key here so the declaration edge can reject it with a useful correction.
   const key = declaredKey === "Space" ? " " : declaredKey;
   const letter = key.length === 1 && key.toLowerCase() !== key.toUpperCase();
-  /** @param {CommandRoute} command */
   const named = key === " " || key.length > 1;
   const canonicalKey = letter ? key.toLowerCase() : key;
   // Punctuation already names the produced glyph (`?`, not the physical `/` key), and
@@ -507,7 +460,6 @@ export const canonicalBinding = (binding) => {
   return [...canonicalMods, canonicalKey].join("+");
 };
 
-/** @param {Command[]} active @param {string} where @param {(row: Command) => readonly string[]} bindingOf */
 function validateActive(active, where, bindingOf) {
   const owners = new Map();
   for (const row of active)
@@ -527,7 +479,6 @@ function validateActive(active, where, bindingOf) {
 // A scope's own validation, run when its first paint reads the rows, checks the declared
 // vocabulary rather than a projection of it. A projection must not conceal an ambiguous
 // register and let it fail only after the projection changes.
-/** @param {readonly Command[]} rows @param {string} [where] */
 export const validateRows = (rows, where = "a scope") => {
   const active = rows.filter(live);
   validateActive(active, where, (row) => availableBindings(row, declaredBindings(row)));
@@ -542,7 +493,6 @@ export const validateRows = (rows, where = "a scope") => {
 // A scope may reuse a key across mutually exclusive states, but never in the scene the
 // user is in. Resolve liveness before any surface projects the rows, and refuse an
 // ambiguous scene instead of letting declaration order choose a meaning silently.
-/** @param {readonly Command[]} rows @param {string} [where] */
 export function activeRows(rows, where = "a scope") {
   const active = rows.filter((row) => live(row) && bindings(row).length > 0);
   return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
@@ -556,7 +506,6 @@ export function activeRows(rows, where = "a scope") {
 // the original declarations. Routes may name distinct controls when one compact row
 // owns a family of parameterized bindings. Each result retains its scoped identity so
 // two declarations cannot present different meanings through the same control.
-/** @param {Iterable<{source: Element, scope: Scope, row: Command}>} commands @param {string} [where] */
 export function decisionControls(commands, where = "an obligation") {
   const controls = new Map();
   for (const { source, scope, row } of commands) {
@@ -637,7 +586,6 @@ export function decisionControls(commands, where = "an obligation") {
 // visual key the platform chooses, while the dispatcher deliberately accepts either
 // Control or Meta; aria-keyshortcuts therefore states both working sequences. Native Space
 // uses the named key ARIA expects rather than a literal blank token.
-/** @param {string} binding */
 export const ariaBindings = (binding) => {
   const { key, mods } = parsed(binding);
   const variants = mods.includes("Mod") ? ["Meta", "Control"] : [null];
@@ -647,8 +595,6 @@ export const ariaBindings = (binding) => {
       .join("+"),
   );
 };
-/** @param {readonly Command[]} rows @param {boolean} [current] @param {string} [where]
- * @param {(binding: string, entry: CommandEntry, row: Command) => boolean} [includes] */
 export const ariaShortcuts = (rows, current = true, where, includes = () => true) =>
   [
     ...new Set(
@@ -675,7 +621,6 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.
-/** @param {string} binding @param {KeyboardEvent} ev */
 export function answers(binding, ev) {
   const { key, mods } = parsed(binding);
   if (mods.includes("Mod") !== (ev.metaKey || ev.ctrlKey)) return false;
@@ -699,11 +644,9 @@ export function answers(binding, ev) {
 // canonical key spelling at registration. Computed titles and live conflicts are
 // validated when read, under the owner's current state. A title is mandatory;
 // bar wording defaults to it and additional reference detail is optional.
-/** @template {readonly Command[]} T @param {T} rows @param {string} where @param {(() => boolean)} [ready] @returns {T} */
 export function checked(rows, where, ready) {
   declareCommandReadiness(rows, ready);
   const ids = new Map();
-  /** @param {CommandRoute} command */
   const named = (command) => {
     if (typeof command.id !== "string" || !COMMAND_ID.test(command.id))
       throw new Error(
@@ -761,9 +704,7 @@ export function checked(rows, where, ready) {
         `leaf: ${row.id} owns distinct routes; declare contextKeys on each route`,
       );
     const declared = declaredBindings(row);
-    /** @type {Map<string, CommandRoute>} */
     const routed = new Map();
-    /** @type {Map<string, CommandRoute>} */
     const contextual = new Map();
     for (const route of routes) {
       named(route);
@@ -778,7 +719,6 @@ export function checked(rows, where, ready) {
         throw new Error(
           `leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`,
         );
-      /** @type {readonly (readonly [readonly string[], Map<string, CommandRoute>])[]} */
       const routeBindings = [
         [route.binding === undefined ? [] : [route.binding], routed],
         [contextBindings(route), contextual],
@@ -816,9 +756,7 @@ export function checked(rows, where, ready) {
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
 // the row where its own off-list arrival enters. A walk that comes round at its ends
 // steps with `cycledRow` instead.
-/** @template T @overload @param {readonly [T, ...T[]]} rows @param {unknown} current @param {Step} dir @returns {T} */
-/** @template T @overload @param {readonly T[]} rows @param {unknown} current @param {number} dir @param {number} [entry] @returns {T | undefined} */
-/** @template T @param {readonly T[]} rows @param {unknown} current @param {number} dir @param {number} [entry] */
+
 export function clampedRow(rows, current, dir, entry = dir > 0 ? 0 : rows.length - 1) {
   if (!rows.length) return undefined;
   const at = rows.findIndex((row) => row === current);
@@ -826,17 +764,13 @@ export function clampedRow(rows, current, dir, entry = dir > 0 ? 0 : rows.length
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 }
 
-/** @typedef {-1 | 1} Step */
-/** @template T @param {readonly T[]} rows @returns {rows is readonly [T, ...T[]]} */
 export const hasRows = (rows) => rows.length > 0;
 
 // The cyclic list policy, the one step of every walk that comes round at its ends, from
 // the page walks (`t`, `m`, `n`) to a tab strip. A step past either end comes round to
 // the other. Entry from off the list takes the end the step faces. A walk kept by index
 // passes the row at its index, or none, and reads the landing's index back.
-/** @template T @overload @param {readonly [T, ...T[]]} rows @param {unknown} current @param {Step} dir @returns {T} */
-/** @template T @overload @param {readonly T[]} rows @param {unknown} current @param {Step} dir @returns {T | undefined} */
-/** @template T @param {readonly T[]} rows @param {unknown} current @param {Step} dir */
+
 export function cycledRow(rows, current, dir) {
   if (!rows.length) return undefined;
   const at = rows.findIndex((row) => row === current);
@@ -844,17 +778,14 @@ export function cycledRow(rows, current, dir) {
   return rows[(next + rows.length) % rows.length];
 }
 
-/** Native activation belongs to an HTML control; explicit command actions can name any Element.
- * @param {Element | null | undefined} control */
+/** Native activation belongs to an HTML control; explicit command actions can name any Element. */
 export function nativePress(control) {
   return control instanceof HTMLElement && control.isConnected
     ? () => control.click()
     : null;
 }
 /** Capture a command's currently executable callback with the binding this entry owns.
- * A binding-dependent action has no keyless invocation.
- * @param {Command} row @param {string | null | undefined} binding
- * @param {Element | null | undefined} [control] */
+ * A binding-dependent action has no keyless invocation. */
 export function commandRun(row, binding, control = word(row.control)) {
   const keyed = row.runKey;
   const action = row.run;

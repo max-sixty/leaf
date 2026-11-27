@@ -10,7 +10,7 @@ import { isElement } from "../lib/shadow-tree.js";
 import { isElementName } from "./registry-contract.js";
 import type { WidgetDeclaration } from "../../types/contract.js";
 
-export type Scope = Document | DocumentFragment | Element;
+type Scope = Document | DocumentFragment | Element;
 export type Registry = Record<string, WidgetDeclaration>;
 export function registeredTags(scope: Scope, registry: Registry) {
   const tags = new Set([

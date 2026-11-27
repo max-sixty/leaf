@@ -1,3 +1,4 @@
+// Compiled from check-api.ts by build/typescript.mjs; edit that file.
 /* Core observations and native-browser arrangements share the running kernel.
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
@@ -43,6 +44,7 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
+  markedParts,
 } from "./dom/geometry.js";
 export { inChrome, uiInside } from "./base/ui-marks.js";
 export { anchoringIsReady } from "./readings/anchor-resolution.js";

@@ -1,3 +1,4 @@
+// Compiled from reaction-strips.ts by build/typescript.mjs; edit that file.
 import { isHTML } from "../../lib/shadow-tree.js";
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus.
@@ -7,19 +8,13 @@ import { isHTML } from "../../lib/shadow-tree.js";
 import { html, ref, render, repeat } from "/vendor/lit.js";
 import { offeredAction } from "../../lib/controls.js";
 
-/** @typedef {{registerSurface: (surface: Element, picker: {palette: HTMLElement, trigger: HTMLElement}) => {toggle: () => unknown, close: () => unknown},
- * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "setReaction">,
- * pressed?: () => void}} ReactionCommands */
-/** @typedef {NonNullable<ReturnType<typeof import("./messages.js").messageReading>["reactions"]>} ReactionReading */
 let ordinal = 0;
 export class ReactionStripView {
   #commands;
-  /** @type {ReturnType<ReactionCommands["registerSurface"]> | null} */
   #registration = null;
   #palette;
   #paletteId = `lf-reactions-${++ordinal}`;
 
-  /** @param {ReactionCommands} commands */
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
@@ -33,7 +28,6 @@ export class ReactionStripView {
     this.node.append(this.#palette);
   }
 
-  /** @param {ReactionReading} model */
   present(model) {
     this.node.classList.toggle("lf-open", model.latest);
     render(
@@ -94,7 +88,6 @@ export class ReactionStripView {
     })}
   ></button>`;
 
-  /** @param {ReactionReading} model @param {ReactionReading["choices"][number]} choice */
   #press(model, choice) {
     void this.#commands.actions.setReaction(
       model.thread,

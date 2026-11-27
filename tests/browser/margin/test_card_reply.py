@@ -884,7 +884,7 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
 
 
 # The long thread's opening comment, two of the agent's replies to it, folded behind
-# their summary's "2 earlier messages", and the user's turn after them.
+# their summary's "2 messages", and the user's turn after them.
 FOLDED_THREAD = [
     LONG_THREAD_ROOT,
     *(
@@ -945,7 +945,7 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     page.keyboard.press("Escape")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("2 earlier messages")
+    expect(disclosure).to_have_text("2 messages")
     expect(disclosure).to_have_attribute("aria-expanded", "false")
 
     def foot_after_scrolling(by):

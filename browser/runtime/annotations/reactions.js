@@ -1,3 +1,4 @@
+// Compiled from reactions.ts by build/typescript.mjs; edit that file.
 /* The response bar's reaction row and the reactions in force a strip or circle wears.
 
    An open anchored composer owns its general response disclosure: reactions only
@@ -85,24 +86,15 @@ import { readPart } from "../state/semantic-state.js";
 import { raiseError } from "../transport/errors.js";
 import { PRESS, rowArrows } from "../lib/keys.js";
 
-/** @typedef {import("../../types/domain.js").Anchor} Anchor
- * @typedef {ReturnType<typeof import("./composing/surface.js").createResponseSurface>} ResponseSurface
- * @typedef {ReturnType<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>} Margin
- * @typedef {ReturnType<typeof import("../records/pending/dispatch.js").createCommandDispatch>["post"]} Post
- * @typedef {{withdrawReaction: ReturnType<typeof import("../records/undo.js").createUndo>["withdraw"], postReaction: Post}} ReactionCommands
- */
-
 // The layer's reactions, each its emoji, in declared order. The bar, a reply's strip,
 // the page row and the keyboard accelerators all read this one list, so a layer that
 // adds or removes an emoji moves every surface at once, and core never names one.
 // Empty until the registry has arrived: the register checks every core row's bindings
 // as the module evaluates, before the vocabulary is known.
-/** @returns {readonly string[]} */
 export const reactionEmoji = () => registry.$reactions?.emoji ?? [];
 // A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
-/** @param {Anchor | null} anchor */
 const anchorChoices = (anchor) =>
   reactionAvailable()
     ? emojiChoices(reactionEmoji(), anchor ? reactionsAt(allThreads(), anchor) : [])
@@ -112,7 +104,6 @@ const anchorChoices = (anchor) =>
 // (records/thread/reaction-strips.js). Its emoji is its face and its name, which a
 // screen reader says by the emoji's Unicode name. Digits remain keyboard accelerators
 // without changing the shape of every chip.
-/** @param {{emoji: string}} choice @param {(emoji: string) => unknown} pressed */
 function reactionChip({ emoji }, pressed) {
   const chip = offerAction("response", "lf-react");
   // A toggle from the start, before the bar paints which reactions stand
@@ -138,7 +129,6 @@ function reactionChip({ emoji }, pressed) {
 // The bar's chips wear the reactions in force on its anchor, as a reply's strip does:
 // pressed where one stands, from the press on. A press on a pressed chip
 // takes that reaction back (reactHere).
-/** @param {Anchor | null} anchor */
 export function paintBarReactions(anchor) {
   const by = new Map(anchorChoices(anchor).map((choice) => [choice.emoji, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
@@ -147,14 +137,6 @@ export function paintBarReactions(anchor) {
   }
 }
 
-/** @param {{marginEntryChoices: Margin["marginEntryChoices"] | undefined,
- * marginEntryContextContains: Margin["marginEntryContextContains"] | undefined,
- * openMarginEntryOptions: Margin["openMarginEntryOptions"] | undefined,
- * designModeActive: () => boolean,
- * currentLocationThread: typeof import("../records/thread/landing.js").currentLocationThread,
- * currentTarget: ReturnType<typeof import("./composing/current-target.js").createCurrentTarget>
- * } & Pick<ResponseSurface, "hideComposer" | "syncResponseOptions" | "fabAnchorAt" | "fabReturnPlaces" |
- * "fabTargetAt" | "hasPageSelectionTarget" | "showFab" | "showFabOptions" | "updateFab">} dependencies */
 export function createReactionController({
   marginEntryChoices,
   marginEntryContextContains,
@@ -172,21 +154,14 @@ export function createReactionController({
   currentLocationThread,
   currentTarget,
 }) {
-  /** @type {WeakMap<Element, {palette: HTMLElement, trigger: HTMLElement}>} */
   const surfaces = new WeakMap();
   const marginSurface = Symbol("margin reactions");
-  /** @type {ReturnType<typeof registerContribution> | null} */
   let marginOffer = null;
-  /** @type {Element | null} */
   let marginTarget = null;
-  /** @type {Anchor | null} */
   let marginAnchor = null;
-  /** @type {ReactionCommands | null} */
   let pageCommands = null;
-  /** @param {string} emoji @param {number} ordinal */
   const marginReactionKey = (emoji, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${emoji}`;
-  /** @param {Element} surface @param {{palette: HTMLElement, trigger: HTMLElement}} picker */
   function registerReactSurface(surface, { palette, trigger }) {
     surfaces.set(surface, { palette, trigger });
     return {
@@ -197,7 +172,6 @@ export function createReactionController({
     };
   }
 
-  /** @param {ReactionCommands} commands */
   function buildReactBar(commands) {
     pageCommands = commands;
     const palette = el("span", "lf-react-palette");
@@ -209,7 +183,6 @@ export function createReactionController({
     syncResponseOptions();
   }
 
-  /** @param {Anchor | null} anchor */
   const anchorWord = (anchor) => {
     if (!anchor) return "the target";
     if (anchor.quote) return "the selection";
@@ -219,7 +192,6 @@ export function createReactionController({
     return addressableWord(addressable) || "the element";
   };
 
-  /** @param {string} emoji @param {ReactionCommands} commands @param {Anchor | null} anchor */
   async function reactHere(emoji, commands, anchor = fabAnchorAt()) {
     const choice = anchorChoices(anchor).find((choice) => choice.emoji === emoji);
     if (!choice) return;
@@ -234,7 +206,6 @@ export function createReactionController({
     let sent;
     if (inForce) sent = commands.withdrawReaction(inForce);
     else {
-      /** @type {Extract<Parameters<Post>[0], {kind: "comment"}>} */
       const event = {
         kind: "comment",
         revision,
@@ -264,27 +235,21 @@ export function createReactionController({
   let reactRaised = false;
   // The margin lends reaction mode its disclosure and returns a release that restores
   // the user's previous fold only while this mode still owns it.
-  /** @type {(() => void) | null} */
   let releaseMarginOptions = null;
   // React mode's opener (dom/focus.js, `openLayer`): the control the user was on as the
   // press armed it, which the close hands them back to.
   const reactLayer = {};
   const reactFrom = () => openerOf(reactLayer);
-  /** @type {Element | typeof marginSurface | null} */
   let reactSurface = null;
   // An open reply list closes once its trigger is out of view. The list is in the
   // top layer, and its anchor only stops painting it there, so without this the user
   // would read on through another thread while Tab, arrows and digits still answered
   // the reply scrolled away.
-  /** @type {(() => void) | null} */
   let reactDeparture = null;
-  /** @param {Element} held */
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
-  /** @param {Element | typeof marginSurface | null} surface */
   const pickerFor = (surface) =>
     surface instanceof Element ? surfaces.get(surface) : undefined;
 
-  /** @returns {{kind: "surface", surface: Element} | {kind: "anchor" | "selection"} | {kind: "target", target: NonNullable<ReturnType<typeof currentTarget>>} | null} */
   function reactionTarget() {
     const said = currentLocationThread();
     const strip = said && latestAgentStrip(said.held);
@@ -346,7 +311,6 @@ export function createReactionController({
     delete fabBar.dataset.lfMarginRaised;
   }
 
-  /** @param {Element | typeof marginSurface | null} surface */
   function closeSurface(surface) {
     if (surface === marginSurface) return;
     reactDeparture?.();
@@ -364,7 +328,6 @@ export function createReactionController({
     return reactArmed && reactSurface === marginSurface;
   }
 
-  /** @param {boolean} on @param {{surface?: Element | null}} options */
   function setReact(on, { surface = null } = {}) {
     if (on && !reactionAvailable()) return;
     if (!on && !reactArmed) {
@@ -439,7 +402,6 @@ export function createReactionController({
       scrollIntoView(picker.trigger, { block: "nearest", behavior: "instant" });
       showNativeLayer(picker.palette, { source: picker.trigger });
       const opened = reactSurface;
-      /** @param {Element} trigger */
       const seen = (trigger) => shownRect(trigger, new Map());
       reactDeparture = whenNone([picker.trigger], seen, () => {
         if (reactSurface === opened) setReact(false);
@@ -462,7 +424,6 @@ export function createReactionController({
   // must not pull the user onto it. `handBack` tries again a frame later only where the
   // one it chose is swapped by a repaint in that frame, as a reaction press releasing
   // held news repaints the thread. A press armed from nowhere has only the bar's field.
-  /** @param {Element | null} active */
   function closeReact(active) {
     const from = reactFrom();
     const trigger = pickerFor(reactSurface)?.trigger;
@@ -491,7 +452,6 @@ export function createReactionController({
     );
   }
 
-  /** @param {Element | typeof marginSurface | null} surface @returns {Element[]} */
   function responseChoices(surface) {
     if (!surface) return [];
     if (surface === marginSurface) return marginEntryChoices?.(fabTargetAt()) ?? [];
@@ -500,7 +460,6 @@ export function createReactionController({
     );
   }
 
-  /** @param {string} binding */
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
     if (!hasRows(choices)) return;
@@ -511,7 +470,6 @@ export function createReactionController({
     focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
   }
 
-  /** @satisfies {import("../dom/keyboard/bindings.js").Scope} */
   const REACT = {
     title: "With reactions open",
     ready: savedReadingSettled,
@@ -591,7 +549,6 @@ export function createReactionController({
   };
 
   const isReactArmed = () => reactArmed;
-  /** @param {Element | null} node */
   const reactionContextContains = (node) =>
     reactArmed &&
     reactSurface === marginSurface &&
@@ -661,7 +618,6 @@ export function createReactionController({
   };
 }
 
-/** @param {Extract<Parameters<Post>[0], {kind: "comment" | "reply"}>} event @param {string} where @param {Post} postReaction */
 export async function sendReaction(event, where, postReaction) {
   const sent = await postReaction(event);
   if (sent) announce(`${event.emoji} on ${where}`);

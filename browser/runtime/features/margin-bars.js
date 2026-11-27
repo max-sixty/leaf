@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from margin-bars.ts by build/typescript.mjs; edit that file.
 /* Bars in the margin beside a block: where the agent is at work, and what changed since
    the version the page is compared with; and the comparison's other paint, the outline
    round the change the user points at and the open change's card.
@@ -96,19 +96,15 @@ import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
 import { keeps, layoutPx } from "../lib/keeps.js";
 import { pageRung } from "../dom/keyboard/register.js";
 
-/** @typedef {import("./version.js").Change} Change
- * @typedef {import("../readings/target-paint-geometry.js").Placement} Placement
- * @typedef {import("../base/box.js").Box} Box */
-
 // The bar's width, and how far every bar stands clear of the marks Leaf draws round its
 // target, in CSS pixels: one lane for both kinds, so no ring or bracket touches a bar.
 const BAR = 3;
 const CLEAR = 6;
-const KINDS = /** @type {const} */ ({
+const KINDS = {
   change: "lf-change-bar",
   work: "lf-at-work-bar",
-});
-/** @typedef {keyof typeof KINDS} Kind */
+};
+
 // A gap's bar is as tall as the gap it stands in, within these bounds, so it shows
 // between blocks set close and stays a mark between blocks set far apart.
 const GAP_BAR = { min: 8, max: 20 };
@@ -118,17 +114,13 @@ const CARD_INSET = 13;
 /** What the chrome mounts: the stands the bars stand in. */
 export const marginBarLayer = el("div", "lf-ui lf-margin-bars");
 
-const outlined = signal(/** @type {Change | null} */ (null));
+const outlined = signal(null);
 // Each gap's stand-in, by its change, and the change each stands in for.
-/** @type {Map<Change, HTMLElement>} */
 const proxies = new Map();
-/** @type {WeakMap<Element, Change>} */
 const proxied = new WeakMap();
-/** Where the keys stand for a change that only took blocks out: its gap's stand-in.
- * @param {Change} change */
+/** Where the keys stand for a change that only took blocks out: its gap's stand-in. */
 export const removalProxy = (change) => proxies.get(change) ?? null;
-/** Outline the change the user points at, or nothing.
- * @param {Change | null} change */
+/** Outline the change the user points at, or nothing. */
 export function outlineChange(change) {
   outlined.value = change;
 }
@@ -136,7 +128,6 @@ export function outlineChange(change) {
 // What a block draws (dom/geometry.js, `inkedBox`), reaching over a list marker beside it,
 // as the marks it draws round itself do, so the paint beside an item stands clear of
 // its marker; or `rect`, its placement's reading, where no part of it shows.
-/** @param {Element} target @param {Box} rect @returns {Box} */
 const inked = (target, rect) => inkedBox(target) ?? rect;
 // Where a bar stands: `CLEAR` outside the marks round what the target draws and round
 // each box about it whose marks reach the lane (readings/mark-room.js, `markRoom`), on its start
@@ -144,7 +135,6 @@ const inked = (target, rect) => inkedBox(target) ?? rect;
 // cell, so the bar stands in the margin rather than in the cell before it. A target
 // with no room before it, such as a site header standing at the window's edge beside
 // `main`, keeps its bar inside the window, over its own edge.
-/** @param {Element} target @param {Box} rect */
 function barLeft(target, rect) {
   const box = inked(target, rect);
   const room = markRoom(target, box, CLEAR + BAR);
@@ -162,14 +152,12 @@ function barLeft(target, rect) {
 // where the parent leaves room, as at the foot of a `details`, else the parent's own
 // sibling and so up; no further than a bar's length from a parent's edge. A gap in an
 // element is that element's box.
-/** @param {Change} change @param {Box} rect */
 function gapOf({ at, gap }, rect) {
   if (gap === "in")
     return { top: rect.top, bottom: Math.max(rect.bottom, rect.top + GAP_BAR.min) };
   const after = gap === "after";
   const reach = after ? rect.bottom + GAP_BAR.max : rect.top - GAP_BAR.max;
-  const across = (/** @type {number} */ edge) =>
-    after ? edge > rect.bottom : edge < rect.top;
+  const across = (edge) => (after ? edge > rect.bottom : edge < rect.top);
   let far = reach;
   for (let box = at; box.parentElement && box !== document.body;) {
     let sibling = after ? box.nextElementSibling : box.previousElementSibling;
@@ -192,7 +180,6 @@ function gapOf({ at, gap }, rect) {
 // Where a scroll finds a gap: from the last words before it to the first after it, so
 // the gap shows with a line either side, and within the scroller holding it, so that
 // scroller is the one that moves; or the element a gap is in.
-/** @param {Change} change @returns {Element | Range} */
 function gapRange(change) {
   const { at, gap } = change;
   if (gap === "in") return at;
@@ -207,7 +194,7 @@ function gapRange(change) {
   });
   // Where the gap meets `at`: `at` itself for a gap before it, and its last descendant
   // for a gap after it, from which the words either side are found.
-  let edge = /** @type {Node} */ (at);
+  let edge = at;
   if (gap === "after") while (edge.lastChild) edge = edge.lastChild;
   words.currentNode = edge;
   const before =
@@ -226,7 +213,6 @@ function gapRange(change) {
 // What a change covers on the page: what its blocks draw together, or its gap the width
 // of what the block it stands by draws. `rect` is that block's box, as its placement
 // read it.
-/** @param {Change} change @param {Box} rect @returns {Box} */
 function extentOf(change, rect) {
   if (!change.blocks.length) {
     const { left, right } = inked(change.at, rect);
@@ -237,14 +223,12 @@ function extentOf(change, rect) {
 
 // Where a change's trace stands: on the marks its blocks draw round themselves
 // (dom/geometry.js, `markedBox`), as each block's own trace would, or round its gap.
-/** @param {Change} change @param {Box} rect @returns {Box} */
 const tracedExtent = (change, rect) =>
   (change.blocks.length && union(change.blocks.flatMap((b) => markedBox(b) ?? []))) ||
   extentOf(change, rect);
 
 // The open change's card: a head saying what the change did between which versions,
 // then one line a block.
-/** @param {Change} change */
 function cardFor(change) {
   const redline = changeRedline(change);
   if (!redline) return null;
@@ -269,34 +253,29 @@ function cardFor(change) {
   return card;
 }
 
-/** @param {ReturnType<typeof import("./annotation-inventory.js").createAnnotationInventory>} inventory */
 export function createMarginBars(inventory) {
   const bars = paintSet(marginBarLayer);
-  /** @type {Record<Kind, Map<Element, HTMLElement>>} */
-  const drawn = { change: new Map(), work: new Map() };
+  const drawn = {
+    change: new Map(),
+    work: new Map(),
+  };
   // The gaps of the changes that only took blocks out, by the change.
-  /** @type {Map<Change, HTMLElement>} */
   const gaps = new Map();
   const outline = el("span", "lf-change-outline");
   keeps(outline, "data-lf-traced", "");
   const ring = el("span", "lf-change-outline lf-change-ring");
-  /** @type {{change: Change, node: HTMLElement} | null} */
   let card = null;
-  /** @type {Change | null} */
   let pointed = null;
   // The change whose gap's stand-in holds focus.
-  /** @type {Change | null} */
   let ringed = null;
   let frame = 0;
 
-  /** @returns {{node: HTMLElement, target: Element, rect: (placed: Placement) => Box | {left: number, top: number}}[]} */
   function items() {
-    /** @param {Kind} kind */
     const barsOf = (kind) =>
       [...drawn[kind]].map(([target, node]) => ({
         node,
         target,
-        rect: (/** @type {Placement} */ { rect }) => {
+        rect: ({ rect }) => {
           const left = barLeft(target, rect);
           return { left, right: left + BAR, top: rect.top, bottom: rect.bottom };
         },
@@ -304,7 +283,7 @@ export function createMarginBars(inventory) {
     const gapBars = [...gaps].map(([change, node]) => ({
       node,
       target: change.at,
-      rect: (/** @type {Placement} */ { rect }) => {
+      rect: ({ rect }) => {
         const { top, bottom } = gapOf(change, rect);
         const tall = Math.min(Math.max(bottom - top, GAP_BAR.min), GAP_BAR.max);
         const middle = (top + bottom) / 2;
@@ -318,7 +297,6 @@ export function createMarginBars(inventory) {
       },
     }));
     // The ring gives way to its change's card, as the outline does (margin-projection.js).
-    /** @type {[Change | null, HTMLElement, typeof extentOf][]} */
     const rounds = [
       [pointed, outline, tracedExtent],
       [ringed === card?.change ? null : ringed, ring, extentOf],
@@ -329,7 +307,7 @@ export function createMarginBars(inventory) {
             {
               node,
               target: reach.at,
-              rect: (/** @type {Placement} */ { rect }) => extent(reach, rect),
+              rect: ({ rect }) => extent(reach, rect),
             },
           ]
         : [],
@@ -342,7 +320,7 @@ export function createMarginBars(inventory) {
             target: open.change.at,
             // A point: the card keeps the size its words give it, at its blocks' width,
             // over the change's blocks, or hung from its gap over what follows.
-            rect: (/** @type {Placement} */ { rect }) => {
+            rect: ({ rect }) => {
               const box = extentOf(open.change, rect);
               const top = open.change.blocks.length ? box.top - CARD_INSET : box.top;
               return { left: box.left - CARD_INSET, top };
@@ -373,7 +351,6 @@ export function createMarginBars(inventory) {
   };
   // A target whose size changes, as a revision rewording it does, is placed again.
   const sizes = sizeObserver(schedule, { counted: false });
-  /** @type {Set<Element>} */
   let observed = new Set();
   // Every target the boxes read, watched for its size; and nothing drawn clears the set.
   function redraw() {
@@ -392,7 +369,6 @@ export function createMarginBars(inventory) {
     }
   }
 
-  /** @param {Kind} kind @param {Set<Element>} places */
   function show(kind, places) {
     const targets = drawn[kind];
     let changed = false;
@@ -412,7 +388,6 @@ export function createMarginBars(inventory) {
   }
 
   inventory.watch((entries) => {
-    /** @type {Set<Element>} */
     const places = new Set();
     for (const entry of entries) {
       const target = entry.atWork ? inventory.targetFor(entry) : null;

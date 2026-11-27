@@ -4,7 +4,7 @@
 
 import type { Box } from "./box.js";
 import type { TemplateResult } from "/vendor/lit.js";
-export type Word = string | Node | TemplateResult;
+type Word = string | Node | TemplateResult;
 export type Words = Word | readonly Word[];
 export type Presses = readonly (readonly string[])[];
 export type Line = Words | null | undefined | false;

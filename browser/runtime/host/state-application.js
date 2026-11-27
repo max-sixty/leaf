@@ -1,3 +1,4 @@
+// Compiled from state-application.ts by build/typescript.mjs; edit that file.
 /* Prepare asynchronously, adopt one semantic root synchronously, then wait for the page
    to show it.
 
@@ -40,58 +41,44 @@ import {
   semanticNewsReading,
 } from "./semantic-news.js";
 
-/** @typedef {import("../state/thread/model.js").CapturedBody} CapturedBody */
 // Each message's captured words, kept while they read the same (state/kept.js): an authored
 // message's are its island's, and any other's its words as a label reads them. A
 // thread's are kept together while its messages' are, so its record stands while its
 // messages do (state/thread/model.js, `readThreadRecords`).
-const plainBody = keptEach(
-  /** @param {object} _message @param {string} text @returns {CapturedBody} */
-  (_message, text) => ({ text }),
-);
+const plainBody = keptEach((_message, text) => ({
+  text,
+}));
 const threadBodies = keptEach(
-  /** @param {{msgs: readonly {id: string}[]}} thread @param {CapturedBody[]} bodies */
   (thread, ...bodies) =>
     new Map(thread.msgs.map((message, at) => [message.id, bodies[at]])),
 );
 
-/** @param {{
- * prepareActivation: ReturnType<typeof import("../features/version.js").createVersionController>["prepareActivation"],
- * acceptData: typeof import("./data.js").acceptData,
- * notifyDataSubscribers: typeof import("./data.js").notifyDataSubscribers,
- * accountPending: (events: readonly import("../../types/domain.js").Event[]) => void
- * }} dependencies */
+// The map a reading writes: the prior document's copied on the reading's first change
+// to it, and that copy after, so a reading that changes nothing keeps the prior map.
+const writable = (map, prior) => (map === prior ? new Map(map) : map);
+
 export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
   accountPending,
 }) {
-  /** @typedef {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews}} PresentedNews */
-  /** @type {PresentedNews | null} */
   let presentedNews = null;
   // What a queued news notice says when it shows, against the latest presented reading.
   // Made here, not in `receiveState`, whose scope holds the activation and the document
   // it replaced: a notice waiting its turn would keep both alive.
-  /** @param {PresentedNews} current */
-  const newsFormat =
-    (current) =>
-    /** @param {readonly import("../../types/domain.js").SemanticNews[]} value */
-    (value) =>
-      semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
+  const newsFormat = (current) => (value) =>
+    semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
   let stateApplying = false;
   let admission = Promise.resolve();
   // Every answer handed in through any door, a state read or a gesture's POST, while
   // it is still being prepared or applied. Until one is adopted or dropped,
   // `runtime.state` is the state before it, so whoever asks what the page already
   // has asks `stateInHand`.
-  /** @type {Set<import("../transport/layer-client.js").CompletedState>} */
   const inHand = new Set();
 
-  /** @template T @param {() => T | Promise<T>} operation */
   async function runSerialized(operation) {
     const prior = admission;
-    /** @type {PromiseWithResolvers<void>} */
     const { promise, resolve: release } = Promise.withResolvers();
     admission = promise;
     await prior;
@@ -102,7 +89,6 @@ export function createStateApplication({
     }
   }
 
-  /** @param {import("../transport/layer-client.js").CompletedState} state */
   async function receiveState(state) {
     inHand.add(state);
     countTraffic("received");
@@ -123,7 +109,6 @@ export function createStateApplication({
     return newest;
   }
 
-  /** @param {import("../transport/layer-client.js").CompletedState} state */
   async function applyState(state) {
     if (!sameLayer(state.layer.generation)) return;
     // Data is ordered by when the server took the reading, even in a crossed older log read.
@@ -207,22 +192,18 @@ export function createStateApplication({
       let descriptors = prior.descriptors;
       for (const id of islands.retired) {
         if (!authored.has(id) && !descriptors.has(id)) continue;
-        if (authored === prior.authored) authored = new Map(authored);
-        if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
-        authored.delete(id);
-        descriptors.delete(id);
+        (authored = writable(authored, prior.authored)).delete(id);
+        (descriptors = writable(descriptors, prior.descriptors)).delete(id);
       }
       for (const { prepared } of preparedMessages) {
         if (!prepared) continue;
         for (const [id, baseline] of prepared.authored) {
           if (authored.get(id) === baseline) continue;
-          if (authored === prior.authored) authored = new Map(authored);
-          authored.set(id, baseline);
+          (authored = writable(authored, prior.authored)).set(id, baseline);
         }
         for (const [id, descriptor] of prepared.descriptors.descriptors) {
           if (descriptors.get(id) === descriptor) continue;
-          if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
-          descriptors.set(id, descriptor);
+          (descriptors = writable(descriptors, prior.descriptors)).set(id, descriptor);
         }
       }
       const documentCapture = {

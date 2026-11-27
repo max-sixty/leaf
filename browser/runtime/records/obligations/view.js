@@ -1,3 +1,4 @@
+// Compiled from view.ts by build/typescript.mjs; edit that file.
 /* Mechanical presentation and arrival for the obligations placed on the page, widgets'
    (records/obligations/place.js).
 
@@ -65,16 +66,6 @@ import { obligationPlace, readObligations } from "./place.js";
 import { inChrome } from "../../base/ui-marks.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
-/** @typedef {import("../../state/semantic-application.js").ObligationRecord} Obligation */
-/** @import { AnswerableObligation } from "../../state/obligations/source.js" */
-/** @typedef {ReturnType<typeof obligationPlace>} ObligationNodes */
-/** @param {{prepareNavigationStep: () => import("../../dom/arrival-plan.js").NavigationStep,
- * arrive: import("../../dom/arrival-plan.js").Arrive,
- * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
- * threadLanding: (id: string, target: import("../../dom/focus.js").FocusDestination | null) => import("../../dom/arrival-plan.js").Arrival | null,
- * focusForNavigation: typeof import("../../dom/focus.js").focusDestination,
- * presentedControl: (control: Element) => Element,
- * repaint: () => void}} dependencies */
 export function createObligationView({
   prepareNavigationStep,
   arrive,
@@ -84,15 +75,11 @@ export function createObligationView({
   presentedControl,
   repaint,
 }) {
-  /** @param {Obligation | null} item */
   const obligationNode = (item) => obligationPlace(item).node;
-  /** @param {Obligation | null} item */
   const sourceNode = (item) => obligationPlace(item).source;
   // The widget whose commands answer an obligation.
-  /** @param {Obligation | null} item */
   const sourceOwner = (item) =>
     item?.source.kind === "widget" ? elementById(item.source.id) : null;
-  /** @param {readonly Obligation[]} items @param {Obligation | null} candidate */
   const hasObligation = (items, candidate) =>
     Boolean(candidate && items.some((item) => item.id === candidate.id));
   const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
@@ -108,21 +95,16 @@ export function createObligationView({
   //
   // An obligation a held turn carries has no node until its thread shows what it holds
   // (held-news.js), and that release draws before `showHeld` returns.
-  /** @param {Obligation} item */
   const obligationNodes = (item) => ({
     target: obligationNode(item),
     source: sourceNode(item),
   });
-  /** @param {Obligation} item */
   const reachObligation = (item) => {
     if (item.thread && !obligationNode(item)) showHeld(item.thread);
     return obligationNodes(item);
   };
-  /** @param {Obligation} item @param {ReturnType<typeof obligationNodes>} nodes */
   const unbuiltMessage = (item, { target, source }) =>
     !target || !source ? item.message : null;
-  /** @param {Obligation} item @param {string} message
-   * @param {ReturnType<typeof retainUserIntent> | null} intent */
   async function materializeObligation(item, message, intent = null) {
     reachObligation(item);
     await openPageThread(message, {
@@ -133,11 +115,8 @@ export function createObligationView({
     });
     return obligationNodes(item);
   }
-  /** @type {Set<string>} */
   const answeringAll = new Set();
-  /** @type {Map<string, string>} */
   const bulkAnswers = new Map();
-  /** @param {string} outcome */
   async function answerAll(outcome) {
     if (answeringAll.has(outcome)) return;
     answeringAll.add(outcome);
@@ -157,7 +136,6 @@ export function createObligationView({
         // An obligation answered for all at once is a widget's, which names its tag.
         const decision = decisionFor(item.source.tag);
         if (!source || !decision) continue;
-        /** @type {unknown} */
         const answer = Reflect.get(source, decision.verb);
         if (answer == null) continue;
         if (typeof answer !== "function")
@@ -228,7 +206,6 @@ export function createObligationView({
   // is the only focus target. Remember that exact target for this arrival, and only while
   // it still owns focus, so returning to the same control ordinarily does not promote it
   // from its own local meaning to the whole obligation again.
-  /** @type {Element | null} */
   let reviewedThrough = null;
   function hasReviewedFocus() {
     if (reviewedThrough?.isConnected && focused() === reviewedThrough) return true;
@@ -272,14 +249,12 @@ export function createObligationView({
   // Widgets own context aliases. The obligation view selects declarations through the same current location
   // relation that maps a margin entry or thread back to its source; the generic
   // compiler retains original command identity and availability.
-  /** @param {Element} owner */
   const actionsFor = (owner) =>
     decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
       ({ source: commandSource, control }) =>
         ownedObligationControl(owner, commandSource) &&
         control.getAttribute("aria-busy") !== "true",
     );
-  /** @param {Obligation | null} item */
   const actionsOf = (item) => {
     const owner = sourceOwner(item);
     return owner ? actionsFor(owner) : [];
@@ -290,7 +265,6 @@ export function createObligationView({
   // answer is the widget's, recorded as a press there would be.
   // Null while the obligation's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
-  /** @param {Obligation} item */
   function choicesOf(item) {
     const owner = sourceOwner(item);
     if (!owner) return null;
@@ -312,14 +286,12 @@ export function createObligationView({
   }
   // The commands that answer where `origin` stands: the obligation the user there is in
   // (`obligationIn`), which is a widget's, since only a widget's obligation has a place.
-  /** @param {Element | null} origin */
   function obligationContext(origin) {
     if (!origin) return null;
     const record = obligationIn(origin);
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
-    /** @type {Element | null} */
     let node = origin;
     for (; record && node; node = upFrom(node)) {
       if (obligationIn(node)?.id !== record.id) break;
@@ -365,7 +337,6 @@ export function createObligationView({
   // nearer widget scopes still own their local mechanics.
   // The shared arrival owns focus and its temporary tab stop. The obligation view owns which node
   // means being here, including the visible answering control of a boxless obligation.
-  /** @param {Obligation} record @param {boolean} [review] */
   function arrivalFocus(record, review = false) {
     const item = obligationNode(record);
     const source = sourceNode(record);
@@ -411,7 +382,6 @@ export function createObligationView({
   // Current location is restored rather than asserted: a user the revision left where they were
   // is already there, and an obligation the revision took away is nowhere to stand, so
   // each of those returns and `body` keeps the focus the replacement gave it.
-  /** @param {string | null} item */
   function restoreCurrentLocation(item) {
     if (!item || currentLocationObligation()?.id === item) return;
     const record = readObligations().byId.get(item);
@@ -434,7 +404,6 @@ export function createObligationView({
   // block for a region, since the author declares the region of anything else that
   // asks: the heading over the change, or the block before it, would be a region Leaf
   // inferred, and a block before a change can be another question's.
-  /** @param {Element} item @param {Element | null} group @param {Element} currentLocation */
   function arrivalRegion(item, group, currentLocation) {
     if (group && group === currentLocation) return group;
     // A region has to be somewhere the user can be taken, beginning at or above the
@@ -445,7 +414,6 @@ export function createObligationView({
     // (readings/landing-scroll.js, `landingRoom`): clear of the window's head over its top and the
     // floating panel's room over its bottom, so an obligation's foot that fits is one the
     // user can read rather than one under the panel.
-    /** @param {Element | null | undefined} region */
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -472,8 +440,6 @@ export function createObligationView({
   // cannot know: the arrival is the region's start, so the start has to be standing
   // clear of the window's head too, read like the obligation where the glides under way
   // will leave it (dom/scrolling.js, `whereGlidesLand`).
-  /** @param {Obligation} record @param {Element} region @param {Element} item
-   * @param {Element} source @param {Element} box @param {(node: Element) => boolean} readable */
   function alreadyArrived(record, region, item, source, box, readable) {
     return (
       whereGlidesLand(scrollersOf(region), () => {
@@ -493,7 +459,6 @@ export function createObligationView({
   // the user on an obligation", and the two would drift the first time either the reveal or the
   // focus rule changed. It answers whether the user arrived; the caller announces where,
   // since it is the one that knows which list it walked.
-  /** @param {AnswerableObligation} next */
   async function arriveAtRecordNow(next) {
     const mayArrive = retainUserIntent({
       available: () => hasObligation(readObligations().all, next),
@@ -611,7 +576,6 @@ export function createObligationView({
 
   // A widget's obligation, which its thread draws first where it stands in one; the
   // rest are their thread owner's.
-  /** @param {AnswerableObligation} next */
   function arriveAtRecord(next) {
     if (next.source.kind !== "widget") return Promise.resolve(false);
     const ready = arriveAtRecordNow(next);
@@ -619,7 +583,6 @@ export function createObligationView({
     return ready;
   }
 
-  /** @type {(() => void) | null} */
   let stopContextScopes = null;
   const actionsChanged = () => mounted && void syncObligations();
 

@@ -1,3 +1,4 @@
+// Compiled from shadow.ts by build/typescript.mjs; edit that file.
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
 import { isStage } from "./arrivals.js";
@@ -29,12 +30,9 @@ import { declaredElements, registry } from "../state/registry.js";
 //
 // A root refused for holding bare text (readings/passages.js, `refusesBareText`) leaves the list for
 // good, and its host reads the same way.
-/** @type {WeakSet<ShadowRoot>} */
 const refusedRoots = new WeakSet();
-/** @param {ShadowRoot} root */
 export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
-/** @param {Element} host */
 export const declaredRoot = (host) =>
   host.shadowRoot &&
   registry[host.localName]?.shadow &&
@@ -42,22 +40,17 @@ export const declaredRoot = (host) =>
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
-/** @param {Document | DocumentFragment | Element} root @returns {ShadowRoot[]} */
 export const shadowRootsIn = (root) =>
   declaredElements(root, (entry) => entry.shadow).flatMap(
     (host) => declaredRoot(host) ?? [],
   );
 // Whether `stage` is one of the roots `shadowRootsIn(root)` lists.
-/** @param {Document | DocumentFragment | Element} root @param {ShadowRoot} stage */
 export const declaredIn = (root, stage) =>
   root.contains(stage.host) && declaredRoot(stage.host) === stage;
 // Every element under `root` that `selector` names, in `root`'s own tree and the
 // declared roots under it, so it costs what `root` holds rather than the page.
-/** @template {Element} [E=Element] @param {Element | Document} root @param {string} selector
- * @returns {E[]} */
 export const queryAllUnder = (root, selector) =>
   [root, ...shadowRootsIn(root)].flatMap((scope) => {
-    /** @type {NodeListOf<E>} */
     const elements = scope.querySelectorAll(selector);
     return [...elements];
   });
@@ -73,7 +66,6 @@ export let shadowRules = "";
 // agent's reply — so the ask is repeated and the answer is not. Sharing the promise
 // rather than the text also holds a second caller behind the first read instead of
 // starting another.
-/** @type {Promise<void> | null} */
 let loading = null;
 export function loadShadowRules() {
   loading ??= readShadowRules();

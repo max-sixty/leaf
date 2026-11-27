@@ -1,3 +1,4 @@
+// Compiled from validation.ts by build/typescript.mjs; edit that file.
 /* Internal render-check adaptation over the semantic publisher.
 
    The replay render check reads each widget's current state from the publisher
@@ -14,7 +15,7 @@ export function validationWidgetStates() {
       return elementById(id);
     },
     state,
-    read: (/** @type {Element} */ widget) =>
+    read: (widget) =>
       [...specs].flatMap(([verb, spec]) =>
         spec.record?.kind === "body" ? [[verb, domValue(widget, spec.record)]] : [],
       ),

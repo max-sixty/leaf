@@ -1,3 +1,4 @@
+// Compiled from transcript.ts by build/typescript.mjs; edit that file.
 /* A thread's messages as every reader of a whole thread draws them: a card on the page
    or in the margin, and the floating panel's view of a thread (thread-card.js). The
    thread around it draws its head, controls and reply box; this owner draws only the
@@ -19,14 +20,17 @@
    - A summary the agent wrote folds the turns it covers behind its checkpoint, a region
      in the tint Leaf gives settled things (surfaces.css), so its words read as neither
      a message nor the end of the one above it. One quiet press at its head says how
-     many messages it folds ("› 5 earlier messages"), set as a message's time is, and
-     a name the agent gave the range leads its words in bold, as a recap names what it
+     many messages it folds ("› 5 messages"), set as a message's time is, and a name
+     the agent gave the range leads its words in bold, as a recap names what it
      covers. Opened, the tint takes in the messages it folds, so the reader sees where
      the live conversation picks up. The user chose this over a label ("Earlier
      discussion") beside an accent "Show 5 earlier messages", which named the fold
      twice and, beside a margin card's actions, wrapped the label and cut the press;
      over one fold line naming the range in a sender's face, as a settled decision
-     folds; and over the count after the summary's words.
+     folds; and over the count after the summary's words. The count says no
+     direction, since a fold stands where its messages were said, below every message
+     said before them: "› 1 earlier message" under a question, folding the reply
+     that followed it, said the reply came first.
    - A step of the agent's work (a progress message) is never a message the transcript
      folds. The server ends each step as the agent next speaks in its thread, or, where
      the user wrote after it, as the agent next replies, or as its turn ends with no
@@ -88,7 +92,6 @@ import { voiced } from "../../base/voice.js";
 // paragraph's run-in head, closed by a stop where the name has none. Words that open
 // with no paragraph, as a list does, and a summary with no words, hold the name as a
 // paragraph of its own.
-/** @param {{text: string, label?: string}} summary */
 function summaryWords({ text, label }) {
   const words = document.createElement("template");
   words.innerHTML = text ? renderMarkdown(text, pageLinks) : "";
@@ -117,8 +120,6 @@ const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
 // it stands at the conversation's inset on every surface and scrolls with it. Its head
 // wears a message head's face but not its class, since it is no message: a message
 // head's places (a margin's sticky head, held news) skip it.
-/** @param {Pick<import("./thread-card.js").WorkingMessage, "words" | "live" | "condition"> & {who: string | null | undefined, timestamp: string | null}} working
- * @param {((node: Element | undefined) => void) | null} observe */
 function workingView(working, observe) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
@@ -140,7 +141,6 @@ function workingView(working, observe) {
 }
 
 // The face of a step the work in hand does not speak through: the step, still.
-/** @param {import("./thread-card.js").MessageReading} message */
 const stepOf = (message) =>
   Object.freeze({
     who: message.by,
@@ -150,53 +150,29 @@ const stepOf = (message) =>
     condition: null,
   });
 
-/** @typedef {import("./thread-card.js").MessageReading} MessageReading */
-/** @typedef {{node: HTMLDivElement, names: [string, string | null][], played: ReturnType<typeof foldBlock>}} LeavingFold */
-/** @typedef {MessageReading & {reading: MessageReading, view: MessageView}} DrawnMessage */
-/** @typedef {import("./summary-ranges.js").MessageRange<DrawnMessage>} RangeReading */
-/** @typedef {Extract<RangeReading, {kind: "summary"}> & {expanded: boolean}} SummaryReading */
-/** @typedef {{key: string, body: Node | ReturnType<typeof html> | ((tail: boolean) => ReturnType<typeof html>), tail?: boolean}} Row */
 let nextTranscriptId = 0;
 export class Transcript {
   #commands;
   #messageCommands;
   #repaint;
   #home;
-  /** @type {import("./thread-card.js").ThreadViewModel | null} */
   #model = null;
-  /** @type {Row[]} */
   #rows = [];
-  /** @type {Map<string, MessageView>} */
   #messages = new Map();
   // The face each step is drawn as, by the step's key.
-  /** @type {Map<string, Element | null>} */
   #facing = new Map();
   // Every face this transcript has drawn, so one new to it is told apart.
-  /** @type {WeakSet<Element>} */
   #faces = new WeakSet();
-  /** @type {(() => void) | null} */
   #stopWorkingExposure = null;
   // Each message folding away, by its key: its node, the names it gave up, and the
   // fold once it plays.
-  /** @type {Map<string, LeavingFold>} */
   #folding = new Map();
   #expandedSummaries = new Set();
   #id = ++nextTranscriptId;
   // Counts the ids this transcript gives covered messages.
   #named = 0;
-  /** @type {unknown} */
   #awaited = nothing;
 
-  /**
-   * @param {object} options
-   * @param {Pick<import("./thread-card.js").ThreadCommands, "read">} options.commands The reader's commands; `read` observes the working
-   *   message's words.
-   * @param {import("./messages.js").MessageCommands} options.messageCommands What each MessageView acts through.
-   * @param {() => void} options.repaint Draws the reader around the transcript again,
-   *   as a disclosure opens or closes.
-   * @param {() => HTMLElement} options.home The drawing of the thread a disclosure
-   *   press keeps in view.
-   */
   constructor({ commands, messageCommands, repaint, home }) {
     this.#commands = commands;
     this.#messageCommands = messageCommands;
@@ -209,7 +185,6 @@ export class Transcript {
   // Whatever reveals a message a closed fold holds, the browser's find-in-page or
   // Leaf's travel (dom/widget-elements.js, `reveal`), opens the fold: each fires
   // `beforematch` at the message before showing it.
-  /** @param {HTMLElement} node */
   #unfold(node) {
     const id = node.dataset.lfSummary;
     if (!id || this.#expandedSummaries.has(id)) return;
@@ -225,13 +200,11 @@ export class Transcript {
   }
 
   // The node a message stands in.
-  /** @param {string} key */
   messageNode(key) {
     return this.#messages.get(key)?.node ?? null;
   }
 
   // The drawn messages `model` no longer holds, which leave as it is presented.
-  /** @param {import("./thread-card.js").ThreadViewModel} model */
   leaving(model) {
     const wanted = new Set(model.messages.map(({ key }) => key));
     return [...this.#messages].flatMap(([key, { node }]) =>
@@ -240,7 +213,6 @@ export class Transcript {
   }
 
   // The checkpoint a summary stands in.
-  /** @param {string} id */
   summaryNode(id) {
     return this.node.querySelector(`:scope > [data-lf-summary-id="${CSS.escape(id)}"]`);
   }
@@ -261,8 +233,6 @@ export class Transcript {
   // a fold that comes or goes over what is in sight, a step's face that goes among
   // them, but for one at the transcript's foot (`footFold`), which changes only that
   // end. A step's face changes its words only where the next step takes its place.
-  /** @param {Pick<import("./held-news.js").ThreadChange, "news" | "changed" | "folds" | "footFold">} change
-   * @param {{followed?: Element | null}} [options] */
   newsMoves({ news, changed, folds, footFold }, { followed = null } = {}) {
     return (
       [
@@ -282,18 +252,13 @@ export class Transcript {
   }
 
   // Opens the fold holding a message, as a rewrite of it opens to be seen.
-  /** @param {string} id */
   expandAround(id) {
     const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
     if (folded) this.#expandedSummaries.add(folded.id);
   }
 
-  /**
-   * Draws `model`, a thread's reading (thread-card.js, `threadReading`).
-   * @param {import("./thread-card.js").ThreadViewModel} model
-   * @param {{arrived?: boolean, awaited?: unknown}} [options] `awaited` is what the
-   *   reader says stands after the messages: New reply (thread-card.js).
-   */
+  /** Draws `model`, a thread's reading (thread-card.js, `threadReading`). `awaited` is
+   * what the reader says stands after the messages: New reply (thread-card.js). */
   present(model, { arrived = false, awaited = nothing } = {}) {
     this.#awaited = awaited;
     const prior = this.#model;
@@ -337,7 +302,6 @@ export class Transcript {
         node.parentNode === this.node &&
         showsContents(node)
       ) {
-        /** @type {[string, string | null][]} */
         const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
         for (const [name] of names) node.removeAttribute(name);
         node.inert = true;
@@ -394,7 +358,6 @@ export class Transcript {
     }
     // Each message where it was said, hidden until found while a closed fold covers it,
     // and standing in its summary's region while an open one does (surfaces.css).
-    /** @param {DrawnMessage} message @param {SummaryReading | null} [fold] */
     const placed = (message, fold = null) => {
       const node = message.view.node;
       keeps(node, "data-lf-summary", fold?.summary.id ?? null);
@@ -404,17 +367,13 @@ export class Transcript {
     };
     // The open fold's last message, which its checkpoint's frame reaches down to.
     const feet = new Map();
-    /** @type {Row[]} */
     const transcript = [];
-    /** @type {Map<string, Row>} */
     const facing = new Map();
-    /** @param {Node} node @param {string} key @returns {Row} */
-    const messageRow = (node, key) => ({ key: `message:${key}`, body: node });
-    /** @param {string} id
-     * @param {Parameters<typeof workingView>[0]} reading
-     * @param {import("./thread-card.js").WorkingMessage["feedback"]} [feedback] */
+    const messageRow = (node, key) => ({
+      key: `message:${key}`,
+      body: node,
+    });
     const face = (id, reading, feedback = null) => {
-      /** @type {Row} */
       const row = {
         key: `face:${id}`,
         body: (tail) =>
@@ -449,7 +408,6 @@ export class Transcript {
     // The faces standing after the range at `at`, named for it as `place`. A step keeps
     // its face while the next one stands where it stood, so its words change in place;
     // one said after another message is a face of its own.
-    /** @param {number} at @param {string} place */
     const facesAfter = (at, place) => {
       const here = standing.filter((each) => each.at === at);
       for (const [index, each] of here.entries()) {
@@ -493,7 +451,6 @@ export class Transcript {
     this.#stopWorkingExposure?.();
     this.#stopWorkingExposure = null;
     this.#paint();
-    /** @param {Row} row */
     const faceNode = (row) =>
       this.node.querySelector(
         `:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`,
@@ -523,7 +480,6 @@ export class Transcript {
 
   // Each folding message keeps its last row: after the last row before it that stays,
   // else first. Lit retains and places the native nodes named by these rows.
-  /** @param {Row[]} rows */
   #withFolds(rows) {
     if (!this.#folding.size) return rows;
     const staying = new Set(rows.map(({ key }) => key));
@@ -542,7 +498,6 @@ export class Transcript {
   // A fold ends with its node `removed`, else, its message having come back, with the
   // node standing again as it was. Either way the node is as its view drew it, since
   // the view may draw it again before the reader commits.
-  /** @param {string} key @param {LeavingFold} fold @param {boolean} removed */
   #endFold(key, fold, removed) {
     this.#folding.delete(key);
     if (removed) {
@@ -565,7 +520,6 @@ export class Transcript {
     );
   }
 
-  /** @param {SummaryReading} range @param {readonly HTMLElement[]} covered @param {string} anchor */
   #checkpoint(range, covered, anchor) {
     return html`<section
       class="lf-thread-checkpoint"
@@ -601,10 +555,9 @@ export class Transcript {
 
   // A summary's press says only what it folds, its arrow whether that shows, and stands
   // in its head's quiet face.
-  /** @param {SummaryReading} range */
   #summaryToggle(range) {
     const { id } = range.summary;
-    const subject = counted(range.messages.length, "earlier message");
+    const subject = counted(range.messages.length, "message");
     return html`<button
       type="button"
       ${offeredAction(
@@ -624,12 +577,10 @@ export class Transcript {
     </button>`;
   }
 
-  /** @param {string} id @param {boolean} expanded */
   #setSummaryExpanded(id, expanded) {
     if (expanded) this.#expandedSummaries.add(id);
     else this.#expandedSummaries.delete(id);
     this.#repaint();
-    /** @type {HTMLButtonElement | null} */
     const toggle = this.node.querySelector(
       `.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(id)}"]`,
     );
@@ -639,7 +590,6 @@ export class Transcript {
     }
   }
 
-  /** @param {import("./thread-card.js").ThreadViewModel} model */
   commit(model) {
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) {

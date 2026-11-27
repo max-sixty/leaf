@@ -1,3 +1,4 @@
+// Compiled from element-frame.ts by build/typescript.mjs; edit that file.
 /* This module owns the frame an element's content coordinates live in, in the
  * viewport: its CSS border box (element-axes.js, `elementBorderFrame`), the intrinsic
  * pixels of replaced content, or SVG user units; and the conversion of a viewport
@@ -12,12 +13,8 @@ export { scrollAxes } from "./element-axes.js";
 // around replaced content. Only percentage units acquire a signed pixel basis here;
 // the browser still parses and evaluates CSS math, including min/max/clamp. A cover
 // fit can leave negative space, which a CSS containing block cannot represent.
-/** @typedef {Pick<DOMPoint, "x" | "y">} Point */
-/** @type {WeakMap<Element, {key: string, offset: Point}>} */
 const nativePositions = new WeakMap();
-/** @type {{measure: HTMLDivElement, point: HTMLDivElement} | undefined} */
 let positionProbe;
-/** @param {Element} source @param {string} position @param {number} horizontal @param {number} vertical */
 function nativePosition(source, position, horizontal, vertical) {
   const key = JSON.stringify([position, horizontal, vertical]);
   const prior = nativePositions.get(source);
@@ -37,12 +34,10 @@ function nativePosition(source, position, horizontal, vertical) {
     throw new TypeError(
       `Computed object-position has no second component: ${position}`,
     );
-  /** @param {string} value @param {number} space */
   const pixels = (value, space) =>
     value.replace(
       /([-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?)%/gi,
-      (/** @type {string} */ _unit, /** @type {string} */ percent) =>
-        `${(Number(percent) * space) / 100}px`,
+      (_unit, percent) => `${(Number(percent) * space) / 100}px`,
     );
   if (!positionProbe) {
     const measure = document.createElement("div");
@@ -75,7 +70,6 @@ function nativePosition(source, position, horizontal, vertical) {
 // with the picture. SVG's native user-space matrix carries viewBox camera pans as
 // well as scale; its viewport origin never rebases stored points. Text reflow adds pixels
 // to an HTML frame instead of stretching the points already held there.
-/** @param {Element} source */
 export function elementFrame(source) {
   const box = shownBox(source);
   if (!box.width || !box.height) return null;
@@ -123,7 +117,6 @@ export function elementFrame(source) {
           : null;
   if (native) {
     if (!native.width || !native.height) return null;
-    /** @param {"Left" | "Right" | "Top" | "Bottom"} side */
     const edge = (side) =>
       Number.parseFloat(style[`border${side}Width`]) +
       Number.parseFloat(style[`padding${side}`]);
@@ -162,12 +155,10 @@ export function elementFrame(source) {
 // one-axis scroller uses that axis's projected displacement; a two-axis scroller uses
 // the inverse basis. At an edge the browser clamps one offset, so the other axis must
 // take the remaining projected movement or a rotated scroller leaves words clipped.
-/** @param {Element} source @param {Point} movement */
 export function localScrollBy(source, { x, y }) {
   const axes = scrollAxes(source);
   const horizontal = source.scrollWidth > source.clientWidth;
   const vertical = source.scrollHeight > source.clientHeight;
-  /** @param {Point} axis */
   const along = (axis) => {
     const amounts = [
       ...(x && axis.x ? [x / axis.x] : []),
@@ -179,12 +170,9 @@ export function localScrollBy(source, { x, y }) {
     );
   };
   const range = scrollRange(source);
-  /** @param {number} offset @param {number} current @param {[number, number]} reach */
   const reach = (offset, current, [minimum, maximum]) =>
     Math.max(minimum - current, Math.min(maximum - current, offset));
-  /** @param {number} offset */
   const reachLeft = (offset) => reach(offset, source.scrollLeft, range.left);
-  /** @param {number} offset */
   const reachTop = (offset) => reach(offset, source.scrollTop, range.top);
   if (!horizontal) return { left: 0, top: vertical ? reachTop(along(axes.y)) : 0 };
   if (!vertical) return { left: reachLeft(along(axes.x)), top: 0 };

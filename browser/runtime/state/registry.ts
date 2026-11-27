@@ -11,7 +11,6 @@ import { isElementName } from "./registry-contract.js";
 import { kept, version } from "./kept.js";
 import type { WidgetDeclaration } from "../../types/contract.js";
 import type { ActionSpec, StateRecord } from "../../types/domain.js";
-export type { WidgetDeclaration };
 
 // The vocabulary, composed per page: which tags a module upgrades, and which of their
 // attributes are words the page says. Empty only during the real fetch interval, when
@@ -117,11 +116,12 @@ export const declarationFor = (
 ): WidgetDeclaration | undefined =>
   el && isElementName(el.localName) ? registry[el.localName] : undefined;
 
+export type InputDeclaration = NonNullable<WidgetDeclaration["inputs"]>[string];
+
 // The attributes that bind a declared input (`inputs`), which markup binds by setting
 // one: the attribute `source` names holds a page source's id, and the one `reference`
 // names the id of a widget whose output the input reads. Python's list of the two keys
 // is `schema.INPUT_BINDINGS`, and the declaration's type is generated from its schema.
-export type InputDeclaration = NonNullable<WidgetDeclaration["inputs"]>[string];
 export const bindingAttributes = ({ source, reference }: InputDeclaration) =>
   [source, reference].flatMap((attribute) => attribute ?? []);
 

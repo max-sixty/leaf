@@ -1,3 +1,4 @@
+// Compiled from reply-landing.ts by build/typescript.mjs; edit that file.
 /* Where a thread lands in the scroller that shows it: the geometry every route into a
    thread shares, whichever surface draws it.
 
@@ -56,7 +57,6 @@ import {
 import { moveScrollerBy, scrollToEnd } from "../../dom/scrolling.js";
 import { SAY_BOX, SAY_ROW, THREAD } from "./selectors.js";
 
-/** @param {Element} held @param {Element} control */
 const replyRowOf = (held, control) => {
   const reply =
     control === held
@@ -68,14 +68,12 @@ const replyRowOf = (held, control) => {
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end. Pinned is the row itself stuck, which includes
 // the row standing on its foot line at the thread's very end (dom/geometry.js, `stuckBox`).
-/** @param {Element | null | undefined} reply */
 export const pinnedReply = (reply) =>
   reply != null && stuckBox(reply) === reply ? reply : null;
 // The common transcript is a separate reading region only when its container bounds it.
 // This asks the transcript the test `regionScrollBehavior` asks a region's body rather than
 // asking `regionScrollBehavior`: the transcript is a registered region only in a floating
 // card, and elsewhere that reading would answer for the threads list around it.
-/** @param {Element} held */
 const separateTranscript = (held) => {
   const transcript = held.querySelector(":scope > .lf-thread-transcript");
   return transcript && userScrollport(getComputedStyle(transcript).overflowY)
@@ -91,8 +89,6 @@ const separateTranscript = (held) => {
 // summary's Show or Hide does: bringing the rest of the thread into view would carry
 // it from under their aim (browser/AGENTS.md, "The page holds still under the user's aim"). A reply row pinned to its
 // scroller's foot stays put whatever lands, so its landing still shows the thread's end.
-/** @param {Element} held @param {Element} control
- * @returns {{node: Element | null, block?: ScrollLogicalPosition}} */
 const landingTarget = (held, control) => {
   const reply = replyRowOf(held, control);
   if (control !== held && !pinnedReply(reply) && alreadyShown(control))
@@ -108,7 +104,6 @@ const landingTarget = (held, control) => {
 
 // Whether the user has scrolled a reply row away: none of it in front of them
 // (dom/geometry.js, `seenRect`).
-/** @param {Element} node */
 const onScreen = (node) => seenRect(node, new Map()) !== null;
 
 // The turn a user comes back to a thread for: the first message they have not read,
@@ -120,7 +115,6 @@ const onScreen = (node) => seenRect(node, new Map()) !== null;
 // (transcript.js), so the user starts at that summary, and Next unread or `g u` opens
 // it. Rejected: opening the summary on arrival, which would undo the fold the agent
 // wrote for every reader who comes back.
-/** @param {Element} transcript @param {string | null} unread */
 const returnTurn = (transcript, unread) => {
   const turns = [
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
@@ -135,7 +129,6 @@ const returnTurn = (transcript, unread) => {
 // Where a box scrolling a transcript starts showing its turns: where their heads stick,
 // below the focus-ring room the box keeps over them. A turn landed in that room would
 // start where read tracking sees nothing of it (dom/geometry.js, `seenRect`), and never read.
-/** @param {Element} scroller */
 const headLine = (scroller) =>
   scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller);
 
@@ -150,8 +143,6 @@ const headLine = (scroller) =>
 // (panel/floating-panel.js, `captureCurrentLocation`). A card holding its transcript through
 // one placement keeps the offset it reads and writes within that fit instead
 // (thread-preview.js), since the drawing it measures stays the same.
-/** @import { ThreadReading } from "../../base/held-place.js" */
-/** @param {Element} held @returns {ThreadReading | null} */
 export function readingIn(held) {
   const transcript = held.querySelector(".lf-thread-transcript");
   if (!transcript) return null;
@@ -170,7 +161,6 @@ export function readingIn(held) {
   }
   return null;
 }
-/** @param {Element} held @param {ThreadReading} reading */
 export function showReading(held, reading) {
   const transcript = held.querySelector(".lf-thread-transcript");
   const turn = transcript?.querySelector(
@@ -192,7 +182,6 @@ export function showReading(held, reading) {
 // turn's head at the box's top. The box is the transcript itself on a card and the
 // view around it in the panel. The turn carries its own head, so it is measured from
 // the box's top.
-/** @param {Element} transcript @param {import("./thread-card.js").ThreadRecord | null} thread */
 export function showReturnTurn(transcript, thread) {
   const scroller = scrollerFor(transcript);
   scrollToEnd(scroller);
@@ -208,7 +197,6 @@ export function showReturnTurn(transcript, thread) {
   if (over > headHeight) moveScrollerBy(scroller, -over);
 }
 
-/** @param {Element} held @param {Element} control @param {ScrollBehavior} behavior @param {ScrollLogicalPosition} block */
 function landThread(held, control, behavior, block) {
   bringBackSurfaceOf(held, behavior);
   const transcript = separateTranscript(held);
@@ -228,9 +216,7 @@ function landThread(held, control, behavior, block) {
 // destination through those fits under the original gesture's authority: focus alone
 // cannot authorize moving a reader who has since scrolled elsewhere. Weak ownership
 // follows the thread's node lifetime, and a replay never captures fresh user intent.
-/** @type {WeakMap<Element, {control: Element, block: ScrollLogicalPosition, mayLand: ReturnType<typeof retainUserIntent>}>} */
 const landings = new WeakMap();
-/** @param {Element | null} held */
 export function keepThreadLanding(held) {
   if (!held) return;
   const landing = landings.get(held);
@@ -242,7 +228,6 @@ export function keepThreadLanding(held) {
   landThread(held, landing.control, "instant", landing.block);
 }
 
-/** @param {Element} held @param {Element} control @param {ScrollBehavior} [behavior] @param {ScrollLogicalPosition} [block] */
 export function scrollThreadIntoView(
   held,
   control,
@@ -277,13 +262,11 @@ export function scrollThreadIntoView(
 // The geometry owner then preserves the landed end while it fits that room. A floating
 // box presents the send itself, its content riding from where it stood to where the
 // landing left it (dom/box-motion.js, "send"), so the landing stays one instant scroll.
-/** @param {Element} input */
 export function sendLanding(input) {
   const held = input.closest(THREAD);
   if (!held) return () => {};
   const reply = replyRowOf(held, input);
   // The row's foot on screen, and below the top of the thread it grows in.
-  /** @param {Element} row */
   const read = (row) => ({
     foot: edgeAt(row, "bottom"),
     within: row.getBoundingClientRect().bottom - held.getBoundingClientRect().top,
@@ -319,9 +302,7 @@ export function sendLanding(input) {
 // and the row's growth from its height, since only the user's words change a row's
 // height: a scroll or a reply arriving between keystrokes moves the cover and must not be
 // paid for.
-/** @type {WeakMap<Element, number>} */
 const rowHeights = new WeakMap();
-/** @param {Element} reply */
 const covered = (reply) =>
   (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
   reply.getBoundingClientRect().top;
@@ -329,7 +310,6 @@ const covered = (reply) =>
 // earlier turns back into view on the first keystroke in an already-visible reply. It
 // follows the area's foot into the band rather than asking whether the area is already
 // shown (readings/landing-scroll.js, `keepInBand`).
-/** @param {Element} held @param {Element} input @param {Element | null} reply */
 const revealWritingArea = (held, input, reply) => {
   bringBackSurfaceOf(held, "instant");
   keepInBand(reply && fitsWhole(reply) ? reply : input);
@@ -338,7 +318,6 @@ const revealWritingArea = (held, input, reply) => {
 // Save above the words, where the band holds it, and otherwise the line its caret stands
 // on, where the next key types. A reply row pinned at the scroller's foot covers what
 // stands behind it, so the box's foot clears it too.
-/** @param {Element} message @param {Element} caretLine */
 export function revealEditor(message, caretLine) {
   const held = message.closest(THREAD);
   if (!held) return;
@@ -353,7 +332,6 @@ export function revealEditor(message, caretLine) {
     target.getBoundingClientRect().bottom + margin - pinned.getBoundingClientRect().top;
   if (over > 0) moveScrollerBy(scrollerFor(pinned), over);
 }
-/** @param {Element} input */
 export function followBoxGrowth(input) {
   const held = input.closest(THREAD);
   if (!held) return;
@@ -382,7 +360,6 @@ export function followBoxGrowth(input) {
 }
 // The editor's place before its own edit: a pinned row's height. Arrival also reads
 // its initial place.
-/** @param {Element} input */
 export function readBoxPlace(input) {
   const held = input.closest(THREAD);
   const reply = held && replyRowOf(held, input);

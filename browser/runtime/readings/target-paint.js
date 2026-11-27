@@ -1,3 +1,4 @@
+// Compiled from target-paint.ts by build/typescript.mjs; edit that file.
 /* The marks a gesture or the user's place puts on a box of the page: the Alt aim, the
  * margin trace, the proxy ring and the location ring, and the stamp on the decision the
  * user stands in, which draws nothing of its own (`paintLocation`).
@@ -13,20 +14,24 @@
 import { nextRender } from "../lib/frame-pass.js";
 import { move } from "../dom/dom-move.js";
 import { keeps, keepsOnEach } from "../lib/keeps.js";
-import { inkedBox, markedBox, readMarkRoom, shownParts } from "../dom/geometry.js";
+import {
+  inkedBox,
+  markedBox,
+  markedParts,
+  readMarkRoom,
+  shownParts,
+} from "../dom/geometry.js";
 import { renderedUnder } from "../lib/shadow-tree.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 import { inChrome } from "../base/ui-marks.js";
 
 // One mark: an attribute on what it marks at a time (base/page-paint.js), which is each box
-// the element shows through (`shownParts`), or the boxes `boxesOf` names, so an
+// the element's marks stand on (`markedParts`), or the boxes `boxesOf` names, so an
 // element with no box of its own, such as a section styled `display: contents`, is
 // marked on the boxes it shows. A layout change can replace those boxes, so `refresh`
 // reads them again.
-/** @param {string} attribute @param {(element: Element) => Element[]} [boxesOf] */
-function markOne(attribute, boxesOf = shownParts) {
-  /** @type {Element | null} */
+function markOne(attribute, boxesOf = markedParts) {
   let target = null;
   const paint = keepsOnEach(attribute);
   function draw() {
@@ -36,7 +41,6 @@ function markOne(attribute, boxesOf = shownParts) {
     room();
   }
   return {
-    /** @param {Element | null} element */
     mark(element) {
       target = element;
       draw();
@@ -54,7 +58,6 @@ const labelStand = paintStand();
 // What leaf.js mounts in the chrome: the stand the design label stands in.
 export const aimLayer = labelStand.root;
 // The aim's last placement, which the label at its corner is written from (`labelAim`).
-/** @type {{placed: import("./target-paint-geometry.js").Placement & {shown: import("../base/box.js").Box}, surface: Element} | null} */
 let aimed = null;
 
 export function clearAim() {
@@ -65,7 +68,6 @@ export function clearAim() {
 // The aim marks `surface`, the element itself where nothing draws it for it, as a
 // comment's mark does (annotations/anchor-paint.js). Answers the box it shows, or null where none of
 // it shows.
-/** @param {Element | null} element @param {Element | null} [surface] */
 export function paintAim(element, surface) {
   surface ??= element;
   const placed = element && surface && placement(surface, inChrome(element));
@@ -83,7 +85,6 @@ export function paintAim(element, surface) {
 // inside it otherwise, and inside the corner of what shows where a cut hides the box's
 // own. It stands in the plane the scrolls carry that corner in, so a scroll carries it
 // with what it names.
-/** @param {HTMLElement} node */
 export function labelAim(node) {
   if (!aimed) return;
   const {
@@ -133,19 +134,16 @@ export function labelAim(node) {
   standBox(node, at, stood, stood.anchor, stood.at);
 }
 
-/** @param {Element | null} element @param {Element | null} [surface] */
 export function paintTrace(element, surface = element) {
   traceMark.mark(element && surface?.isConnected ? surface : null);
 }
 
-/** @param {Element | null} element @param {Element | null} [surface] */
 export function paintProxyRing(element, surface = element) {
   proxyMark.mark(element && surface?.isConnected ? surface : null);
   locationMark.refresh();
 }
 
 // The decision the user stands in, and each box it shows through.
-/** @param {Element} element */
 const decisionBoxes = (element) => [element, ...shownParts(element)];
 const locationMark = markOne(RUNTIME_PAINT_ATTRIBUTE.location, (element) =>
   locationStandsDown(element) ? [] : decisionBoxes(element),
@@ -161,7 +159,6 @@ const paintDecision = keepsOnEach(RUNTIME_PAINT_ATTRIBUTE.obligation);
 // decision the user arrived on, and the focus floor draws none of its own there. A
 // trace or focus mark on a ringed box draws the ring (surfaces.css). A focus ring
 // inside the decision stands it down (`locationStandsDown`).
-/** @param {Element | null} element */
 export function paintLocation(element) {
   paintDecision(
     new Map(element ? decisionBoxes(element).map((box) => [box, "1"]) : []),
@@ -176,7 +173,6 @@ export function paintLocation(element) {
 // says where the user is, whichever widget holds the focus. Rejected: each widget
 // declaring that its focus carries the location, which leaves two bands round every
 // widget that doesn't say so.
-/** @param {Element} element */
 function locationStandsDown(element) {
   if (
     element.hasAttribute("data-lf-focus-visible-within") &&

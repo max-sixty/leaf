@@ -64,14 +64,13 @@ def test_a_reconnected_settled_obligation_restores_its_comparison_reading(
         window.detachedViews.remove();
     }""")
     compare_with(page, 1)
-    assert (
-        page.evaluate(
-            "() => window.detachedViews.querySelector('.lf-settled-diff').textContent"
-        )
-        == "Δ1"
-    ), "a detached comparison consumer painted"
+    # A group taken off the page closes its drawing, so it follows no comparison.
+    assert not page.evaluate(
+        "() => window.detachedViews.querySelector('#transport').shadowRoot"
+        ".querySelector('.lf-settled-diff')"
+    ), "a detached comparison consumer kept its drawing"
     page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
-    expect(page.locator("#transport > .lf-settled")).to_have_count(1)
+    expect(page.locator("#transport .lf-settled")).to_have_count(1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
     expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("")
 
@@ -275,7 +274,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     """
     page = open_page(browser, serve(SETTLED_OBLIGATION_PAGE))
     group = page.locator("#jobs")
-    row = group.locator(":scope > .lf-settled")
+    row = group.locator(".lf-settled")
 
     row.click()
     field = text_field(group, name="Another option", exact=True)
@@ -291,11 +290,13 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
     )
-    row = group.locator(":scope > .lf-settled")
+    row = group.locator(".lf-settled")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(group.locator(":scope > lf-option:visible")).to_have_count(0)
     expect(group.locator(":scope > lf-option")).to_have_count(4)
-    assert row.get_attribute("aria-controls").split() == [
+    assert row.evaluate(
+        "row => row.ariaControlsElements.map((option) => option.id)"
+    ) == [
         "job-mounts",
         "job-heater",
         "job-camera",
@@ -314,7 +315,9 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     undo(page)
     expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(0)
     expect(group.locator(":scope > lf-option")).to_have_count(3)
-    assert row.get_attribute("aria-controls").split() == [
+    assert row.evaluate(
+        "row => row.ariaControlsElements.map((option) => option.id)"
+    ) == [
         "job-mounts",
         "job-heater",
         "job-camera",

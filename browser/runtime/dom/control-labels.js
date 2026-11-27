@@ -1,3 +1,4 @@
+// Compiled from control-labels.ts by build/typescript.mjs; edit that file.
 /* Leaf's search field, and which kind of word a label is. Leaf reads their generated
    word markers; an ordinary host needs no page services to build them. */
 import { offer } from "../lib/controls.js";
@@ -8,7 +9,6 @@ import { keepFieldKeys } from "../base/field-keys.js";
 // in the control's `end` slot so it stays inside that same frame. Keys typed into it
 // stop at it (base/field-keys.js). Its prompt is Leaf's words, as an empty comment box's
 // are, so it wears Leaf's face (base/voice.js).
-/** @param {string} cls @param {{name: string, label: string, placeholder?: string}} options */
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
   field.type = "search";

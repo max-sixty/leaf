@@ -88,7 +88,6 @@ from render_harness import (
     stored_draft_text,
     told,
     wait_for_revision,
-    without_end_room,
     write,
 )
 
@@ -407,8 +406,6 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
             )
         ),
     )
-    # The passage's page ends 800px below it, with no room kept past that end.
-    without_end_room(page)
     resized(page, 390, 900)
     page.evaluate(
         "() => scrollTo({top: document.getElementById('passage').offsetTop - 300})"
@@ -3396,11 +3393,15 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
 
     Only a registered visual keeps the ids inside it to itself; a figure the author drew
     is ordinary markup, so a named group takes the aim and the comment, and a shape
-    without an id still reaches the figure around it. The aim marks a part that draws a
-    shape along the shape, and a part that draws only words, as a chart's key entry
-    does, or a marker it draws by `<use>`, by an outline round its box; the words keep
-    their own paint either way. The
-    comment names the part as a figure by its `aria-label`, not by SVG's `g`."""
+    without an id still reaches the figure around it.
+
+    The aim draws along the shapes a part draws. A part drawn in a frame, a first shape
+    holding the whole part, is marked on the frame alone, so a named part inside keeps
+    its look until the aim is on it. An arrow whose diagonal line's box holds its tip
+    has no frame, so it is marked on every shape. A part that draws only words, as a
+    chart's key entry does, or a marker it draws by `<use>`, wears an outline round its
+    box. The words keep their own paint throughout. The comment names the part as a
+    figure by its `aria-label`, not by SVG's `g`."""
     page = open_page(
         browser,
         serve(
@@ -3411,7 +3412,10 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
 <figure id="fig"><svg viewBox="0 0 250 80" width="250" height="80" role="img"
 aria-label="A drawer beside a page"><g id="fig-drawer" aria-label="The drawer"><rect
 x="2" y="2" width="100" height="56" fill="#ddd"></rect><text x="52" y="34"
-text-anchor="middle" fill="#333">Drawer</text></g>
+text-anchor="middle" fill="#333">Drawer</text><g id="fig-handle"><rect x="36" y="44"
+width="32" height="8" fill="#999"></rect></g></g>
+<g id="fig-arrow"><line x1="104" y1="14" x2="128" y2="46" stroke="#333"></line><polygon
+points="126,43 117,38 124,32" fill="#333"></polygon></g>
 <rect x="130" y="2" width="100" height="56" fill="#ddd"></rect>
 <g id="fig-key"><text x="130" y="76" fill="#333">page, 600px</text></g>
 <g id="fig-dot"><defs><circle id="fig-mark" r="3" fill="#333"></circle></defs><use
@@ -3423,13 +3427,27 @@ href="#fig-mark" x="236" y="70"></use></g></svg></figure>
     ring_ink = token_colour(page, "--lf-ok")
     fill = "(text) => getComputedStyle(text).fill"
     outline = "(part) => [getComputedStyle(part).outlineStyle, getComputedStyle(part).outlineColor]"
-    drawer = page.locator("#fig-drawer rect")
+    stroke = "(shape) => getComputedStyle(shape).stroke"
+    drawer = page.locator("#fig-drawer > rect")
+    handle = page.locator("#fig-handle rect")
     corner = {"x": 8, "y": 8}
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_id("fig-drawer")
-    assert_drawn_in(page.locator("#fig-drawer"), ring_ink, 2)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(1)
+    assert_drawn_in(drawer, ring_ink, 2)
+    assert handle.evaluate(stroke) == "none"
     assert page.locator("#fig-drawer text").evaluate(fill) == "rgb(51, 51, 51)"
+    page.keyboard.up("Alt")
+    handle.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_count(1)
+    assert_drawn_in(handle, ring_ink, 2)
+    assert drawer.evaluate(stroke) == "none"
+    page.keyboard.up("Alt")
+    page.locator("#fig-arrow polygon").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("fig-arrow")
+    assert_drawn_in(page.locator("#fig-arrow"), ring_ink, 2)
     page.keyboard.up("Alt")
     page.locator("#fig-key text").hover()
     page.keyboard.down("Alt")
@@ -3465,8 +3483,9 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     """Core derives hit lookup from one package inventory.
 
     The inner part wins even though the containing part appears first. The outer part's
-    explicit surface draws its aim, excluding its decorative line, while the inner part
-    draws its own along every shape it contains, its diamond's sides included.
+    explicit surface draws its aim, excluding its decorative line, while the inner part,
+    which names none, draws its own along the diamond it is drawn in, leaving the line
+    inside the diamond as drawn.
     """
     page = open_page(
         browser,
@@ -3491,11 +3510,15 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     )
     page.keyboard.up("Alt")
 
-    page.locator("#inner path").hover()
+    diamond = page.locator("#inner path")
+    diamond.hover()
     page.keyboard.down("Alt")
-    # The inner part, with no surface of its own, draws it along all it holds.
-    expect(page.locator("[data-lf-aimed]")).to_have_id("inner")
-    assert_drawn_in(page.locator("#inner"), ring_ink, 2)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(1)
+    assert_drawn_in(diamond, ring_ink, 2)
+    assert (
+        page.locator("#inner line").evaluate("line => getComputedStyle(line).stroke")
+        != ring_ink
+    )
     page.keyboard.up("Alt")
 
 
@@ -3527,11 +3550,13 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(inner).to_be_visible()
-    expect(inner).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    # The part's mark stands on the diamond it is drawn in.
+    diamond = inner.locator("path")
+    expect(diamond).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
     expect(page.locator("#visual")).not_to_have_attribute(
         "data-lf-mark", re.compile(".*")
     )
-    assert_drawn_in(inner, token_colour(page, "--lf-ok"), 2)
+    assert_drawn_in(diamond, token_colour(page, "--lf-ok"), 2)
 
 
 def test_a_visual_part_replays_its_comment_and_takes_a_new_one_from_a_click(
@@ -3875,20 +3900,25 @@ journey
         ),
     )
     expect(page.locator("lf-diagram.lf-rendered")).to_have_count(5)
+    # Each part's marks stand on these shapes, named here by the box that draws each.
     parts = page.evaluate(
-        """() => Object.fromEntries([...document.querySelectorAll('lf-diagram')].map(
-          (d) => [d.id, d.lfParts.read().map((p) =>
-            [p.id, p.label, p.surface ? p.surface.localName : p.element.localName])]))"""
+        """async () => {
+          const { markedParts } = await window.__lfCheckApi();
+          return Object.fromEntries([...document.querySelectorAll('lf-diagram')].map(
+            (d) => [d.id, d.lfParts.read().map((p) => [p.id, p.label,
+              markedParts(p.surface ?? p.element).map((shown) => [shown.localName,
+                shown.closest('g[data-id]').dataset.id])])]));
+        }"""
     )
     assert parts == {
         "board": [
-            ["node:Todo", "Todo 2", "rect"],
-            ["node:t1", "Write docs", "g"],
-            ["node:Done", "Done 1", "rect"],
+            ["node:Todo", "Todo 2", [["rect", "Todo"]]],
+            ["node:t1", "Write docs", [["rect", "t1"]]],
+            ["node:Done", "Done 1", [["rect", "Done"]]],
         ],
-        "years": [["node:2025", "2025 Ship", "g"]],
-        "model": [["node:Job", "Job", "g"]],
-        "blocks": [["node:a", "a", "g"]],
+        "years": [["node:2025", "2025 Ship", [["g", "2025"]]]],
+        "model": [["node:Job", "Job", [["rect", "Job"]]]],
+        "blocks": [["node:a", "a", [["rect", "a"]]]],
         "release": [],
     }
 

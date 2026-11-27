@@ -1,3 +1,4 @@
+// Compiled from dom-children.ts by build/typescript.mjs; edit that file.
 /* Retained DOM child reconciliation.
 
    Every placement here goes through dom-move.js: `move` keeps focus in a node it moves,
@@ -7,39 +8,27 @@
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { holdSelection, move } from "./dom-move.js";
 
-/** Source/live correspondence retains the native kind established by capture and matching.
- * @extends {WeakMap<Node, Node>} */
+/** Source/live correspondence retains the native kind established by capture and matching. */
 export class SourcePairs extends WeakMap {
   constructor() {
     super();
   }
-  /** @overload @param {Element} source @returns {Element | undefined} */
-  /** @overload @param {CharacterData} source @returns {CharacterData | undefined} */
-  /** @overload @param {Node} source @returns {Node | undefined} */
-  /** @param {Node} source */
+
   get(source) {
     return super.get(source);
   }
 
-  /** @overload @param {Element} source @param {Element} live @returns {this} */
-  /** @overload @param {CharacterData} source @param {CharacterData} live @returns {this} */
-  /** @param {Node} source @param {Node} live */
   set(source, live) {
     return super.set(source, live);
   }
 
-  /** @overload @param {Element} source @returns {Element} */
-  /** @overload @param {CharacterData} source @returns {CharacterData} */
-  /** @overload @param {Node} source @returns {Node} */
-  /** @param {Node} source */
   require(source) {
     const live = this.get(source);
     if (!live) throw new Error("The authored source has no paired native node");
     return live;
   }
 
-  /** Pair native nodes at the source-capture boundary.
-   * @param {Node} source @param {Node} live */
+  /** Pair native nodes at the source-capture boundary. */
   pair(source, live) {
     if (source instanceof Element && live instanceof Element)
       return this.set(source, live);
@@ -56,7 +45,6 @@ export class SourcePairs extends WeakMap {
 }
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
-/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
 export function setChildren(parent, nodes) {
   setChildLists([[parent, nodes]]);
 }
@@ -70,11 +58,8 @@ export function setChildren(parent, nodes) {
 // node then moves into a parent that is already connected. A page selection inside a
 // moved node goes back once the nodes have landed (`holdSelection`), before anything
 // the caller does next edits their text.
-/** @param {readonly (readonly [Node & ParentNode, Iterable<Node>])[]} lists */
 export function setChildLists(lists) {
-  const placed = lists.map(
-    ([parent, nodes]) => /** @type {const} */ ([parent, [...nodes]]),
-  );
+  const placed = lists.map(([parent, nodes]) => [parent, [...nodes]]);
   const restore = holdSelection(
     (function* () {
       for (const [, nodes] of placed) yield* nodes;
@@ -89,7 +74,6 @@ export function setChildLists(lists) {
 }
 
 // Order this renderer's children without taking ownership of their siblings.
-/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
 export function orderChildren(parent, nodes) {
   const owned = new Set(nodes);
   order(parent, nodes, (node) => !owned.has(node));
@@ -102,7 +86,6 @@ export function orderChildren(parent, nodes) {
 // that drew its subtree whole before, as setting `innerHTML` does, passes `bounded`: a
 // list whose diff would cost more than `BOUNDED_DIFF_WORK` is then replaced, so an
 // edit rewriting every paragraph costs the list's length rather than its square.
-/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes @param {{bounded?: boolean}} [options] */
 export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
   const after = document.createDocumentFragment();
   after.append(...nodes);
@@ -121,7 +104,6 @@ export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
   });
 }
 
-/** @param {Node} parent */
 function selfPairs(parent) {
   const pairs = new SourcePairs();
   for (const node of sourceNodes(parent)) pairs.pair(node, node);
@@ -135,7 +117,6 @@ function selfPairs(parent) {
 // whatever ends the viewport. So the nodes that stay are the most that can, elements
 // before text (`staying`): a revision that drops a section moves the whitespace that
 // stood after it, not each section below.
-/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes @param {(node: Node) => boolean} [passed] */
 function order(parent, nodes, passed = () => false) {
   const list = [...nodes];
   const stay = staying(parent, list);
@@ -154,20 +135,14 @@ function order(parent, nodes, passed = () => false) {
 // weigh the same it keeps the later nodes, so a swap moves the earlier of the two, as a
 // cursor walk does. A Fenwick tree holds the heaviest run ending at or before each place,
 // so a long list costs n log n.
-/** @typedef {{node: Node, weight: number, previous: Chain | null}} Chain */
-/** @param {Node} parent @param {readonly Node[]} nodes */
 function staying(parent, nodes) {
-  /** @type {Map<Node, number>} */
   const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
   const size = places.size;
-  /** @type {(Chain | undefined)[]} */
   const best = new Array(size + 1);
-  /** @type {Chain | null} */
   let last = null;
   for (const node of nodes) {
     const place = places.get(node);
     if (!place) continue;
-    /** @type {Chain | null} */
     let before = null;
     for (let i = place - 1; i > 0; i -= i & -i) {
       const candidate = best[i];
@@ -177,7 +152,6 @@ function staying(parent, nodes) {
     const weight =
       (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) +
       (before?.weight ?? 0);
-    /** @type {Chain} */
     const chain = { node, weight, previous: before };
     for (let i = place; i <= size; i += i & -i) {
       const held = best[i];
@@ -250,15 +224,6 @@ function staying(parent, nodes) {
    words under it — through `diffArrays`, so a list of paragraphs stays still when one is
    inserted among them. Only the gaps between those pins are diffed again, by kind alone,
    which is what pairs a paragraph with its own rewrite. */
-/** @typedef {{pairs: SourcePairs, contains: (target: Node, owner: Node | null | undefined) => boolean,
- * declared: (element: Element) => boolean,
- * reaches: (before: Element, after: Element) => boolean,
- * traversed: (element: Element) => boolean,
- * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean,
- * diffWork: number}} RetentionRules */
-/** @typedef {RetentionRules & {arrive: (node: Node, parent: Node) => Node,
- * touched: (element: Element) => void, generated: (node: Node) => boolean}} PatchRules */
-/** @param {Element} before @param {Element} after @param {PatchRules} rules */
 export function patchTree(before, after, rules) {
   const live = rules.pairs.require(before);
   patchAttributes(live, before, after, rules);
@@ -270,7 +235,6 @@ export function patchTree(before, after, rules) {
 // with its own renderer. Use the patch's matching and ownership rules for both readings.
 // `contains(node, owner)` reads containment in the caller’s rendered tree. This is a
 // reading only; the commit rechecks it against the current source/live pairs.
-/** @param {Element} before @param {Element} after @param {Node | null | undefined} target @param {RetentionRules} rules */
 export function patchRetains(before, after, target, rules) {
   if (!target?.isConnected) return false;
   // Runtime chrome is outside the authored patch. Ask source pairs, not DOM place:
@@ -279,16 +243,13 @@ export function patchRetains(before, after, target, rules) {
   return retainedWithin(before, after, target, rules);
 }
 
-/** @param {Node} source @param {Node} target @param {RetentionRules} rules */
 function sourceOwns(source, target, rules) {
-  const owns = (/** @type {Node} */ node) =>
-    rules.contains(target, rules.pairs.get(node));
+  const owns = (node) => rules.contains(target, rules.pairs.get(node));
   if (owns(source)) return true;
   for (const node of sourceNodes(source)) if (owns(node)) return true;
   return false;
 }
 
-/** @param {Element} before @param {Element} after @param {Node} target @param {RetentionRules} rules @returns {boolean} */
 function retainedWithin(before, after, target, rules) {
   const live = rules.pairs.get(before);
   if (!live || !sourceOwns(before, target, rules)) return false;
@@ -334,14 +295,12 @@ function retainedWithin(before, after, target, rules) {
 
 // A template's tree is its content fragment, not its children; `childNodes` is empty
 // however much markup it holds.
-/** @template {Node} T @param {T} node @returns {T | DocumentFragment} */
 const tree = (node) => (node instanceof HTMLTemplateElement ? node.content : node);
 
 // Only where the two revisions disagree. An attribute they both carry is left exactly as
 // the page has it, which is the whole of how a user's `<details open>`, a tab stop
 // `focus.js` lent to land them somewhere, and anything a page module wrote survive a
 // revision that never mentioned them.
-/** @param {Element} live @param {Element} before @param {Element} after @param {PatchRules} rules */
 function patchAttributes(live, before, after, rules) {
   let changed = false;
   for (const { name, value } of [...before.attributes]) {
@@ -376,14 +335,13 @@ function patchAttributes(live, before, after, rules) {
 // where it ends the attribute as it would alone: a `calc(` or quote it leaves open
 // still closes at the end, and its `margin-inline-start` beats a script's
 // `margin-left`, which the names alone don't match.
-/** @param {Element} live @param {string} held @param {string} next */
 function restyle(live, held, next) {
-  const parse = (/** @type {string} */ text) => {
+  const parse = (text) => {
     const parsed = document.createElement("div").style;
     parsed.cssText = text;
     return parsed;
   };
-  const names = (/** @type {CSSStyleDeclaration} */ declared) =>
+  const names = (declared) =>
     Array.from({ length: declared.length }, (_, at) => declared.item(at));
   const carried = parse(live.getAttribute("style") ?? "");
   for (const property of [...names(parse(held)), ...names(parse(next))])
@@ -394,7 +352,6 @@ function restyle(live, held, next) {
 }
 
 // Source text, so any run of whitespace separates two classes.
-/** @param {string} value */
 const tokens = (value) => value.split(/\s+/).filter(Boolean);
 
 // Only the run of words that actually changed. Assigning `data` replaces the node's
@@ -403,7 +360,6 @@ const tokens = (value) => value.split(/\s+/).filter(Boolean);
 // paragraph a revision rewrote while they were reading it. Trimming to the differing
 // middle leaves every offset on either side of it where it was, so a selection over
 // words the revision kept survives the words beside it changing.
-/** @param {CharacterData} node @param {string} next */
 function writeText(node, next) {
   const held = node.data;
   if (held === next) return;
@@ -428,7 +384,6 @@ function writeText(node, next) {
 // node paired under it that a page module had since moved elsewhere in the document.
 // Removing the element alone would leave that node standing for a source that is gone,
 // and its rebuilt replacement would then stand beside it under the same name.
-/** @param {Node} before @param {Node} live @param {PatchRules} rules */
 function evict(before, live, rules) {
   live.parentNode?.removeChild(live);
   for (const inner of sourceNodes(before)) {
@@ -441,7 +396,6 @@ function evict(before, live, rules) {
   }
 }
 
-/** @param {Node} node @returns {Generator<ChildNode>} */
 function* sourceNodes(node) {
   for (const child of tree(node).childNodes) {
     yield child;
@@ -449,7 +403,6 @@ function* sourceNodes(node) {
   }
 }
 
-/** @param {Node & ParentNode} liveParent @param {Node} beforeParent @param {Node} afterParent @param {PatchRules} rules */
 function patchChildren(liveParent, beforeParent, afterParent, rules) {
   const held = [...beforeParent.childNodes];
   const wanted = [...afterParent.childNodes];
@@ -487,9 +440,6 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
   order(liveParent, placed, rules.generated);
 }
 
-/** @typedef {{kind: "element", before: Element, after: Element, live: Element} |
- * {kind: "data", before: CharacterData, after: CharacterData, live: CharacterData}} PatchPair */
-/** @param {Node} after @param {SourcePairs} matches @param {SourcePairs} pairs @returns {PatchPair | null} */
 function patchPair(after, matches, pairs) {
   if (after instanceof Element) {
     const before = matches.get(after);
@@ -508,7 +458,6 @@ function patchPair(after, matches, pairs) {
 // nodes stands for whatever live node the one it replaces stood for, wherever the
 // controller holds it now. A digest that matched over markup of another shape pairs
 // nothing rather than pair the wrong nodes.
-/** @param {Element} before @param {Element} after @param {PatchRules} rules */
 function pairInterior(before, after, rules) {
   const held = [...sourceNodes(before)];
   const wanted = [...sourceNodes(after)];
@@ -534,7 +483,6 @@ function pairInterior(before, after, rules) {
 // tab the author did not touch, rather than rebuilding the page for one sentence.
 // A stylesheet's parsed rules belong to CSSOM. Replacing a changed source owner
 // reparses its original text, including when only its access declaration changed.
-/** @param {Element} before @param {Element} after @param {Element} live @param {RetentionRules} rules */
 const atomic = (before, after, live, rules) =>
   before.matches('style, link[rel~="stylesheet" i]') ||
   (rules.declared(before) && !rules.reaches(before, after)) ||
@@ -543,12 +491,9 @@ const atomic = (before, after, live, rules) =>
       (node) => rules.pairs.get(node)?.parentNode !== tree(live),
     ));
 
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {number} work */
 function matchNodes(held, wanted, work) {
   const matches = new SourcePairs();
-  /** @type {Set<Node>} */
   const matched = new Set();
-  /** @type {Map<string, Element>} */
   const byId = new Map();
   for (const node of held)
     if (node instanceof Element && node.id && !byId.has(node.id))
@@ -572,12 +517,10 @@ function matchNodes(held, wanted, work) {
 // A sibling diff costs the lists' length times the edits between them: an edit that
 // rewrote every paragraph cost the square of the list's length.
 const BOUNDED_DIFF_WORK = 2 ** 18;
-/** @param {readonly unknown[]} held @param {readonly unknown[]} wanted @param {number} work */
 const editBudget = (held, wanted, work) =>
   Math.max(1, Math.floor(work / (held.length + wanted.length + 1)));
 
-/** jsdiff's unchanged runs pair these two source positions.
- * @param {readonly Node[]} nodes @param {number} index */
+/** jsdiff's unchanged runs pair these two source positions. */
 function diffNode(nodes, index) {
   const node = nodes[index];
   if (!node) throw new Error("A child diff named a source position outside its input");
@@ -589,7 +532,6 @@ const COLLAPSE = /\s+/g;
 // Exact enough that two of them being equal means the revision left this sibling alone,
 // and loose enough that reindenting the source does not unpin the whole list. Both sides
 // are authored markup, so every word under the node is the author's to compare.
-/** @param {Node} node */
 const signature = (node) => {
   if (node instanceof CharacterData) return `${node.nodeType}:${node.data}`;
   if (!(node instanceof Element))
@@ -598,13 +540,10 @@ const signature = (node) => {
   return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches @param {number} work */
 function alignRest(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
-  /** @type {Node[]} */
   let gapHeld = [];
-  /** @type {Node[]} */
   let gapWanted = [];
   const closeGap = () => {
     pairInGap(gapHeld, gapWanted, matches, work);
@@ -642,7 +581,6 @@ function alignRest(held, wanted, matches, work) {
 // that name being given or taken away, which is a thing to do to an element. A key can
 // state the first or the second and not both — `p#a` would have to equal `p` while `p#a`
 // differs from `p#b` — so the rule travels as the comparator it is.
-/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches @param {number} work */
 function pairInGap(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
@@ -663,7 +601,6 @@ function pairInGap(held, wanted, matches, work) {
   }
 }
 
-/** @param {Node} held @param {Node} wanted */
 const interchangeable = (held, wanted) =>
   held.nodeType === wanted.nodeType &&
   (!(held instanceof Element) ||

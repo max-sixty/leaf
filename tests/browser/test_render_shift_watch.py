@@ -2220,7 +2220,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
               else if (preparation === identity) { terminal.resolve(); stop(); }
             });
             // Said from inside a widget, the work is that widget's preparation.
-            widget.querySelector(':scope > .lf-another')
+            widget.shadowRoot.querySelector('.lf-another')
               .dispatchEvent(new PendingTaskEvent(gate.promise));
             if (retiredAt === "click") widget.remove();
           }, {once: true});
@@ -2274,7 +2274,7 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
       const widget = document.querySelector('#choice');
       // Said from inside a widget, the work is that widget's preparation.
       const prepare = promise =>
-        widget.querySelector(':scope > .lf-another').dispatchEvent(new PendingTaskEvent(promise));
+        widget.shadowRoot.querySelector('.lf-another').dispatchEvent(new PendingTaskEvent(promise));
       const first = Promise.withResolvers();
       const second = Promise.withResolvers();
       window.rejectFirst = first.reject;
@@ -2353,7 +2353,7 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
       }).observe(after);
       document.querySelector('#press').addEventListener('click', () => {
         // Said from inside a widget, the work is that widget's preparation.
-        widget.querySelector(':scope > .lf-another').dispatchEvent(
+        widget.shadowRoot.querySelector('.lf-another').dispatchEvent(
           new PendingTaskEvent(gate.promise.then(() => {
             after.style.height = '40px';
           })));
@@ -2433,7 +2433,7 @@ def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(
         else carry();
       }).observe(port);
       document.querySelector('#press').addEventListener('click', () => {
-        widget.querySelector(':scope > .lf-another').dispatchEvent(
+        widget.shadowRoot.querySelector('.lf-another').dispatchEvent(
           new PendingTaskEvent(gate.promise));
       }, {once: true});
     }""",

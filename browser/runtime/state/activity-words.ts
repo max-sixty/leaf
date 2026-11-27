@@ -18,20 +18,20 @@ import type { Immutable } from "../base/snapshot.js";
 import type { CurrentQueueItem, Reach } from "./semantic-application.js";
 import type { Said as VoiceSaid } from "../base/voice.js";
 
-export type Activity = ServedActivity;
-export type Publication = ServedReading["publication"];
-export type Said = VoiceSaid & {
+type Activity = ServedActivity;
+type Publication = ServedReading["publication"];
+type Said = VoiceSaid & {
   readonly source?: Activity["detail_source"];
 };
 export type Words = string | Said | readonly (string | Said)[];
-export type QueueItem = Immutable<CurrentQueueItem>;
-export type Queues = { on_user: readonly QueueItem[]; on_agent: readonly QueueItem[] };
+type QueueItem = Immutable<CurrentQueueItem>;
+type Queues = { on_user: readonly QueueItem[]; on_agent: readonly QueueItem[] };
 type ActivityReading = {
   activity: Activity;
   publication?: Publication | null;
   agent?: string;
 };
-export type Status = {
+type Status = {
   kind: string;
   tone: string;
   summary: string;

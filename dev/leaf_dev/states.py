@@ -1739,7 +1739,7 @@ def option_row_by_keyboard(page: Page) -> None:
     showing."""
     option_references(page)
     keyboard_modality(page)
-    page.locator("#off-workaround-revise > .lf-pick").focus()
+    page.locator("#off-workaround-revise .lf-pick").focus()
     expect(page.locator("#off-workaround-revise")).to_have_attribute(
         "data-lf-control-focus-visible", ""
     )
@@ -1749,7 +1749,7 @@ def settled_option_row_by_keyboard(page: Page) -> None:
     """An opened settled decision with the keyboard on the row it didn't pick, whose
     mark wears its own focus ring, above the picked row, with the group's digits
     showing."""
-    settled = page.locator("#comparison-policy > .lf-settled")
+    settled = page.locator("#comparison-policy .lf-settled")
     settled.scroll_into_view_if_needed()
     box = settled.bounding_box()
     assert box is not None
@@ -1757,11 +1757,9 @@ def settled_option_row_by_keyboard(page: Page) -> None:
     # stands over its middle; the user presses its words, at its start.
     settled.click(position={"x": 8, "y": box["height"] / 2})
     keyboard_modality(page)
-    page.locator("#comparison-policy-current > .lf-pick").focus()
+    page.locator("#comparison-policy-current .lf-pick").focus()
     expect(
-        page.locator(
-            "#comparison-policy-current > .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#comparison-policy-current .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(1)
 
 
@@ -2453,7 +2451,7 @@ def option_long(page: Page) -> None:
 def option_add_hover(page: Page) -> None:
     """A compact alternative's Add face beside its one-line draft, under a resting
     pointer whose preview names the press and its key."""
-    form = page.locator("#bg-choice > .lf-another")
+    form = page.locator("#bg-choice .lf-another")
     form.locator("leaf-text").click()
     page.keyboard.insert_text("Keep the current behavior")
     form.get_by_role("button", name="Add and select option", exact=True).hover()
@@ -2638,6 +2636,20 @@ def gallery_drawing(page: Page) -> None:
     """A drawing (`svg.lf-drawing`), with each of its text classes on its shapes."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
+
+
+def drawing_part_aim(page: Page) -> None:
+    """Alt over a drawing's part drawn in a frame, which marks the frame alone and
+    leaves the shapes inside it, its own part among them, as they are drawn."""
+    gallery_drawing(page)
+    frame = page.locator("#bg-drawing-after > .frame")
+    # A bare stretch of the panel, clear of the shapes drawn on it.
+    box = frame.bounding_box()
+    assert box
+    page.mouse.move(box["x"] + box["width"] * 0.55, box["y"] + box["height"] * 0.93)
+    page.keyboard.down("Alt")
+    expect(page.locator("#bg-drawing-figure [data-lf-aimed]")).to_have_count(1)
+    settle(page)
 
 
 def gallery_ask_figure(page: Page) -> None:
@@ -4144,6 +4156,12 @@ STATES = (
         "gallery-drawing",
         "feature-gallery",
         gallery_drawing,
+        region="#bg-drawing-figure",
+    ),
+    State(
+        "drawing-part-aim",
+        "feature-gallery",
+        drawing_part_aim,
         region="#bg-drawing-figure",
     ),
     State("gallery-ask-figure", "feature-gallery", gallery_ask_figure),

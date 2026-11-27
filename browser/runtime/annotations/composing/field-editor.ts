@@ -506,14 +506,11 @@ export function readFaces(field: HTMLElement, display: HTMLElement) {
   // would hold a code span in the cell to the cell's line rather than its own.
   const cell = (row: HTMLTableRowElement) => {
     const [first, middle, last] = [...row.cells].map((c) => getComputedStyle(c));
-    const face = readFace(row.cells[1] as HTMLElement);
     return {
       face: {
-        ...face,
-        type: face.type
-          .split("; ")
-          .filter((part) => !part.startsWith("line-height"))
-          .join("; "),
+        ...readFace(row.cells[1] as HTMLElement),
+        // Stated whole, as the row inherits the table's type, not the field's.
+        type: `font-size: ${middle?.fontSize}; font-weight: ${middle?.fontWeight}; letter-spacing: ${middle?.letterSpacing}`,
       },
       inline: `${middle?.paddingInlineStart} ${middle?.paddingInlineEnd}`,
       edges: [first?.paddingInlineStart, last?.paddingInlineEnd],
@@ -1187,8 +1184,13 @@ function fieldEditor(
         // split found no cell in, as one holding only a `|`, is one cell of its source.
         const row = state.doc.lineAt(from);
         const head = row.from === table.from;
+        // A row short of cells is ruled across its whole width, as the message's
+        // empty cells are, its cells keeping their own columns.
+        const short = placement.markers.length < table.aligns.length;
         out.push(
-          line(`lf-md-table-row${head ? " lf-md-table-head" : ""}`).range(row.from),
+          line(
+            `lf-md-table-row${head ? " lf-md-table-head" : ""}${short ? " lf-md-table-short" : ""}`,
+          ).range(row.from),
         );
         leads.push([row.from, table.level]);
         // A row the field reads a bare last line as holding (`read`) stands past the
@@ -1200,13 +1202,8 @@ function fieldEditor(
         const surplus = spans[aligns.length];
         const face = shown ? "shown" : "hidden";
         if (!cells.length && row.from < row.to) {
-          runs.push(
-            Decoration.mark({
-              class: "lf-md-cell",
-              attributes: { style: "grid-column: 1 / -1" },
-            }).range(row.from, row.to),
-          );
-          add(after(row.from, table.level), row.to, shown ? dim : unseen);
+          runs.push(cellFaces.start.range(row.from, row.to));
+          add(after(row.from, level), row.to, shown ? dim : unseen);
         }
         cells.forEach(([a, b], column) => {
           const pipe = state.sliceDoc(a - 1, a) === "|" ? a - 1 : null;
@@ -1214,26 +1211,15 @@ function fieldEditor(
           const close = last && !surplus && state.sliceDoc(b, b + 1) === "|" ? b : null;
           const cellFrom = column === 0 ? row.from : (pipe ?? a);
           const cellTo = last ? row.to : (cells[column + 1]?.[0] ?? b + 1) - 1;
-          // A row short of cells runs its last to the table's end, ruled across as the
-          // message's empty cells are.
-          const rest = last && cells.length < aligns.length;
           if (cellFrom < cellTo)
-            runs.push(
-              (rest
-                ? Decoration.mark({
-                    class: `lf-md-cell lf-md-align-${alignment(aligns[column])}`,
-                    attributes: { style: `grid-column: ${column + 1} / -1` },
-                    inclusive: true,
-                  })
-                : cellFaces[alignment(aligns[column])]
-              ).range(cellFrom, cellTo),
-            );
-          // Leading white space the parser trims and the spaces the field hides
-          // (`leads`) leave, such as a non-breaking space before the first `|`.
-          if (column === 0 && pipe !== null) {
+            runs.push(cellFaces[alignment(aligns[column])].range(cellFrom, cellTo));
+          // White space the parser trims from the row's ends that the spaces the field
+          // hides (`leads`) leave, such as a non-breaking space.
+          if (column === 0) {
             const start = after(row.from, level);
-            add(start + indentation(state.sliceDoc(start, pipe)), pipe, hide);
+            add(start + indentation(state.sliceDoc(start, pipe ?? a)), pipe ?? a, hide);
           }
+          if (last && close === null && !surplus) add(b, row.to, hide);
           const text = state.sliceDoc(a, b);
           const words = [
             a + text.length - text.trimStart().length,

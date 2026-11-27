@@ -418,7 +418,14 @@
         (v === "top" ? by <= cy + slack : by >= cy - slack);
       if (!inArc) continue;
       inCorner.add(corner);
-      const gap = r - (Math.hypot(cx - bx, cy - by) + rb);
+      // A box whose corner's centre stands just beside the arc's, within the slack, is
+      // nearest the straight edge beside the arc.
+      const besideX = h === "left" ? bx > cx : bx < cx;
+      const besideY = v === "top" ? by > cy : by < cy;
+      const gap =
+        besideX || besideY
+          ? Math.min(besideX ? gaps[v] : Infinity, besideY ? gaps[h] : Infinity)
+          : r - (Math.hypot(cx - bx, cy - by) + rb);
       if (gap < -slack) {
         // A frame, or a box around it, that clips to its rounding cuts the box to it,
         // which is the box taking the frame's corner (a pane clips to its rounding).

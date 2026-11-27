@@ -266,8 +266,9 @@ can name any file the user can read outside Leaf's state, so on a page that bind
 file, any code the page runs, its packages' and any it loads from another server
 included, can read the user's files and send them anywhere. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
-package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
-travel with the page. A widget that only shows the file binds it as a source by its
+package's `lf-file-editor` is one widget built on `boundFile`. Text that should
+travel with the page belongs in the page's markup, such as a code listing, rather
+than in a bound file. A widget that only shows the file binds it as a source by its
 binding's id instead ([package-data.md, "External or derived
 data"](package-data.md#external-or-derived-data)).
 

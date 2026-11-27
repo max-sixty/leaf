@@ -164,26 +164,33 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
 
-    # Model a tab whose latest projection has not reached its neighbour yet. The draft
-    # is born here, so this selection is the state the generation records.
-    first.locator("#job-mounts").evaluate("el => el.setAttribute('selected', '')")
+    # Model a tab whose latest projection has not reached its neighbour yet: its host
+    # hands the group a state that holds a pick. The draft is born here, so this
+    # selection is the state the generation records.
+    jobs = first.locator("#jobs")
+    jobs.evaluate("""el => {
+        window.projected = el.state;
+        el.state = {...el.state, choose: {detail: {value: ['job-mounts']}}};
+    }""")
+    expect(first.locator("#job-mounts")).to_have_attribute("selected", "")
     text = "Use a heated camera sleeve"
-    write(first.locator("#jobs > .lf-another leaf-text"), text)
-    expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
+    write(first.locator("#jobs .lf-another leaf-text"), text)
+    expect(second.locator("#jobs .lf-another leaf-text")).to_have_js_property(
         "value", text
     )
     # The generation holds that selection now, so the tab's own goes back to its
     # state's: neither tab shows the forged option chosen when it sends.
-    first.locator("#job-mounts").evaluate("el => el.removeAttribute('selected')")
+    jobs.evaluate("el => { el.state = window.projected; }")
+    expect(first.locator("#job-mounts")).not_to_have_attribute("selected", "")
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    first.locator("#jobs > .lf-another").get_by_role(
+    first.locator("#jobs .lf-another").get_by_role(
         "button", name="Add and select option", exact=True
     ).click()
     holding(first, held, 1, "the first added option")
 
-    second.locator("#jobs > .lf-another").get_by_role(
+    second.locator("#jobs .lf-another").get_by_role(
         "button", name="Add and select option", exact=True
     ).click()
     round_trip(second)

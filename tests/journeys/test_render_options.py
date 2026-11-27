@@ -54,11 +54,11 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     # anywhere the user is holding something.
     assert active_digit_bindings(page) == "1–3"
     assert "Escape" in available_commands(page)["navigation.release"]
-    option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
+    option_hints = page.locator("#storage-options > lf-option .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
-    write_hint = page.locator("#storage-options > .lf-another > .lf-key-badge")
-    box = page.locator("#storage-options > .lf-another leaf-text")
+    write_hint = page.locator("#storage-options .lf-another > .lf-key-badge")
+    box = page.locator("#storage-options .lf-another leaf-text")
     expect(write_hint).to_have_text("3")
     expect(write_hint).to_be_visible()
 
@@ -74,14 +74,14 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
     page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
-    box = page.locator("#storage-options > .lf-another leaf-text")
+    box = page.locator("#storage-options .lf-another leaf-text")
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")
     expect(mark).to_have_attribute("aria-checked", "false")
     expect(
         page.locator(
-            "#storage-options > lf-option > .lf-key-badge[data-lf-binding-badge]"
+            "#storage-options > lf-option .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     assert active_digit_bindings(page) == "1–3"
@@ -123,7 +123,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
-    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
+    expect(page.locator("#storage-options .lf-another leaf-text")).not_to_be_focused()
     page.close()
 
     # Native focus scrolling reads the floating panel as part of the root scrollport's
@@ -141,7 +141,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
     resized(page, 390, 600)
     clearance = """() => document.querySelector('.lf-fp-card').getBoundingClientRect().top
-      - document.querySelector('#storage-options > .lf-another')
+      - document.querySelector('#storage-options').shadowRoot.querySelector('.lf-another')
         .getBoundingClientRect().bottom"""
     # An unframed page obligation arrives in two document scrolls, an instant one to reveal it
     # and a glide onto its region, and a Tab pressed into the glide reads a position the
@@ -155,7 +155,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     assert covered < 0, f"the arrival left the add field {covered}px clear of the panel"
     for _ in range(3):
         page.keyboard.press("Tab")
-    box = page.locator("#storage-options > .lf-another leaf-text")
+    box = page.locator("#storage-options .lf-another leaf-text")
     expect(box).to_be_focused()
     landed = page.evaluate(clearance)
     assert landed >= 0, f"the panel covers the add field by {-landed}px"

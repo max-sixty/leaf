@@ -20,6 +20,8 @@
      because the verb is unavailable or the page runs without Leaf. Leaf has set the
      new `state` before the Command runs to its end, so a component that draws from
      `state` maps the delivery to nothing.
+   - `TakeBack` is `lf-undo`: it takes back the action in force for `verb`, or for
+     one of its units, and succeeds with the delivery as `RecordAction` does.
    - `NextOnMe` steps to the next obligation waiting on the user within `within`, as
      `obligationActions.next` does.
    - `NavigateToDatum` reveals the datum `key` names through the element's reference
@@ -49,6 +51,11 @@ export class RecordAction extends Command.Service()("leaf/RecordAction", {
     says: Schema.optional(Schema.String),
     attempt: Schema.optional(Schema.String),
   },
+  success: Delivery,
+}) {}
+
+export class TakeBack extends Command.Service()("leaf/TakeBack", {
+  args: { verb: Schema.String, unit: Schema.optional(Schema.String) },
   success: Delivery,
 }) {}
 
@@ -82,11 +89,12 @@ export class ShowHeld extends Command.Service()("leaf/ShowHeld", {}) {}
 /** @type {typeof import("./records/thread/held-news.js") | undefined} */
 let heldNews;
 
-/** Record a gesture on `element` and wait for what became of it.
- * @param {Element} element @param {Record<string, unknown>} detail */
-const send = (element, detail) =>
+/** Send a gesture on `element` and wait for what became of it.
+ * @param {Element} element @param {"lf-action" | "lf-undo"} type
+ * @param {Record<string, unknown>} detail */
+const send = (element, type, detail) =>
   Effect.promise(async () => {
-    const delivery = sendGesture(element, "lf-action", detail);
+    const delivery = sendGesture(element, type, detail);
     if (!delivery) return /** @type {const} */ ("unrecorded");
     return (await delivery) ? "admitted" : "refused";
   });
@@ -96,7 +104,10 @@ const send = (element, detail) =>
 export const leafServices = (element) =>
   Layer.mergeAll(
     RecordAction.toLayer((/** @type {any} */ args) =>
-      send(element, stripUndefined(args)),
+      send(element, "lf-action", stripUndefined(args)),
+    ),
+    TakeBack.toLayer((/** @type {any} */ args) =>
+      send(element, "lf-undo", stripUndefined(args)),
     ),
     NextOnMe.toLayer((/** @type {any} */ { within }) =>
       Effect.sync(() => {

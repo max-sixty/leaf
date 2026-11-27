@@ -3341,14 +3341,6 @@ def preview_text(target):
     return "".join(preview_parts(target))
 
 
-def without_end_room(page):
-    """Take away the room a column or sidebar page keeps below its last line
-    (layouts.css), so the page ends where its content does, as one with no Layout
-    does. A test whose subject is what happens where no scroll is left, a destination
-    at the page's foot or content leaving below that clamps the page, needs it."""
-    page.add_style_tag(content="body { --lf-end-room: 0px !important; }")
-
-
 def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 

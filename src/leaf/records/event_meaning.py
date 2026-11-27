@@ -7,14 +7,13 @@ referenced element still changes containment without changing an old event.
 
 from functools import cached_property
 
-from leaf.log.events import event_document
+from leaf.log.events import event_document, thread_structure
 from leaf.log.obligations import gesture_answers, replayed_attrs
 from leaf.log.projection import (
     page_reading,
     thread_markup_reading,
     with_action,
 )
-from leaf.log.thread_context import thread_structure
 from leaf.source.passages import enclosing_of
 from leaf.source.registry.contract import (
     deciding_verb,

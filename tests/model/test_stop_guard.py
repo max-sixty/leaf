@@ -887,11 +887,13 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     leases_model.release_lease(lease)
 
 
-def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
-    """A thread's messages share one reply, but a move on an obligation in one of its
-    messages owes an answer of its own, so each is started on its own id. Once their
-    replies settle them, a later move in the thread is offered no start in place of
-    its answer."""
+def test_a_threads_messages_and_moves_share_one_start_and_one_reply(
+    claimed, printing, capsys
+):
+    """A move on an obligation in a thread's message and the user's message after it
+    share the thread's one reply, addressed to the newer, so a start on that one
+    holds both. Once the reply settles them, a later message in the thread is
+    offered no start in place of its answer."""
     assert revisioning_model.activate_source(claimed).error is None
     lease = _watched(claimed)
     asked = append_carried_log_record(
@@ -924,17 +926,13 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     reason = _stop(capsys)
-    assert done["id"] in reason and follow["id"] in reason
+    assert follow["id"] in reason and done["id"] not in reason
     assert _start(claimed, follow["id"], "checking West").exit_code == 0
-    reason = _stop(capsys)
-    assert done["id"] in reason and follow["id"] not in reason
-    assert _start(claimed, done["id"], "checking East").exit_code == 0
     assert _stop(capsys) is None
 
-    for move in (done, follow):
-        thread_model.post_reply(
-            claimed, {"parent": move["id"], "responds": move["id"]}, "East it is."
-        )
+    thread_model.post_reply(
+        claimed, {"parent": follow["id"], "responds": follow["id"]}, "East, and West."
+    )
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
@@ -1372,7 +1370,7 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     page_dir, where
 ):
     """A move leaving cards queued keeps the obligation on the user, and completing the
-    queue owes every moved card, not just the final one."""
+    queue hands over every moved card, not just the final one."""
     declare_on_page(
         page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
@@ -1433,8 +1431,10 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     sort("card-c", "w", emptied=True)
     finished = state_json(page_dir)
     assert obligations_on_user(finished) == []
-    assert sorted(item["coordinate"][1] for item in owed(finished)) == [
-        "card-a",
-        "card-b",
-        "card-c",
-    ]
+    moved = ["card-a", "card-b", "card-c"]
+    assert sorted(item["coordinate"][1] for item in finished["workflows"]) == moved
+    # On the page the version that writes each move in answers it; in a thread, the
+    # reply to the newest answers them all.
+    assert sorted(item["coordinate"][1] for item in owed(finished)) == (
+        moved if where == "page" else ["card-c"]
+    )

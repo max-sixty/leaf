@@ -241,8 +241,8 @@ arrives. Each `source.kind` adds its own facts:
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
-  `answer.event`, answered it. Of several messages the user sent in a row, only the
-  newest has one. No region holds an update.
+  `answer.event`, answered it. Where the user sends several of these in one Thread
+  before an answer, only the newest has one. No region holds an update.
 
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
 (`module-state.md`, "Declared widget state").

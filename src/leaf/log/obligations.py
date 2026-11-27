@@ -73,6 +73,7 @@ from leaf.log.events import (
     report_settled_at,
     taken_back,
     unanswered_agent_turn,
+    widget_messages,
 )
 from leaf.log.projection import (
     AuthoredOrders,
@@ -83,7 +84,6 @@ from leaf.log.projection import (
     obligation_value,
     page_reading,
 )
-from leaf.log.thread_context import widget_messages
 from leaf.source.obligation_sources import ObligationSources, obligation_sources
 from leaf.source.passages import enclosing_of
 from leaf.source.reading import SourceReading

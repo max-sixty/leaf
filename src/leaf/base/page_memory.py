@@ -42,7 +42,7 @@ this one owns only how long it lasts.
 
 A pure function of its arguments, which no file can make stale, is memoized at module
 level instead, bounded by entry count (`styles._read_css`,
-`thread_context._fragment`). So is a reading of the machine rather than of a page, in
+`events._fragment`). So is a reading of the machine rather than of a page, in
 one slot replaced whole (`presence.neighbor_candidates`, `harness._registry_listing`).
 So is the layer a selection of shared package roots alone composes, one per
 selection, since many pages read it alike; a layer that reads a page's own copy of a

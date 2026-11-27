@@ -1,7 +1,7 @@
 """Which of the user's messages waited while a version was saved.
 
 **Where a revision stands in the log.** The log links an agent's answer to the
-user's messages it settles (`events.settlements`). A reply or note that publishes a
+user's messages it settles (`events.settle`). A reply or note that publishes a
 revision names its bundle in `publication`; a read's activation, which no reply or
 note names, appends an `activation` that does (`revision_publication.py`), except for
 a page's first revision, which no comparison shows against an earlier one and so
@@ -16,7 +16,7 @@ which gestures were ever taken back before its pass, but its histories keep the 
 of everything they hold. So one fold of the log before the version's last revision
 went live, under that revision's containment, reads every message as it was said,
 none taken back, and from its histories each message's waits follow, each turn of it
-from its own place until the first of its answer (`events.settlements`), its being
+from its own place until the first of its answer (`events.settle`), its being
 taken back, or the message's, cut where a closing answered for its thread
 (``closures``). A bisect of the version's sorted
 places finds the latest it waited at, after one pass over each thread's closings, so
@@ -63,7 +63,7 @@ from math import inf
 from operator import itemgetter
 from typing import TYPE_CHECKING, Protocol
 
-from leaf.log.events import build_threads, settlements
+from leaf.log.events import build_threads, settle
 
 if TYPE_CHECKING:
     from leaf.source.reading import SourceReading
@@ -134,12 +134,18 @@ def saved_after(
         latest_open = _latest_open(thread["closures"], at)
         answered = {
             turn["id"]: settlement.answer["seq"]
-            for settlement in settlements(thread)
+            for settlement in settle(thread).settlements
             for turn in settlement.turns
         }
         said = {message["id"]: message for message in thread["msgs"]}
         for turn in thread["turns"]:
-            if turn["author"] == "agent" or "undoes" in turn:
+            # An action on a widget sent in the thread waits in its history beside
+            # the turns (`events.settle`), and is no message.
+            if (
+                turn["author"] == "agent"
+                or "undoes" in turn
+                or turn["kind"] == "action"
+            ):
                 continue
             message = turn.get("message", turn["id"])
             end = min(

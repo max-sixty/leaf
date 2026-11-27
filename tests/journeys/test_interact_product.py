@@ -23,7 +23,7 @@ from model.test_interact_product import PAGE_FIXTURES
 import leaf.pages.validation.command as checking_command
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
-from leaf.log.thread_context import logged_fragment
+from leaf.log.events import logged_fragment
 from leaf.source import vocabulary as vocabulary_model
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import (

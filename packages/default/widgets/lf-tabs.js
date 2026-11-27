@@ -67,7 +67,9 @@
  * side list's summary and answer line, and its change count. A tab that shows its
  * panel's face (`face`) is named by its `label`, since the face is markup the agent
  * writes for the eye and Leaf derives no name from it (the maintainer's choice). What
- * a tab shows only as a mark, and its group, describe it. A
+ * a tab shows only as a mark, its group, and the state its name leaves out describe
+ * it, so a row whose answer line reads "Alpha" is described "Answered", and one whose
+ * line reads the turn says no turn again. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. Counted
@@ -439,6 +441,10 @@ export class TabSet extends LeafElement {
         : "";
     const group = this.#side && panel.getAttribute("group");
     const summarized = this.#down && !face(panel) && panel.hasAttribute("summary");
+    // The answer line's words are in the name unless a face's label names the tab, so
+    // the description then adds only the state they leave out.
+    const said = !face(panel) && Boolean(answer);
+    const counted = `${total - open} of ${total} answered`;
     const description = [
       group && `${group} group`,
       summarized ? "" : panel.getAttribute("summary"),
@@ -447,10 +453,14 @@ export class TabSet extends LeafElement {
         ? ""
         : !answered
           ? only
-            ? turn
-            : `${turn}, ${total - open} of ${total} answered`
+            ? said
+              ? ""
+              : turn
+            : said
+              ? counted
+              : `${turn}, ${counted}`
           : only
-            ? answer
+            ? answer && !said
               ? `Answered: ${answer}`
               : "Answered"
             : `All ${total} answered`,

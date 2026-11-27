@@ -847,6 +847,8 @@ def test_a_queue_entry_shows_the_face_its_item_opens_with(browser, serve):
     page = open_page(browser, live_url(serve(queue(120))))
     tabs = page.locator("#queue").get_by_role("tab")
     expect(tabs.nth(1)).to_have_accessible_name("README.md")
+    # Its label leaves out what it shows, so the description still says the summary.
+    expect(tabs.nth(1)).to_have_accessible_description("+120 −45 lines")
     expect(tabs.nth(1).locator("code")).to_have_text("README.md")
     expect(tabs.nth(1).locator(".added")).to_have_text("+120")
     expect(tabs.nth(1).locator(".lf-tab-summary")).to_have_count(0)
@@ -1680,8 +1682,9 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     expect(mark("answered")).to_have_attribute("data-lf-obligations", "answered")
     expect(mark("answered")).to_have_text("Alpha")
     expect(on_me("answered")).to_be_hidden()
-    expect(row("answered")).to_have_accessible_description("Answered: Alpha")
+    # The answer line is in the name, so the description adds only that it's answered.
     expect(row("answered")).to_have_accessible_name("Answered Alpha")
+    expect(row("answered")).to_have_accessible_description("Answered")
     name = row("answered").locator(".lf-tab-name").bounding_box()
     assert mark("answered").bounding_box()["y"] >= name["y"] + name["height"] - 0.5
     assert row("answered").bounding_box()["height"] == height
@@ -1691,7 +1694,8 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     expect(mark("sent")).to_have_text("On Claude")
     expect(mark("sent")).to_have_attribute("data-lf-obligations", "open")
     expect(on_me("sent")).to_be_hidden()
-    expect(row("sent")).to_have_accessible_description("On Claude")
+    expect(row("sent")).to_have_accessible_name("Sent On Claude")
+    expect(row("sent")).to_have_accessible_description("")
 
     row("reopened").click()
     with sending(page, "the reopened part's pick"):

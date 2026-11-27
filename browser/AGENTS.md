@@ -825,6 +825,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Which axes a box clips                                                                                | `dom/rect.js` `clippingAxes`                                                           |
 | Whether a box is at its scroll end                                                                    | `dom/scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
 | The positions a box's scroll takes on each axis, and whether a write would move it                    | `lib/scroll-range.js` `scrollRange`, `scrollMoves`                                     |
+| Everything a box scrolls through, on screen, wherever it is scrolled to                               | `dom/geometry.js` `scrolledBox`                                                        |
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `dom/arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | When the page shows a script's scroll, boxes anchored to what it moved included                       | `dom/arrivals.js` `scrollDrawn`                                                        |
 | Whether the reader's input has set a box scrolling                                                    | `dom/arrivals.js` `readerScrolls`                                                      |

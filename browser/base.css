@@ -259,6 +259,14 @@
   inherits: false;
   initial-value: 0px;
 }
+/* Where a mark stands while a clip round its box would cut it outside
+ * (element-marks.css, `[data-lf-flush]`), ahead of where the box says; set only while
+ * that stamp is in force, which is how the runtime tells (dom/geometry.js,
+ * `clipsMarks`). It doesn't inherit, so a box inside a stamped one answers for itself. */
+@property --lf-flush-at {
+  syntax: "*";
+  inherits: false;
+}
 @property --lf-band-from {
   syntax: "*";
   inherits: false;

@@ -504,16 +504,6 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 :where([data-lf-scroll]:not(leaf-text)) {
   position: relative;
 }
-/* A page's scroll area (`.lf-scroll`) clips at its edges and pads nothing, so a box it
-   holds stands flush with them, as a table filling its width does, and the area cuts
-   whatever mark stands outside the box there: an Alt-clicked table would lose both its
-   brackets, and a focused one its ring's sides. So what the area holds stands its
-   marks one band inside its own edge (tokens.css, "Where it stands"). A module's
-   surface (`data-lf-scroll`) holds the module's own boxes, whose rules say where their
-   marks stand. */
-:where(.lf-scroll) > * {
-  --lf-ring-at: var(--lf-focus-ring-inset);
-}
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
  * surface owner opts into the shared primitive): across it, and down
  * a reading region (reachReadingScroller). Scrolling is the honest answer when the room

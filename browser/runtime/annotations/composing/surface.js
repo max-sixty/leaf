@@ -131,7 +131,7 @@ import {
   selectionAnchor,
   snapSelection,
 } from "./capture.js";
-import { coveredFrame, takesNoWords } from "./input.js";
+import { coveredBox, takesNoWords } from "./input.js";
 import { repaint } from "../../dom/repaint.js";
 import {
   drawn,
@@ -1506,15 +1506,17 @@ export function createResponseSurface({
     return { box, label: commentKey };
   };
   // The box c puts the caret in the words of, while those words cover the placeholder
-  // that would name c, with that key: the key chips hang it on the box's corner
-  // (input.js, `coveredFrame`; readings/key-badges/command-hints.js). Comment declares no
-  // control to carry the chip, since a control it lacked would leave c dead everywhere
+  // that would name c, with that key and the face the box lends it in its own corner
+  // (input.js, `coveredBox`; readings/key-badges/command-hints.js). Comment declares no
+  // control to carry the key, since a control it lacked would leave c dead everywhere
   // else (dom/keyboard/bindings.js, `commandAvailable`).
   const coveredEntry = () => {
     const { box, onWords } = commentDestination();
-    const control = onWords ? coveredFrame(box) : null;
-    const [binding] = control ? commandBindingsNow("comment.create") : [];
-    return control && binding ? { control, binding } : null;
+    const covered = onWords ? coveredBox(box) : null;
+    const [binding] = covered ? commandBindingsNow("comment.create") : [];
+    return covered && binding
+      ? { control: covered.frame, bindingBadge: covered.key, binding }
+      : null;
   };
 
   // The target the box rests beside: the one `c` would open it on, while the user can see

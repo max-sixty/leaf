@@ -22,7 +22,8 @@ import { answeredInWords } from "../records/obligations/model.js";
 import { readObligations } from "../records/obligations/place.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
 import { createCommandDispatch } from "../records/pending/dispatch.js";
-import { widgetAnswered } from "./widget-state.js";
+import { widgetFacts } from "./widget-state.js";
+import { reportFacts } from "./widget-facts.js";
 import { setMounted } from "./mounted.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { keepRefusedWords } from "../records/drafts.js";
@@ -48,7 +49,8 @@ import { createReadTracking } from "../records/thread/read.js";
 import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "../features/margin-bars.js";
 import { renderMarginThread } from "../records/thread/inline.js";
-import { showHeld } from "../records/thread/held-news.js";
+import { showHeld, showHeldReadings } from "../records/thread/held-news.js";
+import { threadList } from "../records/thread/state.js";
 import { isThreadEvent } from "../state/pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
@@ -78,7 +80,13 @@ export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   const mounted = createApplication(dependencies);
   application = mounted;
-  setMounted({ navigateToDatum, obligationActions, threadActions });
+  setMounted({
+    navigateToDatum,
+    obligationActions,
+    threadActions,
+    threadList,
+    showHeldReadings,
+  });
   return mounted;
 }
 
@@ -201,7 +209,7 @@ function createApplication(dependencies) {
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       raiseError(`Couldn't send — attempt ${attempt} is already in use`),
-    answered: widgetAnswered,
+    facts: widgetFacts,
   });
 
   const { post } = commandDispatch;
@@ -234,6 +242,9 @@ function createApplication(dependencies) {
     markSeen: (revision) =>
       deliverBookkeeping({ kind: "seen", revision }, receiveState),
   });
+  // What a widget works out of its state, told again where a version or another tab
+  // moved it (widget-facts.js); nothing draws it ahead of the answer.
+  reportFacts((event) => deliverBookkeeping(event, receiveState));
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,

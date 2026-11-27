@@ -25,7 +25,6 @@ from render_harness import (
     show_done,
     stamp_page,
     wait_for_revision,
-    without_end_room,
     write,
 )
 
@@ -331,8 +330,6 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
         },
     )
     page = open_page(browser, url)
-    # The foot of a page with no room below it, which no scroll lifts clear of a view.
-    without_end_room(page)
     resized(page, 1280, 900)
     page.evaluate("getSelection().removeAllRanges()")
     thread = page.locator(panel_view("thread"))
@@ -401,8 +398,6 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
         },
     )
     page = open_page(browser, url)
-    # The foot of a page with no room below it, which no scroll lifts clear of a view.
-    without_end_room(page)
     resized(page, 1280, 900)
     page.evaluate("getSelection().removeAllRanges()")
     page.keyboard.press("m")
@@ -427,8 +422,6 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
-    # The foot of a page with no room below it, which no scroll lifts clear of a view.
-    without_end_room(page)
     resized(page, 1280, 900)
     on_me = page.locator(panel_view("queue"))
     page.locator("#h").click()
@@ -652,8 +645,6 @@ def test_an_idle_m_arrival_paints_in_its_first_frame(browser, serve, idle_setup)
     page = open_page(browser, serve(QUEUE_PAGE))
     resized(page, 1280, 900)
     if idle_setup == "layout_clamp":
-        # Content leaving below clamps the page only where no room is kept under it.
-        without_end_room(page)
         page.evaluate("""() => {
           const tail = document.createElement('div');
           tail.id = 'temporary-tail';
@@ -886,7 +877,7 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
     expect(page.locator("#ask-3")).to_be_focused()
     expect_walk_position(page, "2 of 4 waiting on me")
 
-    page.locator("#step lf-option-control").first.click()
+    page.locator("#step .lf-pick").first.click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("Escape")
     open_obligation("widget:plan")

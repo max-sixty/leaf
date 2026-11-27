@@ -1879,7 +1879,7 @@ def test_a_choice_made_while_the_settings_hold_a_retired_field_reads_as_chosen(
             "action": "tune",
             "detail": {"values": {**values, "retired": "kept"}},
             # A tune answers nothing until the choice that follows it.
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     assert response.ok, response.text()

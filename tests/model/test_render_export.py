@@ -200,7 +200,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         "author": "user",
         "revision": 1,
         "action": "choose",
-        "answered": True,
+        "facts": {"answered": True},
     }
     chosen = append_command(
         claimed, {**choice, "widget": "picks", "detail": {"value": ["second"]}}
@@ -214,7 +214,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
             "kind": "undo",
             "author": "user",
             "undoes": taken_back["id"],
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
     comment = append_command(

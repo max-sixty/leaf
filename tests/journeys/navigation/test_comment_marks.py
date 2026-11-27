@@ -53,20 +53,13 @@ def test_marked_words_are_seen_and_told_apart(request, serve, engine):
             events=[
                 _comment_on(PASSAGES[state], id=f"c-{n}", text="Why these words?")
                 for n, state in enumerate(("mark", "pointed at", "open thread"))
-            ]
-            + [_comment_on(PASSAGES["reaction"], emoji="👍")],
+            ],
         ),
     )
-    page.wait_for_function(
-        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 3"
-        " && (CSS.highlights.get('lf-react')?.size ?? 0) === 1"
-    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 3")
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
-        drawn = {
-            state: _drawn(page, PASSAGES[state])
-            for state in ("mark", "reaction", "unmarked")
-        }
+        drawn = {state: _drawn(page, PASSAGES[state]) for state in ("mark", "unmarked")}
 
         page.mouse.move(*_point_at(page, PASSAGES["pointed at"]))
         page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0)")
@@ -133,7 +126,6 @@ def test_hiding_annotations_gives_marked_words_their_own_colours_back(
             OWN_COLOURS_PAGE,
             events=[
                 _comment_on(PASSAGES["mark"], id="c-link", text="Why this link?"),
-                _comment_on(PASSAGES["reaction"], emoji="👍"),
                 # Words in a text document are anchored on its one datum, as capture
                 # writes them.
                 {
@@ -152,10 +144,7 @@ def test_hiding_annotations_gives_marked_words_their_own_colours_back(
             ],
         ),
     )
-    page.wait_for_function(
-        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2"
-        " && (CSS.highlights.get('lf-react')?.size ?? 0) === 1"
-    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
     assert not page.evaluate("CSS.highlights.has('lf-token-syn-string')"), (
         "the document coloured a string before it was scrolled to, so this page no "
         "longer registers a syntax colour after the marks"

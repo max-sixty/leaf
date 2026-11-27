@@ -27,7 +27,6 @@ from render_harness import (
     stamp_page,
     suggestion_control,
     wait_for_revision,
-    without_end_room,
     write,
 )
 
@@ -910,8 +909,6 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(
         "</div><div id='room' style='height: 1200px'></div>",
     )
     page = open_page(browser, serve(source))
-    # Content leaving below clamps the page only where no room is kept under it.
-    without_end_room(page)
     resized(page, 1200, 800)
     rendered(page)
     log = page.locator("#log")

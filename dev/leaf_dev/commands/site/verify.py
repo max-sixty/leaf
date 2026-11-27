@@ -416,7 +416,7 @@ if activation.error:
     raise RuntimeError(activation.error)
 revision = latest_revision(page)
 with PageTransaction(page) as transaction:
-    choice, _ = append_admitted(transaction, {"kind": "action", "author": "user", "revision": revision, "widget": "heat-first", "action": "choose", "detail": {"value": ["heat-opt-window"]}, "answered": True})
+    choice, _ = append_admitted(transaction, {"kind": "action", "author": "user", "revision": revision, "widget": "heat-first", "action": "choose", "detail": {"value": ["heat-opt-window"]}, "facts": {"answered": True}})
     comment, _ = append_admitted(transaction, {"kind": "comment", "author": "user", "revision": revision, "text": "Saved before the container stopped."})
 print(json.dumps({"revision": revision, "revision_name": revision_path(page, revision).name, "comment": comment["id"], "choice": choice["id"], "stylesheet": stylesheet}))
 """

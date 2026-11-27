@@ -1,0 +1,327 @@
+/* lf-options / lf-option inside their shadow roots (lf-options.js, "How it is drawn"):
+ * where each control the module draws stands against another in the same root, which a
+ * document rule can't say, since a part takes no condition on what stands beside it.
+ * Everything a theme dresses, the controls' faces and the cells' boxes, is options.css,
+ * through the parts (`mark`, `key`, `ref`; `cell` with `settled`, `another` or `done`).
+ * A document rule on a part outranks every rule here, so a property one of those rules
+ * sets is never set here too.
+ *
+ * The roots say which form their group takes (`data-lf-form`, card or row) and whether
+ * it is settled (`data-lf-settled`), since an option's root can't see its group. A mark
+ * that takes a pick is a checkbox; an exhibit's is an image. */
+
+/* An option's words ask it whether it shares a row (`--lf-option-in-row`, options.css),
+ * a property that doesn't inherit, and a style query asks an element's parent, which
+ * for the words is the option's slot. So the root passes the option's answer down to
+ * its slot. */
+:host(lf-option) > *,
+:host(lf-option) slot {
+  --lf-option-in-row: inherit;
+}
+
+/* An option's root. The obligation's action keys stand on the cells they bind: the
+ * gutter reads status, badge, then prose. A card's digit takes the state seat at its
+ * opening edge; a row centres it. */
+:host(lf-option) .lf-key-badge {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: var(--lf-key-badge-start);
+}
+:host(lf-option) [data-lf-form="card"] > .lf-pick {
+  position: absolute;
+  left: var(--lf-sp-3);
+  bottom: 9px;
+}
+@media screen {
+  /* A joined group's row shows its mark's focus: its ring, and the aim wash. */
+  :host(lf-option) .lf-pick[role="checkbox"] {
+    --lf-focus-box: lf-option;
+  }
+  /* The mark's box is the whole seat the binding badge takes, the mark centred in it,
+   * so a margin pin in the card's corner steps below both alike. The mark is the float
+   * that reserves the status band, so every chip and title line wraps around the same
+   * rectangle: its margins stand it a `--lf-sp-2` inside the card's padding box, as the
+   * badge's insets stand the badge, and widen its margin box to the band. Floated, it
+   * is no positioned box: Chromium's hit test visits every positioned box on every
+   * call, wherever the point is. */
+  :host(lf-option) [data-lf-form="card"] > .lf-pick[role="checkbox"] {
+    position: static;
+    float: inline-end;
+    min-width: var(--lf-key-badge-size);
+    min-height: var(--lf-key-badge-size);
+    margin-block: calc(var(--lf-sp-2) - var(--lf-option-pad-block))
+      calc(
+        var(--lf-card-state-height) + var(--lf-option-pad-block) - var(--lf-sp-2) -
+          var(--lf-key-badge-size)
+      );
+    margin-inline: calc(
+        var(--lf-card-state-room) - var(--lf-key-badge-size) + var(--lf-sp-3) -
+          var(--lf-sp-2)
+      )
+      calc(var(--lf-sp-2) - var(--lf-sp-3));
+    justify-content: center;
+  }
+  :host(lf-option) [data-lf-form="card"] > .lf-key-badge {
+    inset-inline-start: auto;
+    inset-inline-end: var(--lf-sp-2);
+    top: var(--lf-sp-2);
+  }
+  /* A card's digit draws in its mark's seat, over the mark, which turns transparent.
+   * The mark still takes a press there, since the digit takes no pointer
+   * (surfaces.css, `.lf-binding-seat`). */
+  :host(lf-option)
+    [data-lf-form="card"]
+    > .lf-key-badge[data-lf-binding-badge]
+    ~ .lf-pick {
+    opacity: 0;
+  }
+}
+/* A row's mark stands out of flow in the group's column, so the words open at one place
+ * on every row whatever the row holds, centred on the row. The height is stated because
+ * an absolute box with both offsets would stretch to fill them. The digit centres on
+ * the row too, level with the mark. */
+:host(lf-option) [data-lf-form="row"] > .lf-pick {
+  position: absolute;
+  inset-inline-start: var(--lf-key-badge-col, 0px);
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
+  height: 11px;
+}
+:host(lf-option) [data-lf-form="row"] > .lf-key-badge {
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
+}
+/* A row's digit stands in its own column, before the control it labels, where a card's
+ * stands over its mark. While the digit shows, the control reaches back over that
+ * column, so a press on the digit is a press on its control, as on a card: on a mark it
+ * picks the row, whatever words of the row are selected, and leaves the user on the
+ * mark; on the add field it puts the user in the field, as a press on the field's own
+ * padding does. The digit takes no pointer (surfaces.css, `.lf-binding-seat`), and
+ * without the reach the press would land on the row or the add form, neither of them a
+ * control. The mark's reach stands the mark's height, and at least the digit's, centred
+ * as both are. In a live group, where the row wears the mark's ring, the mark stands
+ * the row's height, its box drawn at the centre as at rest, so its reach covers the
+ * column from the row's top to its foot, and a press above or beside the digit on a row
+ * of several lines is the mark's too. An opened settled group's mark wears its own ring,
+ * which follows the mark's box, so there the box stays the 11px glyph and the reach the
+ * digit's height. A box the row's height would stretch that ring past the row and under
+ * the next one. The field's reach stands against the add form, from its start edge to
+ * the field. Only while the digit shows: each reach is a positioned box, which
+ * Chromium's hit test visits on every call (surfaces.css), and at rest a drag that
+ * starts in the column selects the row's words. */
+:host(lf-option)
+  [data-lf-form="row"]
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ .lf-pick::after {
+  content: "";
+  position: absolute;
+  inset-block: min(0px, (100% - var(--lf-key-badge-size)) / 2);
+  inset-inline: calc(-1 * var(--lf-key-badge-col)) 100%;
+}
+:host(lf-option)
+  [data-lf-form="row"]:not([data-lf-settled])
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ .lf-pick {
+  height: auto;
+  margin: 0;
+}
+
+/* The group's root. The settled row's Δ count stands at the row's end. */
+:host(lf-options) .lf-settled-diff {
+  margin-inline-start: auto;
+  font-weight: 400;
+}
+/* Done is the group's last row, and a stack keeps no room between its rows for a reach,
+ * so its face is the floor's height where that is taller than the line, and it hangs
+ * none (surfaces.css). It is its digit's containing block only while the digit shows:
+ * a positioned box is one Chromium's hit test visits on every call. Its digit stands
+ * in the options' digit column, centred on the button, and at a card's end where its
+ * options are cards. */
+:host(lf-options) lf-options-done > .lf-done {
+  position: static;
+  width: 100%;
+  padding-block: max(4px, (max(var(--lf-line), var(--lf-aim-floor)) - 1lh) / 2 - 1px);
+  &::after {
+    content: none;
+  }
+  &:has(> .lf-key-badge:not(:empty)) {
+    position: relative;
+  }
+}
+:host(lf-options) lf-options-done > .lf-done > .lf-key-badge {
+  z-index: 1;
+  inset-inline-start: var(--lf-key-badge-start);
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
+}
+@media screen {
+  :host(lf-options) lf-options-done[data-lf-form="card"] > .lf-done > .lf-key-badge {
+    inset-inline-start: auto;
+    inset-inline-end: var(--lf-sp-2);
+  }
+  /* Joined, Done is a cell, and its cell wears its ring, as a row wears its mark's. */
+  @container style(--lf-joined: 1) {
+    :host(lf-options) lf-options-done > .lf-done {
+      --lf-focus-box: lf-options-done;
+      &[data-lf-focus-visible] {
+        outline: none;
+      }
+    }
+  }
+}
+/* The add cell: its badge, the field, and Add in the field's end corner. Screen only,
+ * where it is offered. */
+@media screen {
+  :host(lf-options) .lf-another {
+    /* Add stands clear of the row's edges (`--lf-clear`) at any density: its face is
+       the row's line and a pixel either side, inside the row's least padding
+       (`--lf-option-pad-min`), and it stands that clearance from the row's end. Its
+       hit box is worked out again from its face, for the seats below. */
+    --lf-icon-action-face: calc(var(--lf-option-line) + 2px);
+    --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--lf-aim-floor));
+    --lf-option-add-seat-inset: var(--lf-clear);
+    /* Centre Add's face on the last text line, using the same inset that sizes its
+       row, which holds its reach (below). */
+    --lf-option-add-seat-end: calc(
+      var(--lf-option-pad-block) +
+        (var(--lf-option-line) - var(--lf-icon-action-face)) / 2
+    );
+    --lf-option-add-badge-end: calc(
+      var(--lf-option-add-seat-end) +
+        (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2
+    );
+    --lf-option-write-badge-inset: calc(
+      var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--lf-sp-2)
+    );
+    --lf-option-action-room: var(--lf-option-write-badge-inset);
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--lf-sp-2);
+  }
+  :host(lf-options) .lf-another:not([hidden]) {
+    min-height: var(--lf-aim-floor);
+  }
+  :host(lf-options) .lf-another > .lf-key-badge {
+    position: absolute;
+    z-index: 1;
+    inset-inline-start: var(--lf-key-badge-start);
+    top: 0;
+    bottom: 0;
+    margin: auto 0;
+  }
+  /* The field takes the group's answer face before and after it becomes an lf-option.
+   * Its submit action carries the accessible name; the empty state changes paint, not
+   * layout. Its own outline is off, so its cell answers the keyboard for it. */
+  :host(lf-options) .lf-another > leaf-composition-field > .lf-compose-field {
+    --lf-compose-pad-block: 0px;
+    --lf-compose-pad-inline-start: 0px;
+    position: static;
+  }
+  :host(lf-options)
+    .lf-another
+    > leaf-composition-field
+    > .lf-compose-field
+    > leaf-text {
+    --lf-focus-box: .lf-another;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    --lf-field-end-room: var(--lf-option-action-room);
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    /* The words the option they become is set in: the group's font where it states one
+       (a row), and otherwise the type the card takes from the page. Under a finger the
+       entry floor sets them larger (surfaces.css), on their own taller line, so the
+       box gives back what that line adds over the option's and the row keeps the
+       option's height. */
+    font: inherit;
+    margin-block: calc((var(--lf-option-line) - 1lh) / 2);
+    resize: none;
+  }
+  :host(lf-options) .lf-another .lf-compose-placeholder {
+    font: inherit;
+  }
+  :host(lf-options) .lf-another .lf-option-add {
+    inset-inline-end: var(--lf-option-add-seat-inset);
+    inset-block-end: var(--lf-option-add-seat-end);
+  }
+  /* Keep an empty Add press visible while it owns focus after submission. */
+  :host(lf-options) .lf-another .lf-option-add[data-lf-empty]:not([data-lf-focus]) {
+    visibility: hidden;
+  }
+  /* On a card, the field holds the state band's height, so the row keeps its height
+   * when the add lands. An empty draft's binding badge stands in the Add seat while Add
+   * is hidden, at the digit column every card's badge shares; once the field has words,
+   * the write route's badge takes the inner seat. Both seats are reserved before either
+   * face appears. */
+  :host(lf-options) .lf-another[data-lf-form="card"] {
+    --lf-option-action-room: calc(
+      var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--lf-sp-2)
+    );
+    & > leaf-composition-field > .lf-compose-field {
+      min-height: var(--lf-card-state-height);
+    }
+    & > .lf-key-badge {
+      inset-inline-start: auto;
+      inset-inline-end: var(--lf-sp-2);
+      top: auto;
+      bottom: var(--lf-option-add-badge-end);
+      margin: 0;
+    }
+    &:has(.lf-option-add:not([data-lf-empty])) > .lf-key-badge {
+      inset-inline-end: var(--lf-option-write-badge-inset);
+    }
+    /* Add stands in the field's end corner by the field's own grid, sharing the words'
+     * cell and painted over them in document order, its face centred on their last
+     * line as the seat's insets (above) stand it: no positioned box, which Chromium's
+     * hit test visits on every call. The cell is the containing block of its badge and
+     * of the field's error only while one shows. Under a mouse, Add's face meets the
+     * aim floor, so it hangs no reach (surfaces.css); under a finger the floor is
+     * taller than the face, so Add keeps its reach and is the reach's containing
+     * block. */
+    position: static;
+    &:has(> .lf-key-badge:not(:empty), .lf-compose-error:not([hidden])) {
+      position: relative;
+    }
+    & .lf-option-add {
+      grid-area: 1 / 1;
+      position: static;
+      z-index: auto;
+      justify-self: end;
+      align-self: end;
+      margin-inline-end: calc(var(--lf-option-add-seat-inset) - var(--lf-sp-3));
+      margin-block: calc(-1 * var(--lf-icon-action-hit))
+        calc((var(--lf-option-line) - var(--lf-icon-action-face)) / 2);
+    }
+    @media (pointer: coarse) {
+      & .lf-option-add {
+        position: relative;
+        inset: auto;
+      }
+    }
+    @media not (pointer: coarse) {
+      & .lf-option-add::after {
+        content: none;
+      }
+    }
+  }
+}
+:host(lf-options)
+  .lf-another[data-lf-form="row"]
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ leaf-composition-field
+  > .lf-compose-field
+  > leaf-text::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: calc(var(--lf-key-badge-col) + var(--lf-pick-col) + var(--lf-row-gap));
+}

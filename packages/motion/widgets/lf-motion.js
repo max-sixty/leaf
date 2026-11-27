@@ -53,13 +53,12 @@ import {
   Stream,
   UiSchema,
 } from "/vendor/effect-ui.js";
-import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { declare, defineWidget, widgetProps } from "/runtime/effect-widget.js";
 import { KeepInTab } from "/runtime/widget-services.js";
 import { tabStore } from "/runtime/portable-api.js";
 import { offerActionElement, offerAttributes } from "/runtime/lib/controls.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { reportFailure } from "/runtime/lib/failure.js";
-import { COMMANDS } from "/runtime/lib/widget-events.js";
 
 const RATES = [1, 0.5, 0.25];
 // The input that pauses playback is the user's own, inside the previews.
@@ -116,26 +115,21 @@ const OfferPlay = Mount.make(
   "OfferPlay",
   { args: { action: Schema.String, label: Schema.String } },
   (/** @type {HTMLButtonElement} */ node, _args, changes) => {
-    const host = /** @type {ShadowRoot} */ (node.getRootNode()).host;
     // A row with no run names the press its control makes (dom/keyboard/bindings.js).
-    Object.assign(host, {
-      lfCommands: {
-        title: "In a motion study",
-        rows: [
-          {
-            id: "motion.play",
-            title: () => node.getAttribute("aria-label"),
-            control: node,
-          },
-        ],
-      },
-    });
+    const lfCommands = {
+      title: "In a motion study",
+      rows: [
+        {
+          id: "motion.play",
+          title: () => node.getAttribute("aria-label") ?? "",
+          control: node,
+        },
+      ],
+    };
     return Stream.runForEach(changes, ({ action, label }) =>
       Effect.sync(() => {
         offerActionElement(node, "symbol", "lf-motion-play", label, { action });
-        host.dispatchEvent(
-          new CustomEvent(COMMANDS, { bubbles: true, composed: true }),
-        );
+        declare(node, { lfCommands });
       }),
     ).pipe(Effect.as(Component.noop));
   },
@@ -460,7 +454,7 @@ export const Motion = Html.component({
 
 defineWidget("lf-motion", Motion, {
   shadow: true,
-  lfPatch: "members",
+  statics: { lfPatch: "members" },
   properties: ["renderFrame"],
   members: {
     currentTime: {

@@ -499,7 +499,6 @@ test("taking back an answered reaction keeps its place as the log's answer will"
   ]);
   assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
   assert.deepEqual(place(folded.root), place(taken.root));
-  assert.equal(folded.bare_reaction, taken.bare_reaction);
 });
 
 test("the press leaves a sent message's place Deleted, as the log's answer does where answered", () => {
@@ -545,12 +544,14 @@ test("the press leaves a sent message's place Deleted, as the log's answer does 
   }
 });
 
-test("a mark alone on the page comes off in the press, and a place the log kept stays", () => {
+test("a reaction taken back keeps its place in the press as words do, and a chip comes off", () => {
   const [holding] = servedReading("a reaction holding a to-do").threads;
   const [held] = servedReading("a reaction holding a to-do taken back").threads;
   assert.equal(held.root.withdrawn?.was, "❌");
-  // The press takes the mark off; the log's answer brings back the place a to-do keeps.
-  assert.deepEqual(foldThreads([holding], [{ kind: "undo", undoes: "e1" }]), []);
+  // The press leaves the reaction's place Deleted, as it does a comment's; the log's
+  // answer decides whether the place stays, as a to-do keeps it here.
+  const [pressed] = foldThreads([holding], [{ kind: "undo", undoes: "e1" }]);
+  assert.deepEqual(pressed.root.withdrawn, { was: "❌", pending: true });
   // The log's place stays through the next gesture, whatever else stood on it.
   assert.deepEqual(foldThreads([held], [{ kind: "undo", undoes: "elsewhere" }]), [
     held,

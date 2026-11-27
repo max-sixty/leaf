@@ -165,7 +165,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail, word in [
-        ("approach", "choose", {"value": ["opt-shim"]}, {"answered": True}),
+        ("approach", "choose", {"value": ["opt-shim"]}, {"facts": {"answered": True}}),
         (
             "work",
             "move",
@@ -817,8 +817,10 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # column, so an 8px margin of the press's own draws a hairline with dead ground
     # under it, on every thread the agent asks a set question in.
     seam = page.locator("#tq-set").evaluate(
-        """el => { const done = el.querySelector('.lf-done');
-                   const last = done.parentElement.previousElementSibling;
+        """el => { const done = el.shadowRoot.querySelector('.lf-done');
+                   // A thread's group draws no add field, so the cell above Done is
+                   // its last option.
+                   const last = el.querySelector(':scope > lf-option:last-of-type');
                    const a = last.getBoundingClientRect();
                    const b = done.getBoundingClientRect();
                    return {gap: Math.round((b.top - a.bottom) * 10) / 10,
@@ -856,7 +858,10 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert actions[-1]["widget"] == "tq-set" and actions[-1]["action"] == "answer"
-    assert actions[-1]["detail"] == {}
+    assert actions[-1]["detail"] == {
+        "options": ["tq-logs", "tq-metrics"],
+        "picked": ["tq-logs"],
+    }
 
     # And a second tab reads it off the log, which is the only place it is written.
     # A user who made no gesture gets the same pressed press and the same closed

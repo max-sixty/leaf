@@ -99,12 +99,6 @@ def turn_message(turn: dict) -> str:
     return turn["message"] if turn["kind"] == "edit" else turn["id"]
 
 
-def bare_reaction(thread: dict) -> bool:
-    """A thread that holds only the reaction that opened it, which the page draws as
-    a mark on what it is on rather than as a thread (`served_state.thread`)."""
-    return "emoji" in thread["root"] and len(thread["msgs"]) == 1
-
-
 class UndoReading:
     """Indexed eligibility for the user's one-step withdrawals.
 

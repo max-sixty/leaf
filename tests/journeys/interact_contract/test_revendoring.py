@@ -79,7 +79,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir):
             "widget": "route",
             "action": "add",
             "detail": {"option": "route-user", "text": "User route"},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
 

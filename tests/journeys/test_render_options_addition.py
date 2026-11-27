@@ -22,14 +22,15 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     # draft's badge is the one that had the edge.
     page.keyboard.press("m")
     page.keyboard.press("m")
-    expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_visible()
-    shown = page.locator("#bracket > .lf-another").evaluate(
+    expect(page.locator("#bracket .lf-another > .lf-key-badge")).to_be_visible()
+    shown = page.locator("#bracket .lf-another").evaluate(
         """el => {
              const form = el.getBoundingClientRect();
              const press = el.querySelector('.lf-compose-submit').getBoundingClientRect();
              const mark = el.querySelector('.lf-key-badge').getBoundingClientRect();
-             const card = el.parentElement
-               .querySelector(':scope > lf-option > .lf-key-badge')
+             const card = el.getRootNode().host
+               .querySelector(':scope > lf-option').shadowRoot
+               .querySelector('.lf-key-badge')
                .getBoundingClientRect();
              return {
                columnStart: mark.left - card.left,
@@ -45,11 +46,11 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     assert abs(shown["columnEnd"]) < 0.5, shown
     assert abs(shown["dy"]) < 0.5, shown
 
-    field = page.locator("#bracket > .lf-another leaf-text")
-    add = page.locator("#bracket > .lf-another .lf-compose-submit")
+    field = page.locator("#bracket .lf-another leaf-text")
+    add = page.locator("#bracket .lf-another .lf-compose-submit")
     field.click()
-    expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_hidden()
-    hint = page.locator("#bracket > .lf-another .lf-compose-placeholder")
+    expect(page.locator("#bracket .lf-another > .lf-key-badge")).to_be_hidden()
+    hint = page.locator("#bracket .lf-another .lf-compose-placeholder")
     expect(hint).to_be_visible()
     assert hint.locator("kbd").evaluate(
         "key => getComputedStyle(key).fontFamily"
@@ -64,7 +65,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     expect(add).to_be_visible()
     add_box = add.bounding_box()
     assert abs(add_box["x"] + add_box["width"] / 2 - shown["centerX"]) < 0.5
-    form_box = page.locator("#bracket > .lf-another").bounding_box()
+    form_box = page.locator("#bracket .lf-another").bounding_box()
     bottom_inset = form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"]
     assert abs(bottom_inset - shown["bottomInset"]) < 0.5
     expected_right = shown["centerX"] + add_box["width"] / 2
@@ -73,7 +74,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     page = open_page(browser, serve(OBLIGATION_PAGE))
     gaps = {}
     for group in ("#jobs", "#bracket"):
-        row = page.locator(f"{group} > .lf-another")
+        row = page.locator(f"{group} .lf-another")
         write(row.locator("leaf-text"), "Something the author missed")
         expect(row.locator(".lf-compose-submit")).to_be_visible()
         gaps[group] = row.evaluate(

@@ -244,6 +244,9 @@
       },
       "retired": "settled"
     },
+    "facts": {
+      "answered": { "type": "boolean" }
+    },
     "verbs": {
       "choose": {
         "record": {
@@ -269,12 +272,27 @@
         }
       },
       "answer": {
-        "detail": {}
+        "detail": {
+          "properties": {
+            "options": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            },
+            "picked": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            }
+          },
+          "required": ["options", "picked"]
+        }
       }
     },
     "outputs": {
       "choice": { "contract": "choice" }
     },
+    "shadow": true,
     "instructions": "An `lf-options` asks with no attribute, and On Me holds it until the user picks. Put it in the `lf-group` whose label asks its question, with the shared premises and evidence (`references/authoring-on-me.md`, \"On the page\"), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). Option cards read down the list, each as wide as the `lf-options`. `across` on the `lf-options` sets them side by side, which suits options where what the user compares, each option's picture or the evidence above the list, still reads at a card's share of the row, and the question then fits the window. Cards set across share the `lf-options`' width, and a card of a title and a sentence reads at about 18rem, so give the `lf-options` the width its cards need: the column holds two, `data-width=\"wide\"` three, and `available` four or more, or cards that hold pictures. Keep them reading down where that share would shrink the pictures below the size at which their difference reads. The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` `lf-options` needs the user's Done even when `selected` is authored. When taking in an answer in a stamped version, write `selected` on exactly the picked `lf-option` elements you authored. Leave an option the user added out of the markup; the log keeps it. Once you have finished applying the decision, give the `lf-options` `settled`, which records it: it stops asking and collapses to the pick while keeping its options and anchors.",
     "example": "<lf-group id=\"run-status-decision\" label=\"Where should run status appear?\">\n  <h2>Where should run status appear?</h2>\n  <p>Both choices preserve the existing run detail.</p>\n  <lf-options id=\"run-status\">\n    <lf-option id=\"rs-column\" label=\"Status on the run list\" recommended>\n      <small class=\"lf-tag\">effort: low</small> <small class=\"lf-tag warn\">risk: med</small> <strong>Status on the run list</strong>\n      One join; failures are visible without a click.\n      <figure id=\"rs-column-fig\">\n        <svg class=\"lf-drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-label=\"Each run row ends in its status\">\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ok\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"danger\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n    <lf-option id=\"rs-leave\" label=\"Leave the list alone\">\n      <small class=\"lf-tag\">effort: none</small> <small class=\"lf-tag ok\">risk: low</small> <strong>Leave the list alone</strong>\n      No work; failures stay one click away.\n      <figure id=\"rs-leave-fig\">\n        <svg class=\"lf-drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-label=\"Run rows carry no status\">\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n  </lf-options>\n</lf-group>"
   },
@@ -307,6 +325,8 @@
     "refers": {
       "for": {}
     },
+    "shadow": true,
+    "verbatim": true,
     "instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card's `label` is its name wherever Leaf names it, such as On Me, and the card draws none of it: show its title in its own HTML, a leading `<strong>`. Write in the option any consequence the title or chips leave unstated, with pictures in block HTML, such as `svg.lf-drawing`. A `.lf-facts` list as a direct child of a card with a `label` floats right as a narrow column where the option is wide enough, so the options' figures line up. A compact option has no `label`: its words are its label. Mark the option you advise `recommended`, which draws its badge. Give your reason for the recommendation in prose beside the options, such as the question's paragraph, so each card states only what choosing it does. `selected` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the options' answer, such as a board column, and the option answers with its id where it has none (read the `lf-board` instructions for the composition)."
   },
   "lf-code": {
@@ -564,6 +584,9 @@
       "when": {
         "required": [true]
       }
+    },
+    "facts": {
+      "answered": { "type": "boolean" }
     },
     "verbs": {
       "edit": {

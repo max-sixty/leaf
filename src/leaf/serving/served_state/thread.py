@@ -5,7 +5,6 @@ from collections.abc import Callable
 from leaf.base.schema import agent_name
 from leaf.log.events import (
     active_summaries,
-    bare_reaction,
     is_answer,
     owed_turns,
     progress_completions,
@@ -62,12 +61,10 @@ def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
 
 def thread_counts(threads: list[dict]) -> dict:
     """What the Leaf panel's Threads tab counts of `browser_thread`'s threads
-    (`threadCounts` in the runtime's `state/thread/model.js`): of those more than a bare
-    reaction, the ones still open, and of those the ones holding words the user
-    hasn't read. `tests/thread_count_cases.json` holds both runtimes to the same
-    cases."""
-    listed = [thread for thread in threads if not thread["bare_reaction"]]
-    open_threads = [thread for thread in listed if not thread["resolved"]]
+    (`threadCounts` in the runtime's `state/thread/model.js`): the ones still open, and
+    of those the ones holding words the user hasn't read.
+    `tests/thread_count_cases.json` holds both runtimes to the same cases."""
+    open_threads = [thread for thread in threads if not thread["resolved"]]
     return {
         "open": len(open_threads),
         "unread": sum(bool(thread["unread"]) for thread in open_threads),
@@ -166,7 +163,6 @@ def browser_thread(
                     if message["id"] == thread["root"]["id"]
                 ),
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
-                "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries_for[thread_id],
                 "unread": unread[thread_id],

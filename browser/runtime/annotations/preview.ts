@@ -2290,39 +2290,41 @@ export function mountPreviews(chrome: HTMLElement) {
   tip.addEventListener("toggle", (event) => {
     if ((event as ToggleEvent).newState === "closed" && shown && !shown.away) hide();
   });
-  document.addEventListener(
-    "pointerover",
-    (event) => {
-      if (event.pointerType === "touch") return;
-      const path = event.composedPath();
-      beneath = isElement(path[0]) ? path[0] : null;
-      const still = event.clientX === rest.x && event.clientY === rest.y;
-      rest = { x: event.clientX, y: event.clientY };
-      // Where the browser shows a title's tooltip, the pointer reads nothing more.
-      over = tooltipped(path) ? null : candidate(path);
-      // The pointer on a preview keeps it, as on its target (WCAG 1.4.13, "Hoverable").
-      if (onPreview()) return ride();
-      // Something that arrives under a pointer the user hasn't moved takes it, but
-      // shows nothing: the user pointed at what was there before. A pointer carrying a
-      // press, as a drag does, is acting, not reading. A target that only redraws
-      // under the pointer that came to it, as an entry's icon does, is still what the
-      // user pointed at, so the dwell their move began goes on.
-      if (still || event.buttons) {
-        const target = aimed();
-        const stays = sameTarget(target, pointing);
-        if (!stays) {
-          pointing = target;
-          pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
-        }
-        if (!stays || event.buttons) stopDwell();
-        if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
-      } else aim();
-    },
-    { capture: true, passive: true },
-  );
+  // The pointer reaching a new node. The platform tells the document of a move between
+  // two nodes of one shadow tree by no `pointerover` (the event, retargeted to the host
+  // as both its target and its related target, stops at the shadow root), so a move
+  // onto a node other than the one last heard of is that arrival too.
+  const arrived = (event: PointerEvent) => {
+    if (event.pointerType === "touch") return;
+    const path = event.composedPath();
+    beneath = isElement(path[0]) ? path[0] : null;
+    const still = event.clientX === rest.x && event.clientY === rest.y;
+    rest = { x: event.clientX, y: event.clientY };
+    // Where the browser shows a title's tooltip, the pointer reads nothing more.
+    over = tooltipped(path) ? null : candidate(path);
+    // The pointer on a preview keeps it, as on its target (WCAG 1.4.13, "Hoverable").
+    if (onPreview()) return ride();
+    // Something that arrives under a pointer the user hasn't moved takes it, but
+    // shows nothing: the user pointed at what was there before. A pointer carrying a
+    // press, as a drag does, is acting, not reading. A target that only redraws
+    // under the pointer that came to it, as an entry's icon does, is still what the
+    // user pointed at, so the dwell their move began goes on.
+    if (still || event.buttons) {
+      const target = aimed();
+      const stays = sameTarget(target, pointing);
+      if (!stays) {
+        pointing = target;
+        pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
+      }
+      if (!stays || event.buttons) stopDwell();
+      if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
+    } else aim();
+  };
+  document.addEventListener("pointerover", arrived, { capture: true, passive: true });
   document.addEventListener(
     "pointermove",
     (event) => {
+      if (event.composedPath()[0] !== beneath) arrived(event);
       rest = { x: event.clientX, y: event.clientY };
       finger = event.pointerType === "touch";
       // On or off a preview that lets the pointer through is the pointer's place, so it

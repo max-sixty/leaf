@@ -545,7 +545,7 @@ HONORED_PICK = {
     "widget": "honored",
     "action": "choose",
     "detail": {"value": ["hon-tiers"]},
-    "answered": True,
+    "facts": {"answered": True},
 }
 
 
@@ -1096,11 +1096,16 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 # notes before importer.
 # Each act with the fields its gesture adds: the word an asking widget sends, which a
 # `multiple` pick or a tune leaves open until its Done or choice.
-ANSWERED = {"answered": True}
-OPEN = {"answered": False}
+ANSWERED = {"facts": {"answered": True}}
+OPEN = {"facts": {"answered": False}}
 ACTIONS_IN_FORCE = [
     ("ab-pick", "choose", {"value": ["ab-stage"]}, ANSWERED),
-    ("ab-pick", "answer", {}, ANSWERED),
+    (
+        "ab-pick",
+        "answer",
+        {"options": ["ab-shim", "ab-stage"], "picked": ["ab-stage"]},
+        ANSWERED,
+    ),
     (
         "ab-pick",
         "add",
@@ -1113,7 +1118,12 @@ ACTIONS_IN_FORCE = [
     ("ab-sug-410", "decide", {"outcome": "accept"}, ANSWERED),
     ("ab-sug-logs", "decide", {"outcome": "reject"}, ANSWERED),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}, OPEN),
-    ("ab-triage", "answer", {}, ANSWERED),
+    (
+        "ab-triage",
+        "answer",
+        {"options": ["ab-capacity", "ab-expiry"], "picked": ["ab-capacity"]},
+        ANSWERED,
+    ),
     ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}, OPEN),
     (
         "ab-card",
@@ -1345,6 +1355,7 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
         "value": "settle",
         "when": {"asks": [True]},
     },
+    "facts": {"answered": {"type": "boolean"}},
     "example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 

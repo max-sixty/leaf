@@ -131,7 +131,8 @@ each `pre > code` in `root` whose `language-…` class names a language and that
 the reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
 (`package-themes.md`, "A page's theme"); a block in a shadow tree wears it where the
-widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
+widget sets `--lf-reading-face: 1` on a box around it inside the tree's top-level
+element, since the tree's top-level elements start without it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
 `<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
 reading face as other content with its own design does.

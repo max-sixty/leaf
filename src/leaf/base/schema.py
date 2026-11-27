@@ -238,7 +238,7 @@ VERBS_SCHEMA = {
 }
 # A widget's obligation: the attributes that make it ask (`when`), the verb whose state
 # is its typed answer (`value`), and how it ends. Whether it is answered is the
-# widget's own word, carried on its gestures (`obligations.gesture_answers`).
+# widget's `answered` fact (`FACT_NAMES`, `obligations.widget_facts`).
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -249,6 +249,15 @@ AWAITS_SCHEMA = {
     },
     "required": ["value"],
     "additionalProperties": False,
+}
+# What the widget works out of its state and markup for the server to keep: each name
+# a static function of its class, as an output's name is a property of its element,
+# with the JSON Schema of its value, held to Draft 2020-12 apart (`registry.widgets`).
+FACT_NAMES = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": "^[a-z][A-Za-z0-9]*$"},
+    "additionalProperties": {"type": ["object", "boolean"]},
 }
 # Package and data-contract instructions address their declared audiences. Widget
 # authoring instructions have one reader and therefore use a plain string below.
@@ -334,6 +343,7 @@ _AUTHORING = {
 FACTS: dict[str, dict] = {
     "verbs": VERBS_SCHEMA,
     "awaits": AWAITS_SCHEMA,
+    "facts": FACT_NAMES,
     "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     "exhibit": _conditional({"const": True}),
     "history": {"const": True},

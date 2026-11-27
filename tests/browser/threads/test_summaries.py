@@ -163,7 +163,7 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
 
     def opened():
         expect(toggle).to_have_attribute("aria-expanded", "true")
-        expect(toggle).to_have_accessible_name("3 earlier messages")
+        expect(toggle).to_have_accessible_name("3 messages")
         for message in covered:
             expect(message).to_be_visible()
         expect(note).to_be_in_viewport()
@@ -320,7 +320,7 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
     )
     expand = checkpoint.locator(".lf-summary-expand")
     expect(expand).to_have_attribute("aria-expanded", "false")
-    expect(expand).to_have_accessible_name("3 earlier messages")
+    expect(expand).to_have_accessible_name("3 messages")
     expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "Checkpoint digest: the dependency remains and the measurement took 18 minutes."
@@ -351,14 +351,14 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
         expect(
             card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
         ).to_be_visible()
-    expect(expand).to_have_accessible_name("3 earlier messages")
+    expect(expand).to_have_accessible_name("3 messages")
     expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
     expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_be_hidden()
 
     # The open fold shows a reply's markup in place.
-    card.get_by_role("button", name="3 earlier messages", exact=True).click()
+    card.get_by_role("button", name="3 messages", exact=True).click()
     expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_contain_text(
         "The measured result is 18 minutes."
     )
@@ -384,7 +384,7 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
         f'.lf-thread-checkpoint[data-lf-summary-id="{summary["id"]}"]'
     )
     label = checkpoint.locator(".lf-summary-label")
-    expand = checkpoint.get_by_role("button", name="2 earlier messages")
+    expand = checkpoint.get_by_role("button", name="2 messages")
     expect(label).to_have_text("Previous progress messages")
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "Previous progress messages"

@@ -935,6 +935,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Obligation" }
         },
+        "facts": {
+          "description": "Each widget's facts as the page keeps them, by widget id then fact name (`obligations.widget_facts`): the latest value a gesture or a `facts` event said, which a version restating the widget's decisions lapses. A widget with none kept is absent.",
+          "type": "object",
+          "additionalProperties": { "type": "object" }
+        },
         "reports": {
           "description": "The view's report feed, in log order (`projection.canonical_reports`).",
           "type": "array",
@@ -1018,6 +1023,7 @@
         "document",
         "thread",
         "obligations",
+        "facts",
         "reports",
         "undo",
         "published_at",
@@ -1532,7 +1538,6 @@
             { "type": "null" }
           ]
         },
-        "bare_reaction": { "type": "boolean" },
         "seat": {
           "description": "The widget whose thread seat the root stands in (`events.seat_root`), or null.",
           "type": ["string", "null"]
@@ -1575,7 +1580,6 @@
         "msgs",
         "revisions",
         "resolved",
-        "bare_reaction",
         "seat",
         "summaries",
         "unread",

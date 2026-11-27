@@ -37,7 +37,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "reject"},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     assert session_model.cmd_wait(page_dir) == 0

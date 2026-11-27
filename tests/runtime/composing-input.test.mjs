@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { signal } from "/vendor/signals-core.js";
 import {
-  coveredFrame,
+  coveredBox,
   createCompositionInputs,
   syncInput,
 } from "/runtime/annotations/composing/input.js";
@@ -118,16 +118,20 @@ test("focus, contextual hints and errors leave unrelated composition readings al
   failure.clear();
 });
 
-test("a box whose words cover its placeholder offers its frame for the key that enters them", (t) => {
+test("a box whose words cover its placeholder lends its own corner the key that enters them", (t) => {
   const { input, field, sync } = composer(t);
-  assert.equal(coveredFrame(input), field.querySelector("div.lf-compose-field"));
+  const frame = field.querySelector("div.lf-compose-field");
+  assert.deepEqual(coveredBox(input), {
+    frame,
+    key: frame?.querySelector(":scope > .lf-compose-key"),
+  });
   // In the words, the key is a letter typed.
   focusDestination(input, "move");
-  assert.equal(coveredFrame(input), null);
+  assert.equal(coveredBox(input), null);
   input.blur();
   // An empty box says the key in its placeholder.
   sync.load("");
-  assert.equal(coveredFrame(input), null);
+  assert.equal(coveredBox(input), null);
 });
 
 test("dictation and send trade the same field seat as its draft changes", async (t) => {

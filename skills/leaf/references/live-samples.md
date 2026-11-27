@@ -15,12 +15,12 @@ id. This mode has no inner page, panel, Reset or Full view controls:
 </lf-sample>
 ```
 
-Without `interactive` or a template, the contents are quoted and take no input.
-For an isolated live page, use `lf-sample` with one direct `template[data-sample]` child to let the user operate a
-complete Leaf page inside the surrounding page. Give both the element and the template
-stable ids, and put the sample page's content and styles directly in the template. The
-sample is a column page unless the template's `class` names another Layout, such as
-`class="layout-workspace density-working"`:
+Without `interactive` or a template, the contents are quoted and take no input. A
+sample whose one direct child is a `template[data-sample]` is an isolated live page
+instead: the user operates a complete Leaf page inside the surrounding page. Give both
+the sample and the template stable ids, and put the sample page's content and styles
+directly in the template. The sample is a column page unless the template's `class`
+names another Layout, such as `class="layout-workspace density-working"`:
 
 ```html
 <lf-sample id="practice" label="practice release note">

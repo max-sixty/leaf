@@ -597,10 +597,11 @@
             <p id="progress-lists-subjects">
               Any widget can ask, whether bundled, from a package or the page’s own, by
               declaring <a href="#awaits"><code>awaits</code></a> in its registry entry,
-              and says on each of the user's gestures whether it is answered. To ask
-              about content that asks nothing, such as a paragraph or a chart, or to
-              leave the user a step such as trying a build, the agent opens a thread on
-              that content or the page with a message sent with
+              and says whether it is answered as each of the user's gestures and each
+              version moves it (<a href="#facts"><code>facts</code></a
+              >). To ask about content that asks nothing, such as a paragraph or a
+              chart, or to leave the user a step such as trying a build, the agent opens
+              a thread on that content or the page with a message sent with
               <code>--obligation</code>, and the user’s reply answers it. Nothing goes
               On Me that neither a widget nor a thread answers, so no item carries a
               generic Done, and Leaf adds no answer to a widget beyond those the widget

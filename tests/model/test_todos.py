@@ -124,7 +124,7 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     queue = state_json(page_dir)
@@ -1343,7 +1343,7 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     todo = written(
@@ -1370,7 +1370,7 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     [workflow] = state_json(page_dir)["workflows"]
@@ -1845,7 +1845,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
 
@@ -1867,7 +1867,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     assert [
@@ -2006,8 +2006,8 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
             "revision": 1,
             "widget": "plan-choice",
             "action": "answer",
-            "detail": {},
-            "answered": True,
+            "detail": {"options": [], "picked": []},
+            "facts": {"answered": True},
         },
     )
     before_state = page_state(page_dir)
@@ -2121,7 +2121,7 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
                 "widget": "draft",
                 "action": "edit",
                 "detail": {"value": text},
-                "answered": bool(text),
+                "facts": {"answered": bool(text)},
             },
         )
 

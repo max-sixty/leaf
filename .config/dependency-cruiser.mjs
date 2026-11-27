@@ -162,11 +162,7 @@ export default {
       severity: "error",
       from: {
         path: owners,
-        pathNot: isOneOf([
-          "widget-api.js",
-          "widget-services.js",
-          "host/widget-controller.js",
-        ]),
+        pathNot: isOneOf(["widget-api.js", "host/widget-controller.js"]),
       },
       to: { path: isModule("host/application.js") },
     },

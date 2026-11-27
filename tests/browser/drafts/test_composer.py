@@ -680,7 +680,7 @@ def test_resume_writing_returns_to_an_option_being_added(browser, serve):
     """The field adding an option the author did not list is a writing place like any
     other: Resume writing comes back to it with its words, which stay its own."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
-    field = page.locator("#jobs > .lf-another leaf-text")
+    field = page.locator("#jobs .lf-another leaf-text")
     write(field, "An option of mine.")
     page.locator("body").focus()
     page.keyboard.press("g")
@@ -793,7 +793,7 @@ def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve)
     shown = hint.evaluate(PLACEHOLDER_SHOWN)
     assert len(shown["parts"]) == 3 and NEW_LINE.fullmatch(shown["parts"][2]), shown
 
-    field = page.locator("#jobs > .lf-another leaf-text")
+    field = page.locator("#jobs .lf-another leaf-text")
     field.click()
     expect(field).to_have_attribute("placeholder", "Add another option… ⏎")
     shown = field.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)

@@ -82,7 +82,7 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
             "widget": "decision-options",
             "action": "choose",
             "detail": {"value": ["decision-ship"]},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     question = panel_comment(

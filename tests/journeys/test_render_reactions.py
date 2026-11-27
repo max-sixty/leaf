@@ -20,13 +20,14 @@ from leaf.log import event_log as events_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_target_hint_opens_comment_and_a_reaction_seats_only_its_glyph(
+def test_a_target_hint_opens_comment_and_a_reaction_leaves_only_its_thread_marker(
     browser, serve
 ):
     """Keyboard target choosing opens Comment. Choosing a reaction puts an
-    element anchor in the log, which paints a glyph seated at the element's first line.
-    The returned focus rings the element until focus leaves; the reaction itself
-    leaves only its seated glyph, with no wash or persistent contour."""
+    element anchor in the log, which opens a thread whose marker stands in the
+    element's margin. The returned focus rings the element until focus leaves; the
+    reaction itself leaves only its thread's marker, with no wash or persistent
+    contour."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
@@ -41,7 +42,7 @@ def test_a_target_hint_opens_comment_and_a_reaction_seats_only_its_glyph(
         page.keyboard.press("Space")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["emoji"] == "🎯" and sent["anchor"] == {"section": "prose"}
-    shown = painted(page, [["prose", "🎯"]])
+    shown = painted(page, ["prose"])
     assert shown["washed"] == "", shown
     expect(page.locator("#prose")).to_be_focused()
     prose = page.locator("#prose")
@@ -51,4 +52,4 @@ def test_a_target_hint_opens_comment_and_a_reaction_seats_only_its_glyph(
     assert shown["projected"] == 1, shown
     page.evaluate(RELEASE_FOCUS)
     expect(page.locator("[data-lf-mark]")).to_have_count(0)
-    assert painted(page, [["prose", "🎯"]])["washed"] == ""
+    assert painted(page, ["prose"])["washed"] == ""

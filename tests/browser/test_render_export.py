@@ -101,7 +101,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    form = page.locator("#jobs > .lf-another")
+    form = page.locator("#jobs .lf-another")
     field = form.locator("leaf-text")
     add = form.locator(".lf-compose-submit")
     expect(field).to_have_attribute("placeholder", "Add another option…")

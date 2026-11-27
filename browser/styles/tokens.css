@@ -582,10 +582,6 @@
   /* The draft's wash, in the user's ink as a draft on a box is, relative to it so one
      definition serves both schemes; the passage highlight (marks.css) reads it. */
   --lf-mark-pending: color-mix(in srgb, var(--lf-ok) 20%, transparent);
-  /* A reaction's wash: the same hue one step under the resting mark, so a passage
-     someone reacted to reads as touched and a passage someone commented on reads as
-     annotated, and the two never look alike side by side. */
-  --lf-react: light-dark(#dfd1ed40, #6152a036);
   /* The wash a generated press takes under the pointer. As a shadow it can follow a
      control's visible face inside a larger hit target; a row lays it over its own
      ground as an image (controls.css, `.lf-row`). */

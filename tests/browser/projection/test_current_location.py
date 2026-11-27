@@ -42,7 +42,6 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
-    without_end_room,
     write,
 )
 
@@ -994,7 +993,6 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
 
     # A window tall enough to hold the whole page, so the root has no scroll range and the
     # browser will not focus body as a scrolling affordance.
-    without_end_room(page)
     resized(page, 1200, 2400)
     assert not page.evaluate(
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
@@ -1027,6 +1025,7 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
 
     def undeclare(registry):
         del registry["lf-suggestion"]["awaits"]
+        del registry["lf-suggestion"]["facts"]
         del registry["lf-suggestion"]["attributes"]["properties"]["resolves"]
 
     declare_on_page(serve.page_dir, undeclare)

@@ -2270,8 +2270,8 @@ def show_done(page):
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
-# (state/thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
-# thread; null until the saved inventory has arrived. It leaves the reading as
+# (state/thread/model.js, `threadCounts`): those not resolved; null until the saved
+# inventory has arrived. It leaves the reading as
 # `window.__lfOpenThreads` for a wait to poll.
 OPEN_THREAD_COUNT = """async () => {
   const { readThreads } = await window.__lfWidgetApi();
@@ -3339,14 +3339,6 @@ def preview_text(target):
     """The words `target`'s preview shows a resting pointer, as its face's
     `textContent` reads them where no key chip stands beside its name."""
     return "".join(preview_parts(target))
-
-
-def without_end_room(page):
-    """Take away the room a column or sidebar page keeps below its last line
-    (layouts.css), so the page ends where its content does, as one with no Layout
-    does. A test whose subject is what happens where no scroll is left, a destination
-    at the page's foot or content leaving below that clamps the page, needs it."""
-    page.add_style_tag(content="body { --lf-end-room: 0px !important; }")
 
 
 def resized(page, width, height):

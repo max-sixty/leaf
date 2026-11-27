@@ -227,7 +227,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     )
     card_before = page.locator("#st-sd").bounding_box()
     page.locator("#st-sd").click()
-    state = page.locator("#st-sd > .lf-pick")
+    state = page.locator("#st-sd .lf-pick")
     expect(state).to_have_text("selected")
     assert page.locator("#st-sd").bounding_box() == card_before
     state_box = state.bounding_box()
@@ -346,8 +346,14 @@ def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
     unhinted = done.bounding_box()
     page.keyboard.press("m")
     expect(page.locator("#apply")).to_be_focused()
+    # The digits of the options' own roots and of the group's, which a locator lists
+    # by tree rather than by where they stand, so they are read down the group.
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
-    expect(hints).to_have_text(["1", "2", "3", "4"])
+    down = """es => es.map(e => { const r = e.getBoundingClientRect();
+                                return [e.textContent, r.x, r.y]; })
+                     .sort((a, b) => a[2] - b[2])"""
+    expect(hints).to_have_count(4)
+    assert [digit for digit, _, _ in hints.evaluate_all(down)] == ["1", "2", "3", "4"]
     # Done's digit sits inside the button, out of flow: wearing it moves no edge.
     assert done.bounding_box() == unhinted
     expect(done).to_have_attribute("aria-keyshortcuts", "4")
@@ -357,11 +363,9 @@ def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
     done.locator(".lf-key-badge").click()
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "false")
-    positions = hints.evaluate_all(
-        "es => es.map(e => { const r = e.getBoundingClientRect(); return [r.x, r.y]; })"
-    )
-    assert max(x for x, _ in positions) - min(x for x, _ in positions) <= 1
-    assert [y for _, y in positions] == sorted(y for _, y in positions)
+    positions = hints.evaluate_all(down)
+    assert max(x for _, x, _ in positions) - min(x for _, x, _ in positions) <= 1
+    assert [digit for digit, _, _ in positions] == ["1", "2", "3", "4"]
     page.keyboard.press("2")
     expect(page.locator("#two")).to_have_attribute("selected", "")
     round_trip(page)
@@ -453,27 +457,30 @@ def test_an_option_state_change_offers_no_card(browser, serve):
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
-    """A choice presents its retained controls before delivery, including refusal."""
+    """A choice presents its retained controls before delivery, including refusal. A
+    group taken off the page and put back keeps every node its author wrote; its marks
+    are drawn again, since leaving the document closes a widget's drawing."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     group = page.locator("#transport")
     strict = page.locator("#opt-strict")
-    mark = strict.locator(":scope > .lf-pick")
+    mark = strict.locator(".lf-pick")
     expect(mark).to_be_visible()
     page.evaluate(
         """async holder => {
           const option = holder.querySelector('#opt-strict');
-          const control = option.querySelector(':scope > lf-option-control');
+          const control = option.shadowRoot.querySelector('.lf-pick');
           window.optionGroup = holder;
           window.authoredOption = option;
           window.authoredTitle = option.querySelector(':scope > strong');
           window.optionControl = control;
-          window.optionIdentityHeld = () =>
+          window.authoredHeld = () =>
             document.querySelector('#transport') === optionGroup &&
             optionGroup.querySelector('#opt-strict') === authoredOption &&
-            authoredOption.querySelector(':scope > strong') ===
-              authoredTitle &&
-            authoredOption.querySelector(':scope > lf-option-control') === optionControl;
+            authoredOption.querySelector(':scope > strong') === authoredTitle;
+          window.optionIdentityHeld = () =>
+            authoredHeld() &&
+            authoredOption.shadowRoot.querySelector('.lf-pick') === optionControl;
 
           const presentation = await window.__lfCheckApi();
           window.whenOptionsPresented = presentation.whenApplicationPresented;
@@ -529,7 +536,8 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
         }"""
     )
     page.wait_for_function("reconnectedOptionsReady")
-    assert page.evaluate("optionIdentityHeld()") is True
+    assert page.evaluate("authoredHeld()") is True
+    expect(mark).to_have_attribute("aria-checked", "false")
     expect(strict).to_contain_text("Tighter, but a session")
 
 
@@ -537,7 +545,7 @@ def test_obligation_addresses_are_screen_only_apparatus(browser, serve):
     """An obligation's key hints stay out of selected page words and off paper."""
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
     page.keyboard.press("m")
-    badges = page.locator("#storage-options > lf-option > .lf-key-badge")
+    badges = page.locator("#storage-options > lf-option .lf-key-badge")
     expect(badges).to_have_text(["1", "2"])
     expect(badges.first).to_be_visible()
 
@@ -567,7 +575,9 @@ def test_obligation_addresses_are_screen_only_apparatus(browser, serve):
 # colours, since a transparent ground on either side draws no line at all.
 HAIRLINED = r"""el => {
   const s = getComputedStyle(el);
-  const group = getComputedStyle(el.parentElement);
+  // The group's grid, whichever tree holds the cell: its own children, and the cells
+  // its shadow root draws.
+  const group = getComputedStyle(el.closest('lf-options') ?? el.getRootNode().host);
   const clear = (c) => c === 'transparent' || /rgba\([^)]*,\s*0\)/.test(c);
   return parseFloat(group.rowGap) >= 1 && parseFloat(group.columnGap) >= 1
     && !clear(group.backgroundColor) && !clear(s.backgroundColor)
@@ -606,17 +616,17 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert page.locator("#opt-stage").evaluate(HAIRLINED), (
         "the cells share no hairline, so the set reads as one box rather than as cells"
     )
-    # The group's last child is the cell the module appends for the user's own
-    # option, and its line stands above it, against the last authored option.
-    assert page.locator("#approach > :last-child").evaluate(HAIRLINED), (
+    # The cell the group draws for the user's own option stands last,
+    # and its line stands above it, against the last authored option.
+    assert page.locator("#approach .lf-another").evaluate(HAIRLINED), (
         "the user's own option is not divided from the authored ones"
     )
 
     option = page.locator("#opt-shim")
-    mark = option.locator(":scope > .lf-pick")
+    mark = option.locator(".lf-pick")
     ring = mark.evaluate(
         """el => { const s = getComputedStyle(el, '::before');
-                  const box = el.getBoundingClientRect(), card = el.parentElement.getBoundingClientRect();
+                  const box = el.getBoundingClientRect(), card = el.getRootNode().host.getBoundingClientRect();
                   return {visibility: s.visibility, width: parseFloat(s.width),
                           atOpeningEdge: box.right <= card.right && box.top - card.top < 24}; }"""
     )
@@ -636,10 +646,10 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
     expect(page.locator("#approach-decision[data-lf-obligation]")).to_have_count(1)
-    ring_on = """el => { const on = el.closest('lf-option');
+    ring_on = """el => { const on = el.getRootNode().host;
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
-                          return [on.id, on.matches(':has(> .lf-pick:focus-visible)'),
+                          return [on.id, el.matches(':focus-visible'),
                                   drawn(on.closest('lf-options')), drawn(on), drawn(el),
                               getComputedStyle(on).backgroundColor
                                 !== getComputedStyle(on.nextElementSibling).backgroundColor]; }"""
@@ -653,7 +663,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         f"mark {mark_ring}"
     )
     assert washed, "nothing says which cell the keyboard is on"
-    badge = option.locator(":scope > .lf-key-badge")
+    badge = option.locator(".lf-key-badge")
     expect(badge).to_be_visible()
     assert mark.evaluate("el => getComputedStyle(el).opacity") == "0"
     assert (
@@ -692,7 +702,7 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     """Every untaken option keeps a visible boundary before the user aims at it."""
     page = open_page(browser, serve(OBLIGATION_PAGE), color_scheme=color_scheme)
     readings = page.locator(
-        'lf-options > lf-option:not([selected]) > .lf-pick[role="checkbox"]'
+        'lf-options > lf-option:not([selected]) .lf-pick[role="checkbox"]'
     ).evaluate_all(
         """marks => {
           const canvas = document.createElement('canvas');
@@ -717,8 +727,8 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
           };
           return marks.map(mark => {
             const indicator = getComputedStyle(mark, '::before').borderTopColor;
-            const background = getComputedStyle(mark.parentElement).backgroundColor;
-            return {id: mark.parentElement.id, indicator, background,
+            const background = getComputedStyle(mark.getRootNode().host).backgroundColor;
+            return {id: mark.getRootNode().host.id, indicator, background,
                     contrast: contrast(indicator, background)};
           });
         }"""
@@ -770,7 +780,7 @@ def test_a_picked_options_muted_words_stay_aa_under_the_pointer(
           : ((channel + .055) / 1.055) ** 2.4)
         .reduce((sum, channel, index) =>
           sum + channel * [.2126, .7152, .0722][index], 0);
-      const words = getComputedStyle(option.querySelector('.lf-ref')).color;
+      const words = getComputedStyle(option.shadowRoot.querySelector('.lf-ref')).color;
       const ground = getComputedStyle(option).backgroundColor;
       const [light, dark] = [luminance(words), luminance(ground)].sort((a, b) => b - a);
       return {words, ground, contrast: (light + .05) / (dark + .05)};
@@ -841,7 +851,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             cells = page.locator(f"#{group}").evaluate(
                 r"""el => {
                      const px = (v) => parseFloat(v) || 0;
-                     const kids = [...el.children].filter((c) => c.checkVisibility());
+                     const kids = [...el.shadowRoot.querySelector('slot').parentElement.children].flatMap((c) => c.localName === 'slot' ? [...el.children] : [c]).filter((c) => c.checkVisibility());
                      return kids.map((c, i) => {
                        const s = getComputedStyle(c);
                        const r = c.getBoundingClientRect();
@@ -930,7 +940,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         # middle and across its top, in both joined forms, with a row taken beside
         # another.
         for option in ("#c-redis", "#r-drill", "#r-rotate"):
-            page.locator(f"{option} > .lf-pick").click()
+            page.locator(f"{option} .lf-pick").click()
             expect(page.locator(option)).to_have_attribute("selected", "")
         # Keep hover labels clear of the pixels whose ring thickness is measured.
         page.locator("h1").click()
@@ -1123,7 +1133,7 @@ def test_a_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve)
           const group = document.getElementById(id);
           const box = group.getBoundingClientRect();
           const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
-          const cells = [...group.children].filter((cell) => cell.checkVisibility());
+          const cells = [...group.shadowRoot.querySelector('slot').parentElement.children].flatMap((c) => c.localName === 'slot' ? [...group.children] : [c]).filter((cell) => cell.checkVisibility());
           const prose = group.closest('lf-group').querySelector(':scope > p');
           return {
             id,
@@ -1131,7 +1141,7 @@ def test_a_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve)
             holder: group.parentElement.getBoundingClientRect().width,
             prose: prose ? prose.getBoundingClientRect().width : null,
             cells: cells.map((cell) => {
-              const mark = cell.querySelector(':scope > .lf-pick');
+              const mark = cell.shadowRoot?.querySelector('.lf-pick');
               return {
                 what: cell.id || cell.className || cell.tagName.toLowerCase(),
                 short: inner - cell.getBoundingClientRect().right,
@@ -1183,7 +1193,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "widget": "quoted-suggestion",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
-                "answered": True,
+                "facts": {"answered": True},
             },
         )
     assert refused_on(refused.value).code == "quoted-widget"
@@ -1254,7 +1264,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # stays unwired. The live pair is the control — without it a theme that had stopped
     # drawing the offer at all would read exactly like one that withholds it.
     offer = """el => { const cs = getComputedStyle(el);
-        const pick = el.querySelector(':scope > .lf-pick');
+        const pick = el.shadowRoot.querySelector('.lf-pick');
         const ps = pick && getComputedStyle(pick);
         return { cursor: cs.cursor, box: cs.borderTopWidth,
                  stateRoom: !ps || ps.float === 'none' ? 0
@@ -1378,7 +1388,7 @@ def test_one_band_says_where_the_user_is_located(browser, serve):
     assert page.locator("#storage-decision").evaluate(LOCATION_RING) == ["none"]
     group = page.locator("#storage-options")
     assert group.evaluate(
-        "el => el.matches(':has(> lf-option > .lf-pick:focus-visible)')"
+        "el => [...el.children].some((o) => o.shadowRoot?.querySelector('.lf-pick:focus-visible'))"
     ), "the keyboard is not on the group's own mark, so this reads nothing"
     assert group.evaluate(drawn) == 0
     assert page.locator("#storage-evict").evaluate(drawn) > 0, (
@@ -1427,12 +1437,13 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
 
     # One row per option in both forms where nothing lays the group across, so the
     # joined control below is a list whatever the options hold: every cell spans the
-    # frame.
+    # frame, the options and the cells the group draws in its shadow root alike.
     one_per_row = """el => {
       const s = getComputedStyle(el);
       const inner = el.getBoundingClientRect().width
         - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
-      const cells = [...el.children].filter((c) => c.checkVisibility());
+      const drawn = el.shadowRoot?.querySelectorAll('[part~="cell"]') ?? [];
+      const cells = [...el.children, ...drawn].filter((c) => c.checkVisibility());
       return cells.length > 2
         && cells.every((c) => Math.abs(c.getBoundingClientRect().width - inner) < 0.5);
     }"""
@@ -1620,7 +1631,7 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
         read = """() => {
                     const group = document.querySelector('#jobs').getBoundingClientRect();
                     return [...document.querySelectorAll('#jobs > lf-option')].map((o) => {
-                      const mark = o.querySelector(':scope > .lf-pick');
+                      const mark = o.shadowRoot.querySelector('.lf-pick');
                       const walk = document.createTreeWalker(o, NodeFilter.SHOW_TEXT);
                       let node = walk.nextNode();
                       while (node && (!node.data.trim()
@@ -1684,7 +1695,7 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
         chip = page.locator("#job-heater > small.lf-tag")
         expect(chip).to_have_text("reversible")
         ref = page.locator("#job-heater .lf-ref").bounding_box()
-        mark = page.locator("#job-heater > .lf-pick").bounding_box()
+        mark = page.locator("#job-heater .lf-pick").bounding_box()
         assert mark["x"] < chip.bounding_box()["x"] < ref["x"], (
             "the chip stands outside the row's own words rather than among them"
         )
@@ -1734,14 +1745,14 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
     resized(page, 900, 1200)
 
     page.keyboard.press("m")
-    expect(page.locator("#routes > lf-option > .lf-key-badge")).to_have_count(10)
+    expect(page.locator("#routes > lf-option .lf-key-badge")).to_have_count(10)
     expect(
-        page.locator("#routes > lf-option > .lf-key-badge[data-lf-binding-badge]")
+        page.locator("#routes > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(9)
     opacity = "el => getComputedStyle(el).opacity"
     for index in range(1, 10):
-        assert page.locator(f"#route-{index} > .lf-pick").evaluate(opacity) == "0"
-    assert page.locator("#route-10 > .lf-pick").evaluate(opacity) == "1", (
+        assert page.locator(f"#route-{index} .lf-pick").evaluate(opacity) == "0"
+    assert page.locator("#route-10 .lf-pick").evaluate(opacity) == "1", (
         "the unbound tenth action lost its visible checkbox to a sibling's binding badge"
     )
 
@@ -1773,8 +1784,13 @@ def test_a_nested_obligation_keeps_its_own_arity_and_commands(browser, serve, su
         )
         # And the outer group's own marks are unaffected by the group standing inside one of
         # its options: the mark on #out-drill is the outer question's, not the inner one's.
-        assert page.locator("#out-drill > .lf-pick").evaluate(corner) < 0.5
-        assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
+        assert (
+            page.locator("#out-drill > [data-lf-form] > .lf-pick").evaluate(corner)
+            < 0.5
+        )
+        assert (
+            page.locator("#out-keys > [data-lf-form] > .lf-pick").evaluate(corner) < 0.5
+        )
 
     with subtests.test("a nested obligation's commands belong only to it"):
         # An obligation projects commands from its answer source, but containment alone
@@ -1787,10 +1803,14 @@ def test_a_nested_obligation_keeps_its_own_arity_and_commands(browser, serve, su
         # obligation.
         page.keyboard.press("m")
         expect(page.locator("#outer-decision")).to_be_focused()
-        outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
+        outer_hints = page.locator(
+            "#outer > lf-option > [data-lf-form] > .lf-key-badge"
+        )
         expect(outer_hints).to_have_text(["1", "2"])
         expect(outer_hints.first).to_be_visible()
-        expect(page.locator("#inner > lf-option > .lf-key-badge").first).to_be_hidden()
+        expect(
+            page.locator("#inner > lf-option > [data-lf-form] > .lf-key-badge").first
+        ).to_be_hidden()
         page.keyboard.press("2")
         expect(page.locator("#out-keys")).to_have_attribute("selected", "")
         expect(page.locator("#inner > lf-option[selected]")).to_have_count(0)
@@ -1813,7 +1833,7 @@ def test_a_nested_obligations_pick_is_not_part_of_its_outers_record(browser, ser
             "widget": "outer",
             "action": "choose",
             "detail": {"value": ["out-drill"]},
-            "answered": False,
+            "facts": {"answered": False},
         },
     )
 
@@ -1900,7 +1920,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.locator("#ro-column-p").click()
-    expect(page.locator("#ro-column > .lf-pick")).to_have_text("selected")
+    expect(page.locator("#ro-column .lf-pick")).to_have_text("selected")
     round_trip(page)
     assert [
         e["detail"]["value"]
@@ -1969,21 +1989,19 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     stop = page.locator("#rt-stop")
     page.locator("#rt-stop-p").evaluate("el => getSelection().selectAllChildren(el)")
     assert page.evaluate("() => getSelection().toString()").strip()
-    stop.locator(":scope > .lf-pick").hover()
+    stop.locator(".lf-pick").hover()
     page.mouse.down()
-    expect(stop.locator(":scope > .lf-key-badge")).to_have_attribute(
-        "data-lf-binding-badge", ""
-    )
+    expect(stop.locator(".lf-key-badge")).to_have_attribute("data-lf-binding-badge", "")
     page.mouse.up()
     expect(stop).to_have_attribute("selected", re.compile(".*"))
 
     # The group's digits show now, the Add field's in the field's end corner. A press
     # there is the field's, which a digit that took the press would leave unfocused.
-    digit = page.locator("#retry > .lf-another > .lf-key-badge")
+    digit = page.locator("#retry .lf-another > .lf-key-badge")
     expect(digit).to_have_attribute("data-lf-binding-badge", "")
     seat = digit.bounding_box()
     page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
-    expect(page.locator("#retry > .lf-another leaf-text")).to_be_focused()
+    expect(page.locator("#retry .lf-another leaf-text")).to_be_focused()
 
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
@@ -2074,14 +2092,14 @@ def test_a_press_in_a_rows_digit_column_is_a_press_on_its_control(
     The press here stands above the digit of a row of several lines."""
     page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
     night = page.locator("#wh-night")
-    mark = night.locator(":scope > .lf-pick")
-    digit = night.locator(":scope > .lf-key-badge")
+    mark = night.locator(".lf-pick")
+    digit = night.locator(".lf-key-badge")
 
     # The keyboard puts the user in the group, on the other row, and its digits show.
-    page.locator("#wh-day > .lf-pick").focus()
+    page.locator("#wh-day .lf-pick").focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(page.locator("#wh-day .lf-pick")).to_be_focused()
     expect(digit).to_have_attribute("data-lf-binding-badge", "")
 
     row, seat = night.bounding_box(), digit.bounding_box()
@@ -2091,11 +2109,11 @@ def test_a_press_in_a_rows_digit_column_is_a_press_on_its_control(
     expect(mark).to_be_focused()
     expect(digit).to_have_attribute("data-lf-binding-badge", "")
 
-    add = page.locator("#when > .lf-another > .lf-key-badge")
+    add = page.locator("#when .lf-another > .lf-key-badge")
     expect(add).to_have_attribute("data-lf-binding-badge", "")
     seat = add.bounding_box()
     page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
-    expect(page.locator("#when > .lf-another leaf-text")).to_be_focused()
+    expect(page.locator("#when .lf-another leaf-text")).to_be_focused()
 
     round_trip(page)
     assert [
@@ -2128,10 +2146,10 @@ def test_the_row_the_keyboard_is_on_wears_its_ring_on_every_side(
     """The row whose mark the keyboard is on wears the focus ring one band inside its
     edge, all four sides of it."""
     page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
-    page.locator("#wh-day > .lf-pick").focus()
+    page.locator("#wh-day .lf-pick").focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(page.locator("#wh-day .lf-pick")).to_be_focused()
     expect(page.locator("#wh-day")).to_have_attribute(
         "data-lf-control-focus-visible", ""
     )
@@ -2165,10 +2183,9 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, sub
     page = open_page(browser, serve(source))
     lines = """option => {
       const words = document.createRange();
-      words.setStartBefore(option.querySelector('.lf-pick').nextSibling);
-      words.setEndBefore(option.querySelector('.lf-ref'));
+      words.selectNodeContents(option);
       const height = () => words.getBoundingClientRect().height;
-      const ref = option.querySelector('.lf-ref');
+      const ref = option.shadowRoot.querySelector('.lf-ref');
       const withRef = height();
       const without = lfUnwatched(() => {
         ref.style.display = 'none';
@@ -2268,7 +2285,7 @@ def test_a_multiple_page_obligation_waits_for_done(browser, serve):
     expect_obligations_answered(page, "0/3")
     assert (
         page.locator("#jobs").evaluate(
-            "el => el.querySelector('.lf-another').nextElementSibling.tagName"
+            "el => el.shadowRoot.querySelector('.lf-another').nextElementSibling.tagName"
         )
         == "LF-OPTIONS-DONE"
     )
@@ -2324,7 +2341,11 @@ def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
     expect_obligations_answered(page, "0/3")
     events = events_model.read_events(serve.page_dir)
     answers = [event for event in events if event.get("action") == "answer"]
-    assert len(answers) == 1 and answers[0]["detail"] == {}
+    # Done names the set it answered: every option the group showed, none picked.
+    assert len(answers) == 1 and answers[0]["detail"] == {
+        "options": ["job-camera", "job-heater", "job-mounts"],
+        "picked": [],
+    }
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         answers[0]["id"]
     ]
@@ -2840,7 +2861,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     page = open_page(browser, serve(named_source("ship-review")))
     # The example's one thread whose reply asks with options.
     question = open_panel_thread(page, "7b3e0a41").locator("lf-options").first
-    question.locator("lf-option:not([selected]) > .lf-pick").first.click()
+    question.locator("lf-option:not([selected]) .lf-pick").first.click()
     round_trip(page)
     done = question.locator(".lf-done")
     done.focus()
@@ -2850,7 +2871,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     digit = done.get_attribute("aria-keyshortcuts")
     expect(done.locator(".lf-key-badge[data-lf-binding-badge]")).to_have_text(digit)
     frame = question.bounding_box()
-    done_row = question.locator(":scope > lf-options-done").bounding_box()
+    done_row = question.locator("lf-options-done").bounding_box()
     assert frame["y"] + frame["height"] - done_row["y"] - done_row[
         "height"
     ] == pytest.approx(1, abs=1)
@@ -2885,8 +2906,8 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     rendered(page)
     seats = page.evaluate(
         """() => [...document.querySelectorAll('#ar-canary-choice > lf-option')].map((o) => {
-          const badge = o.querySelector(':scope > .lf-key-badge');
-          const pick = o.querySelector(':scope > .lf-pick').getBoundingClientRect();
+          const badge = o.shadowRoot.querySelector('.lf-key-badge');
+          const pick = o.shadowRoot.querySelector('.lf-pick').getBoundingClientRect();
           const box = badge.getBoundingClientRect();
           return {worn: badge.hasAttribute('data-lf-binding-badge'),
                   top: box.top - o.getBoundingClientRect().top,

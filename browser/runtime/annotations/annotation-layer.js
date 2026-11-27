@@ -2,8 +2,8 @@
 /* Whether the annotation layer shows.
 
    The annotation layer is everything Leaf draws over the page's content: the margin rows
-   shown as pins, whatever they hold, the durable marks on commented and reacted
-   passages, an open card, and an unfolded cluster. The rail
+   shown as pins, whatever they hold, the durable marks on commented passages, an open
+   card, and an unfolded cluster. The rail
    covers nothing, so it and everything standing in it stay. Hiding the layer changes no
    geometry, since nothing in it takes up room; it lets the user see what lies under it.
 

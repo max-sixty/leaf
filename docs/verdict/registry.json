@@ -10,6 +10,7 @@
       "decide": { "record": { "attr": "verdict" } }
     },
     "awaits": { "value": "decide" },
+    "facts": { "answered": { "type": "boolean" } },
     "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
   }
 }

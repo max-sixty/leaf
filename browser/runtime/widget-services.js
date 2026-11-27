@@ -1,3 +1,4 @@
+// Compiled from widget-services.ts by build/typescript.mjs; edit that file.
 /* What a widget written as an Effect UI component asks of Leaf, as Command services
    (`Command.Service`): a component issues one with `$.run(X.make(args))`, and the
    element `defineWidget` defines provides `leafServices(element)`, so the call reaches
@@ -7,9 +8,11 @@
    This module and the adapter load in any document (portable-api.js), so a portable
    widget draws on a page without Leaf. So the module imports statically only what
    portable-api.js re-exports, the library (`lib/`) and `host/mounted.js`, which
-   imports nothing. A service that needs Leaf's application reaches it there, as
-   `mountApplication` sets it, so it calls the application in the task of the input
-   that asked, and does nothing on a page without Leaf.
+   imports nothing, and it imports nothing dynamically. A service either speaks the
+   widget protocol, which a page without Leaf hears nothing of, or calls what portable-
+   api.js exports, or reads the application `mounted()` gives, as `mountApplication`
+   sets it, and does nothing where that is null. Each runs in the task of the input
+   that asked.
 
    Each service is one of the widget protocol's calls (module-plain-elements.md) or a
    function `widget-api.js` exports, under one name:
@@ -20,6 +23,8 @@
      because the verb is unavailable or the page runs without Leaf. Leaf has set the
      new `state` before the Command runs to its end, so a component that draws from
      `state` maps the delivery to nothing.
+   - `TakeBack` is `lf-undo`: it takes back the action in force for `verb`, or for
+     one of its units, and succeeds with the delivery as `RecordAction` does.
    - `NextOnMe` steps to the next obligation waiting on the user within `within`, as
      `obligationActions.next` does.
    - `NavigateToDatum` reveals the datum `key` names through the element's reference
@@ -32,8 +37,7 @@
      Threads, as `threadActions.open` does. A thread Threads no longer lists opens
      nothing.
    - `ShowHeld` shows what the element's `HeldReading`s hold back, since the reader
-     asked to see it (held-news.js, `showHeldReadings`). Its module stays at hand
-     after the first call, so a later reveal draws in the microtasks after its press. */
+     asked to see it (held-news.js, `showHeldReadings`). */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
 import { mounted } from "./host/mounted.js";
 import { tabStore } from "./state/tab-store.js";
@@ -52,8 +56,13 @@ export class RecordAction extends Command.Service()("leaf/RecordAction", {
   success: Delivery,
 }) {}
 
+export class TakeBack extends Command.Service()("leaf/TakeBack", {
+  args: { verb: Schema.String, unit: Schema.optional(Schema.String) },
+  success: Delivery,
+}) {}
+
 export class NextOnMe extends Command.Service()("leaf/NextOnMe", {
-  args: { within: Schema.Unknown },
+  args: { within: Schema.instanceOf(Element) },
 }) {}
 
 export class NavigateToDatum extends Command.Service()("leaf/NavigateToDatum", {
@@ -79,31 +88,25 @@ export class OpenThread extends Command.Service()("leaf/OpenThread", {
 
 export class ShowHeld extends Command.Service()("leaf/ShowHeld", {}) {}
 
-/** @type {typeof import("./records/thread/held-news.js") | undefined} */
-let heldNews;
-
-/** Record a gesture on `element` and wait for what became of it.
- * @param {Element} element @param {Record<string, unknown>} detail */
-const send = (element, detail) =>
+/** Send a gesture on `element` and wait for what became of it. */
+const send = (element, type, detail) =>
   Effect.promise(async () => {
-    const delivery = sendGesture(element, "lf-action", detail);
-    if (!delivery) return /** @type {const} */ ("unrecorded");
+    const delivery = sendGesture(element, type, detail);
+    if (!delivery) return "unrecorded";
     return (await delivery) ? "admitted" : "refused";
   });
 
-/** Leaf's services for the widget `element`.
- * @param {Element} element */
+/** Leaf's services for the widget `element`. */
 export const leafServices = (element) =>
   Layer.mergeAll(
-    RecordAction.toLayer((/** @type {any} */ args) =>
-      send(element, stripUndefined(args)),
-    ),
-    NextOnMe.toLayer((/** @type {any} */ { within }) =>
+    RecordAction.toLayer((args) => send(element, "lf-action", stripUndefined(args))),
+    TakeBack.toLayer((args) => send(element, "lf-undo", stripUndefined(args))),
+    NextOnMe.toLayer(({ within }) =>
       Effect.sync(() => {
         mounted()?.obligationActions.next({ within });
       }),
     ),
-    NavigateToDatum.toLayer((/** @type {any} */ { reference, key, success, missing }) =>
+    NavigateToDatum.toLayer(({ reference, key, success, missing }) =>
       Effect.sync(() => {
         mounted()?.navigateToDatum(element, reference, key, {
           focus: false,
@@ -112,32 +115,30 @@ export const leafServices = (element) =>
         });
       }),
     ),
-    Announce.toLayer((/** @type {any} */ { words }) =>
-      Effect.sync(() =>
-        window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words })),
-      ),
-    ),
-    KeepInTab.toLayer((/** @type {any} */ { key, value }) =>
-      Effect.sync(() => tabStore.set(key, value)),
-    ),
-    OpenThread.toLayer((/** @type {any} */ { id }) =>
-      Effect.promise(async () => {
-        const application = mounted();
-        if (!application) return;
-        const { readThreads } = await import("./records/thread/state.js");
-        const thread = readThreads().threads.find((thread) => thread.id === id);
-        if (thread) void application.threadActions.open(thread.key, { part: "thread" });
+    Announce.toLayer(({ words }) =>
+      Effect.sync(() => {
+        window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
       }),
     ),
-    ShowHeld.toLayer(() => {
-      if (heldNews) return Effect.sync(() => heldNews?.showHeldReadings(element));
-      return Effect.promise(async () => {
-        heldNews = await import("./records/thread/held-news.js");
-        heldNews.showHeldReadings(element);
-      });
-    }),
+    KeepInTab.toLayer(({ key, value }) =>
+      Effect.sync(() => {
+        tabStore.set(key, value);
+      }),
+    ),
+    OpenThread.toLayer(({ id }) =>
+      Effect.sync(() => {
+        const application = mounted();
+        const thread = application?.threadList().find((thread) => thread.id === id);
+        if (application && thread)
+          void application.threadActions.open(thread.key, { part: "thread" });
+      }),
+    ),
+    ShowHeld.toLayer(() =>
+      Effect.sync(() => {
+        mounted()?.showHeldReadings(element);
+      }),
+    ),
   );
 
-/** @param {Record<string, unknown>} args */
 const stripUndefined = (args) =>
   Object.fromEntries(Object.entries(args).filter(([, value]) => value !== undefined));

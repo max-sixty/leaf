@@ -975,7 +975,7 @@ class Terminal:
                 "widget": choice["attrs"]["id"],
                 "action": "choose",
                 "detail": {"value": [option["attrs"]["id"]]},
-                "answered": True,
+                "facts": {"answered": True},
             }
         )["id"]
         self.settle(

@@ -31,7 +31,7 @@ import { overIn, upFrom } from "../../lib/shadow-tree.js";
 import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 import { kept } from "../../state/kept.js";
-import type { allThreads } from "./state.js";
+import type { threadList } from "./state.js";
 import type { CompleteUnion } from "../../../types/contract.js";
 import type { messageHolding } from "./messages.js";
 import type { resolveAnchor } from "../../readings/anchor-resolution.js";
@@ -73,7 +73,7 @@ import type { Anchor, DraftDrawing } from "../../../types/domain.js";
 export type PlacedAt = (id: string) => { place: Element | null } | null | undefined;
 /** Where anchor placement puts a thread, a saved draft or the comment being composed
  * (annotations/anchor-placement.js), as the readers it is handed to read it. */
-export type Thread = ReturnType<typeof allThreads>[number];
+export type Thread = ReturnType<typeof threadList>[number];
 export type ResolvedTarget = CompleteUnion<
   import("../../readings/resolved-target.js").ResolvedTarget & { message?: string }
 >;
@@ -234,7 +234,7 @@ type Conversations = {
 // turns are said in; and the page's reading, since an anchor names an element of the
 // page.
 const gatherConversations = kept(() => {
-  const { all, bySection } = threadState();
+  const { collection, bySection } = threadState();
   const agent = agentName();
   const inside = new Map<Element, Conversations>();
   const headed = new Map<Element, Conversations>();
@@ -251,7 +251,7 @@ const gatherConversations = kept(() => {
   for (const [id, positions] of bySection) {
     const element = elementById(id);
     if (!element || !inPage(element)) continue;
-    const threads = positions.flatMap((at) => all[at] ?? []);
+    const threads = positions.flatMap((at) => collection.threads[at] ?? []);
     const these = {
       threads: threads.length,
       turn:

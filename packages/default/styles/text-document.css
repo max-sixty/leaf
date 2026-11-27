@@ -315,9 +315,9 @@ lf-text-document iframe.lf-text-document-preview {
   }
   /* A written Markdown preview sets the height both tabs take, its rendering's up to
      the bound, which the module gives the Source tab (lf-text-document.js,
-     `holdSource`). A source that height cuts ends in a fade and a press showing the
-     rest (`cut`), after which the Source takes its own height in the page. Told it has
-     a definite height to fill (below), it fills that height instead. */
+     `holdSource`). A tab that height cuts ends in a fade and a press showing the whole
+     document (`cuts`), after which each tab takes its own height in the page. Told it
+     has a definite height to fill (below), it fills that height instead. */
   @container not style(--lf-full-height: 1) {
     lf-text-document[preview="markdown"]:not([source], [for])
       .lf-text-document-view
@@ -326,9 +326,11 @@ lf-text-document iframe.lf-text-document-preview {
         block-size: auto;
         max-block-size: var(--lf-bound, 28rem);
       }
+      & > lf-tab:not([data-lf-all]) {
+        overflow: hidden;
+      }
       & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
         block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
-        overflow: hidden;
       }
     }
   }
@@ -345,6 +347,9 @@ lf-text-document iframe.lf-text-document-preview {
     padding: calc(2 * var(--lf-sp-5)) var(--lf-sp-4) var(--lf-sp-2);
     background: linear-gradient(transparent, var(--lf-pre-bg) 70%);
     text-align: center;
+  }
+  lf-text-document lf-tab:has(> .lf-text-document-preview) > .lf-text-document-cut {
+    background: linear-gradient(transparent, var(--lf-paper) 70%);
   }
   lf-text-document iframe.lf-text-document-preview {
     block-size: 100%;

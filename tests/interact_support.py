@@ -1060,6 +1060,7 @@ def write_row(path, page):
             "page": str(page),
             "page_key": cleanup_model.page_key(page),
             "server_id": "fixture-server",
+            "started_in": None,
             "row": {
                 "title": page.name,
                 "session_cwd": None,

@@ -4,31 +4,37 @@ and write a gallery of where each mark stands.
     uv run leaf-dev placement marks [--case NAME]... [--base [REF]] [--browser ENGINE]
 
 A case is one box a reader marks, such as a paragraph, a table or a button, standing
-in one holder, such as the reading column, a bounded block or a sideways scroll box.
-Each case's box opens its holder, so it meets the holder's edges as such a box does on
-a page. A content box takes three marks: the Alt aim (`aim`), a comment's mark while
-its comment box is open (`comment`), and the focus that Escape from that box leaves
-on it (`focus`). A control takes the aim and the keyboard's focus ring (`tab`). Add a
-case for a box or holder someone meets: a line in `CASES`, and a holder in `HOLDERS`
-if its holder isn't there yet.
+in one holder, such as the reading column, a bounded block, a sideways scroll box or a
+workspace's body. Each case's box opens its holder, so it meets the holder's edges as
+such a box does on a page. A content box takes three marks: the Alt aim (`aim`), a
+comment's mark while its comment box is open (`comment`), and the focus that Escape
+from that box leaves on it (`focus`). A control takes the aim and the keyboard's focus
+ring (`tab`). Add a case for a box or holder someone meets: a line in `CASES`, and a
+holder in `HOLDERS` if its holder isn't there yet.
 
-The cases stand on one page, which the command builds from this working tree, and with
-`--base` from the merge base with `main` (or REF) too (`leaf_dev.arms.choose_arms`),
-and opens on each arm through `leaf_dev.visits`. Each mark is put on its box by the
-reader's input alone, read and captured, and taken off before the next. What the
-gallery reports beside each capture is measured in the tab, against the box that
-draws the mark, which is the focused control's carrier for `tab`:
+The cases stand on a page for each Layout their holders need (`LAYOUTS`), with the
+column narrowed and the workspace too, so a box and its holder's edges fit one tile.
+The command builds each page from this working tree, and with `--base` from the merge
+base with `main` (or REF) too (`leaf_dev.arms.choose_arms`), and opens it on each arm
+through `leaf_dev.visits`. Each mark is put on its box by the reader's input alone,
+read and captured, and taken off before the next. What the gallery reports beside each
+capture is measured in the tab, against the box that draws the mark, which is the
+focused control's carrier for `tab`:
 
-- how far the nearest box that clips it cuts the mark, side by side;
+- how far the boxes that clip it cut the mark, side by side;
 - how far the mark's band runs over the box's words, side by side, where it stands
   inside the box: a band inside a table's edge crosses its cells' padding, and one
-  inside a paragraph's crosses its first and last letters.
+  inside a paragraph's crosses its first and last letters;
+- how far the box that scrolls round the case, such as a workspace's body, scrolls
+  across, which a holder spilling past it makes it do.
 
 Each run writes `.tmp/marks/report/marks.html`, a Leaf page of the gallery with its
 captures in `media/`, replacing the last run's, so a running `--user` preview of it
 shows the new run as a revision, with the threads left on it where they were. The
-run's own directory, `.tmp/marks/run-*/`, holds `readings.jsonl`, one line per case,
-mark and arm, and each failure's traceback. The command prints the preview command.
+gallery holds a section for each mark, with a tile for each box, or with `--base` a
+pair, the base's before this tree's. The run's own directory, `.tmp/marks/run-*/`,
+holds `readings.jsonl`, one line per case, mark and arm, and each failure's
+traceback. The command prints the preview command.
 """
 
 import html
@@ -87,51 +93,56 @@ diff --git a/two.py b/two.py
 </pre>"""
 
 
+# Each page the cases stand on: its `main`'s classes, the markup round the cases,
+# whose `{}` they fill, and its styles, which narrow the column and the workspace so a
+# box and its holder's edges fit one tile.
+LAYOUTS = {
+    "column": ("layout-column", "{}", "<style>:root { --lf-col: 26rem; }</style>"),
+    "workspace": (
+        "layout-workspace",
+        "<header><h1>Mark cases</h1></header>\n<div>{}</div>",
+        "<style>main.layout-workspace { inline-size: 32rem; }</style>",
+    ),
+    "pane": (
+        "layout-workspace",
+        '<header><h1>Mark cases</h1></header>\n<lf-pane id="cases" label="Cases">'
+        "<div>{}</div></lf-pane>",
+        "<style>main.layout-workspace { inline-size: 32rem; }</style>",
+    ),
+}
+BOUNDED = f'<div data-bound="start" style="--lf-bound: 11rem">{{}}{FILLER}</div>'
+
+
 @dataclass(frozen=True)
 class Holder:
-    """A box that holds a case's box: its title, what it is, and its markup, whose
-    `{}` the case's box fills."""
+    """A box that holds a case's box: its name in a caption, its markup, whose `{}` the
+    case's box fills, and the key in `LAYOUTS` of the page it stands on."""
 
     title: str
-    says: str
     markup: str
+    layout: str = "column"
 
 
 HOLDERS = {
-    "column": Holder(
-        "The reading column",
-        "Nothing clips a box in the column, so every mark stands where its box's "
-        "kind says.",
-        "<div>{}</div>",
-    ),
-    "bounded": Holder(
-        "A bounded block",
-        "A block bounded with data-bound scrolls down inside its height, and so clips "
-        "across too.",
-        f'<div data-bound="start" style="--lf-bound: 11rem">{{}}{FILLER}</div>',
-    ),
+    "column": Holder("the reading column", "<div>{}</div>"),
+    "bounded": Holder("a bounded block", BOUNDED),
     "short": Holder(
-        "A bounded block shorter than its bound",
-        "A short log stands as tall as what it holds, so its first and last lines meet "
-        "its top and bottom.",
-        '<div data-bound="end">{}</div>',
+        "a bounded block shorter than its bound", '<div data-bound="end">{}</div>'
     ),
     "scroller": Holder(
-        "A sideways scroll box the page made",
-        "A box the page's own CSS makes scroll across, as a wide table's wrapper "
-        "does, without Leaf's scroll class.",
-        '<div style="overflow-x: auto">{}</div>',
+        "a sideways scroll box the page made", '<div style="overflow-x: auto">{}</div>'
     ),
     "classed": Holder(
-        "A sideways scroll box with lf-scroll",
-        "The same box with Leaf's class for a box that scrolls across.",
+        "a sideways scroll box with lf-scroll",
         '<div class="lf-scroll" style="overflow-x: auto">{}</div>',
     ),
-    "board": Holder(
-        "A board",
-        "A board scrolls its columns across, and each column scrolls its cards down.",
-        "{}",
+    "board": Holder("a board", "{}"),
+    "workspace": Holder("a workspace's body", "{}", "workspace"),
+    "workspace-bounded": Holder(
+        "a bounded block in a workspace's body", BOUNDED, "workspace"
     ),
+    "pane": Holder("a pane's body", "{}", "pane"),
+    "pane-bounded": Holder("a bounded block in a pane's body", BOUNDED, "pane"),
 }
 
 
@@ -275,21 +286,51 @@ CASES = [
         ' column.</lf-card></lf-column><lf-column id="board-card-later" label="Later">'
         "</lf-column></lf-board>",
     ),
+    Case(
+        "workspace-paragraph",
+        "workspace",
+        "A paragraph",
+        "<p{id}>A paragraph in a workspace's body, which scrolls on its own.</p>",
+    ),
+    Case(
+        "workspace-bounded-paragraph",
+        "workspace-bounded",
+        "A paragraph",
+        "<p{id}>A paragraph opening a bounded block in a workspace's body.</p>",
+    ),
+    Case(
+        "pane-paragraph",
+        "pane",
+        "A paragraph",
+        "<p{id}>A paragraph in a pane's body, which scrolls on its own.</p>",
+    ),
+    Case(
+        "pane-bounded-paragraph",
+        "pane-bounded",
+        "A paragraph",
+        "<p{id}>A paragraph opening a bounded block in a pane's body.</p>",
+    ),
 ]
 
 
-def fixture(cases: list[Case]) -> str:
-    """The page every case stands on, each in a holder of its own."""
+def fixture(cases: list[Case], layout: str) -> str:
+    """The page `layout` (a key of `LAYOUTS`) on which `cases` stand, each in a holder
+    of its own."""
+    classes, around, style = LAYOUTS[layout]
     blocks = "\n".join(
         f'<section id="case-{case.name}" tabindex="-1"><h2 style="margin-block-end: 32px">{html.escape(case.name)}</h2>\n'
         + HOLDERS[case.holder].markup.replace("{}", box(case.markup, case.name))
         + "\n</section>"
         for case in cases
     )
+    if layout == "column":
+        blocks = f"<h1>Mark cases</h1>\n{blocks}"
     return gallery.page(
         "Mark cases",
         "Boxes in the holders pages put them in, for leaf-dev placement marks.",
-        f"<h1>Mark cases</h1>\n{blocks}",
+        around.replace("{}", blocks),
+        head=style,
+        layout=classes,
     )
 
 
@@ -342,40 +383,39 @@ READ = r"""([target, kind]) => {
     band = px(style.outlineWidth);
   }
   const inner = { left: outer.left + band, top: outer.top + band, right: outer.right - band, bottom: outer.bottom - band };
+  // Every box round the carrier that clips cuts the mark as far as it reaches past what
+  // that box shows, which for a box that scrolls is everything it scrolls through, as
+  // the runtime reads it (dom/geometry.js, `clipsMarks`), so a scroll never counts as a
+  // cut. `clip` names the nearest that cuts, or the nearest that clips.
   let clip = null;
-  let clipping = null;
+  const cut = { left: 0, top: 0, right: 0, bottom: 0 };
+  const scrolls = (overflow) => overflow === "auto" || overflow === "scroll";
   for (let at = up(carrier); at && at !== document.documentElement && at !== document.body; at = up(at)) {
     const s = getComputedStyle(at);
-    if (s.overflowX !== "visible" || s.overflowY !== "visible") {
-      clip = at;
-      clipping = s;
-      break;
-    }
-  }
-  const cut = { left: 0, top: 0, right: 0, bottom: 0 };
-  if (clip) {
-    // A box that scrolls shows everything it scrolls through, as the runtime reads it
-    // (dom/geometry.js, `clipsMarks`), so a scroll never counts as a cut.
-    const r = clip.getBoundingClientRect();
-    const scrolls = (overflow) => overflow === "auto" || overflow === "scroll";
-    const across = scrolls(clipping.overflowX);
-    const down = scrolls(clipping.overflowY);
-    const left = r.left + clip.clientLeft - (across ? clip.scrollLeft : 0);
-    const top = r.top + clip.clientTop - (down ? clip.scrollTop : 0);
+    if (s.overflowX === "visible" && s.overflowY === "visible") continue;
+    const r = at.getBoundingClientRect();
+    const across = scrolls(s.overflowX);
+    const down = scrolls(s.overflowY);
+    const left = r.left + at.clientLeft - (across ? at.scrollLeft : 0);
+    const top = r.top + at.clientTop - (down ? at.scrollTop : 0);
     const shows = {
       left,
       top,
-      right: left + (across ? clip.scrollWidth : clip.clientWidth),
-      bottom: top + (down ? clip.scrollHeight : clip.clientHeight),
+      right: left + (across ? at.scrollWidth : at.clientWidth),
+      bottom: top + (down ? at.scrollHeight : at.clientHeight),
     };
-    if (clipping.overflowX !== "visible") {
-      cut.left = Math.max(0, shows.left - outer.left);
-      cut.right = Math.max(0, outer.right - shows.right);
+    const here = { left: 0, top: 0, right: 0, bottom: 0 };
+    if (s.overflowX !== "visible") {
+      here.left = Math.max(0, shows.left - outer.left);
+      here.right = Math.max(0, outer.right - shows.right);
     }
-    if (clipping.overflowY !== "visible") {
-      cut.top = Math.max(0, shows.top - outer.top);
-      cut.bottom = Math.max(0, outer.bottom - shows.bottom);
+    if (s.overflowY !== "visible") {
+      here.top = Math.max(0, shows.top - outer.top);
+      here.bottom = Math.max(0, outer.bottom - shows.bottom);
     }
+    const cuts = Object.values(here).some((amount) => amount >= 0.5);
+    if (!clip || (cuts && !Object.values(cut).some((amount) => amount >= 0.5))) clip = at;
+    for (const side in cut) cut[side] = Math.max(cut[side], here[side]);
   }
   const words = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
   const walker = document.createTreeWalker(carrier, NodeFilter.SHOW_TEXT);
@@ -407,6 +447,17 @@ READ = r"""([target, kind]) => {
     cut,
     over,
   };
+}"""
+
+
+# How far the nearest box round the case's section that scrolls across, such as a
+# workspace's body, scrolls; the page's own scroll doesn't count.
+SPILL = """(section) => {
+  for (let at = section.parentElement; at && at !== document.body; at = at.parentElement) {
+    const overflow = getComputedStyle(at).overflowX;
+    if (overflow === "auto" || overflow === "scroll") return at.scrollWidth - at.clientWidth;
+  }
+  return 0;
 }"""
 
 
@@ -510,7 +561,8 @@ def visit(page: Page, cases: list[Case], out: Path, arm: str) -> list[dict]:
     """Put each case's marks on it in turn, reading and capturing each."""
     seen = []
     for case in cases:
-        holder = page.locator(f"#case-{case.name} > :last-child")
+        section = page.locator(f"#case-{case.name}")
+        holder = section.locator(":scope > :last-child")
         holder.evaluate(
             "el => el.scrollIntoView({block: 'center', behavior: 'instant'})"
         )
@@ -522,6 +574,7 @@ def visit(page: Page, cases: list[Case], out: Path, arm: str) -> list[dict]:
                 record["reading"] = page.locator(case.selector).evaluate(
                     f"(target) => ({READ})([target, {json.dumps(mark)}])"
                 )
+                record["spill"] = section.evaluate(SPILL)
                 record["holder"] = holder.evaluate(
                     "el => { const r = el.getBoundingClientRect();"
                     " return {left: r.left, top: r.top, right: r.right, bottom: r.bottom}; }"
@@ -574,7 +627,10 @@ def sentence(record: dict) -> str:
         said_.append(f"cut {cut}")
     if over:
         said_.append(f"over its words {over}")
-    return "; ".join(said_) or "whole, clear of its words"
+    said_ = ["; ".join(said_) or "whole, clear of its words"]
+    if record.get("spill", 0) >= 1:
+        said_.append(f"the box round it scrolls {record['spill']:.0f}px across")
+    return "; ".join(said_)
 
 
 def report(
@@ -585,57 +641,52 @@ def report(
     shutil.rmtree(media, ignore_errors=True)
     media.mkdir(parents=True)
     by = {(r["case"], r["mark"], r["arm"]): r for r in records}
+    crops = {}
+    for case in cases:
+        ran = [r for r in records if r["case"] == case.name]
+        if any("reading" in r for r in ran):
+            crops[case.name] = crop_box(ran)
     sections = []
-    for holder_key, holder in HOLDERS.items():
-        rows = []
-        for case in (c for c in cases if c.holder == holder_key):
-            ran = [r for r in records if r["case"] == case.name]
-            rect = crop_box(ran) if any("reading" in r for r in ran) else None
-            tiles = []
-            for mark in case.marks:
-                got = {arm: by.get((case.name, mark, arm)) for arm in arms}
-                images = {}
-                for arm, record in got.items():
-                    if record and "shot" in record and rect:
-                        left, top, right, bottom = rect
-                        crop = out / f"{case.name}-{mark}-{arm}.crop.png"
-                        Image.open(record["shot"]).convert("RGB").crop(
-                            (SCALE * left, SCALE * top, SCALE * right, SCALE * bottom)
-                        ).save(crop)
-                        images[arm] = gallery.media(media, crop.read_bytes())
-                head = got.get("head")
-                alt = f"{case.says} in {holder.title.lower()}, {MARKS[mark].lower()}"
-                picture = (
-                    gallery.shot(
-                        f"{case.name}-{mark}-shot",
-                        alt + (f": {sentence(head)}" if head else ""),
-                        images.get("base"),
-                        images["head"],
-                    )
-                    if "head" in images
-                    else ""
+    for mark, title in MARKS.items():
+        tiles = []
+        for case in (c for c in cases if mark in c.marks):
+            got = {arm: by.get((case.name, mark, arm)) for arm in arms}
+            images = {}
+            for arm, record in got.items():
+                if record and "shot" in record and case.name in crops:
+                    left, top, right, bottom = crops[case.name]
+                    crop = out / f"{case.name}-{mark}-{arm}.crop.png"
+                    Image.open(record["shot"]).convert("RGB").crop(
+                        (SCALE * left, SCALE * top, SCALE * right, SCALE * bottom)
+                    ).save(crop)
+                    images[arm] = gallery.media(media, crop.read_bytes())
+            head = got.get("head")
+            where = f"{case.says} in {HOLDERS[case.holder].title}"
+            picture = (
+                gallery.shot(
+                    f"{case.name}-{mark}-shot",
+                    f"{where}, {title.lower()}"
+                    + (f": {sentence(head)}" if head else ""),
+                    images.get("base"),
+                    images["head"],
                 )
-                said_ = "<br>".join(
-                    f"{arm.capitalize() + ': ' if len(arms) > 1 else ''}"
-                    f"{html.escape(sentence(record)) if record else 'not run'}"
-                    for arm, record in got.items()
-                )
-                tiles.append(
-                    f'<figure id="{case.name}-{mark}">{picture}<figcaption>'
-                    f"<strong>{MARKS[mark]}</strong>: {said_}</figcaption></figure>"
-                )
-            rows.append(
-                f'<h3 id="{case.name}">{html.escape(case.says)}</h3>\n'
-                f'<div class="layout-tiles marks" data-width="available">\n'
-                + "\n".join(tiles)
-                + "\n</div>"
+                if "head" in images
+                else ""
             )
-        if rows:
+            said_ = "<br>".join(
+                f"{arm.capitalize() + ': ' if len(arms) > 1 else ''}"
+                f"{html.escape(sentence(record)) if record else 'not run'}"
+                for arm, record in got.items()
+            )
+            tiles.append(
+                f'<figure id="{case.name}-{mark}">{picture}<figcaption>'
+                f"<strong>{html.escape(where)}</strong><br>{said_}</figcaption></figure>"
+            )
+        if tiles:
             sections.append(
-                f'<section id="{holder_key}">\n<h2>{html.escape(holder.title)}</h2>\n'
-                f"<p>{html.escape(holder.says)}</p>\n"
-                + "\n".join(rows)
-                + "\n</section>"
+                f'<section id="{mark}">\n<h2>{title}</h2>\n'
+                f'<div class="layout-tiles marks{" pairs" if "base" in arms else ""}"'
+                ' data-width="available">\n' + "\n".join(tiles) + "\n</div>\n</section>"
             )
     commits = ", ".join(f"{arm} at {arm_.commit[:9]}" for arm, arm_ in arms.items())
     pairs = (
@@ -652,7 +703,7 @@ def report(
             "holders pages put them in.",
             f"""<h1 id="title">Mark placements</h1>
 <p id="lede">Each capture is one of Leaf's marks on a box as {engine.capitalize()} draws
-it ({commits}), beside how far a clip cuts the mark and how far it runs over the box's
+it ({commits}), with how far a clip cuts the mark and how far it runs over the box's
 words.{pairs} Regenerate with <code>uv run leaf-dev placement marks</code>; add a case
 to <code>CASES</code> in <code>dev/leaf_dev/commands/placement/marks.py</code>.</p>
 {chr(10).join(sections)}""",
@@ -665,6 +716,9 @@ to <code>CASES</code> in <code>dev/leaf_dev/commands/placement/marks.py</code>.<
 
 STYLE = """<style>
   .marks {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  }
+  .marks.pairs {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 40rem), 1fr));
   }
 </style>"""
@@ -687,32 +741,36 @@ def marks(names, engine, base) -> None:
     out = run_directory(OUT)
     scratch = out / "scratch"
     scratch.mkdir()
-    source = out / "cases.html"
-    source.write_text(fixture(cases), encoding="utf-8")
     records: list[dict] = []
     with launch(engine) as browser:
         arms = choose_arms(base, scratch)
+        for layout in LAYOUTS:
+            on = [case for case in cases if HOLDERS[case.holder].layout == layout]
+            if not on:
+                continue
+            source = out / f"cases-{layout}.html"
+            source.write_text(fixture(on, layout), encoding="utf-8")
 
-        def read(arm, visit_) -> None:
-            visit_.doing = "read"
-            records.extend(visit(visit_.page, cases, out, arm))
+            def read(arm, visit_, on=on) -> None:
+                visit_.doing = "read"
+                records.extend(visit(visit_.page, on, out, arm))
 
-        with visits(
-            browser,
-            arms,
-            State("marks", str(source), window=WINDOW),
-            source,
-            scratch,
-            window=WINDOW,
-            scheme="light",
-            scale=SCALE,
-            read=read,
-        ) as each:
-            for arm, visit_ in each:
-                if visit_.error:
-                    raise click.ClickException(
-                        f"{arm}: {visit_.doing}: {said(visit_.error)}"
-                    )
+            with visits(
+                browser,
+                arms,
+                State(f"marks-{layout}", str(source), window=WINDOW),
+                source,
+                scratch,
+                window=WINDOW,
+                scheme="light",
+                scale=SCALE,
+                read=read,
+            ) as each:
+                for arm, visit_ in each:
+                    if visit_.error:
+                        raise click.ClickException(
+                            f"{arm}: {layout}: {visit_.doing}: {said(visit_.error)}"
+                        )
     with (out / "readings.jsonl").open("w") as readings:
         for record in records:
             readings.write(json.dumps(record) + "\n")

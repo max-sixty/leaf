@@ -467,6 +467,11 @@ HOLD_MOTION = """
     return motion;
   };
 """
+# The inline edge the comment box stands by (floating.js, `held`): its words widen it
+# away from that edge, and the card Send opens keeps it.
+HELD_EDGE = """() => document.querySelector("script[data-lf-entry]")
+  .lfFloatingSelections()
+  .find((selection) => selection.floating.matches(".lf-fab-bar")).edges.left"""
 # Every shape the decision predicate has to tell apart, on one page: four things the page is
 # waiting on the user for, and, beneath them, one of each way of not being one. The
 # four are in document order, because that is the order the walk below must take them in.

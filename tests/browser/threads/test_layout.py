@@ -204,12 +204,21 @@ SQUEEZED_HEAD = """head => {
       .reduce((sum, side) => sum + parseFloat(box[side]), 0);
     return Math.max(parseFloat(box.minWidth) || 0, box.boxSizing === 'border-box' ? edges : 0);
   });
+  const time = head.querySelector('time');
+  const day = time.querySelector(':scope > span');
   const steps = [];
+  const days = [];
   for (let width = 2000; width >= 0; width -= width > 400 ? 1600 : 1) {
     head.style.inlineSize = `${width}px`;
     steps.push(parts.map((part) => parseFloat(style(part).width)));
+    days.push({
+      time: time.getBoundingClientRect().width,
+      day: day.getBoundingClientRect().width,
+      whole: day.scrollWidth <= day.clientWidth &&
+        day.getBoundingClientRect().right <= time.getBoundingClientRect().right + 0.5,
+    });
   }
-  return { parts: parts.map((part) => part.name), least, steps };
+  return { parts: parts.map((part) => part.name), least, steps, days };
 }"""
 
 
@@ -275,6 +284,14 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
                 if widths[at] < whole[at] - 0.05:
                     given = [widths[part] <= least[part] + 0.05 for part in range(at)]
                     assert all(given), (parts, widths)
+        # A time too narrow for its day and clock gives up its clock whole, which wraps
+        # out of its one line, and keeps its day whole while it has the day's room.
+        days = squeeze["days"]
+        day = days[0]["day"]
+        assert any(day - 0.5 <= step["time"] < days[0]["time"] - 1 for step in days)
+        for step in days:
+            if step["time"] >= day - 0.5:
+                assert step["whole"], (day, step)
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
@@ -1004,7 +1021,8 @@ CARD_EDGES = """transcript => {
   const mask = getComputedStyle(transcript).maskImage;
   const line = transcript.parentElement
     .querySelector(':scope > .lf-margin-thread-controls').getBoundingClientRect();
-  return {topFade: mask.startsWith('linear-gradient(rgba(0, 0, 0, 0)'), mask,
+  return {topFade: mask.includes('linear-gradient(rgba(0, 0, 0, 0), rgb(0, 0, 0) 12px'),
+          mask,
           lineBottom: line.bottom, top: transcript.getBoundingClientRect().top,
           scrolled: transcript.scrollTop > 0};
 }"""

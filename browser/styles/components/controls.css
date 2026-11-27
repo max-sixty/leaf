@@ -520,7 +520,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  *
  * The visible content fades at each edge that has more beyond it. The fade follows the
  * scroll position: inline end at the start, both edges in the middle, and inline start
- * at the end; the block end until the end is reached. Masking the box makes the content
+ * at the end; the block end until the end is reached, and the block start once anything
+ * is scrolled past it, where the box asks for it (--lf-more-fade-above, 0px), as a
+ * margin card's transcript does under its head line. Masking the box makes the content
  * itself recede instead of casting an unexplained shadow behind it. That is right for
  * text, where a word fading at the edge reads as cut, and it is the only paint that
  * shows over any content: an inset shadow paints under its descendants, so a
@@ -552,6 +554,17 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 @property --lf-more-down {
   syntax: "*";
   inherits: false;
+}
+@property --lf-more-up {
+  syntax: "*";
+  inherits: false;
+}
+/* Its own, so a scroller inside one that asks for it fades nothing there unless it
+   asks too. */
+@property --lf-more-fade-above {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 @media screen {
   [data-lf-more-after]:where(
@@ -596,17 +609,22 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
     --lf-more-down:
       #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
+  [data-lf-more-above] {
+    --lf-more-up: var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade-above);
+  }
   [data-lf-more-before],
   [data-lf-more-after],
+  [data-lf-more-above],
   [data-lf-more-below] {
     mask-image:
       linear-gradient(to right, var(--lf-more-across, #000, #000)),
-      linear-gradient(var(--lf-more-down, #000, #000));
+      linear-gradient(var(--lf-more-up, #000), var(--lf-more-down, #000));
     mask-composite: intersect;
   }
   :is(
     [data-lf-more-before],
     [data-lf-more-after],
+    [data-lf-more-above],
     [data-lf-more-below]
   )[data-lf-focus-within] {
     mask-image: none;

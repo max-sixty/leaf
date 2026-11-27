@@ -33,9 +33,9 @@
    its latest (`showReturnTurn`). */
 import { setScroll } from "../../dom/arrivals.js";
 import {
+  landingInsets,
   seenRect,
   showsContents,
-  slotTop,
   stuckBox,
   userScrollport,
 } from "../../dom/geometry.js";
@@ -132,13 +132,15 @@ const returnTurn = (transcript, unread) => {
   return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 
-// Where a box scrolling a transcript starts showing its turns: where its first turn's
-// head stands at rest, below the focus-ring room the box keeps over them. A turn
-// landed in that room would start where read tracking sees nothing of it
-// (dom/geometry.js, `seenRect`), and never read.
+// Where a box scrolling a transcript lands a turn: below the room it keeps over the
+// turns for a focus ring and the jump to the thread's start (`scroll-padding`,
+// surfaces.css, `--lf-thread-jump-room`), as every landing in the box does
+// (dom/geometry.js, `landingInsets`), so the jump covers no control at the turn's head.
 /** @param {Element} scroller */
 const headLine = (scroller) =>
-  scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller);
+  scroller.getBoundingClientRect().top +
+  scroller.clientTop +
+  landingInsets(scroller).top;
 
 // Where the user has read a thread's view to: the turn standing at the top of the box
 // scrolling its transcript (`headLine`), a message by the message it draws or a

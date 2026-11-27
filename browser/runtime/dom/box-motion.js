@@ -140,8 +140,23 @@ import { VISIBLE_FOCUS_MARKS, onUserInput } from "./focus.js";
 import { afterSettling } from "../base/rendering.js";
 import { nextRender, sizeObserver } from "../lib/frame-pass.js";
 import { contentRides, laidOutHeight } from "./scrolling.js";
-import { userScrollport } from "./geometry.js";
+import { scrollsBy, userScrollport } from "./geometry.js";
 import { shifted } from "./rect.js";
+
+// The boxes that stick to `scroller`'s own edges: its sticky descendants outside any
+// scroller it holds, since a box inside one of those sticks to that one.
+/** @param {Element} scroller @returns {Generator<Element>} */
+function* stickers(scroller) {
+  const walk = document.createTreeWalker(scroller, NodeFilter.SHOW_ELEMENT, {
+    acceptNode: (node) => {
+      const style = getComputedStyle(/** @type {Element} */ (node));
+      if (style.position === "sticky") return NodeFilter.FILTER_ACCEPT;
+      return scrollsBy(style) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+    },
+  });
+  for (let node = walk.nextNode(); node; node = walk.nextNode())
+    yield /** @type {Element} */ (node);
+}
 
 /** @typedef {import("../base/box.js").Box} Box
  * @typedef {keyof Box} Edge
@@ -1149,7 +1164,9 @@ export function boxMotion({
     // layout where the scroll stands now, which the carry would move off that edge, so
     // its inset travels against the carry on the same clock: layout then sticks it
     // where it stuck with the content standing that far back, which is where a scroll
-    // that far back would stick it.
+    // that far back would stick it. A box sticking inside a scroller the content holds
+    // sticks to that one, which the carry moves whole, so it rides as it is
+    // (`stickers`).
     /** @param {{element: Element}} part */
     function streamContent(part) {
       const scroller = part.element;
@@ -1174,9 +1191,8 @@ export function boxMotion({
       streams.set(scroller, { child: then.child, from: then.top, to });
       for (const child of scroller.children)
         if (child.checkVisibility()) move(child, 0, dy);
-      for (const stuck of scroller.querySelectorAll("*")) {
+      for (const stuck of stickers(scroller)) {
         const style = getComputedStyle(stuck);
-        if (style.position !== "sticky") continue;
         for (const [side, against] of /** @type {const} */ ([
           ["top", -dy],
           ["bottom", dy],

@@ -319,6 +319,18 @@ html[data-lf-draw-mode] {
     -webkit-user-select: text;
   }
 
+  /* A view's name on its head line, in one face: the floating panel's views'
+     (`.lf-fp-title`, floating-panel.css), and a margin card's thread title
+     (annotation-chrome.css), which says what the panel's view of that thread says. */
+  .lf-fp-title,
+  .lf-margin-thread-title {
+    min-width: 0;
+    margin: 0;
+    font: var(--lf-font-name);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   /* A comment box is the frame of the card it becomes, cut to a reply box around its
      words (response.css): it runs to the card's sides, and over the card's padding past
      the field the words stand in, which stands where the card's first message will. So

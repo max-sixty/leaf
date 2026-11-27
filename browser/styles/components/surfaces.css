@@ -567,6 +567,15 @@ summary {
   /* The widest a news notice beside a message head's words stands, a primary
      reader's, in a message head or a part, so the head keeps its author and time. */
   --lf-news-width: 5rem;
+  /* How far below the top of a box scrolling a thread the jump to the thread's start
+     reaches (`.lf-thread-jump`, below): its inset, its face, and its reach past the
+     face. The box lands a turn below it (its `scroll-padding`), so the jump covers no
+     control at the end of the turn's head (records/thread/reply-landing.js,
+     `headLine`). */
+  --lf-thread-jump-room: calc(
+    var(--lf-sp-2) +
+      (var(--lf-mark-size) + max(var(--lf-mark-size), var(--lf-aim-floor))) / 2
+  );
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -822,9 +831,9 @@ summary {
    messages it covers, which stand where they were said and are hidden while it is
    closed (records/thread/transcript.js). One disclosure at its head controls the entire
    range. Open, the covered messages follow it at their own inner gap. Each item of a
-   transcript keeps its gap above it alone, since nothing collapses a gap below one
-   into the next: a card's transcript is a grid, and a closed fold's hidden messages
-   are boxes of their own between the checkpoint and what follows. */
+   transcript keeps its gap above it alone, so no gap below one meets the next's, and a
+   closed fold's hidden messages are boxes of their own between the checkpoint and what
+   follows. */
 .lf-thread-checkpoint {
   margin-block-start: var(--lf-msg-gap);
   anchor-name: var(--lf-fold-head);
@@ -849,9 +858,9 @@ summary {
   background: var(--lf-chip);
 }
 /* Open, the region takes in the messages the summary folds: the fill stands under
-   them, and each stands on the tint as its own ground, so a head stuck at a card's top
-   keeps it. A message keeps its box and so its lines: a summary arriving open over the
-   message the reader is on moves none of its words. The fill spans siblings, from the
+   them, and each stands on the tint as its own ground. A message keeps its box and so
+   its lines: a summary arriving open over the message the reader is on moves none of
+   its words. The fill spans siblings, from the
    checkpoint's head to the foot of its last message, so it is anchored to both, in the
    thread content outside the scrolling transcript. Under them, it needs the transcript
    to be the stacking context it paints in. */

@@ -242,7 +242,7 @@ import { errorOver } from "../../transport/errors.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
  * placesEnd: ((before: import("../../dom/scrolling.js").BoxExtent) => boolean) | null,
- * bar: (() => void) | null, stopRegion: (() => void) | null, stopDraw: (() => void) | null, end: import("../../dom/scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
+ * bar: ((recount?: boolean) => void) | null, stopRegion: (() => void) | null, stopDraw: (() => void) | null, end: import("../../dom/scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
  * reading: {input: number, scroll: number} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, wide: boolean, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -503,7 +503,10 @@ export function createThreadPreview({
     session.settled = settled;
     session.answering = answering;
     session.placesEnd = placesEnd;
-    if (transcript === session.transcript) return;
+    if (transcript === session.transcript) {
+      session.bar?.(true);
+      return;
+    }
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
@@ -533,15 +536,28 @@ export function createThreadPreview({
       // (`scrollLimit`). The bar resizes the transcript's box, so the card's fit decides
       // it in the script that changes the card's room (`measureThreadCard`), before the
       // size delivery that reports the transcript; each reading of the transcript's
-      // reach decides it for a change no fit answers.
+      // reach decides it for a change no fit answers, as a picture loading in a turn
+      // is. Each reading of the thread counts its turns again (`syncPreviewTranscript`);
+      // a reading of the reach where the bar already says whether the turns overflow and
+      // the width stands, as every scroll's is, decides nothing, so a wheel step reads
+      // three lengths and counts no turns.
       // The transcript's width and shown turns when its bar was last decided.
       let decided = "";
-      const bar = () => {
+      let width = -1;
+      const bar = (recount = false) => {
+        const overflows = scrollLimit(transcript) > 0;
+        const wide = transcript.offsetWidth;
+        if (
+          !recount &&
+          wide === width &&
+          overflows === transcript.hasAttribute("data-lf-overflows")
+        )
+          return;
+        width = wide;
         const shown = [...transcript.querySelectorAll(":scope > .lf-msg")].filter(
           (message) => !(/** @type {HTMLElement} */ (message).hidden),
         ).length;
-        const overflows = scrollLimit(transcript) > 0;
-        const shape = `${transcript.offsetWidth} ${shown}`;
+        const shape = `${wide} ${shown}`;
         if (overflows || shape !== decided)
           keeps(transcript, "data-lf-overflows", overflows ? "" : null);
         decided = shape;
@@ -551,7 +567,7 @@ export function createThreadPreview({
         id: THREAD_CARD,
         host: preview,
         body: transcript,
-        onReach: bar,
+        onReach: () => bar(),
       });
     }
   }
@@ -1216,11 +1232,11 @@ export function createThreadPreview({
       scroll: session.transcript.scrollTop,
     };
     const present = () => {
-      // The card is headed by the passage the selected thread quotes, as the panel
-      // heads it, words a revision rewrote included (`threadPassage`), else by its
-      // margin entry's title: a card headed "aside · The fallback cookie is
-      // read-only…" over a comment on the aside's last sentence was a third name for
-      // one thread, and the least exact.
+      // The card's label, which assistive tech reads, names the passage the selected
+      // thread quotes, words a revision rewrote included (`threadPassage`), else its
+      // margin entry's title: a label "aside · The fallback cookie is read-only…" over
+      // a comment on the aside's last sentence was a third name for one thread, and
+      // the least exact.
       const passage = threadPassage(selected.thread);
       const quoted = passage ? anchorLabel(passage, selected.thread.root.about) : null;
       const title = labelWords(quoted || entry.title);

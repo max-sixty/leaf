@@ -918,8 +918,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
             first.bounding_box()["y"]
             - transcript.evaluate(
                 "list => list.getBoundingClientRect().top + list.clientTop"
-                " + parseFloat(getComputedStyle(list).paddingTop)"
-                " + parseFloat(getComputedStyle(list).getPropertyValue('--lf-top'))"
+                " + parseFloat(getComputedStyle(list).scrollPaddingTop)"
             )
         )
         <= 1

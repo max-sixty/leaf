@@ -621,15 +621,23 @@
   .lf-margin-thread .lf-thread-transcript {
     min-height: 1lh;
     overflow-y: auto;
-    scroll-padding-block: var(--lf-focus-ring-room);
+    scroll-padding-block: var(--lf-thread-jump-room) var(--lf-focus-ring-room);
+    /* The turns fade out over 12px where they run on past the transcript's top, under
+       the head line, as the floating panel's view fades a thread at its edges
+       (floating-panel.css), and past its foot as every reading region does
+       (controls.css). */
+    --lf-more-fade-above: 12px;
+    /* Its focus ring stands inside its edge, in the room it keeps over the turns,
+       clear of the head line's words above it. */
+    --lf-ring-at: var(--lf-focus-ring-inset);
     --lf-transcript-start: calc(
       var(--lf-thread-text-inset) + var(--lf-transcript-edge-room)
     );
     --lf-transcript-end: var(--lf-transcript-edge-room);
     --lf-transcript-top: var(--lf-transcript-edge-room);
     --lf-transcript-foot: var(--lf-transcript-room);
-    padding: var(--lf-transcript-top) var(--lf-transcript-end) var(--lf-transcript-room)
-      var(--lf-transcript-start);
+    padding-inline: var(--lf-transcript-start) var(--lf-transcript-end);
+    padding-block: var(--lf-transcript-top) var(--lf-transcript-room);
     margin-inline: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
   }
@@ -708,28 +716,6 @@
     --lf-transcript-room: var(--lf-focus-region-room);
     padding: 0;
   }
-  /* The turns fade out where they run on past the transcript's top, under the head
-     line, over 12px, as the floating panel's view fades a thread at its edges
-     (floating-panel.css), and past its foot by the fade every reading region wears
-     there (controls.css). Focus in the transcript lifts both, as it lifts that one, so
-     neither lies over a focused message's ring. */
-  @media screen {
-    .lf-margin-thread
-      .lf-thread-transcript[data-lf-more-above]:not([data-lf-focus-within]) {
-      mask-image: linear-gradient(transparent, #000 12px);
-    }
-    .lf-margin-thread
-      .lf-thread-transcript[data-lf-more-above][data-lf-more-below]:not(
-        [data-lf-focus-within]
-      ) {
-      mask-image: linear-gradient(
-        transparent,
-        #000 12px,
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent)
-      );
-    }
-  }
   /* The reply row runs over the card's padding to its sides and foot, so the reply box
      meets the card's edge there, and its box's band over the field stands in the
      message's gap (response.css). Its inline containment keeps a draft from widening
@@ -771,7 +757,7 @@
   }
   /* The card's head line, a message head's line tall, so Reopen taking Resolve's place
      is as tall as Resolve was: the thread's title, in the face the floating panel's
-     view names it in (floating-panel.css), then the card's presses (thread-preview.js).
+     view names it in (chrome.css), then the card's presses (thread-preview.js).
      The title starts where the messages' names start and gives way first, cut with an
      ellipsis. A notice of held news stands first among the presses; the card keeps its
      width while it holds news, so the notice takes its room from the title, and the

@@ -128,8 +128,8 @@ const dayOf = (at) =>
 // "Nov 13 3:29 PM"), which its preview names with the weekday and zone
 // (`clockTime`): each reply says what was true when it was sent ("I'm building it
 // now"), and an age past the hour rounds to hours or days, so replies hours apart
-// both read "1d ago" a day later. Each time names its own day, so one read alone, in
-// a sticky head or below the first message scrolled away, is never taken for today's.
+// both read "1d ago" a day later. Each time names its own day, so one read alone, as
+// below the first message scrolled away, is never taken for today's.
 /** @param {string | null | undefined} ts
  * @returns {{day: string, time: string} | null} */
 export function saidAt(ts) {

@@ -150,9 +150,9 @@ def test_a_rewrite_at_the_foot_of_a_card_that_scrolls_keeps_its_whole_ring(
     """A rewrite of the user's last turn, at the foot of a card whose transcript
     scrolls, draws its frame's ring into the room the transcript keeps below its turns.
     Firefox leaves a grid scroller's end padding out of its scroll range while a box
-    sticks in it, so a room kept as padding ended the range at the frame's foot and cut
-    the ring's bottom side away with the card scrolled to its end. The ring stands
-    whole there in each engine."""
+    sticks in it, as New reply can, which would end the range at the frame's foot and
+    cut the ring's bottom side away with the card scrolled to its end, so the
+    transcript is a block. The ring stands whole there in each engine."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS * 3, {"section": "how-store"}

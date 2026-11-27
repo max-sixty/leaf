@@ -2,6 +2,7 @@
 through news, presses, reflows and scrolls, panes included."""
 
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
@@ -259,6 +260,27 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
     assert receipt.evaluate(where) == stands
 
 
+# Each visible message head's time, where it says one, against what could cut it: its
+# own box, the metadata it stands in and the head, and each part it shows, which cuts
+# its own words; and those parts, its day and its clock, where a time too narrow for
+# both drops its clock below its one line.
+TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
+  .filter((head) => head.checkVisibility() && head.querySelector('time'))
+  .map((head) => {
+    const time = head.querySelector('time');
+    const box = time.getBoundingClientRect();
+    const shown = [...time.children]
+      .filter((part) => part.getBoundingClientRect().top < box.bottom - 0.5);
+    return {
+      text: time.textContent,
+      whole: time.scrollWidth <= time.clientWidth &&
+        shown.every((part) => part.scrollWidth <= part.clientWidth) &&
+        box.right <= time.parentElement.getBoundingClientRect().right + 0.5 &&
+        box.right <= head.getBoundingClientRect().right + 0.5,
+      shown: shown.map((part) => part.textContent),
+    };
+  })"""
+
 # Whether a notice of news says its whole count: its words stand in a span of their
 # own, which cuts them with an ellipsis, "2 …".
 NOTICE_WHOLE = """notice => {
@@ -323,7 +345,8 @@ def test_a_card_s_head_line_cuts_its_title_beside_a_whole_notice(browser, serve)
 
 
 # Where a card's head line and what it holds stand: the line's box, the notice's
-# start, the last press's end, and the first message's head's top.
+# start, the last press's end, and the first message's head's top; and on that head,
+# its Edit's symbol and its time's end.
 HEAD_LINE = """([line, notice]) => {
   const box = (node) => node.getBoundingClientRect();
   const presses = line.querySelector('.lf-thread-meta-actions');
@@ -334,6 +357,10 @@ HEAD_LINE = """([line, notice]) => {
     notice: box(notice).left,
     end: box(presses.lastElementChild).right,
     head: box(line.parentElement.querySelector('.lf-thread-transcript .lf-msg-head')).top,
+    edit: box(line.parentElement.querySelector(
+      '.lf-thread-transcript .lf-msg-head .lf-msg-controls > .lf-msg-edit svg')).left,
+    time: box(line.parentElement.querySelector('.lf-thread-transcript .lf-msg-head time'))
+      .right,
   };
 }"""
 
@@ -348,8 +375,11 @@ def test_a_card_s_head_line_holds_a_whole_notice_and_its_presses(
     the head line, over the first message's head. On a desktop card, with Previous and
     Next for its target's two threads, and on one under a finger, whose presses and
     notice each take a finger's width; a touch screen as wide as 1408 stands that card
-    beside its words."""
+    beside its words. The user's message under them keeps "Me" whole and its time
+    gives up its clock whole, keeping its day, where a cut read "25 Sep, …"; under a
+    finger, where the controls always show, Edit stands clear of the time."""
     url = serve(PANEL_PAGE)
+    # Written 51 days ago, so its time names its day, the widest a time reads.
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -358,6 +388,7 @@ def test_a_card_s_head_line_holds_a_whole_notice_and_its_presses(
             "revision": 1,
             "text": "Keep the logo where it is",
             "anchor": {"section": "h-how"},
+            "ts": (datetime.now().astimezone() - timedelta(days=51)).isoformat(),
         },
     )["id"]
     first = append_agent_reply(serve.page_dir, root, "The status line can drop one.")
@@ -399,6 +430,14 @@ def test_a_card_s_head_line_holds_a_whole_notice_and_its_presses(
     assert stands["left"] <= stands["notice"], stands
     assert stands["end"] <= stands["right"] + 0.5, stands
     assert stands["bottom"] <= stands["head"] + 0.5, stands
+    if finger:
+        assert stands["time"] <= stands["edit"] + 0.5, stands
+    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+    times = card.evaluate(TIMES_WHOLE)
+    assert times and times[0]["whole"], times
+    name = card.locator(".lf-msg-head").first.locator("b")
+    expect(name).to_have_text("Me")
+    assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 
 
 def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(

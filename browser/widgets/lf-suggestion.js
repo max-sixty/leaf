@@ -411,10 +411,11 @@ customElements.define(
       // pointer, Enter, Space, or an address route; otherwise later reconciliation can
       // reconstruct the relocated range and raise its Comment field again.
       getSelection()?.removeAllRanges();
-      // A user on the suggestion as its key decides it goes on to Undo, as one on Accept
-      // or Reject does (features/contribution-controls.js, `activateContributionControl`).
-      // The page's blanket answer moves nobody.
-      const here = pressed && currentLocationIn(this);
+      // Undo takes the pressed control's seat: a user on Accept or Reject, or on the
+      // suggestion as its key decides it, goes on to Undo. The page's blanket answer
+      // moves nobody.
+      const here =
+        pressed && (this.#margin?.hasCurrentLocation() || currentLocationIn(this));
       const dispatched = this.record(
         "decide",
         { outcome },

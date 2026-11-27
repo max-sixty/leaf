@@ -7,12 +7,13 @@ import { html, render } from "/vendor/lit.js";
 import { untracked } from "/vendor/signals-core.js";
 import { iconTemplate } from "../lib/icons.js";
 import { progressFace, workflowWord } from "../records/thread/workflow.js";
+import { ownedObligationControl } from "../records/obligations/answer.js";
 import { agentSays, linesOf, saidBy, voiced } from "../base/voice.js";
 import { agentName, readPart } from "../state/semantic-state.js";
 import { elementDirective, offerActionElement } from "../lib/controls.js";
 import { keeps, inlineStyle } from "../lib/keeps.js";
 import { pressIsKeyboardActivation } from "../base/pointer.js";
-import { currentLocationIn, focused, nativeFocusTarget } from "../dom/focus.js";
+import { currentLocationIn, nativeFocusTarget } from "../dom/focus.js";
 import { reducedMotion } from "../dom/motion.js";
 import { motionTime } from "../lib/motion-timing.js";
 import {
@@ -101,7 +102,7 @@ export function contributionCommand(record) {
   return entryCommand(scope, record.activation);
 }
 // Which entries answer `widget`'s question: those that run one of the decision commands
-// the widget and its contents declare, which an On Me card offers for it
+// the widget and its contents declare for it, which an On Me card offers for it
 // (records/obligations/view.js). The declaration decides, not the command's availability
 // now, which waits on the very control the entry draws.
 /** @param {Element} widget @returns {(record: EntryInput | Entry) => boolean} */
@@ -112,7 +113,9 @@ export function answersTo(widget) {
     const command = contributionCommand(record);
     if (!command || !(command.route ?? command.row).decision) return false;
     rows ??= new Set(
-      commandDeclarationsWithin(widget).flatMap(({ scope }) => scope.rows),
+      commandDeclarationsWithin(widget)
+        .filter(({ source }) => ownedObligationControl(widget, source))
+        .flatMap(({ scope }) => scope.rows),
     );
     return rows.has(command.row);
   };
@@ -613,29 +616,20 @@ export function forgetContributionControls(offered) {
   presented.delete(offered);
 }
 
-/** Activate the current record from the control pressed on `surface`. The press's
- *  result takes the pressed control's place (browser/AGENTS.md, "Controls stay where the
- *  user aims"): a user on the control whose press took its entry away goes on to the
- *  first entry the contribution offers now, on that surface, after `reveal` shows it
- *  where the surface hides it, as the margin does a row annotations hide.
- *  @param {ControlActivation} activation @param {((control: Element) => unknown) | null} [reveal] */
-export function activateContributionControl(
-  { offered, entry, control, surface, event },
-  reveal = null,
-) {
-  const held = focused() === control;
-  const activated = offered.registration.activate(entry.key, {
+/** Activate the current record from the control pressed on `surface`.
+ *  @param {ControlActivation} activation */
+export function activateContributionControl({
+  offered,
+  entry,
+  control,
+  surface,
+  event,
+}) {
+  return offered.registration.activate(entry.key, {
     origin: control,
     surface,
     input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
   });
-  if (activated && held && !offered.registration.entry(entry.key)?.visible) {
-    const next = offered.reading.entries.find(
-      (candidate) => candidate.visible && candidate.behavior !== "status",
-    );
-    if (next) offered.registration.focus(next.key, "return", surface, reveal);
-  }
-  return activated;
 }
 
 /** Materialize the chosen immutable reading while retaining its source's native controls.

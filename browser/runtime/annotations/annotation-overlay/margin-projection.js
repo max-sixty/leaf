@@ -1211,10 +1211,13 @@ export function createMarginProjection({
   function activateContributionControl({ offered, entry, control, surface, event }) {
     const consumesFocusedOwner =
       expandedOptionsKey && expandedOptionsOwner === offered.key;
-    const activated = activateSharedContribution(
-      { offered, entry, control, surface, event },
-      reveal,
-    );
+    const activated = activateSharedContribution({
+      offered,
+      entry,
+      control,
+      surface,
+      event,
+    });
     // A disclosed contributor is a route to an action, not a mode that survives that
     // action. Its next immutable reading decides whether the resulting controls remain
     // open.

@@ -2566,7 +2566,9 @@ export function createFloatingPanel({
       opening.rewriting = false;
       opening.room = null;
     }
-    paintSoon();
+    // At once, since the same move measures the view the hold sizes: entering a rewrite
+    // reveals it, and leaving one asks whether the view covers where focus returns.
+    paint();
   });
   // The menu grows upward from the row, so news that adds a row to it, or takes one
   // away, would carry every row above up or down the window under the reader: a row a
@@ -2658,8 +2660,10 @@ export function createFloatingPanel({
     if (changed && before?.thread && !handedOn)
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
     // The view going away fades where it stood, closing included, so the box shrinking
-    // under it never shows an empty ground.
-    leaving = changed && before && after ? before : null;
+    // under it never shows an empty ground. Where motion doesn't play it goes in the
+    // one paint.
+    const moves = changed && motionPlays();
+    leaving = moves && before && after ? before : null;
     if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
@@ -2668,9 +2672,7 @@ export function createFloatingPanel({
       reading || (before && viewOf(before).nominate)
         ? present({ release: reading })
         : null;
-    if (!changed || !motionPlays()) {
-      leaving = null;
-      paint();
+    if (!moves) {
       if (focus) focusView(after, drawn, stoodIn, part);
       return;
     }
@@ -5246,14 +5248,6 @@ export function createFloatingPanel({
       host.performUpdate();
     }
   }
-  // A move of the user's place repaints once the script that moved it has ended, still
-  // before the next frame (Lit's schedule), so a press that moves the place and then
-  // acts, as Go-to's press focuses a tab and then clicks it, draws the panel once: the
-  // act's own paint takes the update over.
-  function paintSoon() {
-    if (painting) again = true;
-    else host.requestUpdate();
-  }
   function paintPanel() {
     draws += 1;
     painting = true;
@@ -5865,7 +5859,11 @@ export function createFloatingPanel({
     true,
   );
   // What the field says turns on whether the user writes in it (`writesIn`), so the row
-  // draws again as that changes, and as the user moves within the panel.
+  // draws again as that changes, and as the user moves within the panel. It draws once
+  // the script that moved the user has ended, still before the next frame (Lit's
+  // schedule), so a press that moves the user and then acts, as Go-to's press focuses a
+  // tab and then clicks it, draws the panel once: the act's own paint takes the update
+  // over. Nothing later in the move measures what this draws.
   onCurrentLocation((node, _cause, left) => {
     const inside = Boolean(node) && renderedUnder(node, host);
     // Stepping in from the page holds where the user was, and from nowhere holds no
@@ -5875,7 +5873,8 @@ export function createFloatingPanel({
     else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
     if (!inside && writesIn(fieldInput()) === drawnWriting) return;
-    paintSoon();
+    if (painting) again = true;
+    else host.requestUpdate();
   });
   // A press away from the panel puts away what stands open above the row (dom/focus.js,
   // `onPressAway`). A press in a modal over the panel is not on the page (`overPanel`).
@@ -6274,7 +6273,6 @@ export function createFloatingPanel({
     });
     // Upgrade turns the status to its loading words without a publication.
     document.addEventListener(UPGRADE, () => paint(), { once: true });
-    document.addEventListener("lf-chrome-preference", () => paint());
     paint();
     // The panel takes over the row the document served, and the field the held keys'
     // words, in the frame the panel first draws (`heldWords`; bootstrap.js).

@@ -2566,6 +2566,8 @@ export function createFloatingPanel({
       opening.rewriting = false;
       opening.room = null;
     }
+    // At once, since the same move measures the view the hold sizes: entering a rewrite
+    // reveals it, and leaving one asks whether the view covers where focus returns.
     paint();
   });
   // The menu grows upward from the row, so news that adds a row to it, or takes one
@@ -2658,8 +2660,10 @@ export function createFloatingPanel({
     if (changed && before?.thread && !handedOn)
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
     // The view going away fades where it stood, closing included, so the box shrinking
-    // under it never shows an empty ground.
-    leaving = changed && before && after ? before : null;
+    // under it never shows an empty ground. Where motion doesn't play it goes in the
+    // one paint.
+    const moves = changed && motionPlays();
+    leaving = moves && before && after ? before : null;
     if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
@@ -2668,9 +2672,7 @@ export function createFloatingPanel({
       reading || (before && viewOf(before).nominate)
         ? present({ release: reading })
         : null;
-    if (!changed || !motionPlays()) {
-      leaving = null;
-      paint();
+    if (!moves) {
       if (focus) focusView(after, drawn, stoodIn, part);
       return;
     }
@@ -2761,7 +2763,8 @@ export function createFloatingPanel({
   // knows before pressing that it leads further rather than acting.
   /** @param {unknown} label @param {unknown} end @param {(event: MouseEvent) => unknown} press
    * @param {{urgent?: boolean, disabled?: boolean, role?: string | null, row?: string | null,
-   * key?: string | null, opens?: boolean, title?: string | null, current?: boolean}} [options] */
+   * key?: string | null, command?: string | null, opens?: boolean, title?: string | null,
+   * current?: boolean}} [options] */
   const menuItem = (
     label,
     end,
@@ -2771,6 +2774,7 @@ export function createFloatingPanel({
       disabled = false,
       row = null,
       key = null,
+      command = null,
       opens = false,
       title = null,
       current = false,
@@ -2780,6 +2784,7 @@ export function createFloatingPanel({
       type="button"
       data-lf-row=${row ?? nothing}
       data-lf-key=${key ?? nothing}
+      data-lf-command=${command ?? nothing}
       .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "location" : nothing}
@@ -2813,16 +2818,22 @@ export function createFloatingPanel({
     );
   // A row's end says its value in words, then its shortcut where a keyboard is there to
   // press it, each press a key as the command reference draws it, so the two never read
-  // as one run of text.
+  // as one run of text. A row that names no shortcut of its own shows the keys of the
+  // command it runs.
   /** @param {ReturnType<typeof pageControls>[number]} entry */
-  const rowEnd = (entry) =>
-    html`${
+  const rowEnd = (entry) => {
+    const shortcut =
+      entry.shortcut.length || !entry.command
+        ? entry.shortcut
+        : commandSteps(entry.command);
+    return html`${
       entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing
     }${
-      entry.shortcut.length && advertisesKeys()
-        ? keySequenceTemplate(keySequenceModel(neutralSteps(entry.shortcut)))
+      shortcut.length && advertisesKeys()
+        ? keySequenceTemplate(keySequenceModel(neutralSteps(shortcut)))
         : nothing
     }`;
+  };
   // Copy shortcuts close on success; a refusal opens About's selectable text.
   /** @type {Map<string, ReturnType<typeof copyControl>>} */
   const copyItems = new Map();
@@ -2882,6 +2893,7 @@ export function createFloatingPanel({
         urgent: Boolean(entry.urgent),
         disabled: entry.disabled,
         row: entry.key,
+        command: entry.command,
         opens: Boolean(route && viewOf(route).over?.includes("menu")),
       },
     );
@@ -4969,8 +4981,9 @@ export function createFloatingPanel({
   // centred in a room wider on both sides, which stood it off centre once it had a
   // count, as On Me nearly always does. An empty gap stands between two tabs, for the
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
-  // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
-  // On <agent>'s, where they would press it from where the user is, so the user meets
+  // show names the Go-to door that opens it (`door`), so it previews the door's keys,
+  // such as `g A` on On <agent>'s, where they would press it from where the user is,
+  // and wears the door's key as its Go-to chip (`data-lf-command`), so the user meets
   // the key where they reach for the list. A tab is named for its list alone and
   // described by its count, so a screen reader hears "Threads", then "2", and its
   // preview's keys follow "Threads", not "Threads 2".
@@ -4982,15 +4995,16 @@ export function createFloatingPanel({
       ${names.map((name, at) => {
         const counted = count(name);
         const gap = at ? html`<span class="lf-fp-tab-gap"></span>` : nothing;
-        const opens = door(name);
+        const opens = current === name ? null : door(name);
         return html`${gap}<button
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
             aria-label=${label(name)}
             aria-description=${counted === null ? nothing : String(counted)}
+            data-lf-command=${opens ?? nothing}
             .lfPreview=${() => {
-              const steps = opens && current !== name ? commandBindingsNow(opens) : [];
+              const steps = opens ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
             }}
             @click=${() => {
@@ -5845,7 +5859,11 @@ export function createFloatingPanel({
     true,
   );
   // What the field says turns on whether the user writes in it (`writesIn`), so the row
-  // draws again as that changes, and as the user moves within the panel.
+  // draws again as that changes, and as the user moves within the panel. It draws once
+  // the script that moved the user has ended, still before the next frame (Lit's
+  // schedule), so a press that moves the user and then acts, as Go-to's press focuses a
+  // tab and then clicks it, draws the panel once: the act's own paint takes the update
+  // over. Nothing later in the move measures what this draws.
   onCurrentLocation((node, _cause, left) => {
     const inside = Boolean(node) && renderedUnder(node, host);
     // Stepping in from the page holds where the user was, and from nowhere holds no
@@ -5855,7 +5873,8 @@ export function createFloatingPanel({
     else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
     if (!inside && writesIn(fieldInput()) === drawnWriting) return;
-    paint();
+    if (painting) again = true;
+    else host.requestUpdate();
   });
   // A press away from the panel puts away what stands open above the row (dom/focus.js,
   // `onPressAway`). A press in a modal over the panel is not on the page (`overPanel`).
@@ -6254,7 +6273,6 @@ export function createFloatingPanel({
     });
     // Upgrade turns the status to its loading words without a publication.
     document.addEventListener(UPGRADE, () => paint(), { once: true });
-    document.addEventListener("lf-chrome-preference", () => paint());
     paint();
     // The panel takes over the row the document served, and the field the held keys'
     // words, in the frame the panel first draws (`heldWords`; bootstrap.js).
@@ -6322,6 +6340,17 @@ export function createFloatingPanel({
     // alone, as Threads, On, Versions and All pages are; one a route qualifies, as a
     // menu group or Errors, stays shut.
     shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
+    // Whether an element is part of the row a stance holds while it stands (**The
+    // row**): the field, whose end offers the stance's Close, and the ✕ that ends it,
+    // but not the leaf, and nothing while a search holds the field. Read from the
+    // dispatcher, as `stanceHolds` is, so it answers in the task that arms a stance,
+    // before the row draws it. Go-to, itself a stance, leaves these parts out of its
+    // map (page-keys/go-to-sequence.js), since each would only end it.
+    heldByStance: (/** @type {Element} */ element) =>
+      stanceHolds() &&
+      !activeSearch() &&
+      element.closest(".lf-fp-row") !== null &&
+      element.closest(".lf-fp-leaf") === null,
     /** @param {import("../records/history.js").RecordList | null} list @param {string | null} from
      * @param {import("../dom/user-intent.js").UserIntent} intent */
     putThreadAway: (list, from, intent) => {

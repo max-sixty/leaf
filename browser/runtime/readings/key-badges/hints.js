@@ -1,7 +1,7 @@
 /* The transient keyboard hint session, and the code and placement policy under it.
 
    Two vocabularies stand on this one interaction: the Go-to sequence's map of visible
-   page targets, and the target picker's map of addressable elements. Arming reads a
+   targets, and the target picker's map of addressable elements. Arming reads a
    scene, gives each member an opaque prefix-free code, and paints a chip on it. Typed
    letters narrow the map, Tab walks it aloud, Enter takes the one just heard, and
    Escape gives a letter back. A letter that names nothing is reported and the current
@@ -31,8 +31,8 @@
    first, so it shows wherever its target leaves room for one. A withheld chip's code
    still takes it, as every member's does. Rejected: showing every chip,
    moved up or down as far as a free seat lies, which slides a crowded column's chips
-   rows past their targets. Geometry belongs to each caller and is passed in so this module
-   introduces no ownership cycle through its callers. */
+   rows past their targets. Where each member stands belongs to its caller; where the
+   chrome stands, every map reads alike (dom/geometry.js, `coverBoxes`). */
 import {
   bindingEnabled,
   cycledRow,
@@ -47,15 +47,17 @@ import {
 import { saying } from "../../dom/keyboard/control-keys.js";
 import { clamp, overlaps, overlapsAcross } from "../../dom/rect.js";
 import { chipSeats } from "./chip-seats.js";
-import { layoutWindow } from "../../dom/geometry.js";
+import { coverBoxes, layoutWindow } from "../../dom/geometry.js";
 import { scrollDrawn, scrolling, watchScrollEnds } from "../../dom/arrivals.js";
+import { heldUnseen } from "../../dom/motion.js";
+import { nextFrame } from "../../lib/frame-pass.js";
 import { announce } from "../../transport/notifications.js";
 import { repaint } from "../../dom/repaint.js";
 
 /** @typedef {import("../../base/box.js").Box & {held?: boolean}} HintBarrier */
 /** @typedef {import("../../base/box.js").Box & {width: number, height: number, held?: boolean, clippedTop?: boolean}} HintBox
  * @typedef {"corner" | "before" | "above"} HintPlacement
- * @typedef {{start: HintBox, target: HintBox, placement?: HintPlacement}} HintFace
+ * @typedef {{start: HintBox, target: HintBox, placement?: HintPlacement, barriers?: HintBarrier[]}} HintFace
  */
 
 export const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
@@ -162,9 +164,8 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap, admits) {
 // hidden rather than removed, so a pass that changes nothing writes nothing.
 // `placement` chooses the corner, before or above the target (`seatHints`).
 /** @param {ReturnType<typeof chipSeats>} seats
- * @param {{seat: HTMLElement, at: {left: number, top: number}, target: HintBox, placement?: HintPlacement, element: Element | null, browsed: boolean}[]} hints
- * @param {{barriers: HintBarrier[]}} options */
-function spreadHints(seats, hints, { barriers }) {
+ * @param {{seat: HTMLElement, at: {left: number, top: number}, target: HintBox, placement?: HintPlacement, barriers: HintBarrier[], element: Element | null, browsed: boolean}[]} hints */
+function spreadHints(seats, hints) {
   const band =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--lf-focus-ring-w"),
@@ -176,12 +177,12 @@ function spreadHints(seats, hints, { barriers }) {
       chip,
       target: hint.target,
       ...(hint.placement === undefined ? {} : { placement: hint.placement }),
+      barriers: hint.barriers,
       hint,
     };
   });
   const browsed = faces.find(({ hint }) => hint.browsed);
   const seated = seatHints(faces, {
-    barriers,
     band,
     viewport: layoutWindow(),
     browsed,
@@ -263,18 +264,16 @@ function nestOutsets(faces, room) {
 }
 
 // Where each face stands, folded from rectangles `spreadHints` has already read. Each
-// face is `{ start, target, placement }`, `start` the box it was drawn at; the answer
-// is one box per face, in order, each clear of the barriers and every face seated
-// before it, or null for a face withheld because no such seat reads as its target's.
+// face is `{ start, target, placement, barriers }`, `start` the box it was drawn at and
+// `barriers` the fixed boxes it keeps clear of; the answer is one box per face, in
+// order, each clear of its barriers and every face seated before it, or null for a face
+// withheld because no such seat reads as its target's.
 // A box is `held` where what decided its seat stands still as the page scrolls, the
 // window's edge or a fixed barrier, rather than its target or a face riding with its
 // own, so the window holds it where a scroll carries the rest. `browsed` is the face a
 // walk is on, if any.
-/** @template {HintFace} T @param {readonly T[]} faces @param {{barriers?: HintBarrier[], band: number, viewport: import("../../base/box.js").Box, browsed?: T | undefined}} options */
-export function seatHints(
-  faces,
-  { barriers: fixedBarriers = [], band, viewport, browsed },
-) {
+/** @template {HintFace} T @param {readonly T[]} faces @param {{band: number, viewport: import("../../base/box.js").Box, browsed?: T | undefined}} options */
+export function seatHints(faces, { band, viewport, browsed }) {
   const gap = 2;
   const targets = faces.map(({ target }) => target);
   // The browsed hint wears the layer's band (--lf-focus-shadow, styles/tokens.css), which a face's
@@ -459,6 +458,7 @@ export function seatHints(
   /** @param {typeof measured[number]} measuredFace @param {Map<T, HintBox | null>} placed */
   const seatOne = ({ face, seated, ownTarget, clamped, column }, placed) => {
     if (face !== browsed && bunched(face)) return null;
+    const fixedBarriers = face.barriers ?? [];
     /** @param {HintBox} seat */
     const barriersAcross = (seat) => [
       ...fixedBarriers.filter((other) => overlapsAcross(other, seat)),
@@ -525,6 +525,12 @@ export function seatHints(
   return faces.map((face) => ({ face, box: boxes.get(face) ?? null }));
 }
 
+// Settles once the scene arming paints has been drawn (`arm`).
+const armingDrawn = () =>
+  scrollDrawn() ??
+  heldUnseen() ??
+  new Promise((drawn) => nextFrame(() => nextFrame(() => drawn(undefined))));
+
 /* One armed map over a caller's scene.
 
    `read` takes one reading of the scene: which members the map holds, what codes name
@@ -552,7 +558,9 @@ export function seatHints(
    measuring every member again on each paint to notice a move, a hit test per chip,
    which made each Tab cost what the map held.
 
-   `chrome.barriers` reads the fixed furniture the placement pass must keep clear.
+   Each chip keeps clear of the boxes the chrome covers, but for the surface its own
+   member stands on (`coverBoxes`), so the chip naming a tab of the floating panel
+   stands on the panel; the map is read again when any cover moves.
    A map stands through a scroll once it has stood still long enough to be read: its
    chips ride with the things they name (chip-seats.js), so the codes the user is
    reading stay where they were read and stay pressable, while membership and seats
@@ -565,7 +573,7 @@ export function seatHints(
  * kept?: (candidate: C) => boolean,
  * layout: (candidates: C[], options: {current: C | undefined}) => {candidate: C, model: M, left: number, top: number, target: HintBox, placement: HintPlacement}[],
  * template: (model: M) => unknown, take: (candidate: C) => unknown,
- * words: {describe: (candidate: C) => string, all: string}, chrome: {barriers: () => HintBarrier[]}}} HintSessionOptions
+ * words: {describe: (candidate: C) => string, all: string}}} HintSessionOptions
  */
 /** @template {{code: string}} C @template {{key: unknown, className: string}} M
  * @param {HintSessionOptions<C, M>} options */
@@ -578,7 +586,6 @@ export function createHintSession({
   template,
   take: takeCandidate,
   words,
-  chrome,
 }) {
   let armed = false;
   let prefix = "";
@@ -646,27 +653,35 @@ export function createHintSession({
       : -1;
   }
 
-  // The map stands on a scene the browser has drawn (dom/arrivals.js, `scrollDrawn`). A
-  // scroll a script has just written, as `g` writes landing the glides under way, leaves
-  // a box anchored to what it moved where it stood until the next rendering update, so a
-  // map read then would name a margin entry the thread card the walk opened is arriving
-  // to cover, and Tab would walk to it. Armed before then, the map is read at once, for
-  // a key typed in those frames, and read again once the scene is drawn, unless a
-  // letter typed meanwhile holds it; `then` hears what the map found once it stands on
-  // the drawn scene.
-  /** @type {Promise<void> | null} */
+  // The map stands on the scene arming draws. A scroll a script has just written, as
+  // `g` writes landing the glides under way, leaves a box anchored to what it moved where
+  // it stood until the next rendering update (dom/arrivals.js, `scrollDrawn`), so a map
+  // read then would name a margin entry the thread card the walk opened is arriving to
+  // cover, and Tab would walk to it. Arming changes the scene too, in the frame it
+  // paints: a decision's picks show again once their digits go, and a panel view or a
+  // thread card that began to fade in as the user pressed shows its controls from that
+  // frame on. A part a motion holds unseen until it plays, as a panel view arriving
+  // once the one leaving has faded, shows once that motion has played
+  // (dom/motion.js, `heldUnseen`). Armed before then, the map is read at once, for a
+  // key typed meanwhile, and shows no chip (`paint`); it is read again once that scene is drawn,
+  // unless a letter typed meanwhile holds it, so no code the user sees changes as the
+  // map settles. `then` hears what the map found then, unless the user has typed or
+  // walked meanwhile.
+  /** @type {Promise<unknown> | null} */
   let reading = null;
-  /** @param {(found: C[]) => void} [then] */
+  /** @param {(found: C[]) => void} [then] @returns {Promise<void>} */
   function arm(then = () => {}) {
     armed = true;
     hold(read());
-    const drawn = (reading = scrollDrawn());
-    if (!drawn) return then(candidates);
-    drawn.then(() => {
+    const drawn = (reading = armingDrawn());
+    return drawn.then(() => {
       if (!armed || reading !== drawn) return;
       reading = null;
+      // A letter or a walk meanwhile has answered in its own words, which the map's
+      // would cut off.
+      const answered = prefix !== "" || at >= 0;
       if (!prefix) readAgain();
-      then(candidates);
+      if (!answered) then(candidates);
       repaint();
     });
   }
@@ -799,17 +814,19 @@ export function createHintSession({
     const drawn = plans.map((plan) => {
       const seat = seats.seat(plan.model.key);
       render(face(plan), seat);
+      const element = identity(plan.candidate);
       return {
         seat,
-        element: identity(plan.candidate),
+        element,
         at: { left: plan.left, top: plan.top },
         target: plan.target,
         placement: plan.placement,
+        barriers: coverBoxes(element),
         browsed: plan.candidate === browsed,
       };
     });
     // The coded map is spread around the fixed chrome.
-    const placed = plans.length ? spreadHints(seats, drawn, { barriers }) : [];
+    const placed = plans.length ? spreadHints(seats, drawn) : [];
     const showing = new Set(showable(plans));
     seats.place(
       placed.filter((_, index) => {
@@ -866,11 +883,12 @@ export function createHintSession({
       seats.clear();
       return;
     }
-    const moving = scrolling() || scrollDrawn() !== null;
+    // A page in flight, or a map whose arming hasn't yet been drawn (`arm`).
+    const moving = scrolling() || scrollDrawn() !== null || reading !== null;
     const wasWalking = at >= 0;
     const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate).isConnected);
-    const barriers = chrome.barriers();
+    const barriers = coverBoxes();
     // Chrome the user has opened over the page, such as a panel view, covers other boxes
     // than the reading saw.
     const covered = seating !== null && !sameBoxes(barriers, seating.barriers);

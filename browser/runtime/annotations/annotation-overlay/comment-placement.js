@@ -933,16 +933,14 @@ export function commentPlacement() {
           ? Math.min(tall.over + (under?.() ?? 0), Math.max(tall.whole, shown.height)) /
             scale.y
           : 0;
-        // Under or over, Floating UI's available width runs from the start its placement
-        // names, while the surface may be held by its other edge, so the lane, measured
-        // from the held edge, gives the width.
+        // Floating UI's available width runs from the edge its placement names, while a
+        // surface under or over, or carried, may be held by its other edge, so the lane,
+        // measured from the held edge, gives the width.
         fit({
           side,
           width: Math.max(
             Math.min(minimumWidth, boundary.width) / scale.x,
-            across
-              ? lane(scale) / scale.x
-              : Math.min(state.availableWidth, lane(scale) / scale.x),
+            lane(scale) / scale.x,
           ),
           height: rises ? shown.height / scale.y : state.availableHeight,
           room: shown,

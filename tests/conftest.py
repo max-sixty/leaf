@@ -996,6 +996,28 @@ def firefox_browser(_playwright, request):
 
 
 @pytest.fixture
+def scaled_firefox(_playwright, request):
+    """Desktop Firefox laying out at `request.param` device pixels to the CSS pixel, as
+    it does at a zoom such as 110% or on a screen of two device pixels to one. A
+    context's `device_scale_factor` doesn't move where Firefox's layout snaps a length
+    to the device's pixels, so a test of that takes this fixture, parametrized
+    `indirect`."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch(
+        firefox_user_prefs={
+            **FIREFOX_PREFS,
+            "layout.css.devPixelsPerPx": str(request.param),
+        }
+    )
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
+
+
+@pytest.fixture
 def bidi_firefox(_playwright, request):
     """Playwright's own Firefox, driven over WebDriver BiDi as `page check` drives a
     reader's installed Firefox (`render_gate.browser.launch_browser`): a route there is

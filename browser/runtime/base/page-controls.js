@@ -4,8 +4,10 @@
  * A module registers each control it offers once, as one row: its `label` (for a row
  * that copies, the text it copies named as it reads mid-sentence, such as "link", which a
  * presentation puts after "Copy" and capitalizes to head a line), a terse `value` such as
- * a count, the `shortcut` that reaches it from the keyboard as its steps, each spelled as
- * a key chip spells it (dom/keyboard/control-keys.js, `commandSteps`), the `group` of
+ * a count, the `command` its press runs, whose Go-to key the row wears
+ * (panel/page-keys/go-to-sequence.js, `data-lf-command`), the `shortcut` that reaches it
+ * from the keyboard as its steps, each spelled as a key chip spells it, where it isn't
+ * that command's own (dom/keyboard/control-keys.js, `commandSteps`), the `group` of
  * controls it belongs with, what a row that copies grants that its text doesn't say,
  * which a pointer resting on the row reads and About shows under it (`title`), the text
  * it copies where it copies one (`copies`), whether
@@ -80,6 +82,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   group: PageControlGroup | (() => PageControlGroup),
  *   value?: string | (() => string),
  *   title?: string | (() => string),
+ *   command?: string,
  *   shortcut?: readonly string[] | (() => readonly string[]),
  *   copies?: string | (() => string),
  *   offered?: boolean | (() => boolean),
@@ -115,6 +118,7 @@ export function pageControls() {
         label: read(row.label),
         value: read(row.value) ?? "",
         title: read(row.title) ?? "",
+        command: row.command ?? null,
         shortcut: read(row.shortcut) ?? EMPTY,
         get group() {
           return read(row.group);

@@ -30,6 +30,13 @@ export const contentsRects = (node) =>
 export const contentsBox = (node) =>
   readContents(node, (range) => range.getBoundingClientRect());
 
+// What draws something to see without words: a replaced element, or a widget, which is
+// a custom element. Empty boxes and spacers draw nothing, so no place stands on them.
+export const DRAWING = "img, svg, canvas, video, picture, iframe, object, embed";
+/** @param {Element} element */
+export const draws = (element) =>
+  element.matches(DRAWING) || element.localName.includes("-");
+
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is

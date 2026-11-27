@@ -49,7 +49,6 @@
 }
 
 lf-worktree-diffs > lf-worktree + lf-worktree {
-  --lf-reading-face: 1;
   margin-block-start: var(--lf-sp-2);
 }
 

@@ -1769,7 +1769,7 @@ export const clippedPlace = (where, clips, box = placeBox(where), stop = undefin
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
 // The chrome's root follows `body` at the largest z-index and wins every tie by tree
-// order (base.css, `:root > .lf-chrome`), so a chrome box reads its own rung above every
+// order (elements.css, `:root > .lf-chrome`), so a chrome box reads its own rung above every
 // level a page box can read, whatever z-index the page sets.
 export const CHROME_LEVEL = 2 ** 31;
 /** @param {Element} node */

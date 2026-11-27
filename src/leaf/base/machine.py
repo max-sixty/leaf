@@ -1,5 +1,5 @@
-"""This machine: the state home Leaf keeps on it, and the processes running on
-it.
+"""This machine: the state home Leaf keeps on it, the settings its user states
+for it, and the processes running on it.
 
 Everything here is bound to the machine rather than to a page. The state home
 holds this machine's claims, leases, page records, packages, and serving key,
@@ -18,10 +18,50 @@ import process inspection."""
 
 import errno
 import os
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
+from leaf.base.refusals import Refused
 from leaf.base.state import PLUGIN_ROOT, state_home
+
+# The keys `settings` reads, each holding a string.
+SETTINGS = ("host",)
+
+
+def settings_path() -> Path:
+    """$XDG_CONFIG_HOME/leaf/config.toml (~/.config/leaf/config.toml)."""
+    root = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
+    return Path(root) / "leaf" / "config.toml"
+
+
+def settings() -> dict:
+    """What the user wrote in `settings_path`, once for every Leaf on this machine,
+    or nothing where there is no file. The keys are `SETTINGS`, such as the host
+    every new page is served on (`server.page_access`).
+
+    A file rather than environment variables, because every harness starts Leaf
+    from an environment of its own: a Claude Code background job descends from its
+    daemon rather than the user's shell, and Codex hands its MCP server only the
+    variables the plugin lists. Leaf reads this file wherever it runs, so a setting
+    written here reaches every Leaf, whichever harness or launcher started it.
+
+    A key Leaf doesn't read, or a value that isn't a string, refuses rather than
+    passing silently: a mistyped key would otherwise leave the user's pages on the
+    address it was written to replace."""
+    path = settings_path()
+    try:
+        stated = tomllib.loads(path.read_text())
+    except FileNotFoundError:
+        return {}
+    except tomllib.TOMLDecodeError as error:
+        raise Refused(f"{path}: {error}") from None
+    for key, value in stated.items():
+        if key not in SETTINGS:
+            raise Refused(f"{path}: Leaf reads no {key!r}, only {', '.join(SETTINGS)}")
+        if not isinstance(value, str):
+            raise Refused(f"{path}: {key} takes a string, not {value!r}")
+    return stated
 
 
 def pid_alive(pid: int) -> bool:

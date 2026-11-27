@@ -437,7 +437,9 @@
       axis === "left"
         ? "(?:left|right|center|start|end)"
         : "(?:top|bottom|center|start|end)";
-    const anchor = `anchor\\(${side}(?:,\\s*-?[\\d.]+px)?\\)`;
+    // Its fallback is a length, or for a far edge a length back from the far side.
+    const fallback = "(?:-?[\\d.]+px|calc\\(100%\\s*[+-]\\s*-?[\\d.]+px\\))";
+    const anchor = `anchor\\(${side}(?:,\\s*${fallback})?\\)`;
     const offset = "(?:-?[\\d.]+px|var\\(--[\\w-]+\\))";
     return new RegExp(
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*${offset}|${offset}\\s*\\+\\s*${anchor}|${anchor})\\))$`,

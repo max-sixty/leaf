@@ -2754,6 +2754,43 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
     assert abs(bar.bounding_box()["width"] - width) <= 1
 
 
+@pytest.mark.parametrize("scaled_firefox", ["1.1"], indirect=True)
+def test_a_box_the_window_takes_in_keeps_its_far_edge_at_a_fractional_zoom(
+    scaled_firefox, serve
+):
+    """At a zoom that leaves the window a fraction of a pixel wide, as Firefox's 110%
+    does, a comment box that stands by its right edge left of its words keeps that edge
+    still as a scroll carries the words' first line past the window's top and the
+    window takes the box in. Firefox lays out in sixtieths of a pixel, so the edge may
+    land one of them off."""
+    page = open_page(
+        scaled_firefox,
+        serve(
+            leaf_page(
+                "Beside the words",
+                '<p id="subject" style="position: absolute; top: 400px;'
+                ' right: 24px; width: 360px">'
+                + "A paragraph at the window's edge, with room to comment"
+                " only left of it. " * 8 + '</p><div style="height: 3000px"></div>',
+            )
+        ),
+        context=scaled_firefox.new_context(viewport={"width": 1280, "height": 800}),
+    )
+    assert page.evaluate("visualViewport.width % 1") > 0.1
+    page.locator("#subject").click(modifiers=["Alt"])
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("^left"))
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    rendered(page)
+    beside = page.evaluate(RECT, ".lf-fab-bar")
+    page.mouse.wheel(0, 500)
+    scroll_settled(page)
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    rendered(page)
+    taken = page.evaluate(RECT, ".lf-fab-bar")
+    assert taken["right"] == pytest.approx(beside["right"], abs=1 / 60), (beside, taken)
+
+
 def test_a_send_in_the_task_that_scrolls_the_page_opens_the_card_where_the_box_stood(
     browser, serve
 ):

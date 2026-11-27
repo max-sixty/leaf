@@ -4549,6 +4549,7 @@ TURNED = "scale(.8) rotate(10deg)"
 ANCHOR_SCROLL_CASES = [
     ("", "inline", "none"),
     ("", "inline", TURNED),
+    ("", "fallbacks", "none"),
     ("", "scoped_rule", "none"),
     ("portal_x", "inline", "none"),
     ("portal_x", "inline", TURNED),
@@ -4571,8 +4572,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     browser, fault, declared, transform
 ):
     """A portal following its anchor's scroll is credited whether its insets are
-    written inline or stated in its tree's stylesheet, and whether its anchor's name is
-    unique or repeated under `anchor-scope`; moving either independently still fails.
+    written inline, with or without a fallback, or stated in its tree's stylesheet, and
+    whether its anchor's name is unique or repeated under `anchor-scope`; moving either
+    independently still fails.
     A direct anchor inset that a more specific rule overrides credits nothing, even
     where a later rule in sheet order states it, and neither does an inline one an
     important rule overrides. A popover's implicit anchor, the `source` it was shown
@@ -4581,6 +4583,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
+    if declared == "fallbacks":
+        # Floating placement's form, the fallback a far edge's written back from 100%.
+        field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left, 8px) + 100px);top:calc(anchor(top, calc(100% - 300px)) + 10px)"
     sheet, scope, decoy = "", "", ""
     if declared == "scoped_rule":
         sheet = f"<style>#field {{ {field_style} }}</style>"

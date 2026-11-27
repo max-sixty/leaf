@@ -606,20 +606,23 @@ WORD_LINES = """message => {
   const words = host
     ? window.marginEditorRoots.get(host).querySelector('.cm-content')
     : message.querySelector('.lf-msg-text');
-  const range = document.createRange();
-  range.selectNodeContents(words);
   const lines = new Map();
-  for (const box of range.getClientRects()) {
-    if (box.width < 1) continue;
-    const line = Math.round(box.top - top);
-    const [at, left, right] = lines.get(line) ?? [Infinity, Infinity, -Infinity];
-    lines.set(line, [
-      Math.min(at, box.top - top),
-      Math.min(left, box.left),
-      Math.max(right, box.right),
-    ]);
+  const walker = document.createTreeWalker(words, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const range = document.createRange();
+    range.selectNodeContents(walker.currentNode);
+    for (const box of range.getClientRects()) {
+      if (box.width < 1) continue;
+      const line = Math.round(box.top - top);
+      const [at, left, right] = lines.get(line) ?? [Infinity, Infinity, -Infinity];
+      lines.set(line, [
+        Math.min(at, box.top - top),
+        Math.min(left, box.left),
+        Math.max(right, box.right),
+      ]);
+    }
   }
-  return [...lines.values()];
+  return [...lines.values()].sort(([a], [b]) => a - b);
 }"""
 
 
@@ -684,6 +687,41 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
     expect(
         message.get_by_role("button", name="Remove attached image 1", exact=True)
     ).to_be_attached()
+
+
+# Words with a list under them, which the message draws with bullets and its rewrite
+# with the `-` it was typed with.
+LISTED = (
+    "Three checks before the bracket goes up:\n\n"
+    "- the wall takes a plug\n"
+    "- the level reads true\n"
+    "- both bolts are to hand\n\n"
+    "Then fit the north one first."
+)
+
+
+@pytest.mark.parametrize("scaled_firefox", ["1.5", "2"], indirect=True)
+def test_a_rewrite_keeps_its_words_where_a_scaled_screen_drew_them(
+    scaled_firefox, serve
+):
+    """Where Firefox lays a CSS pixel out over device pixels, as at 150% zoom or on a
+    screen of two device pixels to one, opening a rewrite moves none of its lines. It
+    snaps a border to whole device pixels, so a field framed by one would move every
+    line by the fraction, and a bullet that grew its item's line by a fraction would
+    move each item under it. A rewrite types each item's `-` where the bullet stood, so
+    a line's start is the one place the two differ."""
+    page, _, message = _rewrite_surface(
+        scaled_firefox, serve, "panel", text=LISTED, init_script=MARGIN_EDITOR_ROOTS
+    )
+    shown = message.evaluate(WORD_LINES)
+    assert len(shown) >= 5, shown
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    rendered(page)
+    editing = message.evaluate(WORD_LINES)
+    assert [[top, right] for top, _, right in editing] == [
+        [top, right] for top, _, right in shown
+    ], (shown, editing)
 
 
 def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):

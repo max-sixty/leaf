@@ -261,12 +261,20 @@ function isAnswered(state, shown) {
   );
 }
 
+// The options the author wrote. An option the user added is drawn as an `lf-option`
+// too (`data-lf-added`), and stays drawn until the next redraw after its `add` is
+// undone, so the user's options are read from the state alone (`additions`).
+/** @param {Element} group */
+const authoredOptions = (group) =>
+  optionsOf(group).filter((option) => !option.hasAttribute("data-lf-added"));
+
 // The ids of the options a group element shows, its authored ones and the user's, for
-// the code that holds the element rather than the view's props (`allOptions`).
+// the code that holds the element rather than the view's props, as `allOptions` reads
+// them from `inputs`.
 /** @param {Element} group @param {any} state @returns {string[]} */
 const shownOptions = (group, state) => [
   ...new Set([
-    ...optionsOf(group).map((option) => option.id),
+    ...authoredOptions(group).map((option) => option.id),
     ...additions(state).map(({ id }) => id),
   ]),
 ];
@@ -864,9 +872,7 @@ defineWidget("lf-options", Options, {
     // Quoted material is exhibited, not offered: a sample shows what a decision looks
     // like without taking one. Every other group takes the user's pick.
     const choosable = !host.matches("[data-lf-exhibit] *");
-    const authored = optionsOf(host).filter(
-      (option) => !option.hasAttribute("data-lf-added"),
-    );
+    const authored = authoredOptions(host);
     const named = new Set(authored.map((option) => option.getAttribute("for")));
     const settled = host.hasAttribute("settled");
     return {

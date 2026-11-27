@@ -169,6 +169,19 @@ test("Done answers the set it was pressed on, and a version that changes the set
   assert.equal(answered(state, checklist(["c"])), true);
 });
 
+test("an option whose add the user undid answers as gone while it is still drawn", () => {
+  // Done covers c and d with c picked; the user added x, then undid its pick and its
+  // add. The gesture's facts are worked out before the group redraws, so x is still
+  // drawn, and Done still stands on the set the group shows.
+  const group = checklist(["c", "d"]);
+  const drawn = document.createElement("lf-option");
+  drawn.id = "x";
+  drawn.toggleAttribute("data-lf-added", true);
+  group.append(drawn);
+  const state = { choose: pick(["c"]), answer: done(["c", "d"], ["c"]) };
+  assert.equal(answered(state, group), true);
+});
+
 test("the default rule reads the user's acts in force at the verb the widget awaits", () => {
   const specs = new Map([
     ["edit", { unit: "widget", record: { kind: "body" } }],

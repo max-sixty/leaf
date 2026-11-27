@@ -1,3 +1,4 @@
+// Compiled from scroll-range.ts by build/typescript.mjs; edit that file.
 /* The positions a box's scroll can take, and whether a write would move it.
 
    A scroll write that leaves its box where it stands still does something, which
@@ -15,7 +16,6 @@
 // zero to the side where the box's content flows from, the negative one where that is
 // the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which;
 // at zero on an axis whose side the style leaves open, both sides, so no move is lost.
-/** @param {Element} box @returns {{top: [number, number], left: [number, number]}} */
 export function scrollRange(box) {
   const { scrollTop: top, scrollLeft: left } = box;
   const down = Math.max(box.scrollHeight - box.clientHeight, 0);
@@ -24,7 +24,6 @@ export function scrollRange(box) {
     (top === 0 && down) || (left === 0 && across)
       ? scrollsBack(box)
       : { top: false, left: false };
-  /** @param {number} at @param {number} span @param {boolean | null} side @returns {[number, number]} */
   const reach = (at, span, side) =>
     at > 0 || (at === 0 && side === false)
       ? [0, span]
@@ -47,7 +46,6 @@ export function scrollRange(box) {
 // it. Which one applies turns on containment, content visibility, a hidden body or a
 // frameset, and the engines differ on some of those, so where the root and the body
 // agree that is the side, and where they don't it is open.
-/** @param {Element} box @returns {{top: boolean | null, left: boolean | null}} */
 function scrollsBack(box) {
   const page = box.ownerDocument;
   if (box !== page.scrollingElement) return flowsBack(getComputedStyle(box), true);
@@ -61,7 +59,6 @@ function scrollsBack(box) {
 }
 // Whether each axis of a box with `style` starts its flow at the bottom or right edge,
 // counting its flex flow where `flex` asks.
-/** @param {CSSStyleDeclaration} style @param {boolean} flex */
 function flowsBack(style, flex) {
   const { writingMode, direction, display, flexDirection, flexWrap } = style;
   const vertical = writingMode !== "horizontal-tb";
@@ -81,10 +78,8 @@ function flowsBack(style, flex) {
 // stands, once the browser clamps it to the box's range. Where the box stands is read to
 // the pixel: its scroll size is a whole number of pixels, so an end read from it stands
 // up to a pixel short of the browser's own.
-/** @param {Element} box @param {{top?: number, left?: number}} to */
 export const scrollMoves = (box, { top, left }) => {
   const range = scrollRange(box);
-  /** @param {number | undefined} to @param {number} at @param {[number, number]} reach */
   const along = (to, at, [low, high]) =>
     to !== undefined && Math.abs(Math.min(Math.max(to, low), high) - at) >= 1;
   return (

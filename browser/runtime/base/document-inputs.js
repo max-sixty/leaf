@@ -1,3 +1,4 @@
+// Compiled from document-inputs.ts by build/typescript.mjs; edit that file.
 /* Document-local input vocabulary and intent clock, shared by early delivery and
    portable widgets. This source is both inlined before prepaint and imported by
    modules. One per-document slot keeps the first clock and its listeners when the
@@ -36,9 +37,7 @@
   // (`step`). It hears of no step the page's script takes, nor of leaving the window,
   // after which the keys still land where the user then stands (bootstrap.js,
   // `holdEarlyKeys`).
-  /** @type {Parameters<DocumentInputs["holdKeys"]>[0]} */
   let hold = null;
-  /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
   // The controls the user has changed in this document (`edited`), whose state a
   // reload's arrival leaves as they left it (features/version.js, `installArrival`): a field or
@@ -55,19 +54,15 @@
   // disclosure, and its group, though nothing toggled, which needs such a control and a
   // press during a start; and a form's native Reset is no change, so the arrival puts
   // back words in the fields the user didn't touch, where they see them come back.
-  /** @type {WeakSet<Element>} */
   const changed = new WeakSet();
-  /** @type {WeakMap<Node, Set<string>>} */
   const changedGroups = new WeakMap();
   // The exclusive group `node` stands in, as its scope and its kind and name.
-  /** @param {Element} node @returns {[Node, string] | null} */
   const groupOf = (node) => {
     if (node instanceof HTMLInputElement && node.type === "radio" && node.name)
       return [node.form ?? node.getRootNode(), `radio ${node.name}`];
     const name = node instanceof HTMLDetailsElement && node.getAttribute("name");
     return name ? [node.getRootNode(), `details ${name}`] : null;
   };
-  /** @param {Element} node */
   const noteChange = (node) => {
     changed.add(node);
     const group = groupOf(node);
@@ -75,7 +70,6 @@
     const [scope, name] = group;
     changedGroups.set(scope, (changedGroups.get(scope) ?? new Set()).add(name));
   };
-  /** @param {Event} event */
   const change = (event) => {
     if (!(event instanceof Event) || !event.isTrusted) return;
     const path = event.composedPath();
@@ -107,13 +101,11 @@
     "month",
     "week",
   ]);
-  /** @type {DocumentInputs["typesText"]} */
   const typesText = (node) =>
     node instanceof Element &&
     (node.matches(textBox) ||
       (node instanceof HTMLElement && node.isContentEditable) ||
       (node instanceof HTMLInputElement && typedTypes.has(node.type)));
-  /** @type {DocumentInputs["takesLetters"]} */
   const takesLetters = (node) =>
     typesText(node) ||
     (node instanceof Element &&
@@ -122,18 +114,14 @@
   // `handingOn`), each where the control holds it: the words in a text box or in an
   // input other than a file input, whose value only the browser sets; the tick of a
   // checkbox or radio; and whether a disclosure is open.
-  /** @param {Element} node @returns {node is HTMLElement & {value: string}} */
   const holdsValue = (node) =>
     node instanceof HTMLElement &&
     (node.matches(textBox) ||
       (node instanceof HTMLInputElement && node.type !== "file"));
-  /** @param {Element} node @returns {node is HTMLInputElement} */
   const holdsTick = (node) =>
     node instanceof HTMLInputElement &&
     (node.type === "checkbox" || node.type === "radio");
-  /** @type {DocumentInputs["holdsOpen"]} */
   const holdsOpen = (node) => node instanceof HTMLDetailsElement;
-  /** @type {DocumentInputs} */
   const state = {
     textField,
     textBox,
@@ -164,7 +152,6 @@
       return () => inputReaders.delete(read);
     },
   };
-  /** @param {Event} event */
   const input = (event) => {
     // Firefox can send an inaccessible foreign wheel object to an arriving
     // sandboxed window. It is not this realm's Event and reaches no document.
@@ -196,7 +183,6 @@
   // reports no step as the user's, the browser's own Back included (Gecko bug
   // 1903552): there a held run outlives the user's step and its keys run at the entry
   // the step reached.
-  /** @param {boolean} user */
   const step = (user) => {
     inputs++;
     away++;

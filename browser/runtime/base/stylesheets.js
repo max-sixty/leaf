@@ -1,3 +1,4 @@
+// Compiled from stylesheets.ts by build/typescript.mjs; edit that file.
 /* The layer's constructed stylesheets: shared chrome and marks, with actual annotation
    sheets only when delivery selected the overlay renderer. The document adopts the
    chrome; the document and every shadow stage adopt the marks.

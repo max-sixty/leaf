@@ -1,3 +1,4 @@
+// Compiled from frame-visibility.ts by build/typescript.mjs; edit that file.
 /* Whether this document can be seen, and how a page reads a frame it holds.
 
    A frame cannot tell from inside whether it shows, so the page that holds the frame
@@ -35,12 +36,11 @@
    The shift watch (tests/shift_watch.js) keeps an observer of a box fixed over each
    frame's viewport instead: it runs in every frame, Leaf's or not, before the runtime
    it judges, and has no host to ask. */
+
 const child = document.documentElement.lfSample;
 let admitted = false;
-/** @type {Set<(visibility: ReturnType<typeof frameVisibility>) => unknown>} */
 const observers = new Set();
-/** @typedef {Exclude<Extract<import("./sample-protocol.js").ParentNotice, {type: "visibility-reading"}>["detail"], {error: import("./sample-protocol.js").SampleFailure}>} SampleVisibility */
-/** @type {Map<number, {resolve: (visibility: SampleVisibility) => void, reject: (reason: Error) => void}>} */
+
 const readings = new Map();
 let readingId = 0;
 
@@ -50,7 +50,6 @@ let readingId = 0;
  * containing viewports, and when an attribute that can hide or exclude it changes on
  * the frame or an element holding it, which no observer of geometry hears. `stop`
  * disconnects. */
-/** @param {Element} frame @param {() => unknown} callback */
 export function watchFrame(frame, callback) {
   let intersecting = false;
   let read = false;
@@ -92,9 +91,7 @@ export function watchFrame(frame, callback) {
 }
 
 // A cross-origin ancestor's frame element reads null and ends the walk.
-/** @type {ReturnType<typeof watchFrame>[]} */
 const owners = [];
-/** @type {Window} */
 let containingView = window;
 if (!child)
   for (; containingView.frameElement; containingView = containingView.parent)
@@ -106,7 +103,6 @@ export function frameVisibility() {
   if (owners.length) return { visible: owners.every((owner) => owner.shown()) };
   return null;
 }
-/** @param {(visibility: {visible: boolean} | null) => void} callback */
 export function onFrameVisibility(callback) {
   observers.add(callback);
   return () => observers.delete(callback);
@@ -118,16 +114,11 @@ export function onFrameVisibility(callback) {
 export function readSampleVisibility() {
   const bridge = child;
   if (!bridge) return null;
-  return new Promise(
-    /** @param {(visibility: SampleVisibility) => void} resolve */ (
-      resolve,
-      reject,
-    ) => {
-      const id = ++readingId;
-      readings.set(id, { resolve, reject });
-      bridge.send({ type: "visibility-read", detail: { id } });
-    },
-  );
+  return new Promise((resolve, reject) => {
+    const id = ++readingId;
+    readings.set(id, { resolve, reject });
+    bridge.send({ type: "visibility-read", detail: { id } });
+  });
 }
 function publish() {
   const visibility = frameVisibility();

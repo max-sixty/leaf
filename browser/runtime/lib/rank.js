@@ -1,3 +1,4 @@
+// Compiled from rank.ts by build/typescript.mjs; edit that file.
 /* Rank keys: where a unit stands among its container's siblings, as a coordinate of its
    own. Nothing here reads the page: each function takes the state it works on.
 
@@ -24,14 +25,13 @@
 
 const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz";
 
-/** The rank of the unit at `index` in its authored container.
- * @param {number} index */
+/** The rank of the unit at `index` in its authored container. */
 export const authoredRank = (index) =>
   "z".repeat(Math.floor(index / 35)) + DIGITS.charAt((index % 35) + 1);
 
 /** The order a container lists its units in: by rank, ties by id.
- * @param {Readonly<Record<string, string>>} ranks each unit's rank by id */
-export const byRank = (ranks) => /** @param {string} a @param {string} b */ (a, b) => {
+ * @param ranks each unit's rank by id */
+export const byRank = (ranks) => (a, b) => {
   const left = ranks[a];
   const right = ranks[b];
   if (left !== undefined && right !== undefined && left !== right)
@@ -44,7 +44,6 @@ export const byRank = (ranks) => /** @param {string} a @param {string} b */ (a, 
 // steps one digit past its neighbour rather than halving the gap, so a column that only
 // ever grows at one end gains a character per 35 drops rather than per 5; an empty
 // container starts in the middle.
-/** @param {string} before @param {string | null} after @returns {string} */
 function rankBetween(before, after) {
   if (after === null) return before ? rankAfter(before) : "i";
   if (!before) return rankBefore(after);
@@ -52,14 +51,12 @@ function rankBetween(before, after) {
   return midpoint(before, after);
 }
 
-/** @param {string} key @returns {string} */
 function rankAfter(key) {
   const digit = DIGITS.indexOf(key.charAt(0));
   if (digit < DIGITS.length - 1) return DIGITS.charAt(digit + 1);
   return "z" + (key.length > 1 ? rankAfter(key.slice(1)) : "1");
 }
 
-/** @param {string} key @returns {string} */
 function rankBefore(key) {
   if (key.length > 1 && key.charAt(0) !== "0") return key.charAt(0);
   const digit = DIGITS.indexOf(key.charAt(0));
@@ -67,7 +64,6 @@ function rankBefore(key) {
   return "0" + (key.length > 1 ? rankBefore(key.slice(1)) : "z");
 }
 
-/** @param {string} before @param {string | null} after @returns {string} */
 function midpoint(before, after) {
   if (after !== null) {
     let n = 0;
@@ -84,9 +80,7 @@ function midpoint(before, after) {
 /** The rank that puts `unit` at `index` among the other units a position verb's state
  * lists in `container`, and keeps it there however other units move: a widget's own
  * reading of where a gesture dropped it. `value` maps each container's id to its
- * units' ids in order, and `ranks` gives each unit's rank.
- * @param {{value: Readonly<Record<string, readonly string[]>>, ranks: Readonly<Record<string, string>>}} state
- * @param {string} container @param {number} index @param {string} unit */
+ * units' ids in order, and `ranks` gives each unit's rank. */
 export function rankAt({ value, ranks }, container, index, unit) {
   const members = value[container];
   if (!members) throw new Error(`Unknown position container ${container}`);

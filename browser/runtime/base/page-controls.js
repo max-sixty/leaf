@@ -1,3 +1,4 @@
+// Compiled from page-controls.ts by build/typescript.mjs; edit that file.
 /* The page's controls as the lines of a menu, which the floating panel's menu draws
  * (panel/floating-panel.js) without naming any of them.
  *
@@ -28,7 +29,6 @@
 import { signal } from "/vendor/signals-core.js";
 import { afterScript } from "./rendering.js";
 
-/** @type {readonly string[]} */
 const EMPTY = Object.freeze([]);
 
 // Where each contributor's rows stand, among the others'.
@@ -60,40 +60,14 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // preview or Leaf the page runs (`about`) stands in About this page alone, which lists
 // every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
-/** @typedef {"page" | "navigate" | "annotate" | "keys" | "about"} PageControlGroup */
-/** @import { WorkingPlace } from "./held-place.js" */
 
-/** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
 let sequence = 0;
 const revision = signal(0);
 
-/** @template {string | boolean | readonly string[] | null | undefined} T
- * @param {T | (() => T)} value @returns {T} */
 const read = (value) => (typeof value === "function" ? value() : value);
 
-/**
- * Register one row of the page's controls.
- *
- * @typedef {{
- *   key: string,
- *   rank: number,
- *   label: string | (() => string),
- *   group: PageControlGroup | (() => PageControlGroup),
- *   value?: string | (() => string),
- *   title?: string | (() => string),
- *   command?: string,
- *   shortcut?: readonly string[] | (() => readonly string[]),
- *   copies?: string | (() => string),
- *   offered?: boolean | (() => boolean),
- *   urgent?: string | null | (() => string | null),
- *   disabled?: boolean | (() => boolean),
- *   exit?: boolean,
- *   action?: string | (() => string),
- *   press?: (held: WorkingPlace | null) => unknown,
- * }} PageControl
- */
-/** @param {PageControl} row */
+/** Register one row of the page's controls. */
 export function registerPageControl(row) {
   if (!row.key || !Number.isFinite(row.rank) || !row.label)
     throw new TypeError(

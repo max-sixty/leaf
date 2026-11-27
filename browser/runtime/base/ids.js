@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from ids.ts by build/typescript.mjs; edit that file.
 /* The runtime's identifiers: one random identifier, and the numbering that names an
    object in a key built of strings.
 
@@ -18,10 +18,8 @@ export const randomId = () =>
 // from 1, and the same number at every later ask, so a key built of strings, or one Lit
 // compares, can name the object. It holds the objects weakly.
 export function objectIds() {
-  /** @type {WeakMap<object, number>} */
   const ids = new WeakMap();
   let last = 0;
-  /** @param {object} object */
   return (object) => {
     let id = ids.get(object);
     if (id === undefined) ids.set(object, (id = ++last));

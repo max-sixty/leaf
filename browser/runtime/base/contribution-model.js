@@ -1,3 +1,4 @@
+// Compiled from contribution-model.ts by build/typescript.mjs; edit that file.
 /* Immutable contribution grammar. This module normalizes contributor data and owns
    ordering and labels without browser dependencies. The browser registry keeps
    command-scope capabilities outside the normalized records. */
@@ -16,34 +17,8 @@ const RANK_PRIORITY = Object.freeze({
   overflow: 5,
 });
 const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 });
-/** @typedef {keyof typeof TONES} Tone
- * @typedef {keyof typeof BEHAVIORS} Behavior
- * @typedef {keyof typeof RANK_PRIORITY} Rank
- * @typedef {keyof typeof STATE_PRIORITY} ContributionState
- * @typedef {keyof typeof kinds} ContributionKind
- * @typedef {{kind: "entries", keys: readonly string[], expanded?: boolean} |
- * {kind: "element", id: string, expanded?: boolean, popup?: string | null}} EntryRelationInput
- * @typedef {{key: string, label: string, glyph?: string | null, action?: string | null,
- * icon?: string | null, voice?: import("./voice.js").Voice | null,
- * accessibleLabel?: string | null, context?: import("./voice.js").Words | null,
- * description?: string | null, behavior?: Behavior, tone?: Tone, rank?: Rank,
- * state?: ContributionState, visible?: boolean, disabled?: boolean, count?: number,
- * pressed?: boolean | null, workflowReceipt?: import("../../types/domain.js").Workflow | null | undefined,
- * relation?: EntryRelationInput | null, activation?: string | null, title?: string | null,
- * scope?: import("./command-declaration.js").ScopeDeclaration | import("./command-declaration.js").ScopeCapability | null | undefined}} EntryInput
- * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
- * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
- * @typedef {ContributionEntry & {owner: string}} OwnedEntry
- * @typedef {{id: string, text: string, kind?: ContributionKind, represents?: boolean, activate?: () => unknown}} ReadingInput
- * @typedef {{kind?: ContributionKind | null, subject?: string | null,
- * state?: ContributionState, side?: "before" | "after", notice?: {text: string, tone?: string | null} | null,
- * entries?: readonly EntryInput[], readings?: readonly ReadingInput[]}} ReadingOptions
- * @typedef {ReturnType<typeof normalizeContributionReading>} ContributionReading
- * @typedef {{key: string, reading: Omit<ContributionReading, "readings"> & {hasReadings: boolean}}} ContributionModel
- */
-/** @type {WeakSet<object>} */
+
 const entryRecords = new WeakSet();
-/** @param {EntryInput | ContributionEntry | undefined} entry @returns {entry is BrandedEntry} */
 export const isContributionEntry = (entry) =>
   entry !== undefined && entryRecords.has(entry);
 
@@ -83,7 +58,6 @@ export const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
 // What a contribution reading or contribution is, and the face and word it wears. A
 // kind whose word is Leaf's account of an update on its way to the agent says so in
 // its `voice`, as each of its receipts does alone (`workflowWord`).
-/** @satisfies {Record<string, KindFace>} */
 const kinds = {
   action: { label: "Action", icon: "dot", priority: -1 },
   change: { label: "Change", icon: "change", priority: 0 },
@@ -138,8 +112,7 @@ const kinds = {
   activity: { label: "Working", icon: "activity", priority: 4 },
 };
 for (const face of Object.values(kinds)) Object.freeze(face);
-/** @typedef {{label: string, icon: string, priority: number, indication?: boolean, voice?: import("./voice.js").Voice}} KindFace */
-/** @type {{readonly [K in keyof typeof kinds]: Readonly<KindFace>}} */
+
 export const KINDS = Object.freeze(kinds);
 const READING_OPTIONS = new Set([
   "kind",
@@ -151,9 +124,7 @@ const READING_OPTIONS = new Set([
   "readings",
 ]);
 
-/** @param {unknown} value */
 const text = (value) => String(value ?? "").trim();
-/** @param {object} offered @param {ReadonlySet<string>} allowed @param {string} kind */
 const unknownOptions = (offered, allowed, kind) => {
   const unknown = Object.keys(offered).filter((key) => !allowed.has(key));
   if (unknown.length)
@@ -161,10 +132,7 @@ const unknownOptions = (offered, allowed, kind) => {
       `Unknown contribution ${kind} option: ${unknown.sort().join(", ")}`,
     );
 };
-/** @typedef {import("../../types/contract.js").CompleteUnion<
- * {kind: "entries", keys: readonly string[], expanded: boolean} |
- * {kind: "element", id: string, expanded: boolean, popup: string | null}>} EntryRelation */
-/** @param {EntryRelationInput | null} relation @returns {EntryRelation | null} */
+
 const freezeRelation = (relation) => {
   if (relation == null) return null;
   const kind = relation.kind;
@@ -191,7 +159,6 @@ const freezeRelation = (relation) => {
   throw new TypeError(`Unknown contribution entry relation: ${String(kind)}`);
 };
 
-/** @param {EntryInput} offered */
 export function contributionEntry(offered) {
   unknownOptions(offered, ENTRY_OPTIONS, "entry");
   const {
@@ -271,7 +238,6 @@ export function contributionEntry(offered) {
   return record;
 }
 
-/** @param {ReadingOptions} reading @param {string} owner */
 export function normalizeContributionReading(reading, owner) {
   unknownOptions(reading, READING_OPTIONS, "contribution");
   const {
@@ -342,20 +308,15 @@ export function normalizeContributionReading(reading, owner) {
   });
 }
 
-/** @param {ContributionState} state */
 export const contributionEntryStateRank = (state) => STATE_PRIORITY[state];
-/** @param {ContributionModel} offered */
 export const contributionState = (offered) => offered.reading.state;
 
-/** @param {ContributionModel} left @param {ContributionModel} right */
 export function compareContributions(left, right) {
   const state =
     STATE_PRIORITY[left.reading.state] - STATE_PRIORITY[right.reading.state];
   return state || left.key.localeCompare(right.key);
 }
 
-/** @param {{offered: ContributionModel, record: OwnedEntry}} left
- * @param {{offered: ContributionModel, record: OwnedEntry}} right */
 export function compareContributionEntryRecords(left, right) {
   const state =
     STATE_PRIORITY[left.offered.reading.state] -
@@ -370,12 +331,10 @@ export function compareContributionEntryRecords(left, right) {
 // A disclosure's label says it opens with a trailing ellipsis, unless the label already
 // ends in a stop of its own: an ellipsis, or a question's mark, which would read as
 // "?…".
-/** @param {Pick<ContributionEntry, "behavior" | "label">} entry */
 export const visibleContributionEntryLabel = ({ behavior, label }) =>
   behavior !== "disclosure" || /[…?]$/.test(label) ? label : `${label}…`;
 
 // A contribution owns its reading IDs; generated readings have no owner.
-/** @param {{owner?: string, id: string}} item */
 export const contributionItemKey = (item) =>
   JSON.stringify([item.owner ?? null, item.id]);
 
@@ -383,5 +342,4 @@ export const contributionItemKey = (item) =>
 // visible label. Only accessibility presentations use this excerpt; inventory and
 // search retain the complete text.
 const SPOKEN_SUBJECT_CAP = 120;
-/** @param {string} value */
 export const spokenSubject = (value) => excerptWords(value, SPOKEN_SUBJECT_CAP);

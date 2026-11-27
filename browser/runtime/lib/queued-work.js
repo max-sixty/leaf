@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from queued-work.ts by build/typescript.mjs; edit that file.
 /* Synchronous callback-job lifecycles, independent of any browser scheduling queue.
 
    A queue creates one frozen job identity at enqueue, runs its callback inline, and
@@ -11,39 +11,16 @@
    origin of each mutable value it reads. This module schedules nothing and reaches no DOM,
    frame, size-observer, semantic-state, or presentation owner. */
 
-/** @typedef {"enqueue" | "run" | "finish" | "cancel"} WorkPhase */
-/** @typedef {Readonly<object>} WorkIdentity */
-/** @typedef {(phase: WorkPhase, job: WorkIdentity) => void} WorkObserver */
-/**
- * @template {unknown[]} Args
- * @template Result
- * @typedef {Readonly<{callback: (...args: Args) => Result}>} Work
- */
-
-/** @type {Set<WorkObserver>} */
 const jobObservers = new Set();
-/** @type {WeakMap<WorkIdentity, WorkObserver[]>} */
 const jobCohorts = new WeakMap();
-/** Observe new callback jobs through their complete synchronous lifecycle.
- * @param {WorkObserver} observer
- */
+/** Observe new callback jobs through their complete synchronous lifecycle. */
 export function observeQueuedWork(observer) {
   jobObservers.add(observer);
   return () => jobObservers.delete(observer);
 }
-/**
- * @param {WorkPhase} phase
- * @param {WorkIdentity} job
- * @param {WorkObserver[]} observers
- */
 const announce = (phase, job, observers) => {
   for (const observer of observers) observer(phase, job);
 };
-/**
- * @template {unknown[]} Args
- * @template Result
- * @param {(...args: Args) => Result} callback
- */
 export function enqueueWork(callback) {
   const job = Object.freeze({ callback });
   const observers = [...jobObservers];
@@ -51,18 +28,11 @@ export function enqueueWork(callback) {
   announce("enqueue", job, observers);
   return job;
 }
-/** @param {WorkIdentity} job */
 function claim(job) {
   const observers = jobCohorts.get(job);
   jobCohorts.delete(job);
   return observers;
 }
-/**
- * @template {unknown[]} Args
- * @template Result
- * @param {Work<Args, Result>} job
- * @param {Args} args
- */
 export function runWork(job, ...args) {
   const observers = claim(job);
   if (!observers) return;
@@ -74,19 +44,13 @@ export function runWork(job, ...args) {
     announce("finish", job, observers);
   }
 }
-/** Bind one deferred callback invocation; its returned async tail is independent.
- * @template {unknown[]} Args
- * @template Result
- * @param {(...args: Args) => Result} callback
- */
+/** Bind one deferred callback invocation; its returned async tail is independent. */
 export function bindQueuedWork(callback) {
   const job = enqueueWork(callback);
-  return (/** @type {Args} */ ...args) => runWork(job, ...args);
+  return (...args) => runWork(job, ...args);
 }
 
-/** Retire a queued invocation without running its callback.
- * @param {WorkIdentity} job
- */
+/** Retire a queued invocation without running its callback. */
 export function cancelWork(job) {
   const observers = claim(job);
   if (observers) announce("cancel", job, observers);

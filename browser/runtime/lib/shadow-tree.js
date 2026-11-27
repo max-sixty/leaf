@@ -1,3 +1,4 @@
+// Compiled from shadow-tree.ts by build/typescript.mjs; edit that file.
 /* Composed ancestry, read from the tree the browser builds and nothing else. Focus and
    shadow rendering share this walk, including slots and roots from another window, and
    with it the one reading of whether a node is an open native layer or stands in one:
@@ -12,24 +13,17 @@
 // element, an `<a>` or `<area>` whose `host` is its URL's. The kind is its node type
 // rather than `instanceof ShadowRoot`, whose class belongs to one window: an iframe's
 // runtime climbs its parent document's elements out to the frame's place in the page.
-/** @param {Node | null | undefined} node @returns {node is ShadowRoot} */
 export const isShadowRoot = (node) =>
   node != null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && "host" in node;
-/** Native event origins can be nodes from another window; Window and other targets are not tree nodes.
- * @param {unknown} node @returns {node is Node} */
+/** Native event origins can be nodes from another window; Window and other targets are not tree nodes. */
 export const isNode = (node) =>
   typeof node === "object" &&
   node !== null &&
   "nodeType" in node &&
   typeof node.nodeType === "number";
-/** @param {unknown} node @returns {node is Element} */
 export const isElement = (node) => isNode(node) && node.nodeType === node.ELEMENT_NODE;
-/** @param {Node | null | undefined} node @returns {node is Text} */
 export const isText = (node) => node != null && node.nodeType === node.TEXT_NODE;
-/** @overload @param {unknown} node @returns {node is HTMLElement} */
-/** @template {keyof HTMLElementTagNameMap} K @overload
- * @param {unknown} node @param {K} tag @returns {node is HTMLElementTagNameMap[K]} */
-/** @param {unknown} node @param {string} [tag] */
+
 export function isHTML(node, tag) {
   return (
     isElement(node) &&
@@ -38,10 +32,7 @@ export function isHTML(node, tag) {
   );
 }
 // An SVG element, of the named tag where one is given, in any window.
-/** @overload @param {unknown} node @returns {node is SVGElement} */
-/** @template {keyof SVGElementTagNameMap} K @overload
- * @param {unknown} node @param {K} tag @returns {node is SVGElementTagNameMap[K]} */
-/** @param {unknown} node @param {string} [tag] */
+
 export function isSVG(node, tag) {
   return (
     isElement(node) &&
@@ -49,9 +40,7 @@ export function isSVG(node, tag) {
     (tag === undefined || node.localName === tag)
   );
 }
-/** @param {Node | null | undefined} node @returns {node is Element | Text} */
 const isSlottable = (node) => isElement(node) || isText(node);
-/** @param {Node | null | undefined} root */
 export const shadowHost = (root) => (isShadowRoot(root) ? root.host : null);
 // The parent, crossing a shadow root's boundary on the way up: the ordinary parent within
 // a tree, and the host where a tree runs out. It is the one walk every reading that
@@ -59,13 +48,11 @@ export const shadowHost = (root) => (isShadowRoot(root) ? root.host : null);
 // which section, which block, which passage cell, whether it is chrome — is asked of the
 // page, and a climb that stops at a shadow root answers about the widget's own markup
 // instead.
-/** @param {Node | null | undefined} node @returns {Element | null} */
 export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
 // The element a node stands in: the node itself where it is an element, else the
 // element holding it, which for a text a shadow root holds straight under it, as an
 // age's words or a widget template's top-level text, is the root's host (`upFrom`).
 // A text's `parentElement` is null there.
-/** @param {Node} node @returns {Element | null} */
 export const holdingElement = (node) => (isElement(node) ? node : upFrom(node));
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
@@ -73,10 +60,7 @@ export const holdingElement = (node) => (isElement(node) ? node : upFrom(node));
 // altogether. A shadow tree renders where its host stands, so a range question, which
 // the platform answers only within one tree, is asked of this; an order question asks
 // `renderedOrder`, which also follows slots.
-/** @template {Node} N @param {N | null | undefined} node @param {Node} root
- * @returns {N | Element | null} */
 export const hostIn = (node, root) => {
-  /** @type {N | Element | null} */
   let at = node ?? null;
   while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
   return at;
@@ -84,7 +68,6 @@ export const hostIn = (node, root) => {
 // closest() stops at a shadow boundary, so a node inside a widget's shadow tree can't
 // reach the section that holds it or the chrome marker above it — both out in the
 // document. Same climb as upFrom, asked with a selector at each tree it passes through.
-/** @param {Node | null} node @param {string} selector @returns {Element | null} */
 export function closestAcross(node, selector) {
   let el = isElement(node) ? node : upFrom(node);
   while (el) {
@@ -97,7 +80,6 @@ export function closestAcross(node, selector) {
 
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
-/** @param {Node | null | undefined} node @returns {Element | null} */
 export const renderedParent = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
 // The same step taken down, as the browser draws the tree: `each` is handed each node
@@ -113,12 +95,10 @@ export const renderedParent = (node) =>
 // question"), since Chromium keeps a node's `children` or `childNodes` list for the
 // node's life once it is asked for. A walk of elements steps over the text between them
 // unasked: handed every node, Tab stops over a long table take Chromium longer.
-/** @typedef {(host: Element) => ShadowRoot | null} RootOf */
-/** @param {Element} host */
+
 const openRoot = (host) => host.shadowRoot;
 // What `node` draws its children from: the nodes a slot draws in their place, or the
 // node or root whose own children they are.
-/** @param {Node} node @param {RootOf} rootOf @returns {Node[] | Node} */
 function drawnFrom(node, rootOf) {
   if (isHTML(node, "slot") && isShadowRoot(node.getRootNode())) {
     const assigned = node.assignedNodes();
@@ -126,34 +106,26 @@ function drawnFrom(node, rootOf) {
   }
   return (isElement(node) && rootOf(node)) || node;
 }
-/** @param {Node} node @param {(child: Node) => void} each @param {RootOf} [rootOf] */
 export function eachRenderedChild(node, each, rootOf = openRoot) {
   const from = drawnFrom(node, rootOf);
   if (Array.isArray(from)) for (const child of from) each(child);
   else for (let child = from.firstChild; child; child = child.nextSibling) each(child);
 }
-/** @param {Node} node @param {(child: Element) => void} each @param {RootOf} [rootOf] */
 export function eachRenderedElement(node, each, rootOf = openRoot) {
   const from = drawnFrom(node, rootOf);
   if (Array.isArray(from)) {
     for (const child of from) if (isElement(child)) each(child);
     return;
   }
-  for (
-    let child = /** @type {Partial<ParentNode>} */ (from).firstElementChild;
-    child;
-    child = child.nextElementSibling
-  )
+  for (let child = from.firstElementChild; child; child = child.nextElementSibling)
     each(child);
 }
 
 // The same two climbs through every node rather than every element: a root, a shadow root
 // or the document, is a step of its own, so a reading can stop at a root as well as at an
 // element. The parent node, then a shadow root's host:
-/** @param {Node} node @returns {Node | null} */
 export const composedParentNode = (node) => node.parentNode ?? shadowHost(node);
 // and as rendered, a slotted node's slot first.
-/** @param {Node} node @returns {Node | null} */
 const renderedParentNode = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? composedParentNode(node);
 // What one climb says about any two nodes, so its order and containment can't disagree.
@@ -168,23 +140,14 @@ const renderedParentNode = (node) =>
 // the same for a sort of many nodes, reading each node's climb once and each parent's
 // children once, where a comparison alone would read both climbs and walk the siblings
 // between the two. `under` is whether `node` is inside `root`, or `root` itself.
-/** @param {(node: Node) => Node | null} parentOf */
 export function alongClimb(parentOf) {
-  /** @param {Node} node */
   const chain = (node) => {
     const nodes = [];
-    for (let at = /** @type {Node | null} */ (node); at; at = parentOf(at))
-      nodes.push(at);
+    for (let at = node; at; at = parentOf(at)) nodes.push(at);
     return nodes.reverse();
   };
-  /** @param {Node} first @param {Node} second */
   const inTree = (first, second) =>
     first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
-  /**
-   * @param {Node[]} left
-   * @param {Node[]} right
-   * @param {(first: Node, second: Node) => number} siblings
-   */
   const ordered = (left, right, siblings) => {
     let index = 0;
     while (index < left.length && index < right.length && left[index] === right[index])
@@ -197,20 +160,15 @@ export function alongClimb(parentOf) {
     return siblings(first, second);
   };
   return {
-    /** @param {Node} a @param {Node} b */
     order: (a, b) => (a === b ? 0 : ordered(chain(a), chain(b), inTree)),
     ordering() {
-      /** @type {Map<Node, Node[]>} */
       const chains = new Map();
-      /** @param {Node} node */
       const chainOf = (node) => {
         let nodes = chains.get(node);
         if (!nodes) chains.set(node, (nodes = chain(node)));
         return nodes;
       };
-      /** @type {Map<Node, Map<Node, number>>} */
       const indices = new Map();
-      /** @param {Node} parent @param {Node} child */
       const indexIn = (parent, child) => {
         let at = indices.get(parent);
         if (!at) {
@@ -220,22 +178,19 @@ export function alongClimb(parentOf) {
             at.set(node, index++);
           indices.set(parent, at);
         }
-        return /** @type {number} */ (at.get(child));
+        return at.get(child);
       };
       // Children of one node in its own tree stand in the order of its child list;
       // anything else, such as a slot's fallback beside what it is assigned, is left to
       // the tree as `order` leaves it.
-      /** @param {Node} first @param {Node} second */
       const siblings = (first, second) => {
         const parent = first.parentNode;
         return parent && parent === second.parentNode
           ? indexIn(parent, first) - indexIn(parent, second)
           : inTree(first, second);
       };
-      /** @param {Node} a @param {Node} b */
       return (a, b) => (a === b ? 0 : ordered(chainOf(a), chainOf(b), siblings));
     },
-    /** @param {Node | null | undefined} node @param {Node | null | undefined} root */
     under(node, root) {
       for (let at = node; at; at = parentOf(at)) if (at === root) return true;
       return false;
@@ -258,7 +213,6 @@ export const renderedUnder = rendered.under;
 // The nearest element at or over `el` that matches `selector`, read within one frame:
 // above the frame it is nobody's, and with no frame at all it is the document's own
 // reading, unchanged.
-/** @param {Element} el @param {string} selector @param {Element | null | undefined} frame */
 export const overIn = (el, selector, frame) => {
   const near = el.closest(selector);
   return near && (!frame || under(near, frame)) ? near : null;
@@ -266,11 +220,8 @@ export const overIn = (el, selector, frame) => {
 // `items` in the page's rendered order of their places (`placeOfItem`), those with no
 // place after every placed one; items at one place, and the unplaced, keep their given
 // order.
-/** @template T @param {readonly T[]} items @param {(item: T) => Node | null | undefined} placeOfItem */
 export const byRenderedOrder = (items, placeOfItem) => {
-  /** @type {{item: T, place: Node}[]} */
   const placed = [];
-  /** @type {T[]} */
   const unplaced = [];
   for (const item of items) {
     const place = placeOfItem(item);
@@ -289,19 +240,16 @@ export const byRenderedOrder = (items, placeOfItem) => {
 // `showPopover` included, which leaves the page behind it live; else null. A nonmodal open
 // dialog is part of the page it stands in. Read node kind rather than realm-specific
 // Element: a sample asks this of its frame.
-/** @param {Node | null | undefined} node */
 export const nativeLayerKind = (node) => {
   if (!isElement(node) || !node.isConnected) return null;
   if (node.matches("dialog:modal")) return "modal";
   return node.matches(":popover-open") ? "popover" : null;
 };
 // Whether `node` is itself a native layer, of either kind.
-/** @param {Node | null | undefined} node */
 export const isNativeLayer = (node) => nativeLayerKind(node) !== null;
 
 // The innermost native layer `node` stands in as rendered, itself included, or null: a
 // box slotted into a popover stands in it.
-/** @param {Element | null} node @returns {Element | null} */
 export function nativeLayerHolding(node) {
   for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
   return null;
@@ -311,7 +259,6 @@ export function nativeLayerHolding(node) {
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
-/** @param {Node | null} node */
 export function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
     if (!isElement(owner)) continue;
@@ -347,9 +294,7 @@ export function excludedByInert(node) {
 //
 // `skipper` names the box that skips `el`, so a reading over many elements under it,
 // such as a long text document's lines in one run, asks once and passes over the rest.
-/** @param {Element} box */
 export const drawn = (box) => box.checkVisibility({ contentVisibilityAuto: true });
-/** @param {Element} element @returns {Element | null} */
 export const skipper = (element) => {
   if (drawn(element)) return null;
   let child = element;
@@ -363,7 +308,6 @@ export const skipper = (element) => {
     return !box.hasAttribute("open") && child.localName !== "summary" ? box : null;
   return getComputedStyle(box).contentVisibility !== "visible" ? box : null;
 };
-/** @param {Element} element */
 export const skipped = (element) => Boolean(skipper(element));
 
 // The closed box that hides `node` until the user opens it: a closed `<details>` holding
@@ -374,10 +318,8 @@ export const skipped = (element) => Boolean(skipper(element));
 // keep a hidden panel's layout and only make it invisible. Where closed boxes nest, it
 // is the outermost, the one the page shows. An off-screen `content-visibility: auto`
 // box is no closed box: it draws what it holds as the window nears it.
-/** @param {Node} node @returns {Element | null} */
 export const closedOver = (node) => {
   let closed = null;
-  /** @type {Node} */
   let child = node;
   for (let at = node instanceof Element ? node : renderedParent(node); at;) {
     if (
@@ -394,7 +336,6 @@ export const closedOver = (node) => {
   return closed;
 };
 // Whether `node` is `hidden="until-found"`, read as the browser reads the attribute.
-/** @param {Node | null} node */
 export const untilFound = (node) =>
   node instanceof HTMLElement && node.hidden === "until-found";
 
@@ -414,11 +355,8 @@ export const untilFound = (node) =>
 // `skipper` names the box for any child of it that draws no box, on screen or not, and
 // telling such a child from a skipped line would mean asking each undrawn child its
 // `display`, which makes the browser style it.
-/** @param {Element} root @returns {Element[]} */
 export function drawnElements(root) {
-  /** @type {Element[]} */
   const found = [];
-  /** @param {Element | null} child @param {boolean} hosted */
   const within = (child, hosted) => {
     // Whether `skipper` named a box for an earlier child. It names the same box for
     // every later child the browser doesn't draw, since its climb starts from the
@@ -442,7 +380,6 @@ export function drawnElements(root) {
       if (getComputedStyle(child).display === "contents") walk(child);
     }
   };
-  /** @param {Element} parent */
   const walk = (parent) => {
     const shadow = parent.shadowRoot;
     if (shadow) within(shadow.firstElementChild, false);

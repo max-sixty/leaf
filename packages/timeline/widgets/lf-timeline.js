@@ -49,7 +49,7 @@ import { textWidth } from "/runtime/lib/text-width.js";
 import { COMMANDS, layoutChanged } from "/runtime/lib/widget-events.js";
 import {
   assignRows,
-  axisTicks,
+  axisMarks,
   elapsed,
   onCalendar,
   AXIS_EDGE as EDGE,
@@ -244,14 +244,14 @@ export function timelineLayout(reading, width, font) {
       });
     return 1 + Math.max(0, ...rowOf.values());
   });
-  const ticks = axisTicks(
+  const axis = axisMarks(
     0,
     reading.duration,
     reading.duration,
     span / reading.duration,
     reading.start,
   );
-  return { rows, placed, ticks };
+  return { rows, placed, axis };
 }
 
 /** @param {TimelineReading["events"][number]} event @param {number} now */
@@ -590,6 +590,16 @@ export const Timeline = Html.component({
             : lane.label,
           ": ",
         );
+    /** A tick or gridline of the time axis, as time-axis.js marks it.
+     * @param {ReturnType<typeof axisMarks>["ruler"][number]} mark */
+    const axisMark = (mark) =>
+      h.span
+        .key(mark.key)
+        .class(mark.class)
+        .attr("data-lf-major", mark.major ? "" : undefined)
+        .attr("data-lf-flip", mark.flip ? "" : undefined)
+        .style({ "--lf-axis-at": mark.at })
+        .children(mark.label ?? null);
     return h.div
       .class("lf-timeline-view")
       .attr("data-lf-gen", "1")
@@ -634,28 +644,10 @@ export const Timeline = Html.component({
             h.div
               .class("lf-timeline-ruler")
               .onMount(MeasureRuler())
-              .children(
-                ...(layout?.ticks ?? []).map((tick) =>
-                  h.span
-                    .key(`${tick.step}:${tick.time}`)
-                    .class("lf-axis-tick")
-                    .attr("data-lf-major", tick.major ? "" : undefined)
-                    .attr("data-lf-flip", tick.flip ? "" : undefined)
-                    .style({ "--lf-axis-at": along(tick.time) })
-                    .children(tick.label ?? null),
-                ),
-              ),
-            h.div.class("lf-timeline-grid").children(
-              ...(layout?.ticks ?? [])
-                .filter((tick) => tick.major)
-                .map((tick) =>
-                  h.span
-                    .key(`${tick.step}:${tick.time}`)
-                    .class("lf-axis-gridline")
-                    .attr("data-lf-flip", tick.flip ? "" : undefined)
-                    .style({ "--lf-axis-at": along(tick.time) }),
-                ),
-            ),
+              .children(...(layout?.axis.ruler ?? []).map(axisMark)),
+            h.div
+              .class("lf-timeline-grid")
+              .children(...(layout?.axis.grid ?? []).map(axisMark)),
             ...reading.lanes.map((lane, index) =>
               h.div
                 .class("lf-timeline-lane")

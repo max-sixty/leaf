@@ -4187,6 +4187,34 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
 
 
+def test_a_default_host_serves_a_new_page_as_a_stated_one(page_dir, monkeypatch):
+    """`LEAF_HOST` names the host a user reaches every page by, so a page with no
+    record takes it as `--host` would give it, over what SSH_CONNECTION derives.
+    A record keeps its own address, since an open tab polls it, and a default
+    that is no hostname refuses under its own name."""
+    monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
+    monkeypatch.setenv(server_model.HOST_VARIABLE, "box:8443")
+    with pytest.raises(Refused, match="LEAF_HOST=box:8443"):
+        server_model.page_access(page_dir)
+
+    monkeypatch.setenv(server_model.HOST_VARIABLE, "box.tailnet.example")
+    access = server_model.page_access(page_dir)
+    assert (access["host"], access["bind"]) == ("box.tailnet.example", "::")
+
+    recorded = {
+        "host": "127.0.0.1",
+        "bind": "127.0.0.1",
+        "port": 41234,
+        "enabled": False,
+        "lifetime": "session",
+    }
+    write_record(page_dir / "service.json", recorded)
+    assert server_model.page_access(page_dir).items() >= recorded.items()
+    stated = server_model.page_access(page_dir, host="devbox.corp.example")
+    restated = {**recorded, "host": "devbox.corp.example", "bind": "::"}
+    assert stated.items() >= restated.items()
+
+
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
     cleanup_model.write_json(
         page_dir / "service.json",

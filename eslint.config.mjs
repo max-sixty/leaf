@@ -1605,6 +1605,7 @@ export default [
       "tests/watch_platform.js",
       "dev/leaf_dev/main_thread.js",
       "dev/leaf_dev/frames.js",
+      "dev/leaf_dev/edges.js",
     ],
     languageOptions: { globals: globals.browser },
   },
@@ -1715,6 +1716,12 @@ export default [
         ),
       ],
     },
+  },
+  {
+    // The reading `leaf-dev edges` evaluates in a page asks the diagnostic adapter, as
+    // the render checks do; an evaluated expression can only import dynamically.
+    files: ["dev/leaf_dev/edges.js"],
+    rules: { "no-restricted-syntax": "off" },
   },
   {
     files: ["src/leaf/source/render-checks/*.js"],

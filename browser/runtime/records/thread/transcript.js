@@ -20,14 +20,17 @@
    - A summary the agent wrote folds the turns it covers behind its checkpoint, a region
      in the tint Leaf gives settled things (surfaces.css), so its words read as neither
      a message nor the end of the one above it. One quiet press at its head says how
-     many messages it folds ("› 5 earlier messages"), set as a message's time is, and
-     a name the agent gave the range leads its words in bold, as a recap names what it
+     many messages it folds ("› 5 messages"), set as a message's time is, and a name
+     the agent gave the range leads its words in bold, as a recap names what it
      covers. Opened, the tint takes in the messages it folds, so the reader sees where
      the live conversation picks up. The user chose this over a label ("Earlier
      discussion") beside an accent "Show 5 earlier messages", which named the fold
      twice and, beside a margin card's actions, wrapped the label and cut the press;
      over one fold line naming the range in a sender's face, as a settled decision
-     folds; and over the count after the summary's words.
+     folds; and over the count after the summary's words. The count says no
+     direction, since a fold stands where its messages were said, below every message
+     said before them: "› 1 earlier message" under a question, folding the reply
+     that followed it, said the reply came first.
    - A step of the agent's work (a progress message) is never a message the transcript
      folds. The server ends each step as the agent next speaks in its thread, or, where
      the user wrote after it, as the agent next replies, or as its turn ends with no
@@ -554,7 +557,7 @@ export class Transcript {
   // in its head's quiet face.
   #summaryToggle(range) {
     const { id } = range.summary;
-    const subject = counted(range.messages.length, "earlier message");
+    const subject = counted(range.messages.length, "message");
     return html`<button
       type="button"
       ${offeredAction(

@@ -2,7 +2,6 @@
 import { readPart } from "../../state/semantic-state.js";
 
 export const threadState = readPart((root) => root.effective.thread);
-export const allThreads = readPart((root) => root.effective.thread.all);
 export const readThreads = readPart((root) => root.effective.thread.collection);
 export const threadList = () => readThreads().threads;
 // Whether any thread stands open, which the `t` walk's readiness and a Resolve's next
@@ -18,11 +17,11 @@ export const THREADS_OFFLINE =
 
 // The thread a name names: its key, its id, one of its messages' ids, or this tab's
 // attempt at one (`threadNames`), as the publisher indexed them when the threads
-// arrived. A surface that lists only conversations also asks `discussed` of the answer.
+// arrived.
 export function threadNamed(name: string) {
-  const { all, named } = threadState();
+  const { collection, named } = threadState();
   const at = named.get(name);
-  return at === undefined ? null : (all[at] ?? null);
+  return at === undefined ? null : (collection.threads[at] ?? null);
 }
 // The logged id of the thread `name` names, else the name as given.
 export const threadIdNamed = (name: string) => threadNamed(name)?.id ?? name;

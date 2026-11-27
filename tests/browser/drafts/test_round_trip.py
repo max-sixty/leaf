@@ -20,6 +20,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     close_panel_menu,
+    comment_note,
     expect_comment_notes,
     open_page,
     panel_menu,
@@ -164,8 +165,8 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     editor they type into from its body div, so words left in there would arrive in the
     leaf-text and post with the edit. The note stands in the chrome, and the block the
     passage sits in, or the element the anchor names, names it as its details. A
-    reaction on the same words keeps the widget as its seat too: the passage's generated
-    body is not the owner of the reaction's margin control."""
+    reaction on the same words is a second thread there, which keeps the widget as its
+    seat too: the passage's generated body is not the owner of its note or margin row."""
     url = serve(JOURNEY_V1, anchored=[(section, "Run the migration before deploying.")])
     append_carried_log_record(
         serve.page_dir,
@@ -181,19 +182,12 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
         },
     )
     page = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
-    expect(
-        page.locator(
-            '[data-lf-margin-for="draft-ops"] '
-            '[data-lf-margin-entry-owner="reactions"]'
-            '[data-lf-margin-entry-key^="reaction:"]:visible'
-        )
-    ).to_have_count(1)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
     expect_comment_notes(page, "#draft-ops", 1)
-    # The thread's margin row, which stands by the passage it quotes, has the same seat
-    # as its note: the widget, not the paragraph its Markdown body renders.
-    expect(page.locator("[data-lf-margin-for]")).to_have_count(2)
+    expect(comment_note(page, "#draft-ops")).to_have_text("2 comments")
+    # The two threads' margin row, which stands by the passage they quote, has the same
+    # seat as their note: the widget, not the paragraph its Markdown body renders.
+    expect(page.locator("[data-lf-margin-for]")).to_have_count(1)
     expect(
         page.locator("[data-lf-margin-for]:not([data-lf-margin-for=draft-ops])")
     ).to_have_count(0)

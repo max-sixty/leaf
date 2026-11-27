@@ -197,7 +197,7 @@ export function partTrail(node) {
 // turns are said in; and the page's reading, since an anchor names an element of the
 // page.
 const gatherConversations = kept(() => {
-  const { all, bySection } = threadState();
+  const { collection, bySection } = threadState();
   const agent = agentName();
   const inside = new Map();
   const headed = new Map();
@@ -214,7 +214,7 @@ const gatherConversations = kept(() => {
   for (const [id, positions] of bySection) {
     const element = elementById(id);
     if (!element || !inPage(element)) continue;
-    const threads = positions.flatMap((at) => all[at] ?? []);
+    const threads = positions.flatMap((at) => collection.threads[at] ?? []);
     const these = {
       threads: threads.length,
       turn:

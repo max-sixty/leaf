@@ -142,8 +142,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
         paint = row.evaluate("""row => {
-          const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
-            'lf-pending', 'lf-react'];
+          const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here', 'lf-pending'];
           // The syntax-coloured element holding the comment's last word.
           const words = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
           let word = words.nextNode();
@@ -172,10 +171,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         # The highlights that set the marked words' ink reach the token, in place of its
         # syntax colour; hover and the open thread paint under the mark and leave the
         # ink to it.
-        assert {name: paint[name]["color"] for name in ("lf-mark", "lf-react")} == {
-            "lf-mark": inks["comment"],
-            "lf-react": inks["comment"],
-        }, (scheme, inks, paint)
+        assert paint["lf-mark"]["color"] == inks["comment"], (scheme, inks, paint)
         assert paint["lf-pending"]["color"] == inks["draft"], (scheme, inks, paint)
         backgrounds.append(paint["lf-mark"]["background"])
         marked = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
@@ -198,7 +194,6 @@ MARKED_PAGE = leaf_page(
     """
 <h1 id="t">Marked</h1>
 <p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
-<p id="kept">A line of prose someone reacted to with a token.</p>
 <p id="aimed">A line of prose the pointer comes to rest on.</p>
 <p id="stood">A line of prose whose thread the user opens.</p>
 <p id="drafted">A line of prose the user starts a comment on and then stops.</p>
@@ -207,7 +202,6 @@ MARKED_PAGE = leaf_page(
 )
 PASSAGES = {
     "mark": ("said", "a link someone commented on"),
-    "reaction": ("kept", "someone reacted to"),
     "pointed at": ("aimed", "the pointer comes to rest on"),
     "open thread": ("stood", "whose thread the user opens"),
     "draft": ("drafted", "the user starts a comment on"),
@@ -284,7 +278,7 @@ def _point_at(page, passage):
 
 
 def _comment_on(passage, **fields):
-    """The user's comment on a passage's words, or with `emoji` their reaction to them."""
+    """The user's comment on a passage's words."""
     section, quote = passage
     return {
         "kind": "comment",
@@ -348,8 +342,8 @@ def test_words_marked_in_a_dark_panel_wear_a_dark_pages_marks(request, serve, en
         )
 
 
-# A comment on a link, a reaction on prose, and a comment on a string in a text
-# document, whose syntax colours are highlights of their own. The document's first
+# A comment on a link and a comment on a string in a text document, whose syntax
+# colours are highlights of their own. The document's first
 # string lies far below its first screen, so its colour is registered after the marks
 # are painted. An unmarked string of the same kind wears the colour the marked one owes.
 _STEPS = "\n".join(
@@ -361,13 +355,11 @@ OWN_COLOURS_PAGE = leaf_page(
     f"""
 <h1 id="t">Own colours</h1>
 <p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
-<p id="kept">A line of prose someone reacted to with a token.</p>
 <lf-text-document id="doc" label="steps.py"><pre><code class="language-python">{_STEPS}</code></pre></lf-text-document>
 """,
 )
 OWN_COLOURS = {
     "link": PASSAGES["mark"],
-    "reaction": PASSAGES["reaction"],
     "string": ("doc", '"resend now"'),
 }
 UNMARKED_STRING = ("doc", '"retry later"')

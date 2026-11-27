@@ -2,7 +2,7 @@
 /* What each margin cluster shows, chosen from values the browser captured.
 
    `marginEntry` takes a target's margin contributions and the readings Leaf generated
-   for it (threads, reactions, notices), and fixes its controls, reading choices and
+   for it (threads and notices), and fixes its controls, reading choices and
    state once, from those alone. `clusterProjection` then picks
    what its cluster shows. At rest that is a primary control and one more: the single
    peer, or More when there are several. Expanded, it is up to six controls, the last

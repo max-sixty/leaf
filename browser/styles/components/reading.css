@@ -7,9 +7,9 @@
  * markup keeps the browser's faces; a page or theme may set the input on any subtree.
  * The face's rules stand in `@container style(--lf-reading-face: 1)`, so each reaches
  * an element whose parent carries the input. It is one statement for both, since a
- * quoted block reads the same in a thread as on the page that took it. A declared
- * shadow tree starts without it (`:host`), so a widget's own internals keep their
- * sheet's faces and only a transcript there takes it again. A widget's own source or
+ * quoted block reads the same in a thread as on the page that took it. What a declared
+ * shadow tree draws starts without it, while what the tree slots keeps the page's
+ * (`:host`, below). A widget's own source or
  * controls keep its own sheet. The runtime colours a code block's tokens only where the
  * block wears the face (readings/syntax.js), since the token palette is drawn for its ground.
  * The face's native controls, a page's own buttons, fields and labelled choices, wear
@@ -38,15 +38,28 @@
  * scrolls sideways (base.css) and `page check --render` refuses the page
  * (`page-scrolls`), so its author fixes the overflow in the page's own CSS.
  */
+/* What a declared shadow tree draws starts without the face, so a widget's own
+   elements keep their sheet's faces. What it slots is the page's own markup, so a slot
+   passes on the face of the page around the host, which the host keeps
+   (`--lf-host-reading-face`). Each rule weighs nothing, so a package's widget-shadow.css,
+   which follows this sheet in `lf-shadow`, or the transcript's rule below, sets the face
+   on one of its own elements again. A module's own sheet stands in `lf-base`, under
+   this one, so it sets the face on a box inside the tree's top-level element. */
+:host {
+  --lf-host-reading-face: var(--lf-reading-face);
+}
+:where(:host > :not(slot)) {
+  --lf-reading-face: initial;
+}
+:where(:host slot) {
+  --lf-reading-face: var(--lf-host-reading-face);
+}
 /* Markup Leaf renders from Markdown, a message's or a widget's body (`lib/markdown.js`,
    `.lf-markdown-body`), is Leaf's reading of it, so it wears the face whatever theme the
    page takes. */
 :where(.lf-thread-transcript),
 :where(.lf-markdown-body) {
   --lf-reading-face: 1;
-}
-:host {
-  --lf-reading-face: initial;
 }
 /* Whether focus is in a table whose rows open with their names (below, the sticky row
    names). The names' fade asks the table for it by a style query, so nothing inherits

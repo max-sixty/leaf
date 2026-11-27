@@ -64,7 +64,7 @@ export type InputSync = {
   composition: () => { field: HTMLElement; frame: HTMLElement };
   addMedia: (images: readonly Blob[]) => Promise<boolean>;
   writing: () => boolean;
-  covered: () => HTMLElement | null;
+  covered: () => { frame: HTMLElement; key: HTMLElement } | null;
 };
 export type WireInput = (field: InputField, options: InputOptions) => InputSync;
 export {};

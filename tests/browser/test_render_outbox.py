@@ -147,9 +147,9 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     page.evaluate("""async () => {
       const {watchSemantic, readApplication, readApplicationPresentation, applicationPresented} =
         await window.__lfCheckApi();
-      let previous = readApplication().effective.thread.all.length;
+      let previous = readApplication().effective.thread.collection.threads.length;
       watchSemantic(root => {
-          const count = root.effective.thread.all.length;
+          const count = root.effective.thread.collection.threads.length;
           if (previous > 0 && count === 0) queueMicrotask(() => {
             window.rejectionPresentation = {
               ...readApplicationPresentation(), presented: applicationPresented(),

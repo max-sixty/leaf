@@ -10,7 +10,7 @@ export {};
 /** @typedef {import("./domain.js").Command} Command */
 /** @typedef {import("./domain.js").Thread} Thread */
 /** @typedef {typeof import("../runtime/state/semantic-application.js").createSemanticApplication} CreateApplication */
-/** @typedef {typeof import("../runtime/state/thread/model.js").discussed} Discussed */
+/** @typedef {typeof import("../runtime/state/thread/model.js").threadCounts} ThreadCounts */
 /** @typedef {typeof import("../runtime/state/thread/model.js").threadNames} ThreadNames */
 /** @typedef {typeof import("../runtime/state/projection/model.js").foldProjection} FoldProjection */
 /** @typedef {typeof import("../runtime/host/application.js").post} Post */
@@ -19,7 +19,7 @@ export {};
 /** @template T @typedef {0 extends 1 & T ? true : false} IsAny */
 /** @type {IsAny<Event>} */
 const eventIsChecked = false;
-/** @type {IsAny<Parameters<Discussed>[0]>} */
+/** @type {IsAny<Parameters<ThreadCounts>[0][number]>} */
 const threadIsChecked = false;
 /** @type {IsAny<Parameters<Post>[0]>} */
 const postIsChecked = false;

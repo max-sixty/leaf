@@ -20,7 +20,6 @@ import {
 } from "./projection/model.js";
 import { stampedState, sameStateDefinition } from "./registry-contract.js";
 import {
-  discussed,
   foldThreads,
   readThreadRecords,
   threadNames,
@@ -457,8 +456,8 @@ const NO_QUEUES: WireQueues = { on_user: [], on_agent: [], done: [] };
 const obligationIndex = kept(
   (all: readonly ObligationRecord[]) => new Map(all.map((item) => [item.id, item])),
 );
-// The thread each name names, the threads about each element, and those discussed,
-// indexed as the threads arrive, so a reader asking any of them does no walk of its
+// The thread each name names and the threads about each element, indexed as the
+// threads arrive, so a reader asking any of them does no walk of its
 // own. The names index holds a thread's place in the list rather than the record, so
 // a record has one home and sharing the index against the last reading compares
 // numbers.
@@ -470,7 +469,6 @@ const threadIndex = kept(
         [...threadNames(threads)].map(([name, thread]) => [name, placeOf.get(thread)!]),
       ),
       bySection: threadsBySection(threads),
-      discussed: threads.filter(discussed),
     };
   },
 );
@@ -762,7 +760,7 @@ function widgetIndex(root: SemanticRoot): WidgetIndex {
     if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
       group(event.widget).undo.push(event);
   const heldBy: Map<string, string> = new Map();
-  for (const thread of root.effective.thread.all)
+  for (const thread of root.effective.thread.collection.threads)
     if (
       !thread.resolved &&
       !thread.root.pending &&
@@ -1198,11 +1196,7 @@ export function createSemanticApplication({
       markingRead,
       ready,
     );
-    const {
-      named: threadsNamed,
-      bySection,
-      discussed: discussedThreads,
-    } = threadIndex(threads);
+    const { named: threadsNamed, bySection } = threadIndex(threads);
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       workflows,
@@ -1229,13 +1223,9 @@ export function createSemanticApplication({
       projection,
       widgets,
       thread: {
-        all: threads,
         named: threadsNamed,
         bySection,
-        collection: {
-          phase,
-          threads: discussedThreads,
-        },
+        collection: { phase, threads },
         // The threads the gestures this tab's ledger still holds concern, refused ones
         // included until the reading they restore is drawn, and those the adopted
         // reading settled (held-news.js, `gesturedOn`).

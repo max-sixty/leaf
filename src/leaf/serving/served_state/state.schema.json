@@ -1538,7 +1538,6 @@
             { "type": "null" }
           ]
         },
-        "bare_reaction": { "type": "boolean" },
         "seat": {
           "description": "The widget whose thread seat the root stands in (`events.seat_root`), or null.",
           "type": ["string", "null"]
@@ -1581,7 +1580,6 @@
         "msgs",
         "revisions",
         "resolved",
-        "bare_reaction",
         "seat",
         "summaries",
         "unread",

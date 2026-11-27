@@ -5,10 +5,6 @@ lf-motion {
   --lf-motion-top: var(--lf-top);
   --lf-motion-control-height: var(--lf-line);
   --lf-motion-toolbar-height: calc(var(--lf-motion-control-height) + 16px);
-  /* A declared shadow tree starts without markup's reading face (reading.css, `:host`),
-     but the previews it slots are the page's own markup and the transport stands among
-     them, so the study reads in the face of the page around it. */
-  --lf-reading-face: inherit;
 }
 
 lf-motion:not(:defined)::before {

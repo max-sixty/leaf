@@ -105,8 +105,7 @@ const quoted = (words) => `“${words}”`;
 const named = (words) => quoted(excerptWords(words, NAME));
 
 // The thread's name in words (`nameOf`), read from the thread as
-// it stands now, as every way there is. A thread Threads does not list, a bare
-// reaction, has no name there and no way to it, so it goes as a thread.
+// it stands now, as every way there is.
 /** @param {import("../../../browser/types/contract.js").ServedHistoryRow["thread"]} served */
 const topicOf = (served) => {
   const thread = served && readThreads().threads.find(({ id }) => id === served.id);
@@ -144,11 +143,7 @@ function describe(row) {
   switch (row.kind) {
     case "comment":
       if (row.emoji)
-        return {
-          what: `reacted ${row.emoji} on`,
-          widget: row.anchor?.section ?? null,
-          label: placeName(row.anchor, row.about),
-        };
+        return thread(`reacted ${row.emoji} on`, placeName(row.anchor, row.about));
       if (row.holds) return thread("paused", nameById(row.holds));
       return thread(
         row.drawing && !row.excerpt ? "drew on" : "commented on",

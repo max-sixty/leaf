@@ -1,14 +1,12 @@
 /* Pure thread structure and turn-taking projected by the server.
 
    A reaction is a message whose content is an emoji, and takes its turn as words do
-   (events.md, "Reactions"). The panel lists `discussed` threads only: a thread that holds
-   only the reaction that opened it is a mark on its anchor (`bareReaction`). Every drawing
-   of a thread, a card or the message parts a presentation names
-   (records/thread/primary-reader.js), shows its turns: each message but the user's
-   reactions, which stand as chips in the strip of the agent's message they are on. So a
-   thread that grew out of a reaction opens on the mark, and an agent's emoji stands as
-   its message, whose body records/thread/messages.js writes as its emoji, or as Deleted
-   once the user takes the mark back (`deleted`). Whose turn a thread is is read
+   (events.md, "Reactions"). Every drawing of a thread, a card or the message parts a
+   presentation names (records/thread/primary-reader.js), shows its turns: each message
+   but the user's reactions on the agent's messages, which stand as chips in the strip
+   of the message they are on. So a thread a reaction opened opens on its emoji, and an
+   agent's emoji stands as its message, whose body records/thread/messages.js writes as
+   its emoji, or as Deleted once the user takes it back (`deleted`). Whose turn a thread is is read
    from the complete browser Thread's `attention` and nothing else, the obligation
    record that speaks for it: a user obligation outranks concurrent agent work, which
    stays the card's secondary status.
@@ -131,19 +129,18 @@ export function threadNames<
 }
 
 // Where in `threads` the open conversations about each element stand, by the id of the
-// element their anchor names (`section`): a resolved thread and a bare reaction stand
-// under none, and nor does a thread with no anchor, which is about the page as a whole.
+// element their anchor names (`section`): a resolved thread stands under none, and nor
+// does a thread with no anchor, which is about the page as a whole.
 export function threadsBySection(
   threads: readonly {
     anchor: { section?: string | null } | null;
     resolved?: unknown;
-    bare_reaction: boolean;
   }[],
 ) {
   const bySection: Map<string, number[]> = new Map();
   threads.forEach((thread, at) => {
     const section = thread.anchor?.section;
-    if (!section || thread.resolved || !discussed(thread)) return;
+    if (!section || thread.resolved) return;
     const about = bySection.get(section);
     if (about) about.push(at);
     else bySection.set(section, [at]);
@@ -176,17 +173,6 @@ export const deleted = (message: {
   Boolean(message.withdrawn) ||
   (Boolean(message.edited) && !message.text && !message.drawing);
 
-export const bareReaction = <
-  T extends {
-    readonly bare_reaction: boolean;
-    readonly root: { readonly emoji?: string | null };
-  },
->(
-  thread: T,
-): thread is T & { bare_reaction: true; root: T["root"] & { emoji: string } } =>
-  thread.bare_reaction;
-export const discussed = (thread: Pick<Thread, "bare_reaction">) =>
-  !thread.bare_reaction;
 // A thread record's unread versions (`readThreadRecords`), in log order.
 type Unread = { readonly unread: readonly unknown[] };
 /** Whether a thread holds words the user hasn't read. */
@@ -205,13 +191,10 @@ export const isNews = (thread: Pick<Thread, "resolved"> & Unread) =>
  * says, and those that are news (`isNews`), which the leaf's dot says. A page's
  * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both. */
-export function threadCounts(
-  threads: readonly (Pick<Thread, "bare_reaction" | "resolved"> & Unread)[],
-) {
-  const listed = threads.filter(discussed);
+export function threadCounts(threads: readonly (Pick<Thread, "resolved"> & Unread)[]) {
   return {
-    open: listed.filter((thread) => !thread.resolved).length,
-    unread: listed.filter(isNews).length,
+    open: threads.filter((thread) => !thread.resolved).length,
+    unread: threads.filter(isNews).length,
   };
 }
 /** Where in the log a thread last changed, its event's `seq`, which Threads lists its
@@ -269,7 +252,7 @@ export const seatOf = (message: {
 // its message the words it replaced. Whether a message taken back keeps its place,
 // and a thread it opened stands, depends on what else the log holds, so the press
 // leaves the message's place Deleted and the server's reading decides; a mark drawn
-// as a chip, or alone on the page, has no place of its own and comes off. They leave again when the server accepts or refuses them, so
+// as a chip has no place of its own and comes off. They leave again when the server accepts or refuses them, so
 // this is a reading of the same outbox and log the server projects rather than a second
 // store beside it.
 //
@@ -341,7 +324,6 @@ export function foldThreads(
   // place, so it comes off: the message naming it as its parent is what the log's
   // answer keeps it for (`events.standing_withdrawn`).
   const without = (thread: Thread): Thread[] => {
-    if (thread.bare_reaction && withdrawn.has(thread.root.id)) return [];
     const answered = new Set(thread.msgs.map((message) => message.parent));
     const msgs = thread.msgs.flatMap((message) =>
       !withdrawn.has(message.id) || message.withdrawn
@@ -400,7 +382,6 @@ export function foldThreads(
         msgs: [gesture],
         revisions: [],
         resolved: null,
-        bare_reaction: isReaction(gesture),
         seat: seatOf(gesture),
         summaries: [],
         unread: {},
@@ -448,8 +429,6 @@ export function foldThreads(
         gesture.kind === "resolve" ? { author: "user", pending: true } : null;
     }
   }
-  for (const thread of opened)
-    thread.bare_reaction = isReaction(thread.root) && thread.msgs.length === 1;
   return [...copies, ...opened];
 }
 
@@ -746,7 +725,6 @@ const threadRecord = keptEach(
       // work the thread's working message reads whoever's turn the thread is.
       obligations,
       workflows,
-      bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries,
     };

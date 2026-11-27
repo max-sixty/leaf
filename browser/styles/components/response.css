@@ -58,7 +58,7 @@ leaf-composition-field {
 }
 /* A field's ring says the caret is in its words. A field the user stands on rather
    than in, as a walk's stop at a kept comment leaves them (input.js, `text.enter`),
-   keeps its resting edge, and its key chip says what puts the caret in. The user
+   keeps its resting edge, and its key says what puts the caret in. The user
    chose this over the ring every focus destination wears (element-marks.css), which
    made the stop look like typing, so letters typed there ran page commands instead. */
 .lf-compose-field[data-lf-focus-visible] {
@@ -155,10 +155,6 @@ leaf-composition-field {
   align-items: baseline;
   gap: 0.25em;
   overflow: visible;
-}
-:is(.lf-compose-placeholder, .lf-compose-press) .lf-key-badge {
-  background: transparent;
-  color: var(--lf-quiet);
 }
 /* An error about the box stands over its words and its actions, in the danger's ink,
    until the user comes back to them (annotations/composing/input.js). It wraps within the box's
@@ -344,6 +340,46 @@ leaf-composition-field {
   z-index: 1;
   inset-inline-end: var(--lf-compose-action-end, var(--lf-compose-action-inset));
   inset-block-end: var(--lf-compose-action-foot, var(--lf-compose-action-inset));
+  anchor-name: --lf-compose-action;
+}
+/* The key that enters a box whose words cover its placeholder (input.js, `coveredBox`),
+   lent by the key hints while it reaches the box, stands just before the action in the
+   corner on its line, over the words as Send stands under a mouse, and gives way where
+   they reach it (`:state(key-corner-taken)`, text-field.js). Where no corner reads the
+   words, with a pointer that can't hover or in a field whose Send stands elsewhere,
+   the key stands down, and the hints hang a chip on the box's corner instead
+   (readings/key-badges/command-hints.js). */
+.lf-compose-field > .lf-compose-key {
+  z-index: 1;
+  position-anchor: --lf-compose-action;
+  inset-inline-end: anchor(
+    start,
+    var(--lf-compose-action-end, var(--lf-compose-action-inset))
+  );
+  inset-block-end: calc(
+    anchor(
+        center,
+        calc(
+          var(--lf-compose-action-foot, var(--lf-compose-action-inset)) +
+            var(--lf-icon-action-hit) / 2
+        )
+      ) -
+      var(--lf-key-badge-size) / 2
+  );
+}
+.lf-compose-field > leaf-text {
+  --lf-field-key-corner: calc(var(--lf-field-corner) + var(--lf-key-badge-size));
+}
+.lf-compose-field > leaf-text:state(key-corner-taken) ~ .lf-compose-key {
+  opacity: 0;
+}
+.lf-compose-field:not(:has(> .lf-compose-submit)) > .lf-compose-key {
+  display: none !important;
+}
+@media not ((hover: hover) and (pointer: fine)) {
+  .lf-compose-field > .lf-compose-key {
+    display: none !important;
+  }
 }
 /* The microphone's slash marks a dictation that failed, so any microphone not on a failed
    press draws without it. */

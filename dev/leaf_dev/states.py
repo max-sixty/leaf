@@ -691,8 +691,8 @@ def reaction_thread(page: Page) -> None:
 
 def reaction_working(page: Page) -> None:
     """The user's ✂️ on a passage, a message the agent owes an answer, under a pointer
-    resting on its mark once the agent has started work on it: the mark says the work's
-    line, as a thread's margin entry does."""
+    resting on its thread's margin entry once the agent has started work on it: the
+    entry says the work's line, as any thread's does."""
     cut = PageClient(served_page.get().address).post(
         {
             "kind": "comment",
@@ -703,7 +703,7 @@ def reaction_working(page: Page) -> None:
     )
     as_agent("task", "start", cut["id"], "--text", "Cutting the resend timing")
     wait_until_ready(page, PageClient(served_page.get().address).state())
-    mark = page.locator('[data-lf-margin-entry-owner="reactions"]:visible')
+    mark = page.locator('.lf-margin-marker[aria-label*="After 20 seconds"]')
     expect(mark).to_have_count(1)
     mark.hover()
     rest_past_dwell(page)
@@ -753,15 +753,12 @@ def margin_reaction_choices(page: Page) -> None:
 
 
 def margin_reaction_mark(page: Page) -> None:
-    """The same row once a reaction stands on its target, unfolded to show the
-    reaction's own margin entry beside Reject."""
+    """The same row once a reaction stands on its target, which opens a thread there
+    like a comment's."""
     margin_reaction_choices(page)
     row = page.locator(MARGIN_SUGGESTION)
     row.locator('[data-lf-margin-entry-owner="responses"]:visible').first.click()
-    mark = row.locator('[data-lf-margin-entry-owner="reactions"]')
-    expect(mark).to_have_count(1)
-    row.locator(".lf-margin-more").click()
-    expect(mark).to_be_visible()
+    expect(row.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
     page.mouse.move(0, 0)
     settle(page)
 
@@ -883,7 +880,7 @@ def thread_preview(page: Page) -> None:
 
 def passage_reaction(page: Page) -> None:
     """A passage the user reacted to, selected by pointer and answered with `e` and
-    `1`, in the item below the stop thread's commented passage, so a reaction's mark
+    `1`, in the item below the stop thread's commented passage, so a reaction's thread
     and a comment's stand at rest side by side."""
     lines = word_lines(page, "reject symlink path components")
     first, last = lines[0], lines[-1]
@@ -894,7 +891,10 @@ def passage_reaction(page: Page) -> None:
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("e")
     page.keyboard.press("1")
-    page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
+    page.wait_for_function(
+        """() => [...(CSS.highlights.get('lf-mark') ?? [])]
+          .some((range) => range.toString().includes('symlink'))"""
+    )
     page.keyboard.press("Escape")
     page.mouse.move(0, 0)
     word_lines(page, STOP_PASSAGE)
@@ -2638,6 +2638,20 @@ def gallery_drawing(page: Page) -> None:
     page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
 
 
+def drawing_part_aim(page: Page) -> None:
+    """Alt over a drawing's part drawn in a frame, which marks the frame alone and
+    leaves the shapes inside it, its own part among them, as they are drawn."""
+    gallery_drawing(page)
+    frame = page.locator("#bg-drawing-after > .frame")
+    # A bare stretch of the panel, clear of the shapes drawn on it.
+    box = frame.bounding_box()
+    assert box
+    page.mouse.move(box["x"] + box["width"] * 0.55, box["y"] + box["height"] * 0.93)
+    page.keyboard.down("Alt")
+    expect(page.locator("#bg-drawing-figure [data-lf-aimed]")).to_have_count(1)
+    settle(page)
+
+
 def gallery_ask_figure(page: Page) -> None:
     """A question's group enclosing a chart, with its question at the window's top so
     the chart and every option either share the window or run past it."""
@@ -4142,6 +4156,12 @@ STATES = (
         "gallery-drawing",
         "feature-gallery",
         gallery_drawing,
+        region="#bg-drawing-figure",
+    ),
+    State(
+        "drawing-part-aim",
+        "feature-gallery",
+        drawing_part_aim,
         region="#bg-drawing-figure",
     ),
     State("gallery-ask-figure", "feature-gallery", gallery_ask_figure),

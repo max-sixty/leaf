@@ -6,27 +6,17 @@
   },
   {
     "name": "an open thread the user has read",
-    "threads": [{ "bare_reaction": false, "resolved": null, "unread": [] }],
+    "threads": [{ "resolved": null, "unread": [] }],
     "counts": { "open": 1, "unread": 0 }
   },
   {
     "name": "an open thread holding a reply the user hasn't read",
-    "threads": [{ "bare_reaction": false, "resolved": null, "unread": ["m2"] }],
+    "threads": [{ "resolved": null, "unread": ["m2"] }],
     "counts": { "open": 1, "unread": 1 }
   },
   {
     "name": "a resolved thread's unread reply is no news",
-    "threads": [
-      { "bare_reaction": false, "resolved": { "author": "user" }, "unread": ["m2"] }
-    ],
+    "threads": [{ "resolved": { "author": "user" }, "unread": ["m2"] }],
     "counts": { "open": 0, "unread": 0 }
-  },
-  {
-    "name": "a bare reaction is no thread the panel lists",
-    "threads": [
-      { "bare_reaction": true, "resolved": null, "unread": ["m1"] },
-      { "bare_reaction": false, "resolved": null, "unread": [] }
-    ],
-    "counts": { "open": 1, "unread": 0 }
   }
 ]

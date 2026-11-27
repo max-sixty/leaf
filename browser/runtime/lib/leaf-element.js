@@ -59,7 +59,7 @@ import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import { COMMANDS, CONNECT, DeferEvent, sendGesture } from "./widget-events.js";
 import { PendingTaskEvent } from "./pending-task.js";
 import { failSoft, placesFailure } from "./failure.js";
-import { inWindowDocument, once } from "./once.js";
+import { once } from "./once.js";
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.
 class UpdateBoundary extends LitElement {
@@ -179,8 +179,6 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   connectedCallback() {
-    // A copy connected in another document neither sets up nor draws (once.js).
-    if (!inWindowDocument(this)) return;
     // A paint that mounts the element connects it inside that paint, and what the
     // element reads to connect is its own to follow, never that paint's.
     untracked(() => {

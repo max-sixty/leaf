@@ -1437,12 +1437,13 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
 
     # One row per option in both forms where nothing lays the group across, so the
     # joined control below is a list whatever the options hold: every cell spans the
-    # frame.
+    # frame, the options and the cells the group draws in its shadow root alike.
     one_per_row = """el => {
       const s = getComputedStyle(el);
       const inner = el.getBoundingClientRect().width
         - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
-      const cells = [...el.children].filter((c) => c.checkVisibility());
+      const drawn = el.shadowRoot?.querySelectorAll('[part~="cell"]') ?? [];
+      const cells = [...el.children, ...drawn].filter((c) => c.checkVisibility());
       return cells.length > 2
         && cells.every((c) => Math.abs(c.getBoundingClientRect().width - inner) < 0.5);
     }"""

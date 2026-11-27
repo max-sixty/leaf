@@ -645,7 +645,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
     threadWorkflow("second-work", { input: "newer", seq: 2 }),
   ];
   app.adopt(reading);
-  const thread = app.read().effective.thread.all[0];
+  const thread = app.read().effective.thread.collection.threads[0];
   assert.deepEqual(
     thread.msgs.map((message) => [message.id, message.workflows[0]?.id]),
     [
@@ -661,7 +661,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
   );
   // The user's own send shows on its message at once; whose turn the thread is then
   // waits for the log's reading of it.
-  const sent = app.read().effective.thread.all[0];
+  const sent = app.read().effective.thread.collection.threads[0];
   assert.deepEqual(
     sent.msgs.map((message) => [message.id, message.workflows[0]?.id]),
     [
@@ -693,11 +693,11 @@ test("a refused send hands its thread to the user to send again", () => {
     { kind: "reply", parent: "root", attempt: "local", text: "Second", revision: 1 },
     "2026-09-22T10:01:00-07:00",
   );
-  assert.equal(app.read().effective.thread.all[0].attention, null);
+  assert.equal(app.read().effective.thread.collection.threads[0].attention, null);
   app.refuse("local");
   // Where the thread stands, by the record that speaks for it.
   const standing = (held) => {
-    const { attention } = held.read().effective.thread.all[0];
+    const { attention } = held.read().effective.thread.collection.threads[0];
     return [attention.id, attention.next_actor, attention.state, attention.reason];
   };
   assert.deepEqual(standing(app), [
@@ -826,7 +826,7 @@ test("a refused local message publishes one failed workflow before retirement", 
     .read()
     .effective.obligations.all.find((item) => item.id === failed.obligation);
   assert.equal(resend.next_actor, "user");
-  assert.equal(app.read().effective.thread.all.length, 0);
+  assert.equal(app.read().effective.thread.collection.threads.length, 0);
   app.release(new Set(["refused"]));
   assert.equal(app.read().effective.workflows.length, 0);
 });
@@ -885,7 +885,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     servedThread([root], { unread: { "agent-root": "agent-root" } }),
   ];
   app.adopt(reading);
-  const thread = () => app.read().effective.thread.all[0];
+  const thread = () => app.read().effective.thread.collection.threads[0];
   assert.equal(thread().msgs[0].unread, true);
   assert.deepEqual(thread().unread, [{ message: "agent-root", version: "agent-root" }]);
 
@@ -1198,7 +1198,7 @@ for (const { name, event, steps } of lifecycle)
           : decision(app) === "accept"
             ? "gesture"
             : null;
-      const [thread] = app.read().effective.thread.all;
+      const [thread] = app.read().effective.thread.collection.threads;
       return thread?.root.id === "e1" ? "log" : thread ? "gesture" : null;
     };
     const signals = {
@@ -1267,7 +1267,10 @@ test("a comment the log holds leaves the ledger once its POST accepts it", () =>
   };
   app.enqueue(comment, "now");
   assert.equal(app.read().phase, "waiting");
-  assert.equal(app.read().effective.thread.all[0].root.text, "Keep this");
+  assert.equal(
+    app.read().effective.thread.collection.threads[0].root.text,
+    "Keep this",
+  );
   assert.equal(app.read().effective.thread.collection.phase, "waiting");
   assert.equal(app.read().effective.thread.collection.threads.length, 1);
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
@@ -1275,12 +1278,12 @@ test("a comment the log holds leaves the ledger once its POST accepts it", () =>
   read.events = [accepted];
   read.browser.views[1].thread.threads = [servedThread([accepted])];
   app.adopt(read);
-  assert.equal(app.read().effective.thread.all.length, 1);
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
   assert.equal(app.read().unresolved.length, 1);
   app.accept("comment", accepted);
   assert.equal(app.read().unresolved.length, 0);
-  assert.equal(app.read().effective.thread.all.length, 1);
-  assert.equal(app.read().effective.thread.all[0].root.id, "e1");
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
+  assert.equal(app.read().effective.thread.collection.threads[0].root.id, "e1");
 });
 
 test("the reading that logs an accepted comment retires it in its own publication", () => {
@@ -1413,7 +1416,7 @@ for (const resolved of [null, { author: "user" }]) {
     ];
     app.adopt(accepted);
     const turn = () => {
-      const thread = app.read().effective.thread.all[0];
+      const thread = app.read().effective.thread.collection.threads[0];
       return [thread.attention?.next_actor ?? null, thread.resolved];
     };
     assert.deepEqual(turn(), [owed, resolved]);
@@ -1524,7 +1527,7 @@ test("a pending gesture leaves obligations and On Me as served until the log ans
   ];
   app.adopt(answeredUndo);
   const { thread, queues } = app.read().effective;
-  assert.deepEqual(thread.all[0].attention, reopened);
+  assert.deepEqual(thread.collection.threads[0].attention, reopened);
   assert.deepEqual(
     queues.on_user.map(({ kind, id }) => [kind, id]),
     [["message", answered.id]],
@@ -1646,12 +1649,10 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.views[1].thread.threads = [
-    servedThread([root], { bare_reaction: true }),
-  ];
+  accepted.browser.views[1].thread.threads = [servedThread([root])];
 
   app.adopt(accepted);
-  assert.equal(app.read().effective.thread.all[0].attention, null);
+  assert.equal(app.read().effective.thread.collection.threads[0].attention, null);
 });
 
 test("a revision preserves pending delivery while replacing incompatible speculative state", () => {

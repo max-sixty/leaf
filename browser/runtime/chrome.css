@@ -1300,13 +1300,6 @@ html[data-lf-draw-mode] {
     display: inline-flex;
     gap: 2px;
   }
-  /* Its key chips are the keys' own face, drawn in the tooltip's ink. */
-  .lf-preview .lf-key-badge {
-    background: transparent;
-    border-color: color-mix(in srgb, currentColor 45%, transparent);
-    color: inherit;
-    font-weight: 400;
-  }
   .lf-preview-detail {
     display: block;
     margin-block-start: 2px;

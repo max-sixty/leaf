@@ -986,10 +986,10 @@ visible change").
 ## Renderers
 
 Leaf is moving to one renderer, Effect UI, so that each view it draws is written,
-tested and maintained one way. Until it gets there, a bundled widget is either a Lit
-element, a `LeafElement` (`runtime/lib/leaf-element.js`), or an Effect UI component
-that `defineWidget` defines (`runtime/effect-widget.js`), and each module's header
-gives its contract. The runtime's own views, Leaf's chrome, draw with Lit.
+tested and maintained one way. Until it gets there, a bundled widget is either a
+`LeafElement` (`runtime/lib/leaf-element.js`), which draws with Lit, or an Effect UI
+component that `defineWidget` defines (`runtime/effect-widget.js`), and each module's
+header gives its contract. The runtime's own views, Leaf's chrome, draw with Lit.
 
 Lit goes one widget at a time, the chrome last. Each port, the change that moves a
 widget from Lit to Effect UI, has to pay for itself by leaving the widget easier to

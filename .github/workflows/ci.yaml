@@ -12,8 +12,8 @@ name: ci
 #   nothing;
 # - a dispatch given `flake` runs only `test-macos`, which runs `leaf-dev suite flake`
 #   with those arguments in place of the suite.
-# The daily schedule also runs the developer-tool tests in dev/tests, which no other
-# event runs.
+# The daily schedule also runs the developer-tool tests in dev/tests and the
+# claude-code agent journey, which no other event runs.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -244,6 +244,47 @@ jobs:
       - name: 🧪 Eval harness smoke tests
         if: ${{ !cancelled() }}
         run: pnpm run test:evals
+
+  # The claude-code agent journey (dev/leaf_dev/commands/journey/_claude_code.py),
+  # daily only: an interactive Claude Code session, driven through tmux, on the `tend`
+  # environment's Claude Code login. It runs here rather than in Tend's
+  # credential-isolation sandbox, which refuses the Unix sockets that tmux and Claude
+  # Code's messaging both need, so the login is in the journey step's environment,
+  # where the session under test can read it. That session's input is this commit's
+  # own pages and prompts. The evidence, each step's screen, Claude Code's debug log
+  # and the page's log, uploads only when no file in it holds the login, since the
+  # artifacts of this public repository are public.
+  journey-claude-code:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    environment: tend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Install tmux and Claude Code
+        run: |
+          sudo apt-get install -y tmux
+          curl -fsSL https://claude.ai/install.sh | bash -s stable
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: 🧭 Claude Code journey
+        timeout-minutes: 60
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: uv run leaf-dev journey run claude-code
+      - name: Check that the evidence holds no login
+        id: evidence
+        if: always()
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: '! grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" .tmp/journey'
+      - name: Upload the journey's evidence
+        if: always() && steps.evidence.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: journey-claude-code-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/journey/
+          if-no-files-found: ignore
+          retention-days: 30
 
   # The daily benchmark: `leaf-dev bench` on its generated pages, in the browser and
   # on the server, on a runner of its own so the suite's tests don't share its cores.

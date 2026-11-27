@@ -73,8 +73,8 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     url = serve(
         leaf_page(
             "Long evidence",
-            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
-            "</lf-text-document>",
+            '<h1>Run log</h1><lf-text-document id="log" source="log-text"'
+            ' data-bound="end"></lf-text-document>',
         )
     )
     page_data_model.cmd_data_set(serve.page_dir, "log-text", text)
@@ -82,8 +82,11 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     assert page.locator("#log code").text_content() == text
     expect(page.locator("#log .lf-text-document-run")).to_have_count(8)
     first, far = page.locator(ROWS).nth(0), page.locator(ROWS).nth(879)
-    # A run itself always has a box; the browser skips the lines inside it.
+    # A run itself always has a box; the browser skips the lines inside it. A log
+    # opens at its end, so the reader goes back to its first line.
     drawn = "line => line.checkVisibility({contentVisibilityAuto: true})"
+    page.locator("#log pre").evaluate("pre => { pre.scrollTop = 0; }")
+    page.wait_for_function(f"line => ({drawn})(line)", arg=first.element_handle())
     assert first.evaluate(drawn)
     assert not far.evaluate(drawn)
     left = "line => line.getBoundingClientRect().left"

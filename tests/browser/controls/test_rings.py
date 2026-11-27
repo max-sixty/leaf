@@ -147,7 +147,7 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     if reading == "markdown":
         content = (
             '<lf-text-document id="document" source="draft" preview="markdown" '
-            'label="Draft"></lf-text-document>'
+            'label="Draft" data-bound="end"></lf-text-document>'
         )
         ident = "document--preview"
     else:
@@ -171,6 +171,10 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     page.keyboard.press("Tab")
     panel = page.locator(f"#{ident}")
     expect(panel).to_be_focused()
+    # A document's reading scrolls where it follows its end, as a log does, and opens
+    # there.
+    if reading == "markdown":
+        panel.evaluate("el => el.scrollTo({top: 0, behavior: 'instant'})")
     # Scrolled by a wheel rather than a key: Chromium drops a key's smooth scroll when
     # the frame that starts it runs longer than the scroll's animation, as a loaded
     # machine's can, and the compositor times a wheel's scroll itself.

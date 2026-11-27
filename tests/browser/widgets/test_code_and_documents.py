@@ -1492,7 +1492,8 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
     url = serve(
         leaf_page(
             "Split colour",
-            '<lf-text-document id="log" source="log-text" class="language-python">'
+            '<lf-text-document id="log" source="log-text" class="language-python"'
+            ' style="--lf-bound: none">'
             "</lf-text-document>",
         )
     )

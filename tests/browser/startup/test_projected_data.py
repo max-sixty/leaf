@@ -382,8 +382,8 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
     url = serve(
         leaf_page(
             "Commented document",
-            '<h1>Log</h1><lf-text-document id="log" source="log-text">'
-            "</lf-text-document>",
+            '<h1>Log</h1><lf-text-document id="log" source="log-text"'
+            ' style="--lf-bound: none"></lf-text-document>',
         )
     )
     page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")

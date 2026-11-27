@@ -4,6 +4,12 @@
    the Leaf that hosts that element. A test or a story provides a fake instead
    (`X.toLayer(fn)`), with no page.
 
+   This module and the adapter load in any document (portable-api.js), so a portable
+   widget draws on a page without Leaf. So the module imports statically only what
+   portable-api.js re-exports and the library (`lib/`); a service that needs Leaf's
+   host, records or another module that reads what Leaf composes into a page imports
+   it dynamically as it runs, and is called only on a Leaf page.
+
    Each service is one of the widget protocol's calls (module-plain-elements.md) or a
    function `widget-api.js` exports, under one name:
 
@@ -14,9 +20,7 @@
      new `state` before the Command runs to its end, so a component that draws from
      `state` maps the delivery to nothing.
    - `NextOnMe` steps to the next obligation waiting on the user within `within`, as
-     `obligationActions.next` does. It imports Leaf's application as it runs, so this
-     module and the adapter load in any document (portable-api.js), where a portable
-     widget draws without Leaf.
+     `obligationActions.next` does.
    - `Announce` is `lf-announce`: words a listener should hear now.
    - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
      tab, which the widget's inputs read back with `tabStore.get`. */

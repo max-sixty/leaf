@@ -13,8 +13,8 @@ A TypeScript module's edit reaches pages, tests and the kernel once
 `node build/typescript.mjs` writes its `.js`; the pre-commit hook runs it too, and the
 `.js` is never edited by hand. The first line of a compiled `.js` names its source,
 which tells it from a hand-written one. eslint, knip and dependency-cruiser read the
-compiled `.js`, so fix what they report on it in the `.ts`. A panel-row edit reaches the first paint once
-`pnpm run build:browser` draws it.
+compiled `.js`, so fix what they report on it in the `.ts`. A panel-row edit reaches
+the first paint once `pnpm run build:browser` draws it.
 
 `browser/build.mjs` is the one builder, and its header lists every output and the
 script that writes it. `pnpm run build:browser` type-checks and writes them all;

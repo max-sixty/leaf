@@ -37,10 +37,10 @@ repos:
         language: system
         entry: node build/typescript.mjs
         pass_filenames: false
-        files: '^(browser|packages)/.*\.(ts|js)$|^build/typescript\.mjs$|^\.oxfmtrc\.jsonc$'
+        files: '^(browser|packages)/.*\.ts$|^(build/typescript\.mjs|oxfmt\.config\.ts|package\.json|pnpm-lock\.yaml)$'
   # Keep the formatter version pinned, at the version package.json pins for the
   # TypeScript build's formatting: its releases change the layout they print.
-  # It skips the files it doesn't format and those `.oxfmtrc.jsonc` ignores.
+  # It skips the files it doesn't format and those `oxfmt.config.ts` ignores.
   - repo: local
     hooks:
       - id: oxfmt

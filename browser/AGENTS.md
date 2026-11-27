@@ -1003,8 +1003,7 @@ that answer changes (`state/semantic-state.js`).
 Test what one module decides on its own under `tests/runtime/`
 (`pnpm run test:runtime`). A runtime or bundled widget module is TypeScript or
 JavaScript with JSDoc types, and modules move to TypeScript as they are rewritten or
-converted. A TypeScript module uses only syntax that erases, and the layer serves the
-JavaScript `../build/typescript.mjs` compiles beside it (`../build/AGENTS.md`).
+converted (`../build/AGENTS.md` says how one is compiled and served).
 `pnpm run check:browser` strictly type-checks every maintained runtime and widget
 module; no file pragma is needed.
 `../build/browser/build.mjs` owns checker selection; `types/` holds its configuration

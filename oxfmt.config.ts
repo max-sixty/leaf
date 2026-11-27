@@ -1,9 +1,11 @@
-{
+// The formatter's settings, which oxfmt finds here, and the TypeScript build formats
+// its output with (build/typescript.mjs).
+export default {
   // Ruff's default width, so Python and everything else wrap at the same length.
-  "printWidth": 88,
+  printWidth: 88,
   // package.json keeps its authored key order.
-  "sortPackageJson": false,
-  "ignorePatterns": [
+  sortPackageJson: false,
+  ignorePatterns: [
     // TOML keeps its authors' layout: uv writes dependency lists one per line, and
     // Ruff's rule selections are grouped by line.
     "**/*.toml",
@@ -31,4 +33,4 @@
     // Frozen, hash-checked source evidence must retain its original bytes.
     "evals/ui-review-detection/fixtures/public/",
   ],
-}
+};

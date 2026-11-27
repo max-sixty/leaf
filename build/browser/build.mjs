@@ -41,7 +41,7 @@ import { panelRowOutputs } from "../panel-row.mjs";
 import { signalsPath } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
-import { compiledModules, typescriptOutputs } from "../typescript.mjs";
+import { staleCompiledModules, typescriptOutputs } from "../typescript.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const assets = "browser";
@@ -341,7 +341,7 @@ async function ownedDirectories(directory) {
 
 export async function checkOutputs(outputs, directory = root) {
   // A compiled module whose source is gone is stale too.
-  const stale = (await compiledModules(directory)).filter((name) => !outputs.has(name));
+  const stale = await staleCompiledModules(outputs, directory);
   for (const owned of await ownedDirectories(directory))
     for (const file of await readdir(path.join(directory, owned), {
       recursive: true,
@@ -389,8 +389,8 @@ async function main(args) {
   else {
     for (const owned of await ownedDirectories(root))
       await rm(path.join(root, owned), { force: true, recursive: true });
-    for (const name of await compiledModules(root))
-      if (!outputs.has(name)) await rm(path.join(root, name));
+    for (const name of await staleCompiledModules(outputs, root))
+      await rm(path.join(root, name));
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);
       await mkdir(path.dirname(destination), { recursive: true });

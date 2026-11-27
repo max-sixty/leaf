@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { compile, compiledModules, typescriptOutputs } from "./typescript.mjs";
+import { compile, staleCompiledModules, typescriptOutputs } from "./typescript.mjs";
 
 test("a module compiles to its code without types, comments kept", async () => {
   const source = [
@@ -53,7 +53,7 @@ test("syntax that doesn't erase is refused", async () => {
   await assert.rejects(compile("enum Side { Left }\n", "browser/runtime/side.ts"));
 });
 
-test("each module's output stands beside it, and stays marked compiled once its module is gone", async (context) => {
+test("each module's output stands beside it, and is stale once its module is gone", async (context) => {
   const scratch = await mkdtemp(path.join(tmpdir(), "leaf-typescript-"));
   context.after(() => rm(scratch, { recursive: true }));
   const put = async (name, text) => {
@@ -66,7 +66,10 @@ test("each module's output stands beside it, and stays marked compiled once its 
   const outputs = await typescriptOutputs(scratch);
   assert.deepEqual([...outputs.keys()], ["browser/runtime/one.js"]);
   for (const [name, bytes] of outputs) await put(name, bytes);
+  assert.deepEqual(await staleCompiledModules(outputs, scratch), []);
   await rm(path.join(scratch, "browser/runtime/one.ts"));
-  assert.deepEqual(await compiledModules(scratch), ["browser/runtime/one.js"]);
-  assert.deepEqual((await typescriptOutputs(scratch)).size, 0);
+  const left = await typescriptOutputs(scratch);
+  assert.deepEqual(await staleCompiledModules(left, scratch), [
+    "browser/runtime/one.js",
+  ]);
 });

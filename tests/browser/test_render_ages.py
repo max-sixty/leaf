@@ -5,10 +5,6 @@ import pytest
 from model_folds import leaf_page
 from render_harness import open_page
 
-from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import passages as passages_model
-from leaf.source import structure as structure_model
-
 AGES = leaf_page(
     "Ages",
     '<h1>Runs</h1><p id="ran">The import last ran <lf-age datetime="2026-11-20T02:10:00Z"'
@@ -27,10 +23,10 @@ SELECTED = """async () => {
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_an_age_is_quoted_by_the_time_its_author_wrote(engine, request, serve):
     """The reader sees how long ago, and the page's reading keeps the time the file
-    holds: a double-click on the age's figure quotes that time, and the file resolves
-    the quote, so a comment on an age keeps its passage when the age ticks. Firefox
-    selects the figure because a zero-width no-break space leads the drawn words
-    (age.js): with them flush against their host's start it selects nothing there."""
+    holds: a double-click on the age's figure quotes that time, so a comment on an age
+    keeps its passage when the age ticks. Firefox selects the figure because a
+    zero-width no-break space leads the drawn words (age.js): with them flush against
+    their host's start it selects nothing there."""
     page = open_page(request.getfixturevalue(engine), serve(AGES))
     age = page.locator("#ran lf-age")
     drawn = age.evaluate("age => age.shadowRoot.textContent.trim()")
@@ -40,5 +36,3 @@ def test_an_age_is_quoted_by_the_time_its_author_wrote(engine, request, serve):
     page.mouse.dblclick(box["x"] + 6, box["y"] + box["height"] / 2)
     anchor = page.evaluate(SELECTED)
     assert anchor and anchor["quote"] == "20 Nov, 02:10 UTC", anchor
-    passages = passages_model.page_passages(structure_model.SourceDocument(AGES))
-    assert anchor_capture_model.resolve_quote(passages, anchor) is not None

@@ -3417,21 +3417,20 @@ EOF</code></pre>
               <code>wrote</code>, so words a widget draws do not appear as edits.
             </p>
             <p id="passage-sides">
-              The browser makes an anchor from a selection.
-              <code>leaf thread create</code>
-              makes one in Python, from the HTML file. Both apply the same rules: the
-              same whitespace characters collapse to one space, the same elements count
-              as separate blocks, the context is the same 24 characters, and the search
-              is the same.
+              The browser makes an anchor from a selection, with the words on each side
+              that tell the selected copy apart from others.
+              <code>leaf thread create</code> stores the words the agent quotes and the
+              section it names. Where the page's file holds the words once, it also
+              stores the words on each side, as a selection does, and the section around
+              them if the agent named none. Where the page shows the words twice and the
+              stored words tell neither copy apart, or doesn't show them at all, the
+              thread stands on its section, or in Threads when it has none.
             </p>
             <p id="passage-refusals">
-              The file holds the author's HTML, not the words a widget's script draws
-              between its parts, such as a board column's heading or a diagram drawn
-              from its source. A quote may not cross such words on either side.
-              <code>leaf thread create</code> refuses a quote that crosses them, that
-              occurs more than once in the section, or that sits in content the user's
-              decision removed, and says what to quote instead. An agent's anchor is
-              therefore one the user's page can find.
+              The browser is the only reader of an anchor's words, since the file holds
+              the author's HTML, not the words a widget's script draws. Python reads the
+              file only as advice: where it finds the quote zero or several times,
+              <code>leaf thread create</code> says where the page will show the thread.
             </p>
           </section>
           <section id="anchors-revisions">
@@ -3573,8 +3572,8 @@ EOF</code></pre>
                   <text x="154" y="121">No longer here</text>
                 </svg>
                 <figcaption id="cap-anchor-detached">
-                  <strong>Element removed</strong> The agent moves the thread or
-                  detaches it in a reply. A detached thread stays open in Threads.
+                  <strong>Element removed</strong> Leaf detaches the thread, which stays
+                  open in Threads until the agent moves it in a reply.
                 </figcaption>
               </figure>
             </div>
@@ -3582,18 +3581,19 @@ EOF</code></pre>
               When the quoted words change but their element survives, Leaf moves the
               thread to the element its anchor names in <code>section</code> and records
               the move in the log as a <code>reanchor</code> event, without adding a
-              message. Clicking the quote scrolls to the element. The same happens when
-              a revision repeats the words without context that tells the copies apart.
+              message. Clicking the quote scrolls to the element. Where a revision
+              repeats the words and the words stored beside them tell neither copy
+              apart, the page shows the thread on that element too, and the log records
+              no move.
             </p>
             <p id="revisions-refused">
-              When the element is gone too, Leaf refuses the revision and names the
-              thread. The agent keeps the element, moves the thread with a reply that
-              names a new passage, or detaches it with a reply passing
-              <code>--detach</code>, which says the subject has left the page. Leaf
-              refuses a revision that removes the element an open element-anchored
-              thread is on in the same way. Only the agent chooses a new passage for a
-              thread, in a reply that says why; Leaf's own move goes only to the element
-              the anchor already named.
+              When the element is gone too, Leaf detaches the thread, records that in
+              the log as a <code>reanchor</code> event without adding a message, and
+              names the thread to the agent in <code>page check</code> and beside its
+              next reply. The agent can move the thread with a reply that names a new
+              passage, or detach it itself with a reply passing <code>--detach</code>,
+              which says the subject has left the page. Only the agent chooses a new
+              passage for a thread, in a reply that says why.
             </p>
             <p id="revisions-detached">
               A detached thread stays open in Threads, and its first comment keeps its

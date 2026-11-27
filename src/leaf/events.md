@@ -37,11 +37,15 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 
 ## Anchors
 
-An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix` where
-the neighbouring text tells two identical passages apart. The browser writes it from
-the user's selection. `leaf thread create`, and a reply command that moves a thread,
-write it from a quote read out of the authored HTML through `leaf.source.passages`, so they
-write only anchors the file confirms (`validation.md`, "Passages").
+An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`, the
+neighbouring words that tell identical passages apart. The browser writes it from the
+user's selection with both sides, an empty one where the passage meets a fence.
+`leaf thread create`, and a reply command that moves a thread, write the agent's
+`section` and `quote`. Where Leaf's reading of the page's files finds the words once,
+they also write both sides from that copy. Elsewhere they write neither side, and an
+absent side constrains nothing, so only a sole copy answers the quote. The page shows an
+anchor whose words it doesn't find once on its section, or nowhere without one
+(`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
 rendering key within its section, with `prefix` and `suffix` taken from the datum's own
@@ -55,14 +59,15 @@ in as `datum` and the one it starts in as `from`, with `prefix` taken from the f
 words and `suffix` from the last's. `visual` names a declared part of a
 picture, and `part` the control or region a design comment landed on. `part` is an
 accessible name, not an element
-identity: an authored id or a quote the file confirms locates the comment exactly, and
-otherwise its section is only a description. A native editing value never becomes a
-`part` or a file-readable quote. A selection whose context can't tell which of several
+identity: an authored id or a quote the page finds once locates the comment exactly,
+and otherwise its section is only a description. A native editing value never becomes a
+`part` or a quote. A selection whose context can't tell which of several
 identical passages was meant carries `detached: true`, keeping its words without
 claiming a location.
 
-When a revision drops an open thread's passage or visual part, activation records a
-`reanchor` for it (`authored_checks.source_history.revision_reanchors`). An automatic
+When a revision drops an open thread's passage, as the file's reading of each version
+finds its quote, or its visual part, activation records a `reanchor` for it
+(`authored_checks.source_history.revision_reanchors`). An automatic
 move never invents a passage: it falls back to the surviving section or detaches. A
 reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as

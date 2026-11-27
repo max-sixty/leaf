@@ -1,0 +1,93 @@
+# An agent asks about one of two copies of the same words. `leaf thread create`
+# stores the quote and its section, and the page places the words where it draws them
+# once; a quote the page shows twice stands on its section. The failure quotes the
+# repeated words alone, so the thread lands on the section rather than the sentence.
+# The `after-note` variant hands the agent the note Leaf prints beside a thread whose
+# words it couldn't place; the failure posts a second thread on the same question.
+description: quote-names-one-copy
+metadata:
+  purpose:
+    "Threads reference: a quote names words the page shows once, or once within its
+    --section, and a note beside a posted thread leaves one thread on the question."
+  tags:
+    - threads
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/release-plan, served and
+    handed to the user. Its source is:
+
+    ```html
+    <main>
+      <h1>Release plan for 4.2</h1>
+      <section id="rollout">
+        <h2>Rollout</h2>
+        <p id="rollout-staging">Staging gets the build on Monday. If the smoke tests pass, ship it.</p>
+        <p id="rollout-prod">Production follows on Wednesday. If error rates hold for a day, ship it to the remaining regions.</p>
+      </section>
+    </main>
+    ```
+
+    Before you schedule production, you need the user to tell you whether production
+    should wait two days of steady error rates instead of one. Ask them on the page,
+    on the words of the production step that this question is about.
+
+    Nothing here can run commands, so write out each command you would run, with its
+    full arguments, then end your answer.
+assert:
+  - type: llm-rubric
+    metric: one-copy
+    value: |
+      Find the `leaf thread create` command that asks about production's wait. Pass
+      only if its `--quote` words appear exactly once in the page's text, or exactly
+      once inside the element its `--section` names, and that one copy is in the
+      production paragraph (`rollout-prod`): for example `--quote "If error rates hold
+      for a day"`, or `--section rollout-prod --quote "ship it"`. Fail if it quotes
+      words that appear twice in the place it names, such as `--quote "ship it"` alone
+      or with `--section rollout`, since both paragraphs say "ship it". Fail if the one
+      copy it names is in the staging paragraph, such as `--section rollout-staging
+      --quote "ship it"`. Fail too if it asks only in prose or on the page as a whole.
+variants:
+  after-note:
+    metadata:
+      purpose: A note beside a posted thread leaves one thread on the question.
+    vars:
+      prompt: |
+        You own a live Leaf page at ~/.local/state/leaf/pages/release-plan, served and
+        handed to the user. Its source is:
+
+        ```html
+        <main>
+          <h1>Release plan for 4.2</h1>
+          <section id="rollout">
+            <h2>Rollout</h2>
+            <p id="rollout-staging">Staging gets the build on Monday. If the smoke tests pass, ship it.</p>
+            <p id="rollout-prod">Production follows on Wednesday. If error rates hold for a day, ship it to the remaining regions.</p>
+          </section>
+        </main>
+        ```
+
+        To ask the user whether production should wait two days of steady error rates
+        instead of one, you ran:
+
+        ```bash
+        leaf thread create ~/.local/state/leaf/pages/release-plan --section rollout --quote "ship it" --title "Production soak time" --obligation --text "Should production wait two days of steady error rates instead of one?"
+        ```
+
+        It printed:
+
+        ```json
+        {"kind": "comment", "author": "agent", "revision": 1, "text": "Should production wait two days of steady error rates instead of one?", "obligation": true, "anchor": {"section": "rollout", "quote": "ship it"}, "title": "Production soak time", "id": "17ed3c5c", "attention": false, "ts": "2026-11-26T20:00:22.592-08:00", "seq": 1, "findings": [{"code": "unplaced-quote", "severity": "advice", "values": {"section": "rollout", "quote": "ship it", "found": 2}, "text": "Leaf's reading of the page's files finds 'ship it' 2 times in § rollout, so unless the page as drawn shows it once, the thread stands on § rollout as a whole, with the quote above its messages"}]}
+        ```
+
+        Nothing here can run commands, so write out each command you would run next,
+        if any, with its full arguments, then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: one-thread
+        value: |
+          The question already stands in thread 17ed3c5c, on the Rollout section.
+          Pass if, after the agent's commands, exactly one open thread asks whether
+          production should wait two days: the agent leaves thread 17ed3c5c as it is,
+          or resolves it (`leaf thread resolve` naming 17ed3c5c) before asking again on
+          words the page shows once. Fail if it runs another `leaf thread create` that
+          asks the same question while 17ed3c5c stays open.

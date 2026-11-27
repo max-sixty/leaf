@@ -58,10 +58,11 @@
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, or a popover's implicit anchor, the
-// `source` it was shown with, and a direct native anchor inset, inline or in their
+// `source` it was shown with, and a direct native anchor inset (the anchor's edge,
+// alone or added to an offset that reads no anchor), inline or in their
 // tree's own rules, or a `position-area` placing them against that anchor, retain that
-// scroller and their anchor's own animation too; nested
-// CSS expressions, ambiguous names and rules that disagree receive no inferred
+// scroller and their anchor's own animation too; an anchor's edge nested in a
+// larger expression, ambiguous names and rules that disagree receive no inferred
 // ownership.
 //
 // Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
@@ -440,10 +441,35 @@
     // Its fallback is a length, or for a far edge a length back from the far side.
     const fallback = "(?:-?[\\d.]+px|calc\\(100%\\s*[+-]\\s*-?[\\d.]+px\\))";
     const anchor = `anchor\\(${side}(?:,\\s*${fallback})?\\)`;
-    const offset = "(?:-?[\\d.]+px|var\\(--[\\w-]+\\))";
-    return new RegExp(
-      `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*${offset}|${offset}\\s*\\+\\s*${anchor}|${anchor})\\))$`,
-    ).test(value);
+    const term = new RegExp(`^${anchor}$`);
+    value = value.trim();
+    if (term.test(value)) return true;
+    const sum = /^calc\((.*)\)$/s.exec(value)?.[1];
+    if (!sum) return false;
+    // The inset follows its anchor where one added term of the sum is that anchor's
+    // edge and no other term reads an anchor: the rest is an offset the anchor's travel
+    // leaves alone. Terms split at a top-level `+` or `-`, which calc() sets off by
+    // whitespace.
+    const terms = [];
+    let depth = 0;
+    let from = 0;
+    let sign = "+";
+    for (let i = 0; i < sum.length; i++) {
+      const char = sum[i];
+      if (char === "(") depth++;
+      else if (char === ")") depth--;
+      else if (!depth && /\s/.test(char) && /^\s[+-]\s/.test(sum.slice(i, i + 3))) {
+        terms.push({ sign, text: sum.slice(from, i).trim() });
+        sign = sum[i + 1];
+        from = i + 3;
+        i += 2;
+      }
+    }
+    terms.push({ sign, text: sum.slice(from).trim() });
+    const anchored = terms.filter(({ text }) => /anchor(?:-size)?\(/.test(text));
+    return (
+      anchored.length === 1 && anchored[0].sign === "+" && term.test(anchored[0].text)
+    );
   };
   // Declarations that can win a property: an important inline one alone, else
   // important matching rules, else inline style, else every matching rule. No API

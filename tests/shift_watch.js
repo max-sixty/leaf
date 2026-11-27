@@ -513,6 +513,53 @@
       }
     return found;
   };
+  // The anchor names a `::part()` rule in its host's tree gives `node`. Those names
+  // belong to the host's tree, as css-anchors.js names a widget's box from the
+  // document; a name the shadow tree's own style gives stays private to it.
+  const partAnchorNames = (node) => {
+    const names = new Set();
+    const host = node.getRootNode().host;
+    if (!host || !node.part.length) return names;
+    const outer = host.getRootNode();
+    for (const sheet of [
+      ...(outer.styleSheets ?? []),
+      ...(outer.adoptedStyleSheets ?? []),
+    ])
+      for (const { rule, conditions } of rulesStating(sheet, "anchor-name")) {
+        if (!conditions.every(holds)) continue;
+        // The selector list's top-level members, split outside parentheses.
+        const selectors = [];
+        let depth = 0;
+        let from = 0;
+        [...rule.selectorText].forEach((char, i) => {
+          if (char === "(") depth++;
+          else if (char === ")") depth--;
+          else if (char === "," && !depth) {
+            selectors.push(rule.selectorText.slice(from, i));
+            from = i + 1;
+          }
+        });
+        selectors.push(rule.selectorText.slice(from));
+        const named = selectors.some((selector) => {
+          const found = /^(.*?)::part\(([^)]*)\)$/s.exec(selector.trim());
+          if (!found) return false;
+          const parts = found[2].trim().split(/\s+/);
+          if (!parts.every((part) => node.part.contains(part))) return false;
+          const prefix = found[1];
+          try {
+            return host.matches(
+              !prefix.trim() ? "*" : /[\s>+~]$/.test(prefix) ? `${prefix}*` : prefix,
+            );
+          } catch {
+            return false;
+          }
+        });
+        if (named)
+          for (const name of rule.style.getPropertyValue("anchor-name").split(","))
+            names.add(name.trim());
+      }
+    return names;
+  };
   // A direct translation consumer is proved from declarations, not a coincidental
   // equality of computed values. Keep the existing conservative cascade tiers:
   // every candidate in the winning tier must name the same animated variable.
@@ -1746,24 +1793,23 @@
     for (const node of nodes)
       if (leaving.has(node)) readDrawn.delete(node);
       else readDrawn.add(node);
-    // An anchor name belongs to the tree whose style declares it. A box in a shadow
-    // tree that exposes a part can take its name from its host's tree, through a
-    // `::part()` rule there, as css-anchors.js names a widget's box from the document,
-    // so its names count in both trees.
+    // An anchor name belongs to the tree whose style declares it: a name a
+    // `::part()` rule gives a shadow tree's box belongs to the host's tree.
     const anchors = new Map();
+    const register = (tree, name, node) => {
+      if (!anchors.has(tree)) anchors.set(tree, new Map());
+      const names = anchors.get(tree);
+      names.set(name, names.has(name) ? null : node);
+    };
     for (const node of nodes.filter((node) => node instanceof Element)) {
       const tree = node.getRootNode();
-      const outer = node.part.length ? tree.host?.getRootNode() : null;
-      for (const scope of outer ? [tree, outer] : [tree]) {
-        if (!anchors.has(scope)) anchors.set(scope, new Map());
-        const names = anchors.get(scope);
-        for (const name of getComputedStyle(node)
-          .anchorName.split(",")
-          .map((name) => name.trim())) {
-          if (!name || name === "none") continue;
-          names.set(name, names.has(name) ? null : node);
-        }
-      }
+      const given = getComputedStyle(node)
+        .anchorName.split(",")
+        .map((name) => name.trim())
+        .filter((name) => name && name !== "none");
+      const outer = given.length ? partAnchorNames(node) : new Set();
+      for (const name of given)
+        register(outer.has(name) ? tree.host.getRootNode() : tree, name, node);
     }
     const modal = document
       .querySelector("script[data-lf-entry]")

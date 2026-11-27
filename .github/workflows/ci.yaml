@@ -251,15 +251,21 @@ jobs:
   # credential-isolation sandbox, which refuses the Unix sockets that tmux and Claude
   # Code's messaging both need, so the login is in the journey step's environment,
   # where the session under test can read it. That session's input is this commit's
-  # own pages and prompts. The evidence, each step's screen, Claude Code's debug log
-  # and the page's log, uploads only when no file in it holds the login, since the
-  # artifacts of this public repository are public.
+  # own pages and prompts. The checkout keeps no GitHub token, and the job's reads
+  # only, so that session holds no credential besides the login. The evidence, each
+  # step's screen, Claude Code's debug log and the page's log, uploads only when no
+  # file in it holds the login, since the artifacts of this public repository are
+  # public.
   journey-claude-code:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     environment: tend
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Install tmux and Claude Code
         run: |

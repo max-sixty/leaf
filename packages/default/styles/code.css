@@ -1,13 +1,21 @@
 /* lf-code rendered form: numbered lines, hi ranges, elided rows, notes docked at their
    line. The gutter is as wide as the block's widest number (--lf-code-digits, which the
    module sets), and never narrower than two digits' worth. Registered as a length so it
-   resolves in the code's face on the <pre> and a note inherits that width, not its own
-   face's `ch`. The rendered lines own the block's containment. */
+   resolves in the code's face on the source and a note inherits that width, not its own
+   face's `ch`. The rendered lines own the block's containment.
+
+   What the module draws stands in the element's shadow tree, styled here by its parts
+   (lf-code.ts), so the look reaches a page without Leaf too: the `frame` the toolbar
+   stands in, the `source`, each `row` (a `line` or an `elided` row, with `hi`, `at`
+   and `folded` for its states, and `wrap` or `scroll` for the reader's choice), each
+   `note` or `caption` holding a note, and the `bar`. The notes stay the author's light
+   children, shown through slots. */
 lf-code {
   color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
   contain: inline-size;
-  /* Its code block wears markup's reading face (`reading.css`) whatever look the page
-     takes, since the block's frame and type are the widget's own. */
+  /* The authored source before upgrade and the notes after it wear markup's reading
+     face (`reading.css`) whatever look the page takes, since the block's frame and
+     type are the widget's own. */
   --lf-reading-face: 1;
   --lf-code-gap: 8px;
   --lf-code-inset-inline: 14px;
@@ -26,14 +34,33 @@ lf-code {
   inherits: true;
   initial-value: 0px;
 }
-/* The gutter's ground runs the block's full height, notes included, so a note stands
-   inside one block of code rather than cutting it in two. The lines paint the same
-   ground in their own gutter cells, over a highlighted line's tint. Each line hangs its
-   wrapped rows from its own indent (below), so the hang every code block gives its rows
-   (reading.css, `pre`) stops here, short of the notes. */
-lf-code.lf-rendered > pre {
+/* Drawn, the block shows its shadow tree, and the host stops reading as the source it
+   was before (rendered.css, a data widget's source look). */
+lf-code:defined {
+  overflow: visible;
+}
+lf-code::part(frame) {
+  position: relative;
+}
+/* The source wears a code block's frame and type (reading.css, `pre`), which are the
+   widget's own whatever look the page takes. The gutter's ground runs the block's full
+   height, notes included, so a note stands inside one block of code rather than cutting
+   it in two. The lines paint the same ground in their own gutter cells, over a
+   highlighted line's tint. Each line hangs its wrapped rows from its own indent
+   (below). It scrolls only sideways, `hidden` down, as a code block does. */
+lf-code::part(source) {
+  display: block;
   margin: 0;
   padding: var(--lf-code-inset-block) 0;
+  border: 1px solid var(--lf-code-border);
+  border-radius: var(--lf-r);
+  overflow: auto hidden;
+  background-color: var(--lf-pre-bg);
+  color: var(--lf-code-ink);
+  font-family: var(--lf-mono);
+  font-size: var(--lf-code-size);
+  line-height: var(--lf-code-line);
+  font-variant-ligatures: none;
   text-indent: 0;
   --lf-block-frame: 1;
   --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px));
@@ -56,7 +83,7 @@ lf-code.lf-rendered > pre {
    structure. The hang stops at 24 characters, so a deep line in a narrow frame keeps
    room to wrap into. A line that fits keeps its columns. `anywhere` because what runs
    long is paths, URLs and hashes, none of which offer the line box a break. */
-lf-code .lf-code-line {
+lf-code::part(line) {
   display: block;
   position: relative;
   padding: 0 var(--lf-code-inset-inline) 0
@@ -65,7 +92,7 @@ lf-code .lf-code-line {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-lf-code :is(.lf-code-line, .lf-code-elided)::before {
+lf-code::part(row)::before {
   content: attr(data-lf-line);
   display: inline-block;
   width: var(--lf-code-gutter);
@@ -78,7 +105,7 @@ lf-code :is(.lf-code-line, .lf-code-elided)::before {
   color: var(--lf-code-muted);
   font-variant-numeric: tabular-nums;
 }
-lf-code .lf-code-line::before {
+lf-code::part(line)::before {
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
@@ -89,84 +116,85 @@ lf-code .lf-code-line::before {
    A note docked in the stretch follows the count as the row's caption, in the same
    face; it stays selectable, since it is authored text a comment can anchor on. The
    row is a flex line so a long caption wraps beside the gutter rather than under it. */
-lf-code .lf-code-elided {
+lf-code::part(elided) {
   display: flex;
   align-items: baseline;
   padding: 0 var(--lf-code-inset-inline) 0 0;
   color: var(--lf-code-muted);
   user-select: none;
 }
-lf-code .lf-code-elided::before {
+lf-code::part(elided)::before {
   content: "⋮";
   flex: none;
   order: -2;
 }
-lf-code .lf-code-elided::after {
+lf-code::part(elided)::after {
   content: attr(data-lf-elided);
   order: -1;
   flex: none;
 }
-lf-code .lf-code-elided::after,
-lf-code .lf-code-elided > lf-note {
+lf-code::part(elided)::after,
+lf-code::part(caption) {
   font: var(--lf-font-small);
   font-style: italic;
 }
-lf-code .lf-code-elided > lf-note {
-  display: block;
+lf-code::part(caption) {
+  display: flex;
   min-width: 0;
   margin-inline-start: 0.5em;
   white-space: normal;
   user-select: text;
 }
-lf-code .lf-code-elided > lf-note::before {
-  content: "— ";
-}
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi] {
-  background: var(--lf-hi-tint);
-}
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi]::before {
-  border-right-color: var(--lf-warn);
+lf-code::part(caption)::before {
+  content: "—\00a0";
+  flex: none;
 }
 /* The lines the widget a block follows is at (`playhead`): an accent bar at the gutter's
    outer edge and an accent number, so they read apart from an hi line by shape as well
    as hue, and an accent wash that an hi line's own tint keeps. The bar is the gutter's,
    not the line's, because the gutter's own background paints over an inset on the line. */
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-at]:not([data-lf-hi]) {
+lf-code::part(row at) {
   background: var(--lf-accent-tint);
 }
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-at]::before {
+lf-code::part(row hi) {
+  background: var(--lf-hi-tint);
+}
+lf-code::part(row hi)::before {
+  border-right-color: var(--lf-warn);
+}
+lf-code::part(row at)::before {
   box-shadow: inset 3px 0 0 var(--lf-accent);
   color: var(--lf-accent);
   font-weight: 600;
 }
 /* A note is the author's prose about a source line, not another source line. It is a
    small card under its line, its left edge under the line's first character
-   (`--lf-code-indent`, which the module copies from the line), with a caret pointing up
+   (`--lf-code-indent`, which the module sets from the line), with a caret pointing up
    at that character, so a note about a nested key stands in the key's place in the
    code's structure. It wears the gutter's ground and the frame's line, the code block's
-   own chrome, rather than a colour of its own. The gutter runs on beside it, so the block reads as one piece. Its
-   words are a size smaller than the code's, so the code leads. The maintainer chose
-   this over a full-width row between rules across the
+   own chrome, rather than a colour of its own. The gutter runs on beside it, so the
+   block reads as one piece. Its words are a size smaller than the code's, so the code
+   leads. The maintainer chose this over a full-width row between rules across the
    frame, which copied a code review's inline comment and cut a block into as many
    boxes as it had notes; over notes in a column beside their lines, which drift from
    their lines where notes crowd and narrow the code; and over notes listed after the
    block, which leave the reader matching numbers. */
-lf-code lf-note {
+lf-code > lf-note {
   display: block;
 }
-/* The note wears this box wherever it stands: docked at its line inside the frame,
-   or after the source before upgrade. Its block spacing is padding and the card is
-   drawn inside it, so frame-edge margin trimming cannot change the box when the note
-   moves between source lines. The line's indent, which the module copies only once it
-   docks the note, is the note's inline-start margin rather than part of its box, so a
-   card that fits its words keeps the size it had at first paint. The indent stops at 22
+/* The card: the note's own box after the source before upgrade, and the box that holds
+   it under its line once drawn (`note`). Its block spacing is padding and the card is
+   drawn inside it, so frame-edge margin trimming cannot change the box. The line's
+   indent is the card's inline-start margin rather than part of its box, so a card that
+   fits its words keeps the size it had at first paint. The indent stops at 22
    characters, as a wrapped line's hang does, so a deep note in a narrow frame keeps
    room for its words. The card fits its words, up to a measure that keeps a long note
    readable at its size, so a short note is a short card. */
-lf-code > lf-note,
-lf-code > pre > lf-note {
+lf-code:not(:defined) > lf-note,
+lf-code::part(note) {
   --lf-code-note-indent: calc(min(var(--lf-code-indent, 0), 22) * var(--lf-code-ch));
   --lf-code-note-at: calc(var(--lf-code-gutter) + var(--lf-code-gap));
+  display: block;
   position: relative;
   isolation: isolate;
   box-sizing: border-box;
@@ -185,8 +213,8 @@ lf-code > pre > lf-note {
   --lf-block-frame: 1;
   --lf-code-inline-size: 94%;
 }
-lf-code > lf-note::before,
-lf-code > pre > lf-note::before {
+lf-code:not(:defined) > lf-note::before,
+lf-code::part(note)::before {
   content: "";
   position: absolute;
   z-index: -1;
@@ -195,7 +223,7 @@ lf-code > pre > lf-note::before {
   border-radius: var(--lf-r);
   background: var(--lf-code-chrome);
 }
-lf-code > pre > lf-note::after {
+lf-code::part(note)::after {
   content: "";
   position: absolute;
   inset-block-start: 1px;
@@ -210,7 +238,6 @@ lf-code > pre > lf-note::after {
 /* Inline code in a note keeps the code canvas's ground and ink, which stand apart from
    the card's tint in both schemes, at nearly the note's size, since the reading face's
    inline code, a fifth smaller than its words, is too small at the note's size. */
-lf-code > pre > lf-note code,
 lf-code > lf-note code {
   background: var(--lf-pre-bg);
   color: var(--lf-code-ink);
@@ -220,11 +247,8 @@ lf-code > lf-note code {
    taking no room, and shows it as Copy shows: while the pointer or focus is on the
    block, or after a tap stands the user there. Hidden, the notes leave the code whole
    and each annotated line keeps its number in the accent, so the reader can see where
-   they were. */
-lf-code:has(> .lf-code-bar) {
-  position: relative;
-}
-lf-code > .lf-code-bar {
+   they were. Paper shows the notes whatever the screen chose. */
+lf-code::part(bar) {
   position: absolute;
   z-index: 1;
   inset-block-start: var(--lf-block-control-inset);
@@ -232,24 +256,27 @@ lf-code > .lf-code-bar {
   opacity: 0;
   pointer-events: none;
 }
-lf-code:is(:hover, [data-lf-focus-within]) > .lf-code-bar {
+lf-code:is(:hover, [data-lf-focus-within])::part(bar) {
   opacity: 1;
   pointer-events: auto;
 }
-lf-code[data-lf-notes="hidden"] lf-note {
-  display: none;
-}
-lf-code[data-lf-notes="hidden"] .lf-code-line:has(+ lf-note)::before {
-  color: var(--lf-accent);
-  font-weight: 600;
+@media screen {
+  lf-code::part(note folded),
+  lf-code::part(caption folded) {
+    display: none;
+  }
+  lf-code::part(line folded)::before {
+    color: var(--lf-accent);
+    font-weight: 600;
+  }
 }
 /* Where the runtime runs, the source stands in the frame its numbered lines will, wrapping where
    they will, and each note stands under it inside the frame's side rules, so the block
-   has its height from the first paint and the module only moves each note up to its
+   has its height from the first paint and the module only stands each note under its
    line. Not reserved: the elided rows an excerpt's `lines` leaves gaps for, and the
    deeper hang a wrapped line takes from its indent. */
 @scope (html[data-lf-interactive] lf-code) {
-  :scope:is(lf-code):not(.lf-rendered) {
+  :scope:is(lf-code):not(:defined) {
     & > pre {
       background: var(--lf-pre-bg);
       border: 1px solid var(--lf-code-border);
@@ -263,26 +290,23 @@ lf-code[data-lf-notes="hidden"] .lf-code-line:has(+ lf-note)::before {
   }
 }
 
-/* An explicit reading choice owns wrapping above the page's presentation rules.
-   The host states it once; every source row follows it. */
+/* An explicit reading choice owns wrapping above the page's presentation rules, its
+   importance in this layer outranking the page's own. Paper includes line endings even
+   when the reader panned the source on screen. */
 @media screen {
-  lf-code[data-lf-reader-wrap="wrap"] .lf-code-line {
+  lf-code::part(line wrap) {
     white-space: pre-wrap !important;
     overflow-wrap: anywhere !important;
   }
-  lf-code[data-lf-reader-wrap="scroll"] .lf-code-line {
+  lf-code::part(line scroll) {
     white-space: pre !important;
     overflow-wrap: normal !important;
   }
 }
-/* Paper includes line endings even when the reader panned the source on screen, and
-   the notes even when the reader hid them there. */
 @media print {
-  lf-code[data-lf-reader-wrap] .lf-code-line {
+  lf-code::part(line wrap),
+  lf-code::part(line scroll) {
     white-space: pre-wrap !important;
     overflow-wrap: anywhere !important;
-  }
-  lf-code[data-lf-notes="hidden"] lf-note {
-    display: block;
   }
 }

@@ -767,13 +767,13 @@ def margin_reaction_mark(page: Page) -> None:
 
 
 def floating_thread_retitled(page: Page) -> None:
-    """The same thread once its opening message is rewritten short, so its title is far
-    narrower than the view it names."""
+    """The same thread once the agent renames it short, so its title is far narrower
+    than the view it names."""
+    as_agent("thread", "edit", "7b3e0a41", "--title", "Ship it?", voiced=True)
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
     floating_thread(page)
-    page.locator(f"{panel_view('thread')} .lf-msg-body").first.dblclick()
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.type("Ship it?")
-    page.keyboard.press("Enter")
     expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text("Ship it?")
 
 
@@ -968,12 +968,9 @@ def summarize_plan_stop() -> None:
         "--text",
         "Export now checks the sandbox first.",
     )
-    # A summary speaks in its agent's voice, which a session gives it.
-    served = served_page.get()
-    served.leaf(
+    as_agent(
         "thread",
         "summarize",
-        str(served.directory),
         "--from",
         root,
         "--through",
@@ -981,8 +978,7 @@ def summarize_plan_stop() -> None:
         "--text",
         "The supervisor reaps every child before export, so an empty sandbox is "
         "its precondition.",
-        LEAF_SESSION_ID="stills-summary",
-        LEAF_AGENT="Codex",
+        voiced=True,
     )
 
 
@@ -1227,7 +1223,15 @@ def panel_reply_empty(page: Page) -> None:
 
 def panel_dictating(page: Page) -> None:
     """The floating panel's field while Dictate listens. Headless has no microphone, so
-    the button takes the state a listening dictation renders on it."""
+    the button takes the state a listening dictation renders on it. Firefox has no
+    speech recognition, so its fields offer no Dictate (annotations/composing/input.js,
+    `offersDictation`), and the state says so there at once."""
+    if not page.evaluate(
+        "() => Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition)"
+    ):
+        raise AssertionError(
+            "Dictate: this engine has no speech recognition, so no field offers it"
+        )
     page.locator(".lf-fp-field leaf-text").click()
     dictate = page.locator(".lf-fp-field .lf-compose-dictate")
     expect(dictate).to_be_visible()
@@ -1431,11 +1435,18 @@ def card_reply_resolved_elsewhere(page: Page) -> None:
     expect(card.locator(".lf-reopen")).to_be_visible()
 
 
-def as_agent(command: str, verb: str, *args: str) -> None:
+def as_agent(command: str, verb: str, *args: str, voiced: bool = False) -> None:
     """Run `leaf COMMAND VERB PAGE ARGS` as the agent on the page being served, with
-    its arm's launcher."""
+    its arm's launcher. `voiced` runs it in an agent session, for a command whose
+    event must carry the agent's name, as a summary or a thread's title does."""
     served = served_page.get()
-    served.leaf(command, verb, str(served.directory), *args)
+    served.leaf(
+        command,
+        verb,
+        str(served.directory),
+        *args,
+        session="stills-agent" if voiced else None,
+    )
 
 
 def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
@@ -1670,6 +1681,17 @@ def leaf_draft_kept(page: Page) -> None:
     expect(
         page.locator(".lf-fp-news-dot[data-lf-drafts][data-lf-shown]")
     ).to_be_visible()
+    settle(page)
+
+
+def leaf_folded(page: Page) -> None:
+    """The panel folded to its leaf while something waits on the user and a thread has
+    news, so the leaf's tile wears its count and its news dot."""
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
+    expect(page.locator(".lf-fp-badge[data-lf-shown]")).to_be_visible()
+    expect(page.locator(".lf-fp-news-dot[data-lf-shown]")).to_be_visible()
     settle(page)
 
 
@@ -2101,11 +2123,15 @@ def page_disclosure(page: Page) -> None:
     page.locator("#incident-cause-key").scroll_into_view_if_needed()
 
 
+def dial_depth(page: Page, word: str) -> Locator:
+    """The detail dial's depth `word` names, a radio whose name also gives the minutes
+    the depth takes to read, as "Skim 1 min"."""
+    return page.locator("lf-dial").get_by_role("radio", name=word)
+
+
 def dial_keyboard(page: Page) -> None:
     """The detail dial's chosen depth holding keyboard focus."""
-    page.locator("lf-dial").get_by_text("Read", exact=True).evaluate(
-        "node => node.focus({focusVisible: true})"
-    )
+    dial_depth(page, "Read").evaluate("node => node.focus({focusVisible: true})")
     page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
 
 
@@ -2117,7 +2143,7 @@ def screenshot_view_hover(page: Page) -> None:
 
 def dial_press(page: Page) -> None:
     """An unchosen depth held down under the pointer, before it is chosen."""
-    page.locator("lf-dial").get_by_text("Skim", exact=True).hover()
+    dial_depth(page, "Skim").hover()
     page.mouse.down()
 
 
@@ -2137,6 +2163,14 @@ def screenshot_startup(page: Page) -> None:
     """The section holding a shot, at the top of the window, before the shot's module
     draws it."""
     page.locator("#rn-console-section").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+
+
+def options_startup(page: Page) -> None:
+    """A question's joined options at the top of the window before the runtime adds
+    their Add cell, whose place a reserve holds at the group's foot."""
+    page.locator("#rn-publication-decision").evaluate(
         "node => node.scrollIntoView({block: 'start'})"
     )
 
@@ -2259,11 +2293,12 @@ LONG_DRAFT = (
 
 
 def composer_send_focused(page: Page) -> None:
-    """The same comment with the keyboard on its Send."""
+    """The same comment with the keyboard on its Send. Firefox draws focus a script
+    places after a Tab without the keyboard's ring, so the focus asks for it."""
     composer(page)
     keyboard_modality(page)
     send = page.locator(".lf-composer .lf-compose-submit")
-    send.focus()
+    send.evaluate("node => node.focus({focusVisible: true})")
     expect(send).to_have_attribute("data-lf-focus-visible", re.compile(".*"))
 
 
@@ -2463,11 +2498,11 @@ def card_moved(page: Page) -> None:
 
 
 def card_moved_by_destination(page: Page) -> None:
-    """A board card moved by its Move to button, as a phone offers it, its receipt
-    pinned by it."""
+    """A board card moved by a tap on its Move to button, as a phone offers it, its
+    receipt pinned by it."""
     page.locator(
         '#card-tz .lf-board-destination[data-lf-board-target="col-blocking"]'
-    ).click()
+    ).tap()
     expect(page.locator("#col-blocking #card-tz")).to_be_visible()
     expect(
         page.locator('.lf-margin-cluster[data-lf-margin-for="card-tz"]')
@@ -2711,11 +2746,16 @@ def diff_author_notes(page: Page) -> None:
 
 def diff_path_by_keyboard(page: Page) -> None:
     """A folded diff file's row under the keyboard, saying the whole path its row cuts
-    short."""
-    head = page.locator("#pr-exact-patch .lf-diff-head[data-lf-path-cut]").first
+    short. Focus reaches the row by Tab, since only focus a Tab moves shows its
+    target's preview (annotations/preview.js)."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
+    head = page.locator("#pr-exact-patch .lf-diff-head").filter(has_text=path)
     head.scroll_into_view_if_needed()
-    page.keyboard.press("Shift")
     head.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(head).to_be_focused()
+    expect(page.locator("#lf-preview")).to_contain_text(path)
 
 
 def diff_source_by_pointer(page: Page) -> None:
@@ -2962,18 +3002,22 @@ def breakout_captions_scrolled(page: Page) -> None:
 
 
 def table_scrolled_sideways(page: Page) -> None:
-    """A table whose rows open with their names, scrolled to its far end on a phone."""
+    """A table whose rows open with their names, scrolled to its far end on a phone.
+    Firefox wraps the table's last column narrower, so the table fits a phone's window
+    there, and once the scroll has settled the state says it has no far end."""
     page.locator("#security-deep-record > summary").click()
-    page.locator("#security-vendor-table").evaluate(
+    table = page.locator("#security-vendor-table")
+    table.evaluate(
         """table => {
           table.scrollIntoView({block: 'center'});
           table.scrollLeft = table.scrollWidth;
         }"""
     )
-    page.wait_for_function(
-        "() => document.getElementById('security-vendor-table')"
-        ".hasAttribute('data-lf-more-before')"
-    )
+    scroll_settled(page, "#security-vendor-table", axis="x")
+    if not table.evaluate("table => table.hasAttribute('data-lf-more-before')"):
+        raise AssertionError(
+            "the table fits this window, so it has no far end to scroll to"
+        )
 
 
 def element_thread(page: Page) -> None:
@@ -3476,7 +3520,7 @@ def trace_controls(page: Page) -> None:
 def trace_image_scale(page: Page) -> None:
     """A recording's image scale with its choices open, hung below their trigger."""
     trace = page.locator("#release-trace")
-    scale = trace.get_by_role("button", name="Image scale", exact=True)
+    scale = trace.get_by_role("button", name=re.compile(r"^Image scale, "))
     expect(scale).to_be_enabled()
     scale.evaluate("node => node.scrollIntoView({block: 'center'})")
     scale.click()
@@ -3715,6 +3759,7 @@ STATES = (
     State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
     State("panel-draft-kept", "lost-update", panel_draft_kept, region=".lf-fp-row"),
     State("leaf-draft-kept", "lost-update", leaf_draft_kept, region=".lf-fp-leaf"),
+    State("leaf-folded", "review-a-plan", leaf_folded, region=PANEL),
     State("walked-to-draft", "lost-update", walked_to_draft),
     State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
     State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
@@ -3889,6 +3934,13 @@ STATES = (
         screenshot_startup,
         activated=False,
         region="#rn-console-section",
+    ),
+    State(
+        "options-startup",
+        "release-notes",
+        options_startup,
+        activated=False,
+        region="#rn-publication-decision",
     ),
     State(
         "page-disclosure",

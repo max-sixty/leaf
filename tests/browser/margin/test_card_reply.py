@@ -16,7 +16,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
-from render_cases_layout import NAMED, ring_faults, rings_drawn, solid_png
+from render_cases_layout import solid_png
 from render_harness import (
     example_media,
     holding,
@@ -56,6 +56,7 @@ from browser.margin import (
 from leaf.serving import media as media_model
 from leaf.source.render_checks import rendered
 from leaf_dev.browser import text_field
+from leaf_dev.rings import NAMED, ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

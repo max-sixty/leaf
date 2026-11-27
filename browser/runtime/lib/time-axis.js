@@ -4,7 +4,8 @@
  * here touches the DOM, so a widget can call it while drawing, before its upgrade as
  * well as after.
  *
- * `timeAxis` returns the ruler's ticks and the gridlines as Lit templates. The widget
+ * `axisMarks` returns the ruler's ticks and the gridlines as marks any renderer
+ * draws, and `timeAxis` returns them as Lit templates. The widget
  * renders the ticks into its ruler and the gridlines into a layer that spans its
  * lanes, and draws its own marks in the lanes:
  *
@@ -249,45 +250,59 @@ function axisTicks(from, to, duration, pxPerMs, start) {
   return ticks;
 }
 
-/** The axis from `from` to `to`, as templates: `ruler`, a tick at each time, and
- * `grid`, a line at each major tick's time. `duration`, above zero, is the time the
- * whole axis spans, and `pxPerMs` its scale. A widget that shows a window of a longer
- * axis, as a zoomed one does, passes the window's times and draws again when the
- * window moves; a tick or line that both windows hold stays the element it was. Each
- * states its time as `--lf-axis-at`, the time over `duration`. `start`, the ISO
- * date-time of the axis's origin, makes the axis read as a clock. */
+/** The axis from `from` to `to`, as marks a view draws whatever renders it: `ruler`,
+ * a tick at each time, and `grid`, a line at each major tick's time. Each mark is a
+ * `span` of class `class`, keyed by `key`, with `data-lf-major` and `data-lf-flip`
+ * where `major` and `flip` hold, `--lf-axis-at` set to `at`, and `label`, where it
+ * has one, as its words. `duration`, above zero, is the time the whole axis spans,
+ * and `pxPerMs` its scale. A widget that shows a window of a longer axis, as a zoomed
+ * one does, passes the window's times and draws again when the window moves; a tick
+ * or line that both windows hold keeps its key. `at` is the time over `duration`.
+ * `start`, the ISO date-time of the axis's origin, makes the axis read as a clock. */
+/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs
+ * @param {string | null} [start] */
+export function axisMarks(from, to, duration, pxPerMs, start) {
+  const ticks = axisTicks(from, to, duration, pxPerMs, start);
+  /** @param {(typeof ticks)[number]} tick @param {"lf-axis-tick" | "lf-axis-gridline"} cls */
+  const mark = (tick, cls) => {
+    const ruler = cls === "lf-axis-tick";
+    return {
+      key: `${tick.step}:${tick.time}`,
+      class: cls,
+      major: ruler && tick.major,
+      flip: tick.flip,
+      at: String(tick.time / duration),
+      label: ruler ? tick.label : null,
+    };
+  };
+  return {
+    ruler: ticks.map((tick) => mark(tick, "lf-axis-tick")),
+    grid: ticks
+      .filter((tick) => tick.major)
+      .map((tick) => mark(tick, "lf-axis-gridline")),
+  };
+}
+
+/** `axisMarks` as Lit templates, for a view that Lit draws. */
 /** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs
  * @param {string | null} [start] */
 export function timeAxis(from, to, duration, pxPerMs, start) {
-  const ticks = axisTicks(from, to, duration, pxPerMs, start);
-  /** @param {(typeof ticks)[number]} tick */
-  const key = (tick) => `${tick.step}:${tick.time}`;
-  /** @param {(typeof ticks)[number]} tick */
-  const at = (tick) => `--lf-axis-at: ${tick.time / duration}`;
-  return {
-    ruler: repeat(
-      ticks,
-      key,
-      (tick) =>
+  const marks = axisMarks(from, to, duration, pxPerMs, start);
+  /** @param {(typeof marks.ruler)[number][]} list */
+  const draw = (list) =>
+    repeat(
+      list,
+      (mark) => mark.key,
+      (mark) =>
         html`<span
-          class="lf-axis-tick"
-          ?data-lf-major=${tick.major}
-          ?data-lf-flip=${tick.flip}
-          style=${at(tick)}
-          >${tick.label ?? nothing}</span
+          class=${mark.class}
+          ?data-lf-major=${mark.major}
+          ?data-lf-flip=${mark.flip}
+          style="--lf-axis-at: ${mark.at}"
+          >${mark.label ?? nothing}</span
         >`,
-    ),
-    grid: repeat(
-      ticks.filter((tick) => tick.major),
-      key,
-      (tick) =>
-        html`<span
-          class="lf-axis-gridline"
-          ?data-lf-flip=${tick.flip}
-          style=${at(tick)}
-        ></span>`,
-    ),
-  };
+    );
+  return { ruler: draw(marks.ruler), grid: draw(marks.grid) };
 }
 
 /** Greedy rows for extents: a Map from each item's `id` to its row, from 0. */

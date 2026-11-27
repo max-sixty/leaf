@@ -181,16 +181,13 @@ length. `--lf-layout-box` doesn't inherit, so a module reads it off the box itse
 The page's body is the size container `lf-shell`, whose width a rule asks with
 `@container lf-shell (width < 640px)`.
 
-| Declaration            | The Layout declares it on                                             | It says                                                                  |
-| ---------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `--lf-layout-box: 1`   | the box it arranges                                                   | the box carries a Layout                                                 |
-| `--lf-wide-page: 1`    | a sidebar page, with `0` on a reading column inside it                | the box is as wide as the window                                         |
-| `--lf-parts-list`      | the `main` of a page of parts                                         | the width of the column holding the page's title and its list of parts   |
-| `--lf-holds-parts: 1`  | the `main` of a page of parts, without inheriting                     | each child of `main` besides the parts is the header heading that column |
-| `--lf-parts-title: 1`  | the title of a page of parts, whose anchor name it also is            | the title heads that column                                              |
-| `--lf-track-beside: 1` | a sidebar's `layout-track`                                            | the track stands beside the body; `0` once it has wrapped                |
-| `--lf-track-spine: 1`  | a track it narrowed for the one element in it, which declares `spine` | that element may show its words over the body                            |
-| `--lf-track-room`      | a sidebar, and the parent of a track, in a window 480px tall or more  | the height a track that sticks may take                                  |
+| Declaration            | The Layout declares it on                                             | It says                                                   |
+| ---------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
+| `--lf-layout-box: 1`   | the box it arranges                                                   | the box carries a Layout                                  |
+| `--lf-wide-page: 1`    | a sidebar page, with `0` on a reading column inside it                | the box is as wide as the window                          |
+| `--lf-track-beside: 1` | a sidebar's `layout-track`                                            | the track stands beside the body; `0` once it has wrapped |
+| `--lf-track-spine: 1`  | a track it narrowed for the one element in it, which declares `spine` | that element may show its words over the body             |
+| `--lf-track-room`      | a sidebar, and the parent of a track, in a window 480px tall or more  | the height a track that sticks may take                   |
 
 Leaf's interface sets its words in a closed set of fonts derived from those tokens,
 each a whole value for the `font` shorthand, declared together in

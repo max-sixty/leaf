@@ -4540,7 +4540,8 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 # the insets are written changes how the credit is found, not what an extra move is.
 # A popover shown with its anchor as `source` is anchored with no name, its insets an
 # offset from a custom property under a rule leaving them `auto` and a guard rolling
-# every property back, as Leaf's preview is.
+# every property back, as Leaf's preview is. An offset summed from several terms, as a
+# heading's link centers on its first line, follows its anchor as a single one does.
 # Rules disagreeing need the insets in rules, and an important rule over an inline
 # inset needs the inset inline. A transform above the scroller changes the geometry of
 # a credit, so it runs on the cases that move something, and not on those about which
@@ -4550,6 +4551,8 @@ ANCHOR_SCROLL_CASES = [
     ("", "inline", "none"),
     ("", "inline", TURNED),
     ("", "fallbacks", "none"),
+    ("", "offset_sum", "none"),
+    ("anchor_y", "offset_sum", "none"),
     ("", "scoped_rule", "none"),
     ("portal_x", "inline", "none"),
     ("portal_x", "inline", TURNED),
@@ -4586,6 +4589,8 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     if declared == "fallbacks":
         # Floating placement's form, the fallback a far edge's written back from 100%.
         field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left, 8px) + 100px);top:calc(anchor(top, calc(100% - 300px)) + 10px)"
+    if declared == "offset_sum":
+        field_style = "position:fixed;position-anchor:--target;--a:80px;--b:120px;left:calc(anchor(left) + var(--a) + (var(--b) - var(--a)) / 2);top:calc(anchor(top, -9999px) + var(--a) - var(--b) + 50px)"
     sheet, scope, decoy = "", "", ""
     if declared == "scoped_rule":
         sheet = f"<style>#field {{ {field_style} }}</style>"

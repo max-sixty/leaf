@@ -812,7 +812,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `dom/geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `dom/geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `dom/geometry.js` `placeBox`, `clippedPlace`                                           |
-| What a target draws, its list marker included, and where the marks round it stand                     | `dom/geometry.js` `inkedBox`, `markedBox`                                              |
+| What a target draws, its list marker included, where the marks round it stand, and what draws them    | `dom/geometry.js` `inkedBox`, `markedBox`, `markedParts`                               |
 | The room the marks round a target take beside it, a named box's round it included                     | `readings/mark-room.js` `markRoom`                                                     |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `dom/geometry.js` `shownRectHeld`                                                      |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `lib/shown-box.js` `contentsRects`                                                     |

@@ -2640,6 +2640,20 @@ def gallery_drawing(page: Page) -> None:
     page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
 
 
+def drawing_part_aim(page: Page) -> None:
+    """Alt over a drawing's part drawn in a frame, which marks the frame alone and
+    leaves the shapes inside it, its own part among them, as they are drawn."""
+    gallery_drawing(page)
+    frame = page.locator("#bg-drawing-after > .frame")
+    # A bare stretch of the panel, clear of the shapes drawn on it.
+    box = frame.bounding_box()
+    assert box
+    page.mouse.move(box["x"] + box["width"] * 0.55, box["y"] + box["height"] * 0.93)
+    page.keyboard.down("Alt")
+    expect(page.locator("#bg-drawing-figure [data-lf-aimed]")).to_have_count(1)
+    settle(page)
+
+
 def gallery_ask_figure(page: Page) -> None:
     """A question's group enclosing a chart, with its question at the window's top so
     the chart and every option either share the window or run past it."""
@@ -4144,6 +4158,12 @@ STATES = (
         "gallery-drawing",
         "feature-gallery",
         gallery_drawing,
+        region="#bg-drawing-figure",
+    ),
+    State(
+        "drawing-part-aim",
+        "feature-gallery",
+        drawing_part_aim,
         region="#bg-drawing-figure",
     ),
     State("gallery-ask-figure", "feature-gallery", gallery_ask_figure),

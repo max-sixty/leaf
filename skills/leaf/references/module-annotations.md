@@ -87,7 +87,10 @@ behind its first-connection guard. Its `read()` returns the parts drawn
 now as `{id, element, label}`, in place of the marks, and may name an element in the
 visual's shadow root. A part may also name `surface`, the descendant of its element
 whose paint Leaf's marks follow, so a part that holds others, as a board's column
-holds its cards, wears its marks on its own frame rather than around each card. `reveal(id)` shows a part when someone follows its thread, even if it is
+holds its cards, wears its marks on its own frame rather than around each card. An
+SVG part, or the `surface` it names, wears its marks on its frame where it has one: the
+first shape among its children, where that shape shows, isn't a line, and holds the whole
+part. `reveal(id)` shows a part when someone follows its thread, even if it is
 visible already, so cancel work that would hide it. `label(id)` names a part in
 Threads, in its margin entry and in Page Map without changing the visual, or returns
 `null`. Each member is optional.

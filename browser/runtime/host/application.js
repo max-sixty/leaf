@@ -21,6 +21,7 @@ import { answeredInWords } from "../records/obligations/model.js";
 import { readObligations } from "../records/obligations/place.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
 import { createCommandDispatch } from "../records/pending/dispatch.js";
+import { widgetAnswered } from "./widget-state.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { keepRefusedWords } from "../records/drafts.js";
 import { createProjectionPresentation } from "../records/projection/presentation.js";
@@ -256,6 +257,7 @@ function createApplication(dependencies) {
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       raiseError(`Couldn't send — attempt ${attempt} is already in use`),
+    answered: widgetAnswered,
   });
 
   const { post } = commandDispatch;

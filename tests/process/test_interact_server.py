@@ -1473,6 +1473,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
             "widget": "decision",
             "action": "edit",
             "detail": {"value": "Backfill first."},
+            "answered": True,
         },
     )
 
@@ -1873,6 +1874,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
         "widget": "delivery",
         "action": "add",
         "detail": {"option": "delivery-user", "text": "After the health check"},
+        "answered": False,
     }
 
     command = {**base, "attempt": "attempt-generated-good"}
@@ -1928,6 +1930,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "action": "choose",
         "detail": {"value": ["delivery-now"]},
         "attempt": "attempt-browser-view-1",
+        "answered": True,
     }
 
     held = json.loads(fetch(f"{server}/api/state")[1])["browser"]["basis"]
@@ -1991,6 +1994,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
                     "action": "choose",
                     "detail": {"value": [option]},
                     "attempt": attempt,
+                    "answered": True,
                 }
             ).encode(),
         )
@@ -2143,6 +2147,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
                 "widget": widget,
                 "action": "choose",
                 "detail": {"value": [option]},
+                "answered": True,
             },
         )
 
@@ -2269,6 +2274,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
                     "action": "choose",
                     "detail": {"value": [option]},
                     "attempt": attempt,
+                    "answered": True,
                 }
             ).encode(),
         )
@@ -2593,6 +2599,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         "revision": 1,
         "action": "choose",
         "detail": {"value": ["thread-a"]},
+        "answered": True,
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -2657,6 +2664,7 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
                 "widget": "worker",
                 "action": "choose",
                 "detail": {"value": ["worker-restart"]},
+                "answered": True,
             }
         ).encode(),
     )
@@ -3835,6 +3843,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     (page_dir / "index.html").write_text(
@@ -4968,6 +4977,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "action": "choose",
             "detail": {"value": ["fast"]},
             "revision": 27,
+            "answered": True,
         },
     ]
     child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-group id="route-ask" label="Route"><h2 id="route-ask-h">Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-group>'

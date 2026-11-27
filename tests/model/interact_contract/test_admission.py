@@ -138,6 +138,8 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
 
 
 def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposal():
+    """A verb beside the deciding one answers where the widget says its outcome
+    answers, here a rejection, and closes the widget's thread as an answer does."""
     registry = deepcopy(model_layer())
     entry = registry["lf-suggestion"]
     entry["verbs"]["review"] = {
@@ -145,7 +147,6 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
         for key, value in entry["verbs"]["decide"].items()
         if key not in {"decides", "withdraws"}
     }
-    entry["awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
     validate_registry(registry, "review package")
     stamp_composition(registry)
     source = (
@@ -160,6 +161,7 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
                 "widget": "proposal",
                 "action": "review",
                 "detail": {"outcome": outcome},
+                "answered": answers,
             }
         )
         state = model.served_reading(source, commands, registry=registry)
@@ -305,6 +307,7 @@ def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_re
                         "values": {"count": count},
                         "instruction": "Use this count.",
                     },
+                    "answered": True,
                 },
             )
         )
@@ -316,6 +319,7 @@ def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_re
                 **STATED_PICK,
                 "widget": "small",
                 "detail": log[-1]["detail"],
+                "answered": True,
             },
         )
     assert refused_on(refused.value).code == "invalid-detail"
@@ -397,7 +401,12 @@ def test_a_pick_names_only_options_its_group_holds():
     option nobody can see.
     """
     page = ModelPage(STATED_KIT)
-    pick = {**STATED_PICK, "widget": "live-pick", "detail": {"value": ["live-mine"]}}
+    pick = {
+        **STATED_PICK,
+        "widget": "live-pick",
+        "detail": {"value": ["live-mine"]},
+        "answered": True,
+    }
 
     def admit(log, event):
         return event_contracts_model.admitted_event(page, log, dict(event))
@@ -417,6 +426,7 @@ def test_a_pick_names_only_options_its_group_holds():
             "widget": "live-pick",
             "action": "add",
             "detail": {"option": "live-mine", "text": "My own way"},
+            "answered": False,
         },
     )
     assert add["meaning"]["unit"] == "live-mine"
@@ -444,11 +454,12 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     retired = model.leaf_page(
         "Route", '<h1>Route</h1><lf-activity id="feed"></lf-activity>'
     )
-    pick = {"kind": "action", "widget": "route", "action": "choose"}
+    pick = {"kind": "action", "widget": "route", "action": "choose", "answered": True}
     events = (
         {**pick, "detail": {"value": ["fast"]}},
         {**pick, "detail": {"value": ["slow"]}},
-        {"kind": "undo", "undoes": "e2"},
+        # The first pick still stands, so the question stays answered.
+        {"kind": "undo", "undoes": "e2", "answered": True},
     )
 
     history = model.reading({1: question, 2: retired}, events)["history"]
@@ -484,6 +495,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
             "widget": "route",
             "action": "add",
             "detail": {"option": "route-mine", "text": text},
+            "answered": False,
         }
 
     pick = {
@@ -491,12 +503,13 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
         "widget": "route",
         "action": "choose",
         "detail": {"value": ["route-mine"]},
+        "answered": True,
     }
     events = (
         add("**Ship** half"),
         pick,
-        {"kind": "undo", "undoes": "e2"},
-        {"kind": "undo", "undoes": "e1"},
+        {"kind": "undo", "undoes": "e2", "answered": False},
+        {"kind": "undo", "undoes": "e1", "answered": False},
         add("Ship everything"),
         pick,
     )
@@ -512,8 +525,49 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     ]
 
 
+def test_a_widget_that_asks_says_on_each_gesture_whether_it_is_answered():
+    """A gesture of a widget that asks without its word would answer nothing however
+    the user acted, so the door refuses an act or an undo of it that leaves the word
+    out, whoever wrote it."""
+    page = ModelPage(STATED_KIT)
+    pick = {**STATED_PICK, "widget": "live-pick", "detail": {"value": ["live-gps"]}}
+
+    def refusal(log, event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            event_contracts_model.admitted_event(page, log, event)
+        return refused_on(refused.value)
+
+    assert refusal(STATED_LOG, dict(pick)).code == "answered-missing"
+    picked = event_contracts_model.admitted_event(
+        page, STATED_LOG, {**pick, "answered": True}
+    )
+    log = [*STATED_LOG, {**picked, "id": "p1", "ts": "2026-09-19T12:01:00+00:00"}]
+    undo = {"kind": "undo", "author": "user", "undoes": "p1"}
+    assert refusal(log, undo).code == "answered-missing"
+    assert event_contracts_model.admitted_event(page, log, {**undo, "answered": False})
+
+
+def test_a_widget_that_asks_nothing_says_nothing_of_an_answer():
+    """`answered` is the word of a widget that asks, so the door refuses it on a
+    gesture of one that doesn't, an act or an undo of one alike."""
+    page = ModelPage(STATED_QUEUE)
+    move = {**STATED_MOVE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}}
+
+    def refusal(log, event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            event_contracts_model.admitted_event(page, log, event)
+        return refused_on(refused.value)
+
+    assert refusal([], {**move, "answered": True}).code == "answered-unasked"
+    moved = event_contracts_model.admitted_event(page, [], dict(move))
+    log = [{**moved, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
+    undo = {"kind": "undo", "author": "user", "undoes": "s1", "answered": False}
+    assert refusal(log, undo).code == "answered-unasked"
+
+
 def test_the_move_that_empties_the_queue_answers_its_obligation():
-    """Only moving the final real card answers the whole queue's obligation.
+    """The move the queue says empties it answers the whole queue's obligation, and
+    a move it says leaves cards queued answers nothing.
 
     A crafted unknown unit must never count as completing the queue.
     """
@@ -524,14 +578,22 @@ def test_the_move_that_empties_the_queue_answers_its_obligation():
 
     first = admit(
         [],
-        {**STATED_MOVE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}},
+        {
+            **STATED_MOVE,
+            "detail": {"unit": "card-a", "value": "keep", "rank": "0i"},
+            "answered": False,
+        },
     )
     assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
         log,
-        {**STATED_MOVE, "detail": {"unit": "card-b", "value": "keep", "rank": "0r"}},
+        {
+            **STATED_MOVE,
+            "detail": {"unit": "card-b", "value": "keep", "rank": "0r"},
+            "answered": True,
+        },
     )
     assert last["meaning"]["answer"] is None
 
@@ -541,6 +603,7 @@ def test_the_move_that_empties_the_queue_answers_its_obligation():
             {
                 **STATED_MOVE,
                 "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
+                "answered": True,
             },
         )
     unknown = refused_on(refused.value)
@@ -574,6 +637,7 @@ def test_admission_decides_from_the_markup_and_the_current_log_alone():
         **STATED_PICK,
         "widget": "live-pick",
         "detail": {"value": ["live-gps"]},
+        "answered": True,
     }
     assert admit(choose_live)["meaning"]["unit"] == "live-pick"
     assert refusal({**choose_live, "revision": 2}).values["revisions"] == [1]
@@ -581,6 +645,7 @@ def test_admission_decides_from_the_markup_and_the_current_log_alone():
         **STATED_PICK,
         "widget": "quoted-pick",
         "detail": {"value": ["quoted-gps"]},
+        "answered": True,
     }
     assert refusal(quoted).code == "quoted-widget"
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
@@ -941,6 +1006,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         "widget": "picks",
         "action": "choose",
         "detail": {"value": ["flag-first"]},
+        "answered": True,
         "attempt": "named-dependencies",
         "attention": False,
     }
@@ -982,6 +1048,7 @@ def test_created_ids_cannot_collide_across_page_and_thread_content():
             "widget": "thread-options",
             "action": "add",
             "detail": {"option": "elm", "text": "Elm"},
+            "answered": False,
         },
     ]
     for widget, identity in (("page-options", "elm"), ("thread-options", "reserved")):
@@ -995,6 +1062,7 @@ def test_created_ids_cannot_collide_across_page_and_thread_content():
                         "widget": widget,
                         "action": "add",
                         "detail": {"option": identity, "text": "Duplicate"},
+                        "answered": False,
                     },
                 ],
             )

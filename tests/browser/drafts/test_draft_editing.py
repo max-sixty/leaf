@@ -252,7 +252,7 @@ DRAFT_AS_DRAWN = """(draft, words) => {
   const root = editor ? window.marginEditorRoots.get(editor) : draft.querySelector('.lf-draft-body');
   const at = (node) => {
     const r = node.getBoundingClientRect();
-    return [Math.round(r.left - box.left), Math.round(r.top - box.top), Math.round(r.width), Math.round(r.height)];
+    return [r.left - box.left, r.top - box.top, r.width, r.height];
   };
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const found = {};
@@ -269,7 +269,7 @@ DRAFT_AS_DRAWN = """(draft, words) => {
   }
   const picture = root.querySelector('img:not(.cm-widgetBuffer)');
   if (picture) found.picture = at(picture);
-  found.height = Math.round(box.height);
+  found.height = box.height;
   return found;
 }"""
 
@@ -329,8 +329,9 @@ def test_a_draft_edits_where_it_reads(browser, serve, subtests):
         )
         rendered(page)
         editing = draft.evaluate(DRAFT_AS_DRAWN, words)
-        for part, place in shown.items():
-            assert editing[part] == pytest.approx(place, abs=1), (part, shown, editing)
+        # Exactly: a word moved by a fraction of a pixel still moves a device pixel on a
+        # screen of two to the CSS pixel.
+        assert editing == shown, (shown, editing)
         # The caret in a fence's code leaves the fence's lines standing for its padding.
         box = draft.bounding_box()
         page.mouse.click(
@@ -1276,6 +1277,7 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
             "widget": "source",
             "action": "edit",
             "detail": {"value": "Current **edit**."},
+            "answered": True,
         },
     )
     _publish(

@@ -1183,6 +1183,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "widget": "quoted-suggestion",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
+                "answered": True,
             },
         )
     assert refused_on(refused.value).code == "quoted-widget"
@@ -1812,6 +1813,7 @@ def test_a_nested_obligations_pick_is_not_part_of_its_outers_record(browser, ser
             "widget": "outer",
             "action": "choose",
             "detail": {"value": ["out-drill"]},
+            "answered": False,
         },
     )
 

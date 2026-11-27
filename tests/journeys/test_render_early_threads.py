@@ -335,6 +335,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
                 "widget": "cold-choice",
                 "action": "choose",
                 "detail": {"value": ["cold-b"]},
+                "answered": True,
             },
         )
     page, release_state = _cold_page(browser, url, clock=True)

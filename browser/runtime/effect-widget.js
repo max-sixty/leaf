@@ -142,7 +142,9 @@ export function defineWidget(
       // own property hiding the accessor. Its value moves into the props here, without
       // the accessor's mount: an element upgraded in the document mounts from
       // `connectedCallback`, once Leaf has answered `lf-connect`.
-      const own = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this));
+      const own = /** @type {Record<string, unknown>} */ (
+        /** @type {unknown} */ (this)
+      );
       for (const name of properties)
         if (Object.hasOwn(this, name)) {
           const value = own[name];

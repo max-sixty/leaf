@@ -56,10 +56,17 @@
  * heights never move a control under the pointer; for the same reason a card that comes
  * up after an answer takes no press until it has settled. Cards move as a stack: the
  * open one flies off the side it was sent, the one behind rises into place, and Back
- * brings a card in over the open one from the left (`#go`). The deck's height glides to
- * each card's. At a page's end, the room a document keeps below its last line
- * (`layouts.css`) takes up what a shorter card leaves, so the bar stays where it stood.
- * A card a press brings up that would end under the panel then
+ * brings a card in over the open one from the left (`#go`). The deck stands as tall as
+ * the tallest card it has shown, and the open card fills it, as a slider stands as tall
+ * as its tallest slide, so the page below slides down and is never pulled up (`#hold`);
+ * the end frame keeps its own height inside it, since a frame round empty room reads as
+ * a place to drop something. A page ends at its last line (`layouts.css`), so a deck
+ * whose height followed each card pulled the page down with it at the page's end, where
+ * the browser has no scroll left to give back: the bar moved under the pointer and each
+ * card `m` reached landed at its own height. The user chose the frame filling the height
+ * over an empty band under a short card, which read as a missing part. A change of the
+ * deck's width lets the height go until the next change of card, since the cards
+ * reflow. A card a press brings up that would end under the panel then
  * scrolls up until its options clear it, the bar still above it, since a deck below the
  * page's opening brought a tall card back with its options out of reach. A touch drag
  * across the card sends it either way, flying on from
@@ -74,10 +81,9 @@
  * telling an answer sent from this window from one sent from another (`sentHere`), so
  * that another window's answer left the card in place. It cost a name in the package
  * interface for a rare path, on which the card that moves is one the user answered.
- * Rejected by the user too: a deck holding the tallest height it had stood at, so a
- * shorter card at the page's end didn't let the browser pull the page down. It left
- * room inside a short card's frame, or below it, and ran in the deck's own code for a
- * fault every block at the page's end shares. */
+ * Rejected by the user too: holding the deck's height only while the pointer or focus
+ * is in it, which let the page drop once the user left the deck, and moving the bar
+ * below the card, which a shorter card carried up mid-page. */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   agentName,
@@ -101,7 +107,8 @@ import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
-import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
@@ -159,6 +166,9 @@ customElements.define(
     #answers = "";
     /** @type {(() => boolean) | null} */
     #moves = null;
+    // The height the deck holds as its least (`#hold`), and the width it was taken at.
+    #floor = 0;
+    #width = 0;
     // Ends the motion in flight at once, landing every element where it belongs.
     /** @type {((upcoming?: HTMLElement | null) => void) | null} */
     #landing = null;
@@ -235,6 +245,16 @@ customElements.define(
             this.#moves = retainUserIntent();
         });
         signal.addEventListener("abort", forget);
+        // The cards reflow at a new width, so the height held at the old one goes
+        // until the next change of card takes one again.
+        const widths = sizeObserver(([entry]) => {
+          const width = entry?.borderBoxSize[0]?.inlineSize ?? 0;
+          if (width === this.#width) return;
+          this.#width = width;
+          if (this.style.minBlockSize) this.style.removeProperty("min-block-size");
+        });
+        widths.observe(this);
+        signal.addEventListener("abort", () => widths.disconnect());
         this.addEventListener("pointerdown", (event) => this.#press(event), options);
         this.addEventListener("pointermove", (event) => this.#follow(event), options);
         this.addEventListener("pointerup", (event) => this.#release(event), options);
@@ -258,6 +278,7 @@ customElements.define(
       // leaves that motion to finish.
       if (card === this.#open) return;
       this.#landing?.();
+      const before = parseFloat(getComputedStyle(this).height);
       keepView(this, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
@@ -269,9 +290,22 @@ customElements.define(
       this.#waited = false;
       this.#answers = "";
       this.#moves = null;
+      this.#hold(before);
       this.dispatchEvent(
         new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
+    }
+
+    // Hold the deck at the taller of its height `before` a change of card and its
+    // height after it, the least it stands at from then on, and return that height.
+    // The height before counts a card that grew while it was open.
+    /** @param {number} before */
+    #hold(before) {
+      const height = Math.max(before, parseFloat(getComputedStyle(this).height));
+      if (height !== this.#floor || !this.style.minBlockSize)
+        this.style.minBlockSize = layoutPx(height);
+      this.#floor = height;
+      return height;
     }
 
     // Move from the open card to `next`, or to the end of the pass when it is null.
@@ -279,7 +313,7 @@ customElements.define(
     // side, from where a drag left it, and `next` rises from the edge of the stack
     // beneath, where it stood as the card behind. Back brings `next` in over the open
     // card from the left, the side Later sent it to. The deck's height glides to the
-    // card's, so the page below slides rather than jumps. A card in flight keeps its box
+    // card's (`#hold`), so the page below slides rather than jumps. A card in flight keeps its box
     // over the deck while the new one takes the flow.
     /** @param {HTMLElement | null} next @param {string} side @param {{from?: string, answered?: boolean, moves?: () => boolean}} [options] */
     #go(
@@ -386,17 +420,18 @@ customElements.define(
       this.#waited = false;
       this.#answers = "";
       this.#moves = null;
-      // The deck glides to the height of the card that came up.
-      if (running.length) {
-        const after = parseFloat(getComputedStyle(this).height);
-        if (Math.abs(after - before) > 1) {
-          const resize = motion(
-            this,
-            [{ height: `${before}px`, easing: ARRIVE }, { height: `${after}px` }],
-            ARRIVE_MS,
-          );
-          if (resize) running.push(resize);
-        }
+      // The deck glides to the height it now holds, its floor gliding with it.
+      const after = this.#hold(before);
+      if (running.length && after - before > 1) {
+        const resize = motion(
+          this,
+          [
+            { height: `${before}px`, minBlockSize: `${before}px`, easing: ARRIVE },
+            { height: `${after}px`, minBlockSize: `${after}px` },
+          ],
+          ARRIVE_MS,
+        );
+        if (resize) running.push(resize);
       }
       // The card that went is put away as its own motion ends, before the motion's last
       // frame lets go of it: the card it flew from, or the one Back covered.

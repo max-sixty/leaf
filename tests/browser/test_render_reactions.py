@@ -10,6 +10,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     PROPOSED_PAGE,
     SUGGESTION_PAGE,
+    live_url,
     panel_comment,
 )
 from render_cases_layout import (
@@ -56,10 +57,12 @@ from render_harness import (
     sending,
     suggestion_control,
     told,
+    wait_for_revision,
     write,
 )
 
 from browser.margin.test_pins import FOLDING_PAGE
+from browser.startup.test_changes_in_place import revise
 from browser.test_render_outbox import undo_offered
 from browser.threads import open_panel_thread
 from leaf.agents import thread as thread_model
@@ -313,6 +316,39 @@ def test_a_reaction_press_opens_a_thread_and_a_second_press_takes_it_back(
     round_trip(page)
     assert painted(page, []) == {"washed": "", "threads": [], "projected": 0}
     expect_open_threads(page, 0)
+
+
+def test_a_reaction_stays_pressed_on_its_words_after_an_edit_beside_them(
+    browser, serve
+):
+    """A revision that rewrites the words beside a reacted passage changes the context
+    the reaction's anchor recorded, but not where its words stand. The bar raised on
+    them again shows the emoji pressed, and pressing it takes the reaction back rather
+    than putting on a second."""
+    page = open_page(browser, live_url(serve(PANEL_PAGE)))
+    bar = page.locator(".lf-fab-bar")
+    thumb = bar.locator('.lf-react[data-lf-emoji="👍"]')
+    select_paragraph(page, "#how-store")
+    expect(bar).to_be_visible()
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("e")
+    with sending(page, "the reaction"):
+        thumb.click()
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment" and "works" in sent["anchor"]["prefix"], sent
+
+    revise(serve.page_dir, ("How it works", "How it runs"))
+    wait_for_revision(page, 2)
+    painted(page, ["how-store"])
+    select_paragraph(page, "#how-store")
+    expect(bar).to_be_visible()
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("e")
+    expect(thumb).to_have_attribute("aria-pressed", "true")
+    with sending(page, "the take-back"):
+        thumb.click()
+    withdrawn = events_model.read_events(serve.page_dir)[-1]
+    assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"], withdrawn
 
 
 def test_e_immediately_opens_the_selection_s_reactions_and_digit_chooses(

@@ -5,7 +5,7 @@ lf-deck {
   position: relative;
   margin-block: var(--lf-sp-3);
 }
-/* A leaving card flies out past the deck's sides, and the deck's height follows the
+/* A leaving card flies out past the deck's sides, and the deck's height glides to the
    card that comes up; clip both to the deck, with room for the stack's edges, and only
    while they move, so the open card's focus ring stands whole. */
 lf-deck[data-lf-deck-flying] {
@@ -143,6 +143,18 @@ lf-deck[data-lf-deck-flying] {
       touch-action: pan-y;
       /* A card scrolled into view keeps the bar above it and the waiting edges below. */
       scroll-margin-block: var(--lf-deck-bar-h) calc(2 * var(--lf-deck-edge));
+    }
+
+    /* The deck holds the tallest height it has stood at (lf-deck.js, `#hold`), and the
+       open card fills it, so a shorter card's frame takes in the room rather than
+       leaving it empty below. The end frame keeps its own height, since a frame drawn
+       round empty room reads as a place to drop something. */
+    :scope:is(lf-deck).lf-rendered {
+      display: flex;
+      flex-direction: column;
+    }
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-open] {
+      flex-grow: 1;
     }
 
     :scope:is(lf-deck) > [data-lf-view] > :first-child {

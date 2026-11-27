@@ -3923,8 +3923,8 @@
   // block; while it stands short of the line, not at all. So an animated inset credits
   // the box's move within that block where the move lies between none and the inset's
   // change. dom/box-motion.js's ride relies on this: it carries a scroller's children and
-  // moves their sticky heads' insets against the carry, so a stuck head holds its line
-  // and one short of it rides with its message. The box's static place, which would
+  // moves their sticky boxes' insets against the carry, so a stuck box holds its line
+  // and one short of it rides with the content. The box's static place, which would
   // say which of the two it is, is not readable, so another move within that span is
   // credited too, as `sticky_scroll` credits one within a scroll's.
   const STICKY_INSETS = {

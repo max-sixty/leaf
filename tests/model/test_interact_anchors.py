@@ -233,8 +233,9 @@ def test_a_quote_the_files_do_not_hold_posts_with_a_note(page_dir):
 
 
 def test_a_quote_the_files_hold_twice_posts_with_a_note(page_dir):
-    """Which copy was meant is a question with an answer, and there is someone to ask,
-    so the note says how to settle it."""
+    """The words repeat and the anchor names no section, so the note says the thread
+    stands in Threads unless the drawn page shows them once; a section that holds one
+    copy places the thread on it with no note."""
     twice = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Ship dark.</p>")
     (page_dir / "index.html").write_text(twice)
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
@@ -243,8 +244,7 @@ def test_a_quote_the_files_hold_twice_posts_with_a_note(page_dir):
         "section": None,
         "quote": "Ship dark",
     }
-    assert "name the section" in result.output and "--section" not in result.output
-    # Naming a section is one of the two ways out it offers.
+    assert "in Threads" in result.output and "--section" not in result.output
     scoped = comment(
         page_dir, "--quote", "Ship dark", "--section", "flag-first", "--text", "x"
     )
@@ -635,7 +635,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     on that diagram does in the browser, and that is the anchor offered instead."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
-    assert unplaced(body) == 0 and "name the section" in body.output
+    assert unplaced(body) == 0 and "in Threads" in body.output
     element = comment(
         page_dir, "--section", "flow", "--text", "the retry edge is missing"
     )

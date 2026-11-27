@@ -308,8 +308,8 @@ declares `content: members`, and the tag's `example` writes it inside a holder.
 stand, so a comment can quote across them as across any prose. Declare it on a wrapper
 round authored content, and leave it off a widget whose module rewrites or reorders
 what it holds: a comment's quote then stays inside one of its authored children, which
-keeps it on its words when the module moves them. Whatever the
-module adds to a verbatim widget stands inside a box of controls the library built
+keeps it on its words when the module moves them. Whatever the module adds to a
+verbatim widget stands inside a box of controls the library built
 (`module-controls.md`), with no words marked `data-lf-said`, which would make them the
 page's (`module-plain-elements.md`, "Words it writes").
 

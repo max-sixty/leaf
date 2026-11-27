@@ -479,13 +479,11 @@ widget. An event names what it depends on by declared ids, never by words in its
 detail.
 
 A passage, the text a comment points at, is a list of `{node, start, end}` segments.
-`says` is visible text; `wrote` is authored text. The browser alone finds a comment's
-quoted words, in the page as it draws it. Python's reading of the page's files tells
-the agent where words seem to sit and refuses no quote for its words, so every anchor
-an agent gives a section resolves, to its words or to its element. Where the quoted
-words appear more than once and no context picks one copy, an agent's comment stands
-on its section, and a user's selection, or a quote with no section, detaches; neither
-takes a copy by its order or offset.
+`says` is visible text; `wrote` is authored text. Every anchor an agent gives a section
+resolves, to its words or to its element. When the passage a comment quotes appears
+more than once and no surrounding context picks one copy, the comment stands on its
+section, or detaches where it names none or a user selected it, rather than taking a
+copy by its order or offset.
 
 Leaf derives each fact about the page once, and each place that reports on the page
 picks the facts it needs. `leaf page state` tells a later session the facts a

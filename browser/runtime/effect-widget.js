@@ -20,7 +20,9 @@
    - What `options.inputs(element)` returns, called inside a signal effect, so a
      signal-backed reader it calls, such as `readObligations`, gives the component
      new props when it moves. The function reads the element's attributes too, and
-     only there does the component see its element.
+     only there does the component see its element. Its second argument, `reread`,
+     asks for it to be read again, for an input no signal carries, such as a media
+     query or a reading Leaf holds back (`HeldReading`) until it lets it go.
 
    What the component asks of Leaf, such as recording a gesture, it issues as a
    Command of Leaf's services (widget-services.js), which the mount provides for this
@@ -51,7 +53,7 @@ import {
   Schema,
   Scope,
 } from "/vendor/effect-ui.js";
-import { effect as watch, untracked } from "/vendor/signals-core.js";
+import { signal, effect as watch, untracked } from "/vendor/signals-core.js";
 import { failSoft } from "./lib/failure.js";
 import { inWindowDocument } from "./lib/once.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
@@ -69,7 +71,7 @@ let mounts = 0;
  * @param {string} tag
  * @param {any} component an Effect UI HTML component whose props hold `state` and
  *   what `inputs` returns
- * @param {{shadow?: boolean, lfPatch?: "members", properties?: readonly string[], inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
+ * @param {{shadow?: boolean, lfPatch?: "members", properties?: readonly string[], inputs?: (element: HTMLElement, reread: () => void) => Record<string, unknown>}} [options]
  */
 export function defineWidget(
   tag,
@@ -108,6 +110,11 @@ export function defineWidget(
     #unwatch = undefined;
     // Leaf answered `lf-connect`: it sets `state`, and nothing mounts before it has.
     #hosted = false;
+    // Moved by `reread`, and read with the inputs, so the watch reads them again.
+    #asked = signal(0);
+    #reread = () => {
+      this.#asked.value++;
+    };
 
     constructor() {
       super();
@@ -174,7 +181,8 @@ export function defineWidget(
     // covers the document and throws on a getter such as an SVG length's.
     #read() {
       try {
-        const next = inputs?.(this);
+        this.#asked.value;
+        const next = inputs?.(this, this.#reread);
         for (const value of Object.values(next ?? {}))
           if (value instanceof Node) Equal.byReferenceUnsafe(value);
         return next;

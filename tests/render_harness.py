@@ -2175,7 +2175,6 @@ def panel_settled(page, open=True, view=None):
           for (const move of moving) move.finish();
           const shown = host.dataset.lfOpen ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
-            && !host.querySelector('.lf-fp-view[data-lf-leaving]')
             && [host, ground].every((n) => !finite(n).length)
             && document.querySelector('script[data-lf-entry]')
               .lfRenderingState().updatesSettled;

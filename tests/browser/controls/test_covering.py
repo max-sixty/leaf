@@ -26,7 +26,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 # The box in an open view that scrolls what it holds, or null where it holds all of it.
 VIEW_SCROLLER = """() => {
-  const view = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
+  const view = document.querySelector('.lf-fp-view');
   return [view, ...view.querySelectorAll('*')].find((node) =>
     node.scrollHeight > node.clientHeight + 1
       && ['auto', 'scroll'].includes(getComputedStyle(node).overflowY)) ?? null;

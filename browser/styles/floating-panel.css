@@ -65,8 +65,8 @@
      user opened, or put away, is what they asked to see, so it arrives almost at once:
      its outline in a disclosure's time (`--lf-motion-disclosure`,
      base.css), since the user found the full tween slow there, and its
-     words faded in at once after the leaving view's, which is gone before the arriving
-     one shows, so the two never read through each other. The row gathers into its
+     words faded in at once, the view it replaces gone in the same paint, so the two
+     never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout
      is already final, so the two visual phases never delay input. The corner mark
      and the peek fade in and out in a disclosure's time. The leaf's gestures
@@ -79,7 +79,6 @@
     --lf-motion-panel-fold-ease: cubic-bezier(0.77, 0, 0.175, 1);
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
-    --lf-motion-view-out: 60ms;
     --lf-motion-leaf-nod: 320ms;
     --lf-motion-leaf-shake: 360ms;
     --lf-motion-leaf-perk: 320ms;
@@ -252,15 +251,28 @@
   }
   /* The leaf's badges (`.lf-badges`, controls.css): its count of what waits on the
      user, a dot for news, faint grey for a put-away draft where nothing has news, and a
-     dot for an error, over its top edge, at the row's end as folded, so a fold carries
-     them as they stand. The user chose the folded leaf's badge for the row too, over
-     the count beside the mark in room the leaf kept for it, which crowded the row's
-     end. */
+     dot for an error. Folded, they stand on the corners of the leaf's tile (below). In
+     the row they stand clear inside the panel's corner (`--lf-clear`), their tops in
+     line past the leaf's top edge and the count over its mark: the panel's card clips
+     what crosses its edge, which an open view's corners rely on. A fold or an unfold
+     moves them between the two places in its first frame, and the leaf carries them
+     from there (dom/box-motion.js, which carries the leaf whole). The row stands in
+     the leaf's padding box, so each inset also takes back the leaf's 1px border. The
+     user chose the folded leaf's badge for the row too, over the count beside the mark
+     in room the leaf kept for it, which crowded the row's end. */
   .lf-fp-leaf > .lf-badges {
     position: absolute;
-    inset: -3px -3px auto;
-    --lf-badge-reach: 3px;
     pointer-events: none;
+  }
+  .lf-floating-panel:not([data-lf-rest="mark"]) .lf-fp-leaf > .lf-badges {
+    inset: calc(var(--lf-clear) - var(--lf-thread-pad) - 1px)
+      calc(var(--lf-clear) - var(--lf-thread-pad) - 1px) auto;
+    --lf-badge-reach: 0px;
+  }
+  /* On a right-to-left page the row's leaf stands at the panel's left edge, so badges
+     wider than the leaf run past its right end, into the panel, rather than its left. */
+  .lf-floating-panel:not([data-lf-rest="mark"]) .lf-fp-leaf:dir(rtl) > .lf-badges {
+    justify-content: flex-start;
   }
   .lf-badges > .lf-fp-error-dot {
     box-shadow: 0 0 0 2px var(--lf-fp-surface);
@@ -856,10 +868,22 @@
     }
     /* The leaf keeps its face and status marks through the move. The card supplies
        the folded surround; the button's hit area still reaches every edge of it.
-       Let the badge overhang, and avoid clipping the native focus ring a second time
+       Let the badges overhang, and avoid clipping the native focus ring a second time
        when the moving surface hands back to the resting card. */
     .lf-fp-card {
       overflow: visible;
+    }
+    /* The card is the leaf's tile, and its badges stand on the tile's corners, as on an
+       icon's (`.lf-badges`, controls.css). */
+    .lf-fp-leaf > .lf-badges {
+      --lf-badge-corner: var(--lf-r-l);
+      inset: calc(-1 * (var(--lf-fp-fold-pad-block) + var(--lf-badge-seat) + 1px))
+        calc(-1 * (var(--lf-fp-fold-pad-inline) + var(--lf-badge-seat) + 1px)) auto;
+    }
+    /* An error and news together: the dot beside the corner's stands centred on the
+       tile's top edge. */
+    .lf-fp-leaf > .lf-badges > [data-lf-shown] ~ [data-lf-shown]:not(.lf-fp-badge) {
+      margin-block-start: calc(-1 * var(--lf-badge-arc));
     }
     .lf-fp-row {
       min-height: 0;
@@ -1249,12 +1273,7 @@
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage
-    > .lf-fp-view:not(
-      [data-lf-leaving],
-      [data-lf-route="thread"],
-      :has(.lf-rows-group)
-    ) {
+  .lf-fp-stage > .lf-fp-view:not([data-lf-route="thread"], :has(.lf-rows-group)) {
     --lf-focus-box: .lf-fp-stage;
   }
   .lf-fp-stage[data-lf-control-focus-visible]::after {
@@ -1265,15 +1284,6 @@
     border-radius: var(--lf-r);
     outline: var(--lf-focus-ring);
     outline-offset: var(--lf-focus-ring-inset);
-  }
-  /* A view fading out keeps the height it stood at (panel/floating-panel.js,
-     `leaving`), uncut by the stage the view arriving sizes. */
-  .lf-fp-view[data-lf-leaving] {
-    pointer-events: none;
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    max-height: none;
   }
   /* A thread that continues past either edge of its view fades out there rather than
      cutting a line in half. Each fade lies over the view's padding where the thread
@@ -1832,6 +1842,12 @@
   }
   .lf-fp-messages .lf-thread-transcript {
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
+    /* How far its messages paint their ground (surfaces.css): to the view's sides,
+       over the room above them, and over half the gap to the field below. */
+    --lf-transcript-start: var(--lf-fp-text-edge);
+    --lf-transcript-end: var(--lf-thread-pad);
+    --lf-transcript-top: var(--lf-sp-1);
+    --lf-transcript-foot: calc(var(--lf-msg-gap) / 2);
   }
   .lf-fp-messages .lf-msg,
   .lf-fp-messages .lf-thread-working {

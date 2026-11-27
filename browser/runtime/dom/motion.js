@@ -61,20 +61,17 @@ export const motion = (el, keyframes, ms, pseudoElement = null) =>
 
 // The same door with the runtime's own surfaces' further timing: the one ease unless
 // the caller names its surface's curve (`easing`, read with lib/motion-timing.js's
-// `motionEasing`), and a `delay` that holds the first frame until the motion starts, so
-// a part fading in after another fades out stays unseen meanwhile. That is the backward
-// half of the fill, which no undelayed motion reaches.
+// `motionEasing`).
 /** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes
- * @param {{duration: number, easing?: string, delay?: number, pseudoElement?: string | null}} options */
+ * @param {{duration: number, easing?: string, pseudoElement?: string | null}} options */
 export function playMotion(
   el,
   keyframes,
-  { duration, easing = "ease", delay = 0, pseudoElement = null },
+  { duration, easing = "ease", pseudoElement = null },
 ) {
   if (!motionPlays()) return null;
   const played = el.animate(keyframes, {
     duration,
-    delay,
     pseudoElement,
     easing,
     fill: "both",
@@ -97,17 +94,6 @@ export function playMotion(
     () => active.delete(played),
   );
   return played;
-}
-
-// A part a motion holds unseen in its `delay` shows once the motion plays, so a reader
-// that counts only what shows, as Go-to's map does, waits for it: this settles once
-// every motion now in its delay has played, and is null where none is.
-export function heldUnseen() {
-  const held = [...active].filter((played) => {
-    const timing = played.effect?.getComputedTiming();
-    return Number(timing?.localTime ?? Infinity) < (timing?.delay ?? 0);
-  });
-  return held.length ? Promise.allSettled(held.map((played) => played.finished)) : null;
 }
 
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,

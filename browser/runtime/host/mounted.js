@@ -7,6 +7,7 @@
 /** @typedef {{
  *   navigateToDatum: typeof import("./application.js").navigateToDatum,
  *   obligationActions: typeof import("./application.js").obligationActions,
+ *   threadActions: typeof import("./application.js").threadActions,
  * }} MountedApplication */
 
 /** @type {MountedApplication | null} */

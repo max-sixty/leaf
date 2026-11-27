@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring, ring_faults, rings_drawn
 from render_cases_navigation import source_revision
 from render_harness import (
     PREVIEW,
@@ -22,6 +21,7 @@ from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
+from leaf_dev.rings import current_location_ring, ring_faults, rings_drawn
 
 ROOT = Path(__file__).resolve().parents[2]
 

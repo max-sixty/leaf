@@ -218,7 +218,7 @@ keyboard test reaches its stop with `Tab` or its declared command; `element.focu
 doesn't prove that route. `RELEASE_FOCUS` (`render_harness.py`) resets where Tab
 starts, which `blur()` doesn't. Read a ring's paint through `rings_drawn` and
 `ring_faults`, since an ancestor may draw it, and tell which ring it is by the rule the
-browser says drew it (`ring_rules`, `render_cases_layout.py`).
+browser says drew it (`ring_rules`, `leaf_dev/rings.py`).
 
 ## Fixtures
 

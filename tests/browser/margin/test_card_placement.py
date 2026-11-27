@@ -461,7 +461,7 @@ def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
 
     resized(page, 1440, 900)
     expect(card).to_be_visible()
-    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
     typed = card.locator("leaf-text")
     expect(typed).to_be_focused()
     assert typed.evaluate("el => el === window.lfTypedIn")
@@ -482,7 +482,7 @@ def test_widening_from_a_thread_in_the_panel_lands_in_its_card(browser, serve):
     # The click puts the caret in the reply (records/thread/focus.js, `openingPart`); Escape
     # stands the user on the thread.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_be_focused()
+    expect(page.locator(".lf-fp-view")).to_be_focused()
 
     resized(page, 1440, 900)
     card = page.locator(".lf-margin-preview")

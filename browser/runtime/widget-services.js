@@ -27,7 +27,13 @@
      `missing`. Focus stays where the user is.
    - `Announce` is `lf-announce`: words a listener should hear now.
    - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
-     tab, which the widget's inputs read back with `tabStore.get`. */
+     tab, which the widget's inputs read back with `tabStore.get`.
+   - `OpenThread` opens the thread whose id is `id` where Leaf opens it, inline or in
+     Threads, as `threadActions.open` does. A thread Threads no longer lists opens
+     nothing.
+   - `ShowHeld` shows what the element's `HeldReading`s hold back, since the reader
+     asked to see it (held-news.js, `showHeldReadings`). Its module stays at hand
+     after the first call, so a later reveal draws in the microtasks after its press. */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
 import { mounted } from "./host/mounted.js";
 import { tabStore } from "./state/tab-store.js";
@@ -67,6 +73,15 @@ export class KeepInTab extends Command.Service()("leaf/KeepInTab", {
   args: { key: Schema.String, value: Schema.String },
 }) {}
 
+export class OpenThread extends Command.Service()("leaf/OpenThread", {
+  args: { id: Schema.String },
+}) {}
+
+export class ShowHeld extends Command.Service()("leaf/ShowHeld", {}) {}
+
+/** @type {typeof import("./records/thread/held-news.js") | undefined} */
+let heldNews;
+
 /** Record a gesture on `element` and wait for what became of it.
  * @param {Element} element @param {Record<string, unknown>} detail */
 const send = (element, detail) =>
@@ -105,6 +120,22 @@ export const leafServices = (element) =>
     KeepInTab.toLayer((/** @type {any} */ { key, value }) =>
       Effect.sync(() => tabStore.set(key, value)),
     ),
+    OpenThread.toLayer((/** @type {any} */ { id }) =>
+      Effect.promise(async () => {
+        const application = mounted();
+        if (!application) return;
+        const { readThreads } = await import("./records/thread/state.js");
+        const thread = readThreads().threads.find((thread) => thread.id === id);
+        if (thread) void application.threadActions.open(thread.key, { part: "thread" });
+      }),
+    ),
+    ShowHeld.toLayer(() => {
+      if (heldNews) return Effect.sync(() => heldNews?.showHeldReadings(element));
+      return Effect.promise(async () => {
+        heldNews = await import("./records/thread/held-news.js");
+        heldNews.showHeldReadings(element);
+      });
+    }),
   );
 
 /** @param {Record<string, unknown>} args */

@@ -129,7 +129,7 @@ export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   const mounted = createApplication(dependencies);
   application = mounted;
-  setMounted({ navigateToDatum, obligationActions });
+  setMounted({ navigateToDatum, obligationActions, threadActions });
   return mounted;
 }
 

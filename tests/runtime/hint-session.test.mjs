@@ -4,6 +4,7 @@
    Each case arms a session over a scene of links the test states, the way a caller
    (go-to-sequence.js, target-picker.js) does: `read` names the links in view that
    nothing covers, each with its code and its box, and `layout` puts a chip on each. A
+   case awaits `arm`, which stands once the frames arming paints are drawn (hints.js), a
    paint is called where a frame would run one, and a scroll is the `scroll` and
    `scrollend` events the page's scroll tracking hears (dom/arrivals.js), so no case waits
    on a clock. The live region speaks after its own delay (transport/notifications.js), which the
@@ -174,9 +175,9 @@ function hintMap(t, names) {
 const scrollStarts = () => document.dispatchEvent(new Event("scroll"));
 const scrollEnds = () => document.dispatchEvent(new Event("scrollend"));
 
-test("a letter narrows the map, one that names nothing changes nothing, and the letter that completes a code takes it", (t) => {
+test("a letter narrows the map, one that names nothing changes nothing, and the letter that completes a code takes it", async (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   assert.deepEqual(map.shown(), ["a", "s", "da", "ds"]);
 
@@ -196,9 +197,9 @@ test("a letter narrows the map, one that names nothing changes nothing, and the 
   assert.deepEqual(map.taken, ["four"]);
 });
 
-test("Escape gives back one letter at a time, then hands Escape on", (t) => {
+test("Escape gives back one letter at a time, then hands Escape on", async (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.type("d");
 
   assert.equal(map.session.backOneLetter(), true);
@@ -210,9 +211,9 @@ test("Escape gives back one letter at a time, then hands Escape on", (t) => {
   assert.equal(map.session.backOneLetter(), false);
 });
 
-test("Tab and Shift+Tab walk the map aloud, round from either end, and Enter takes the one heard", (t) => {
+test("Tab and Shift+Tab walk the map aloud, round from either end, and Enter takes the one heard", async (t) => {
   const map = hintMap(t, ["one", "two"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   assert.equal(map.canChoose(), false, "Enter is offered before anything is heard");
 
@@ -234,18 +235,18 @@ test("Tab and Shift+Tab walk the map aloud, round from either end, and Enter tak
   assert.deepEqual(map.taken, ["two"]);
 });
 
-test("a walk begun with Shift+Tab starts at the last target and walks back", (t) => {
+test("a walk begun with Shift+Tab starts at the last target and walks back", async (t) => {
   const map = hintMap(t, ["one", "two", "three"]);
-  map.session.arm();
+  await map.session.arm();
   map.shiftTab();
   assert.equal(map.heard(), "Hint d: Link, three. Enter go there");
   map.shiftTab();
   assert.equal(map.heard(), "Hint s: Link, two. Enter go there");
 });
 
-test("a typed letter puts the walk back at the head of what it leaves", (t) => {
+test("a typed letter puts the walk back at the head of what it leaves", async (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
-  map.session.arm();
+  await map.session.arm();
   map.tab();
   map.session.type("d");
   assert.equal(map.canChoose(), false);
@@ -253,9 +254,9 @@ test("a typed letter puts the walk back at the head of what it leaves", (t) => {
   assert.equal(map.heard(), "Hint da: Link, three. Enter go there");
 });
 
-test("a target that left the scene is not taken by its stale code", (t) => {
+test("a target that left the scene is not taken by its stale code", async (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.type("d");
   // The map is frozen while a code is part typed, so "da" still names three.
   map.show(["one", "two", "four"]);
@@ -276,9 +277,9 @@ test("a target that left the scene is not taken by its stale code", (t) => {
   );
 });
 
-test("a whole map is read again when a member leaves the document", (t) => {
+test("a whole map is read again when a member leaves the document", async (t) => {
   const map = hintMap(t, ["one", "two", "three"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   map.links.get("two").remove();
   map.show(["one", "three"]);
@@ -290,9 +291,9 @@ test("a whole map is read again when a member leaves the document", (t) => {
   );
 });
 
-test("a scroll holds the map as read, and its end reads the scene again", (t) => {
+test("a scroll holds the map as read, and its end reads the scene again", async (t) => {
   const map = hintMap(t, ["one", "two", "three"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   map.tab();
   map.session.paint();
@@ -321,9 +322,9 @@ test("a scroll holds the map as read, and its end reads the scene again", (t) =>
   assert.deepEqual(map.taken, ["bottom"]);
 });
 
-test("a letter typed during a scroll hides the chips it rules out", (t) => {
+test("a letter typed during a scroll hides the chips it rules out", async (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   scrollStarts();
   t.after(scrollEnds);
@@ -332,11 +333,11 @@ test("a letter typed during a scroll hides the chips it rules out", (t) => {
   assert.deepEqual(map.shown(), ["da", "ds"]);
 });
 
-test("a map armed while the page is in flight shows nothing until the scroll settles", (t) => {
+test("a map armed while the page is in flight shows nothing until the scroll settles", async (t) => {
   const map = hintMap(t, ["one", "two"]);
   scrollStarts();
   t.after(scrollEnds);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   assert.deepEqual(map.shown(), []);
 
@@ -350,9 +351,9 @@ test("a map armed while the page is in flight shows nothing until the scroll set
   );
 });
 
-test("a resize reads the scene again and keeps the heard hint where it still stands", (t) => {
+test("a resize reads the scene again and keeps the heard hint where it still stands", async (t) => {
   const map = hintMap(t, ["one", "two"]);
-  map.session.arm();
+  await map.session.arm();
   map.tab();
   map.session.paint();
   assert.equal(map.current(), "a");
@@ -365,9 +366,9 @@ test("a resize reads the scene again and keeps the heard hint where it still sta
   assert.equal(map.canChoose(), true);
 });
 
-test("without character routes the chips go, and the walk and Enter remain", (t) => {
+test("without character routes the chips go, and the walk and Enter remain", async (t) => {
   const map = hintMap(t, ["one", "two"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   setQuickShortcuts(false);
   t.after(() => setQuickShortcuts(true));
@@ -384,9 +385,9 @@ test("without character routes the chips go, and the walk and Enter remain", (t)
   assert.deepEqual(map.taken, ["one"]);
 });
 
-test("a disarmed map paints nothing and is read fresh when armed again", (t) => {
+test("a disarmed map paints nothing and is read fresh when armed again", async (t) => {
   const map = hintMap(t, ["one", "two"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.type("s");
   map.session.disarm();
   map.session.paint();
@@ -394,15 +395,15 @@ test("a disarmed map paints nothing and is read fresh when armed again", (t) => 
   assert.deepEqual(map.shown(), []);
 
   map.show(["three"]);
-  map.session.arm();
+  await map.session.arm();
   assert.equal(map.session.prefix(), "");
   map.session.paint();
   assert.deepEqual(map.shown(), ["a"]);
 });
 
-test("a filter narrows the map to the members it keeps, their codes and seats unchanged", (t) => {
+test("a filter narrows the map to the members it keeps, their codes and seats unchanged", async (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   const seat = map.seat("ds");
   const stood = seat.style.cssText;
@@ -432,7 +433,7 @@ test("a re-read that empties or refills a filtered map repaints the keys", async
   const frame = () => new Promise((resolve) => nextRender(resolve));
   mountRepaint({ reflectKeys: () => frames++ });
   t.after(() => mountRepaint({}));
-  map.session.arm();
+  await map.session.arm();
   map.filter(({ name }) => name.startsWith("t"));
   map.session.paint();
   await frame();
@@ -452,9 +453,9 @@ test("a re-read that empties or refills a filtered map repaints the keys", async
 
 // A revision or an opening disclosure moves the page under an armed map with no scroll:
 // each chip rides its target by its anchor, and the letters the user has read stay.
-test("a page that moves under the map keeps every letter and the walk", (t) => {
+test("a page that moves under the map keeps every letter and the walk", async (t) => {
   const map = hintMap(t, ["one", "two", "three"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   map.tab();
   map.tab();
@@ -469,9 +470,9 @@ test("a page that moves under the map keeps every letter and the walk", (t) => {
   assert.equal(map.heard(), "Hint d: Link, three. Enter go there");
 });
 
-test("a walk redraws the chips it moves between and reads no target's box", (t) => {
+test("a walk redraws the chips it moves between and reads no target's box", async (t) => {
   const map = hintMap(t, ["one", "two", "three"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   const reads = map.boxReads();
   map.tab();
@@ -484,9 +485,9 @@ test("a walk redraws the chips it moves between and reads no target's box", (t) 
 
 // A panel view the user opens grows the chrome over targets the map named: the map is
 // read again, so no chip stands for a target the user can no longer see or press.
-test("a target the chrome comes to cover leaves the map", (t) => {
+test("a target the chrome comes to cover leaves the map", async (t) => {
   const map = hintMap(t, ["one", "two", "three"]);
-  map.session.arm();
+  await map.session.arm();
   map.session.paint();
   map.tab();
   map.session.paint();

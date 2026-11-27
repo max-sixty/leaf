@@ -524,24 +524,10 @@ export function seatHints(faces, { band, viewport, browsed }) {
   return faces.map((face) => ({ face, box: boxes.get(face) ?? null }));
 }
 
-// The scene the next frames draw (`arm`): drawn, then every finite fade under way ended.
-const settled = () =>
-  (
-    scrollDrawn() ??
-    new Promise((drawn) => nextFrame(() => nextFrame(() => drawn(undefined))))
-  ).then(() =>
-    Promise.allSettled(
-      document.getAnimations().flatMap((animation) => {
-        const effect = animation.effect;
-        return animation.playState === "running" &&
-          effect instanceof KeyframeEffect &&
-          effect.getComputedTiming().endTime !== Infinity &&
-          effect.getKeyframes().some((key) => "opacity" in key)
-          ? [animation.finished]
-          : [];
-      }),
-    ),
-  );
+// Settles once the scene the frame after arming paints has been drawn (`arm`).
+const armingDrawn = () =>
+  scrollDrawn() ??
+  new Promise((drawn) => nextFrame(() => nextFrame(() => drawn(undefined))));
 
 /* One armed map over a caller's scene.
 
@@ -665,26 +651,26 @@ export function createHintSession({
       : -1;
   }
 
-  // The map stands on the scene arming draws, once the fades under way in it end. A
-  // scroll a script has just written, as `g` writes landing the glides under way, leaves
-  // a box anchored to what it moved where it stood until the next rendering update
-  // (dom/arrivals.js, `scrollDrawn`), so a map read then would name a margin entry the
-  // thread card the walk opened is arriving to cover, and Tab would walk to it. Arming
-  // changes the scene too, in the frame it paints, as a decision's picks show again
-  // once their digits go. And a box fading in, as a panel view or a thread card does
-  // as it opens, holds controls whose place in the map turns on where its fade ends.
-  // Armed before then, the map is read at once, for a key typed in those frames, and
-  // read again once the scene is drawn and every finite fade under way has ended,
-  // unless a letter typed meanwhile holds it; `then` hears what the map found then,
-  // unless the user has typed or walked meanwhile.
+  // The map stands on the scene arming draws. A scroll a script has just written, as
+  // `g` writes landing the glides under way, leaves a box anchored to what it moved where
+  // it stood until the next rendering update (dom/arrivals.js, `scrollDrawn`), so a map
+  // read then would name a margin entry the thread card the walk opened is arriving to
+  // cover, and Tab would walk to it. Arming changes the scene too, in the frame it
+  // paints: a decision's picks show again once their digits go, and a panel view or a
+  // thread card that began to fade in as the user pressed shows its controls from that
+  // frame on. Armed before then, the map is read at once, for a key typed in those
+  // frames, and shows no chip (`paint`); it is read again once that scene is drawn,
+  // unless a letter typed meanwhile holds it, so no code the user sees changes as the
+  // map settles. `then` hears what the map found then, unless the user has typed or
+  // walked meanwhile.
   /** @type {Promise<unknown> | null} */
   let reading = null;
-  /** @param {(found: C[]) => void} [then] */
+  /** @param {(found: C[]) => void} [then] @returns {Promise<void>} */
   function arm(then = () => {}) {
     armed = true;
     hold(read());
-    const drawn = (reading = settled());
-    drawn.then(() => {
+    const drawn = (reading = armingDrawn());
+    return drawn.then(() => {
       if (!armed || reading !== drawn) return;
       reading = null;
       // A letter or a walk meanwhile has answered in its own words, which the map's
@@ -893,7 +879,8 @@ export function createHintSession({
       seats.clear();
       return;
     }
-    const moving = scrolling() || scrollDrawn() !== null;
+    // A page in flight, or a map whose arming hasn't yet been drawn (`arm`).
+    const moving = scrolling() || scrollDrawn() !== null || reading !== null;
     const wasWalking = at >= 0;
     const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate).isConnected);

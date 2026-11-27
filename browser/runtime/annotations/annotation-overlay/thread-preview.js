@@ -968,6 +968,7 @@ export function createThreadPreview({
         keeps(preview, "data-lf-rises", line !== "top" || rises ? "" : null);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
+          extent: place.extent,
           room: place.room,
           row: place.row,
           lastRow: place.lastRow,

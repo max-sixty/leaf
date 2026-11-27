@@ -35,7 +35,15 @@
    `lfPatch` is the class's static `lfPatch` (module-authoring.md, "Revisions"). Moving
    the element keeps its root (`connectedMoveCallback`), and leaving the document
    closes it a microtask later, as `defineElement`'s elements do. */
-import { BrowserHost, Cause, Effect, Exit, Schema, Scope } from "/vendor/effect-ui.js";
+import {
+  BrowserHost,
+  Cause,
+  Effect,
+  Equal,
+  Exit,
+  Schema,
+  Scope,
+} from "/vendor/effect-ui.js";
 import { effect as watch, untracked } from "/vendor/signals-core.js";
 import { failSoft } from "./lib/failure.js";
 import { inWindowDocument } from "./lib/once.js";
@@ -121,10 +129,16 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
 
     // What `inputs` reads, or nothing where it throws: the failure stays on this
     // widget, as `LeafElement`'s does, rather than aborting the update that moved a
-    // signal it reads.
+    // signal it reads. A DOM node it returns is the same input only as itself:
+    // Effect UI compares props that differ by reference with `Equal.equals`, which
+    // would otherwise compare two nodes by every property they reach, a walk that
+    // covers the document and throws on a getter such as an SVG length's.
     #read() {
       try {
-        return inputs?.(this);
+        const next = inputs?.(this);
+        for (const value of Object.values(next ?? {}))
+          if (value instanceof Node) Equal.byReferenceUnsafe(value);
+        return next;
       } catch (error) {
         untracked(() => failSoft(this, error));
       }

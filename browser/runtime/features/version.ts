@@ -145,6 +145,7 @@ import { SourcePairs, patchTree, patchRetains } from "../dom/dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "../dom/keyboard/bindings.js";
 import { paintKeys, pruneScopedElements } from "../dom/keyboard/scopes.js";
 import { repaint } from "../dom/repaint.js";
+import { queryAllUnder } from "../dom/shadow.js";
 import { gesture, notice } from "../transport/notifications.js";
 import { counted } from "../lib/words.js";
 import { backgroundFlash } from "../dom/motion.js";
@@ -1220,16 +1221,18 @@ function changedSince(
 }
 // The view a block stands in, which shows and hides as one: the nearest `details`
 // holding it, member of a widget's declared views (`views`), such as a tab, or
-// element a disclosure control names (ARIA's `aria-expanded` with `aria-controls`),
-// such as a settled options group's options, which share their one control's view.
-// Each is structure, so a change's extent doesn't depend on which views were open when
-// the comparison ran. A fold whose control names nothing in `aria-controls` is no view.
-function viewOf(block: Element, controls: Map<string, Element>) {
+// element a disclosure control names (ARIA's `aria-expanded` with `aria-controls`, or
+// the elements it reflects, `ariaControlsElements`), such as a settled options group's
+// options, which share their one control's view. The control may stand in a declared
+// shadow root, as that group's row does. Each is structure, so a change's extent
+// doesn't depend on which views were open when the comparison ran. A fold whose control
+// names nothing is no view.
+function viewOf(block: Element, controls: Map<Element, Element>) {
   for (let at = block as Element | null; at; at = at.parentElement) {
     if (at.localName === "details") return at;
     const members = registry[at.parentElement?.localName ?? ""]?.views?.members;
     if (members && at.matches(members)) return at;
-    const control = at.id ? controls.get(at.id) : undefined;
+    const control = controls.get(at);
     if (control) return control;
   }
   return null;
@@ -1264,10 +1267,10 @@ function changeRuns(
   let run: (typeof runs)[number] | null = null;
   // The view the run stands in.
   let view: Element | null = null;
-  const controls = new Map<string, Element>();
-  for (const control of document.querySelectorAll("[aria-expanded][aria-controls]"))
-    for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/))
-      controls.set(id, control);
+  const controls = new Map<Element, Element>();
+  for (const control of queryAllUnder(document, "[aria-expanded]"))
+    for (const controlled of control.ariaControlsElements ?? [])
+      controls.set(controlled, control);
   // A gap's blocks join the run where it stands in the run's view, else stand alone.
   const place = (
     found: { at: Element; gone: Removed[] } | undefined,

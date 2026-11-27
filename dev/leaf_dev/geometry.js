@@ -370,17 +370,26 @@
         at: [rect.left, rect.top, rect.width, rect.height].map(round1),
       });
 
-    // Cuts: a clip between the box and its frame, the frame's own included. An
-    // absolutely placed box is clipped only from its containing block out.
-    const cut = new Set();
+    // The boxes that clip this one, from its containing block out to its frame and on
+    // to the first box placed against the window: an absolutely placed box is clipped
+    // only from its containing block out.
+    const clippers = [];
     const cb = s.position === "absolute" ? containing(el) : null;
     let reached = !cb;
-    for (const a of [...between, frame]) {
+    for (const a of [...between, frame, ...ancestors(frame)]) {
       if (!reached && a !== cb) continue;
       reached = true;
-      if (!clipsOn(a, "x") && !clipsOn(a, "y")) continue;
-      const band = shownBand(a);
-      if (!band) continue;
+      if (clipsOn(a, "x") || clipsOn(a, "y")) {
+        const band = shownBand(a);
+        if (band) clippers.push({ a, band });
+      }
+      if (cs(a).position === "fixed") break;
+    }
+
+    // Cuts: a clip between the box and its frame, the frame's own included.
+    const cut = new Set();
+    for (const { a, band } of clippers) {
+      if (a !== frame && !between.includes(a)) continue;
       const past = {
         top: band.top - rect.top,
         right: rect.right - band.right,
@@ -401,41 +410,69 @@
     // A mark centred on the edge, its middle within a couple of pixels of it, stands
     // on the frame rather than in it.
     const seated = (gap, extent) => gap <= 2 - extent / 2;
-    // Corners: the box's clearance around the frame's inner arc where it stands in
-    // a rounded corner.
+    // Corners: the clearance around the frame's inner arc of what shows of the box
+    // where it stands in a rounded corner. A box shows only inside every box that clips
+    // it, each a rectangle rounded at its corners, so it reaches no further into the
+    // corner than the least of them: the box itself, or a clip that rounds the corner
+    // for it, as a pane clipping to its rounding does, whether the clip is the frame,
+    // a box between, or one around the frame.
     const inCorner = new Set();
     for (const [corner, v, h] of CORNERS) {
       if (moving.x || moving.y) continue;
       const r = inner.radii[corner];
       if (r < 1 || !fshown[v] || !fshown[h] || !own[v] || !own[h]) continue;
-      const rb = isRound ? rect.width / 2 : radius(s, corner, rect);
       const cx = h === "left" ? inner.left + r : inner.right - r;
       const cy = v === "top" ? inner.top + r : inner.bottom - r;
-      const bx = h === "left" ? rect.left + rb : rect.right - rb;
-      const by = v === "top" ? rect.top + rb : rect.bottom - rb;
+      // A shape's rounding centre at this corner, for a rectangle rounded by `rb`.
+      const centre = (box, rb) => [
+        h === "left" ? box.left + rb : box.right - rb,
+        v === "top" ? box.top + rb : box.bottom - rb,
+      ];
+      const rb = isRound ? rect.width / 2 : radius(s, corner, rect);
+      const [bx, by] = centre(rect, rb);
       const inArc =
         (h === "left" ? bx <= cx + slack : bx >= cx - slack) &&
         (v === "top" ? by <= cy + slack : by >= cy - slack);
       if (!inArc) continue;
       inCorner.add(corner);
-      // A box whose corner's centre stands just beside the arc's, within the slack, is
-      // nearest the straight edge beside the arc.
-      const besideX = h === "left" ? bx > cx : bx < cx;
-      const besideY = v === "top" ? by > cy : by < cy;
-      const gap =
-        besideX || besideY
-          ? Math.min(besideX ? gaps[v] : Infinity, besideY ? gaps[h] : Infinity)
-          : r - (Math.hypot(cx - bx, cy - by) + rb);
+      // A shape's clearance from the frame's inner edge at this corner. One whose
+      // rounding centre stands beside the arc's, as within the slack, is nearest the
+      // straight edge beside the arc.
+      const clearance = (box, rb) => {
+        const [kx, ky] = centre(box, rb);
+        const besideX = h === "left" ? kx > cx : kx < cx;
+        const besideY = v === "top" ? ky > cy : ky < cy;
+        const edge = (side) =>
+          side === "top"
+            ? box.top - inner.top
+            : side === "right"
+              ? inner.right - box.right
+              : side === "bottom"
+                ? inner.bottom - box.bottom
+                : box.left - inner.left;
+        return besideX || besideY
+          ? Math.min(besideX ? edge(v) : Infinity, besideY ? edge(h) : Infinity)
+          : r - (Math.hypot(cx - kx, cy - ky) + rb);
+      };
+      const gap = Math.max(
+        clearance(rect, rb),
+        ...clippers
+          .filter(({ a }) => clipsOn(a, "x") && clipsOn(a, "y"))
+          .map(({ a, band }) => {
+            const t = cs(a);
+            const rounding = Math.max(
+              0,
+              radius(t, corner, a.getBoundingClientRect()) -
+                Math.max(border(t, v).w, border(t, h).w),
+            );
+            return clearance(
+              band,
+              Math.min(rounding, band.right - band.left, band.bottom - band.top),
+            );
+          }),
+      );
       if (gap < -slack) {
-        // A frame, or a box around it, that clips to its rounding cuts the box to it,
-        // which is the box taking the frame's corner (a pane clips to its rounding).
-        const clipped = [frame, ...ancestors(frame)].some(
-          (a) =>
-            clipsOn(a, "x") &&
-            clipsOn(a, "y") &&
-            radius(cs(a), corner, a.getBoundingClientRect()) > 0,
-        );
-        if (!cut.has(v) && !cut.has(h) && !clipped)
+        if (!cut.has(v) && !cut.has(h))
           if (!seated(gap, Math.min(rect.width, rect.height)))
             report("overhang", corner, gap);
       } else if (gap < clear - slack && (isRound || gap > slack)) {

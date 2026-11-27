@@ -56,8 +56,10 @@ rule draws at once is drawn.
   where the gesture says it takes the user somewhere. Without a gesture, as when news
   arrives, a box may grow or shrink into free room, but reading content and controls
   stay put. The exception is a thread card narrower than
-  the measure, which the user chose to let widen once, from its start, when a long message
-  arrives, carrying its controls (`data-lf-widens`; `annotations/annotation-overlay/thread-preview.js`).
+  the measure, which the user chose to let widen once when a long message arrives,
+  carrying its controls; a card standing by the edge its words end at carries its words
+  instead
+  (`data-lf-widens`; `annotations/annotation-overlay/thread-preview.js`).
   No hard-to-undo action arrives under a pointer
   that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or
   siblings, and typing may grow a field but never moves it. Check: `tests/shift_watch.js`,
@@ -823,6 +825,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Which axes a box clips                                                                                | `dom/rect.js` `clippingAxes`                                                           |
 | Whether a box is at its scroll end                                                                    | `dom/scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
 | The positions a box's scroll takes on each axis, and whether a write would move it                    | `lib/scroll-range.js` `scrollRange`, `scrollMoves`                                     |
+| Everything a box scrolls through, on screen, wherever it is scrolled to                               | `dom/geometry.js` `scrolledBox`                                                        |
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `dom/arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | When the page shows a script's scroll, boxes anchored to what it moved included                       | `dom/arrivals.js` `scrollDrawn`                                                        |
 | Whether the reader's input has set a box scrolling                                                    | `dom/arrivals.js` `readerScrolls`                                                      |

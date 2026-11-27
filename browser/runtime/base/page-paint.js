@@ -53,8 +53,10 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
   // On a marked box whose marks reach over a list marker (dom/geometry.js, `markerReach`),
-  // which surfaces.css reads to draw them.
+  // and on one whose marks a clip round it would cut outside it (`clipsMarks`), which
+  // element-marks.css reads to draw them.
   besideMarker: "data-lf-beside-marker",
+  flush: "data-lf-flush",
   // The cursor's paint, on the element under the pointer, which the margin likewise does
   // not hear: the hand over a thread's mark (annotations/anchor-paint.js,
   // annotation-chrome.css), and the aim's hand where it has an item and the crosshair of

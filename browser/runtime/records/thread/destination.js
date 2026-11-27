@@ -143,7 +143,8 @@ import { awaitsDrawing } from "../../readings/anchor-resolution.js";
  * card starts at, the field it grows out of, and how far the words stood above their end.
  * A route carries it from the composer to the card.
  * @typedef {{side: import("@floating-ui/dom").Side | null,
- * boundary: readonly [number, number, number, number] | null, moved: boolean}} CapturedPlacement
+ * boundary: readonly [number, number, number, number] | null, moved: boolean,
+ * holds: "left" | "right" | null}} CapturedPlacement
  * @typedef {{box: DOMRect, placement: CapturedPlacement, width: number, field: DOMRect,
  * fromEnd: number}} SendFrame */
 /** The margin's thread card, where the overlay draws one

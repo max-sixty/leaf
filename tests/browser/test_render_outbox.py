@@ -2478,15 +2478,14 @@ def test_undo_leaves_a_user_located_elsewhere_where_they_are(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
-    """The withdrawal pass has to keep the discipline the replay loop keeps, because
-    it is replay: a widget the page has painted ahead of the log gets the next poll
-    rather than being written over. `lf-draft` says so outright — it defers its
-    presentation while an editor stands, so the user's unsent words are not yanked
-    out from under them — and a pass that drops that answer and marks the withdrawal
-    answered leaves the tab holding the withdrawn text for the rest of its life, with
-    the user-origin reading cleared because the fold agrees the edit is gone. A reload
-    would show the authored words; this tab never would again."""
+def test_a_withdrawal_reaches_a_draft_whose_editor_stands_and_keeps_its_words(
+    browser, serve
+):
+    """A withdrawal another tab makes reaches a tab whose draft editor stands. The
+    draft's reading takes it at once, under the editor, and the editor keeps the words
+    the user has open: they are the editor's and the draft store's, never the reading's,
+    so nothing the log says yanks them out from under the user. Closing the editor shows
+    the withdrawn reading, the authored words, with no reload."""
     url = serve(UNDO_PAGE)
     one = open_page(browser, url)
     two = open_page(browser, url)
@@ -2499,21 +2498,20 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
-    # The second tab is now holding words of its own, so the log may not write over it.
     draft_control(two, "edit", "note-cli").click()
-    expect(two.locator("lf-draft leaf-text")).to_be_focused()
+    editor = two.locator("lf-draft leaf-text")
+    expect(editor).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)
 
-    # The withdrawal has to reach the second tab *while* its editor stands — heard
-    # after the box closes, it applies on the way past and says nothing about the
-    # hold. told() consumes the poll that carries it.
+    # told() consumes the poll that carries the withdrawal.
     told(two)
-    expect(two.locator(body)).to_have_text("Rewritten.")
+    expect(two.locator(body)).to_have_text(authored)
+    expect(editor).to_have_js_property("value", "Rewritten.")
+    expect(editor).to_be_focused()
 
-    # Let go, and the withdrawal it could not take yet lands from the editor's close.
     two.keyboard.press("Escape")
-    expect(two.locator("lf-draft leaf-text")).to_have_count(0)
+    expect(editor).to_have_count(0)
     assert two.locator(body).inner_text() == authored
 
 

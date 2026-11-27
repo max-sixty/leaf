@@ -34,7 +34,16 @@
    may have replaced the members they read, as `LeafElement` draws again then.
    `lfPatch` is the class's static `lfPatch` (module-authoring.md, "Revisions"). Moving
    the element keeps its root (`connectedMoveCallback`), and leaving the document
-   closes it a microtask later, as `defineElement`'s elements do. */
+   closes it a microtask later, as `defineElement`'s elements do.
+
+   A widget whose page module talks to the element itself names those properties:
+
+   - `options.properties` are props too, as `BrowserHost.defineElement`'s are: the
+     element keeps what the page sets, and a set gives the component new props.
+   - `options.members` read and write the component's Model: reading one gives what
+     its `get` reads off the Model, and setting one sends the root the message its
+     `set` returns. Out of the document a member reads the Model the closed root
+     ended with. */
 import {
   BrowserHost,
   Cause,
@@ -57,21 +66,59 @@ export const widgetProps = { state: Schema.optional(Schema.Unknown) };
 
 let mounts = 0;
 
+/** @typedef {{get?: (model: any) => unknown, set?: (value: any) => unknown}} Member */
+
 /**
  * Define `tag` as a widget that draws `component`.
  * @param {string} tag
- * @param {any} component an Effect UI HTML component whose props hold `state` and
- *   what `inputs` returns
- * @param {{shadow?: boolean, lfPatch?: "members", inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
+ * @param {any} component an Effect UI HTML component whose props hold `state`, what
+ *   `inputs` returns and the `properties`
+ * @param {{shadow?: boolean, lfPatch?: "members", inputs?: (element: HTMLElement) => Record<string, unknown>,
+ *   properties?: readonly string[], members?: Record<string, Member>}} [options]
  */
-export function defineWidget(tag, component, { shadow = false, lfPatch, inputs } = {}) {
+export function defineWidget(
+  tag,
+  component,
+  { shadow = false, lfPatch, inputs, properties = [], members = {} } = {},
+) {
   const Widget = class extends HTMLElement {
+    static {
+      for (const name of properties)
+        Object.defineProperty(this.prototype, name, {
+          /** @this {InstanceType<typeof Widget>} */
+          get() {
+            return this.#properties[name];
+          },
+          /** @this {InstanceType<typeof Widget>} @param {unknown} value */
+          set(value) {
+            this.#properties = { ...this.#properties, [name]: value };
+            if (this.#root) this.#update();
+          },
+        });
+      for (const [name, { get, set }] of Object.entries(members))
+        Object.defineProperty(this.prototype, name, {
+          /** @this {InstanceType<typeof Widget>} */
+          get() {
+            const model = this.#root?.model() ?? this.#ended;
+            return get && model !== undefined ? get(model) : undefined;
+          },
+          /** @this {InstanceType<typeof Widget>} @param {unknown} value */
+          set(value) {
+            if (set) this.#root?.send(set(value));
+          },
+        });
+    }
     /** @type {unknown} */
     #state = undefined;
     /** @type {Record<string, unknown>} */
     #inputs = {};
-    /** @type {{setProps: (props: any) => void} | undefined} */
+    /** @type {Record<string, unknown>} */
+    #properties = {};
+    /** @type {{setProps: (props: any) => void, model: () => unknown, send: (message: any) => void} | undefined} */
     #root = undefined;
+    // The Model the last root ended with, which `members` read while none stands.
+    /** @type {unknown} */
+    #ended = undefined;
     /** @type {Scope.Closeable | undefined} */
     #scope = undefined;
     /** @type {(() => void) | undefined} */
@@ -121,6 +168,7 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
       queueMicrotask(() => {
         if (this.isConnected || !this.#scope) return;
         const scope = this.#scope;
+        this.#ended = this.#root?.model();
         this.#unwatch?.();
         this.#root = this.#scope = this.#unwatch = undefined;
         Effect.runFork(Scope.close(scope, Exit.void));
@@ -145,7 +193,7 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
     }
 
     #props() {
-      return { ...this.#inputs, state: this.#state };
+      return { ...this.#inputs, ...this.#properties, state: this.#state };
     }
 
     #mount() {

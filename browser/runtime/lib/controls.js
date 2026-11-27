@@ -49,12 +49,13 @@ const titlesName = () => !document.documentElement.hasAttribute("data-lf-interac
 // `focus()` and `click()`.
 // The marks a press or box of controls wears, as attributes: what `offerElement` writes
 // on a node and what a view that builds its own elements, such as an Effect UI
-// component's, sets (`pressAttributes`). `type` is a button's or input's own type, where
+// component's, sets: this for a field or a box of controls, `pressAttributes` for a
+// worded press. `type` is a button's or input's own type, where
 // it has one; a button without one becomes `type="button"`.
 /** @param {string} localName @param {string} [cls]
  *  @param {{type?: string | undefined, pressable?: boolean}} [options]
  *  @returns {Record<string, string>} */
-function offerAttributes(localName, cls, { type, pressable = false } = {}) {
+export function offerAttributes(localName, cls, { type, pressable = false } = {}) {
   const face = localName.includes("-") ? "" : " lf-ui-face";
   const buttonType = localName === "button" ? (type ?? "button") : undefined;
   return {

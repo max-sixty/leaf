@@ -41,8 +41,10 @@
 /* What a declared shadow tree draws starts without the face, so a widget's own
    elements keep their sheet's faces. What it slots is the page's own markup, so a slot
    passes on the face of the page around the host, which the host keeps
-   (`--lf-host-reading-face`). Each rule weighs nothing, so a widget's sheet, or the
-   transcript's rule below, sets the face on one of its own elements again. */
+   (`--lf-host-reading-face`). Each rule weighs nothing, so a package's widget-shadow.css,
+   which follows this sheet in `lf-shadow`, or the transcript's rule below, sets the face
+   on one of its own elements again. A module's own sheet stands in `lf-base`, under
+   this one, so it sets the face on a box inside the tree's top-level element. */
 :host {
   --lf-host-reading-face: var(--lf-reading-face);
 }

@@ -1093,6 +1093,7 @@ def choose(page_dir, option: str) -> dict:
             "widget": "file-issue",
             "action": "choose",
             "detail": {"value": [option]},
+            "answered": True,
         },
     )
 
@@ -1171,7 +1172,8 @@ def test_a_pick_an_undo_brings_back_is_the_threads_newest_input(page_dir, resolv
         thread_model.cmd_resolve(page_dir, asked["id"])
         assert owed(state_json(page_dir)) == []
     append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": changed["id"], "answered": True},
     )
     [answer] = owed(state_json(page_dir))
     assert answer["input"] == first["id"]
@@ -1197,7 +1199,8 @@ def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
     assert owed(state_json(page_dir)) == []
 
     append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": second["id"], "answered": True},
     )
     [answer] = owed(state_json(page_dir))
     assert answer["input"] == first["id"]
@@ -1217,7 +1220,8 @@ def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir, changed):
     [answer] = owed(state_json(page_dir))
     assert answer["input"] == taken["id"]
     append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": taken["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": taken["id"], "answered": changed},
     )
     with pytest.raises(Rejected) as refused:
         thread_model.post_reply(page_dir, answer["answer"], "Leaving it.")

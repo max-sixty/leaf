@@ -45,7 +45,11 @@
    Leaf runs comes to rest, so a press as a panel closes reads the page the closing
    leaves, and a press during the scroll a walk starts reads the page that scroll
    leaves. An exact control, such as a widget's Undo or a reaction chip, is pressed
-   where its gesture is drawn, so its withdrawal moves nobody.
+   where its gesture is drawn, so its withdrawal moves nobody. Should this reading of
+   visibility keep needing fixes, a simpler design is open: ⌘Z returns the user to where
+   they stood when they made the gesture in this tab (records/history.js, `readPlace`),
+   and otherwise moves nobody. That drops travel to a gesture made far from where the
+   user stands, which the notice still names.
 
    Taking at once is the user's decision. Rejected: showing an out-of-view gesture with
    the first press and taking it with a second, so that a press never took what the user

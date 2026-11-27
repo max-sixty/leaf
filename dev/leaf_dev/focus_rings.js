@@ -93,7 +93,7 @@
 
   // Which rule drew a ring is the browser's answer, not the page's: the readings below
   // decide from the paint that a box wears the band, and leave the boxes here for
-  // `ring_rules` (render_cases_layout.py), which asks the DevTools protocol which matched
+  // `ring_rules` (rings.py), which asks the DevTools protocol which matched
   // rule won the outline or shadow. A page script cannot hand an element to the protocol
   // by value, so each reading leaves its boxes on this one global, in the order of the
   // answers it returns, and the Python side takes them off again.
@@ -223,14 +223,15 @@
   // Complete the same candidate reading after the protocol has measured pseudo boxes.
   // A pseudo-element need not share its originating element's border box: anchored
   // frames and frames moving with scrolled contents both depend on its actual layout.
-  async function ringsDrawn(rectangles) {
+  async function ringsDrawn(rectangles, api) {
     // shownBand, rather than another reading of what a box clips to. Its own comment
     // carries why: page check --render imports it so the band a handover is refused
     // against and the band the page paints to are one reading, and a copy can go wrong in
     // both of the ways that comment names — asking only about overflow, so paint
     // containment and content-visibility clip a ring away with nothing said, and
-    // measuring the padding box with the scrollbar's gutter still in it.
-    const { shownBand, ringBox, fitsWhole } = await window.__lfCheckApi();
+    // measuring the padding box with the scrollbar's gutter still in it. `api` is the
+    // page's own check API, which rings.py imports from the page's entry.
+    const { shownBand, ringBox, fitsWhole } = api;
     const holds = (a, b) => {
       for (let n = b; n; n = flatParent(n)) if (n === a) return true;
       return false;

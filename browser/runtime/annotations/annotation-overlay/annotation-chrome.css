@@ -694,8 +694,13 @@
        beside a sticky item in Firefox"). */
     --lf-top-start: var(--lf-transcript-edge-room);
     --lf-top: var(--lf-top-start);
-    padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
-      var(--lf-transcript-edge-room);
+    --lf-transcript-start: calc(
+      var(--lf-thread-text-inset) + var(--lf-transcript-edge-room)
+    );
+    --lf-transcript-end: var(--lf-transcript-edge-room);
+    --lf-transcript-top: var(--lf-transcript-edge-room);
+    --lf-transcript-foot: var(--lf-transcript-room);
+    padding-inline: var(--lf-transcript-start) var(--lf-transcript-end);
     margin-inline: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-start: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
@@ -730,16 +735,20 @@
   }
   .lf-margin-thread .lf-awaited {
     z-index: 1;
-    margin-inline: calc(
-        -1 * (var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
-      )
-      calc(-1 * var(--lf-transcript-edge-room));
+    margin-inline: calc(-1 * var(--lf-transcript-start))
+      calc(-1 * var(--lf-transcript-end));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
     padding-block-end: var(--lf-transcript-room);
   }
-  /* The row holds paper across the heads' line, from the card's edge to its other,
-     sticking there, so what passes beneath it shows only where a message's head row
-     paints over it (below). A summary has no head, and passes beneath it whole: paper
+  /* The row holds the line's ground across the heads' line, from the card's edge to its
+     other, sticking there, so what passes beneath it shows only where a message's head
+     row paints over it (below). The line's ground is paper, or the user's (surfaces.css)
+     while their own head holds the line: the first message's at the top, and later the
+     first of those beside the actions (`data-lf-beside-actions`, thread-preview.js),
+     since an earlier head still leaving the line is marked too. So their ground runs
+     from edge to edge there, as it does past their head, and stays theirs under the
+     fade (below) and in the room their head leaves as the next message pushes it away.
+     A summary has no head, and passes beneath it whole: paper
      in the actions' track alone cut its region's tint under them. The transcript's
      mask makes it a stacking context, so paper on the actions themselves would cover
      that row too. Its margin leaves the row the room's height, and once anything is
@@ -747,10 +756,8 @@
   .lf-margin-thread .lf-thread-transcript::before {
     content: "";
     grid-column: 1 / -1;
-    margin-inline: calc(
-        -1 * (var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
-      )
-      calc(-1 * var(--lf-transcript-edge-room));
+    margin-inline: calc(-1 * var(--lf-transcript-start))
+      calc(-1 * var(--lf-transcript-end));
     position: sticky;
     z-index: 1;
     inset-block-start: calc(var(--lf-top) - var(--lf-thread-room-cover, 0px));
@@ -759,7 +766,19 @@
       var(--lf-transcript-edge-room) - var(--lf-thread-room-cover, 0px) -
         var(--lf-msg-head-height)
     );
-    background: var(--lf-paper);
+    background: var(--lf-line-ground, var(--lf-paper));
+  }
+  .lf-margin-thread
+    .lf-page-thread:has(
+      > .lf-thread-transcript
+        > .lf-msg[data-lf-author="user"][data-lf-beside-actions]:not(
+          [data-lf-summarized],
+          [data-lf-beside-actions] ~ *
+        ),
+      > .lf-thread-transcript:not([data-lf-more-above])
+        > .lf-msg[data-lf-author="user"]:first-child
+    ) {
+    --lf-line-ground: var(--lf-msg-user-ground);
   }
   .lf-margin-thread .lf-thread-transcript::after {
     content: "";
@@ -841,7 +860,7 @@
     height: var(--lf-thread-fade-height, 0px);
     border-radius: 0;
     outline: none;
-    background: linear-gradient(var(--lf-paper), transparent);
+    background: linear-gradient(var(--lf-line-ground, var(--lf-paper)), transparent);
     pointer-events: none;
     /* Keep the action strip above the fade without putting its ground above
        a focused message control's ring. */
@@ -951,14 +970,11 @@
     min-height: var(--lf-msg-head-height);
     padding-inline-start: calc(var(--lf-sp-2) - var(--lf-margin-symbol-end));
   }
-  /* A sticky head and its words paint the message's one animated ground, the card's
-     paper, or the tint of the summary region a message an open summary folds stands
-     in (surfaces.css). Shared message rules own wrapping, including progress
-     disclosures below the capped metadata when the card's actions leave too little
-     inline room. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg:not([data-lf-summarized]) {
-    --lf-msg-rest-ground: var(--lf-paper);
-  }
+  /* A sticky head and its words paint the message's one animated ground, the user's or
+     the agent's (surfaces.css), or the tint of the summary region a message an open
+     summary folds stands in (surfaces.css). Shared message rules own wrapping,
+     including progress disclosures below the capped metadata when the card's actions
+     leave too little inline room. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head {
     position: sticky;
     --lf-head-inset: 0px;

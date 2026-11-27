@@ -563,7 +563,7 @@ export function createMarginProjection({
     // A lone item's own words, such as a to-do's title, which its subject does not say.
     const own = lone?.label ?? null;
     const said = own && !subject.includes(own) ? `, ${own}` : "";
-    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`;
+    const reading = `${face.label}${count > 1 ? `s ${count}` : ""}${said}${userContext ? `, ${userContext}` : ""}`;
     const down =
       place?.position == null
         ? ""

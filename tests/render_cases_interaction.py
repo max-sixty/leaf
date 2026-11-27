@@ -668,7 +668,7 @@ MESSAGE_ROOM_PAGE = leaf_page(
 # prompt where its card is open, and what it says of its ending (such as "Answered: …"),
 # each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
-    '.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving]) .lf-fp-on-item')].map((c) => ({
+    '.lf-fp-view[data-lf-route="queue"] .lf-fp-on-item')].map((c) => ({
   id: c.dataset.lfKey,
   list: c.dataset.lfList,
   title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent

@@ -435,12 +435,22 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    unread dot covered a margin entry's count.
 
    The row runs left to right whatever the page's direction, since its carriers stand
-   at the window's right and a pin keeps its count off the window's edge. A carrier
-   places the row along its top edge, where a lone dot stands, and says how far past
-   that corner its count reaches (`--lf-badge-reach`); a pin's count takes the left
-   corner (annotation-theme.css). Each badge keeps its size. Where the badges together
-   are wider than their carrier, as a two-digit count, news and an error are on the
-   folded leaf, the row runs past its left end rather than squeeze them.
+   at the window's right and a pin keeps its count off the window's edge. A badge at
+   an end of the row stands centred on a corner of the box it marks, on the box's
+   outline halfway round the corner's curve, as a badge on an icon does, so it never
+   nearly meets the box's edge (browser/AGENTS.md, "A box inside a frame either meets
+   its edge or stands clear of it"). A carrier names the box's rounding
+   (`--lf-badge-corner`) and stands the row out from the box's top corners by
+   `--lf-badge-seat`, which centres a dot there, `--lf-badge-arc` in from each edge;
+   the count reaches past the row's corner by half the difference in their heights
+   (`--lf-badge-reach`), which centres its end there too. A dot beside another, away
+   from the corner, rises by `--lf-badge-arc` to centre on the box's top edge, as on
+   the folded leaf (floating-panel.css). A carrier whose frame would clip badges standing past its edge
+   stands them clear inside it instead, as the panel's row does (floating-panel.css). A
+   pin's count takes the left corner (annotation-theme.css). Each badge keeps its size.
+   Where the badges together are wider than their carrier, as a two-digit count, news
+   and an error are on the folded leaf, the row runs past its left end rather than
+   squeeze them.
 
    Each badge wears one face whichever control carries it, since a count or a dot
    means the same on both: the folded leaf's, which the user chose in the panel's
@@ -449,6 +459,11 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    is ink unless what it counts has a colour, as the folded leaf's count of what is On
    me wears the user's turn (floating-panel.css). */
 .lf-badges {
+  --lf-badge-dot: 8px;
+  --lf-badge-count: 17px;
+  --lf-badge-arc: calc(var(--lf-badge-corner, 0px) * (1 - sin(45deg)));
+  --lf-badge-seat: calc(var(--lf-badge-dot) / 2 - var(--lf-badge-arc));
+  --lf-badge-reach: calc((var(--lf-badge-count) - var(--lf-badge-dot)) / 2);
   display: flex;
   direction: ltr;
   justify-content: flex-end;
@@ -466,10 +481,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 }
 .lf-badges > .lf-badge-count {
   order: 2;
-  margin: calc(-1 * var(--lf-badge-reach, 0px)) calc(-1 * var(--lf-badge-reach, 0px)) 0
-    0;
-  min-width: 17px;
-  height: 17px;
+  margin: calc(-1 * var(--lf-badge-reach)) calc(-1 * var(--lf-badge-reach)) 0 0;
+  min-width: var(--lf-badge-count);
+  height: var(--lf-badge-count);
   padding: 0 5px;
   box-sizing: border-box;
   border-radius: 999px;
@@ -480,8 +494,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   font: var(--lf-font-count);
 }
 .lf-badges > .lf-unread-dot {
-  width: 8px;
-  height: 8px;
+  width: var(--lf-badge-dot);
+  height: var(--lf-badge-dot);
 }
 /* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
    head. It stands with the time rather than among the head's annotations, so where a
@@ -1402,14 +1416,15 @@ wa-copy-button.lf-icon-action {
   cursor: default;
 }
 /* An entry's badges (`.lf-badges`, above), its unread dot and count, stand on its
-   top edge inside the box the entry already reserves, so they add no width: a lone
-   dot on the entry's corner, over its border, where its paper ring parts the two, and
-   the count 6px further out, so its pill stands past the corner as far as the folded
-   leaf's does. */
+   corners, over its border, where their paper ring parts the two, and take no width
+   beside it. The row stands in the entry's padding box, so its seat is measured past
+   the entry's 1px hairline; an action's 2px edge holds them 1px further in, still on
+   that edge. The user chose the dot's corner. */
 .lf-margin-face > .lf-badges {
   position: absolute;
   inset: 0 0 auto;
-  --lf-badge-reach: 6px;
+  --lf-badge-corner: var(--lf-r);
+  margin: calc(-1px - var(--lf-badge-seat)) calc(-1px - var(--lf-badge-seat)) 0;
 }
 .lf-margin-entry-glyph {
   line-height: 1;

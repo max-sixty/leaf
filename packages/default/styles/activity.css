@@ -42,7 +42,8 @@ lf-activity .lf-activity-list {
     overflow: visible;
     --lf-top: inherit;
   }
-  lf-activity[data-lf-bound] > .lf-activity-list {
+  /* The list stands in the component's one root, inside the box defineWidget draws in. */
+  lf-activity[data-lf-bound] .lf-activity-list {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;

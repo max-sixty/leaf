@@ -191,7 +191,7 @@ overrides:
 patchedDependencies:
   '@awesome.me/webawesome': fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653
   '@floating-ui/dom': a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3
-  '@observablehq/plot': f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3
+  '@observablehq/plot': 287f29a373405c14698250037f75a680273ff96945ca1524f038be1cb42d5c75
   '@pierre/diffs': 3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1
   '@types/sortablejs': 8f399c7b8ef692d8358fbf89f41a16df2f1a7c284d442ab8e5e1130904082c60
   pele: 1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d
@@ -263,7 +263,7 @@ importers:
         version: 1.0.3
       '@observablehq/plot':
         specifier: 0.6.19
-        version: 0.6.19(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)
+        version: 0.6.19(patch_hash=287f29a373405c14698250037f75a680273ff96945ca1524f038be1cb42d5c75)
       '@openai/codex-sdk':
         specifier: 0.171.0
         version: 0.171.0
@@ -6924,7 +6924,7 @@ snapshots:
 
   '@nodable/entities@3.1.0': {}
 
-  '@observablehq/plot@0.6.19(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)':
+  '@observablehq/plot@0.6.19(patch_hash=287f29a373405c14698250037f75a680273ff96945ca1524f038be1cb42d5c75)':
     dependencies:
       d3: 7.9.2
       interval-tree-1d: 1.0.4

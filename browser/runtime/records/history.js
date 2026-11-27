@@ -212,7 +212,7 @@ import { reloadDocument } from "../transport/layer-client.js";
  * | {thread: string | null, message: string, quote: string, prefix?: string,
  * suffix?: string, ends: [number, number]}} RecordSelection
  * @typedef {{view: string, tab: "you" | "agent" | null, row: string | null,
- * scroll: number}} RecordList
+ * rowTop: number | null, scroll: number}} RecordList
  * @typedef {{page: import("../readings/reading-place.js").ReadingPlace | null,
  * focus: RecordFocus | null, selection: RecordSelection | null,
  * thread: ViewReading | null, list: RecordList | null}} EntryRecord

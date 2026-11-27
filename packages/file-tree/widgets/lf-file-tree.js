@@ -23,8 +23,9 @@
  * types into the search. Opening a file empties it too. Upstream reports selection
  * changes rather than activation, and a repeated selection reports nothing, so a row's
  * activation is an ordinary click or the row's declared keys, reading the focused item
- * through Trees' model. Each row is a native button whose own key scope must precede
- * native activation, so the scope stands on the focused row. */
+ * through Trees' model. The search's keys and the rows' are Leaf's register's
+ * (`lfCommands`): each scope stands on the focused field or row, since a row is a native
+ * button whose own scope must precede native activation. */
 import {
   Effect,
   Html,
@@ -114,9 +115,10 @@ const selectOnly = (tree, path) => {
 /** @param {EventTarget} target */
 const commandsChanged = (target) =>
   target.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));
-/** @param {{key: string, altKey: boolean, ctrlKey: boolean, metaKey: boolean}} event */
-const typed = ({ key, altKey, ctrlKey, metaKey }) =>
-  [...key].length === 1 && key !== " " && !altKey && !ctrlKey && !metaKey;
+/** A character typed on a row, as Effect UI reads a keydown.
+ * @param {{key: string, alt: boolean, ctrl: boolean, meta: boolean, composing: boolean, editable: boolean}} event */
+const typed = ({ key, alt, ctrl, meta, composing, editable }) =>
+  [...key].length === 1 && key !== " " && !alt && !ctrl && !meta && !composing && !editable;
 
 // Trees on the container: the args feed it, and what the reader does in its rows
 // comes back as messages.
@@ -176,6 +178,38 @@ const DrawTrees = Mount.makeStream(
               title: "Move among files and folders",
               keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
               when: onRow,
+            },
+          ],
+        };
+        const searchField = () => outer.querySelector("input");
+        const searching = () => Boolean(searchField()?.value);
+        /** @type {HTMLElement["lfCommands"]} */
+        const searchActions = {
+          title: "In the file search",
+          rows: [
+            {
+              id: "files.first",
+              title: "Go to the first matching file",
+              keys: ["ArrowDown"],
+              when: searching,
+              run: () => toMatch(),
+            },
+            {
+              id: "files.choose",
+              title: "Choose the first matching file",
+              keys: ["Enter"],
+              when: searching,
+              run: () => {
+                toMatch();
+                send(FileTreeMessage.ChoseMatch());
+              },
+            },
+            {
+              id: "files.clear",
+              title: "Clear the search",
+              keys: ["Escape"],
+              when: searching,
+              run: () => send(FileTreeMessage.PressedEscape()),
             },
           ],
         };
@@ -262,31 +296,6 @@ const DrawTrees = Mount.makeStream(
               },
               { signal },
             );
-            stage.addEventListener(
-              "keydown",
-              (pressed) => {
-                const event = /** @type {KeyboardEvent} */ (pressed);
-                if (!event.defaultPrevented && onRow() && typed(event)) {
-                  event.preventDefault();
-                  send(FileTreeMessage.TypedOnRow({ key: event.key }));
-                }
-              },
-              { signal },
-            );
-            outer.addEventListener(
-              "keydown",
-              (pressed) => {
-                const event = /** @type {KeyboardEvent} */ (pressed);
-                const field = event.composedPath()[0];
-                if (!(field instanceof HTMLInputElement) || !field.value || event.isComposing)
-                  return;
-                if (event.key === "ArrowDown" || event.key === "Enter") {
-                  if (toMatch()) event.preventDefault();
-                  if (event.key === "Enter") send(FileTreeMessage.ChoseMatch());
-                }
-              },
-              { signal },
-            );
             // Trees scrolls its virtualized list and focuses with preventScroll. The
             // row can still lie outside Leaf's outer reading viewport, so that reveal
             // goes to the scrolling owner every widget uses. A row the user pressed is
@@ -299,11 +308,18 @@ const DrawTrees = Mount.makeStream(
                 /** @type {string} */ cause,
                 /** @type {Element | null} */ left,
               ) => {
-                // Only the focused row carries the rows' scope, so a row focus has
+                // Only the focused row or search carries its scope, so one focus has
                 // left names no keys.
-                if (left !== place && left?.lfCommands === fileActions) {
+                if (
+                  left !== place &&
+                  (left?.lfCommands === fileActions || left?.lfCommands === searchActions)
+                ) {
                   left.lfCommands = null;
                   commandsChanged(left);
+                }
+                if (place && place === searchField()) {
+                  place.lfCommands = searchActions;
+                  commandsChanged(place);
                 }
                 // A route to this navigator lands on its search.
                 if (place === host) {
@@ -389,18 +405,17 @@ export const FileTree = Html.component({
             })
             .value(model.query)
             .on("input", ({ value }) => FileTreeMessage.UpdatedQuery({ value }))
-            .on(
-              "keydown",
-              ({ key, composing }) =>
-                key === "Escape" && model.query && !composing
-                  ? FileTreeMessage.PressedEscape()
-                  : undefined,
-              { preventDefault: true },
-            )
         : null,
       h.div
         .class("lf-file-tree-rows")
         .attr("hidden", files.length ? undefined : "")
+        // Trees' rows are its only controls, so a character reaching here was typed on
+        // a row; the tree's role claims it from Leaf's page letters.
+        .on(
+          "keydown",
+          (event) => (typed(event) ? FileTreeMessage.TypedOnRow({ key: event.key }) : undefined),
+          { preventDefault: true },
+        )
         .onMount(
           DrawTrees({
             files,

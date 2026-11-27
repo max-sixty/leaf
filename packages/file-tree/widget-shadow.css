@@ -9,8 +9,9 @@
   min-block-size: 0;
 }
 :host(lf-file-tree) .lf-file-tree-search {
-  margin: 6px 6px 2px;
-  padding: 2px 8px;
+  /* Trees' inset and height for its own search, which this one stands in for. */
+  margin: 10px 16px 6px;
+  padding: 6px 8px;
   min-block-size: var(--lf-aim-floor);
   box-sizing: border-box;
   border: 1px solid var(--lf-border);
@@ -18,7 +19,7 @@
   background: var(--lf-field);
   color: var(--lf-ink);
   font-family: var(--lf-mono);
-  font-size: max(var(--lf-code-size), var(--lf-entry-floor));
+  font-size: var(--lf-code-size);
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
 :host(lf-file-tree) .lf-file-tree-rows {

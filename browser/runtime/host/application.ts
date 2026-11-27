@@ -47,7 +47,8 @@ import { createReadTracking } from "../records/thread/read.js";
 import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "../features/margin-bars.js";
 import { renderMarginThread } from "../records/thread/inline.js";
-import { showHeld } from "../records/thread/held-news.js";
+import { showHeld, showHeldReadings } from "../records/thread/held-news.js";
+import { threadList } from "../records/thread/state.js";
 import { isThreadEvent } from "../state/pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
@@ -185,7 +186,13 @@ export function mountApplication<Overlay extends MarginOverlay>(
   if (application) throw new Error("Leaf application mounted twice");
   const mounted = createApplication(dependencies);
   application = mounted;
-  setMounted({ navigateToDatum, obligationActions, threadActions });
+  setMounted({
+    navigateToDatum,
+    obligationActions,
+    threadActions,
+    threadList,
+    showHeldReadings,
+  });
   return mounted;
 }
 

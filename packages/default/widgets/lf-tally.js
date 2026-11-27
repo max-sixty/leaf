@@ -31,7 +31,7 @@ import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 const TallyProps = Schema.Struct({
   ...widgetProps,
-  region: Schema.optional(Schema.Unknown),
+  region: Schema.optional(Schema.instanceOf(Element)),
   next: Schema.Boolean,
   ready: Schema.Boolean,
   done: Schema.Boolean,

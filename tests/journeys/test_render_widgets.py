@@ -76,11 +76,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     sideways, so the open item never lands below the whole queue. A row carries its
     panel's summary under its name, and its obligation's state: On Me's symbol at the end
     of the name's line while the obligation waits on the user, then a check and the
-    picked option's title under the summary, said in the tab's description too. The
-    widget says whether its question is answered, so an undo puts On Me's symbol back
-    in its own press, before the log admits it, and the agent settling the question
-    keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
-    holds."""
+    picked option's title under the summary. A tab's name is the words its row shows,
+    and its description the state they leave out. The widget says whether its question
+    is answered, so an undo puts On Me's symbol back in its own press, before the log
+    admits it, and the agent settling the question keeps the check. Answering moves no
+    row, and a panel bounds what it holds."""
 
     BOARD = (
         '<lf-board id="board">'
@@ -132,11 +132,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
 
     tabs = page.get_by_role("tab")
-    expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_accessible_name("Ticket a sev a · suggested fix")
     expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
-    expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. To answer"
-    )
+    expect(tabs.first).to_have_accessible_description("To answer")
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
         ".map((b) => b.getBoundingClientRect().height)"
@@ -157,13 +155,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
     expect(on_me).to_be_hidden()
-    expect(tabs.first).to_have_accessible_name("Ticket a")
-    expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Answered: Fix"
-    )
-    expect(tabs.nth(1)).to_have_accessible_description(
-        "sev b · suggested fix. To answer"
-    )
+    expect(tabs.first).to_have_accessible_name("Ticket a sev a · suggested fix Fix")
+    expect(tabs.first).to_have_accessible_description("Answered")
+    expect(tabs.nth(1)).to_have_accessible_description("To answer")
     assert page.evaluate(rows) == heights
     page.keyboard.press("Tab")
     tabs.first.focus()
@@ -194,9 +188,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     assert moved, "moving the tab set replaced its retained answer row"
     expect(answer).to_have_text("Fix")
-    expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Answered: Fix"
-    )
+    expect(tabs.first).to_have_accessible_description("Answered")
 
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
@@ -213,9 +205,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     round_trip(page)
     expect(on_me).to_be_visible()
     expect(answer).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
-    expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. To answer"
-    )
+    expect(tabs.first).to_have_accessible_description("To answer")
 
     page.locator("#o-a-fix .lf-pick").click()
     round_trip(page)
@@ -231,9 +221,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(page.locator("#o-a .lf-settled")).to_be_visible()
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
-    expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Answered: Fix"
-    )
+    expect(tabs.first).to_have_accessible_description("Answered")
 
     # On a phone the list is one row over the open item, however long the queue.
     resized(page, 390, 844)
@@ -266,7 +254,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     # Scrolled past the header with the list still in sight, since a key at a tab
     # scrolled out of sight lets go of it (panel/page-keys/controller.js). Short of the
     # panel's top, so a switch that scrolled to the panel or the page's top would show.
-    page.get_by_role("tab", name="Ticket b", exact=True).focus()
+    page.get_by_role("tab", name="Ticket b sev b · suggested fix", exact=True).focus()
     page.evaluate("""() => {
       const top = document.querySelector('#queue > lf-tab:not([hidden])')
         .getBoundingClientRect().top;
@@ -275,9 +263,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     before = page.evaluate("document.scrollingElement.scrollTop")
     assert before > 0, before
     page.keyboard.press("ArrowDown")
-    expect(page.get_by_role("tab", name="Ticket c", exact=True)).to_have_attribute(
-        "aria-selected", "true"
-    )
+    expect(
+        page.get_by_role("tab", name="Ticket c sev c · suggested fix", exact=True)
+    ).to_have_attribute("aria-selected", "true")
     rendered(page)
     assert page.evaluate("document.scrollingElement.scrollTop") == before
 

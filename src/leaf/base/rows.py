@@ -1,16 +1,14 @@
 """The row a serving page publishes for its neighbours: its record, where it lives in
 the state home, and the read that takes only the live server's own.
 
-`server_rows` writes it; `presence` reads the machine's rows for a page's neighbours,
-`/api/pages` and the band of Leaf's Claude Code hooks module, whose follower the hook
-gate lets run where a row names its session (`state.named_by_row`)."""
+`server_rows` writes it; `presence` reads the machine's rows for a page's neighbours
+and `/api/pages`."""
 
 from collections.abc import Mapping
 from pathlib import Path
 
 from leaf.base.files import read_json
 from leaf.base.state import (
-    ROW_SINCE,
     STRING,
     Record,
     described,
@@ -53,13 +51,6 @@ ROW = Record(
                     "takes only the live service's own.",
                     STRING,
                 ),
-                "started_in": described(
-                    "The session from whose shell a Leaf that doesn't run it started "
-                    "this server for no session (`harness.unserved_session`), so that "
-                    "session's band lists the page it doesn't hold; null for any "
-                    "other server.",
-                    {"type": ["string", "null"]},
-                ),
                 "row": described(
                     "What other pages show of it.",
                     object_schema(
@@ -95,7 +86,7 @@ ROW = Record(
             }
         ),
     ),
-    since=ROW_SINCE,
+    since=54,
 )
 
 

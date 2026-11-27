@@ -1299,10 +1299,26 @@ def quoted_input(page_dir: Path, events: list[dict], inputs: list[dict]) -> str:
     """The user's own words and picks among `inputs`, quoted for the line that wakes
     their session, or "" where they hold none. Each quote is the delivery's own fact
     (`event_facts`): the text of the user's message or rewrite, or what the elements
-    a gesture names say (`says`)."""
+    a gesture names say (`says`).
+
+    A gesture is quoted only where it answers its widget's question
+    (`meaning.answer`), as a pick does, and so is its undo: the words of the
+    elements another gesture names, such as a card moved between columns, would
+    read as a pick of that card's words."""
     from leaf.records.event_facts import EventFacts
 
-    user = [event for event in inputs if event.get("author") == "user"]
+    by_id = {event["id"]: event for event in events}
+
+    def answers(event: dict) -> bool:
+        if event["kind"] == "undo":
+            event = by_id.get(event["undoes"], {})
+        return "answer" in (event.get("meaning") or {})
+
+    user = [
+        event
+        for event in inputs
+        if event.get("author") == "user" and (event.get("text") or answers(event))
+    ]
     if not user:
         return ""
     facts = EventFacts(page_dir, events, _registry(page_dir))(user)

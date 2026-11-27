@@ -13,6 +13,7 @@ from interact_support import (
     PICKS_PAGE,
     ROOT,
     SKILL_ROOT,
+    _board,
     _start,
     append_carried_log_record,
     append_command,
@@ -865,6 +866,33 @@ def test_the_waking_line_quotes_a_long_message_whole(page_dir):
         f"The user wrote “{request}Actually, don't merge it: I want to read the diff"
         " first.”"
     )
+
+
+def test_the_waking_line_quotes_no_gesture_that_answers_no_question(page_dir):
+    """A card moved between columns names the card, whose words would read to auto
+    mode's classifier as a pick of them: moving "Merge the pull request" is no
+    request to merge it."""
+    card = ("a", "", "Merge the pull request")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", _board([card], [("b", "", "B")]) + "</main>")
+    )
+    publish(page_dir)
+    moved = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "b1",
+            "action": "move",
+            "detail": {"unit": "a", "value": "c-done", "rank": "0i"},
+        },
+    )
+    undone = append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
+    )
+    events = events_model.read_events(page_dir)
+    assert delivery_model.quoted_input(page_dir, events, [moved, undone]) == ""
 
 
 def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(

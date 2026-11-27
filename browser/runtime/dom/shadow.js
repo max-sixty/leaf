@@ -2,7 +2,7 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
 import { isStage, liveStages } from "./arrivals.js";
-import { isElement } from "../lib/shadow-tree.js";
+import { isElement, openRoot } from "../lib/shadow-tree.js";
 import { registry } from "../state/registry.js";
 
 // The open shadow roots under some root that hold the page's own words, from what the
@@ -38,13 +38,15 @@ import { registry } from "../state/registry.js";
 const refusedRoots = new WeakSet();
 export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
-export const declaredRoot = (host) =>
-  host.shadowRoot &&
-  registry[host.localName]?.shadow &&
-  isStage(host.shadowRoot) &&
-  !refusedRoots.has(host.shadowRoot)
-    ? host.shadowRoot
+export const declaredRoot = (host) => {
+  const root = openRoot(host);
+  return root &&
+    registry[host.localName]?.shadow &&
+    isStage(root) &&
+    !refusedRoots.has(root)
+    ? root
     : null;
+};
 const shadowRootsIn = (root) =>
   root.nodeType === root.DOCUMENT_NODE
     ? liveStages().filter((stage) => declaredIn(root, stage))

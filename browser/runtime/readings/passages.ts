@@ -2700,15 +2700,18 @@ function partHeaded(root: Element) {
     partScopes(root).some(holds) && partCollected(root).outline.outline.length > 0;
   return piece.headed;
 }
-// The trees a part's words stand in, found natively rather than walked: the part's own
-// and each declared shadow tree under it. What a slot in either shows belongs to the part
-// too, wherever that node sits in the light tree.
-const partScopes = (root: Element): (Element | ShadowRoot)[] => [
-  root,
-  ...liveStages().filter(
-    (stage) => declaredRoot(stage.host) === stage && readingUnder(stage.host, root),
-  ),
-];
+// The trees a part's words stand in: the part's own and each declared shadow tree under
+// it. What a slot in any of them shows belongs to the part too, wherever that node sits
+// in the light tree, and so do the declared trees under what it shows. Each is found from
+// the part down (`treesUnder`), so a part costs what it holds.
+const partScopes = (root: Element): (Element | ShadowRoot)[] => {
+  const scopes = new Set<Element | ShadowRoot>(treesUnder(root, declaredRoot));
+  for (const scope of scopes)
+    for (const slot of scope.querySelectorAll("slot"))
+      for (const shown of slot.assignedElements({ flatten: true }))
+        for (const tree of treesUnder(shown, declaredRoot).slice(1)) scopes.add(tree);
+  return [...scopes];
+};
 /** The elements with one of `tags` that stand where the page reading reads its words,
  * in reading order. Each piece's are kept until that piece changes, so after a change
  * only the piece it landed in is searched again. The frame's are among the elements its

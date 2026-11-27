@@ -113,7 +113,12 @@ type RootOf = (host: Element) => ShadowRoot | null;
 // question"), since Chromium keeps a node's `children` or `childNodes` list for the
 // node's life once it is asked for. A walk of elements steps over the text between them
 // unasked: handed every node, Tab stops over a long table take Chromium longer.
-const openRoot = (host: Element) => host.shadowRoot;
+//
+// A host's open root, read through the platform's own getter, which answers for an
+// element of any window: a `<form>` answers `shadowRoot` with its control of that name.
+const shadowRootOf = Object.getOwnPropertyDescriptor(Element.prototype, "shadowRoot")
+  ?.get as (this: Element) => ShadowRoot | null;
+export const openRoot = (host: Element): ShadowRoot | null => shadowRootOf.call(host);
 // What `node` draws its children from: the nodes a slot draws in their place, or the
 // node or root whose own children they are.
 function drawnFrom(node: Node, rootOf: RootOf): Node[] | Node {

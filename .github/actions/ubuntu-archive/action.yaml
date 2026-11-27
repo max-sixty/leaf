@@ -1,5 +1,5 @@
 name: Use Ubuntu's own archive
-description: Point apt at archive.ubuntu.com and security.ubuntu.com instead of the runner cloud's regional mirror.
+description: Point apt at archive.ubuntu.com and security.ubuntu.com only, instead of the runner cloud's regional mirror and the image's Microsoft repository.
 runs:
   using: composite
   steps:
@@ -12,3 +12,7 @@ runs:
         # archive.ubuntu.com and security.ubuntu.com, which it lists after it.
         # https://github.com/actions/runner-images/issues/12949
         sudo sed -i -E '\#://[^/]+\.archive\.ubuntu\.com/#d' /etc/apt/apt-mirrors.txt
+        # The image also adds packages.microsoft.com, which serves nothing CI
+        # installs, and a 403 from it fails every `apt-get update`, Playwright's
+        # `--with-deps` included.
+        sudo find /etc/apt/sources.list.d -type f -exec grep -q 'packages\.microsoft\.com' {} \; -delete

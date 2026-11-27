@@ -76,9 +76,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     sideways, so the open item never lands below the whole queue. A row carries its
     panel's summary under its name, and its obligation's state: On Me's symbol at the end
     of the name's line while the obligation waits on the user, then a check and the
-    picked option's title under the summary, said in the tab's description too. Answered
-    is the log's reading, so an undo puts On Me's symbol back once its answer is
-    adopted, and the agent settling the question keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
+    picked option's title under the summary, said in the tab's description too. The
+    widget says whether its question is answered, so an undo puts On Me's symbol back
+    in its own press, before the log admits it, and the agent settling the question
+    keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
     holds."""
 
     BOARD = (
@@ -205,7 +206,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+z")
     holding(page, held, 1, "the undo")
-    expect(answer).to_have_attribute("data-lf-obligations", "answered")
+    expect(on_me).to_be_visible()
+    expect(answer).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)

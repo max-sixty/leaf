@@ -21,7 +21,6 @@ from render_harness import (
     sending,
     stamp_page,
     told,
-    without_end_room,
     write,
 )
 
@@ -342,8 +341,6 @@ def test_a_box_held_at_the_window_s_top_hangs_its_pictures_inside_the_window(
     The window shows the figure without scrolling, so no scroll carries the box, which
     rides its figure, down from the window's edge."""
     page = open_page(browser, serve(NATIVE_FRAME_PAGE))
-    # With no room below the page's end, no scroll brings room under the figure.
-    without_end_room(page)
     resized(page, 1200, 1000)
     sketch = page.locator("#visuals svg").nth(1)
     if picture == "drawn":

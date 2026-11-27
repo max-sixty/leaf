@@ -14,7 +14,6 @@ from render_harness import (
     pane_scroll_behavior,
     resized,
     scroll_settled,
-    without_end_room,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -41,9 +40,6 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
     # The body keeps no room for the panel; the column's own end padding clears it.
-    # The body's room for the last line to rise (layouts.css) would clear it too, so the
-    # page reads without that room.
-    without_end_room(page)
     assert (
         page.evaluate("parseFloat(getComputedStyle(document.body).paddingBottom)") == 0
     )

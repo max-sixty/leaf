@@ -63,7 +63,6 @@ from render_harness import (
     selection_field,
     sending,
     told,
-    without_end_room,
     write,
 )
 
@@ -2245,7 +2244,6 @@ def test_send_grows_thread_around_the_words(
             # needs, keeping both the page's words and the card. With no room below the
             # page's end, no scroll brings the card room under the words.
             card.locator(".lf-margin-preview-close").click()
-            without_end_room(page)
             resized(page, 1024, 600)
             page.locator(on.block).evaluate(
                 "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * .4)"

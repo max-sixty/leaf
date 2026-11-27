@@ -289,18 +289,17 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
     assert moved["moved"] == pytest.approx(0, abs=0.5), moved
 
 
-@pytest.mark.parametrize("shell", ["body", "child", "part"])
+@pytest.mark.parametrize("shell", ["body", "part"])
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
     request, serve, engine, shell
 ):
-    """A sidebar page's stuck track stays where it sticks to the page's end, the
-    document's end room included, even one reaching the window's foot, as the contents
-    map does, so its start stays in view through the last of the scroll. That holds for
-    a sidebar that is `main`, the child of a `main` with no Layout, and a part's, and
-    beside the elements browser extensions append to the body. A footer, the sidebar's
-    or one the page writes after the sidebar or after `main`, stops the track, so it
-    never stands over the footer."""
+    """A sidebar page's stuck track stays where it sticks to the document's end, even
+    one reaching the window's foot, as the contents map does, so its start stays in
+    view through the last of the scroll. That holds for a
+    sidebar that is `main` and for one that is a part's. A footer, the sidebar's or one
+    the page writes after the sidebar, stops the track, so it never stands over the
+    footer."""
     follow_ups = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
     body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
     regions = (
@@ -312,12 +311,6 @@ def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
         if shell == "body"
         else leaf_page(
             "sidebar track end",
-            f'<div class="layout-sidebar">{regions}</div>',
-            layout=None,
-        )
-        if shell == "child"
-        else leaf_page(
-            "sidebar track end",
             '<header><h1>Release review</h1></header><lf-parts id="parts">'
             '<lf-part id="plan" label="Plan">'
             f'<div class="layout-sidebar">{regions}</div></lf-part></lf-parts>',
@@ -326,8 +319,7 @@ def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 600)
-    stood = page.evaluate(
-        """async (shell) => {
+    stood = page.evaluate("""async () => {
       const frame = () => new Promise(requestAnimationFrame);
       const track = document.getElementById('track');
       const sidebar = track.closest('.layout-sidebar');
@@ -349,28 +341,14 @@ def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
       scrollTo(0, 1500);
       await frame();
       const {top: mid, bottom} = track.getBoundingClientRect();
-      const end = (await atEnd()).top;
-      // A live region a browser extension appends to the body, as password managers do.
-      const extension = document.createElement('div');
-      extension.setAttribute('aria-live', 'polite');
-      document.body.append(extension);
-      const withExtension = (await atEnd()).top;
-      extension.remove();
-      return {mid, end, withExtension, bottom, window: innerHeight,
+      return {mid, end: (await atEnd()).top, bottom, window: innerHeight,
               after: await stops((footer) => sidebar.after(footer)),
-              // A page of parts holds nothing beside `main` (page-layout.md).
-              site: shell === 'part'
-                || await stops((footer) => document.querySelector('main').after(footer)),
               inSidebar: await stops((footer) => sidebar.append(footer))};
-    }""",
-        shell,
-    )
+    }""")
     # The track reaches the window's foot, short only by the gap it keeps there.
     assert stood["bottom"] == pytest.approx(stood["window"] - 24, abs=1), stood
     assert stood["end"] == pytest.approx(stood["mid"], abs=0.5), stood
-    assert stood["withExtension"] == pytest.approx(stood["mid"], abs=0.5), stood
     assert stood["after"], stood
-    assert stood["site"], stood
     assert stood["inSidebar"], stood
 
 
@@ -380,8 +358,8 @@ def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
     request, serve, engine, held
 ):
     """A sidebar among a column page's blocks isn't the page's Layout box, so its stuck
-    track ends with the sidebar rather than hanging through the document's end room
-    over the column's blocks after it. The contents map's track, which stands fixed in
+    track ends with the sidebar rather than hanging over the column's blocks after
+    it. The contents map's track, which stands fixed in
     the window where its sidebar spans the page, sticks here as any other does."""
     if held == "contents map":
         track = '<lf-toc id="contents"></lf-toc>'

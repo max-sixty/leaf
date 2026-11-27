@@ -1012,8 +1012,7 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     def height():
         return details.evaluate("d=>d.getBoundingClientRect().height")
 
-    # The evidence stands at the foot of the window, with the page's end room below it
-    # (layouts.css).
+    # The evidence stands at the foot of the window.
     page.locator("#after").evaluate("b => b.scrollIntoView({block: 'end'})")
     scroll_settled(page)
     full = height()

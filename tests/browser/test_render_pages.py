@@ -2524,9 +2524,8 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
 
 def test_the_document_holds_no_room_for_the_chrome_on_screen_or_paper(browser, serve):
     """The floating panel stands over the foot of the document, which keeps no room
-    for it, so the document ends where its own content and the room for its last line
-    to rise (layouts.css) do, under a mouse, under a finger and on paper, which prints
-    no chrome."""
+    for it, so the document ends where its own content does, under a mouse, under a
+    finger and on paper, which prints no chrome."""
     page = open_page(browser, serve(LONG_PAGE))
     for width in (1440, 390):
         resized(page, width, 844)

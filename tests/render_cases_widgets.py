@@ -1029,15 +1029,13 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 
 # The room the document leaves at each end beyond `main`, beside the floating panel's
 # footprint at the window's foot: from its row's top edge down. The reading is the
-# flow's own: what stands above the page's first block and what is left under its last,
-# past the body's room for its last line to rise (layouts.css).
+# flow's own: what stands above the page's first block and what is left under its last.
 CHROME_ROOM = """() => {
     const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();
     const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
     return { head: box.top + scroller.scrollTop,
-             foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop)
-               - parseFloat(getComputedStyle(document.body).paddingBottom),
+             foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop),
              panel: row.height ? innerHeight - row.top : 0 };
 }"""
 # Where the two things in the right margin stand, and how much of the board is over the

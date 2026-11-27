@@ -5661,10 +5661,11 @@ def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
 def test_a_mark_a_clip_would_cut_stands_inside_its_box(browser, serve, subtests):
     """A box that clips at its edge cuts a mark standing outside what it holds there,
     as an author's scroll area cut both brackets of the aim on a table filling its
-    width, and a bounded block the ring's start on a link opening a line. There the
-    mark stands one band inside its box, whatever the box's kind, wholly inside the
-    clip, at every scroll of it. A box the clip leaves room round keeps its kind's
-    place."""
+    width, and the ring's start on a link opening a line. There the mark stands one
+    band inside its box, whatever the box's kind, wholly inside the clip, at every
+    scroll of it. A box the clip leaves room round keeps its kind's place, as a
+    paragraph opening a bounded block does, since the block keeps a region mark's room
+    inside its edges (reading.css)."""
     page = open_page(
         browser,
         serve(
@@ -5679,8 +5680,9 @@ def test_a_mark_a_clip_would_cut_stands_inside_its_box(browser, serve, subtests)
   <tr><th>A table wider than its scroller</th><th>Its end</th></tr></table></div>
 <div style="overflow-x: auto"><table id="wide-roomy" style="width: 2400px; margin: 12px">
   <tr><th>A wide table the scroller leaves room round</th></tr></table></div>
-<div data-bound="start"><p><a id="link" href="#flush">A link that opens a line</a>
-  in a bounded block.</p></div>
+<div style="overflow-x: auto"><p><a id="link" href="#flush">A link that opens a
+  line</a> in a scroll area.</p></div>
+<div data-bound="start"><p id="bounded">A paragraph opening a bounded block.</p></div>
 """,
             )
         ),
@@ -5709,7 +5711,13 @@ def test_a_mark_a_clip_would_cut_stands_inside_its_box(browser, serve, subtests)
             }"""
         )
 
-    cases = (("flush", True), ("roomy", False), ("wide", True), ("wide-roomy", False))
+    cases = (
+        ("flush", True),
+        ("roomy", False),
+        ("wide", True),
+        ("wide-roomy", False),
+        ("bounded", False),
+    )
     for target, inside in cases:
         with subtests.test(aim=target):
             page.locator(f"#{target}").hover(position={"x": 10, "y": 10})

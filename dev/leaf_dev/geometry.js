@@ -112,13 +112,7 @@
     return !!parent && cs(parent).getPropertyValue("--lf-drawing").trim() === "1";
   };
   // A box the top layer lifts out of the boxes it is written in.
-  const lifted = (el) => {
-    try {
-      return el.matches(":popover-open, dialog[open]");
-    } catch {
-      return el.matches("dialog[open]");
-    }
-  };
+  const lifted = (el) => el.matches(":popover-open, dialog[open]");
 
   const canvas = (() => {
     for (const el of [document.body, document.documentElement]) {

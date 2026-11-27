@@ -1,7 +1,9 @@
 /* Mechanical user state carried across a live document replacement.
  *
  * Capture matches live elements to the outgoing authored source by id and tag. Restore
- * matches those identities in the arriving document and skips nodes the patch retained.
+ * matches those identities in the arriving document and skips nodes the patch retained,
+ * which keep their state, except a select: it holds its choice in its options, which
+ * the patch may rebuild, so a retained select takes its choice back.
  * Generated controls may name a stable `data-lf-carry` key inside their nearest
  * named owner, which must itself match authored markup by id and tag. Another named
  * wrapper establishes a different scope, never skipped. A control in the shadow root
@@ -9,9 +11,9 @@
  * widget's own tree does. Only focus and caret cross: their widget owns their values
  * and drawing. Other unnamed elements and changed tags carry nothing.
  *
- * Values, checked state, and disclosure state cross only when they differ from the
- * outgoing authored node. Read both nodes through the same platform properties: reflected
- * attributes and defaultValue do not provide a consistent baseline for these controls.
+ * A control's state (`state`) crosses only where it differs from the outgoing authored
+ * node's. Read both nodes through the same platform properties: reflected attributes
+ * and defaultValue do not provide a consistent baseline for these controls.
  * Nonzero inner scroll offsets, focus, and the focused control's caret also cross,
  * except a reading region body's vertical offset: where that scrolls to is the region
  * continuity's, which lands it on a passage rather than on a pixel offset the revision
@@ -22,9 +24,9 @@
  * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
- * Which state a control carries is base/document-inputs.js's (`holdsValue`, `holdsTick`,
- * `holdsOpen`): select values, contenteditable markup, and file-input values are
- * excluded.
+ * Which state a control carries, and how it goes back, is base/document-inputs.js's
+ * (`controlState`, `putControlState`): contenteditable markup and file-input values
+ * carry none.
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `features/version.js` owns when capture and restoration run for each install,
  * and which records a reload's arrival restores (`installArrival`).
@@ -66,7 +68,7 @@ import { drawnThreadId, THREAD, threadPart, wholeThread } from "./thread/selecto
 /** @param {Element} part */
 const partOwner = (part) => closestAcross(upFrom(part), "[id]");
 
-const { holdsValue, holdsTick, holdsOpen } = inputs;
+const { controlState, putControlState } = inputs;
 
 // A key names a page element by `id` and `name`, its tag, with `part` and `partName`
 // for a generated control's `data-lf-carry` key and tag; or a part of a thread by
@@ -211,7 +213,7 @@ function keyedFocus(owner, { part, partName }) {
 // Capture before replacement. JSON records can cross a reload; held nodes remain local
 // so an in-place install can skip restoration on the nodes it kept. Only a key naming
 // an element by its id or its owner's key carries focus here (the header).
-/** @typedef {{id: string, name: string, focus?: boolean, part?: string, partName?: string, open?: boolean, scrollTop?: number, scrollLeft?: number, value?: string, checked?: boolean, caret?: import("../base/held-place.js").Caret}} CarryRecord */
+/** @typedef {{id: string, name: string, state?: ControlState, focus?: boolean, part?: string, partName?: string, scrollTop?: number, scrollLeft?: number, caret?: import("../base/held-place.js").Caret}} CarryRecord */
 /** @param {ParentNode} root @param {ParentNode} authored */
 export function captureCarry(root, authored) {
   // The focused control in whichever tree holds it, a widget's shadow root included.
@@ -228,16 +230,13 @@ export function captureCarry(root, authored) {
     const record = { id: node.id, name: node.localName };
     if (focus?.id === node.id && focus.name === node.localName)
       Object.assign(record, focus, { focus: true });
-    if (holdsOpen(node) && holdsOpen(wrote) && node.open !== wrote.open)
-      record.open = node.open;
+    const state = controlState(node);
+    if (state && JSON.stringify(state) !== JSON.stringify(controlState(wrote)))
+      record.state = state;
     if (!skipped(node)) {
       if (node.scrollTop && !regionBodies.has(node)) record.scrollTop = node.scrollTop;
       if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
     }
-    if (holdsValue(node) && holdsValue(wrote) && node.value !== wrote.value)
-      record.value = node.value;
-    if (holdsTick(node) && holdsTick(wrote) && node.checked !== wrote.checked)
-      record.checked = node.checked;
     // Omit identity-only records with no mechanical state to restore.
     if (Object.keys(record).length === 2) continue;
     records.push(record);
@@ -246,25 +245,20 @@ export function captureCarry(root, authored) {
   return { records, held };
 }
 
-// What records carry of the document itself, values, checked state and disclosures,
-// which a Back within one document keeps too, without where the user was in it, focus,
-// caret and scroll offsets, which belong to the entry the records were read on
+// What records carry of the document itself, the state of its controls, which a Back
+// within one document keeps too, without where the user was in it, focus, caret and
+// scroll offsets, which belong to the entry the records were read on
 // (features/version.js, `installArrival`).
 /** @param {readonly CarryRecord[] | null | undefined} records @returns {CarryRecord[]} */
 export const documentState = (records) =>
-  (records ?? []).map(({ id, name, open, value, checked }) => ({
-    id,
-    name,
-    ...(open !== undefined && { open }),
-    ...(value !== undefined && { value }),
-    ...(checked !== undefined && { checked }),
-  }));
+  (records ?? []).map(({ id, name, state }) => ({ id, name, ...(state && { state }) }));
 
 // Restore authored values, disclosures, focus and caret in the replacement turn, so
 // typing continues while renderers settle. Generated controls become visible after
 // upgrade: their focus joins scroll in the returned post-layout correction, which
 // runs while the install still owns navigation.
-// Kept nodes never lost their state, and a changed tag is a different control.
+// A kept node keeps its state, apart from a select's choice (the header), and a
+// changed tag is a different control.
 /** @param {readonly CarryRecord[] | null | undefined} records
  * @param {ReadonlyMap<string, Element>} [held]
  * @param {(move: () => void) => unknown} [handoffFocus] */
@@ -277,14 +271,11 @@ export function restoreCarry(
   const positions = [];
   for (const record of records ?? []) {
     const arrived = elementById(record.id, pageDocument());
-    if (!arrived || arrived === held.get(record.id)) continue;
-    if (arrived.localName !== record.name) continue;
-    // Only a disclosure's record says whether it was open.
-    if (record.open !== undefined && holdsOpen(arrived)) arrived.open = record.open;
-    if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
-    if (record.checked !== undefined && holdsTick(arrived))
-      arrived.checked = record.checked;
-    positions.push({ arrived, record });
+    if (!arrived || arrived.localName !== record.name) continue;
+    const kept = arrived === held.get(record.id);
+    if (record.state && (!kept || arrived instanceof HTMLSelectElement))
+      putControlState(arrived, record.state);
+    if (!kept) positions.push({ arrived, record });
   }
   // Values and disclosures are owed even when a connected widget took focus during
   // replacement. Only focus yields to that newer owner; its handoff keeps the same

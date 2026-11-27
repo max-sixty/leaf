@@ -11,8 +11,8 @@
 # `result-elsewhere` guards the link a reply owes to a result in another section.
 # page-paragraph guards the page rule rather than reproducing the failure, which
 # came late in a long session. The envelopes carry the kernel registry's handling at
-# 232ddc4e41f4; a handling change is scored by regenerating them with each
-# wording.
+# 43fed2e7e172, where the default context passed 3 of 3 on Claude Code; a handling
+# change is scored by regenerating them with each wording.
 description: answer-quotes-what-it-cites
 metadata:
   purpose: A reply resting on a source quotes the source's words in the thread, marks code in a quotation's summary with HTML, and links a page section only where the result shows away from the thread's own passage.

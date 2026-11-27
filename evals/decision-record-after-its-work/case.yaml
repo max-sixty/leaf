@@ -4,13 +4,13 @@
 # the pick's delivery names ("write the answer into the markup") and stop there. The
 # main prompt replays the minute #4542 merged with that page's revision and the
 # pick's real delivery; the variant replays a pick that keeps today's behavior. Both
-# deliveries carry the handling the kernel registry gives at 232ddc4e41f4. The
-# delivery asks for the record once the work is done, since one naming only writing
-# in can leave the question open. For the earlier picks, delivered before that
-# wording, SKILL.md states the goal (bring the whole page up to date; decisions you
-# have acted on become settled records), since a one-line pointer to "Keep the
-# current page current" can leave them open. The `open-question` metric holds the
-# open `keys` question open.
+# deliveries carry the handling the kernel registry gives at 43fed2e7e172, where the
+# main prompt passed 3 of 3 on Claude Code. The delivery asks for the record once the
+# work is done, since one naming only writing in can leave the question open. For the
+# earlier picks, delivered before that wording, SKILL.md states the goal (bring the
+# whole page up to date; decisions you have acted on become settled records), since a
+# one-line pointer to "Keep the current page current" can leave them open. The
+# `open-question` metric holds the open `keys` question open.
 description: decision-record-after-its-work
 metadata:
   purpose:

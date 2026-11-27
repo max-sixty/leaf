@@ -3,11 +3,15 @@
 # no to an action ("Shall I open the PR?"), which the user could answer with a press
 # were the reply to carry lf-options. A handling that sends every user move to
 # --obligation and names the widget route only as an aside can keep every open
-# question in words. The envelopes are the real delivery's shape with the handling the
-# kernel registry gives at 232ddc4e41f4; a handling change is scored by regenerating them
-# with each wording. A handling that only names `lf-options` can lead agents to markup
+# question in words. A handling that only names `lf-options` can lead agents to markup
 # that `leaf thread reply` refuses, lacking ids, so the handling gives the markup's
-# shape.
+# shape. The envelopes are the real delivery's shape with the handling the kernel
+# registry gives at 43fed2e7e172; a handling change is scored by regenerating them
+# with each wording. At that commit the default context fails `said-once` in 3 of 3
+# runs on Claude Code and passes its other metrics: the reply lists each option's
+# facts above cards that hold only titles, since the delivered handling names
+# `lf-options` but leaves what the text and each card hold to threads.md, "Ask for a
+# pick", which this case's agent doesn't reread.
 description: thread-choice-takes-a-press
 metadata:
   purpose:

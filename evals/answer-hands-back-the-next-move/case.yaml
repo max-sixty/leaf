@@ -5,8 +5,9 @@
 # `--obligation` as an addition for replies that "need" a response can lead agents
 # to reason that the decision itself is already on On Me, so the handling says the
 # declaration names whose move the answer leaves. The envelopes are the real
-# delivery's shape with the handling the kernel registry gives at 232ddc4e41f4; a handling
-# change is scored by regenerating them with each wording.
+# delivery's shape with the handling the kernel registry gives at 43fed2e7e172, where
+# the default context passed 3 of 3 on Claude Code; a handling change is scored by
+# regenerating them with each wording.
 description: answer-hands-back-the-next-move
 metadata:
   purpose:

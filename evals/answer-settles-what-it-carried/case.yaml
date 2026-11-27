@@ -5,7 +5,8 @@
 # still waiting in a thread about the widget (`waiting`), with a clause to end the
 # ones the pick settles by resolving the question's thread. The envelopes are real
 # deliveries frozen from a page, with the handling the kernel registry gives at
-# 232ddc4e41f4; the old arm drops `waiting` and its clause.
+# 43fed2e7e172, where the default context passed 3 of 3 on Claude Code; the old arm
+# drops `waiting` and its clause.
 description: answer-settles-what-it-carried
 metadata:
   purpose:

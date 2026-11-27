@@ -3,7 +3,8 @@
 # agent, and where the reply left the question standing the agent puts the same item
 # back rather than asking under a new id. The envelopes are real deliveries, generated
 # with the `settled` handling and carrying the kernel registry's handling at
-# 232ddc4e41f4; regenerate them to score a change to that clause. Scores the `settled`
+# 43fed2e7e172, where the default context passed 3 of 3 on Claude Code; regenerate
+# them to score a change to that clause. Scores the `settled`
 # clause in `$events.handling`, threads.md and conversation-loop.md.
 description: reply-left-standing-reopens
 metadata:

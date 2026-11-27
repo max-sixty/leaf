@@ -2,10 +2,11 @@
 # the agent's own unanswered reply into that reply by `leaf thread edit`. The
 # deliveries are real, frozen by `leaf.agents.delivery` from a scratch page at the
 # commit that adds this case, with the page path rewritten and the handling the
-# kernel registry gives at 232ddc4e41f4; regenerate them to score a change to the
-# handling they carry. The default context is the correction the
-# paragraph is for, where an agent can post a new reply instead; `promised-result`
-# and `delivered-update` are the two cases it keeps as new replies.
+# kernel registry gives at 43fed2e7e172, where the default context passed 3 of 3 on
+# Claude Code; regenerate them to score a change to the handling they carry. The
+# default context is the correction the paragraph is for, where an agent can post a
+# new reply instead; `promised-result` and `delivered-update` are the two cases it
+# keeps as new replies.
 description: correction-edits-the-standing-reply
 metadata:
   purpose: A correction of the agent's own reply, while it is still the thread's latest
